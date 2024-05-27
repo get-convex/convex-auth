@@ -1,0 +1,300 @@
+import { Aside } from "../../components/Aside.tsx";
+
+# Cascading Deletes
+
+Convex Ents are designed to simplify the creation of interconnected graphs of
+documents in the database. Deleting ents connected through edges poses three
+main challenges:
+
+1. Propagating deletion across edges. When an ent is required on one end of an
+   edge, and it is deleted, the edge and potentially the ent on the other end
+   must be deleted as well.
+
+   > Example: Consider an app with "teams" of "users". When a team is deleted,
+   > its members, projects and other data belonging to the team should be
+   > deleted as well.
+
+2. Handling the volume of deleted documents. It is not possible to instantly
+   erase a very large number of documents, from any database. Eventually there
+   can be too many documents to delete, especially inside a single transaction.
+
+   > Example: A team can have thousands of members and tens of thousands of
+   > projects. These cannot all be deleted instantly.
+
+3. Soft deleting and retaining data before final deletion. Often the data should
+   not be immediately erased from the database.
+
+   > Example: A team admin can delete a team, but you want to have the ability
+   > to easily reinstate their data, in case the admin changes their mind, or
+   > the request was fradulent.
+
+   > Example: A user can leave a team and later rejoin it, reacquiring
+   > attribution to data that was previously connected to them.
+
+## Default deletion behavior
+
+Without any additional configuration, ents and their edges are deleted
+immediately. We'll also refer to this as "hard" deleted.
+
+If the edge is required, as is the case for 1:many and 1:1 edges for the
+[ents storing the edge as a field](/schema#understanding-how-edges-are-stored),
+the ents on the other side of the edge are deleted as well.
+
+The following scenarios are currently supported:
+
+- 1:1 edge between ent A and ent B, ents A store the edge.
+  - When ent A is deleted, only _it_ is deleted.
+  - When ent B is deleted, the ent A connected to it is deleted as well (which
+    might cause more edge and ent deletions).
+- 1:many edge between ent A and ent B, ents A store the edge.
+  - When ent A is deleted, only _it_ is deleted.
+  - When ent B is deleted, ents A connected to it are deleted as well (which
+    might cause more edge and ent deletions).
+- many:many edge between ent A and ent B.
+  - When ent A is deleted, the documents storing the edges to ents B are all
+    deleted, but ents B are _not_ deleted.
+  - When ent B is deleted, the documents storing the edges to ents A are all
+    deleted, but ents A are _not_ deleted.
+
+## Soft deletion behavior
+
+You can configure an ent to use the `"soft"` deletion behavior with the
+`deletion` method in your schema:
+
+```ts
+defineSchema({
+  users: defineEnt({
+    name: v.string(),
+  }).deletion("soft"),
+});
+```
+
+This behavior adds a `deletionTime` field to the ent. When the ent itself is
+"deleted", via the `delete` method, the `deletionTime` field is set to the
+current server time.
+
+If the ent is being deleted as a result of cascading hard deletion, it is hard
+deleted.
+
+You can include or exclude soft deleted ents from results by filtering.
+
+### Undeleting soft deleted ents
+
+The ents can be "undeleted" by unsetting the `deletionTime` field, for example:
+
+```ts
+await ctx.table("users").getX(userId).patch({ deletionTime: undefined });
+```
+
+### Soft edge deletion
+
+#### 1:1 and 1:many edges
+
+By default soft deletion doesn't propagate. You can configure cascading deletes
+for soft deletions for individual 1:1 and 1:many edges via the `deletion` option
+on edge declarations:
+
+```ts
+defineSchema({
+  users: defineEnt({
+    email: v.string(),
+  })
+    .deletion("soft")
+    .edges("profiles", { ref: true, deletion: "soft" }),
+
+  profiles: defineEnt({
+    name: v.string(),
+  })
+    .deletion("soft")
+    .edge("user"),
+});
+```
+
+The ent on the other end of the edge has to have the `"soft"` deletion behavior.
+
+In this example, when a user is deleted, it is soft deleted, and all its
+profiles are also soft deleted immediately. When a profile itself is deleted, it
+is also only soft deleted.
+
+Soft deletion of edges happens immediately, within the same transaction.
+
+<Aside title="What if an ent has too many 1:many edges to soft delete immediately?">
+
+If an ent is connected to a large number of other ents, such that propagating
+soft deletion to them all could fail the mutation, you should instead filter out
+the soft deleted ents after traversing the edge.
+
+</Aside>
+
+#### many:many edges
+
+Soft deletion doesn't affect many:many edges.
+
+## Scheduled deletion behavior
+
+The scheduled deletion behavior expands on the soft deletion behavior. The ent
+is first immediately soft deleted. An actual hard deletion is then scheduled.
+
+### Additional configuration
+
+To enable scheduled ent deletion you need to add two lines of code to your
+[`functions.ts` file](/setup/config):
+
+```ts
+// Add this import
+import { scheduledDeleteFactory } from "convex-ents/deletion";
+
+// Add this export
+export const scheduledDelete = scheduledDeleteFactory(entDefinitions);
+```
+
+This will expose an internal Convex mutation used by `ctx.table` when scheduling
+deletions.
+
+<Aside title="Alternatively, you can configure the mutation explicitly">
+
+Expose the mutation somewhere in your `convex` folder, and its reference to the
+factory function:
+
+```ts filename="convex/someFileName.ts"
+import { scheduledDeleteFactory } from "convex-ents/deletion";
+import { entDefinitions } from "./schema";
+
+export const myNameForScheduledDelete = scheduledDeleteFactory(entDefinitions, {
+  scheduledDelete: internal.someFileName.myNameForScheduledDelete,
+});
+```
+
+Also pass the function's reference in `functions.ts` file, wherever you set up
+your custom `mutation` and `internalMutation` function constructors:
+
+```ts filename="convex/functions.ts" {14, 40-42, 52-54}
+import {
+  customCtx,
+  customMutation,
+  customQuery,
+} from "convex-helpers/server/customFunctions";
+import {
+  query as baseQuery,
+  mutation as baseMutation,
+  internalQuery as baseInternalQuery,
+  internalMutation as baseInternalMutation,
+} from "./_generated/server";
+import { entsTableFactory } from "convex-ents";
+import { entDefinitions } from "./schema";
+import { internal } from "./_generated/api";
+
+export const query = customQuery(
+  baseQuery,
+  customCtx(async (ctx) => {
+    return {
+      table: entsTableFactory(ctx, entDefinitions),
+      db: undefined,
+    };
+  })
+);
+
+export const internalQuery = customQuery(
+  baseInternalQuery,
+  customCtx(async (ctx) => {
+    return {
+      table: entsTableFactory(ctx, entDefinitions),
+      db: undefined,
+    };
+  })
+);
+
+export const mutation = customMutation(
+  baseMutation,
+  customCtx(async (ctx) => {
+    return {
+      table: entsTableFactory(ctx, entDefinitions, {
+        scheduledDelete: internal.someFileName.myNameForScheduledDelete,
+      }),
+      db: undefined,
+    };
+  })
+);
+
+export const internalMutation = customMutation(
+  baseInternalMutation,
+  customCtx(async (ctx) => {
+    return {
+      table: entsTableFactory(ctx, entDefinitions, {
+        scheduledDelete: internal.someFileName.myNameForScheduledDelete,
+      }),
+      db: undefined,
+    };
+  })
+);
+```
+
+</Aside>
+
+### Defining scheduled deletion behavior
+
+You can configure an ent to use the `"scheduled"` deletion behavior with the
+`deletion` method in your schema:
+
+```ts
+defineSchema({
+  users: defineEnt({
+    email: v.string(),
+  })
+    .deletion("scheduled")
+    .edges("profiles", { ref: true }),
+
+  profiles: defineEnt({
+    name: v.string(),
+  }).edge("user"),
+});
+```
+
+When the ent is deleted, it is first soft deleted.
+[Soft edge deletion](#soft-edge-deletion) can apply as well. This all happens
+within the same mutation.
+
+The hard deletion is scheduled to a separate mutation/mutations. Cascading
+deletes are performed first, then the ent itself is hard deleted. There is no
+guarantee on how long this can take, as it depends on the number of documents
+that need to be deleted to finish the cascading deletion.
+
+The hard deletion can be delayed into the future with the `delayMs` option:
+
+```ts
+defineSchema({
+  users: defineEnt({
+    email: v.string(),
+  })
+    .deletion("scheduled", { delayMs: 24 * 60 * 60 * 1000 })
+    .edges("profiles", { ref: true }),
+
+  profiles: defineEnt({
+    name: v.string(),
+  }).edge("user"),
+});
+```
+
+In this example the user ent is soft deleted first, then after 24 hours its
+profiles and the user itself are hard deleted.
+
+The delay is only applied if the ent is itself being deleted, not when it is
+being deleted as a result of a cascading delete.
+
+### Canceling scheduled deletion
+
+You can cancel a scheduled deletion by unsetting the `deletionTime` field, for
+example:
+
+```ts
+await ctx.table("users").getX(userId).patch({ deletionTime: undefined });
+```
+
+### Correctness
+
+You should make sure that while a scheduled hard deletion is running, there are
+no new ents being inserted that would also be eligible for the same cascading
+deletion.
+
+You can do this by checking for the soft deletion state of the deleted ent in
+your code.

@@ -1,0 +1,18 @@
+{
+  "index": "Introduction",
+  "setup": "Setup",
+  "config": "Configuration",
+  "read": "Reading Auth",
+  "write": "Writing Auth",
+  "testing": "Testing Auth",
+  "---": {
+    "type": "separator"
+  },
+  "status": "Project Status",
+  "docs": {
+    "title": "Convex Docs",
+    "type": "page",
+    "href": "https://docs.convex.dev",
+    "newWindow": true
+  }
+}

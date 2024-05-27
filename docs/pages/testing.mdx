@@ -1,0 +1,110 @@
+import { Steps } from "nextra/components";
+
+# Testing Ents
+
+Just like vanilla Convex you can test your backend functions and logic within
+them with `convex-test` ([docs](https://docs.convex.dev/functions/testing)).
+
+## Setup `convex-test` for Ents
+
+<Steps>
+
+### Install dependencies and configure runtime environment
+
+First follow the initial
+[Get Started](https://docs.convex.dev/functions/testing#get-started) steps to
+install `convex-test`.
+
+### Add a setup file
+
+There's a TypeScript issue which will prevent you from using your Ents schema
+directly with `convexTest`.
+
+You will also want to use Ents within `t.run` for setting up and inspecting data
+in the database.
+
+You can solve both by adding the following file. The name `setup.testing.ts`
+ensures it is ignored by both Vitest and Convex:
+
+```ts filename="convex/setup.testing.ts"
+import { convexTest as baseConvexTest } from "convex-test";
+import { SchemaDefinition, StorageActionWriter } from "convex/server";
+import { EntDefinition } from "convex-ents";
+import { MutationCtx } from "./_generated/server";
+import { entDefinitions } from "./schema";
+
+// Work around a TypeScript subtyping issue with Ents schemas
+type GenericEntSchema = Record<string, EntDefinition>;
+export function convexTest<Schema extends GenericEntSchema>(
+  schema: SchemaDefinition<Schema, boolean>,
+) {
+  return baseConvexTest(schema);
+}
+
+// Use inside t.run() to use Ents
+export async function runCtx(
+  ctx: MutationCtx & { storage: StorageActionWriter },
+) {
+  return {
+    ...ctx,
+    table: entsTableFactory(ctx, entDefinitions),
+    db: undefined,
+  };
+}
+```
+
+Customize `runCtx` to match your `customMutation` setup.
+
+### Add a test file
+
+In your `convex` folder add a file ending in `.test.ts`.
+
+Use `convexTest` from your `setup.testing.ts` file instead of the one from
+`convex-test`.
+
+This example shows how you can use `runCtx` to access `ctx.table` inside `t.run`
+to perform a test setup.
+
+```ts filename="convex/messages.test.ts"
+import { expect, test } from "vitest";
+import { api } from "./_generated/api";
+import { convexTest, runCtx } from "./setup.testing";
+import schema from "./schema";
+
+test("sending messages", async () => {
+  const t = convexTest(schema);
+  const [sarahId, tomId] = await t.run(async (baseCtx) => {
+    const ctx = await runCtx(baseCtx);
+    return await ctx
+      .table("users")
+      .insertMany([{ name: "Sarah" }, { name: "Tom" }]);
+  });
+
+  await t.mutation(api.messages.send, { text: "Hi!", userId: sarahId });
+  await t.mutation(api.messages.send, { text: "Hey!", userId: tomId });
+  const messages = await t.query(api.messages.list);
+  expect(messages).toMatchObject([
+    { body: "Hi!", author: "Sarah" },
+    { body: "Hey!", author: "Tom" },
+  ]);
+});
+```
+
+### Run tests
+
+Start the tests with `npm run test`. When you change the test file the tests
+will rerun automatically.
+
+You might need to hit `Enter` or the `R` key to rerun the tests when you change
+your functions.
+
+```sh
+npm run test
+```
+
+</Steps>
+
+## Examples
+
+There are a few examples of testing Ents with `convex-test` in this file:
+[read.test.ts](https://github.com/xixixao/convex-ents/blob/main/test/convex/read.test.ts).

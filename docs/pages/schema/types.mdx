@@ -1,0 +1,58 @@
+# Helper Types
+
+These types are helpful when you want to break down your backend code and pass
+IDs and ents around.
+
+## Ent ID type
+
+Use the built-in `Id` type:
+
+```ts filename=convex/myFunctions.ts
+import { Id } from "./_generated/dataModel";
+
+// Note that a `MutationCtx` also satisfies the `QueryCtx` interface
+export function myReadHelper(ctx: QueryCtx, id: Id<"tasks">) {
+  /* ... */
+}
+```
+
+## Ent types & `ctx` types
+
+If you followed the [Setup](/setup) instructions you should have a `types.ts`
+file with type aliases for ents in queries and mutations, and for the query and
+mutation `ctx`:
+
+```ts filename="convex/types.ts"
+import { CustomCtx } from "convex-helpers/server/customFunctions";
+import { GenericEnt, GenericEntWriter } from "convex-ents";
+import { TableNames } from "./_generated/dataModel";
+import { mutation, query } from "./functions";
+import { entDefinitions } from "./schema";
+
+export type QueryCtx = CustomCtx<typeof query>;
+export type MutationCtx = CustomCtx<typeof mutation>;
+
+export type Ent<TableName extends TableNames> = GenericEnt<
+  typeof entDefinitions,
+  TableName
+>;
+export type EntWriter<TableName extends TableNames> = GenericEntWriter<
+  typeof entDefinitions,
+  TableName
+>;
+```
+
+Now you can use these these types to annotate your functions:
+
+```ts filename=convex/myFunctions.ts
+import { Id } from "./_generated/dataModel";
+import { QueryCtx, MutationCtx, Ent, EntWriter } from "./types";
+
+export function myReadHelper(ctx: QueryCtx, task: Ent<"tasks">) {
+  /* ... */
+}
+
+export function myWriteHelper(ctx: MutationCtx, task: EntWriter<"tasks">) {
+  /* ... */
+}
+```

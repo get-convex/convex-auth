@@ -1,0 +1,195 @@
+import { Aside } from "../components/Aside.tsx";
+
+# Writing Ents to the Database
+
+Just like for [reading](/read) ents from the database, for writing Convex Ents
+provide a `ctx.table` method which replaces the built-in `ctx.db` object in
+[Convex mutations](https://docs.convex.dev/functions/mutation-functions).
+
+## Security
+
+The same [added level of security](/read#security) applies to the writing ents
+as it does to reading them.
+
+## Inserting a new ent
+
+You can insert new ents into the database with the `insert` method chained to
+the result of calling `ctx.table`:
+
+```ts
+const taskId = await ctx.table("tasks").insert({ text: "Win at life" });
+```
+
+You can retrieve the just created ent with the `get` method:
+
+```ts
+const task = await ctx.table("tasks").insert({ text: "Win at life" }).get();
+```
+
+<Aside title="This is equivalent to the built-in:">
+
+```ts
+const taskId = await ctx.db.insert("tasks", { text: "Win at life" });
+const task = (await ctx.db.get(taskId))!;
+```
+
+</Aside>
+
+## Inserting many new ents
+
+```ts
+const taskIds = await ctx
+  .table("tasks")
+  .insertMany({ text: "Buy socks" }, { text: "Buy socks" });
+```
+
+## Updating existing ents
+
+To update an existing ent, call the `patch` or `replace` method on a
+[lazy `Promise`](/read) of an ent, or on an already retrieved ent:
+
+```ts
+await ctx.table("tasks").getX(taskId).patch({ text: "Changed text" });
+await ctx.table("tasks").getX(taskId).replace({ text: "Changed text" });
+```
+
+```ts
+const task = await ctx.table("tasks").getX(taskId);
+await task.patch({ text: "Changed text" });
+await task.replace({ text: "Changed text" });
+```
+
+See the
+[docs for the built-in `patch` and `replace` methods](https://docs.convex.dev/database/writing-data#updating-existing-documents)
+for the difference between them.
+
+## Deleting ents
+
+To delete an ent, call the `delete` method on a [lazy `Promise`](/read) of an
+ent, or on an already retrieved ent:
+
+```ts
+await ctx.table("tasks").getX(taskId).delete();
+```
+
+```ts
+const task = await ctx.table("tasks").getX(taskId);
+await task.delete();
+```
+
+### Cascading deletes
+
+See the [Cascading Deletes](/schema/deletes) page for how to configure how
+deleting an ent affects its edges and other ents connected to it.
+
+## Creating edges
+
+Edges can be created together with ents using the `insert` and `insertMany`
+methods, or they can be created for two existing ents using the `replace` and
+`patch` methods.
+
+### Creating 1:1 and 1:many edges
+
+A 1:1 or 1:many edge can be created by specifying the ID of the other ent on
+[the ent which stores the edge](/schema#understanding-how-edges-are-stored),
+either when inserting:
+
+```ts
+// First we need a user, which can have an optional profile edge
+const userId = await ctx.table("users").insert({ name: "Alice" });
+// Now we can create a profile with the 1:1 edge to the user
+const profileId = await ctx
+  .table("profiles")
+  .insert({ bio: "In Wonderland", userId });
+```
+
+or when updating:
+
+```ts
+const profileId = await ctx.table("profiles").getX(profileId).patch({ userId });
+```
+
+<Aside title="This is equivalent to the built-in:">
+
+```ts
+const posts = await ctx.db.patch(profileId, { userId });
+```
+
+with the addition of checking that `profileId` belongs to `"profiles"`.
+
+</Aside>
+
+### Creating many:many edges
+
+Many:many edges can be created by listing the IDs of the other ents when
+inserting ents on either side of the edge:
+
+```ts
+// First we need a tag, which can have many:many edge to messages
+const tagId = await ctx.table("tags").insert({ name: "Blue" });
+// Now we can create a message with a many:many edge to the tag
+const messageId = await ctx
+  .table("messages")
+  .insert({ text: "Hello world", tags: [tagId] });
+```
+
+But we could have equally created a message first, and then created a tag with a
+list of message IDs.
+
+The `replace` method also expects a list of IDs:
+
+```ts
+await ctx
+  .table("messages")
+  .getX(messageId)
+  .replace({ text: "Changed message", tags: [tagID, otherTagID] });
+```
+
+Because `replace` essentially behaves like a `delete` + `insert` but preserves
+the `_id` and `_creationTime` fields of the replaced ent, any edges which are
+not listed will be deleted.
+
+The `patch` method on the other hand expects a description of the changes that
+should be made, a list of IDs to `add` and `remove` edges for:
+
+```ts
+const message = await ctx.table("messages").getX(messageId);
+await message.patch({ tags: { add: [tagID] } });
+await message.patch({
+  tags: { add: [tagID, otherTagID], remove: [tagToDeleteID] },
+});
+```
+
+Any edges in the `add` list that didn't exist are created, and any edges in the
+`remove` list that did exist are deleted. Edges to ents with ID not listed in
+either list are not affected by `patch`.
+
+## Updating ents connected by edges
+
+The `patch`, `replace` and `delete` methods can be chained after `edge` calls to
+update the ent on the other end of an edge:
+
+```ts
+await ctx
+  .table("users")
+  .getX(userId)
+  .edgeX("profile")
+  .patch({ bio: "I'm the first user" });
+```
+
+<Aside title="This is equivalent to the built-in:">
+
+```ts
+const profile = await ctx.db
+  .query("profiles")
+  .withIndex("userId", (q) => q.eq("userId", userId))
+  .unique();
+if (profile === null) {
+  throw new Error(
+    `Edge "profile" does not exist for document wit ID "${userId}"`,
+  );
+}
+await ctx.db.patch(profile._id, { bio: "I'm the first user" });
+```
+
+</Aside>

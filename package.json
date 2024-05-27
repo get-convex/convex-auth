@@ -1,0 +1,48 @@
+{
+  "name": "@convex/auth",
+  "version": "0.0.1",
+  "description": "Authentication for Convex",
+  "keywords": [
+    "authentication",
+    "authorization",
+    "auth",
+    "login",
+    "sign",
+    "convex"
+  ],
+  "homepage": "https://labs.convex.dev/auth",
+  "bugs": "https://github.com/get-convex/auth/issues",
+  "repository": "https://github.com/get-convex/auth",
+  "license": "Apache-2.0",
+  "author": "xixixao",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "npx tsup src --dts --sourcemap --clean",
+    "docs": "cd docs && npm run dev",
+    "lint": "tsc && eslint . && cd test && npm run lint",
+    "prepublishOnly": "npm run build && npm run test:once",
+    "test": "cd test && npm run test",
+    "test:once": "cd test && npm run test:once"
+  },
+  "dependencies": {
+    "@auth/core": "^0.31.0",
+    "arctic": "^1.2.0",
+    "jose": "^5.2.2",
+    "oslo": "^1.1.2"
+  },
+  "peerDependencies": {
+    "convex": "^1.11.2"
+  },
+  "devDependencies": {
+    "@types/node": "20.6.0",
+    "@typescript-eslint/eslint-plugin": "^6.18.1",
+    "eslint": "8.49.0",
+    "npm-run-all": "^4.1.5",
+    "tsup": "^8.0.1",
+    "typescript": "^5.4.5"
+  }
+}

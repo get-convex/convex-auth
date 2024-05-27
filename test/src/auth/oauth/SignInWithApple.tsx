@@ -1,0 +1,17 @@
+import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { AppleLogo } from "@/components/AppleLogo";
+import { Button } from "@/components/ui/button";
+
+export function SignInWithApple() {
+  const { signIn } = useConvexAuthClient();
+  return (
+    <Button
+      className="flex-1"
+      variant="outline"
+      type="button"
+      onClick={() => void signIn("apple")}
+    >
+      <AppleLogo className="mr-2 h-4 w-4" /> Apple
+    </Button>
+  );
+}

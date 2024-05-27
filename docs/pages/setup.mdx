@@ -1,0 +1,51 @@
+import { Steps } from "nextra/components";
+import { Aside } from "../components/Aside.tsx";
+
+# Set Up Convex Auth
+
+This guide assumes you have a working Convex app. If not follow one of our
+[quickstarts](https://docs.convex.dev/quickstarts) first.
+
+<Steps>
+### Install the NPM library
+ 
+```sh
+npm install @convex/auth @auth/core
+```
+
+This also installs `@auth/core`, used in step 3.
+
+### Run the initialization script
+
+```sh
+npx @convex/auth
+```
+
+This sets up your project for authenticating via the library.
+
+Alternatively you can perform these steps manually:
+[Manual Setup](/setup/manual)
+
+### Add authentication tables to your schema
+
+Convex Auth assumes you have several tables set up with specific indexes.
+
+You can add these tables to your
+[schema](https://docs.convex.dev/database/schemas) via the `tables` export:
+
+```ts filename="convex/schema.ts"
+import { v } from "convex/values";
+import { tables } from "@convex/auth";
+
+const schema = defineEntSchema({
+  ...tables,
+  // Your other tables...
+});
+
+export default schema;
+```
+
+</Steps>
+
+The initial setup is done. Next you'll
+[configure your chose authentication methods](/config).

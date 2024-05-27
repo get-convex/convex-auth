@@ -1,0 +1,107 @@
+import { Steps } from "nextra/components";
+
+# Migrating Ents
+
+You can use the provided migration helpers from `convex-helpers` to migrate data
+at scale. Read the
+[Stack article](https://stack.convex.dev/migrating-data-with-mutations) to learn
+more about the helpers, then follow the steps here to use them with Ents.
+
+<Steps>
+
+### Install dependencies
+
+Make sure you have the latest version of `convex-helpers` installed:
+
+```sh
+npm i convex-helpers@latest
+```
+
+### Add the migrations table to your schema
+
+Wrap the `migrationsTable` definition from `convex-helpers` in
+`defineEntFromTable` to make it compatible with Ents:
+
+```ts filename="convex/schema.ts" {4,8,11}
+import { v } from "convex/values";
+import {
+  defineEnt,
+  defineEntFromTable,
+  defineEntSchema,
+  getEntDefinitions,
+} from "convex-ents";
+import { migrationsTable } from "convex-helpers/server/migrations";
+
+const schema = defineEntSchema({
+  migrations: defineEntFromTable(migrationsTable),
+  // your other ent definitions...
+});
+
+export default schema;
+
+export const entDefinitions = getEntDefinitions(schema);
+```
+
+### Add a migrations file
+
+Besides the standard setup, you can create a custom `mutationCtx` helper to use
+`ctx.table` inside of your migrations (if you don't already have one in
+`functions.ts`):
+
+```ts filename="convex/migrations.ts"
+import { makeMigration } from "convex-helpers/server/migrations";
+import { internalMutation, MutationCtx } from "./_generated/server";
+
+const migration = makeMigration(internalMutation, {
+  migrationTable: "migrations",
+});
+
+async function mutationCtx(baseCtx: MutationCtx) {
+  return {
+    ...ctx,
+    table: entsTableFactory(ctx, entDefinitions),
+    db: undefined,
+  };
+}
+
+// In this file, or in another one if you have many migrations
+export const simpleMigration = migration({
+  table: "users",
+  migrateOne: async (_, user) => ({
+    name: user.name + " MEng.",
+  }),
+});
+
+// Example of using `mutationCtx` to access `ctx.table`
+export const migrationUsingCtxTable = migration({
+  table: "users",
+  migrateOne: async (baseCtx, doc) => {
+    const ctx = await mutationCtx(baseCtx);
+    const user = await ctx.table("users").getX(doc._id);
+    const numMessages = (await user.edge("messages")).length;
+    if (numMessages > 10) {
+      await user.patch({ name: user.name + " Pro" });
+    }
+  },
+  batchSize: 10,
+});
+```
+
+### Dry run your migration
+
+You can execute the migration from code and from the CLI or the dashboard:
+
+```sh
+npx convex run migrations:myMigration '{"dryRun": true, "fn": "migrations:simpleMigration"}' # --prod
+```
+
+See the
+[Stack article](https://stack.convex.dev/migrating-data-with-mutations#running-a-migration-from-code)
+for other ways of running your migrations.
+
+</Steps>
+
+## Examples
+
+There is an example migrations file here:
+[migrations.ts](https://github.com/xixixao/convex-ents/blob/main/test/convex/migrations.ts).

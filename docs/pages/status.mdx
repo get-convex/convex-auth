@@ -1,0 +1,36 @@
+# Project Status
+
+Convex Ents are in early preview.
+
+## I found a bug
+
+Please [file an issue](https://github.com/xixixao/convex-ents/issues/new) or
+open a PR [on GitHub](https://github.com/xixixao/convex-ents).
+
+## Should I use Convex Ents instead of `ctx.db`?
+
+The built-in `ctx.db` is maintained by Convex and is guaranteed stable (existing
+code will continue to work) until the next major version of Convex.
+
+Convex Ents are a bleeding-edge community project, which might evolve over time,
+with no guarantee on backwards compatibility for now (similar to
+`convex-helpers`).
+
+If your project involves a lot of relationships between tables, give Convex Ents
+a try and [let us know on Discord](https://www.convex.dev/community) how it
+goes.
+
+## Should I use rules?
+
+[Rules](/schema/rules) for enforcing authorization rules are an advanced
+feature, and come with a drawback: It is less clear from code what is happening
+under the hood. Any retrieval from a table which has a read rule set up
+essentially adds an in-JS `filter` and can also read more documents than
+requested.
+
+Try out rules if you have a need for them and are confident that you can reason
+about the performance of your code with rules in-place.
+
+## Known Issues
+
+See [issues on Github](https://github.com/xixixao/convex-ents/issues).
