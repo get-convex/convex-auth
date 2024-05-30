@@ -2,8 +2,8 @@ import { Steps } from "nextra/components";
 
 # Manual Setup
 
-If you don't want the `npx @convex/auth` command to make these changes for you,
-or if it failed, follow these steps after you've installed the library.
+If you don't want the `npx @xixixao/convex-auth` command to make these changes
+for you, or if it failed, follow these steps after you've installed the library.
 
 <Steps>
 
@@ -59,7 +59,7 @@ export default {
 ### Initialize `auth.ts`
 
 ```ts filename="convex/auth.ts"
-import { convexAuth } from "@convex/auth";
+import { convexAuth } from "@xixixao/convex-auth";
 
 export const { providers, signIn, signOut, verifyCode, store, auth } =
   convexAuth({

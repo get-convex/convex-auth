@@ -49,7 +49,7 @@ GitHub:
 
 ```ts filename="convex/auth.ts"
 import GitHub from "@auth/core/providers/github";
-import { convexAuth } from "@convex/auth";
+import { convexAuth } from "@xixixao/convex-auth";
 
 export const { providers, signIn, signOut, verifyCode, store, auth } =
   convexAuth({
@@ -68,7 +68,7 @@ is a lowercase version of the provider name. For example for GitHub:
 ```tsx filename="src/SignIn.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@convex/auth/react";
+import { useConvexAuthClient } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
   const { signIn } = useConvexAuthClient();

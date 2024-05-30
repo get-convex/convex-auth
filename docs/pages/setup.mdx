@@ -10,7 +10,7 @@ Next.js [quickstart](https://docs.convex.dev/quickstarts) first.
 ### Install the NPM library
  
 ```sh
-npm install @convex/auth @auth/core
+npm install @xixixao/convex-auth @auth/core
 ```
 
 This also installs `@auth/core`, which you will use during provider
@@ -19,7 +19,7 @@ configuration later.
 ### Run the initialization script
 
 ```sh
-npx @convex/auth
+npx @xixixao/convex-auth
 ```
 
 This sets up your project for authenticating via the library.
@@ -37,7 +37,7 @@ You can add these tables to your
 ```ts filename="convex/schema.ts"
 import { defineSchema } from "convex/server";
 import { v } from "convex/values";
-import { tables } from "@convex/auth";
+import { tables } from "@xixixao/convex-auth";
 
 const schema = defineEntSchema({
   ...tables,
@@ -55,11 +55,11 @@ Convex Auth currently only supports authenticating from React client components.
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@convex/auth/react`, and pass it the `providers` returned by `convexAuth()` in
-`convex/auth.ts`:
+`@xixixao/convex-auth/react`, and pass it the `providers` returned by
+`convexAuth()` in `convex/auth.ts`:
 
 ```ts filename="src/main.tsx" {1,7,13,15}
-import { ConvexAuthProvider } from "@convex/auth/react";
+import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ConvexReactClient } from "convex/react";
@@ -82,12 +82,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@convex/auth/react`, and pass it the `providers` returned by `convexAuth()` in
-`convex/auth.ts`:
+`@xixixao/convex-auth/react`, and pass it the `providers` returned by
+`convexAuth()` in `convex/auth.ts`:
 
 ```ts filename="app/ConvexClientProvider.tsx" {2,3,11,13}
 "use client";
-import { ConvexAuthProvider } from "@convex/auth/react";
+import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
 import { providers } from "@/convex/auth";
 import { ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";

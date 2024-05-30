@@ -37,7 +37,7 @@ Resend:
 
 ```ts filename="convex/auth.ts"
 import Resend from "@auth/core/providers/resend";
-import { convexAuth } from "@convex/auth";
+import { convexAuth } from "@xixixao/convex-auth";
 
 export const { providers, signIn, signOut, verifyCode, store, auth } =
   convexAuth({
@@ -56,7 +56,7 @@ is a lowercase version of the provider name. For example for Resend:
 ```tsx filename="src/SignIn.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@convex/auth/react";
+import { useConvexAuthClient } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
   const { signIn } = useConvexAuthClient();
@@ -135,7 +135,7 @@ You can find more examples of email customization in
 Then use it in `convex/auth.ts`:
 
 ```ts filename="convex/auth.ts"
-import { convexAuth } from "@convex/auth";
+import { convexAuth } from "@xixixao/convex-auth";
 import { ResentOTP } from "./ResentOTP";
 
 export const { providers, signIn, signOut, verifyCode, store, auth } =
@@ -157,7 +157,7 @@ For example for the custom `ResendOTP` provider:
 ```tsx filename="src/SignIn.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@convex/auth/react";
+import { useConvexAuthClient } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
   const { signIn, verifyCode } = useConvexAuthClient();

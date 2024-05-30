@@ -1,7 +1,7 @@
 import { CommonProviderOptions, CredentialsConfig } from "@auth/core/providers";
 import { GenericDataModel } from "convex/server";
 import { GenericId } from "convex/values";
-import { GenericActionCtxWithAuthConfig } from "@convex/auth/server";
+import { GenericActionCtxWithAuthConfig } from "@xixixao/convex-auth/server";
 
 export interface ConvexCredentialsConfig<
   DataModel extends GenericDataModel = GenericDataModel,

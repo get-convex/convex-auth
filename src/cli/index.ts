@@ -10,7 +10,7 @@ import path from "path";
 import { generateKeys } from "./generateKeys.js";
 
 new Command()
-  .name("@convex/auth")
+  .name("@xixixao/convex-auth")
   .action(async () => {
     await checkSourceControl();
 
@@ -182,7 +182,7 @@ export default {
 async function initializeAuth(config: ProjectConfig) {
   logStep(config, "Initialize auth file");
   const source = `\
-  import { convexAuth } from "@convex/auth";
+  import { convexAuth } from "@xixixao/convex-auth";
   
   export const { auth, signIn, signOut, store } = convexAuth({
     providers: [],
@@ -280,7 +280,7 @@ function readPackageJson(): PackageJSON {
     return JSON.parse(data);
   } catch (error: any) {
     logErrorAndExit(
-      "`@convex/auth` must be run from a project directory which " +
+      "`@xixixao/convex-auth` must be run from a project directory which " +
         'includes a valid "package.json" file. You can create one by running ' +
         "`npm init`.",
       error.message,
