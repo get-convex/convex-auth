@@ -12,10 +12,10 @@ import {
   retrieveAccount,
   retrieveAccountWithCredentials,
   signInViaProvider,
-} from "../server/index";
+} from "@convex/auth/server";
 import ConvexCredentials, {
   ConvexCredentialsConfig,
-} from "./ConvexCredentials";
+} from "@convex/auth/providers/ConvexCredentials";
 
 interface PasswordConfig<DataModel extends GenericDataModel>
   extends CommonProviderOptions {

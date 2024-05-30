@@ -20,8 +20,6 @@
   ],
   "type": "module",
   "bin": "./dist/bin.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "sideEffects": false,
   "scripts": {
     "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --outfile=dist/bin.js --external:./node_modules/*",
