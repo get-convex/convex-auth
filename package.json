@@ -39,6 +39,10 @@
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
     },
+    "./providers/*": {
+      "types": "./dist/providers/*.d.ts",
+      "import": "./dist/providers/*.js"
+    },
     "./react": {
       "import": "./dist/index.js",
       "require": "./dist/index.js"
