@@ -19,10 +19,10 @@
     "dist"
   ],
   "type": "module",
-  "bin": "./dist/bin.js",
+  "bin": "./dist/bin.cjs",
   "sideEffects": false,
   "scripts": {
-    "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --outfile=dist/bin.js --external:./node_modules/*",
+    "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --format=cjs --outfile=dist/bin.cjs",
     "build:server": "tsc --project tsconfig.server.json",
     "build:react": "tsc --project tsconfig.react.json",
     "build": "rm -r dist && npm run build:bin && npm run build:server && npm run build:react",
