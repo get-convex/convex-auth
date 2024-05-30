@@ -1,0 +1,84 @@
+import { Steps } from "nextra/components";
+
+# OAuth
+
+You can use any of the 80 OAuth providers preconfigured by Auth.js, including
+GitHub, Google, Apple, Facebook, etc.
+
+## Providers
+
+You can find the list of available providers and more details about each
+configuration in the sidebar of Auth.js docs. For example see the
+[GitHub Provider page](https://authjs.dev/getting-started/providers/github).
+
+## Setup
+
+<Steps>
+
+### Callback URL
+
+On the dashboard of the OAuth provider (GitHub / Google etc. developer settings)
+you usually need to specify a "callback" URL, and potentially other
+URLs/domains.
+
+The origin (domain) of the callback URL for Convex Auth is your backend's HTTP
+Actions URL, which you can find on your
+[Convex dashboard](https://dashboard.convex.dev/deployment/settings). It matches
+your `CONVEX_URL` except for the the top-level domain being `.site` instead of
+`.cloud`.
+
+For example, your deployment name could be `fast-horse-123`, then your HTTP
+Actions URL is `https://fast-horse-123.convex.site` and your the callback URL
+for GitHub is `https://fast-horse-123.convex.site/api/auth/callback/github`.
+
+Don't forget that your Convex prod deployment will have a different name.
+
+### Environment variables
+
+Configure the relevant environment variables for a given OAuth provider, as per
+Auth.js docs, on your Convex backend.
+
+[Setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+
+### Provider configuration
+
+Add the provider to the `providers` array in `convex/auth.ts`.
+
+You can import Auth.js providers from `@auth/core/providers`. For example for
+GitHub:
+
+```ts filename="convex/auth.ts"
+import GitHub from "@auth/core/providers/github";
+import { convexAuth } from "@convex/auth";
+
+export const { providers, signIn, signOut, verifyCode, store, auth } =
+  convexAuth({
+    providers: [GitHub],
+  });
+```
+
+### Add sign-in button
+
+Now you can trigger the OAuth sign-in flow from a button click via the `signIn`
+function.
+
+The first argument to the function is the provider ID, which unless customized
+is a lowercase version of the provider name. For example for GitHub:
+
+```tsx filename="src/SignIn.tsx"
+"use client";
+
+import { useConvexAuthClient } from "@convex/auth/react";
+
+export function SignIn() {
+  const { signIn } = useConvexAuthClient();
+  return <button onClick={() => signIn("github")}>Sign in with GitHub</button>;
+}
+```
+
+Check out the [example repo](#) for a more polished UI.
+
+</Steps>
+
+When you're done configuring your chosen authentication methods, learn how to
+use authentication in your frontend and backend in [Authorization](/authz).

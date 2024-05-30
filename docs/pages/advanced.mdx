@@ -1,0 +1,30 @@
+# Advanced: Details
+
+## Session validity
+
+Convex Auth issues JWTs which allow your client to authenticate.
+
+As far as the `ConvexReactClient` and the Convex backend with
+`ctx.auth.getUserIdentity()` are concerned, the JWT is all that's needed for
+valid authentication.
+
+This means that when an existing session is invalidated (deleted), the user is
+not automically signed out until the JWT expires.
+
+If you want session validity to be reflected immediately, you need to actually
+load the current session in your queries/mutations/actions, and you need to make
+sure your client can handle the state where the JWT is valid but the session is
+not.
+
+Either way, for critical operations (changing account details) you should always
+require either direct reauthentication or recent authentication. The current
+session's `_creationTime` can be used to determine how recently the user has
+signed in.
+
+## Session document lifecycle
+
+The session documents are created and deleted by Convex Auth.
+
+For this reason if you're tying other documents to sessions, and you don't want
+to lose information when the session expires, you should store both the session
+ID and the user ID in your other document.

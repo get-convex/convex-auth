@@ -18,8 +18,11 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.js",
+  "type": "module",
+  "bin": "./dist/bin.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "scripts": {
     "build": "npx tsup src --dts --sourcemap --clean",
     "docs": "cd docs && npm run dev",
@@ -30,7 +33,11 @@
   },
   "dependencies": {
     "@auth/core": "^0.31.0",
+    "@commander-js/extra-typings": "^12.1.0",
     "arctic": "^1.2.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5",
+    "inquirer": "^9.2.22",
     "jose": "^5.2.2",
     "oslo": "^1.1.2"
   },
@@ -38,6 +45,7 @@
     "convex": "^1.11.2"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.7",
     "@types/node": "20.6.0",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "eslint": "8.49.0",

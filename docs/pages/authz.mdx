@@ -1,0 +1,99 @@
+# Authorization
+
+Now that you have set up and configured authentication with Convex Auth, learn
+how to use the authentication state in your frontend and backend.
+
+## Sign in and sign out
+
+See each authentication method's [Configuration](/config) page for how to build
+a sign-in UI.
+
+You can sign the user out via the `signOut` function:
+
+```tsx filename="src/SignOut.tsx"
+"use client";
+
+import { useConvexAuthClient } from "@convex/auth/react";
+
+export function SignOut() {
+  const { signOut } = useConvexAuthClient();
+  return <button onClick={() => signOut()}>Sign out</button>;
+}
+```
+
+## Determine what UI to show based on signed-in state
+
+You can control which content signed-in and signed-out users can see with the
+included components from `convex/react`. You can combine them with your custom
+sign-in and sign-out components:
+
+```ts filename="src/App.tsx"
+import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+import { SignIn } from "./SignIn";
+import { SignOut } from "./SignOut";
+
+export function App() {
+  return (
+    <>
+      <AuthLoading>{/* consider showing a loading indicator */}</AuthLoading>
+      <Unauthenticated>
+        <SignIn />
+      </Unauthenticated>
+      <Authenticated>
+        <SignOut />
+        <Content />
+      </Authenticated>
+    </>
+  );
+}
+
+function Content() {
+  /* render signed-in content */
+}
+```
+
+## Use authentication state in backend functions
+
+Within a Convex [function](https://docs.convex.dev/functions), you can access
+information about the currently logged-in user and session via the `auth` object
+exported from your `convex/auth.ts` file.
+
+### Get currently signed-in user ID
+
+To get the currently signed-in user's ID, call `auth.getUserId` and pass it a
+query, mutation or action `ctx`:
+
+```ts filename="convex/myFunctions.tsx"
+import {auth} from "./auth"
+
+export const currentUser = query(async (ctx) => {
+  const userId = auth.getUserId(ctx);
+  if (userId === null) {
+    return null;
+  }
+  return await ctx.db.get(userId);
+}
+```
+
+The function returns `Id<"users">` (or `null` when the client isn't
+authenticated).
+
+### Get current session ID
+
+To get the current session ID, call `auth.getSessionId` and pass it a query,
+mutation or action `ctx`:
+
+```ts filename="convex/myFunctions.tsx"
+import {auth} from "./auth"
+
+export const currentSession = query(async (ctx) => {
+  const sessionId = auth.getSessionId(ctx);
+  if (sessionId === null) {
+    return null;
+  }
+  return await ctx.db.get(sessionId);
+}
+```
+
+The function returns `Id<"sessions">` (or `null` when the client isn't
+authenticated).

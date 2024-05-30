@@ -2,9 +2,8 @@
   "index": "Introduction",
   "setup": "Setup",
   "config": "Configuration",
-  "read": "Reading Auth",
-  "write": "Writing Auth",
-  "testing": "Testing Auth",
+  "authz": "Authorization",
+  "advanced": "Advanced",
   "---": {
     "type": "separator"
   },

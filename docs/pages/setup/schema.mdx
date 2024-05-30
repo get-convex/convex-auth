@@ -1,0 +1,43 @@
+# Customizing schema
+
+Convex Auth defines the `users` and `sessions` tables for you.
+
+If you want to attach more information to users or sessions, you can either:
+
+1. Create separate tables, such as `profiles`, and store user or session ID as a
+   field
+2. Define a custom schema for the these tables with additional fields
+
+To define a custom schema, inline the the table definitions from the library
+into your schema:
+
+```ts filename="convex/schema.ts"
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+import { tables } from "@convex/auth";
+
+const schema = defineEntSchema({
+  ...tables,
+  users: defineTable({
+    email: v.string(),
+    emailVerified: v.optional(v.boolean()),
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+  }).index("email", ["email"]),
+  sessions: defineTable({
+    userId: v.id("users"),
+    expirationTime: v.number(),
+  }).index("userId", ["userId"]),
+  // Your other tables...
+});
+
+export default schema;
+```
+
+You can add more optional fields and indexes to either table.
+
+You can only add required fields to the `users` table, and you must ensure that
+all your authentication providers are configured to set the values for these
+fields during user signup.
+
+See also [Session document lifecycle](/advanced#session-document-lifecycle).

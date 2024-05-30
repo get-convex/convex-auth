@@ -7,6 +7,16 @@ or if it failed, follow these steps after you've installed the library.
 
 <Steps>
 
+### Configure SITE_URL
+
+The `SITE_URL` environment variable is used when redirecting back to your site
+during OAuth sign-in and for links sent via email.
+
+[Setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+
+For local development you can run
+`npx convex env set SITE_URL http://localhost:3000` (adjust the port number).
+
 ### Configure private and public key
 
 Run the following script via `node generateKeys.mjs`:

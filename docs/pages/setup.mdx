@@ -1,10 +1,10 @@
 import { Steps } from "nextra/components";
-import { Aside } from "../components/Aside.tsx";
+import { Tabs } from "nextra-theme-docs";
 
 # Set Up Convex Auth
 
-This guide assumes you have a working Convex app. If not follow one of our
-[quickstarts](https://docs.convex.dev/quickstarts) first.
+This guide assumes you have a working Convex app. If not, follow our React or
+Next.js [quickstart](https://docs.convex.dev/quickstarts) first.
 
 <Steps>
 ### Install the NPM library
@@ -13,7 +13,8 @@ This guide assumes you have a working Convex app. If not follow one of our
 npm install @convex/auth @auth/core
 ```
 
-This also installs `@auth/core`, used in step 3.
+This also installs `@auth/core`, which you will use during provider
+configuration later.
 
 ### Run the initialization script
 
@@ -34,6 +35,7 @@ You can add these tables to your
 [schema](https://docs.convex.dev/database/schemas) via the `tables` export:
 
 ```ts filename="convex/schema.ts"
+import { defineSchema } from "convex/server";
 import { v } from "convex/values";
 import { tables } from "@convex/auth";
 
@@ -45,7 +47,66 @@ const schema = defineEntSchema({
 export default schema;
 ```
 
+### Set up the React provider
+
+Convex Auth currently only supports authenticating from React client components.
+
+<Tabs items={['Vite', 'Next.js']}>
+<Tabs.Tab>
+
+Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
+`@convex/auth/react`, and pass it the `providers` returned by `convexAuth()` in
+`convex/auth.ts`:
+
+```ts filename="src/main.tsx" {1,7,13,15}
+import { ConvexAuthProvider } from "@convex/auth/react";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { ConvexReactClient } from "convex/react";
+import App from "./App.tsx";
+import "./index.css";
+import { providers } from "../convex/auth";
+
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <ConvexAuthProvider client={convex} providers={providers}>
+      <App />
+    </ConvexAuthProvider>
+  </React.StrictMode>,
+);
+```
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
+`@convex/auth/react`, and pass it the `providers` returned by `convexAuth()` in
+`convex/auth.ts`:
+
+```ts filename="app/ConvexClientProvider.tsx" {2,3,11,13}
+"use client";
+import { ConvexAuthProvider } from "@convex/auth/react";
+import { providers } from "@/convex/auth";
+import { ConvexReactClient } from "convex/react";
+import { ReactNode } from "react";
+
+const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
+export function ConvexClientProvider({ children }: { children: ReactNode }) {
+  return (
+    <ConvexAuthProvider client={convex} providers={providers}>
+      {children}
+    </ConvexAuthProvider>
+  );
+}
+```
+
+</Tabs.Tab>
+</Tabs>
+
 </Steps>
 
 The initial setup is done. Next you'll
-[configure your chose authentication methods](/config).
+[choose and configure authentication methods](/config).

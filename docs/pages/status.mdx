@@ -1,36 +1,40 @@
 # Project Status
 
-Convex Ents are in early preview.
+Convex Auth is in early preview.
 
 ## I found a bug
 
-Please [file an issue](https://github.com/xixixao/convex-ents/issues/new) or
-open a PR [on GitHub](https://github.com/xixixao/convex-ents).
+Please [file an issue](https://github.com/get-convex/convex-auth/issues/new) or
+open a PR [on GitHub](https://github.com/get-convex/convex-auth).
 
-## Should I use Convex Ents instead of `ctx.db`?
+## FAQs
 
-The built-in `ctx.db` is maintained by Convex and is guaranteed stable (existing
-code will continue to work) until the next major version of Convex.
+### Why should I use Convex Auth instead of NextAuth?
 
-Convex Ents are a bleeding-edge community project, which might evolve over time,
-with no guarantee on backwards compatibility for now (similar to
-`convex-helpers`).
+- NextAuth (Auth.js) requires a Next.js (or similar) server. Convex Auth works
+  with and without a Next.js server, you can use it directly from an SPA hosted
+  on a CDN.
+- Convex Auth by running directly and only on your Convex backend avoids some of
+  the complexity of syncing state between two servers.
+- Convex Auth has built-in support for OTP and email+passwords methods
 
-If your project involves a lot of relationships between tables, give Convex Ents
-a try and [let us know on Discord](https://www.convex.dev/community) how it
-goes.
+### Why should I use Convex Auth instead of Clerk or Auth0?
 
-## Should I use rules?
+- Convex Auth doesn’t require signing up for another service besides Convex and
+  an email provider (unless you use OAuth providers like Google or Github, but
+  you would have to set these up with Clerk/Auth0 later anyway).
+- Convex Auth is simpler because it stores all user data directly in your Convex
+  database. It doesn't require syncing state from an external database.
+- We still recommend Clerk and Auth0 as featureful auth solutions.
 
-[Rules](/schema/rules) for enforcing authorization rules are an advanced
-feature, and come with a drawback: It is less clear from code what is happening
-under the hood. Any retrieval from a table which has a read rule set up
-essentially adds an in-JS `filter` and can also read more documents than
-requested.
+### Why should I use Convex Auth instead of Firebase Auth or Supabase Auth?
 
-Try out rules if you have a need for them and are confident that you can reason
-about the performance of your code with rules in-place.
+- Firebase and Supabase Auth store user data in their respective databases.
+  Convex Auth stores user data directly in your Convex database.
+- Convex Auth includes basic functionality included in Firebase/Supabase Auth.
+  For advanced authentication functionality (SSO, MFA, etc.) we recommend using
+  Clerk or Auth0.
 
 ## Known Issues
 
-See [issues on Github](https://github.com/xixixao/convex-ents/issues).
+See [issues on Github](https://github.com/get-convex/convex-auth/issues).

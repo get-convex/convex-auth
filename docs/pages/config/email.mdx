@@ -1,0 +1,199 @@
+import { Steps } from "nextra/components";
+
+# Magic Links & OTPs
+
+This authentication method has two steps:
+
+1. The user provides an email, to which a link or one-time-password (OTP) code
+   is sent
+2. The user either clicks on the link or fills out the code on the website
+
+Either way your database keeps track of the issued "token" that was sent which
+allows for secure verification and expiration.
+
+## Providers
+
+Convex Auth supports configuration via Auth.js providers. See the the
+[Auth.js docs](https://authjs.dev/getting-started/authentication/email) for a
+list of available email providers.
+
+## Setup
+
+<Steps>
+
+### Environment variables
+
+Configure the relevant environment variables for a given email provider, as per
+Auth.js docs, on your Convex backend.
+
+[Setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+
+### Provider configuration
+
+Add the provider to the `providers` array in `convex/auth.ts`.
+
+You can import Auth.js providers from `@auth/core/providers`. For example for
+Resend:
+
+```ts filename="convex/auth.ts"
+import Resend from "@auth/core/providers/resend";
+import { convexAuth } from "@convex/auth";
+
+export const { providers, signIn, signOut, verifyCode, store, auth } =
+  convexAuth({
+    providers: [Resend],
+  });
+```
+
+### Add sign-in form
+
+Now you can trigger the email sending from a form submission via the `signIn`
+function.
+
+The first argument to the function is the provider ID, which unless customized
+is a lowercase version of the provider name. For example for Resend:
+
+```tsx filename="src/SignIn.tsx"
+"use client";
+
+import { useConvexAuthClient } from "@convex/auth/react";
+
+export function SignIn() {
+  const { signIn } = useConvexAuthClient();
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        void signIn("resend", formData);
+      }}
+    >
+      <input name="email" placeholder="Email" type="text" />
+      <button type="submit">Send sign-in link</button>
+    </form>
+  );
+}
+```
+
+Check out the [example repo](#) for a more polished UI.
+
+</Steps>
+
+## OTPs setup
+
+You can send an OTP instead of a magic link (or both), by customizing any of the
+email providers.
+
+<Steps>
+
+### Environment variables
+
+Configure the relevant environment variables for a given email provider, as per
+Auth.js docs, on your Convex backend.
+
+### Provider configuration
+
+Create a custom provider for sending an OTP. Check out the [example repo](#) for
+a more polished email template.
+
+This example uses:
+
+1. Resend and its SDK
+2. Oslo, a handy library which is part of the Lucia project
+
+You can install these with `npm i resend oslo`.
+
+```ts convex/ResendOTP.ts
+import Resend from "@auth/core/providers/resend";
+import { Resend as ResendAPI } from "resend";
+import { alphabet, generateRandomString } from "oslo/crypto";
+
+export const ResendOTP = Resend({
+  id: "resend-otp",
+  async generateVerificationToken() {
+    return generateRandomString(8, alphabet("0-9"));
+  },
+  async sendVerificationRequest({ identifier: email, provider, token }) {
+    const resend = new ResendAPI(provider.apiKey);
+    const { error } = await resend.emails.send({
+      from: "My App <onboarding@resend.dev>",
+      to: [email],
+      subject: `Sign in to My App`,
+      text: "Your code is " + token,
+    });
+
+    if (error) {
+      throw new Error("Could not send");
+    }
+  },
+});
+```
+
+You can find more examples of email customization in
+[Auth.js docs](https://authjs.dev/getting-started/providers/resend#customization).
+
+Then use it in `convex/auth.ts`:
+
+```ts filename="convex/auth.ts"
+import { convexAuth } from "@convex/auth";
+import { ResentOTP } from "./ResentOTP";
+
+export const { providers, signIn, signOut, verifyCode, store, auth } =
+  convexAuth({
+    providers: [ResentOTP],
+  });
+```
+
+### Add sign-in form
+
+Now you can trigger the email sending from a form submission via the `signIn`
+function.
+
+After the email is sent, you should show the second form for submitting the
+code, which can be done via the `verifyCode` function.
+
+For example for the custom `ResendOTP` provider:
+
+```tsx filename="src/SignIn.tsx"
+"use client";
+
+import { useConvexAuthClient } from "@convex/auth/react";
+
+export function SignIn() {
+  const { signIn, verifyCode } = useConvexAuthClient();
+  const [step, setStep] = useState<"signIn" | "code">("signIn");
+  return step === "signIn" ? (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        void signIn("resend-otp", formData).then(() => setStep("code"));
+      }}
+    >
+      <input name="email" placeholder="Email" type="text" />
+      <button type="submit">Send code</button>
+    </form>
+  ) : (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        void verifyCode("resend-otp", formData);
+      }}
+    >
+      <input name="code" placeholder="Code" type="text" />
+      <button type="submit">Continue</button>
+      <button type="button" onClick={() => setStep("signIn")}>
+        Cancel
+      </button>
+    </form>
+  );
+}
+```
+
+Check out the [example repo](#) for a more polished UI.
+
+</Steps>
+
+When you're done configuring your chosen authentication methods, learn how to
+use authentication in your frontend and backend in [Authorization](/authz).
