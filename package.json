@@ -42,8 +42,8 @@
       "import": "./dist/providers/*.js"
     },
     "./react": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.js"
     }
   },
   "dependencies": {
@@ -56,7 +56,6 @@
   },
   "peerDependencies": {
     "react": "18.2.0",
-    "react-dom": "18.2.0",
     "convex": "^1.11.2"
   },
   "peerDependenciesMeta": {
@@ -76,7 +75,6 @@
     "dotenv": "^16.4.5",
     "inquirer": "^9.2.22",
     "@types/react": "18.2.0",
-    "@types/react-dom": "18.2.0",
     "@types/inquirer": "^9.0.7",
     "@types/node": "20.6.0",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
