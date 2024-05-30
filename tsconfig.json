@@ -2,15 +2,16 @@
   "compilerOptions": {
     "target": "ESNext",
     "noEmit": true,
-    "lib": ["ES2021", "ESNext.Array"],
+    "lib": ["ES2021", "ESNext.Array", "dom", "dom.iterable"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,
     "module": "ESNext",
     "moduleResolution": "Node",
-    "isolatedModules": true
+    "isolatedModules": true,
+    "jsx": "react-jsx"
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "test"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "docs", "test"]
 }
