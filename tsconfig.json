@@ -1,17 +1,17 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "noEmit": true,
-    "lib": ["ES2021", "ESNext.Array", "dom", "dom.iterable"],
+    "module": "ESNext",
+    "lib": ["esnext", "ESNext.Array", "dom", "dom.iterable"],
+    "declaration": true,
+    "outDir": "dist",
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "isolatedModules": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "docs", "test"]
+  "exclude": ["node_modules", "dist", "docs", "test"]
 }
