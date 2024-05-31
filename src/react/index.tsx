@@ -94,7 +94,7 @@ function AuthProvider({
       refreshToken?: string;
     }) => {
       const response = await fetch(
-        getSiteUrl(client) + `/api/auth/verifyCode`,
+        getConvexSiteUrl(client) + `/api/auth/verifyCode`,
         {
           method: "POST",
           body: JSON.stringify(args),
@@ -130,7 +130,7 @@ function AuthProvider({
         const verifier = crypto.randomUUID();
         window.localStorage.setItem(VERIFIER_STORAGE_KEY, verifier);
         window.location.href =
-          getSiteUrl(client) +
+          getConvexSiteUrl(client) +
           `/api/auth/signin/${providerId}?code=` +
           verifier;
       } else if (result.tokens !== undefined) {
@@ -229,6 +229,6 @@ export function useAuth() {
   );
 }
 
-function getSiteUrl(client: ConvexReactClient) {
+function getConvexSiteUrl(client: ConvexReactClient) {
   return (client as any).address.replace(/.cloud$/, ".site");
 }
