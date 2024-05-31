@@ -205,24 +205,30 @@ function formatDeploymentTypeAndName(name: string | null, type: string | null) {
 
 async function configureAuthConfig(config: ProjectConfig) {
   logStep(config, "Configure auth config file");
-  const source = `\
+  const sourceTemplate = `\
 export default {
-  providers: [
+  providers: [$$
     {
       domain: process.env.CONVEX_SITE_URL,
       applicationID: "convex",
-    },
+    },$$
   ],
 };
 `;
+  const source = templateToSource(sourceTemplate);
   const authConfigPath = path.join(config.convexFolderPath, "auth.config");
   const existingConfigPath = await existingNonEmptySourcePath(authConfigPath);
   if (existingConfigPath !== null) {
-    logInfo(
-      `You already have a ${chalk.bold(existingConfigPath)}, make sure the \`providers\` include the following config:`,
-    );
-    console.error(indent(`\n${source}\n`));
-    await promptForConfirmationOrExit("Ready to continue?");
+    const existingConfig = readFileSync(existingConfigPath, "utf8");
+    if (doesAlreadyMatchTemplate(existingConfig, sourceTemplate)) {
+      logSuccess(`The ${chalk.bold(existingConfigPath)} is already set up.`);
+    } else {
+      logInfo(
+        `You already have a ${chalk.bold(existingConfigPath)}, make sure the \`providers\` include the following config:`,
+      );
+      console.error(indent(`\n${source}\n`));
+      await promptForConfirmationOrExit("Ready to continue?");
+    }
   } else {
     const newConfigPath = config.usesTypeScript
       ? `${authConfigPath}.ts`
@@ -234,21 +240,27 @@ export default {
 
 async function initializeAuth(config: ProjectConfig) {
   logStep(config, "Initialize auth file");
-  const source = `\
-  import { convexAuth } from "@xixixao/convex-auth";
-  
-  export const { auth, signIn, signOut, store } = convexAuth({
-    providers: [],
-  });
-  `;
+  const sourceTemplate = `\
+import { convexAuth } from "@xixixao/convex-auth/server";
+
+export const { auth, signIn, signOut, store } = convexAuth({$$
+  providers: [$$],$$
+});
+`;
+  const source = templateToSource(sourceTemplate);
   const authPath = path.join(config.convexFolderPath, "auth");
   const existingAuthPath = await existingNonEmptySourcePath(authPath);
   if (existingAuthPath !== null) {
-    logInfo(
-      `You already have a ${chalk.bold(existingAuthPath)}, make sure it initializes \`convexAuth\` like this:`,
-    );
-    console.error(indent(`\n${source}\n`));
-    await promptForConfirmationOrExit("Ready to continue?");
+    const existingAuth = readFileSync(existingAuthPath, "utf8");
+    if (doesAlreadyMatchTemplate(existingAuth, sourceTemplate)) {
+      logSuccess(`The ${chalk.bold(existingAuthPath)} is already set up.`);
+    } else {
+      logInfo(
+        `You already have a ${chalk.bold(existingAuthPath)}, make sure it initializes \`convexAuth\` like this:`,
+      );
+      console.error(indent(`\n${source}\n`));
+      await promptForConfirmationOrExit("Ready to continue?");
+    }
   } else {
     const newAuthPath = config.usesTypeScript
       ? `${authPath}.ts`
@@ -260,7 +272,7 @@ async function initializeAuth(config: ProjectConfig) {
 
 async function configureHttp(config: ProjectConfig) {
   logStep(config, "Configure http file");
-  const source = `
+  const sourceTemplate = `\
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
 
@@ -270,14 +282,20 @@ auth.addHttpRoutes(http);
 
 export default http;
 `;
+  const source = templateToSource(sourceTemplate);
   const httpPath = path.join(config.convexFolderPath, "http");
   const existingHttpPath = await existingNonEmptySourcePath(httpPath);
   if (existingHttpPath !== null) {
-    logInfo(
-      `You already have a ${chalk.bold(existingHttpPath)}, make sure it includes the call to \`auth.addHttpRoutes\`:`,
-    );
-    console.error(indent(`\n${source}\n`));
-    await promptForConfirmationOrExit("Ready to continue?");
+    const existingHttp = readFileSync(existingHttpPath, "utf8");
+    if (doesAlreadyMatchTemplate(existingHttp, sourceTemplate)) {
+      logSuccess(`The ${chalk.bold(existingHttpPath)} is already set up.`);
+    } else {
+      logInfo(
+        `You already have a ${chalk.bold(existingHttpPath)}, make sure it includes the call to \`auth.addHttpRoutes\`:`,
+      );
+      console.error(indent(`\n${source}\n`));
+      await promptForConfirmationOrExit("Ready to continue?");
+    }
   } else {
     const newHttpPath = config.usesTypeScript
       ? `${httpPath}.ts`
@@ -285,6 +303,21 @@ export default http;
     writeFileSync(newHttpPath, source);
     logSuccess(`Created ${chalk.bold(newHttpPath)}`);
   }
+}
+
+function doesAlreadyMatchTemplate(existing: string, template: string) {
+  const regex = new RegExp(
+    template
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\\\$\\\$/g, ".*")
+      .replace(/;\n/g, ";.*"),
+    "s",
+  );
+  return regex.test(existing);
+}
+
+function templateToSource(template: string) {
+  return template.replace(/\$\$/g, "");
 }
 
 async function existingNonEmptySourcePath(path: string) {
