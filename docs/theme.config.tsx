@@ -14,7 +14,7 @@ const config: DocsThemeConfig = {
   },
   useNextSeoProps() {
     return {
-      titleTemplate: "%s - Convex Ents",
+      titleTemplate: "%s - Convex Auth",
     };
   },
   head: () => {
@@ -23,7 +23,7 @@ const config: DocsThemeConfig = {
       <>
         <meta
           property="og:title"
-          content={frontMatter.title || "Convex Ents"}
+          content={frontMatter.title || "Convex Auth"}
         />
         <meta
           property="og:description"
@@ -34,12 +34,13 @@ const config: DocsThemeConfig = {
       </>
     );
   },
-  docsRepositoryBase: "https://github.com/xixixao/convex-ents/tree/main/docs",
+  docsRepositoryBase:
+    "https://github.com/get-convex/convex-auth/tree/main/docs",
   gitTimestamp() {
     return <></>;
   },
   footer: {
-    text: "Convex Ents © 2023 xixixao. All rights reserved.",
+    text: "Copyright © 2024 Convex, Inc.",
   },
   components: {
     details: Details,
