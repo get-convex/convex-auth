@@ -8,10 +8,18 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
 import inquirer from "inquirer";
 import path from "path";
 import { generateKeys } from "./generateKeys.js";
+import { actionDescription } from "./command.js";
 
 new Command()
   .name("@xixixao/convex-auth")
-  .action(async () => {
+  .description(
+    "Add code and set environment variables for @xixixao/convex-auth.\n\n" +
+      "The steps are detailed here: https://labs.convex.dev/auth/setup/manual",
+  )
+  .addDeploymentSelectionOptions(
+    actionDescription("Set environment variables on"),
+  )
+  .action(async (options) => {
     await checkSourceControl();
 
     const packageJson = readPackageJson();
@@ -34,6 +42,7 @@ new Command()
       convexFolderPath,
       ...deployment,
       step: 1,
+      options,
     };
 
     // Step 1: Configure SITE_URL
@@ -73,11 +82,18 @@ type ProjectConfig = {
   deploymentName: string;
   deploymentType: string | null;
   step: number;
+  options: {
+    url?: string;
+    adminKey?: string;
+    prod?: boolean;
+    previewName?: string;
+    deploymentName?: string;
+  };
 };
 
 async function configureSiteUrl(config: ProjectConfig) {
   logStep(config, "Configure SITE_URL");
-  const existing = await backendEnvVar("SITE_URL");
+  const existing = await backendEnvVar(config, "SITE_URL");
   const value = config.isVite
     ? "http://localhost:5173"
     : "http://localhost:3000";
@@ -101,8 +117,8 @@ async function configureKeys(config: ProjectConfig) {
   // TODO: We should just list all the 3 env vars in one command
   // to speed things up, but the convex CLI doesn't quote the
   // values correctly right now, so we can't.
-  const existingPrivateKey = await backendEnvVar("JWT_PRIVATE_KEY");
-  const existingJwks = await backendEnvVar("JWKS");
+  const existingPrivateKey = await backendEnvVar(config, "JWT_PRIVATE_KEY");
+  const existingJwks = await backendEnvVar(config, "JWKS");
   if (existingPrivateKey !== "" || existingJwks !== "") {
     if (
       !(await promptForConfirmation(
@@ -121,8 +137,8 @@ async function configureKeys(config: ProjectConfig) {
   await setEnvVar(config, "JWKS", JWKS, { hideValue: true });
 }
 
-async function backendEnvVar(name: string) {
-  return execSync(`npx convex env get ${name}`, {
+async function backendEnvVar(config: ProjectConfig, name: string) {
+  return execSync(`npx convex env get ${deploymentOptions(config)} ${name}`, {
     stdio: "pipe",
   }).toString();
 }
@@ -133,9 +149,12 @@ async function setEnvVar(
   value: string,
   options?: { hideValue: boolean },
 ) {
-  execSync(`npx convex env set -- ${name} '${value}'`, {
-    stdio: options?.hideValue ? "ignore" : "inherit",
-  });
+  execSync(
+    `npx convex env set ${deploymentOptions(config)} -- ${name} '${value}'`,
+    {
+      stdio: options?.hideValue ? "ignore" : "inherit",
+    },
+  );
   if (options?.hideValue) {
     logSuccess(
       `Successfully set ${chalk.bold(name)} (on ${printDeployment(config)})`,
@@ -143,10 +162,44 @@ async function setEnvVar(
   }
 }
 
+function deploymentOptions(config: ProjectConfig) {
+  const adminKey =
+    config.options.adminKey !== undefined
+      ? `--admin-key '${config.options.adminKey}' `
+      : "";
+  return adminKey + deploymentNameOptions(config);
+}
+
+function deploymentNameOptions(config: ProjectConfig) {
+  if (config.options.prod) {
+    return "--prod";
+  } else if (config.options.previewName) {
+    return `--preview-name ${config.options.previewName}`;
+  } else if (config.options.deploymentName) {
+    return `--deployment-name ${config.options.deploymentName}`;
+  } else {
+    return "";
+  }
+}
+
 function printDeployment(config: ProjectConfig) {
+  if (config.options.adminKey) {
+    return formatDeploymentTypeAndName(
+      deploymentNameFromAdminKey(config.options.adminKey),
+      deploymentTypeFromAdminKey(config.options.adminKey),
+    );
+  }
+  return formatDeploymentTypeAndName(
+    config.deploymentName,
+    config.deploymentType,
+  );
+}
+
+function formatDeploymentTypeAndName(name: string | null, type: string | null) {
   return (
-    `${config.deploymentType !== null ? chalk.bold(config.deploymentType) + " " : ""}` +
-    `deployment ${chalk.bold(config.deploymentName)}`
+    (type !== null ? `${chalk.bold(type)} ` : "") +
+    "deployment" +
+    (name !== null ? ` ${chalk.bold(name)}` : "")
   );
 }
 
@@ -322,6 +375,7 @@ function readConvexDeployment() {
   );
 }
 
+// NOTE: CONVEX CLI DEP
 // Given a deployment string like "dev:tall-forest-1234"
 // returns only the slug "tall-forest-1234".
 // If there's no prefix returns the original string.
@@ -329,6 +383,7 @@ export function stripDeploymentTypePrefix(deployment: string) {
   return deployment.split(":").at(-1)!;
 }
 
+// NOTE: CONVEX CLI DEP
 // Handling legacy CONVEX_DEPLOYMENT without type prefix as well
 function getDeploymentTypeFromConfiguredDeployment(raw: string) {
   const typeRaw = raw.split(":")[0];
@@ -337,6 +392,51 @@ function getDeploymentTypeFromConfiguredDeployment(raw: string) {
       ? typeRaw
       : null;
   return type;
+}
+
+// NOTE: CONVEX CLI DEP
+function deploymentNameFromAdminKey(adminKey: string) {
+  const parts = adminKey.split("|");
+  if (parts.length === 1) {
+    return null;
+  }
+  if (isPreviewDeployKey(adminKey)) {
+    // Preview deploy keys do not contain a deployment name.
+    return null;
+  }
+  return stripDeploymentTypePrefix(parts[0]);
+}
+
+// NOTE: CONVEX CLI DEP - but modified to not default to "prod"
+//
+// For current keys returns prod|dev|preview,
+// for legacy keys returns "prod".
+// Examples:
+//  "prod:deploymentName|key" -> "prod"
+//  "preview:deploymentName|key" -> "preview"
+//  "dev:deploymentName|key" -> "dev"
+//  "key" -> "prod"
+export function deploymentTypeFromAdminKey(adminKey: string) {
+  const parts = adminKey.split(":");
+  if (parts.length === 1) {
+    return null;
+  }
+  return parts.at(0)!;
+}
+
+// NOTE: CONVEX CLI DEP
+// Needed to differentiate a preview deploy key
+// from a concrete preview deployment's deploy key.
+// preview deploy key: `preview:team:project|key`
+// preview deployment's deploy key: `preview:deploymentName|key`
+export function isPreviewDeployKey(adminKey: string) {
+  const parts = adminKey.split("|");
+  if (parts.length === 1) {
+    return false;
+  }
+  const [prefix] = parts;
+  const prefixParts = prefix.split(":");
+  return prefixParts[0] === "preview" && prefixParts.length === 3;
 }
 
 async function promptForConfirmationOrExit(
