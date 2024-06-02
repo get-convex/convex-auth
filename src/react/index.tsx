@@ -1,6 +1,7 @@
 "use client";
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
+import { Value } from "convex/values";
 import {
   ReactNode,
   createContext,
@@ -12,28 +13,64 @@ import {
   useState,
 } from "react";
 
-const ClientAuthContext = createContext<{
+const ConvexAuthClientContext = createContext<{
+  /**
+   * Sign in via one of your configured authentication providers.
+   *
+   * @param provider The ID of the provider (lowercase version of the
+   *        provider name or a configured `id` option value).
+   * @param args Either a `FormData` object containing the sign-in
+   *        parameters or a plain object containing them.
+   * @returns Whether the user was immediately signed in (ie. the sign-in
+   *          didn't trigger an additional step like email verification
+   *          or OAuth signin).
+   */
+  signIn: (
+    provider: string,
+    args?: FormData | Record<string, Value>,
+  ) => Promise<boolean>;
+
+  /**
+   * Complete signin with a verification code via one of your configured
+   * authentication providers.
+   *
+   * @param provider The ID of the provider (lowercase version of the
+   *        provider name or a configured `id` option value).
+   * @param args Either a `FormData` object containing the sign-in
+   *        parameters or a plain object containing them.
+   *        The `code` field is required.
+   * @returns Whether the user was successfully signed in.
+   */
+  verifyCode: (
+    provider: string,
+    args: FormData | { code: string; [key: string]: Value },
+  ) => Promise<boolean>;
+
+  /**
+   * Sign out the current user.
+   *
+   * Deletes locally stored JWT and refresh token,
+   * and calls the server to invalidate the server session.
+   */
+  signOut: () => Promise<void>;
+}>(undefined as any);
+
+const ConvexAuthInternalContext = createContext<{
   isLoading: boolean;
   isAuthenticated: boolean;
-  token: string | null;
   fetchAccessToken: ({
     forceRefreshToken,
   }: {
     forceRefreshToken: boolean;
   }) => Promise<string | null>;
-  signIn: (
-    provider: string,
-    args?: FormData | Record<string, string>,
-  ) => Promise<void>;
-  verifyCode: (
-    provider: string,
-    args: FormData | { code: string },
-  ) => Promise<void>;
-  signOut: () => Promise<void>;
 }>(undefined as any);
 
 export function useConvexAuthClient() {
-  return useContext(ClientAuthContext);
+  return useContext(ConvexAuthClientContext);
+}
+
+function useConvexAuthInternalContext() {
+  return useContext(ConvexAuthInternalContext);
 }
 
 export function ConvexAuthProvider({
@@ -88,7 +125,7 @@ function AuthProvider({
 
   const verifyCodeAndSetToken = useCallback(
     async (args: {
-      params: Record<string, string | undefined>;
+      params: Record<string, Value>;
       verifier?: string;
       provider?: string;
       refreshToken?: string;
@@ -105,12 +142,13 @@ function AuthProvider({
       );
       const tokens = await response.json();
       setToken(tokens);
+      return tokens !== null;
     },
     [client, setToken],
   );
 
   const signIn = useCallback(
-    async (providerId: string, args?: FormData | Record<string, string>) => {
+    async (providerId: string, args?: FormData | Record<string, Value>) => {
       const params =
         args instanceof FormData
           ? Array.from(args.entries()).reduce(
@@ -133,15 +171,21 @@ function AuthProvider({
           getConvexSiteUrl(client) +
           `/api/auth/signin/${providerId}?code=` +
           verifier;
+        return false;
       } else if (result.tokens !== undefined) {
         setToken(result.tokens);
+        return result.tokens !== null;
       }
+      return false;
     },
     [client, setToken],
   );
 
   const verifyCode = useCallback(
-    async (provider: string, args: FormData | { code: string }) => {
+    async (
+      provider: string,
+      args: FormData | { code: string; [key: string]: Value },
+    ) => {
       const params =
         args instanceof FormData
           ? Array.from(args.entries()).reduce(
@@ -200,25 +244,29 @@ function AuthProvider({
   }, [setToken, client]);
 
   return (
-    <ClientAuthContext.Provider
+    <ConvexAuthInternalContext.Provider
       value={{
         isLoading,
         isAuthenticated,
-        token: token.current,
         fetchAccessToken,
-        verifyCode,
-        signIn,
-        signOut,
       }}
     >
-      {children}
-    </ClientAuthContext.Provider>
+      <ConvexAuthClientContext.Provider
+        value={{
+          verifyCode,
+          signIn,
+          signOut,
+        }}
+      >
+        {children}
+      </ConvexAuthClientContext.Provider>
+    </ConvexAuthInternalContext.Provider>
   );
 }
 
 export function useAuth() {
   const { isLoading, isAuthenticated, fetchAccessToken } =
-    useConvexAuthClient();
+    useConvexAuthInternalContext();
   return useMemo(
     () => ({
       isLoading,
