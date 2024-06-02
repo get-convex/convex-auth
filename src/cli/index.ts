@@ -296,7 +296,7 @@ async function initializeAuth(config: ProjectConfig) {
   const sourceTemplate = `\
 import { convexAuth } from "@xixixao/convex-auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({$$
+export const { auth, signIn, verifyCode, signOut, store } = convexAuth({$$
   providers: [$$],$$
 });
 `;
