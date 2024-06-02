@@ -54,18 +54,23 @@ new Command()
     // We ask if we would overwrite existing keys
     await configureKeys(config);
 
-    // Step 3: Configure auth.config.ts
+    // Step 3: Change moduleResolution to "bundler"
+    // Skipped if there's no tsconfig.json
+    await changeModuleResolution(config);
+
+    // Step 4: Configure auth.config.ts
     // To avoid having to execute it we just give instructions
     // if it exists already.
     await configureAuthConfig(config);
 
-    // Step 4: Initialize auth.ts
-    // We do nothing if the file already exports same-named-export,
-    // and point people to docs
+    // Step 5: Initialize auth.ts
+    // We do nothing if the file already contains the code,
+    // and give instructions otherwise
     await initializeAuth(config);
 
-    // Step 5: Configure http.ts
-    // We cannot check HTTP router conflicts.
+    // Step 6: Configure http.ts
+    // We do nothing if the file already contains the code,
+    // and give instructions otherwise
     await configureHttp(config);
 
     logSuccess(
@@ -97,6 +102,12 @@ async function configureSiteUrl(config: ProjectConfig) {
   const value = config.isVite
     ? "http://localhost:5173"
     : "http://localhost:3000";
+  if (existing === value) {
+    logSuccess(
+      `The ${printDeployment(config)} already has SITE_URL configured to ${chalk.bold(value)}.`,
+    );
+    return;
+  }
   if (existing !== "") {
     if (
       !(await promptForConfirmation(
@@ -138,9 +149,14 @@ async function configureKeys(config: ProjectConfig) {
 }
 
 async function backendEnvVar(config: ProjectConfig, name: string) {
-  return execSync(`npx convex env get ${deploymentOptions(config)} ${name}`, {
-    stdio: "pipe",
-  }).toString();
+  return (
+    execSync(`npx convex env get ${deploymentOptions(config)} ${name}`, {
+      stdio: "pipe",
+    })
+      .toString()
+      // Remove trailing newline
+      .slice(0, -1)
+  );
 }
 
 async function setEnvVar(
@@ -201,6 +217,43 @@ function formatDeploymentTypeAndName(name: string | null, type: string | null) {
     "deployment" +
     (name !== null ? ` ${chalk.bold(name)}` : "")
   );
+}
+
+async function changeModuleResolution(config: ProjectConfig) {
+  logStep(config, "Change moduleResolution to Bundler");
+  const tsConfigPath = path.join(config.convexFolderPath, "tsconfig.json");
+  if (!existsSync(tsConfigPath)) {
+    logInfo(
+      `No ${chalk.bold(tsConfigPath)} found. Skipping \`moduleResolution\` change.`,
+    );
+    return;
+  }
+  const existingTsConfig = readFileSync(tsConfigPath, "utf8");
+  if (/"moduleResolution"\s*:\s*"Bundler"/i.test(existingTsConfig)) {
+    logSuccess(`The ${chalk.bold(tsConfigPath)} is already set up.`);
+    return;
+  }
+  const pattern = /"moduleResolution"\s*:\s*"\w+"/;
+  if (!pattern.test(existingTsConfig)) {
+    logInfo(
+      `Modify your ${chalk.bold(tsConfigPath)} to include the following:`,
+    );
+    const source = `\
+  {
+    "compilerOptions": {
+      "moduleResolution": "Bundler"
+    }
+  }
+    `;
+    console.error(indent(`\n${source}\n`));
+    await promptForConfirmationOrExit("Ready to continue?");
+  }
+  const changedTsConfig = existingTsConfig.replace(
+    pattern,
+    '"moduleResolution": "Bundler"',
+  );
+  writeFileSync(tsConfigPath, changedTsConfig);
+  logSuccess(`Modified ${chalk.bold(tsConfigPath)}`);
 }
 
 async function configureAuthConfig(config: ProjectConfig) {
