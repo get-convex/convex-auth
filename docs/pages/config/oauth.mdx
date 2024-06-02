@@ -51,10 +51,9 @@ GitHub:
 import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@xixixao/convex-auth/server";
 
-export const { providers, signIn, signOut, verifyCode, store, auth } =
-  convexAuth({
-    providers: [GitHub],
-  });
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [GitHub],
+});
 ```
 
 ### Add sign-in button

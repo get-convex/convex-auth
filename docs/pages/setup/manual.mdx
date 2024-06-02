@@ -61,10 +61,9 @@ export default {
 ```ts filename="convex/auth.ts"
 import { convexAuth } from "@xixixao/convex-auth/server";
 
-export const { providers, signIn, signOut, verifyCode, store, auth } =
-  convexAuth({
-    providers: [],
-  });
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [],
+});
 ```
 
 ### Configure `http.ts`

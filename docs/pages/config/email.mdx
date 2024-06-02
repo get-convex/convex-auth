@@ -39,10 +39,9 @@ Resend:
 import Resend from "@auth/core/providers/resend";
 import { convexAuth } from "@xixixao/convex-auth/server";
 
-export const { providers, signIn, signOut, verifyCode, store, auth } =
-  convexAuth({
-    providers: [Resend],
-  });
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [Resend],
+});
 ```
 
 ### Add sign-in form
@@ -138,10 +137,9 @@ Then use it in `convex/auth.ts`:
 import { convexAuth } from "@xixixao/convex-auth/server";
 import { ResentOTP } from "./ResentOTP";
 
-export const { providers, signIn, signOut, verifyCode, store, auth } =
-  convexAuth({
-    providers: [ResentOTP],
-  });
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [ResentOTP],
+});
 ```
 
 ### Add sign-in form

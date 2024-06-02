@@ -55,8 +55,7 @@ Convex Auth currently only supports authenticating from React client components.
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@xixixao/convex-auth/react`, and pass it the `providers` returned by
-`convexAuth()` in `convex/auth.ts`:
+`@xixixao/convex-auth/react`:
 
 ```ts filename="src/main.tsx" {1,7,13,15}
 import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
@@ -65,13 +64,12 @@ import ReactDOM from "react-dom/client";
 import { ConvexReactClient } from "convex/react";
 import App from "./App.tsx";
 import "./index.css";
-import { providers } from "../convex/auth";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ConvexAuthProvider client={convex} providers={providers}>
+    <ConvexAuthProvider client={convex}>
       <App />
     </ConvexAuthProvider>
   </React.StrictMode>,
@@ -82,13 +80,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@xixixao/convex-auth/react`, and pass it the `providers` returned by
-`convexAuth()` in `convex/auth.ts`:
+`@xixixao/convex-auth/react`:
 
 ```ts filename="app/ConvexClientProvider.tsx" {2,3,11,13}
 "use client";
 import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
-import { providers } from "@/convex/auth";
 import { ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 
@@ -96,7 +92,7 @@ const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
-    <ConvexAuthProvider client={convex} providers={providers}>
+    <ConvexAuthProvider client={convex}>
       {children}
     </ConvexAuthProvider>
   );
