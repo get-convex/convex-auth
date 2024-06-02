@@ -1,4 +1,5 @@
 import { Steps } from "nextra/components";
+import { Aside } from "../../components/Aside";
 
 # Magic Links & OTPs
 
@@ -74,7 +75,9 @@ export function SignIn() {
 }
 ```
 
-Check out the [example repo](#) for a more polished UI.
+Check out the
+[example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormEmailLink.tsx)
+for a more polished UI.
 
 </Steps>
 
@@ -92,15 +95,16 @@ Auth.js docs, on your Convex backend.
 
 ### Provider configuration
 
-Create a custom provider for sending an OTP. Check out the [example repo](#) for
-a more polished email template.
+Create a custom provider for sending an OTP.
 
-This example uses:
+<Aside title="This example uses additional dependencies">
 
 1. Resend and its SDK
 2. Oslo, a handy library which is part of the Lucia project
 
 You can install these with `npm i resend oslo`.
+
+</Aside>
 
 ```ts convex/ResendOTP.ts
 import Resend from "@auth/core/providers/resend";
@@ -128,9 +132,6 @@ export const ResendOTP = Resend({
 });
 ```
 
-You can find more examples of email customization in
-[Auth.js docs](https://authjs.dev/getting-started/providers/resend#customization).
-
 Then use it in `convex/auth.ts`:
 
 ```ts filename="convex/auth.ts"
@@ -141,6 +142,13 @@ export const { auth, signIn, signOut, store } = convexAuth({
   providers: [ResentOTP],
 });
 ```
+
+Check out the
+[example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/convex/otp/ResendOTP.ts)
+for a more polished email template.
+
+You can find more examples of email customization in
+[Auth.js docs](https://authjs.dev/getting-started/providers/resend#customization).
 
 ### Add sign-in form
 
@@ -189,7 +197,9 @@ export function SignIn() {
 }
 ```
 
-Check out the [example repo](#) for a more polished UI.
+Check out the
+[example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormEmailCode.tsx)
+for a more polished UI.
 
 </Steps>
 
