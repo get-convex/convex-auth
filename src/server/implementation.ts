@@ -30,7 +30,7 @@ import {
 } from "oslo/crypto";
 import { encodeHex } from "oslo/encoding";
 import { OAuth2Client } from "oslo/oauth2";
-import { GenericDoc } from "./convex_types";
+import { FunctionReferenceFromExport, GenericDoc } from "./convex_types";
 import {
   MaterializedProvider,
   configDefaults,
@@ -185,10 +185,15 @@ const internal: {
   },
 };
 
-// Improvements over Auth.js:
-// - working credentials
-// - OTP
-// - no cookies (except for OAuth)
+export type SignInAction = FunctionReferenceFromExport<
+  ReturnType<typeof convexAuth>["signIn"]
+>;
+export type VerifyCodeAction = FunctionReferenceFromExport<
+  ReturnType<typeof convexAuth>["verifyCode"]
+>;
+export type SignOutAction = FunctionReferenceFromExport<
+  ReturnType<typeof convexAuth>["signOut"]
+>;
 
 export function convexAuth(rawConfig: ConvexAuthConfig) {
   const config = configDefaults(rawConfig);
@@ -435,50 +440,6 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
           }
         }),
       });
-
-      httpWithCors.route({
-        path: "/api/auth/verifyCode",
-        method: "POST",
-        credentials: false,
-        handler: httpActionGeneric(async (ctx, request) => {
-          const args = await request.json();
-          const provider = args.provider
-            ? getProvider(args.provider)
-            : undefined;
-          const result = await ctx.runMutation(internal.auth.store, {
-            args: {
-              type: "verifyCode",
-              code: args.params.code,
-              refreshToken: args.refreshToken,
-              verifier: args.verifier,
-            },
-          });
-          if (result === null) {
-            return new Response(JSON.stringify(null), { status: 401 });
-          }
-          const { userId, sessionId, token, refreshToken } = result;
-          if (provider !== undefined && "afterCodeVerification" in provider) {
-            const providerAccountId = await ctx.runMutation(
-              internal.auth.store,
-              {
-                args: {
-                  type: "getProviderAccountId",
-                  provider: provider.id,
-                  userId,
-                },
-              },
-            );
-            (provider.afterCodeVerification as any)(
-              args.params,
-              { userId, providerAccountId, sessionId },
-              enrichCtx(ctx),
-            );
-          }
-          return new Response(JSON.stringify({ token, refreshToken }), {
-            status: 200,
-          });
-        }),
-      });
     },
   };
   return {
@@ -491,6 +452,45 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
       handler: async (ctx, args) => {
         const provider = getProviderOrThrow(args.provider);
         return await signInImpl(enrichCtx(ctx), provider, args.params);
+      },
+    }),
+
+    verifyCode: actionGeneric({
+      args: {
+        provider: v.optional(v.string()),
+        params: v.any(),
+        refreshToken: v.optional(v.string()),
+        verifier: v.optional(v.string()),
+      },
+      handler: async (ctx, args) => {
+        const provider = args.provider ? getProvider(args.provider) : undefined;
+        const result = await ctx.runMutation(internal.auth.store, {
+          args: {
+            type: "verifyCode",
+            code: args.params.code,
+            refreshToken: args.refreshToken,
+            verifier: args.verifier,
+          },
+        });
+        if (result === null) {
+          return null;
+        }
+        const { userId, sessionId, token, refreshToken } = result;
+        if (provider !== undefined && "afterCodeVerification" in provider) {
+          const providerAccountId = await ctx.runMutation(internal.auth.store, {
+            args: {
+              type: "getProviderAccountId",
+              provider: provider.id,
+              userId,
+            },
+          });
+          (provider.afterCodeVerification as any)(
+            args.params,
+            { userId, providerAccountId, sessionId },
+            enrichCtx(ctx),
+          );
+        }
+        return { token, refreshToken };
       },
     }),
 
@@ -568,7 +568,7 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
               };
             } else {
               if (code === undefined) {
-                console.error("Missing code");
+                console.error("Missing `code` in params of `verifyCode`");
                 return null;
               }
               const codeHash = await sha256(code);
@@ -1098,7 +1098,16 @@ async function signInImpl(
     });
     return { tokens };
   } else if (provider.type === "oauth" || provider.type === "oidc") {
-    return { redirect: true };
+    // This action call is a bit of a waste, because the client will
+    // immediately redirect to the signin HTTP Action.
+    // But having this action call simplifies things:
+    // 1. The client doesn't need to know the HTTP Actions URL
+    //    of the backend (this simplifies using local backend)
+    // 2. The client doesn't need to know which provider is of which type,
+    //    and hence which provider requires client-side redirect
+    return {
+      redirect: process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
+    };
   } else {
     throw new Error(`Provider type ${provider.type} is not supported yet`);
   }

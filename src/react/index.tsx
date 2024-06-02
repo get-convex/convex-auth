@@ -1,6 +1,7 @@
 "use client";
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
+import { ConvexHttpClient } from "convex/browser";
 import { Value } from "convex/values";
 import {
   ReactNode,
@@ -12,6 +13,11 @@ import {
   useRef,
   useState,
 } from "react";
+import type {
+  SignInAction,
+  SignOutAction,
+  VerifyCodeAction,
+} from "../server/implementation";
 
 const ConvexAuthClientContext = createContext<{
   /**
@@ -130,17 +136,10 @@ function AuthProvider({
       provider?: string;
       refreshToken?: string;
     }) => {
-      const response = await fetch(
-        getConvexSiteUrl(client) + `/api/auth/verifyCode`,
-        {
-          method: "POST",
-          body: JSON.stringify(args),
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
+      const tokens = await new ConvexHttpClient((client as any).address).action(
+        "auth:verifyCode" as unknown as VerifyCodeAction,
+        args,
       );
-      const tokens = await response.json();
       setToken(tokens);
       return tokens !== null;
     },
@@ -160,17 +159,17 @@ function AuthProvider({
             )
           : args ?? {};
 
-      const result = await client.action("auth:signIn" as any, {
-        provider: providerId,
-        params,
-      });
-      if (result.redirect === true) {
+      const result = await client.action(
+        "auth:signIn" as unknown as SignInAction,
+        {
+          provider: providerId,
+          params,
+        },
+      );
+      if (result.redirect !== undefined) {
         const verifier = crypto.randomUUID();
         window.localStorage.setItem(VERIFIER_STORAGE_KEY, verifier);
-        window.location.href =
-          getConvexSiteUrl(client) +
-          `/api/auth/signin/${providerId}?code=` +
-          verifier;
+        window.location.href = `${result.redirect}?code=` + verifier;
         return false;
       } else if (result.tokens !== undefined) {
         setToken(result.tokens);
@@ -239,7 +238,7 @@ function AuthProvider({
   }, [client, setToken, verifyCodeAndSetToken]);
 
   const signOut = useCallback(async () => {
-    await client.action("auth:signOut" as any);
+    await client.action("auth:signOut" as unknown as SignOutAction);
     setToken(null);
   }, [setToken, client]);
 
@@ -275,8 +274,4 @@ export function useAuth() {
     }),
     [fetchAccessToken, isLoading, isAuthenticated],
   );
-}
-
-function getConvexSiteUrl(client: ConvexReactClient) {
-  return (client as any).address.replace(/.cloud$/, ".site");
 }
