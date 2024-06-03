@@ -19,7 +19,10 @@ import type {
   VerifyCodeAction,
 } from "../server/implementation";
 
-const ConvexAuthClientContext = createContext<{
+/**
+ * The result of calling `useConvexAuthClient`.
+ */
+export type ConvexAuthClientContext = {
   /**
    * Sign in via one of your configured authentication providers.
    *
@@ -59,7 +62,25 @@ const ConvexAuthClientContext = createContext<{
    * and calls the server to invalidate the server session.
    */
   signOut: () => Promise<void>;
-}>(undefined as any);
+};
+
+const ConvexAuthClientContext = createContext<ConvexAuthClientContext>(
+  undefined as any,
+);
+
+/**
+ * Use this hook to access the `signIn`, `verifyCode` and `signOut` methods:
+ *
+ * ```ts
+ * function SomeComponent() {
+ *   const { signIn, verifyCode, signOut } = useConvexAuthClient();
+ *   // ...
+ * }
+ * ```
+ */
+export function useConvexAuthClient() {
+  return useContext(ConvexAuthClientContext);
+}
 
 const ConvexAuthInternalContext = createContext<{
   isLoading: boolean;
@@ -71,14 +92,15 @@ const ConvexAuthInternalContext = createContext<{
   }) => Promise<string | null>;
 }>(undefined as any);
 
-export function useConvexAuthClient() {
-  return useContext(ConvexAuthClientContext);
-}
-
 function useConvexAuthInternalContext() {
   return useContext(ConvexAuthInternalContext);
 }
 
+/**
+ * Replace your `ConvexProvider` with this component to enable authentication.
+ *
+ * @param props - an object with a `client` property that refers to a {@link ConvexReactClient}.
+ */
 export function ConvexAuthProvider({
   client,
   children,
@@ -263,7 +285,7 @@ function AuthProvider({
   );
 }
 
-export function useAuth() {
+function useAuth() {
   const { isLoading, isAuthenticated, fetchAccessToken } =
     useConvexAuthInternalContext();
   return useMemo(
