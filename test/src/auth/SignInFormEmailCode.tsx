@@ -1,6 +1,6 @@
 "use client";
 
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { CodeInput } from "@/app/auth/CodeInput";
 import { SignInMethodDivider } from "@/app/auth/SignInMethodDivider";
 import { SignInWithEmailCode } from "@/app/auth/SignInWithEmailCode";
@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
 
 export function SignInFormEmailCode() {
-  const { verifyCode } = useConvexAuthClient();
+  const { verifyCode } = useAuthActions();
   const [step, setStep] = useState<"signIn" | "code">("signIn");
   const { toast } = useToast();
 

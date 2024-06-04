@@ -1,9 +1,9 @@
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { AppleLogo } from "@/components/AppleLogo";
 import { Button } from "@/components/ui/button";
 
 export function SignInWithApple() {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   return (
     <Button
       className="flex-1"

@@ -20,7 +20,7 @@ import type {
 } from "../server/implementation";
 
 /**
- * The result of calling `useConvexAuthClient`.
+ * The result of calling `useAuthActions`.
  */
 export type ConvexAuthClientContext = {
   /**
@@ -73,12 +73,12 @@ const ConvexAuthClientContext = createContext<ConvexAuthClientContext>(
  *
  * ```ts
  * function SomeComponent() {
- *   const { signIn, verifyCode, signOut } = useConvexAuthClient();
+ *   const { signIn, verifyCode, signOut } = useAuthActions();
  *   // ...
  * }
  * ```
  */
-export function useConvexAuthClient() {
+export function useAuthActions() {
   return useContext(ConvexAuthClientContext);
 }
 

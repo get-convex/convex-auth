@@ -58,10 +58,10 @@ is a lowercase version of the provider name. For example for Resend:
 ```tsx filename="src/SignIn.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   return (
     <form
       onSubmit={(event) => {
@@ -165,10 +165,10 @@ For example for the custom `ResendOTP` provider:
 ```tsx filename="src/SignIn.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
-  const { signIn, verifyCode } = useConvexAuthClient();
+  const { signIn, verifyCode } = useAuthActions();
   const [step, setStep] = useState<"signIn" | "code">("signIn");
   return step === "signIn" ? (
     <form

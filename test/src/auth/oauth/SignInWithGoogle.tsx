@@ -1,9 +1,9 @@
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { GoogleLogo } from "@/components/GoogleLogo";
 import { Button } from "@/components/ui/button";
 
 export function SignInWithGoogle() {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   return (
     <Button
       className="flex-1"

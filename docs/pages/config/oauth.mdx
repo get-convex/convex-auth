@@ -69,10 +69,10 @@ is a lowercase version of the provider name. For example for GitHub:
 ```tsx filename="src/SignIn.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   return <button onClick={() => signIn("github")}>Sign in with GitHub</button>;
 }
 ```

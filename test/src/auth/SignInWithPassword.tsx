@@ -1,6 +1,6 @@
 "use client";
 
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -15,7 +15,7 @@ export function SignInWithPassword({
   handleSent?: () => void;
   handlePasswordReset?: () => void;
 }) {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
 

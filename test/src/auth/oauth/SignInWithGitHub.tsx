@@ -1,9 +1,9 @@
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { GitHubLogo } from "@/components/GitHubLogo";
 import { Button } from "@/components/ui/button";
 
 export function SignInWithGitHub() {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   return (
     <Button
       className="flex-1"

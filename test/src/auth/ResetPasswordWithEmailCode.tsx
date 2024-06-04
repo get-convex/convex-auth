@@ -1,6 +1,6 @@
 "use client";
 
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { CodeInput } from "@/app/auth/CodeInput";
 import { SignInWithEmailCode } from "@/app/auth/SignInWithEmailCode";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ export function ResetPasswordWithEmailCode({
   handleCancel: () => void;
   provider: string;
 }) {
-  const { verifyCode } = useConvexAuthClient();
+  const { verifyCode } = useAuthActions();
   const { toast } = useToast();
   const [step, setStep] = useState<"forgot" | "reset">("forgot");
 

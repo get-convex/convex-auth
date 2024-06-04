@@ -13,10 +13,10 @@ You can sign the user out via the `signOut` function:
 ```tsx filename="src/SignOut.tsx"
 "use client";
 
-import { useConvexAuthClient } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignOut() {
-  const { signOut } = useConvexAuthClient();
+  const { signOut } = useAuthActions();
   return <button onClick={() => signOut()}>Sign out</button>;
 }
 ```

@@ -1,6 +1,6 @@
 "use client";
 
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { CodeInput } from "@/app/auth/CodeInput";
 import { ResetPasswordWithEmailCode } from "@/app/auth/ResetPasswordWithEmailCode";
 import { SignInMethodDivider } from "@/app/auth/SignInMethodDivider";
@@ -16,7 +16,7 @@ import { useState } from "react";
  * with required email verification and optional password reset via OTP.
  */
 export function SignInFormPasswordAndVerifyViaCode() {
-  const { verifyCode } = useConvexAuthClient();
+  const { verifyCode } = useAuthActions();
   const { toast } = useToast();
   const [step, setStep] = useState<"signIn" | "code" | "forgot">("signIn");
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useConvexAuthClient } from "@/app/ConvexAuthProvider";
+import { useAuthActions } from "@/app/ConvexAuthProvider";
 import { SignInMethodDivider } from "@/app/auth/SignInMethodDivider";
 import { SignInWithOAuth } from "@/app/auth/SignInWithOAuth";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ function SignInWithMagicLink({
 }: {
   handleLinkSent: () => void;
 }) {
-  const { signIn } = useConvexAuthClient();
+  const { signIn } = useAuthActions();
   const { toast } = useToast();
   return (
     <form
