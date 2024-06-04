@@ -16,7 +16,8 @@
   "license": "Apache-2.0",
   "author": "xixixao",
   "files": [
-    "dist"
+    "dist",
+    "react"
   ],
   "type": "module",
   "bin": "./dist/bin.cjs",

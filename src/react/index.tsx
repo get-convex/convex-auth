@@ -99,22 +99,46 @@ function useConvexAuthInternalContext() {
 /**
  * Replace your `ConvexProvider` with this component to enable authentication.
  *
- * @param props - an object with a `client` property that refers to a {@link ConvexReactClient}.
+ * @param props - An object with a `client` property that refers
+ *              to a {@link ConvexReactClient}. Optionally provide a
+ *              custom `storage` object that implements
+ *              the {@link TokenStorage} interface, otherwise
+ *              `localStorage` is used.
  */
 export function ConvexAuthProvider({
   client,
+  storage,
   children,
 }: {
   client: ConvexReactClient;
+  storage?: TokenStorage;
   children: ReactNode;
 }) {
   return (
-    <AuthProvider client={client}>
+    <AuthProvider client={client} storage={storage ?? window?.localStorage}>
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
     </AuthProvider>
   );
+}
+
+/**
+ * A storage interface for storing and retrieving tokens.
+ *
+ * In browsers `localStorage` and `sessionStorage` implement this interface.
+ *
+ * `sessionStorage` can be used for creating separate sessions for each
+ * browser tab.
+ *
+ * In React Native we recommend wrapping `expo-secure-store`.
+ */
+export interface TokenStorage {
+  getItem: (
+    key: string,
+  ) => string | undefined | null | Promise<string | undefined | null>;
+  setItem: (key: string, token: string) => void | Promise<void>;
+  removeItem: (key: string) => void | Promise<void>;
 }
 
 const VERIFIER_STORAGE_KEY = "__convexAuthOAuthVerifier";
@@ -123,9 +147,11 @@ const REFRESH_TOKEN_STORAGE_KEY = "__convexAuthRefreshToken";
 
 function AuthProvider({
   client,
+  storage,
   children,
 }: {
   client: ConvexReactClient;
+  storage: TokenStorage;
   children: ReactNode;
 }) {
   const token = useRef<string | null>(null);
@@ -133,17 +159,17 @@ function AuthProvider({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const setToken = useCallback(
-    (tokens: { token: string; refreshToken: string } | null) => {
+    async (tokens: { token: string; refreshToken: string } | null) => {
       if (tokens === null) {
         token.current = null;
-        window.localStorage.removeItem(JWT_STORAGE_KEY);
-        window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+        await storage.removeItem(JWT_STORAGE_KEY);
+        await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         setIsAuthenticated(false);
       } else {
         const { token: value, refreshToken } = tokens;
         token.current = value;
-        window.localStorage.setItem(JWT_STORAGE_KEY, value);
-        window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+        await storage.setItem(JWT_STORAGE_KEY, value);
+        await storage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
         setIsAuthenticated(true);
       }
       setIsLoading(false);
@@ -162,7 +188,7 @@ function AuthProvider({
         "auth:verifyCode" as unknown as VerifyCodeAction,
         args,
       );
-      setToken(tokens);
+      await setToken(tokens);
       return tokens !== null;
     },
     [client, setToken],
@@ -190,11 +216,11 @@ function AuthProvider({
       );
       if (result.redirect !== undefined) {
         const verifier = crypto.randomUUID();
-        window.localStorage.setItem(VERIFIER_STORAGE_KEY, verifier);
+        await storage.setItem(VERIFIER_STORAGE_KEY, verifier);
         window.location.href = `${result.redirect}?code=` + verifier;
         return false;
       } else if (result.tokens !== undefined) {
-        setToken(result.tokens);
+        await setToken(result.tokens);
         return result.tokens !== null;
       }
       return false;
@@ -225,10 +251,8 @@ function AuthProvider({
   const fetchAccessToken = useCallback(
     async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
       if (forceRefreshToken) {
-        const refreshToken = window.localStorage.getItem(
-          REFRESH_TOKEN_STORAGE_KEY,
-        );
-        window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+        const refreshToken =
+          (await getAndRemove(storage, REFRESH_TOKEN_STORAGE_KEY)) ?? null;
         if (refreshToken !== null) {
           await verifyCodeAndSetToken({ params: {}, refreshToken });
         } else {
@@ -240,28 +264,36 @@ function AuthProvider({
     [verifyCodeAndSetToken],
   );
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    if (code) {
-      const verifier =
-        window.localStorage.getItem(VERIFIER_STORAGE_KEY) ?? undefined;
-      window.localStorage.removeItem(VERIFIER_STORAGE_KEY);
-      void verifyCodeAndSetToken({ params: { code }, verifier });
-      const url = new URL(window.location.href);
-      url.searchParams.delete("code");
-      window.history.replaceState({}, "", url.toString());
-    } else {
-      const token = window.localStorage.getItem(JWT_STORAGE_KEY);
-      const refreshToken = window.localStorage.getItem(
-        REFRESH_TOKEN_STORAGE_KEY,
+    // Has to happen in useEffect to avoid SSR.
+    if (storage === undefined || storage === null) {
+      throw new Error(
+        "`localStorage` is not available in this environment, " +
+          "set the `storage` prop on `ConvexAuthProvider`!",
       );
-      setToken(token && refreshToken ? { token, refreshToken } : null);
     }
+    void (async () => {
+      const code =
+        typeof window?.location !== "undefined"
+          ? new URLSearchParams(window.location.search).get("code")
+          : null;
+      if (code) {
+        const verifier =
+          (await getAndRemove(storage, VERIFIER_STORAGE_KEY)) ?? undefined;
+        void verifyCodeAndSetToken({ params: { code }, verifier });
+        const url = new URL(window.location.href);
+        url.searchParams.delete("code");
+        window.history.replaceState({}, "", url.toString());
+      } else {
+        const token = await storage.getItem(JWT_STORAGE_KEY);
+        const refreshToken = await storage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+        await setToken(token && refreshToken ? { token, refreshToken } : null);
+      }
+    })();
   }, [client, setToken, verifyCodeAndSetToken]);
 
   const signOut = useCallback(async () => {
     await client.action("auth:signOut" as unknown as SignOutAction);
-    setToken(null);
+    await setToken(null);
   }, [setToken, client]);
 
   return (
@@ -296,4 +328,15 @@ function useAuth() {
     }),
     [fetchAccessToken, isLoading, isAuthenticated],
   );
+}
+
+// Only await the `getItem` if it's async, since we want this get and delete
+// to be as atomic as possible.
+async function getAndRemove(storage: TokenStorage, key: string) {
+  let value = storage.getItem(key);
+  if (value instanceof Promise) {
+    value = await value;
+  }
+  await storage.removeItem(key);
+  return value;
 }
