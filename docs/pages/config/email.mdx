@@ -20,16 +20,29 @@ Convex Auth supports configuration via Auth.js providers. See the the
 [Auth.js docs](https://authjs.dev/getting-started/authentication/email) for a
 list of available email providers.
 
-## Setup
+After you picked the email service, choose between:
+
+- [Magic Links](#magic-link-setup)
+- [OTPs](#otps-setup)
+
+## Magic Link Setup
 
 <Steps>
 
 ### Environment variables
 
 Configure the relevant environment variables for a given email provider, as per
-Auth.js docs, on your Convex backend.
+[Auth.js docs](https://authjs.dev/getting-started/authentication/email), on your
+Convex backend.
 
-[Setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+See
+[setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+
+For example for Resend you can run (with your own value):
+
+```sh
+npx convex env set AUTH_RESEND_KEY yourresendkey
+```
 
 ### Provider configuration
 
@@ -93,7 +106,17 @@ email providers.
 ### Environment variables
 
 Configure the relevant environment variables for a given email provider, as per
-Auth.js docs, on your Convex backend.
+[Auth.js docs](https://authjs.dev/getting-started/authentication/email), on your
+Convex backend.
+
+See
+[setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+
+For example for Resend you can run (with your own value):
+
+```sh
+npx convex env set AUTH_RESEND_KEY yourresendkey
+```
 
 ### Provider configuration
 

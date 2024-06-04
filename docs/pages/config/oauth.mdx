@@ -30,17 +30,26 @@ your `CONVEX_URL` except for the the top-level domain being `.site` instead of
 `.cloud`.
 
 For example, your deployment name could be `fast-horse-123`, then your HTTP
-Actions URL is `https://fast-horse-123.convex.site` and your the callback URL
-for GitHub is `https://fast-horse-123.convex.site/api/auth/callback/github`.
+Actions URL is `https://fast-horse-123.convex.site` and your callback URL for
+GitHub is `https://fast-horse-123.convex.site/api/auth/callback/github`.
 
-Don't forget that your Convex prod deployment will have a different name.
+Don't forget that your Convex prod deployment will have a different name than
+your dev deployment.
 
 ### Environment variables
 
 Configure the relevant environment variables for a given OAuth provider, as per
-Auth.js docs, on your Convex backend.
+[Auth.js docs](https://authjs.dev/getting-started/providers), on your Convex
+backend.
 
 [Setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
+
+For example for GitHub you can run (with your own values):
+
+```sh
+npx convex env set AUTH_GITHUB_ID yourgithubclientid
+npx convex env set AUTH_GITHUB_SECRET yourgithubsecret
+```
 
 ### Provider configuration
 
