@@ -33,27 +33,27 @@ the tradeoffs.
 
 **DX considerations:**
 
-- 😕 Magic links & OTPs require configuring an email provider / server, which in
+- ❗️ Magic links & OTPs require configuring an email provider / server, which in
   turn usually requires controlling a web domain.
-- 😊 Magic links are have the simplest implementation of all the methods.
+- 👍 Magic links have the simplest implementation of all the methods.
 
 **UX considerations:**
 
-- 😕 Magic links & OTPs require the user to access their email every time they
+- ❗️ Magic links & OTPs require the user to access their email every time they
   want to sign in on a new device, after a previous sign out or after their
   session expires.
-- 😊 Magic links & OTPs don’t require the user to come up with and remember a
+- 👍 Magic links & OTPs don’t require the user to come up with and remember a
   password or use having a password manager installed.
-- 😕 Magic links make it hard to sign in on a device where the user cannot
+- ❗️ Magic links make it hard to sign in on a device where the user cannot
   easily access their email inbox.
-- 😊 OTPs make it easy to sign in on a device where the user cannot easily
+- 👍 OTPs make it easy to sign in on a device where the user cannot easily
   access their email inbox (compared to magic links).
 
 **Security considerations:**
 
-- 😕 Magic links can be used for phishing: an attacker can send a genuine magic
+- ❗️ Magic links can be used for phishing: an attacker can send a genuine magic
   link that signs in the victim to the attacker’s account.
-- 😕 OTPs can be used for phishing: an attacker can send a genuine OTP for the
+- ❗️ OTPs can be used for phishing: an attacker can send a genuine OTP for the
   victim’s account to the victim’s email, and then ask the victim to share the
   code to sign in as the victim.
 
@@ -61,24 +61,24 @@ the tradeoffs.
 
 **DX considerations:**
 
-- 😕 OAuth requires configuring the OAuth provider, which in turn usually
+- ❗️ OAuth requires configuring the OAuth provider, which in turn usually
   requires controlling a web domain and might involve additional verification
   steps.
-- 😊 OAuth providers carry the burden of correctly implementing other
+- 👍 OAuth providers carry the burden of correctly implementing other
   authentication methods and features: passwords, email verification, MFA, SSO,
   etc.
 
 **UX considerations:**
 
-- 😊 OAuth is very user friendly because most users will already be signed in
+- 👍 OAuth is very user friendly because most users will already be signed in
   with the OAuth provider and only need to authorize your app.
-- 😕 OAuth requires the user to have an account with one of the OAuth providers
+- ❗️ OAuth requires the user to have an account with one of the OAuth providers
   you chose. If they don’t, and if they don’t want to create one, they will not
   be able to sign in via this method.
 
 **Security considerations:**
 
-- 😊 OAuth security relies on the OAuth provider’s security, which is usually
+- 👍 OAuth security relies on the OAuth provider’s security, which is usually
   strong given the amount of resources the providers have.
 
 ### Passwords
@@ -88,18 +88,18 @@ the tradeoffs.
 - 😐 Production-ready passwords implementation requires configuring an email
   provider / server for password recovery, which in turn usually requires
   controlling a web domain.
-- 😕 Passwords have the most complex implementation.
+- ❗️ Passwords have the most complex implementation.
 
 **UX considerations:**
 
-- 😊 Passwords are fairly user-friendly for users with password managers
+- 👍 Passwords are fairly user-friendly for users with password managers
   installed.
-- 😕 Passwords require users without password managers to come up with and
+- ❗️ Passwords require users without password managers to come up with and
   remember a password.
 
 **Security considerations:**
 
-- 😕 People are prone to reusing passwords which allows an attacker to use a
+- ❗️ People are prone to reusing passwords which allows an attacker to use a
   password stolen from an insecure application or from a phishing attack.
-- 😕 Your application must not leak password in any way (such as through
+- ❗️ Your application must not leak password in any way (such as through
   inadvertent logging during the authentication flow).
