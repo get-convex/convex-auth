@@ -24,7 +24,7 @@ new Command()
 
     const packageJson = readPackageJson();
     const convexJson = readConvexJson();
-    const deployment = readConvexDeployment();
+    const deployment = readConvexDeployment(options);
     const convexFolderPath = convexJson.functions ?? "convex";
 
     const isNextjs = !!packageJson.dependencies?.next;
@@ -40,9 +40,8 @@ new Command()
       usesTypeScript,
       isVite,
       convexFolderPath,
-      ...deployment,
+      deployment,
       step: 1,
-      options,
     };
 
     // Step 1: Configure SITE_URL
@@ -84,42 +83,61 @@ type ProjectConfig = {
   usesTypeScript: boolean;
   isVite: boolean;
   convexFolderPath: string;
-  deploymentName: string;
-  deploymentType: string | null;
-  step: number;
-  options: {
-    url?: string;
-    adminKey?: string;
-    prod?: boolean;
-    previewName?: string;
-    deploymentName?: string;
+  deployment: {
+    name: string | null;
+    type: string | null;
+    options: {
+      url?: string;
+      adminKey?: string;
+      prod?: boolean;
+      previewName?: string;
+      deploymentName?: string;
+    };
   };
+  // Mutated along the way
+  step: number;
 };
 
 async function configureSiteUrl(config: ProjectConfig) {
   logStep(config, "Configure SITE_URL");
   const existing = await backendEnvVar(config, "SITE_URL");
-  const value = config.isVite
-    ? "http://localhost:5173"
-    : "http://localhost:3000";
-  if (existing === value) {
-    logSuccess(
-      `The ${printDeployment(config)} already has SITE_URL configured to ${chalk.bold(value)}.`,
-    );
-    return;
-  }
+  // Default to localhost for dev and also for local backend
+  // this is not perfect but OK since it's just the default.
+  const value =
+    config.deployment.type === "dev" || config.deployment.type === null
+      ? config.isVite
+        ? "http://localhost:5173"
+        : "http://localhost:3000"
+      : undefined;
   if (existing !== "") {
     if (
       !(await promptForConfirmation(
-        `The ${printDeployment(config)} already has SITE_URL configured. Overwrite it to ${value}?`,
+        `The ${printDeployment(config)} already has SITE_URL configured to ${chalk.bold(existing)}. Do you want to change it?`,
         { default: false },
       ))
     ) {
       return;
     }
   }
-  await setEnvVar(config, "SITE_URL", value);
-  // The env command prints a success message
+  const description =
+    config.deployment.type === "dev"
+      ? "the origin of your local web server (e.g. http://localhost:1234)"
+      : "the origin where your site is hosted (e.g. https://example.com)";
+  const chosenValue = await promptForInput(`Enter ${description}`, {
+    default: value,
+    validate: (input) => {
+      try {
+        const url = new URL(input);
+        if (url.pathname !== "/") {
+          return "The URL must be an origin without any path, like http://localhost:1234 or https://example.com";
+        }
+        return true;
+      } catch (error: any) {
+        return "The URL must start with http:// or https://";
+      }
+    },
+  });
+  await setEnvVar(config, "SITE_URL", new URL(chosenValue).origin);
 }
 
 async function configureKeys(config: ProjectConfig) {
@@ -179,39 +197,37 @@ async function setEnvVar(
 }
 
 function deploymentOptions(config: ProjectConfig) {
-  const adminKey =
-    config.options.adminKey !== undefined
-      ? `--admin-key '${config.options.adminKey}' `
-      : "";
-  return adminKey + deploymentNameOptions(config);
+  const {
+    deployment: {
+      options: { adminKey },
+    },
+  } = config;
+  const adminKeyOption =
+    adminKey !== undefined ? `--admin-key '${adminKey}' ` : "";
+  return adminKeyOption + deploymentNameOptions(config);
 }
 
 function deploymentNameOptions(config: ProjectConfig) {
-  if (config.options.prod) {
+  const {
+    deployment: {
+      options: { url, prod, previewName, deploymentName },
+    },
+  } = config;
+  if (url) {
+    return `--url ${url}`;
+  } else if (prod) {
     return "--prod";
-  } else if (config.options.previewName) {
-    return `--preview-name ${config.options.previewName}`;
-  } else if (config.options.deploymentName) {
-    return `--deployment-name ${config.options.deploymentName}`;
+  } else if (previewName) {
+    return `--preview-name ${previewName}`;
+  } else if (deploymentName) {
+    return `--deployment-name ${deploymentName}`;
   } else {
     return "";
   }
 }
 
 function printDeployment(config: ProjectConfig) {
-  if (config.options.adminKey) {
-    return formatDeploymentTypeAndName(
-      deploymentNameFromAdminKey(config.options.adminKey),
-      deploymentTypeFromAdminKey(config.options.adminKey),
-    );
-  }
-  return formatDeploymentTypeAndName(
-    config.deploymentName,
-    config.deploymentType,
-  );
-}
-
-function formatDeploymentTypeAndName(name: string | null, type: string | null) {
+  const { name, type } = config.deployment;
   return (
     (type !== null ? `${chalk.bold(type)} ` : "") +
     "deployment" +
@@ -444,15 +460,39 @@ function readConvexJson(): ConvexJSON {
   }
 }
 
-function readConvexDeployment() {
+function readConvexDeployment(options: {
+  url?: string;
+  adminKey?: string;
+  prod?: boolean;
+  previewName?: string;
+  deploymentName?: string;
+}) {
+  const { adminKey, url, prod, previewName, deploymentName } = options;
+  const adminKeyName = adminKey ? deploymentNameFromAdminKey(adminKey) : null;
+  const adminKeyType = adminKey ? deploymentTypeFromAdminKey(adminKey) : null;
+  if (url) {
+    return { name: adminKeyName ?? url, type: adminKeyType, options };
+  } else if (prod) {
+    return { name: adminKeyName, type: "prod", options };
+  }
+  if (previewName) {
+    return { name: previewName, type: "preview", options };
+  }
+  if (deploymentName) {
+    return { name: deploymentName, type: adminKeyType, options };
+  }
+  if (adminKey) {
+    return { name: adminKeyName, type: adminKeyType, options };
+  }
   loadEnvFile({ path: ".env.local" });
   loadEnvFile();
   if (process.env.CONVEX_DEPLOYMENT) {
     return {
-      deploymentName: stripDeploymentTypePrefix(process.env.CONVEX_DEPLOYMENT),
-      deploymentType: getDeploymentTypeFromConfiguredDeployment(
+      name: stripDeploymentTypePrefix(process.env.CONVEX_DEPLOYMENT),
+      type: getDeploymentTypeFromConfiguredDeployment(
         process.env.CONVEX_DEPLOYMENT,
       ),
+      options,
     };
   }
 
@@ -547,6 +587,22 @@ async function promptForConfirmation(
     },
   ]);
   return confirmed;
+}
+
+async function promptForInput(
+  message: string,
+  options: { default?: string; validate?: (input: string) => true | string },
+) {
+  const { input } = await inquirer.prompt<{ input: string }>([
+    {
+      type: "input",
+      name: "input",
+      message,
+      default: options.default,
+      validate: options.validate,
+    },
+  ]);
+  return input;
 }
 
 function logErrorAndExit(message: string, error?: string): never {
