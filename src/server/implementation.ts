@@ -1184,7 +1184,7 @@ async function signInImpl(
             : provider.from,
       },
       request: new Request("http://localhost"), // TODO: Document
-      theme: ctx.auth.config.theme!,
+      theme: ctx.auth.config.theme,
       token: code,
     });
     return { started: true };
