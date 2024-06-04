@@ -411,8 +411,11 @@ function logStep(config: ProjectConfig, message: string) {
 async function checkSourceControl() {
   const isGit = existsSync(".git");
   if (isGit) {
-    const gitStatus = execSync("git status --porcelain").toString();
-    if (gitStatus) {
+    const gitStatus = execSync("git status --porcelain").toString().trim();
+    const changedFiles = gitStatus
+      .split("\n")
+      .filter((line) => !/\bpackage(-lock)?.json/.test(line));
+    if (changedFiles.length > 0) {
       logError(
         "There are unstaged or uncommitted changes in the working directory. " +
           "Please commit or stash them before proceeding.",
