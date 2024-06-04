@@ -10,7 +10,7 @@ script_dir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 cd "$script_dir" || exit 1
 
 # Run TypeScript compiler
-npm run build:bin 2&> /dev/null
+npm run build:bin > /dev/null
 
 # Return to the original directory
 cd "$current_dir" || exit 1
