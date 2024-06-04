@@ -34,6 +34,8 @@ npx convex env set SITE_URL http://localhost:3000
 </Tabs.Tab>
 </Tabs>
 
+You don't need to configure this variable for React Native.
+
 ### Configure private and public key
 
 Run the following script via `node generateKeys.mjs`:
@@ -58,7 +60,7 @@ Copy the whole output and paste it into your Convex dashboard deployment's
 [Environment Variables](https://dashboard.convex.dev/deployment/settings/environment-variables)
 page.
 
-You should now have two variables set up: `JWT_PRIVATE_KEY` and `JWKS`.
+You should now have two variables set up: `JWT_PRIVATE_KEY` and `JWKS` (in addition to `SITE_URL`).
 
 ### Set TS `moduleResolution` to `"Bundler"`
 
