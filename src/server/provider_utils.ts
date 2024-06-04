@@ -20,25 +20,17 @@ import { setEnvDefaults } from "@auth/core";
 import {
   AccountCallback,
   Provider as AuthProvider,
-  CredentialsConfig,
   EmailConfig,
-  OAuth2Config,
   OAuthConfig,
   OAuthEndpointType,
-  OIDCConfig,
   ProfileCallback,
 } from "@auth/core/providers";
-import { WebAuthnConfig } from "@auth/core/providers/webauthn";
 import { Profile } from "@auth/core/types";
-import { ConvexAuthConfig } from "./types";
+import { AuthProviderMaterializedConfig, ConvexAuthConfig } from "./types";
 
-export type MaterializedProvider =
-  | OIDCConfig<any>
-  | OAuth2Config<any>
-  | EmailConfig
-  | CredentialsConfig
-  | WebAuthnConfig;
-
+/**
+ * @internal
+ */
 export function configDefaults(config: ConvexAuthConfig) {
   setEnvDefaults(process.env, config as any);
   return {
@@ -49,25 +41,33 @@ export function configDefaults(config: ConvexAuthConfig) {
       brandColor: "",
       buttonText: "",
     },
-    providers: (config.providers as MaterializedProvider[]).map(
+    providers: (config.providers as AuthProviderMaterializedConfig[]).map(
       providerDefaults,
     ),
   };
 }
 
+/**
+ * @internal
+ */
 export function materializeProvider(provider: AuthProvider) {
   const config = { providers: [provider] };
   setEnvDefaults(process.env, config);
-  return providerDefaults(config.providers[0] as MaterializedProvider);
+  return providerDefaults(
+    config.providers[0] as AuthProviderMaterializedConfig,
+  );
 }
 
-function providerDefaults(provider: MaterializedProvider) {
+/**
+ * @internal
+ */
+function providerDefaults(provider: AuthProviderMaterializedConfig) {
   return merge(
     provider.type === "oauth" || provider.type === "oidc"
       ? normalizeOAuth(provider)
       : provider,
     (provider as any).options,
-  ) as MaterializedProvider;
+  ) as AuthProviderMaterializedConfig;
 }
 
 const defaultProfile: ProfileCallback<Profile> = (profile) => {
@@ -148,7 +148,11 @@ function normalizeEndpoint(
 
 // Source: https://stackoverflow.com/a/34749873/5364135
 
-/** Deep merge two objects */
+/**
+ * Deep merge two objects
+ *
+ * @internal
+ */
 export function merge(target: any, ...sources: any[]): any {
   if (!sources.length) return target;
   const source = sources.shift();
@@ -172,6 +176,9 @@ function isObject(item: any): boolean {
   return item && typeof item === "object" && !Array.isArray(item);
 }
 
+/**
+ * @internal
+ */
 export async function getOAuthURLs(provider: OAuthConfig<any>) {
   if (
     provider.issuer &&

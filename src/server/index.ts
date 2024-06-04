@@ -8,4 +8,9 @@ export {
   modifyAccountCredentials,
   retrieveAccount,
 } from "./implementation";
-export type { ConvexAuthConfig, GenericActionCtxWithAuthConfig } from "./types";
+export type {
+  ConvexAuthConfig,
+  GenericActionCtxWithAuthConfig,
+  AuthProviderMaterializedConfig,
+  ConvexAuthMaterializedConfig,
+} from "./types";

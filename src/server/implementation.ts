@@ -6,12 +6,12 @@ import {
 import { TokenSet } from "@auth/core/types";
 import { generateState } from "arctic";
 import {
+  Auth,
   DataModelFromSchemaDefinition,
   FunctionReference,
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
-  GenericQueryCtx,
   HttpRouter,
   PublicHttpAction,
   actionGeneric,
@@ -32,12 +32,15 @@ import { encodeHex } from "oslo/encoding";
 import { OAuth2Client } from "oslo/oauth2";
 import { FunctionReferenceFromExport, GenericDoc } from "./convex_types";
 import {
-  MaterializedProvider,
   configDefaults,
   getOAuthURLs,
   materializeProvider,
 } from "./provider_utils";
-import { ConvexAuthConfig, GenericActionCtxWithAuthConfig } from "./types";
+import {
+  AuthProviderMaterializedConfig,
+  ConvexAuthConfig,
+  GenericActionCtxWithAuthConfig,
+} from "./types";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_MS = 1000 * 60 * 60 * 24; // 24 hours
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -47,13 +50,41 @@ const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
+/**
+ * The table definitions required by the library.
+ *
+ * Your schema must include these so that the indexes
+ * are set up.
+ *
+ * You can inline the table definitions into your schema
+ * and extend them with additional optional and required
+ * fields. See https://labs.convex.dev/auth/setup/schema
+ * for more details.
+ */
 export const tables = {
+  /**
+   * Users.
+   */
   users: defineTable({
     email: v.string(),
     emailVerified: v.optional(v.boolean()),
     name: v.optional(v.string()),
     image: v.optional(v.string()),
   }).index("email", ["email"]),
+  /**
+   * Sessions.
+   * A single user can have multiple active sessions.
+   * See https://labs.convex.dev/auth/advanced#session-document-lifecycle.
+   */
+  sessions: defineTable({
+    userId: v.id("users"),
+    expirationTime: v.number(),
+  }).index("userId", ["userId"]),
+  /**
+   * Accounts. An account corresponds to
+   * a single authenetication provider.
+   * A single user can have multiple accounts linked.
+   */
   accounts: defineTable({
     userId: v.id("users"),
     type: v.union(
@@ -69,10 +100,23 @@ export const tables = {
   })
     .index("providerAndUserId", ["provider", "userId"])
     .index("providerAndAccountId", ["provider", "providerAccountId"]),
-  verifiers: defineTable({
-    state: v.string(),
-    verifier: v.string(),
-  }).index("state", ["state"]),
+  /**
+   * Refresh tokens.
+   * Each session has only a single refresh token
+   * valid at a time. Refresh tokens are rotated
+   * and reuse is not allowed.
+   */
+  refreshTokens: defineTable({
+    userId: v.id("users"),
+    sessionId: v.id("sessions"),
+    expirationTime: v.number(),
+  }).index("sessionId", ["sessionId"]),
+  /**
+   * Verification codes:
+   * - OTP tokens
+   * - magic link tokens
+   * - OAuth codes
+   */
   verificationCodes: defineTable({
     userId: v.id("users"),
     code: v.string(),
@@ -82,20 +126,18 @@ export const tables = {
   })
     .index("userId", ["userId"])
     .index("code", ["code"]),
-  sessions: defineTable({
-    userId: v.id("users"),
-    expirationTime: v.number(),
-  }).index("userId", ["userId"]),
-  refreshTokens: defineTable({
-    userId: v.id("users"),
-    sessionId: v.id("sessions"),
-    expirationTime: v.number(),
-  }).index("sessionId", ["sessionId"]),
+  /**
+   * PKCE verifiers.
+   */
+  verifiers: defineTable({
+    state: v.string(),
+    verifier: v.string(),
+  }).index("state", ["state"]),
 };
 
 const defaultSchema = defineSchema(tables);
 
-export type AuthDataModel = DataModelFromSchemaDefinition<typeof defaultSchema>;
+type AuthDataModel = DataModelFromSchemaDefinition<typeof defaultSchema>;
 
 const storeArgs = {
   args: v.union(
@@ -185,16 +227,38 @@ const internal: {
   },
 };
 
+/**
+ * @internal
+ */
 export type SignInAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signIn"]
 >;
+/**
+ * @internal
+ */
 export type VerifyCodeAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["verifyCode"]
 >;
+/**
+ * @internal
+ */
 export type SignOutAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signOut"]
 >;
 
+/**
+ * Configure the Convex Auth library. Returns an object with
+ * functions and `auth` helper. You must export the functions
+ * from `convex/auth.ts` to make them callable:
+ *
+ * ```tsx
+ * import { convexAuth } from "@xixixao/convex-auth/server";
+ *
+ * export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+ *   providers: [],
+ * });
+ * ```
+ */
 export function convexAuth(rawConfig: ConvexAuthConfig) {
   const config = configDefaults(rawConfig);
   const getProvider = (id: string) => {
@@ -213,7 +277,13 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
   ) => ({ ...ctx, auth: { ...ctx.auth, config } });
 
   const auth = {
-    getUserId: async (ctx: GenericQueryCtx<any>) => {
+    /**
+     * Return the currently signed-in user's ID.
+     *
+     * @param ctx query, mutation or action `ctx`
+     * @returns the user ID or `null` if the client isn't authenticated
+     */
+    getUserId: async (ctx: { auth: Auth }) => {
       const identity = await ctx.auth.getUserIdentity();
       if (identity === null) {
         return null;
@@ -221,7 +291,13 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
       const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
       return userId as GenericId<"users">;
     },
-    getSessionId: async (ctx: GenericQueryCtx<any>) => {
+    /**
+     * Return the current session ID.
+     *
+     * @param ctx query, mutation or action `ctx`
+     * @returns the session ID or `null` if the client isn't authenticated
+     */
+    getSessionId: async (ctx: { auth: Auth }) => {
       const identity = await ctx.auth.getUserIdentity();
       if (identity === null) {
         return null;
@@ -229,6 +305,29 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
       const [, sessionId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
       return sessionId as GenericId<"sessions">;
     },
+    /**
+     * Add HTTP actions for JWT verification and OAuth sign-in.
+     *
+     * ```ts
+     * import { httpRouter } from "convex/server";
+     * import { auth } from "./auth";
+     *
+     * const http = httpRouter();
+     *
+     * auth.addHttpRoutes(http);
+     *
+     * export default http;
+     * ```
+     *
+     * The following routes are handled:
+     *
+     * - /.well-known/openid-configuration
+     * - /.well-known/jwks.json
+     * - /api/auth/signin/*
+     * - /api/auth/callback/*
+     *
+     * @param http your HTTP router
+     */
     addHttpRoutes: (http: HttpRouter) => {
       const httpWithCors = corsRoutes(http, siteUrl);
       http.route({
@@ -443,7 +542,14 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
     },
   };
   return {
+    /**
+     * Helper for configuring HTTP actions and accessing
+     * the current user and session ID.
+     */
     auth,
+    /**
+     * Action called by the client to sign the user in.
+     */
     signIn: actionGeneric({
       args: {
         provider: v.string(),
@@ -454,7 +560,9 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
         return await signInImpl(enrichCtx(ctx), provider, args.params);
       },
     }),
-
+    /**
+     * Action called by the client to complete sign via code verification.
+     */
     verifyCode: actionGeneric({
       args: {
         provider: v.optional(v.string()),
@@ -493,7 +601,9 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
         return { token, refreshToken };
       },
     }),
-
+    /**
+     * Action called by the client to invalidate the current session.
+     */
     signOut: actionGeneric({
       args: {},
       handler: async (ctx) => {
@@ -503,6 +613,10 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
       },
     }),
 
+    /**
+     * Internal mutation used by the library to read and write
+     * to the database during signin and signout.
+     */
     store: internalMutationGeneric({
       args: storeArgs,
       handler: async (ctx: GenericMutationCtx<AuthDataModel>, { args }) => {
@@ -830,17 +944,6 @@ function getHashAndVerifyFns(provider: any) {
 }
 
 /**
- * In some places, such as the `sendVerificationRequest` method
- * of Email providers, we pass the Convex ctx as the current Request.
- * Use this function to get the correct type.
- */
-export function requestToCtx<DataModel extends AuthDataModel = AuthDataModel>(
-  request: Request,
-): GenericActionCtx<DataModel> {
-  return request as any;
-}
-
-/**
  * Use this function from a `ConvexCredentials` provider
  * to create an account and a user with a pair of unique
  * id and an account secret.
@@ -1042,7 +1145,7 @@ export async function signInViaProvider<
 
 async function signInImpl(
   ctx: GenericActionCtxWithAuthConfig<AuthDataModel>,
-  provider: MaterializedProvider,
+  provider: AuthProviderMaterializedConfig,
   params: any,
   signedIn?: { userId: GenericId<"users"> },
 ) {
@@ -1312,7 +1415,7 @@ function corsRoutes(http: HttpRouter, origin: () => string) {
   };
 }
 
-export function convertErrorsToResponse(
+function convertErrorsToResponse(
   errorStatusCode: number,
   action: (ctx: GenericActionCtx<any>, request: Request) => Promise<Response>,
 ) {
@@ -1335,7 +1438,7 @@ export function convertErrorsToResponse(
   };
 }
 
-export function getCookies(req: Request): Record<string, string | undefined> {
+function getCookies(req: Request): Record<string, string | undefined> {
   return cookie.parse(req.headers.get("Cookie") ?? "");
 }
 

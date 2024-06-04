@@ -9,18 +9,9 @@ import {
 } from "convex/server";
 import { GenericId } from "convex/values";
 
-type UndefinedToNull<T> = T extends void ? null : T;
-
-export type MutationRef<T> =
-  T extends RegisteredMutation<infer Visibility, infer Args, infer Output>
-    ? FunctionReference<
-        "mutation",
-        Visibility,
-        Args,
-        UndefinedToNull<Awaited<Output>>
-      >
-    : never;
-
+/**
+ * Convex document from a given table.
+ */
 export type GenericDoc<
   DataModel extends GenericDataModel,
   TableName extends TableNamesInDataModel<DataModel>,
@@ -29,6 +20,9 @@ export type GenericDoc<
   _creationTime: number;
 };
 
+/**
+ * @internal
+ */
 export type FunctionReferenceFromExport<Export> =
   Export extends RegisteredQuery<infer Visibility, infer Args, infer Output>
     ? FunctionReference<"query", Visibility, Args, ConvertReturnType<Output>>
@@ -57,3 +51,5 @@ export type FunctionReferenceFromExport<Export> =
         : never;
 
 type ConvertReturnType<T> = UndefinedToNull<Awaited<T>>;
+
+type UndefinedToNull<T> = T extends void ? null : T;
