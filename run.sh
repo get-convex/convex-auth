@@ -10,10 +10,10 @@ script_dir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 cd "$script_dir" || exit 1
 
 # Run TypeScript compiler
-npm run build > /dev/null
+npm run build:bin 2&> /dev/null
 
 # Return to the original directory
 cd "$current_dir" || exit 1
 
-# Run the generated .mjs file with Node.js
-node "$script_dir"/dist/bin.js
+# Run the generated .cjs file with Node.js
+node "$script_dir"/dist/bin.cjs
