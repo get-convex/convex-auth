@@ -3,8 +3,8 @@ import { Tabs } from "nextra-theme-docs";
 
 # Set Up Convex Auth
 
-This guide assumes you have a working Convex app. If not, follow our React or
-Next.js [quickstart](https://docs.convex.dev/quickstarts) first.
+This guide assumes you have a working Convex app. If not, follow our React,
+Next.js or React Native [quickstart](https://docs.convex.dev/quickstarts) first.
 
 <Steps>
 ### Install the NPM library
@@ -50,7 +50,7 @@ export default schema;
 
 Convex Auth currently only supports authenticating from React client components.
 
-<Tabs items={['Vite', 'Next.js']}>
+<Tabs items={['Vite', 'Next.js', 'React Native']}>
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
@@ -99,6 +99,48 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
 ```
 
 </Tabs.Tab>
+<Tabs.Tab>
+
+First, install [`expo-secure-store`](https://docs.expo.dev/versions/latest/sdk/securestore/):
+
+```
+npx expo install expo-secure-store
+```
+
+Then replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
+`@xixixao/convex-auth/react`.
+
+Provide a `storage` implementation using `expo-secure-store` as shown:
+
+```ts filename="app/_layout.tsx" {1,4,10-14,18,22}
+import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexReactClient } from "convex/react";
+import { Stack } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+  unsavedChangesWarning: false,
+});
+
+const secureStorage = {
+  getItem: SecureStore.getItemAsync,
+  setItem: SecureStore.setItemAsync,
+  removeItem: SecureStore.deleteItemAsync,
+};
+
+export default function RootLayout() {
+  return (
+    <ConvexAuthProvider client={convex} storage={secureStorage}>
+      <Stack>
+        <Stack.Screen name="index" />
+      </Stack>
+    </ConvexAuthProvider>
+  );
+}
+```
+
+</Tabs.Tab>
+
 </Tabs>
 
 </Steps>
