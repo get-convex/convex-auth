@@ -22,7 +22,7 @@ import type {
 /**
  * The result of calling `useAuthActions`.
  */
-export type ConvexAuthClientContext = {
+export type ConvexAuthActionsContext = {
   /**
    * Sign in via one of your configured authentication providers.
    *
@@ -64,7 +64,7 @@ export type ConvexAuthClientContext = {
   signOut: () => Promise<void>;
 };
 
-const ConvexAuthClientContext = createContext<ConvexAuthClientContext>(
+const ConvexAuthActionsContext = createContext<ConvexAuthActionsContext>(
   undefined as any,
 );
 
@@ -79,7 +79,7 @@ const ConvexAuthClientContext = createContext<ConvexAuthClientContext>(
  * ```
  */
 export function useAuthActions() {
-  return useContext(ConvexAuthClientContext);
+  return useContext(ConvexAuthActionsContext);
 }
 
 const ConvexAuthInternalContext = createContext<{
@@ -304,7 +304,7 @@ function AuthProvider({
         fetchAccessToken,
       }}
     >
-      <ConvexAuthClientContext.Provider
+      <ConvexAuthActionsContext.Provider
         value={{
           verifyCode,
           signIn,
@@ -312,7 +312,7 @@ function AuthProvider({
         }}
       >
         {children}
-      </ConvexAuthClientContext.Provider>
+      </ConvexAuthActionsContext.Provider>
     </ConvexAuthInternalContext.Provider>
   );
 }
