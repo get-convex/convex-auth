@@ -4,7 +4,10 @@ import { Tabs } from "nextra-theme-docs";
 # Manual Setup
 
 If you don't want the `npx @xixixao/convex-auth` command to make these changes
-for you, or if it failed, follow these steps after you've installed the library.
+for you, follow these steps after you've installed the library.
+
+For code changes you can also refer to the
+[example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src).
 
 <Steps>
 
@@ -63,12 +66,16 @@ page.
 You should now have two variables set up: `JWT_PRIVATE_KEY` and `JWKS` (in
 addition to `SITE_URL`).
 
-### Set TS `moduleResolution` to `"Bundler"`
+### Modify `tsconfig.json`
 
 ```diff filename="convex/tsconfig.json"
++    "skipLibCheck": true,
 +    "moduleResolution": "Bundler",
 -    "moduleResolution": "Node",
 ```
+
+You might need to add `"skipLibCheck": true` to your project-level
+`tsconfig.json` as well.
 
 ### Configure `auth.config.ts`
 

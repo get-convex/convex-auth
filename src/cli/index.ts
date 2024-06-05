@@ -35,10 +35,14 @@ new Command()
     const isVite = !!(
       packageJson.dependencies?.vite || packageJson.devDependencies?.vite
     );
+    const isExpo = !!(
+      packageJson.dependencies?.expo || packageJson.devDependencies?.expo
+    );
     const config = {
       isNextjs,
-      usesTypeScript,
       isVite,
+      isExpo,
+      usesTypeScript,
       convexFolderPath,
       deployment,
       step: 1,
@@ -54,8 +58,9 @@ new Command()
     await configureKeys(config);
 
     // Step 3: Change moduleResolution to "bundler"
+    // and turn on skipLibCheck
     // Skipped if there's no tsconfig.json
-    await changeModuleResolution(config);
+    await modifyTsConfig(config);
 
     // Step 4: Configure auth.config.ts
     // To avoid having to execute it we just give instructions
@@ -79,9 +84,10 @@ new Command()
   .parse(process.argv);
 
 type ProjectConfig = {
+  isExpo: boolean;
   isNextjs: boolean;
-  usesTypeScript: boolean;
   isVite: boolean;
+  usesTypeScript: boolean;
   convexFolderPath: string;
   deployment: {
     name: string | null;
@@ -235,41 +241,114 @@ function printDeployment(config: ProjectConfig) {
   );
 }
 
-async function changeModuleResolution(config: ProjectConfig) {
-  logStep(config, "Change moduleResolution to Bundler");
+// Match `"compilerOptions": {"`
+// ignore comments after the bracket
+// and capture the space between the bracket/last comment
+// and the quote.
+const compilerOptionsPattern =
+  /("compilerOptions"\s*:\s*\{(?:\s*(?:\/\*(?:[^*]|\*(?!\/))*\*\/))*(\s*))(?=")/;
+
+const validTsConfig = `\
+{
+  /* This TypeScript project config describes the environment that
+   * Convex functions run in and is used to typecheck them.
+   * You can modify it, but some settings required to use Convex.
+   */
+  "compilerOptions": {
+    /* These settings are not required by Convex and can be modified. */
+    "allowJs": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react",
+
+    /* These compiler options are required by Convex */
+    "target": "ESNext",
+    "lib": ["ES2021", "dom", "ES2023.Array"],
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["./**/*"],
+  "exclude": ["./_generated"]
+}
+`;
+
+async function modifyTsConfig(config: ProjectConfig) {
+  logStep(config, "Modify tsconfig file");
+  const projectLevelTsConfigPath = "tsconfig.json";
   const tsConfigPath = path.join(config.convexFolderPath, "tsconfig.json");
   if (!existsSync(tsConfigPath)) {
-    logInfo(
-      `No ${chalk.bold(tsConfigPath)} found. Skipping \`moduleResolution\` change.`,
-    );
+    if (existsSync(projectLevelTsConfigPath)) {
+      if (config.isExpo) {
+        writeFileSync(tsConfigPath, validTsConfig);
+        logSuccess(`Added ${chalk.bold(tsConfigPath)}`);
+        return;
+      }
+      // else assume that the project-level tsconfig already
+      // has the right settings, which is true for Vite and Next.js
+    }
+    logInfo(`No ${chalk.bold(tsConfigPath)} found. Skipping.`);
     return;
   }
   const existingTsConfig = readFileSync(tsConfigPath, "utf8");
-  if (/"moduleResolution"\s*:\s*"Bundler"/i.test(existingTsConfig)) {
+  const moduleResolutionPattern = /"moduleResolution"\s*:\s*"(\w+)"/;
+  const [, existingModuleResolution] =
+    existingTsConfig.match(moduleResolutionPattern) ?? [];
+  const skipLibCheckPattern = /"skipLibCheck"\s*:\s*(\w+)/;
+  const [, existingSkipLibCheck] =
+    existingTsConfig.match(skipLibCheckPattern) ?? [];
+  if (
+    /Bundler/i.test(existingModuleResolution) &&
+    existingSkipLibCheck === "true"
+  ) {
     logSuccess(`The ${chalk.bold(tsConfigPath)} is already set up.`);
     return;
   }
-  const pattern = /"moduleResolution"\s*:\s*"\w+"/;
-  if (!pattern.test(existingTsConfig)) {
+
+  if (!compilerOptionsPattern.test(existingTsConfig)) {
     logInfo(
       `Modify your ${chalk.bold(tsConfigPath)} to include the following:`,
     );
     const source = `\
   {
     "compilerOptions": {
-      "moduleResolution": "Bundler"
+      "moduleResolution": "Bundler",
+      "skipLibCheck": true
     }
   }
     `;
     console.error(indent(`\n${source}\n`));
     await promptForConfirmationOrExit("Ready to continue?");
   }
-  const changedTsConfig = existingTsConfig.replace(
-    pattern,
-    '"moduleResolution": "Bundler"',
+  const changedTsConfig = addCompilerOption(
+    addCompilerOption(
+      existingTsConfig,
+      existingModuleResolution,
+      moduleResolutionPattern,
+      '"moduleResolution": "Bundler"',
+    ),
+    existingSkipLibCheck,
+    skipLibCheckPattern,
+    '"skipLibCheck": true',
   );
   writeFileSync(tsConfigPath, changedTsConfig);
   logSuccess(`Modified ${chalk.bold(tsConfigPath)}`);
+}
+
+function addCompilerOption(
+  tsconfig: string,
+  existingValue: string | undefined,
+  pattern: RegExp,
+  optionAndValue: string,
+) {
+  if (existingValue === undefined) {
+    return tsconfig.replace(compilerOptionsPattern, `$1${optionAndValue},$2`);
+  } else {
+    return tsconfig.replace(pattern, optionAndValue);
+  }
 }
 
 async function configureAuthConfig(config: ProjectConfig) {
@@ -411,10 +490,12 @@ function logStep(config: ProjectConfig, message: string) {
 async function checkSourceControl() {
   const isGit = existsSync(".git");
   if (isGit) {
-    const gitStatus = execSync("git status --porcelain").toString().trim();
+    const gitStatus = execSync("git status --porcelain").toString();
     const changedFiles = gitStatus
       .split("\n")
-      .filter((line) => !/\bpackage(-lock)?.json/.test(line));
+      .filter(
+        (line) => !/\bpackage(-lock)?.json/.test(line) && line.length > 0,
+      );
     if (changedFiles.length > 0) {
       logError(
         "There are unstaged or uncommitted changes in the working directory. " +
