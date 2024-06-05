@@ -115,7 +115,16 @@ export function ConvexAuthProvider({
   children: ReactNode;
 }) {
   return (
-    <AuthProvider client={client} storage={storage ?? window?.localStorage}>
+    <AuthProvider
+      client={client}
+      storage={
+        storage ??
+        // Handle SSR, RN, Web, etc.
+        // Pretend we always have storage, the component checks
+        // it in first useEffect.
+        (typeof window === "undefined" ? undefined : window?.localStorage)!
+      }
+    >
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
