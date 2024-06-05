@@ -261,6 +261,9 @@ export type SignOutAction = FunctionReferenceFromExport<
  */
 export function convexAuth(rawConfig: ConvexAuthConfig) {
   const config = configDefaults(rawConfig);
+  const hasOAuth = config.providers.some(
+    (provider) => provider.type === "oauth" || provider.type === "oidc",
+  );
   const getProvider = (id: string) => {
     return config.providers.find((provider) => provider.id === id);
   };
@@ -319,10 +322,13 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
      * export default http;
      * ```
      *
-     * The following routes are handled:
+     * The following routes are handled always:
      *
      * - /.well-known/openid-configuration
      * - /.well-known/jwks.json
+     *
+     * The following routes are handled if OAuth is configured:
+     *
      * - /api/auth/signin/*
      * - /api/auth/callback/*
      *
@@ -368,177 +374,191 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
         }),
       });
 
-      httpWithCors.route({
-        pathPrefix: "/api/auth/signin/",
-        method: "GET",
-        credentials: true,
-        handler: httpActionGeneric(
-          convertErrorsToResponse(400, async (ctx, request) => {
+      if (hasOAuth) {
+        httpWithCors.route({
+          pathPrefix: "/api/auth/signin/",
+          method: "GET",
+          credentials: true,
+          handler: httpActionGeneric(
+            convertErrorsToResponse(400, async (ctx, request) => {
+              const url = new URL(request.url);
+              const pathParts = url.pathname.split("/");
+              const providerId = pathParts.at(-1)!;
+              if (providerId === null) {
+                throw new Error("Missing provider id");
+              }
+              const verifier = url.searchParams.get("code");
+              if (verifier === null) {
+                throw new Error("Missing sign-in verifier");
+              }
+              const provider = getProviderOrThrow(
+                providerId,
+              ) as OAuthConfig<any>;
+              if (provider.clientId === undefined) {
+                throw new Error(
+                  `Missing \`clientId\`, set ${clientId(providerId)}`,
+                );
+              }
+              if (provider.clientSecret === undefined) {
+                throw new Error(
+                  `Missing \`clientSecret\`, set ${clientSecret(providerId)}`,
+                );
+              }
+
+              const state = generateState();
+
+              const { authorization } = await getOAuthURLs(provider);
+              const destinationUrl = new URL(authorization.url);
+              for (const [key, value] of Object.entries({
+                response_type: "code",
+                client_id: provider.clientId,
+                redirect_uri:
+                  process.env.CONVEX_SITE_URL +
+                  "/api/auth/callback/" +
+                  providerId,
+                state,
+                ...(provider.type === "oidc" &&
+                !destinationUrl.searchParams.has("scope")
+                  ? { scope: "openid profile email" }
+                  : null),
+              })) {
+                destinationUrl.searchParams.set(key, value as any);
+              }
+
+              await ctx.runMutation(internal.auth.store, {
+                args: {
+                  type: "verifier",
+                  verifier,
+                  state,
+                },
+              });
+
+              return new Response(null, {
+                status: 302,
+                headers: {
+                  Location: destinationUrl.toString(),
+                  "Set-Cookie": cookie.serialize(
+                    oauthStateCookieName(providerId),
+                    state,
+                    {
+                      httpOnly: true,
+                      sameSite: "none",
+                      secure: true,
+                      path: "/",
+                      partitioned: true,
+                      maxAge: 60 * 10, // 10 minutes
+                    },
+                  ),
+                },
+              });
+            }),
+          ),
+        });
+
+        http.route({
+          pathPrefix: "/api/auth/callback/",
+          method: "GET",
+          handler: httpActionGeneric(async (ctx, request) => {
             const url = new URL(request.url);
             const pathParts = url.pathname.split("/");
             const providerId = pathParts.at(-1)!;
-            if (providerId === null) {
-              throw new Error("Missing provider id");
-            }
-            const verifier = url.searchParams.get("code");
-            if (verifier === null) {
-              throw new Error("Missing sign-in verifier");
-            }
-            const provider = getProviderOrThrow(providerId) as OAuthConfig<any>;
-            if (provider.clientId === undefined) {
-              throw new Error(
-                `Missing \`clientId\`, set ${clientId(providerId)}`,
+            const provider = getProviderOrThrow(
+              providerId,
+            ) as OAuth2Config<any>;
+
+            const code = url.searchParams.get("code");
+            const state = url.searchParams.get("state");
+            const storedState =
+              getCookies(request)[oauthStateCookieName(providerId)];
+
+            if (code === null || state === null || state !== storedState) {
+              console.error(
+                `Invalid code or state in ${providerId} auth callback`,
               );
+              return Response.redirect(siteAfterLoginUrl());
             }
-            if (provider.clientSecret === undefined) {
-              throw new Error(
-                `Missing \`clientSecret\`, set ${clientSecret(providerId)}`,
+
+            try {
+              if (provider.clientId === undefined) {
+                throw new Error(
+                  `Missing \`clientId\`, set ${clientId(providerId)}`,
+                );
+              }
+              if (provider.clientSecret === undefined) {
+                throw new Error(
+                  `Missing \`clientSecret\`, set ${clientSecret(providerId)}`,
+                );
+              }
+              const { token, userinfo } = await getOAuthURLs(provider);
+              const client = new OAuth2Client(
+                provider.clientId,
+                "",
+                token.url,
+                {
+                  redirectURI:
+                    process.env.CONVEX_SITE_URL +
+                    "/api/auth/callback/" +
+                    providerId,
+                },
               );
-            }
+              const tokens = (await client.validateAuthorizationCode(code, {
+                authenticateWith: "request_body",
+                credentials: provider.clientSecret,
+              })) as TokenSet;
 
-            const state = generateState();
-
-            const { authorization } = await getOAuthURLs(provider);
-            const destinationUrl = new URL(authorization.url);
-            for (const [key, value] of Object.entries({
-              response_type: "code",
-              client_id: provider.clientId,
-              redirect_uri:
-                process.env.CONVEX_SITE_URL +
-                "/api/auth/callback/" +
-                providerId,
-              state,
-              ...(provider.type === "oidc" &&
-              !destinationUrl.searchParams.has("scope")
-                ? { scope: "openid profile email" }
-                : null),
-            })) {
-              destinationUrl.searchParams.set(key, value as any);
-            }
-
-            await ctx.runMutation(internal.auth.store, {
-              args: {
-                type: "verifier",
-                verifier,
-                state,
-              },
-            });
-
-            return new Response(null, {
-              status: 302,
-              headers: {
-                Location: destinationUrl.toString(),
-                "Set-Cookie": cookie.serialize(
-                  oauthStateCookieName(providerId),
-                  state,
-                  {
-                    httpOnly: true,
-                    sameSite: "none",
-                    secure: true,
-                    path: "/",
-                    partitioned: true,
-                    maxAge: 60 * 10, // 10 minutes
+              let profile;
+              if (userinfo?.request) {
+                profile = await userinfo.request({ tokens, provider });
+              } else if (userinfo?.url) {
+                const response = await fetch(userinfo?.url, {
+                  headers: {
+                    Authorization: `Bearer ${tokens.access_token}`,
+                    "User-Agent": "convex/auth",
                   },
-                ),
-              },
-            });
-          }),
-        ),
-      });
+                });
+                profile = await response.json();
+              } else {
+                throw new Error(
+                  `No userinfo endpoint configured in provider ${providerId}`,
+                );
+              }
 
-      http.route({
-        pathPrefix: "/api/auth/callback/",
-        method: "GET",
-        handler: httpActionGeneric(async (ctx, request) => {
-          const url = new URL(request.url);
-          const pathParts = url.pathname.split("/");
-          const providerId = pathParts.at(-1)!;
-          const provider = getProviderOrThrow(providerId) as OAuth2Config<any>;
-
-          const code = url.searchParams.get("code");
-          const state = url.searchParams.get("state");
-          const storedState =
-            getCookies(request)[oauthStateCookieName(providerId)];
-
-          if (code === null || state === null || state !== storedState) {
-            console.error(
-              `Invalid code or state in ${providerId} auth callback`,
-            );
-            return Response.redirect(siteAfterLoginUrl());
-          }
-
-          try {
-            if (provider.clientId === undefined) {
-              throw new Error(
-                `Missing \`clientId\`, set ${clientId(providerId)}`,
+              const { id, ...profileFromCallback } = await provider.profile!(
+                profile,
+                tokens,
               );
-            }
-            if (provider.clientSecret === undefined) {
-              throw new Error(
-                `Missing \`clientSecret\`, set ${clientSecret(providerId)}`,
-              );
-            }
-            const { token, userinfo } = await getOAuthURLs(provider);
-            const client = new OAuth2Client(provider.clientId, "", token.url, {
-              redirectURI:
-                process.env.CONVEX_SITE_URL +
-                "/api/auth/callback/" +
-                providerId,
-            });
-            const tokens = (await client.validateAuthorizationCode(code, {
-              authenticateWith: "request_body",
-              credentials: provider.clientSecret,
-            })) as TokenSet;
 
-            let profile;
-            if (userinfo?.request) {
-              profile = await userinfo.request({ tokens, provider });
-            } else if (userinfo?.url) {
-              const response = await fetch(userinfo?.url, {
+              const verificationCode = await ctx.runMutation(
+                internal.auth.store,
+                {
+                  args: {
+                    type: "userOAuth",
+                    provider: providerId,
+                    providerAccountId: id!,
+                    profile: profileFromCallback,
+                    state,
+                  },
+                },
+              );
+              const destinationUrl = new URL(siteAfterLoginUrl());
+              destinationUrl.searchParams.set(
+                "code",
+                verificationCode as string,
+              );
+              return new Response(null, {
+                status: 302,
                 headers: {
-                  Authorization: `Bearer ${tokens.access_token}`,
-                  "User-Agent": "convex/auth",
+                  Location: destinationUrl.toString(),
+                  "Cache-Control": "must-revalidate",
                 },
               });
-              profile = await response.json();
-            } else {
-              throw new Error(
-                `No userinfo endpoint configured in provider ${providerId}`,
-              );
+            } catch (error) {
+              console.error(error);
+              return Response.redirect(siteAfterLoginUrl());
             }
-
-            const { id, ...profileFromCallback } = await provider.profile!(
-              profile,
-              tokens,
-            );
-
-            const verificationCode = await ctx.runMutation(
-              internal.auth.store,
-              {
-                args: {
-                  type: "userOAuth",
-                  provider: providerId,
-                  providerAccountId: id!,
-                  profile: profileFromCallback,
-                  state,
-                },
-              },
-            );
-            const destinationUrl = new URL(siteAfterLoginUrl());
-            destinationUrl.searchParams.set("code", verificationCode as string);
-            return new Response(null, {
-              status: 302,
-              headers: {
-                Location: destinationUrl.toString(),
-                "Cache-Control": "must-revalidate",
-              },
-            });
-          } catch (error) {
-            console.error(error);
-            return Response.redirect(siteAfterLoginUrl());
-          }
-        }),
-      });
+          }),
+        });
+      }
     },
   };
   return {

@@ -106,6 +106,11 @@ type ProjectConfig = {
 
 async function configureSiteUrl(config: ProjectConfig) {
   logStep(config, "Configure SITE_URL");
+  if (config.isExpo) {
+    logInfo("React Native projects don't require a SITE_URL.");
+    return;
+  }
+
   const existing = await backendEnvVar(config, "SITE_URL");
   // Default to localhost for dev and also for local backend
   // this is not perfect but OK since it's just the default.
