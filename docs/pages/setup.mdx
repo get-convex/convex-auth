@@ -32,14 +32,14 @@ Alternatively you can perform these steps manually:
 Convex Auth assumes you have several tables set up with specific indexes.
 
 You can add these tables to your
-[schema](https://docs.convex.dev/database/schemas) via the `tables` export:
+[schema](https://docs.convex.dev/database/schemas) via the `authTables` export:
 
 ```ts filename="convex/schema.ts"
 import { defineSchema } from "convex/server";
-import { tables } from "@xixixao/convex-auth/server";
+import { authTables } from "@xixixao/convex-auth/server";
 
 const schema = defineSchema({
-  ...tables,
+  ...authTables,
   // Your other tables...
 });
 

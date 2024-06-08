@@ -1,5 +1,5 @@
 export {
-  tables,
+  authTables,
   convexAuth,
   createAccountWithCredentials,
   retrieveAccountWithCredentials,

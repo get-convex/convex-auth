@@ -14,10 +14,10 @@ into your schema:
 ```ts filename="convex/schema.ts"
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { tables } from "@xixixao/convex-auth/server";
+import { authTables } from "@xixixao/convex-auth/server";
 
 const schema = defineSchema({
-  ...tables,
+  ...authTables,
   users: defineTable({
     email: v.string(),
     emailVerified: v.optional(v.boolean()),

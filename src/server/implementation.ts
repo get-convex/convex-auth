@@ -61,7 +61,7 @@ const TOKEN_SUB_CLAIM_DIVIDER = "|";
  * fields. See https://labs.convex.dev/auth/setup/schema
  * for more details.
  */
-export const tables = {
+export const authTables = {
   /**
    * Users.
    */
@@ -135,7 +135,7 @@ export const tables = {
   }).index("state", ["state"]),
 };
 
-const defaultSchema = defineSchema(tables);
+const defaultSchema = defineSchema(authTables);
 
 type AuthDataModel = DataModelFromSchemaDefinition<typeof defaultSchema>;
 
