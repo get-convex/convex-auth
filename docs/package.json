@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Nextra docs template",
   "scripts": {
-    "api": "typedoc && bash process_api_reference.sh",
+    "api": "typedoc",
     "dev": "npm run api && next dev",
     "build": "npm run api && next build",
     "start": "next start"
@@ -32,6 +32,7 @@
     "tailwindcss": "^3.3.3",
     "typedoc": "^0.25.13",
     "typedoc-plugin-markdown": "^4.0.3",
+    "typedoc-plugin-rename-defaults": "^0.7.0",
     "typescript": "^5.0.4"
   }
 }

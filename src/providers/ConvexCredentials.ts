@@ -1,18 +1,28 @@
-import { CommonProviderOptions, CredentialsConfig } from "@auth/core/providers";
+/**
+ * Configure {@link ConvexCredentials} provider given a {@link ConvexCredentialsConfig}.
+ *
+ * This is for very custom authentication implementation, often you can
+ * use the `Password` provider instead.
+ *
+ * @module
+ */
+
+import { CredentialsConfig } from "@auth/core/providers";
+import { GenericActionCtxWithAuthConfig } from "@xixixao/convex-auth/server";
 import { GenericDataModel } from "convex/server";
 import { GenericId } from "convex/values";
-import { GenericActionCtxWithAuthConfig } from "@xixixao/convex-auth/server";
 
 /**
- * The available options to a Credentials provider for Convex Auth.
+ * The available options to a {@link ConvexCredentials} provider for Convex Auth.
  */
 export interface ConvexCredentialsConfig<
   DataModel extends GenericDataModel = GenericDataModel,
-> extends CommonProviderOptions {
+> {
   /**
-   * Uniquely identifies the provider.
+   * Uniquely identifies the provider, allowing to use
+   * multiple different {@link ConvexCredentials} providers.
    */
-  id: string;
+  id?: string;
   /**
    * Gives full control over how you handle the credentials received from the user.
    *
@@ -81,7 +91,7 @@ export interface ConvexCredentialsConfig<
  * such as a username and password, domain, or two factor authentication or hardware device (e.g. YubiKey U2F / FIDO).
  */
 export default function ConvexCredentials<DataModel extends GenericDataModel>(
-  config: Partial<ConvexCredentialsConfig<DataModel>>,
+  config: ConvexCredentialsConfig<DataModel>,
 ): CredentialsConfig {
   return {
     id: "credentials",

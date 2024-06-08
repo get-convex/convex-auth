@@ -1,10 +1,13 @@
-import { CommonProviderOptions, EmailConfig } from "@auth/core/providers";
-import {
-  DocumentByName,
-  GenericDataModel,
-  WithoutSystemFields,
-} from "convex/server";
-import { Scrypt } from "lucia";
+/**
+ * Configure {@link Password} provider given a {@link PasswordConfig}.
+ *
+ * @module
+ */
+
+import { EmailConfig } from "@auth/core/providers";
+import ConvexCredentials, {
+  ConvexCredentialsConfig,
+} from "@xixixao/convex-auth/providers/ConvexCredentials";
 import {
   createAccountWithCredentials,
   invalidateSessions,
@@ -13,16 +16,22 @@ import {
   retrieveAccountWithCredentials,
   signInViaProvider,
 } from "@xixixao/convex-auth/server";
-import ConvexCredentials, {
-  ConvexCredentialsConfig,
-} from "@xixixao/convex-auth/providers/ConvexCredentials";
+import {
+  DocumentByName,
+  GenericDataModel,
+  WithoutSystemFields,
+} from "convex/server";
+import { Scrypt } from "lucia";
 
-export interface PasswordConfig<DataModel extends GenericDataModel>
-  extends CommonProviderOptions {
+/**
+ * The available options to a {@link Password} provider for Convex Auth.
+ */
+export interface PasswordConfig<DataModel extends GenericDataModel> {
   /**
-   * Uniquely identifies the provider.
+   * Uniquely identifies the provider, allowing to use
+   * multiple different {@link Password} providers.
    */
-  id: string;
+  id?: string;
   /**
    * Perform checks on provided params and customize the user
    * information stored after sign up.
@@ -54,14 +63,14 @@ export interface PasswordConfig<DataModel extends GenericDataModel>
 /**
  * Email and password authentication provider.
  *
- * Password are by default hashed using Scrypt from Lucia.
+ * Passwords are by default hashed using Scrypt from Lucia.
  * You can customize the hashing via the `crypto` option.
  *
  * Email verification is not required unless you pass
  * an email provider to the `verify` option.
  */
 export default function Password<DataModel extends GenericDataModel>(
-  config: Partial<PasswordConfig<DataModel>>,
+  config: PasswordConfig<DataModel>,
 ) {
   const provider = config.id ?? "password";
   return ConvexCredentials<DataModel>({
