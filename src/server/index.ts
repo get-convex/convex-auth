@@ -14,3 +14,4 @@ export type {
   AuthProviderMaterializedConfig,
   ConvexAuthMaterializedConfig,
 } from "./types";
+export type { GenericDoc } from "./convex_types";

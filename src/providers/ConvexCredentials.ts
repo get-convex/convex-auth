@@ -3,9 +3,23 @@ import { GenericDataModel } from "convex/server";
 import { GenericId } from "convex/values";
 import { GenericActionCtxWithAuthConfig } from "@xixixao/convex-auth/server";
 
+/**
+ * The available options to a Credentials provider for Convex Auth.
+ */
 export interface ConvexCredentialsConfig<
   DataModel extends GenericDataModel = GenericDataModel,
 > extends CommonProviderOptions {
+  /**
+   * Uniquely identifies the provider.
+   */
+  id: string;
+  /**
+   * Gives full control over how you handle the credentials received from the user.
+   *
+   * This method expects a user ID to be returned for a successful login.
+   *
+   * If an error is thrown or `null` is returned, the sign-in will fail.
+   */
   authorize: (
     /**
      * The available keys are determined by your call to `signIn()` on the client.
@@ -62,6 +76,10 @@ export interface ConvexCredentialsConfig<
   ) => Promise<void>;
 }
 
+/**
+ * The Credentials provider allows you to handle signing in with arbitrary credentials,
+ * such as a username and password, domain, or two factor authentication or hardware device (e.g. YubiKey U2F / FIDO).
+ */
 export default function ConvexCredentials<DataModel extends GenericDataModel>(
   config: Partial<ConvexCredentialsConfig<DataModel>>,
 ): CredentialsConfig {

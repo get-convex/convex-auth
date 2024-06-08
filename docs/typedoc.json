@@ -1,0 +1,21 @@
+{
+  "tsconfig": "../tsconfig.json",
+  "entryPoints": [
+    "../src/server/index.ts",
+    "../src/react/index.tsx",
+    "../src/providers"
+  ],
+  "exclude": ["../README.md"],
+  "entryPointStrategy": "expand",
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "pages/api_reference",
+  "outputFileStrategy": "modules",
+  "fileExtension": ".mdx",
+  "readme": "none",
+  "entryFileName": "../api_reference",
+  "hidePageHeader": true,
+  "hideBreadcrumbs": true,
+  "excludeGroups": true,
+  "sort": ["source-order", "external-last"],
+  "parametersFormat": "table"
+}

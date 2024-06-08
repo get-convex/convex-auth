@@ -3,8 +3,9 @@
   "version": "0.0.1",
   "description": "Nextra docs template",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "api": "typedoc && bash process_api_reference.sh",
+    "dev": "npm run api && next dev",
+    "build": "npm run api && next build",
     "start": "next start"
   },
   "repository": {
@@ -29,6 +30,8 @@
     "autoprefixer": "^10.4.15",
     "postcss": "^8.4.29",
     "tailwindcss": "^3.3.3",
+    "typedoc": "^0.25.13",
+    "typedoc-plugin-markdown": "^4.0.3",
     "typescript": "^5.0.4"
   }
 }

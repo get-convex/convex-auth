@@ -17,8 +17,12 @@ import ConvexCredentials, {
   ConvexCredentialsConfig,
 } from "@xixixao/convex-auth/providers/ConvexCredentials";
 
-interface PasswordConfig<DataModel extends GenericDataModel>
+export interface PasswordConfig<DataModel extends GenericDataModel>
   extends CommonProviderOptions {
+  /**
+   * Uniquely identifies the provider.
+   */
+  id: string;
   /**
    * Perform checks on provided params and customize the user
    * information stored after sign up.

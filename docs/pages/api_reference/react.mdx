@@ -1,0 +1,192 @@
+# react
+
+React bindings for Convex Auth.
+
+## useAuthActions()
+
+
+Use this hook to access the `signIn`, `verifyCode` and `signOut` methods:
+
+```ts
+import { useAuthActions } from "@xixixao/convex-auth/react";
+
+function SomeComponent() {
+  const { signIn, verifyCode, signOut } = useAuthActions();
+  // ...
+}
+```
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+[`ConvexAuthActionsContext`](react.mdx#convexauthactionscontext)
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/react/index.tsx:40](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/react/index.tsx#L40)
+
+***
+
+## ConvexAuthProvider()
+
+
+Replace your `ConvexProvider` with this component to enable authentication.
+
+```tsx
+import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexReactClient } from "convex/react";
+import { ReactNode } from "react";
+
+const convex = new ConvexReactClient(/* ... */);
+
+function RootComponent({ children }: { children: ReactNode }) {
+  return <ConvexAuthProvider client={convex}>{children}</ConvexAuthProvider>;
+}
+```
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `props` | `object` |  |
+| `props.client` | `ConvexReactClient` | Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). |
+| `props.storage`? | [`TokenStorage`](react.mdx#tokenstorage) | <p>Optional custom storage object that implements the [TokenStorage](react.mdx#tokenstorage) interface, otherwise</p><p>[`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) is used.</p><p>You must set this for React Native.</p> |
+| `props.children` | `ReactNode` | Children components can call Convex hooks and [useAuthActions](react.mdx#useauthactions). |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Element`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/react/index.tsx:61](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/react/index.tsx#L61)
+
+***
+
+## TokenStorage
+
+A storage interface for storing and retrieving tokens and other secrets.
+
+In browsers `localStorage` and `sessionStorage` implement this interface.
+
+`sessionStorage` can be used for creating separate sessions for each
+browser tab.
+
+In React Native we recommend wrapping `expo-secure-store`.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Properties</h3>
+
+#### getItem()
+
+
+Read a value.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `key` | `string` | Unique key. |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`undefined` \| `null` \| `string` \| `Promise`\<`undefined` \| `null` \| `string`\>
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+
+[src/react/index.tsx:118](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/react/index.tsx#L118)
+
+#### setItem()
+
+
+Write a value.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `key` | `string` | Unique key. |
+| `value` | `string` | The value to store. |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`void` \| `Promise`\<`void`\>
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+
+[src/react/index.tsx:126](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/react/index.tsx#L126)
+
+#### removeItem()
+
+
+Remove a value.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `key` | `string` | Unique key. |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`void` \| `Promise`\<`void`\>
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+
+[src/react/index.tsx:131](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/react/index.tsx#L131)
+
+***
+
+## ConvexAuthActionsContext
+
+
+The result of calling [useAuthActions](react.mdx#useauthactions).
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### signIn()
+
+
+Sign in via one of your configured authentication providers.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `provider` | `string` | <p>The ID of the provider (lowercase version of the</p><p>       provider name or a configured `id` option value).</p> |
+| `args`? | `FormData` \| `Record`\<`string`, `Value`\> | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p> |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Promise`\<`boolean`\>
+
+#### verifyCode()
+
+
+Complete signin with a verification code via one of your configured
+authentication providers.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `provider` | `string` | <p>The ID of the provider (lowercase version of the</p><p>       provider name or a configured `id` option value).</p> |
+| `args` | `FormData` \| `object` | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p><p>       The `code` field is required.</p> |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Promise`\<`boolean`\>
+
+#### signOut()
+
+
+Sign out the current user.
+
+Calls the server to invalidate the server session
+and deletes the locally stored JWT and refresh token.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Promise`\<`void`\>
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/react/index.tsx:137](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/react/index.tsx#L137)

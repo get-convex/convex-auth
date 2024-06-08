@@ -8,6 +8,7 @@
     "type": "separator"
   },
   "status": "Project Status",
+  "api_reference": "API Reference",
   "docs": {
     "title": "Convex Docs",
     "type": "page",

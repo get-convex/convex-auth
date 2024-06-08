@@ -1,3 +1,9 @@
+/**
+ * React bindings for Convex Auth.
+ *
+ * @module
+ */
+
 "use client";
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
@@ -20,7 +26,113 @@ import type {
 } from "../server/implementation";
 
 /**
- * The result of calling `useAuthActions`.
+ * Use this hook to access the `signIn`, `verifyCode` and `signOut` methods:
+ *
+ * ```ts
+ * import { useAuthActions } from "@xixixao/convex-auth/react";
+ *
+ * function SomeComponent() {
+ *   const { signIn, verifyCode, signOut } = useAuthActions();
+ *   // ...
+ * }
+ * ```
+ */
+export function useAuthActions() {
+  return useContext(ConvexAuthActionsContext);
+}
+
+/**
+ * Replace your `ConvexProvider` with this component to enable authentication.
+ *
+ * ```tsx
+ * import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+ * import { ConvexReactClient } from "convex/react";
+ * import { ReactNode } from "react";
+ *
+ * const convex = new ConvexReactClient(/* ... *\/);
+ *
+ * function RootComponent({ children }: { children: ReactNode }) {
+ *   return <ConvexAuthProvider client={convex}>{children}</ConvexAuthProvider>;
+ * }
+ * ```
+ *
+ * @param props
+ */
+export function ConvexAuthProvider({
+  client,
+  storage,
+  children,
+}: {
+  /**
+   * Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient).
+   */
+  client: ConvexReactClient;
+  /**
+   * Optional custom storage object that implements
+   * the {@link TokenStorage} interface, otherwise
+   * [`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
+   * is used.
+   *
+   * You must set this for React Native.
+   */
+  storage?: TokenStorage;
+  /**
+   * Children components can call Convex hooks
+   * and {@link useAuthActions}.
+   */
+  children: ReactNode;
+}) {
+  return (
+    <AuthProvider
+      client={client}
+      storage={
+        storage ??
+        // Handle SSR, RN, Web, etc.
+        // Pretend we always have storage, the component checks
+        // it in first useEffect.
+        (typeof window === "undefined" ? undefined : window?.localStorage)!
+      }
+    >
+      <ConvexProviderWithAuth client={client} useAuth={useAuth}>
+        {children}
+      </ConvexProviderWithAuth>
+    </AuthProvider>
+  );
+}
+
+/**
+ * A storage interface for storing and retrieving tokens and other secrets.
+ *
+ * In browsers `localStorage` and `sessionStorage` implement this interface.
+ *
+ * `sessionStorage` can be used for creating separate sessions for each
+ * browser tab.
+ *
+ * In React Native we recommend wrapping `expo-secure-store`.
+ */
+export interface TokenStorage {
+  /**
+   * Read a value.
+   * @param key Unique key.
+   */
+  getItem: (
+    key: string,
+  ) => string | undefined | null | Promise<string | undefined | null>;
+  /**
+   * Write a value.
+   * @param key Unique key.
+   * @param value The value to store.
+   */
+  setItem: (key: string, value: string) => void | Promise<void>;
+  /**
+   * Remove a value.
+   * @param key Unique key.
+   */
+  removeItem: (key: string) => void | Promise<void>;
+}
+
+/**
+ * The result of calling {@link useAuthActions}.
  */
 export type ConvexAuthActionsContext = {
   /**
@@ -58,29 +170,17 @@ export type ConvexAuthActionsContext = {
   /**
    * Sign out the current user.
    *
-   * Deletes locally stored JWT and refresh token,
-   * and calls the server to invalidate the server session.
+   * Calls the server to invalidate the server session
+   * and deletes the locally stored JWT and refresh token.
    */
   signOut: () => Promise<void>;
 };
 
+/// Implementation details below
+
 const ConvexAuthActionsContext = createContext<ConvexAuthActionsContext>(
   undefined as any,
 );
-
-/**
- * Use this hook to access the `signIn`, `verifyCode` and `signOut` methods:
- *
- * ```ts
- * function SomeComponent() {
- *   const { signIn, verifyCode, signOut } = useAuthActions();
- *   // ...
- * }
- * ```
- */
-export function useAuthActions() {
-  return useContext(ConvexAuthActionsContext);
-}
 
 const ConvexAuthInternalContext = createContext<{
   isLoading: boolean;
@@ -94,60 +194,6 @@ const ConvexAuthInternalContext = createContext<{
 
 function useConvexAuthInternalContext() {
   return useContext(ConvexAuthInternalContext);
-}
-
-/**
- * Replace your `ConvexProvider` with this component to enable authentication.
- *
- * @param props - An object with a `client` property that refers
- *              to a {@link ConvexReactClient}. Optionally provide a
- *              custom `storage` object that implements
- *              the {@link TokenStorage} interface, otherwise
- *              `localStorage` is used.
- */
-export function ConvexAuthProvider({
-  client,
-  storage,
-  children,
-}: {
-  client: ConvexReactClient;
-  storage?: TokenStorage;
-  children: ReactNode;
-}) {
-  return (
-    <AuthProvider
-      client={client}
-      storage={
-        storage ??
-        // Handle SSR, RN, Web, etc.
-        // Pretend we always have storage, the component checks
-        // it in first useEffect.
-        (typeof window === "undefined" ? undefined : window?.localStorage)!
-      }
-    >
-      <ConvexProviderWithAuth client={client} useAuth={useAuth}>
-        {children}
-      </ConvexProviderWithAuth>
-    </AuthProvider>
-  );
-}
-
-/**
- * A storage interface for storing and retrieving tokens.
- *
- * In browsers `localStorage` and `sessionStorage` implement this interface.
- *
- * `sessionStorage` can be used for creating separate sessions for each
- * browser tab.
- *
- * In React Native we recommend wrapping `expo-secure-store`.
- */
-export interface TokenStorage {
-  getItem: (
-    key: string,
-  ) => string | undefined | null | Promise<string | undefined | null>;
-  setItem: (key: string, token: string) => void | Promise<void>;
-  removeItem: (key: string) => void | Promise<void>;
 }
 
 const VERIFIER_STORAGE_KEY = "__convexAuthOAuthVerifier";

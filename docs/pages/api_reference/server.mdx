@@ -1,0 +1,642 @@
+# server
+
+## GenericDoc\<DataModel, TableName\>
+
+
+Convex document from a given table.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### \_id
+
+
+#### \_creationTime
+
+
+### Type parameters
+
+| Type parameter |
+| :------ |
+| `DataModel` *extends* `GenericDataModel` |
+| `TableName` *extends* `TableNamesInDataModel`\<`DataModel`\> |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/convex\_types.ts:15](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/convex_types.ts#L15)
+
+***
+
+## tables
+
+
+The table definitions required by the library.
+
+Your schema must include these so that the indexes
+are set up.
+
+You can inline the table definitions into your schema
+and extend them with additional optional and required
+fields. See https://labs.convex.dev/auth/setup/schema
+for more details.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### users
+
+
+Users.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
+
+###### name
+
+
+###### image
+
+
+###### emailVerified
+
+
+###### email
+
+
+###### \_creationTime
+
+
+#### sessions
+
+
+Sessions.
+A single user can have multiple active sessions.
+See https://labs.convex.dev/auth/advanced#session-document-lifecycle.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
+
+###### userId
+
+
+###### expirationTime
+
+
+###### \_creationTime
+
+
+#### accounts
+
+
+Accounts. An account corresponds to
+a single authenetication provider.
+A single user can have multiple accounts linked.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
+
+###### secret
+
+
+###### type
+
+
+###### userId
+
+
+###### provider
+
+
+###### providerAccountId
+
+
+###### \_creationTime
+
+
+#### refreshTokens
+
+
+Refresh tokens.
+Each session has only a single refresh token
+valid at a time. Refresh tokens are rotated
+and reuse is not allowed.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
+
+###### userId
+
+
+###### expirationTime
+
+
+###### sessionId
+
+
+###### \_creationTime
+
+
+#### verificationCodes
+
+
+Verification codes:
+- OTP tokens
+- magic link tokens
+- OAuth codes
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
+
+###### emailVerified
+
+
+###### verifier
+
+
+###### userId
+
+
+###### expirationTime
+
+
+###### code
+
+
+###### \_creationTime
+
+
+#### verifiers
+
+
+PKCE verifiers.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
+
+###### state
+
+
+###### verifier
+
+
+###### \_creationTime
+
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:64](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L64)
+
+***
+
+## convexAuth()
+
+
+Configure the Convex Auth library. Returns an object with
+functions and `auth` helper. You must export the functions
+from `convex/auth.ts` to make them callable:
+
+```tsx
+import { convexAuth } from "@xixixao/convex-auth/server";
+
+export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+  providers: [],
+});
+```
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type |
+| :------ | :------ |
+| `rawConfig` | [`ConvexAuthConfig`](server.mdx#convexauthconfig) |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`object`
+
+#### auth
+
+
+#### auth.getUserId()
+
+
+Return the currently signed-in user's ID.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `ctx` | `object` | query, mutation or action `ctx` |
+| `ctx.auth` | `Auth` | - |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Promise`\<`null` \| `Id`\<`"users"`\>\>
+
+#### auth.getSessionId()
+
+
+Return the current session ID.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `ctx` | `object` | query, mutation or action `ctx` |
+| `ctx.auth` | `Auth` | - |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Promise`\<`null` \| `Id`\<`"sessions"`\>\>
+
+#### auth.addHttpRoutes()
+
+
+Add HTTP actions for JWT verification and OAuth sign-in.
+
+```ts
+import { httpRouter } from "convex/server";
+import { auth } from "./auth";
+
+const http = httpRouter();
+
+auth.addHttpRoutes(http);
+
+export default http;
+```
+
+The following routes are handled always:
+
+- /.well-known/openid-configuration
+- /.well-known/jwks.json
+
+The following routes are handled if OAuth is configured:
+
+- /api/auth/signin/*
+- /api/auth/callback/*
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `http` | `HttpRouter` | your HTTP router |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`void`
+
+#### signIn
+
+
+Action called by the client to sign the user in.
+
+#### verifyCode
+
+
+Action called by the client to complete sign via code verification.
+
+#### signOut
+
+
+Action called by the client to invalidate the current session.
+
+#### store
+
+
+Internal mutation used by the library to read and write
+to the database during signin and signout.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:262](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L262)
+
+***
+
+## createAccountWithCredentials()
+
+
+Use this function from a `ConvexCredentials` provider
+to create an account and a user with a pair of unique
+id and an account secret.
+
+### Type parameters
+
+| Type parameter | Value |
+| :------ | :------ |
+| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
+| `args` | `object` | - |
+| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the provider's `crypto` option.</p> |
+| `args.account` | `object` | - |
+| `args.account.id` | `string` | The unique external ID for the account, for example email address. |
+| `args.account.secret` | `string` | The secret credential to store for this account. |
+| `args.profile` | `object` & `Record`\<`string`, `any`\> | The profile data to store for the user. These must fit the `users` table schema. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+
+user ID if it successfully creates the account
+or throws an error.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:974](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L974)
+
+***
+
+## retrieveAccountWithCredentials()
+
+
+Use this function from a `ConvexCredentials` provider
+to retrieve a user given a pair of unique account
+id and an account secret.
+
+### Type parameters
+
+| Type parameter | Value |
+| :------ | :------ |
+| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
+| `args` | `object` | - |
+| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the provider's `crypto` option.</p> |
+| `args.account` | `object` | - |
+| `args.account.id` | `string` | The unique external ID for the account, for example email address. |
+| `args.account.secret` | `string` | The secret that should match the stored credential. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+
+the retrieved user document, or `null` if there is no account
+for given account ID, or throws if the provided
+secret does not match.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:1021](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L1021)
+
+***
+
+## retrieveAccount()
+
+
+Use this function from a `ConvexCredentials` provider
+to retrieve a user given the account provider ID and
+the provider-specific account ID.
+
+### Type parameters
+
+| Type parameter | Value |
+| :------ | :------ |
+| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
+| `args` | `object` | - |
+| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the provider's `crypto` option.</p> |
+| `args.account` | `object` | - |
+| `args.account.id` | `string` | The unique external ID for the account, for example email address. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+
+the retrieved user document, or `null` if there is no account
+for given account ID.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:1062](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L1062)
+
+***
+
+## modifyAccountCredentials()
+
+
+Use this function to modify the account credentials
+from a `ConvexCredentials` provider.
+
+### Type parameters
+
+| Type parameter | Value |
+| :------ | :------ |
+| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| :------ | :------ | :------ |
+| `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
+| `args` | `object` | - |
+| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the `crypto` option.</p> |
+| `args.account` | `object` | - |
+| `args.account.id` | `string` | The unique external ID for the account, for example email address. |
+| `args.account.secret` | `string` | The new secret credential to store for this account. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:1097](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L1097)
+
+***
+
+## invalidateSessions()
+
+
+Use this function to invalidate existing sessions.
+
+### Type parameters
+
+| Type parameter | Value |
+| :------ | :------ |
+| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type |
+| :------ | :------ |
+| `ctx` | `GenericActionCtx`\<`DataModel`\> |
+| `args` | `object` |
+| `args.userId` | `Id`\<`"users"`\> |
+| `args.except`? | `Id`\<`"sessions"`\>[] |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:1132](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L1132)
+
+***
+
+## signInViaProvider()
+
+
+Use this function from a `ConvexCredentials` provider
+to sign in the user via another provider (usually
+for email verification on sign up or password reset).
+
+### Type parameters
+
+| Type parameter | Value |
+| :------ | :------ |
+| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type |
+| :------ | :------ |
+| `ctx` | [`GenericActionCtxWithAuthConfig`](server.mdx#genericactionctxwithauthconfigdatamodel)\<`DataModel`\> |
+| `provider` | `Provider` |
+| `signedIn` | `object` |
+| `signedIn.userId` | `Id`\<`"users"`\> |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<`null`\>
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:1155](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/implementation.ts#L1155)
+
+***
+
+## ConvexAuthConfig
+
+
+The config for the Convex Auth library, passed to `convexAuth`.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### providers
+
+
+A list of authentication provider configs.
+
+You can import existing configs from
+- `"@auth/core/providers/<provider-name>"`
+- `"@xixixao/convex-auth/providers/<provider-name>"`
+
+#### theme?
+
+
+Theme used for emails.
+See Auth.js theme docs. (TODO: Add link)
+
+#### session?
+
+
+Session configuration.
+
+#### session.totalDurationMs?
+
+
+How long can a user session last without the user reauthenticating.
+
+Defaults to 30 days.
+
+#### session.inactiveDurationMs?
+
+
+How long can a user session last without the user being active.
+
+Defaults to 30 days.
+
+#### jwt?
+
+
+JWT configuration.
+
+#### jwt.durationMs?
+
+
+How long is the JWT valid for after it is signed initially.
+
+Defaults to 1 hour.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/types.ts:15](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/types.ts#L15)
+
+***
+
+## GenericActionCtxWithAuthConfig\<DataModel\>
+
+
+Your `ActionCtx` enriched with `ctx.auth.config` field with
+the config passed to `convexAuth`.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### auth
+
+
+#### auth.config
+
+
+### Type parameters
+
+| Type parameter |
+| :------ |
+| `DataModel` *extends* `GenericDataModel` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/types.ts:63](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/types.ts#L63)
+
+***
+
+## ConvexAuthMaterializedConfig
+
+
+The config for the Convex Auth library, passed to `convexAuth`,
+with defaults and initialized providers.
+
+See [ConvexAuthConfig](server.mdx#convexauthconfig)
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### providers
+
+
+#### theme
+
+
+#### session?
+
+
+#### session.totalDurationMs?
+
+
+#### session.inactiveDurationMs?
+
+
+#### jwt?
+
+
+#### jwt.durationMs?
+
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/types.ts:74](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/types.ts#L74)
+
+***
+
+## AuthProviderMaterializedConfig
+
+
+Materialized Auth.js provider config.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/types.ts:89](https://github.com/get-convex/convex-auth/blob/e8e799a7990a10ce1f359c844a55ba92fffb466b/src/server/types.ts#L89)
