@@ -2,12 +2,7 @@ import { convexTest } from "convex-test";
 import { expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
-import {
-  AUTH_RESEND_KEY,
-  CONVEX_SITE_URL,
-  JWKS,
-  JWT_PRIVATE_KEY,
-} from "./test.helpers";
+import { CONVEX_SITE_URL, JWKS, JWT_PRIVATE_KEY } from "./test.helpers";
 
 test("session refresh", async () => {
   vi.useFakeTimers();
