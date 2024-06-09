@@ -3,10 +3,12 @@
 Now that you have set up and configured authentication with Convex Auth, learn
 how to use the authentication state in your frontend and backend.
 
-## Sign in and sign out
+## Sign in
 
 See each authentication method's [Configuration](/config) page for how to build
 a sign-in UI.
+
+## Sign out
 
 You can sign the user out via the `signOut` function:
 
@@ -24,8 +26,8 @@ export function SignOut() {
 ## Determine what UI to show based on signed-in state
 
 You can control which content signed-in and signed-out users can see with the
-included components from `convex/react`. You can combine them with your custom
-sign-in and sign-out components:
+components from `convex/react`. You can combine them with your custom sign-in
+and sign-out components:
 
 ```ts filename="src/App.tsx"
 import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
@@ -57,6 +59,25 @@ function Content() {
 Within a Convex [function](https://docs.convex.dev/functions), you can access
 information about the currently logged-in user and session via the `auth` object
 exported from your `convex/auth.ts` file.
+
+The `auth.getUserId` and `auth.getSessionId` methods use the Convex-built-in
+`ctx.auth.getUserIdentity()` under the hood to provide a typed API.
+
+### Data model
+
+Convex Auth defines [`users`](/api_reference/server#users) and
+[`sessions`](<(/api_reference/server#sessions)>) tables for you.
+
+When a user first signs up, a document is created in the `users` table.
+
+When a user signs in (including after initial signup), a document is created in
+the `sessions` table. The session document exists until the session expires or
+the user signs out. See
+[session document lifecycle](/advanced#session-document-lifecycle).
+
+One user can have many active sessions simultaneously. For web apps the same
+session is shared by all browser tabs by default, but
+[this can be configured](http://localhost:3000/auth/api_reference/react#convexauthprovider).
 
 ### Get currently signed-in user ID
 
@@ -105,3 +126,11 @@ export const currentSession = query({
 
 The function returns `Id<"sessions">` (or `null` when the client isn't
 authenticated).
+
+### Loading users and sessions
+
+You can retrieve the user or session document via `ctx.db.get()` in queries and
+mutations.
+
+See [Customizing Schema] for guidance on attaching additional information to
+users and sessions.
