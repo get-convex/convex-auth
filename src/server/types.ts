@@ -23,7 +23,7 @@ export type ConvexAuthConfig = {
   providers: AuthProviderConfig[];
   /**
    * Theme used for emails.
-   * See Auth.js theme docs. (TODO: Add link)
+   * See [Auth.js theme docs](https://authjs.dev/reference/core/types#theme).
    */
   theme?: Theme;
   /**

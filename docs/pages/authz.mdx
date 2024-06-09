@@ -64,15 +64,19 @@ To get the currently signed-in user's ID, call `auth.getUserId` and pass it a
 query, mutation or action `ctx`:
 
 ```ts filename="convex/myFunctions.tsx"
-import {auth} from "./auth"
+import { query } from "./_generated/server";
+import { auth } from "./auth";
 
-export const currentUser = query(async (ctx) => {
-  const userId = auth.getUserId(ctx);
-  if (userId === null) {
-    return null;
-  }
-  return await ctx.db.get(userId);
-}
+export const currentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await auth.getUserId(ctx);
+    if (userId === null) {
+      return null;
+    }
+    return await ctx.db.get(userId);
+  },
+});
 ```
 
 The function returns `Id<"users">` (or `null` when the client isn't
@@ -84,15 +88,19 @@ To get the current session ID, call `auth.getSessionId` and pass it a query,
 mutation or action `ctx`:
 
 ```ts filename="convex/myFunctions.tsx"
-import {auth} from "./auth"
+import { query } from "./_generated/server";
+import { auth } from "./auth";
 
-export const currentSession = query(async (ctx) => {
-  const sessionId = auth.getSessionId(ctx);
-  if (sessionId === null) {
-    return null;
-  }
-  return await ctx.db.get(sessionId);
-}
+export const currentSession = query({
+  args: {},
+  handler: async (ctx) => {
+    const sessionId = await auth.getSessionId(ctx);
+    if (sessionId === null) {
+      return null;
+    }
+    return await ctx.db.get(sessionId);
+  },
+});
 ```
 
 The function returns `Id<"sessions">` (or `null` when the client isn't

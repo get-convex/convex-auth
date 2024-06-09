@@ -1,38 +1,31 @@
 # server
 
-## GenericDoc\<DataModel, TableName\>
+Configuration and helpers for using Convex Auth on your Convex
+backend.
 
+Call [convexAuth](server.mdx#convexauth) to configure your authentication methods
+and use the helpers it returns.
 
-Convex document from a given table.
+Include [authTables](server.mdx#authtables) in your schema.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
-
-#### \_id
-
-
-#### \_creationTime
-
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter |
-| :------ |
-| `DataModel` *extends* `GenericDataModel` |
-| `TableName` *extends* `TableNamesInDataModel`\<`DataModel`\> |
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
-
-[src/server/convex\_types.ts:15](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/convex_types.ts#L15)
-
-***
-
-## tables
+## authTables
 
 
 The table definitions required by the library.
 
 Your schema must include these so that the indexes
-are set up.
+are set up:
+
+```ts filename="convex/schema.ts"
+import { defineSchema } from "convex/server";
+import { authTables } from "@xixixao/convex-auth/server";
+
+const schema = defineSchema({
+  ...authTables,
+});
+
+export default schema;
+```
 
 You can inline the table definitions into your schema
 and extend them with additional optional and required
@@ -46,40 +39,26 @@ for more details.
 
 Users.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
-
-###### name
-
-
-###### image
-
-
-###### emailVerified
-
-
-###### email
-
-
-###### \_creationTime
-
+|Field|TS Type
+|---|---
+|`name`|  `undefined` \| `string`
+|`image`|  `undefined` \| `string`
+|`emailVerified`|  `undefined` \| `boolean`
+|`email`|  `string`
+|`\_creationTime`|  `number`
 
 #### sessions
 
 
 Sessions.
 A single user can have multiple active sessions.
-See https://labs.convex.dev/auth/advanced#session-document-lifecycle.
+See [Session document lifecycle](https://labs.convex.dev/auth/advanced#session-document-lifecycle).
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
-
-###### userId
-
-
-###### expirationTime
-
-
-###### \_creationTime
-
+|Field|TS Type
+|---|---
+|`userId`|  `Id`\<`"users"`\>
+|`expirationTime`|  `number`
+|`\_creationTime`|  `number`
 
 #### accounts
 
@@ -88,25 +67,14 @@ Accounts. An account corresponds to
 a single authenetication provider.
 A single user can have multiple accounts linked.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
-
-###### secret
-
-
-###### type
-
-
-###### userId
-
-
-###### provider
-
-
-###### providerAccountId
-
-
-###### \_creationTime
-
+|Field|TS Type
+|---|---
+|`secret`|  `undefined` \| `string`
+|`type`|  `"email"` \| `"webauthn"` \| `"oidc"` \| `"oauth"` \| `"credentials"`
+|`userId`|  `Id`\<`"users"`\>
+|`provider`|  `string`
+|`providerAccountId`|  `string`
+|`\_creationTime`|  `number`
 
 #### refreshTokens
 
@@ -116,19 +84,12 @@ Each session has only a single refresh token
 valid at a time. Refresh tokens are rotated
 and reuse is not allowed.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
-
-###### userId
-
-
-###### expirationTime
-
-
-###### sessionId
-
-
-###### \_creationTime
-
+|Field|TS Type
+|---|---
+|`userId`|  `Id`\<`"users"`\>
+|`expirationTime`|  `number`
+|`sessionId`|  `Id`\<`"sessions"`\>
+|`\_creationTime`|  `number`
 
 #### verificationCodes
 
@@ -138,45 +99,29 @@ Verification codes:
 - magic link tokens
 - OAuth codes
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
-
-###### emailVerified
-
-
-###### verifier
-
-
-###### userId
-
-
-###### expirationTime
-
-
-###### code
-
-
-###### \_creationTime
-
+|Field|TS Type
+|---|---
+|`emailVerified`|  `undefined` \| `boolean`
+|`verifier`|  `undefined` \| `string`
+|`userId`|  `Id`\<`"users"`\>
+|`expirationTime`|  `number`
+|`code`|  `string`
+|`\_creationTime`|  `number`
 
 #### verifiers
 
 
 PKCE verifiers.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Type declaration</h5>
-
-###### state
-
-
-###### verifier
-
-
-###### \_creationTime
-
+|Field|TS Type
+|---|---
+|`state`|  `string`
+|`verifier`|  `string`
+|`\_creationTime`|  `number`
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:64](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L64)
+[src/server/implementation.ts:76](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L76)
 
 ***
 
@@ -187,7 +132,7 @@ Configure the Convex Auth library. Returns an object with
 functions and `auth` helper. You must export the functions
 from `convex/auth.ts` to make them callable:
 
-```tsx
+```ts filename="convex/auth.ts"
 import { convexAuth } from "@xixixao/convex-auth/server";
 
 export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
@@ -199,11 +144,14 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
 
 | Parameter | Type |
 | :------ | :------ |
-| `rawConfig` | [`ConvexAuthConfig`](server.mdx#convexauthconfig) |
+| `config_` | [`ConvexAuthConfig`](server.mdx#convexauthconfig) |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 `object`
+
+An object with `auth` helper for configuring HTTP actions and accessing
+the current user and session ID.
 
 #### auth
 
@@ -212,6 +160,23 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
 
 
 Return the currently signed-in user's ID.
+
+```ts filename="convex/myFunctions.tsx"
+import { mutation } from "./_generated/server";
+import { auth } from "./auth";
+
+export const currentUser = mutation({
+  args: {/* ... */},
+  handler: async (ctx, args) => {
+    const userId = await auth.getUserId(ctx);
+    if (userId === null) {
+      throw new Error("User is not authenticated!")
+    }
+    const user = await ctx.db.get(userId);
+    // ...
+  },
+});
+```
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
@@ -228,6 +193,23 @@ Return the currently signed-in user's ID.
 
 
 Return the current session ID.
+
+```ts filename="convex/myFunctions.tsx"
+import { mutation } from "./_generated/server";
+import { auth } from "./auth";
+
+export const currentSession = mutation({
+  args: {/* ... */},
+  handler: async (ctx, args) => {
+    const sessionId = await auth.getSessionId(ctx);
+    if (sessionId === null) {
+      throw new Error("Session is not authenticated!")
+    }
+    const session = await ctx.db.get(sessionId);
+    // ...
+  },
+});
+```
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
@@ -258,13 +240,13 @@ export default http;
 
 The following routes are handled always:
 
-- /.well-known/openid-configuration
-- /.well-known/jwks.json
+- `/.well-known/openid-configuration`
+- `/.well-known/jwks.json`
 
 The following routes are handled if OAuth is configured:
 
-- /api/auth/signin/*
-- /api/auth/callback/*
+- `/api/auth/signin/*`
+- `/api/auth/callback/*`
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
@@ -299,7 +281,7 @@ to the database during signin and signout.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:262](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L262)
+[src/server/implementation.ts:277](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L277)
 
 ***
 
@@ -337,7 +319,7 @@ or throws an error.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:974](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L974)
+[src/server/implementation.ts:1023](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1023)
 
 ***
 
@@ -375,7 +357,7 @@ secret does not match.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1021](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L1021)
+[src/server/implementation.ts:1070](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1070)
 
 ***
 
@@ -411,7 +393,7 @@ for given account ID.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1062](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L1062)
+[src/server/implementation.ts:1111](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1111)
 
 ***
 
@@ -444,7 +426,7 @@ from a `ConvexCredentials` provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1097](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L1097)
+[src/server/implementation.ts:1146](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1146)
 
 ***
 
@@ -474,7 +456,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1132](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L1132)
+[src/server/implementation.ts:1181](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1181)
 
 ***
 
@@ -506,7 +488,7 @@ for email verification on sign up or password reset).
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1155](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/implementation.ts#L1155)
+[src/server/implementation.ts:1204](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1204)
 
 ***
 
@@ -530,7 +512,7 @@ You can import existing configs from
 
 
 Theme used for emails.
-See Auth.js theme docs. (TODO: Add link)
+See [Auth.js theme docs](https://authjs.dev/reference/core/types#theme).
 
 #### session?
 
@@ -565,7 +547,7 @@ Defaults to 1 hour.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:15](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/types.ts#L15)
+[src/server/types.ts:15](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L15)
 
 ***
 
@@ -591,7 +573,7 @@ the config passed to `convexAuth`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:63](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/types.ts#L63)
+[src/server/types.ts:63](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L63)
 
 ***
 
@@ -628,7 +610,7 @@ See [ConvexAuthConfig](server.mdx#convexauthconfig)
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:74](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/types.ts#L74)
+[src/server/types.ts:74](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L74)
 
 ***
 
@@ -639,4 +621,4 @@ Materialized Auth.js provider config.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:89](https://github.com/get-convex/convex-auth/blob/b51c461e84af339dc46e27ec5c5ce0370ba0f720/src/server/types.ts#L89)
+[src/server/types.ts:89](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L89)

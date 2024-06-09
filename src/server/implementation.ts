@@ -54,7 +54,19 @@ const TOKEN_SUB_CLAIM_DIVIDER = "|";
  * The table definitions required by the library.
  *
  * Your schema must include these so that the indexes
- * are set up.
+ * are set up:
+ *
+ *
+ * ```ts filename="convex/schema.ts"
+ * import { defineSchema } from "convex/server";
+ * import { authTables } from "@xixixao/convex-auth/server";
+ *
+ * const schema = defineSchema({
+ *   ...authTables,
+ * });
+ *
+ * export default schema;
+ * ```
  *
  * You can inline the table definitions into your schema
  * and extend them with additional optional and required
@@ -74,7 +86,7 @@ export const authTables = {
   /**
    * Sessions.
    * A single user can have multiple active sessions.
-   * See https://labs.convex.dev/auth/advanced#session-document-lifecycle.
+   * See [Session document lifecycle](https://labs.convex.dev/auth/advanced#session-document-lifecycle).
    */
   sessions: defineTable({
     userId: v.id("users"),
@@ -251,16 +263,19 @@ export type SignOutAction = FunctionReferenceFromExport<
  * functions and `auth` helper. You must export the functions
  * from `convex/auth.ts` to make them callable:
  *
- * ```tsx
+ * ```ts filename="convex/auth.ts"
  * import { convexAuth } from "@xixixao/convex-auth/server";
  *
  * export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
  *   providers: [],
  * });
  * ```
+ *
+ * @returns An object with `auth` helper for configuring HTTP actions and accessing
+ * the current user and session ID.
  */
-export function convexAuth(rawConfig: ConvexAuthConfig) {
-  const config = configDefaults(rawConfig);
+export function convexAuth(config_: ConvexAuthConfig) {
+  const config = configDefaults(config_);
   const hasOAuth = config.providers.some(
     (provider) => provider.type === "oauth" || provider.type === "oidc",
   );
@@ -283,6 +298,23 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
     /**
      * Return the currently signed-in user's ID.
      *
+     * ```ts filename="convex/myFunctions.tsx"
+     * import { mutation } from "./_generated/server";
+     * import { auth } from "./auth";
+     *
+     * export const currentUser = mutation({
+     *   args: {/* ... *\/},
+     *   handler: async (ctx, args) => {
+     *     const userId = await auth.getUserId(ctx);
+     *     if (userId === null) {
+     *       throw new Error("User is not authenticated!")
+     *     }
+     *     const user = await ctx.db.get(userId);
+     *     // ...
+     *   },
+     * });
+     * ```
+     *
      * @param ctx query, mutation or action `ctx`
      * @returns the user ID or `null` if the client isn't authenticated
      */
@@ -296,6 +328,23 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
     },
     /**
      * Return the current session ID.
+     *
+     * ```ts filename="convex/myFunctions.tsx"
+     * import { mutation } from "./_generated/server";
+     * import { auth } from "./auth";
+     *
+     * export const currentSession = mutation({
+     *   args: {/* ... *\/},
+     *   handler: async (ctx, args) => {
+     *     const sessionId = await auth.getSessionId(ctx);
+     *     if (sessionId === null) {
+     *       throw new Error("Session is not authenticated!")
+     *     }
+     *     const session = await ctx.db.get(sessionId);
+     *     // ...
+     *   },
+     * });
+     * ```
      *
      * @param ctx query, mutation or action `ctx`
      * @returns the session ID or `null` if the client isn't authenticated
@@ -324,13 +373,13 @@ export function convexAuth(rawConfig: ConvexAuthConfig) {
      *
      * The following routes are handled always:
      *
-     * - /.well-known/openid-configuration
-     * - /.well-known/jwks.json
+     * - `/.well-known/openid-configuration`
+     * - `/.well-known/jwks.json`
      *
      * The following routes are handled if OAuth is configured:
      *
-     * - /api/auth/signin/*
-     * - /api/auth/callback/*
+     * - `/api/auth/signin/*`
+     * - `/api/auth/callback/*`
      *
      * @param http your HTTP router
      */
