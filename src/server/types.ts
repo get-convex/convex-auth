@@ -17,8 +17,8 @@ export type ConvexAuthConfig = {
    * A list of authentication provider configs.
    *
    * You can import existing configs from
-   * - `"@auth/core/providers/<provider-name>"`
-   * - `"@xixixao/convex-auth/providers/<provider-name>"`
+   * - `@auth/core/providers/<provider-name>`
+   * - `@xixixao/convex-auth/providers/<provider-name>`
    */
   providers: AuthProviderConfig[];
   /**

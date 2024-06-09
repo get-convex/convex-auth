@@ -292,12 +292,6 @@ Use this function from a `ConvexCredentials` provider
 to create an account and a user with a pair of unique
 id and an account secret.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter | Value |
-| :------ | :------ |
-| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
-
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
@@ -329,12 +323,6 @@ or throws an error.
 Use this function from a `ConvexCredentials` provider
 to retrieve a user given a pair of unique account
 id and an account secret.
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter | Value |
-| :------ | :------ |
-| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
@@ -368,12 +356,6 @@ Use this function from a `ConvexCredentials` provider
 to retrieve a user given the account provider ID and
 the provider-specific account ID.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter | Value |
-| :------ | :------ |
-| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
-
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
@@ -403,12 +385,6 @@ for given account ID.
 Use this function to modify the account credentials
 from a `ConvexCredentials` provider.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter | Value |
-| :------ | :------ |
-| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
-
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
@@ -435,12 +411,6 @@ from a `ConvexCredentials` provider.
 
 Use this function to invalidate existing sessions.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter | Value |
-| :------ | :------ |
-| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
-
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type |
@@ -466,12 +436,6 @@ Use this function to invalidate existing sessions.
 Use this function from a `ConvexCredentials` provider
 to sign in the user via another provider (usually
 for email verification on sign up or password reset).
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter | Value |
-| :------ | :------ |
-| `DataModel` *extends* `GenericDataModel` | `GenericDataModel` |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
@@ -501,15 +465,17 @@ The config for the Convex Auth library, passed to `convexAuth`.
 
 #### providers
 
+> **providers**: `AuthProviderConfig`[]
 
 A list of authentication provider configs.
 
 You can import existing configs from
-- `"@auth/core/providers/<provider-name>"`
-- `"@xixixao/convex-auth/providers/<provider-name>"`
+- `@auth/core/providers/<provider-name>`
+- `@xixixao/convex-auth/providers/<provider-name>`
 
 #### theme?
 
+> `optional` **theme**: `Theme`
 
 Theme used for emails.
 See [Auth.js theme docs](https://authjs.dev/reference/core/types#theme).
@@ -521,6 +487,7 @@ Session configuration.
 
 #### session.totalDurationMs?
 
+> `optional` **totalDurationMs**: `number`
 
 How long can a user session last without the user reauthenticating.
 
@@ -528,6 +495,7 @@ Defaults to 30 days.
 
 #### session.inactiveDurationMs?
 
+> `optional` **inactiveDurationMs**: `number`
 
 How long can a user session last without the user being active.
 
@@ -540,6 +508,7 @@ JWT configuration.
 
 #### jwt.durationMs?
 
+> `optional` **durationMs**: `number`
 
 How long is the JWT valid for after it is signed initially.
 
@@ -565,12 +534,6 @@ the config passed to `convexAuth`.
 #### auth.config
 
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type parameters</h3>
-
-| Type parameter |
-| :------ |
-| `DataModel` *extends* `GenericDataModel` |
-
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
 [src/server/types.ts:63](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L63)
@@ -592,21 +555,25 @@ See [ConvexAuthConfig](server.mdx#convexauthconfig)
 
 #### theme
 
+> **theme**: `Theme`
 
 #### session?
 
 
 #### session.totalDurationMs?
 
+> `optional` **totalDurationMs**: `number`
 
 #### session.inactiveDurationMs?
 
+> `optional` **inactiveDurationMs**: `number`
 
 #### jwt?
 
 
 #### jwt.durationMs?
 
+> `optional` **durationMs**: `number`
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
