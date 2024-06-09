@@ -777,6 +777,13 @@ export function convexAuth(config_: ConvexAuthConfig) {
                   emailVerificationTime: Date.now(),
                 });
               }
+              const existingSessionId = await auth.getSessionId(ctx);
+              if (existingSessionId !== null) {
+                const existingSession = await ctx.db.get(existingSessionId);
+                if (existingSession !== null) {
+                  await deleteSession(ctx, existingSession);
+                }
+              }
               const sessionId = await createSession(ctx, userId, config);
               const ids = { userId, sessionId };
               return {
