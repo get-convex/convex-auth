@@ -5,9 +5,16 @@ import Image from "next/image";
 
 Now you need to choose how you want your users to authenticate.
 
-For most apps we recommend to decide whether you want to support one or more
-OAuth providers (GitHub, Google, Apple etc.), and pair them with either email
-sign-in via Magic Link / OTP or with a traditional email + password combination.
+If you're just getting started for the first time, we recommend using
+[Magic Links](/config/email) with Resend as the email service provider. This is
+the simplest method to set up.
+
+If you don't want to use any other service you can use
+[Passwords](/config/passwords) without password recovery.
+
+Eventually most apps support one or more OAuth providers (GitHub, Google, Apple
+etc.), and pair them with either email sign-in via Magic Link / OTP or with a
+traditional email + password combination.
 
 <Image
   src={exampleForms}
@@ -36,6 +43,7 @@ the tradeoffs.
 - ❗️ Magic links & OTPs require configuring an email provider / server, which in
   turn usually requires controlling a web domain.
 - 👍 Magic links have the simplest implementation of all the methods.
+- ⏱️ Currently we don't have a guide for using magic links with React Native.
 
 **UX considerations:**
 
@@ -63,10 +71,11 @@ the tradeoffs.
 
 - ❗️ OAuth requires configuring the OAuth provider, which in turn usually
   requires controlling a web domain and might involve additional verification
-  steps.
+  steps. The DX of the OAuth configuration is usually far from ideal.
 - 👍 OAuth providers carry the burden of correctly implementing other
   authentication methods and features: passwords, email verification, MFA, SSO,
   etc.
+- ⏱️ Currently Convex Auth doesn't support using OAuth with React Native.
 
 **UX considerations:**
 

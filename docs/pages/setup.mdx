@@ -56,7 +56,7 @@ Convex Auth currently only supports authenticating from React client components.
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
 `@xixixao/convex-auth/react`:
 
-```ts filename="src/main.tsx" {1,7,13,15}
+```ts filename="src/main.tsx" {1,8,12,14}
 import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -81,7 +81,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
 `@xixixao/convex-auth/react`:
 
-```ts filename="app/ConvexClientProvider.tsx" {2,3,11,13}
+```ts filename="app/ConvexClientProvider.tsx" {2,3,10,12}
 "use client";
 import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
 import { ConvexReactClient } from "convex/react";
@@ -113,7 +113,7 @@ Then replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
 
 Provide a `storage` implementation using `expo-secure-store` as shown:
 
-```ts filename="app/_layout.tsx" {1,4,10-14,18,22}
+```ts filename="app/_layout.tsx" {1,2,4,10-14,18,22}
 import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
 import { ConvexReactClient } from "convex/react";
 import { Stack } from "expo-router";

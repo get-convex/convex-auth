@@ -2,16 +2,49 @@ import { Steps } from "nextra/components";
 
 # OAuth
 
-You can use any of the 80 OAuth providers preconfigured by Auth.js, including
-GitHub, Google, Apple, Facebook, etc.
+This authentication method has two steps:
 
-React Native isn't supported yet.
+1. The user clicks on a button to sign-in with a third-party (GitHub, Google,
+   Apple etc.)
+2. The user authenticates on the third-party website and is redirected back to
+   your app and signed in
+
+Convex Auth ensures a secure exchange of secrets between the third-party
+provider and your backend.
+
+OAuth isn't supported for React Native yet.
 
 ## Providers
 
+Convex Auth implements configuration via [Auth.js](https://authjs.dev)
+"provider" configs. These JS objects define how the library interfaces with an
+OAuth provider.
+
+You can use any of the 80 OAuth providers preconfigured by Auth.js, including
+GitHub, Google, Apple, Facebook, etc.
+
 You can find the list of available providers and more details about each
-configuration in the sidebar of Auth.js docs. For example see the
-[GitHub Provider page](https://authjs.dev/getting-started/providers/github).
+configuration in the sidebar of
+[Auth.js docs](https://authjs.dev/getting-started/providers/github).
+
+Choose an OAuth provider (for example _GitHub_) and follow the guide below.
+
+_Ignore the "database provider" configuration in Auth.js docs. Your Convex
+backend is your database!_
+
+<details>
+<summary>
+Are you setting up OAuth for the first time? We recommend using
+_GitHub_.
+</summary>
+
+Github has better-than-most configuration DX, even if it is not a very good
+choice for apps targeting the general population.
+
+Google, which is very popular among users, unfortunately has a very complicated
+OAuth setup and documentation.
+
+</details>
 
 ## Setup
 
@@ -19,9 +52,11 @@ configuration in the sidebar of Auth.js docs. For example see the
 
 ### Callback URL
 
-On the dashboard of the OAuth provider (GitHub / Google etc. developer settings)
-you usually need to specify a "callback" URL, and potentially other
-URLs/domains.
+After you sign up as a developer with the provider you usually create an "app"
+(or similar) to store your OAuth configuration.
+
+Among other things you might need to configure you will usually need to specify
+a "callback" URL, and potentially other URLs/domains.
 
 The origin (domain) of the callback URL for Convex Auth is your backend's HTTP
 Actions URL, which you can find on your
@@ -29,12 +64,13 @@ Actions URL, which you can find on your
 your `CONVEX_URL` except for the the top-level domain being `.site` instead of
 `.cloud`.
 
-For example, your deployment name could be `fast-horse-123`, then your HTTP
-Actions URL is `https://fast-horse-123.convex.site` and your callback URL for
-GitHub is `https://fast-horse-123.convex.site/api/auth/callback/github`.
+For example, if your deployment name was `fast-horse-123`, then your HTTP
+Actions URL would be `https://fast-horse-123.convex.site` and your callback URL
+for _GitHub_ would be:
 
-Don't forget that your Convex prod deployment will have a different name than
-your dev deployment.
+```
+https://fast-horse-123.convex.site/api/auth/callback/github
+```
 
 ### Environment variables
 
@@ -44,7 +80,7 @@ backend.
 
 [Setting environment variables Convex docs](https://docs.convex.dev/production/environment-variables#setting-environment-variables).
 
-For example for GitHub you can run (with your own values):
+For example for _GitHub_ you can run (with your own values):
 
 ```sh
 npx convex env set AUTH_GITHUB_ID yourgithubclientid
@@ -53,10 +89,9 @@ npx convex env set AUTH_GITHUB_SECRET yourgithubsecret
 
 ### Provider configuration
 
-Add the provider to the `providers` array in `convex/auth.ts`.
+Add the provider config to the `providers` array in `convex/auth.ts`.
 
-You can import Auth.js providers from `@auth/core/providers`. For example for
-GitHub:
+Import Auth.js providers from `@auth/core/providers`. For example for _GitHub_:
 
 ```ts filename="convex/auth.ts"
 import GitHub from "@auth/core/providers/github";
@@ -69,11 +104,11 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
 
 ### Add sign-in button
 
-Now you can trigger the OAuth sign-in flow from a button click via the `signIn`
-function.
+Now you can trigger the OAuth sign-in flow from a button click via the Convex
+Auth `signIn` function.
 
 The first argument to the function is the provider ID, which unless customized
-is a lowercase version of the provider name. For example for GitHub:
+is a lowercase version of the provider name. For example for _GitHub_:
 
 ```tsx filename="src/SignIn.tsx"
 "use client";
@@ -94,3 +129,19 @@ for a more polished UI.
 
 When you're done configuring your chosen authentication methods, learn how to
 use authentication in your frontend and backend in [Authorization](/authz).
+
+## Production setup
+
+It's usually not possible to share the same OAuth provider "app", the entity
+configured on the third-party dashboard, between your development and production
+environments.
+
+In development your app is usually running on `localhost`, while in production
+it will be hosted on a public server and have a proper assigned URL.
+
+Therefore you will have to create a separate "app" on the third-party dashboard
+for each environment, and configure the [callback URL](#callback-url) and
+[environment variables](#environment-variables) accordingly.
+
+Don't forget to also
+[configure your SITE_URL](/setup/manual/#configure-site_url).
