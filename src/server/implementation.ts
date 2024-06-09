@@ -79,7 +79,7 @@ export const authTables = {
    */
   users: defineTable({
     email: v.string(),
-    emailVerified: v.optional(v.boolean()),
+    emailVerificationTime: v.optional(v.number()),
     name: v.optional(v.string()),
     image: v.optional(v.string()),
   }).index("email", ["email"]),
@@ -773,10 +773,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
               }
               const { userId } = verificationCode;
               if (verificationCode.emailVerified) {
-                const user = (await ctx.db.get(userId))!;
-                if (user.emailVerified !== true) {
-                  await ctx.db.patch(userId, { emailVerified: true });
-                }
+                await ctx.db.patch(userId, {
+                  emailVerificationTime: Date.now(),
+                });
               }
               const sessionId = await createSession(ctx, userId, config);
               const ids = { userId, sessionId };

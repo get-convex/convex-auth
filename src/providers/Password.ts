@@ -109,7 +109,7 @@ export default function Password<DataModel extends GenericDataModel>(
         throw new Error("Must specify `flow`");
       }
       // START: Optional, email verification during sign in
-      if (config.verify && user.emailVerified !== true) {
+      if (config.verify && user.emailVerificationTime === undefined) {
         return await signInViaProvider(ctx, config.verify, {
           userId: user._id,
         });

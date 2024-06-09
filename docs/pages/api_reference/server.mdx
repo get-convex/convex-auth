@@ -43,7 +43,7 @@ Users.
 |---|---
 |`name`|  `undefined` \| `string`
 |`image`|  `undefined` \| `string`
-|`emailVerified`|  `undefined` \| `boolean`
+|`emailVerificationTime`|  `undefined` \| `number`
 |`email`|  `string`
 |`\_creationTime`|  `number`
 
@@ -101,8 +101,8 @@ Verification codes:
 
 |Field|TS Type
 |---|---
-|`emailVerified`|  `undefined` \| `boolean`
 |`verifier`|  `undefined` \| `string`
+|`emailVerified`|  `undefined` \| `boolean`
 |`userId`|  `Id`\<`"users"`\>
 |`expirationTime`|  `number`
 |`code`|  `string`
@@ -313,7 +313,7 @@ or throws an error.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1023](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1023)
+[src/server/implementation.ts:1022](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1022)
 
 ***
 
@@ -345,7 +345,7 @@ secret does not match.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1070](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1070)
+[src/server/implementation.ts:1069](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1069)
 
 ***
 
@@ -375,7 +375,7 @@ for given account ID.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1111](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1111)
+[src/server/implementation.ts:1110](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1110)
 
 ***
 
@@ -402,7 +402,7 @@ from a `ConvexCredentials` provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1146](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1146)
+[src/server/implementation.ts:1145](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1145)
 
 ***
 
@@ -426,7 +426,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1181](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1181)
+[src/server/implementation.ts:1180](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1180)
 
 ***
 
@@ -452,7 +452,7 @@ for email verification on sign up or password reset).
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1204](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1204)
+[src/server/implementation.ts:1203](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1203)
 
 ***
 

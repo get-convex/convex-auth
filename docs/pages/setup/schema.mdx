@@ -20,7 +20,7 @@ const schema = defineSchema({
   ...authTables,
   users: defineTable({
     email: v.string(),
-    emailVerified: v.optional(v.boolean()),
+    emailVerificationTime: v.optional(v.number()),
     name: v.optional(v.string()),
     image: v.optional(v.string()),
   }).index("email", ["email"]),
