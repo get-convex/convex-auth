@@ -16,9 +16,9 @@ Convex Auth follows this logic:
 
    1. Email-based authentication methods ([magic links](/config/email) and
       [OTPs](/config/otps)) are trusted.
-   2. OAuth providers are trusted by default, since most popular OAuth providers
-      today enforce email verification befor the user can use them. You can make
-      any OAuth provider untrusted by setting the
+   2. [OAuth](/config/oauth) providers are trusted by default, since most
+      popular OAuth providers today enforce email verification before the user
+      can use them. You can make any OAuth provider untrusted by setting the
       `allowDangerousEmailAccountLinking` option to `false`:
 
       ```ts filename="convex/auth.ts"
@@ -40,8 +40,9 @@ Convex Auth follows this logic:
    with a given email address, signing in via the trusted method will link the
    new account to the same user document.
    - If there are multiple user documents with the same email address, then
-     account linking is not performed. This can only happen if your app uses
-     multiple untrusted authentication methods.
+     account linking is not performed.
+3. If an untrusted method is used, the new account will not be linked to any
+   existing one.
 
 ## Session validity
 
