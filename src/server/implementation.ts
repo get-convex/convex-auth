@@ -813,9 +813,12 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { verifier, state } = args;
             return await ctx.db.insert("verifiers", { verifier, state });
           }
-          // TODO: Allow auto-linking for email-verified OAuth providers
           case "userOAuth": {
             const { profile, provider, providerAccountId, state } = args;
+            const providerConfig = getProviderOrThrow(
+              provider,
+            ) as OAuthConfig<any>;
+            const shouldLink = providerConfig.allowDangerousEmailAccountLinking;
 
             const existingAccount = await ctx.db
               .query("accounts")
@@ -830,8 +833,17 @@ export function convexAuth(config_: ConvexAuthConfig) {
             if (existingAccount !== null) {
               userId = existingAccount.userId;
             } else {
-              // TODO: Allow auto-linking for email-verified OAuth providers
-              userId = await ctx.db.insert("users", profile);
+              const existingUser = shouldLink
+                ? await ctx.db
+                    .query("users")
+                    .withIndex("email", (q) => q.eq("email", profile.email))
+                    .unique()
+                : null;
+              if (existingUser !== null) {
+                userId = existingUser._id;
+              } else {
+                userId = await ctx.db.insert("users", profile);
+              }
               await ctx.db.insert("accounts", {
                 userId,
                 provider,
@@ -861,8 +873,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               userId,
               expirationTime: Date.now() + OAUTH_SIGN_IN_EXPIRATION_MS,
               verifier: verifier?.verifier,
-              // TODO: Allow configuring OAuth providers as email-verified,
-              // GitHub is always for example.
+              emailVerified: shouldLink,
             });
             return code;
           }
@@ -1135,8 +1146,6 @@ export async function retrieveAccount<
   },
 ): Promise<GenericDoc<DataModel, "users">> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
-  console.log(args);
-
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "retrieveAccount",
@@ -1313,11 +1322,15 @@ async function generateUniqueEmailVerificationCode(
 }
 
 function clientId(providerId: string) {
-  return `AUTH_${providerId}_ID`;
+  return `AUTH_${envProviderId(providerId)}_ID`;
 }
 
 function clientSecret(providerId: string) {
-  return `AUTH_${providerId}_SECRET`;
+  return `AUTH_${envProviderId(providerId)}_SECRET`;
+}
+
+function envProviderId(provider: string) {
+  return provider.toUpperCase().replace(/-/g, "_");
 }
 
 async function createSession(
@@ -1504,6 +1517,7 @@ function convertErrorsToResponse(
           statusText: (error as any).data,
         });
       } else {
+        console.error((error as Error).message ?? error);
         return new Response(null, {
           status: 500,
           statusText: "Internal Server Error",

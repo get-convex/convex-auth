@@ -40,7 +40,7 @@ test("sign in with email", async () => {
   });
   vi.unstubAllGlobals();
 
-  const tokens = await t.action("auth:verifyCode" as any, {
+  const tokens = await t.action(api.auth.verifyCode, {
     params: { code },
   });
 

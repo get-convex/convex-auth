@@ -70,7 +70,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
  * an email provider to the `verify` option.
  */
 export default function Password<DataModel extends GenericDataModel>(
-  config: PasswordConfig<DataModel>,
+  config: PasswordConfig<DataModel> = {},
 ) {
   const provider = config.id ?? "password";
   return ConvexCredentials<DataModel>({

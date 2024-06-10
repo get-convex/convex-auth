@@ -31,8 +31,8 @@ import { AuthProviderMaterializedConfig, ConvexAuthConfig } from "./types";
 /**
  * @internal
  */
-export function configDefaults(config: ConvexAuthConfig) {
-  setEnvDefaults(process.env, config as any);
+export function configDefaults(config_: ConvexAuthConfig) {
+  const config = materializeAndDefaultProviders(config_);
   return {
     ...config,
     theme: config.theme ?? {
@@ -41,9 +41,6 @@ export function configDefaults(config: ConvexAuthConfig) {
       brandColor: "",
       buttonText: "",
     },
-    providers: (config.providers as AuthProviderMaterializedConfig[]).map(
-      providerDefaults,
-    ),
   };
 }
 
@@ -52,16 +49,27 @@ export function configDefaults(config: ConvexAuthConfig) {
  */
 export function materializeProvider(provider: AuthProvider) {
   const config = { providers: [provider] };
-  setEnvDefaults(process.env, config);
+  materializeAndDefaultProviders(config);
   return providerDefaults(
     config.providers[0] as AuthProviderMaterializedConfig,
   );
 }
 
-/**
- * @internal
- */
+function materializeAndDefaultProviders(config_: ConvexAuthConfig) {
+  // Have to materialize first so that the correct env variables are used
+  const providers = config_.providers.map((provider) =>
+    providerDefaults(typeof provider === "function" ? provider() : provider),
+  );
+  const config = { ...config_, providers };
+
+  // Unfortunately mutates its argument
+  setEnvDefaults(process.env, config as any);
+
+  return config;
+}
+
 function providerDefaults(provider: AuthProviderMaterializedConfig) {
+  // TODO: Add `redirectProxyUrl` to oauth providers
   return merge(
     provider.type === "oauth" || provider.type === "oidc"
       ? normalizeOAuth(provider)

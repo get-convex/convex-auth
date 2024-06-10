@@ -18,7 +18,7 @@ test("session refresh", async () => {
   const TWO_HOURS_MS = 1000 * 60 * 60 * 2;
   vi.advanceTimersByTime(TWO_HOURS_MS);
 
-  const tokens = await t.action("auth:verifyCode" as any, {
+  const tokens = await t.action(api.auth.verifyCode, {
     refreshToken,
     params: {},
   });
@@ -43,7 +43,7 @@ test("refresh token expiration", async () => {
 
   vi.advanceTimersByTime(2 * ONE_DAY_MS);
 
-  const tokens = await t.action("auth:verifyCode" as any, {
+  const tokens = await t.action(api.auth.verifyCode, {
     refreshToken,
     params: {},
   });
@@ -65,19 +65,19 @@ test("refresh token reuse detection", async () => {
     params: { email: "sara@gmail.com", password: "44448888", flow: "signUp" },
   });
 
-  const newTokens = await t.action("auth:verifyCode" as any, {
+  const newTokens = await t.action(api.auth.verifyCode, {
     refreshToken,
     params: {},
   });
   expect(newTokens).not.toBeNull();
 
-  const reuseResponse = await t.action("auth:verifyCode" as any, {
+  const reuseResponse = await t.action(api.auth.verifyCode, {
     refreshToken,
     params: {},
   });
   expect(reuseResponse).toBeNull();
 
-  const newTokenResponse = await t.action("auth:verifyCode" as any, {
+  const newTokenResponse = await t.action(api.auth.verifyCode, {
     refreshToken: newTokens.refreshToken,
     params: {},
   });
@@ -102,7 +102,7 @@ test("session expiration", async () => {
 
   vi.advanceTimersByTime(2 * ONE_DAY_MS);
 
-  const tokens = await t.action("auth:verifyCode" as any, {
+  const tokens = await t.action(api.auth.verifyCode, {
     refreshToken,
     params: {},
   });

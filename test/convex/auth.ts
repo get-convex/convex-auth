@@ -9,6 +9,7 @@ import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
   providers: [
     GitHub,
+    GitHub({ id: "github-verified", allowDangerousEmailAccountLinking: true }),
     Google,
     Resend,
     ResendOTP,
@@ -19,7 +20,6 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
       reset: ResendOTPPasswordReset,
       verify: ResendOTP,
     }),
-    // This one only makes sense with routing, ignore for now:
     Password({ id: "password-link", verify: Resend }),
   ],
   // session: {
