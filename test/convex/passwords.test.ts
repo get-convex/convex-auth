@@ -10,7 +10,7 @@ import {
   JWT_PRIVATE_KEY,
 } from "./test.helpers";
 
-test("sign up and sign in with password", async () => {
+test("sign up with password", async () => {
   setupEnv();
   const t = convexTest(schema);
   const { tokens } = await t.action(api.auth.signIn, {

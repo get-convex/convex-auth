@@ -9,6 +9,7 @@ import ConvexCredentials, {
   ConvexCredentialsConfig,
 } from "@xixixao/convex-auth/providers/ConvexCredentials";
 import {
+  GenericDoc,
   createAccountWithCredentials,
   invalidateSessions,
   modifyAccountCredentials,
@@ -78,40 +79,47 @@ export default function Password<DataModel extends GenericDataModel>(
     authorize: async ({ flow, ...params }, ctx) => {
       const email = params.email as string;
       const secret = params.password as string;
-      let user;
+      let account: GenericDoc<DataModel, "accounts">;
+      let user: GenericDoc<DataModel, "users">;
       if (flow === "signUp") {
         const profile = config.profile?.(params) ?? defaultProfile(params);
-        user = await createAccountWithCredentials(ctx, {
+        const created = await createAccountWithCredentials(ctx, {
           provider,
           account: { id: email, secret },
           profile,
+          shouldLink: config.verify !== undefined,
         });
+        ({ account, user } = created);
       } else if (flow === "signIn") {
-        user = await retrieveAccountWithCredentials(ctx, {
+        const retrieved = await retrieveAccountWithCredentials(ctx, {
           provider,
           account: { id: email, secret },
         });
-        if (user === null) {
+        if (retrieved === null) {
           throw new Error("Invalid credentials");
         }
+        ({ account, user } = retrieved);
         // START: Optional, support password reset
       } else if (flow === "reset" && config.reset) {
-        const user = await retrieveAccount(ctx, {
+        const retrieved = await retrieveAccount(ctx, {
           provider,
           account: { id: email },
         });
-        if (user === null) {
+        if (retrieved === null) {
           throw new Error("Invalid credentials");
         }
-        return await signInViaProvider(ctx, config.reset, { userId: user._id });
+        ({ account, user } = retrieved);
+        return await signInViaProvider(ctx, config.reset, {
+          accountId: account._id,
+        });
         // END
       } else {
         throw new Error("Must specify `flow`");
       }
       // START: Optional, email verification during sign in
-      if (config.verify && user.emailVerificationTime === undefined) {
+      if (config.verify && !account.emailVerified) {
         return await signInViaProvider(ctx, config.verify, {
-          userId: user._id,
+          accountId: account._id,
         });
       }
       // END

@@ -74,6 +74,7 @@ A single user can have multiple accounts linked.
 |`userId`|  `Id`\<`"users"`\>
 |`provider`|  `string`
 |`providerAccountId`|  `string`
+|`emailVerified`|  `boolean`
 |`\_creationTime`|  `number`
 
 #### refreshTokens
@@ -101,8 +102,8 @@ Verification codes:
 
 |Field|TS Type
 |---|---
-|`verifier`|  `undefined` \| `string`
 |`emailVerified`|  `undefined` \| `boolean`
+|`verifier`|  `undefined` \| `string`
 |`userId`|  `Id`\<`"users"`\>
 |`expirationTime`|  `number`
 |`code`|  `string`
@@ -121,7 +122,7 @@ PKCE verifiers.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:76](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L76)
+[src/server/implementation.ts:78](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L78)
 
 ***
 
@@ -281,7 +282,7 @@ to the database during signin and signout.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:277](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L277)
+[src/server/implementation.ts:282](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L282)
 
 ***
 
@@ -303,17 +304,25 @@ id and an account secret.
 | `args.account.id` | `string` | The unique external ID for the account, for example email address. |
 | `args.account.secret` | `string` | The secret credential to store for this account. |
 | `args.profile` | `object` & `Record`\<`string`, `any`\> | The profile data to store for the user. These must fit the `users` table schema. |
+| `args.shouldLink` | `boolean` | If `true`, the account will be linked to an existing user with the same email address. |
+| `args.emailVerified`? | `boolean` | Whether the email address ownership was already verified. |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<`object`\>
 
 user ID if it successfully creates the account
 or throws an error.
 
+#### account
+
+
+#### user
+
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1045](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1045)
+[src/server/implementation.ts:1085](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1085)
 
 ***
 
@@ -337,15 +346,21 @@ id and an account secret.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<`object`\>
 
 the retrieved user document, or `null` if there is no account
 for given account ID, or throws if the provided
 secret does not match.
 
+#### account
+
+
+#### user
+
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1092](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1092)
+[src/server/implementation.ts:1144](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1144)
 
 ***
 
@@ -368,14 +383,20 @@ the provider-specific account ID.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<`object`\>
 
 the retrieved user document, or `null` if there is no account
 for given account ID.
 
+#### account
+
+
+#### user
+
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1133](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1133)
+[src/server/implementation.ts:1188](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1188)
 
 ***
 
@@ -402,7 +423,7 @@ from a `ConvexCredentials` provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1166](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1166)
+[src/server/implementation.ts:1224](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1224)
 
 ***
 
@@ -426,7 +447,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1201](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1201)
+[src/server/implementation.ts:1259](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1259)
 
 ***
 
@@ -452,7 +473,7 @@ for email verification on sign up or password reset).
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1224](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1224)
+[src/server/implementation.ts:1282](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1282)
 
 ***
 

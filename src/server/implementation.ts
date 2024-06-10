@@ -12,6 +12,7 @@ import {
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
+  GenericQueryCtx,
   HttpRouter,
   PublicHttpAction,
   actionGeneric,
@@ -94,7 +95,7 @@ export const authTables = {
   }).index("userId", ["userId"]),
   /**
    * Accounts. An account corresponds to
-   * a single authenetication provider.
+   * a single authentication provider.
    * A single user can have multiple accounts linked.
    */
   accounts: defineTable({
@@ -109,6 +110,7 @@ export const authTables = {
     provider: v.string(),
     providerAccountId: v.string(),
     secret: v.optional(v.string()),
+    emailVerified: v.boolean(),
   })
     .index("providerAndUserId", ["provider", "userId"])
     .index("providerAndAccountId", ["provider", "providerAccountId"]),
@@ -130,13 +132,13 @@ export const authTables = {
    * - OAuth codes
    */
   verificationCodes: defineTable({
-    userId: v.id("users"),
+    accountId: v.id("accounts"),
     code: v.string(),
     expirationTime: v.number(),
     verifier: v.optional(v.string()),
     emailVerified: v.optional(v.boolean()),
   })
-    .index("userId", ["userId"])
+    .index("accountId", ["accountId"])
     .index("code", ["code"]),
   /**
    * PKCE verifiers.
@@ -185,21 +187,24 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("emailVerificationCode"),
-      userId: v.id("users"),
+      accountId: v.id("accounts"),
       code: v.string(),
       expirationTime: v.number(),
     }),
     v.object({
       type: v.literal("userAndEmailVerificationCode"),
+      provider: v.string(),
       email: v.string(),
       code: v.string(),
       expirationTime: v.number(),
     }),
     v.object({
-      type: v.literal("createAccount"),
+      type: v.literal("createAccountWithSecret"),
       provider: v.string(),
       account: v.object({ id: v.string(), secret: v.string() }),
       profile: v.any(),
+      emailVerified: v.optional(v.boolean()),
+      shouldLink: v.boolean(),
     }),
     v.object({
       type: v.literal("retrieveAccountAndCheckSecret"),
@@ -771,8 +776,19 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 console.error("Expired verification code");
                 return null;
               }
-              const { userId } = verificationCode;
+              const { accountId } = verificationCode;
+              const account = await ctx.db.get(accountId);
+              if (account === null) {
+                console.error(
+                  "Account associated with this email has been deleted",
+                );
+                return null;
+              }
+              const userId = account.userId;
               if (verificationCode.emailVerified) {
+                if (!account.emailVerified) {
+                  await ctx.db.patch(accountId, { emailVerified: true });
+                }
                 await ctx.db.patch(userId, {
                   emailVerificationTime: Date.now(),
                 });
@@ -818,7 +834,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const providerConfig = getProviderOrThrow(
               provider,
             ) as OAuthConfig<any>;
-            const shouldLink = providerConfig.allowDangerousEmailAccountLinking;
+            const shouldLink =
+              providerConfig.allowDangerousEmailAccountLinking !== false;
 
             const existingAccount = await ctx.db
               .query("accounts")
@@ -848,14 +865,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
             } else {
               userId = await ctx.db.insert("users", profile);
             }
-            if (existingAccount === null) {
-              await ctx.db.insert("accounts", {
+            const accountId =
+              existingAccount?._id ??
+              (await ctx.db.insert("accounts", {
                 userId,
                 provider,
                 providerAccountId,
                 type: "oauth",
-              });
-            }
+                emailVerified: shouldLink,
+              }));
 
             const verifier = await ctx.db
               .query("verifiers")
@@ -868,14 +886,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
             await ctx.db.delete(verifier._id);
             const existingVerificationCode = await ctx.db
               .query("verificationCodes")
-              .withIndex("userId", (q) => q.eq("userId", userId))
+              .withIndex("accountId", (q) => q.eq("accountId", accountId))
               .unique();
             if (existingVerificationCode !== null) {
               await ctx.db.delete(existingVerificationCode._id);
             }
             await ctx.db.insert("verificationCodes", {
               code: await sha256(code),
-              userId,
+              accountId,
               expirationTime: Date.now() + OAUTH_SIGN_IN_EXPIRATION_MS,
               verifier: verifier?.verifier,
               emailVerified: shouldLink,
@@ -883,37 +901,59 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return code;
           }
           case "emailVerificationCode": {
-            const { userId, code, expirationTime } = args;
-            const existingUser = await ctx.db.get(userId);
-            if (existingUser === null) {
-              throw new Error(`Expected a user to exist for ID "${userId}"`);
+            const { accountId, code, expirationTime } = args;
+            const existingAccount = await ctx.db.get(accountId);
+            if (existingAccount === null) {
+              throw new Error(
+                `Expected an account to exist for ID "${accountId}"`,
+              );
+            }
+            const user = await ctx.db.get(existingAccount.userId);
+            if (user === null) {
+              throw new Error(
+                `Expected a user to exist for ID "${existingAccount.userId}"`,
+              );
             }
             await generateUniqueEmailVerificationCode(
               ctx,
-              userId,
+              accountId,
               code,
               expirationTime,
             );
-            return existingUser.email;
+            return user.email;
           }
           case "userAndEmailVerificationCode": {
-            const { email, code, expirationTime } = args;
-            const existingUser = await ctx.db
-              .query("users")
-              .withIndex("email", (q) => q.eq("email", email))
+            const { email, code, expirationTime, provider } = args;
+
+            const existingAccount = await ctx.db
+              .query("accounts")
+              .withIndex("providerAndAccountId", (q) =>
+                q.eq("provider", provider).eq("providerAccountId", email),
+              )
               .unique();
+            const existingUser = await uniqueUserByEmail(ctx, email);
             const userId =
               existingUser?._id ?? (await ctx.db.insert("users", { email }));
+            const accountId =
+              existingAccount?._id ??
+              (await ctx.db.insert("accounts", {
+                userId,
+                provider,
+                providerAccountId: email,
+                type: "email",
+                emailVerified: false,
+              }));
             await generateUniqueEmailVerificationCode(
               ctx,
-              userId,
+              accountId,
               code,
               expirationTime,
             );
             return email;
           }
-          case "createAccount": {
-            const { provider, account, profile } = args;
+          case "createAccountWithSecret": {
+            const { provider, account, profile, shouldLink, emailVerified } =
+              args;
             const existingAccount = await ctx.db
               .query("accounts")
               .withIndex("providerAndAccountId", (q) =>
@@ -929,18 +969,33 @@ export function convexAuth(config_: ConvexAuthConfig) {
               ) {
                 throw new Error(`Account ${account.id} already exists`);
               }
-              return await ctx.db.get(existingAccount.userId);
+              return {
+                account: existingAccount,
+                user: await ctx.db.get(existingAccount.userId),
+              };
             }
-            // TODO: Auto-linking
-            const userId = await ctx.db.insert("users", profile);
-            await ctx.db.insert("accounts", {
+            const existingUserId = shouldLink
+              ? (await uniqueUserByEmail(ctx, profile.email))?._id ?? null
+              : null;
+            let userId: GenericId<"users">;
+            if (existingUserId !== null) {
+              await ctx.db.patch(existingUserId, profile);
+              userId = existingUserId;
+            } else {
+              userId = await ctx.db.insert("users", profile);
+            }
+            const newAccountId = await ctx.db.insert("accounts", {
               userId,
               provider,
               providerAccountId: account.id,
               secret: await hash(account.secret),
               type: "credentials",
+              emailVerified: emailVerified === true,
             });
-            return await ctx.db.get(userId);
+            return {
+              account: await ctx.db.get(newAccountId),
+              user: await ctx.db.get(userId),
+            };
           }
           case "retrieveAccountAndCheckSecret": {
             const { provider, account } = args;
@@ -959,7 +1014,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
             if (!(await verify(account.secret, existingAccount.secret ?? ""))) {
               throw new Error("Invalid secret");
             }
-            return await ctx.db.get(existingAccount.userId);
+            return {
+              account: existingAccount,
+              user: await ctx.db.get(existingAccount.userId),
+            };
           }
           case "retrieveAccount": {
             const { provider, account } = args;
@@ -972,7 +1030,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
             if (existingAccount === null) {
               return null;
             }
-            return await ctx.db.get(existingAccount.userId);
+            return {
+              account: existingAccount,
+              user: await ctx.db.get(existingAccount.userId),
+            };
           }
           case "modifyAccount": {
             const { provider, account } = args;
@@ -1013,6 +1074,17 @@ export function convexAuth(config_: ConvexAuthConfig) {
       },
     }),
   };
+}
+
+async function uniqueUserByEmail(
+  ctx: GenericQueryCtx<AuthDataModel>,
+  email: string,
+) {
+  const users = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", email))
+    .take(2);
+  return users.length === 1 ? users[0] : null;
 }
 
 function getHashAndVerifyFns(provider: any) {
@@ -1069,12 +1141,24 @@ export async function createAccountWithCredentials<
      * These must fit the `users` table schema.
      */
     profile: { email: string } & Record<string, any>;
+    /**
+     * If `true`, the account will be linked to an existing user
+     * with the same email address.
+     */
+    shouldLink: boolean;
+    /**
+     * Whether the email address ownership was already verified.
+     */
+    emailVerified?: boolean;
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<{
+  account: GenericDoc<DataModel, "accounts">;
+  user: GenericDoc<DataModel, "users">;
+}> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
-      type: "createAccount",
+      type: "createAccountWithSecret",
       ...args,
     },
   });
@@ -1112,7 +1196,10 @@ export async function retrieveAccountWithCredentials<
       secret: string;
     };
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<{
+  account: GenericDoc<DataModel, "accounts">;
+  user: GenericDoc<DataModel, "users">;
+}> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
@@ -1149,7 +1236,10 @@ export async function retrieveAccount<
       id: string;
     };
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<{
+  account: GenericDoc<DataModel, "accounts">;
+  user: GenericDoc<DataModel, "users">;
+}> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
@@ -1226,7 +1316,7 @@ export async function signInViaProvider<
 >(
   ctx: GenericActionCtxWithAuthConfig<DataModel>,
   provider: AuthProvider,
-  signedIn: { userId: GenericId<"users"> },
+  signedIn: { accountId: GenericId<"accounts"> },
 ) {
   await signInImpl(ctx, materializeProvider(provider), {}, signedIn);
   return null;
@@ -1236,7 +1326,7 @@ async function signInImpl(
   ctx: GenericActionCtxWithAuthConfig<AuthDataModel>,
   provider: AuthProviderMaterializedConfig,
   params: any,
-  signedIn?: { userId: GenericId<"users"> },
+  signedIn?: { accountId: GenericId<"accounts"> },
 ) {
   if (provider.type === "email") {
     const code = provider.generateVerificationToken
@@ -1250,13 +1340,14 @@ async function signInImpl(
         signedIn !== undefined
           ? {
               type: "emailVerificationCode",
-              userId: signedIn.userId,
+              accountId: signedIn.accountId,
               code,
               expirationTime,
             }
           : {
               type: "userAndEmailVerificationCode",
               email: params.email,
+              provider: provider.id,
               code,
               expirationTime,
             },
@@ -1307,19 +1398,19 @@ async function signInImpl(
 
 async function generateUniqueEmailVerificationCode(
   ctx: GenericMutationCtx<AuthDataModel>,
-  userId: GenericId<"users">,
+  accountId: GenericId<"accounts">,
   code: string,
   expirationTime: number,
 ) {
   const existingCode = await ctx.db
     .query("verificationCodes")
-    .withIndex("userId", (q) => q.eq("userId", userId))
+    .withIndex("accountId", (q) => q.eq("accountId", accountId))
     .unique();
   if (existingCode !== null) {
     await ctx.db.delete(existingCode._id);
   }
   await ctx.db.insert("verificationCodes", {
-    userId,
+    accountId,
     code: await sha256(code),
     expirationTime,
     emailVerified: true,

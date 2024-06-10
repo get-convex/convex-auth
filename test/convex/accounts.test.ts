@@ -121,11 +121,67 @@ test("automatic linking for signin via verified OAuth", async () => {
   });
 
   // 2. Sign in verified OAuth
-  await signInViaGitHub(t, "github-verified", {
+  await signInViaGitHub(t, "github", {
     email: "sarah@gmail.com",
     name: "Sarah",
     id: "someGitHubId",
   });
+
+  // 3. Check that there is only one user, the linked one
+  await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    expect(users).toHaveLength(1);
+    expect(users[0].emailVerificationTime).not.toBeUndefined();
+  });
+});
+
+test("automatic linking for password email verification", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // 1. Sign up first via OAuth
+  await signInViaGitHub(t, "github", {
+    email: "michal@gmail.com",
+    name: "Michal",
+    id: "someGitHubId",
+  });
+  await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    expect(users).toHaveLength(1);
+    expect(users[0].emailVerificationTime).not.toBeUndefined();
+  });
+
+  // 2. Sign in via password and verify email
+  let code;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input, init) => {
+      if (
+        typeof input === "string" &&
+        input === "https://api.resend.com/emails"
+      ) {
+        code = init.body.match(/Your code is (\d+)/)?.[1];
+        return new Response(null, { status: 200 });
+      }
+      throw new Error("Unexpected fetch");
+    }),
+  );
+
+  await t.action(api.auth.signIn, {
+    provider: "password-code",
+    params: {
+      email: "michal@gmail.com",
+      flow: "signUp",
+      password: "verycomplex",
+    },
+  });
+  vi.unstubAllGlobals();
+
+  const newTokens = await t.action(api.auth.verifyCode, {
+    params: { code },
+  });
+
+  expect(newTokens).not.toBeNull();
 
   // 3. Check that there is only one user, the linked one
   await t.run(async (ctx) => {
@@ -141,6 +197,6 @@ function setupEnv() {
   process.env.JWT_PRIVATE_KEY = JWT_PRIVATE_KEY;
   process.env.JWKS = JWKS;
   process.env.AUTH_RESEND_KEY = AUTH_RESEND_KEY;
-  process.env.AUTH_GITHUB_VERIFIED_ID = "githubClientId";
-  process.env.AUTH_GITHUB_VERIFIED_SECRET = "githubClientSecret";
+  process.env.AUTH_GITHUB_ID = "githubClientId";
+  process.env.AUTH_GITHUB_SECRET = "githubClientSecret";
 }
