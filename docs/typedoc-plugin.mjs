@@ -1,14 +1,23 @@
 import { execSync } from "child_process";
 import fs from "fs";
+import { MarkdownRendererEvent } from "typedoc-plugin-markdown";
 
 /**
  * @param {import('typedoc-plugin-markdown').MarkdownApplication} app
  */
 export function load(app) {
-  app.renderer.postRenderAsyncJobs.push(async (renderer) => {
-    const navigation = renderer.navigation;
-    printMeta(navigation, "pages/api_reference");
-    execSync("bash process_api_reference.sh");
+  const setupPostprocess = () => {
+    app.renderer.postRenderAsyncJobs.push(async (renderer) => {
+      const navigation = renderer.navigation;
+      printMeta(navigation, "pages/api_reference");
+      execSync("bash process_api_reference.sh");
+    });
+  };
+
+  setupPostprocess();
+
+  app.renderer.on(MarkdownRendererEvent.END, () => {
+    setupPostprocess();
   });
 }
 

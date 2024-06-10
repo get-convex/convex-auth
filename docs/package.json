@@ -4,6 +4,7 @@
   "description": "Nextra docs template",
   "scripts": {
     "api": "typedoc",
+    "api-watch": "typedoc --watch",
     "dev": "npm run api && next dev",
     "build": "npm run api && next build",
     "start": "next start"
