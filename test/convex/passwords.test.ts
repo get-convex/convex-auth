@@ -15,14 +15,14 @@ test("sign up and sign in with password", async () => {
   const t = convexTest(schema);
   const { tokens } = await t.action(api.auth.signIn, {
     provider: "password",
-    params: { email: "sara@gmail.com", password: "44448888", flow: "signUp" },
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
 
   expect(tokens).not.toBeNull();
 
   const { tokens: tokens2 } = await t.action(api.auth.signIn, {
     provider: "password",
-    params: { email: "sara@gmail.com", password: "44448888", flow: "signIn" },
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signIn" },
   });
 
   expect(tokens2).not.toBeNull();
@@ -30,16 +30,16 @@ test("sign up and sign in with password", async () => {
   await expect(async () => {
     await t.action(api.auth.signIn, {
       provider: "password",
-      params: { email: "sara@gmail.com", password: "wrong", flow: "signIn" },
+      params: { email: "sarah@gmail.com", password: "wrong", flow: "signIn" },
     });
   }).rejects.toThrow("Invalid secret");
 
   await t.run(async (ctx) => {
     const users = await ctx.db.query("users").collect();
-    expect(users).toMatchObject([{ email: "sara@gmail.com" }]);
+    expect(users).toMatchObject([{ email: "sarah@gmail.com" }]);
     const accounts = await ctx.db.query("accounts").collect();
     expect(accounts).toMatchObject([
-      { provider: "password", providerAccountId: "sara@gmail.com" },
+      { provider: "password", providerAccountId: "sarah@gmail.com" },
     ]);
     const sessions = await ctx.db.query("sessions").collect();
     expect(sessions).toHaveLength(2);

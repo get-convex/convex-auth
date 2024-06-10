@@ -829,21 +829,26 @@ export function convexAuth(config_: ConvexAuthConfig) {
               )
               .unique();
 
+            const existingUserId =
+              existingAccount !== null
+                ? existingAccount.userId
+                : shouldLink
+                  ? (
+                      await ctx.db
+                        .query("users")
+                        .withIndex("email", (q) => q.eq("email", profile.email))
+                        .unique()
+                    )?._id ?? null
+                  : null;
+
             let userId: GenericId<"users">;
-            if (existingAccount !== null) {
-              userId = existingAccount.userId;
+            if (existingUserId !== null) {
+              await ctx.db.patch(existingUserId, profile);
+              userId = existingUserId;
             } else {
-              const existingUser = shouldLink
-                ? await ctx.db
-                    .query("users")
-                    .withIndex("email", (q) => q.eq("email", profile.email))
-                    .unique()
-                : null;
-              if (existingUser !== null) {
-                userId = existingUser._id;
-              } else {
-                userId = await ctx.db.insert("users", profile);
-              }
+              userId = await ctx.db.insert("users", profile);
+            }
+            if (existingAccount === null) {
               await ctx.db.insert("accounts", {
                 userId,
                 provider,

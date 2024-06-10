@@ -12,7 +12,7 @@ test("session refresh", async () => {
     tokens: { refreshToken },
   } = await t.action(api.auth.signIn, {
     provider: "password",
-    params: { email: "sara@gmail.com", password: "44448888", flow: "signUp" },
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
 
   const TWO_HOURS_MS = 1000 * 60 * 60 * 2;
@@ -38,7 +38,7 @@ test("refresh token expiration", async () => {
     tokens: { refreshToken },
   } = await t.action(api.auth.signIn, {
     provider: "password",
-    params: { email: "sara@gmail.com", password: "44448888", flow: "signUp" },
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
 
   vi.advanceTimersByTime(2 * ONE_DAY_MS);
@@ -62,7 +62,7 @@ test("refresh token reuse detection", async () => {
     tokens: { refreshToken },
   } = await t.action(api.auth.signIn, {
     provider: "password",
-    params: { email: "sara@gmail.com", password: "44448888", flow: "signUp" },
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
 
   const newTokens = await t.action(api.auth.verifyCode, {
@@ -78,7 +78,7 @@ test("refresh token reuse detection", async () => {
   expect(reuseResponse).toBeNull();
 
   const newTokenResponse = await t.action(api.auth.verifyCode, {
-    refreshToken: newTokens.refreshToken,
+    refreshToken: newTokens!.refreshToken,
     params: {},
   });
 
@@ -97,7 +97,7 @@ test("session expiration", async () => {
     tokens: { refreshToken },
   } = await t.action(api.auth.signIn, {
     provider: "password",
-    params: { email: "sara@gmail.com", password: "44448888", flow: "signUp" },
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
 
   vi.advanceTimersByTime(2 * ONE_DAY_MS);

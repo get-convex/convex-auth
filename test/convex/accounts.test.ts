@@ -123,7 +123,7 @@ test("automatic linking for signin via verified OAuth", async () => {
   // 2. Sign in verified OAuth
   await signInViaGitHub(t, "github-verified", {
     email: "sarah@gmail.com",
-    name: "Sara",
+    name: "Sarah",
     id: "someGitHubId",
   });
 

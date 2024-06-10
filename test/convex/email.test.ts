@@ -36,7 +36,7 @@ test("sign in with email", async () => {
 
   await t.action(api.auth.signIn, {
     provider: "resend",
-    params: { email: "sara@gmail.com" },
+    params: { email: "tom@gmail.com" },
   });
   vi.unstubAllGlobals();
 
