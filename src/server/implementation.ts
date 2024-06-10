@@ -1264,7 +1264,7 @@ async function signInImpl(
     await provider.sendVerificationRequest({
       identifier: email,
       url: siteAfterLoginUrl() + "?code=" + code, // TODO should be configurable specifically for email sign in
-      expires: new Date(), // TODO
+      expires: new Date(expirationTime),
       provider: {
         ...provider,
         from:
