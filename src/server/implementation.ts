@@ -43,7 +43,7 @@ import {
   GenericActionCtxWithAuthConfig,
 } from "./types";
 
-const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_MS = 1000 * 60 * 60 * 24; // 24 hours
+const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
@@ -1334,7 +1334,7 @@ async function signInImpl(
       : generateRandomString(32, alphabet("0-9", "A-Z", "a-z"));
     const expirationTime =
       Date.now() +
-      (provider.maxAge ?? DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_MS);
+      (provider.maxAge ?? DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S) * 1000;
     const email = (await ctx.runMutation(internal.auth.store, {
       args:
         signedIn !== undefined
