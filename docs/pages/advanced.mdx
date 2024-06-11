@@ -44,6 +44,12 @@ Convex Auth follows this logic:
 3. If an untrusted method is used, the new account will not be linked to any
    existing one.
 
+### Preventing duplicate user accounts
+
+For now we recommend to not mix trusted and untrusted authentication methods. If
+you don't want to have multiple user documents for the same email address, use
+only trusted methods.
+
 ## Session validity
 
 Convex Auth issues JWTs which allow your client to authenticate.
