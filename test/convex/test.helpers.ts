@@ -1,7 +1,7 @@
-import { TestConvex } from "convex-test";
-import schema from "./schema";
-import { api } from "./_generated/api";
+import { TestConvexForDataModel } from "convex-test";
 import { expect, vi } from "vitest";
+import { api } from "./_generated/api";
+import { DataModel } from "./_generated/dataModel";
 
 export const CONVEX_SITE_URL = "https://test-123.convex.site";
 export const JWT_PRIVATE_KEY =
@@ -11,7 +11,7 @@ export const JWKS =
 export const AUTH_RESEND_KEY = "resendAPIKey";
 
 export async function signInViaGitHub(
-  t: TestConvex<typeof schema>,
+  t: TestConvexForDataModel<DataModel>,
   provider: string,
   githubProfile: Record<string, unknown>,
 ) {
@@ -86,6 +86,66 @@ export async function signInViaGitHub(
   const code = new URL(finalRedirectedTo!).searchParams.get("code");
 
   return await t.action(api.auth.verifyCode, { params: { code }, verifier });
+}
+
+export async function signInViaMagicLink(
+  t: TestConvexForDataModel<DataModel>,
+  provider: string,
+  email: string,
+) {
+  let code;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input, init) => {
+      if (
+        typeof input === "string" &&
+        input === "https://api.resend.com/emails"
+      ) {
+        code = init.body.match(/\?code=([^\s\\]+)/)?.[1];
+        return new Response(null, { status: 200 });
+      }
+      throw new Error("Unexpected fetch");
+    }),
+  );
+
+  await t.action(api.auth.signIn, { provider, params: { email } });
+  vi.unstubAllGlobals();
+
+  // Note: The client doesn't use auth for this call,
+  // so ideally this should be `t.withoutIdentity().action(...)`
+  return await t.action(api.auth.verifyCode, {
+    params: { code },
+  });
+}
+
+export async function signInViaOTP(
+  t: TestConvexForDataModel<DataModel>,
+  provider: string,
+  params: Record<string, unknown>,
+) {
+  let code;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input, init) => {
+      if (
+        typeof input === "string" &&
+        input === "https://api.resend.com/emails"
+      ) {
+        code = init.body.match(/Your code is (\d+)/)?.[1];
+        return new Response(null, { status: 200 });
+      }
+      throw new Error("Unexpected fetch");
+    }),
+  );
+
+  await t.action(api.auth.signIn, { provider, params });
+  vi.unstubAllGlobals();
+
+  // Note: The client doesn't use auth for this call,
+  // so ideally this should be `t.withoutIdentity().action(...)`
+  return await t.action(api.auth.verifyCode, {
+    params: { code },
+  });
 }
 
 function clientId(providerId: string) {

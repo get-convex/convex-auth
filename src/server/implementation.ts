@@ -850,12 +850,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
               existingAccount !== null
                 ? existingAccount.userId
                 : shouldLink
-                  ? (
-                      await ctx.db
-                        .query("users")
-                        .withIndex("email", (q) => q.eq("email", profile.email))
-                        .unique()
-                    )?._id ?? null
+                  ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))
+                      ?._id ?? null
                   : null;
 
             let userId: GenericId<"users">;
@@ -931,7 +927,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 q.eq("provider", provider).eq("providerAccountId", email),
               )
               .unique();
-            const existingUser = await uniqueUserByEmail(ctx, email);
+            const existingUser = await uniqueUserWithVerifiedEmail(ctx, email);
             const userId =
               existingUser?._id ?? (await ctx.db.insert("users", { email }));
             const accountId =
@@ -975,7 +971,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
               };
             }
             const existingUserId = shouldLink
-              ? (await uniqueUserByEmail(ctx, profile.email))?._id ?? null
+              ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))?._id ??
+                null
               : null;
             let userId: GenericId<"users">;
             if (existingUserId !== null) {
@@ -1076,15 +1073,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
   };
 }
 
-async function uniqueUserByEmail(
+async function uniqueUserWithVerifiedEmail(
   ctx: GenericQueryCtx<AuthDataModel>,
   email: string,
 ) {
-  const users = await ctx.db
+  return await ctx.db
     .query("users")
     .withIndex("email", (q) => q.eq("email", email))
-    .take(2);
-  return users.length === 1 ? users[0] : null;
+    .filter((q) => q.neq(q.field("emailVerificationTime"), undefined))
+    .unique();
 }
 
 function getHashAndVerifyFns(provider: any) {
