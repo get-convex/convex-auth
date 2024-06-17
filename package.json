@@ -26,7 +26,7 @@
     "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --format=cjs --outfile=dist/bin.cjs",
     "build:server": "tsc --project tsconfig.server.json",
     "build:react": "tsc --project tsconfig.react.json && mkdir -p dist && rm -rf dist/react && mv distreact/react dist/react && rm -r distreact",
-    "build": "rm -r dist && npm run build:bin && npm run build:server && npm run build:react",
+    "build": "rm -rf dist && npm run build:bin && npm run build:server && npm run build:react",
     "docs": "cd docs && npm run dev",
     "lint": "tsc && eslint . && cd test && npm run lint",
     "prepublishOnly": "npm run build",
