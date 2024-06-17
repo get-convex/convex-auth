@@ -212,6 +212,15 @@ function AuthProvider({
   const token = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const verbose: boolean = (client as any).options?.verbose;
+  const logVerbose = useCallback(
+    (message: string) => {
+      if (verbose) {
+        console.debug(`${new Date().toISOString()} ${message}`);
+      }
+    },
+    [verbose],
+  );
 
   const setToken = useCallback(
     async (
@@ -252,10 +261,10 @@ function AuthProvider({
         if (event.storageArea !== storage) {
           return;
         }
-
-        // Another document set the access token, use it
+        // Another tab/frame set the access token, use it
         if (event.key === JWT_STORAGE_KEY) {
           const value = event.newValue;
+          logVerbose(`synced access token, is null: ${value === null}`);
           // We don't write into storage since the event came from there and
           // we'd trigger a loop, plus we get each key as a separate event so
           // we don't have the refresh key here.
@@ -266,8 +275,8 @@ function AuthProvider({
         }
       })();
     };
-    window.addEventListener?.("storage", listener);
-    return () => window.removeEventListener?.("storage", listener);
+    browserAddEventListener("storage", listener);
+    return () => browserRemoveEventListener("storage", listener);
   }, []);
 
   const verifyCodeAndSetToken = useCallback(
@@ -281,6 +290,7 @@ function AuthProvider({
         "auth:verifyCode" as unknown as VerifyCodeAction,
         args,
       );
+      logVerbose(`retrieved tokens, is null: ${tokens === null}`);
       await setToken({ shouldStore: true, tokens });
       return tokens !== null;
     },
@@ -313,7 +323,9 @@ function AuthProvider({
         window.location.href = `${result.redirect}?code=` + verifier;
         return false;
       } else if (result.tokens !== undefined) {
-        await setToken({ shouldStore: true, tokens: result.tokens });
+        const { tokens } = result;
+        logVerbose(`signed in and got tokens, is null: ${tokens === null}`);
+        await setToken({ shouldStore: true, tokens });
         return result.tokens !== null;
       }
       return false;
@@ -345,6 +357,7 @@ function AuthProvider({
     // We can't wait for this action to finish,
     // because it never will if we are already signed out.
     void client.action("auth:signOut" as unknown as SignOutAction);
+    logVerbose(`signed out, erasing tokens`);
     await setToken({ shouldStore: true, tokens: null });
   }, [setToken, client]);
 
@@ -357,14 +370,27 @@ function AuthProvider({
           // Another tab or frame just refreshed the token, we can use it
           // and skip another refresh.
           if (tokenAfterLockAquisition !== tokenBeforeLockAquisition) {
+            logVerbose(
+              `returning synced token, is null: ${tokenAfterLockAquisition === null}`,
+            );
             return tokenAfterLockAquisition;
           }
           const refreshToken = await storage.getItem(REFRESH_TOKEN_STORAGE_KEY);
           if (refreshToken !== null) {
             await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+            const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+              event.preventDefault();
+              event.returnValue = true;
+            };
+            browserAddEventListener("beforeunload", beforeUnloadHandler);
             await verifyCodeAndSetToken({ params: {}, refreshToken });
+            browserRemoveEventListener("beforeunload", beforeUnloadHandler);
+            logVerbose(
+              `returning retrieved token, is null: ${tokenAfterLockAquisition === null}`,
+            );
             return token.current;
           } else {
+            logVerbose(`returning null, there is no refresh token`);
             return null;
           }
         });
@@ -395,6 +421,7 @@ function AuthProvider({
         window.history.replaceState({}, "", url.toString());
       } else {
         const token = (await storage.getItem(JWT_STORAGE_KEY)) ?? null;
+        logVerbose(`retrieved token from storage, is null: ${token === null}`);
         await setToken({
           shouldStore: false,
           tokens: token === null ? null : { token },
@@ -453,4 +480,20 @@ async function browserMutex<T>(
   return lockManager !== undefined
     ? await lockManager.request(key, callback)
     : await callback();
+}
+
+function browserAddEventListener<K extends keyof WindowEventMap>(
+  type: K,
+  listener: (this: Window, ev: WindowEventMap[K]) => any,
+  options?: boolean | AddEventListenerOptions,
+): void {
+  window.addEventListener?.(type, listener, options);
+}
+
+function browserRemoveEventListener<K extends keyof WindowEventMap>(
+  type: K,
+  listener: (this: Window, ev: WindowEventMap[K]) => any,
+  options?: boolean | EventListenerOptions,
+): void {
+  window.removeEventListener?.(type, listener, options);
 }
