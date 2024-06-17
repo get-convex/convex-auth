@@ -6,8 +6,14 @@ import {
   OIDCConfig,
 } from "@auth/core/providers";
 import { WebAuthnConfig } from "@auth/core/providers/webauthn";
-import { Theme } from "@auth/core/types";
-import { GenericActionCtx, GenericDataModel } from "convex/server";
+import { Theme, User } from "@auth/core/types";
+import {
+  AnyDataModel,
+  GenericActionCtx,
+  GenericDataModel,
+  GenericMutationCtx,
+} from "convex/server";
+import { GenericId } from "convex/values";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
@@ -54,7 +60,21 @@ export type ConvexAuthConfig = {
      */
     durationMs?: number;
   };
+  onSignIn?: OnSignIn<any, any, any>;
 };
+
+export type OnSignIn<
+  Profile = User,
+  UserId extends string = GenericId<"users">,
+  DataModel extends GenericDataModel = AnyDataModel,
+> = (
+  ctx: GenericMutationCtx<DataModel>,
+  args: {
+    userId: UserId | null;
+    profile: Profile;
+    provider: AuthProviderMaterializedConfig;
+  },
+) => Promise<UserId>;
 
 /**
  * Your `ActionCtx` enriched with `ctx.auth.config` field with

@@ -267,30 +267,16 @@ export type SignOutAction = FunctionReferenceFromExport<
  * @returns An object with `auth` helper for configuring HTTP actions and accessing
  * the current user and session ID.
  */
-export function convexAuth<
-  DataModel extends GenericDataModel,
-  UserId extends string = GenericId<"users">,
->(
-  config_: ConvexAuthConfig,
-  onSignIn?: (
-    ctx: GenericMutationCtx<DataModel>,
-    args: {
-      userId: UserId | null;
-      profile: {
-        [key: string]: unknown;
-      };
-      provider: AuthProviderMaterializedConfig;
-    },
-  ) => Promise<UserId>,
-) {
+export function convexAuth(config_: ConvexAuthConfig) {
   // Default implementation if we don't want to ask users to do this
-  if (!onSignIn) {
-    onSignIn = async (ctx, { userId, profile }) => {
+  const onSignIn =
+    config_.onSignIn ||
+    (async (ctx, { userId, profile }) => {
       if (userId) {
-        const user = await ctx.db.get(userId as any);
+        const user = await ctx.db.get(userId);
         if (user) {
           if (profile.email_verified && !user.emailVerificationTime) {
-            await ctx.db.patch(userId as any, {
+            await ctx.db.patch(userId, {
               emailVerificationTime: Date.now(),
             });
           }
@@ -302,9 +288,8 @@ export function convexAuth<
         email: profile.email,
         image: profile.image ?? undefined,
         emailVerificationTime: profile.email_verified ? Date.now() : undefined,
-      } as any) as any;
-    };
-  }
+      });
+    });
 
   const config = configDefaults(config_);
   const hasOAuth = config.providers.some(
@@ -356,7 +341,7 @@ export function convexAuth<
     }) => {
       const sessionId = await auth.getSessionId(ctx);
       const session = sessionId && (await ctx.db.get(sessionId));
-      return session && (session.userId as UserId);
+      return session && session.userId;
     },
     /**
      * Return the current session ID.
@@ -812,7 +797,7 @@ export function convexAuth<
                 return null;
               }
               const userId = await onSignIn(ctx, {
-                userId: account.userId as UserId,
+                userId: account.userId,
                 profile: {
                   email: account.providerAccountId,
                   email_verified: verificationCode.emailVerified,
@@ -880,7 +865,7 @@ export function convexAuth<
               .unique();
 
             const userId = await onSignIn(ctx, {
-              userId: (existingAccount?.userId as UserId) ?? null,
+              userId: existingAccount?.userId ?? null,
               profile,
               provider: providerConfig,
             });
@@ -951,7 +936,7 @@ export function convexAuth<
               )
               .unique();
             const userId = await onSignIn(ctx, {
-              userId: (existingAccount?.userId as UserId) ?? null,
+              userId: existingAccount?.userId ?? null,
               profile: {
                 email,
                 email_verified: existingAccount?.emailVerified ?? false,

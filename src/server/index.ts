@@ -21,6 +21,7 @@ export {
   retrieveAccount,
 } from "./implementation";
 export type {
+  OnSignIn,
   ConvexAuthConfig,
   GenericActionCtxWithAuthConfig,
   AuthProviderMaterializedConfig,

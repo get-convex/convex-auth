@@ -1,11 +1,12 @@
-import GitHub, { GitHubProfile } from "@auth/core/providers/github";
-import Google, { GoogleProfile } from "@auth/core/providers/google";
+import GitHub from "@auth/core/providers/github";
+import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
-import { convexAuth } from "@xixixao/convex-auth/server";
+import { convexAuth, OnSignIn } from "@xixixao/convex-auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import Password from "@xixixao/convex-auth/providers/Password";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
-import type { DataModel, Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
+import { MutationCtx } from "./_generated/server";
 
 type MyProfile = {
   id: string;
@@ -17,54 +18,49 @@ type MyProfile = {
   email_verified?: boolean;
 };
 
-export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
-  DataModel,
-  Id<"users">
->(
-  {
-    providers: [
-      GitHub({
-        profile: (profile): MyProfile => ({
-          id: profile.id.toString(),
-          name: profile.name ?? profile.login,
-          email: profile.email!,
-          // GitHub oauth requires verifying email
-          email_verified: true,
-          image: profile.avatar_url,
-          bio: profile.bio ?? undefined,
-        }),
+export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+  providers: [
+    GitHub({
+      profile: (profile): MyProfile => ({
+        id: profile.id.toString(),
+        name: profile.name ?? profile.login,
+        email: profile.email!,
+        // GitHub oauth requires verifying email
+        email_verified: true,
+        image: profile.avatar_url,
+        bio: profile.bio ?? undefined,
       }),
-      Google({
-        profile: (profile): MyProfile => ({
-          id: profile.sub ?? profile.id,
-          name: profile.name ?? profile.nickname ?? profile.preferred_username,
-          email: profile.email,
-          email_verified: !!profile.email_verified,
-          image: profile.picture,
-          phone: profile.phone,
-        }),
+    }),
+    Google({
+      profile: (profile): MyProfile => ({
+        id: profile.sub ?? profile.id,
+        name: profile.name ?? profile.nickname ?? profile.preferred_username,
+        email: profile.email,
+        email_verified: !!profile.email_verified,
+        image: profile.picture,
+        phone: profile.phone,
       }),
-      Resend,
-      ResendOTP,
-      Password,
-      Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),
-      Password({
-        id: "password-code",
-        reset: ResendOTPPasswordReset,
-        verify: ResendOTP,
-      }),
-      Password({ id: "password-link", verify: Resend }),
-    ],
-    // session: {
-    //   inactiveDurationMs: 1000 * 60 * 1, // 1 minute
-    // },
-    // jwt: {
-    //   durationMs: 1000 * 20, // 20 seconds
-    // },
-  },
-  async (ctx, { profile: raw, provider, userId }) => {
+    }),
+    Resend,
+    ResendOTP,
+    Password,
+    Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),
+    Password({
+      id: "password-code",
+      reset: ResendOTPPasswordReset,
+      verify: ResendOTP,
+    }),
+    Password({ id: "password-link", verify: Resend }),
+  ],
+  // session: {
+  //   inactiveDurationMs: 1000 * 60 * 1, // 1 minute
+  // },
+  // jwt: {
+  //   durationMs: 1000 * 20, // 20 seconds
+  // },
+
+  onSignIn: (async (ctx: MutationCtx, { profile, provider, userId }) => {
     const fields: Partial<Doc<"users">> = {};
-    const profile = raw as MyProfile;
     let emailVerified = !!profile.email_verified;
     switch (provider.id) {
       case "resend":
@@ -121,5 +117,5 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
       emailVerified,
       ...fields,
     });
-  },
-);
+  }) as OnSignIn<MyProfile>,
+});
