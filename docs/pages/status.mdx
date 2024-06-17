@@ -20,9 +20,10 @@ open a PR [on GitHub](https://github.com/get-convex/convex-auth).
 
 ### Why should I use Convex Auth instead of Clerk or Auth0?
 
-- Convex Auth doesn’t require signing up for another service besides Convex and
-  an email provider (unless you use OAuth providers like Google or Github, but
-  you would have to set these up with Clerk/Auth0 later anyway).
+- Convex Auth doesn’t require signing up for another service, except for:
+  - Email provider for email-based authentication methods
+  - OAuth providers like Google or Github, but you would have to set these up
+    with Clerk/Auth0 later anyway
 - Convex Auth is simpler because it stores all user data directly in your Convex
   database. It doesn't require syncing state from an external database.
 - Convex Auth doesn't require owning a top-level domain (like `example.com`),
@@ -36,6 +37,11 @@ open a PR [on GitHub](https://github.com/get-convex/convex-auth).
 - Convex Auth includes basic functionality included in Firebase/Supabase Auth.
   For advanced authentication functionality (SSO, MFA, etc.) we recommend using
   Clerk or Auth0.
+
+### Why should I use Convex Auth instead of Lucia?
+
+- Lucia is oriented towards traditional servers that host a website.
+- The previous Convex+Lucia integrations are now deprecated.
 
 ## Known Issues
 
