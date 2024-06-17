@@ -214,23 +214,61 @@ function AuthProvider({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const setToken = useCallback(
-    async (tokens: { token: string; refreshToken: string } | null) => {
-      if (tokens === null) {
+    async (
+      args:
+        | { shouldStore: true; tokens: { token: string; refreshToken: string } }
+        | { shouldStore: false; tokens: { token: string } }
+        | { shouldStore: boolean; tokens: null },
+    ) => {
+      if (args.tokens === null) {
         token.current = null;
-        await storage.removeItem(JWT_STORAGE_KEY);
-        await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+        if (args.shouldStore) {
+          await storage.removeItem(JWT_STORAGE_KEY);
+          await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+        }
         setIsAuthenticated(false);
       } else {
-        const { token: value, refreshToken } = tokens;
+        const { token: value } = args.tokens;
         token.current = value;
-        await storage.setItem(JWT_STORAGE_KEY, value);
-        await storage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+        if (args.shouldStore) {
+          const { refreshToken } = args.tokens;
+          await storage.setItem(JWT_STORAGE_KEY, value);
+          await storage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+        }
         setIsAuthenticated(true);
       }
       setIsLoading(false);
     },
     [],
   );
+
+  useEffect(() => {
+    // We're listening for:
+    // 1. sibling tabs in case of localStorage
+    // 2. other frames in case of sessionStorage
+    const listener = (event: StorageEvent) => {
+      void (async () => {
+        // TODO: Test this if statement works in iframes correctly
+        if (event.storageArea !== storage) {
+          return;
+        }
+
+        // Another document set the access token, use it
+        if (event.key === JWT_STORAGE_KEY) {
+          const value = event.newValue;
+          // We don't write into storage since the event came from there and
+          // we'd trigger a loop, plus we get each key as a separate event so
+          // we don't have the refresh key here.
+          await setToken({
+            shouldStore: false,
+            tokens: value === null ? null : { token: value },
+          });
+        }
+      })();
+    };
+    window.addEventListener?.("storage", listener);
+    return () => window.removeEventListener?.("storage", listener);
+  }, []);
 
   const verifyCodeAndSetToken = useCallback(
     async (args: {
@@ -243,7 +281,7 @@ function AuthProvider({
         "auth:verifyCode" as unknown as VerifyCodeAction,
         args,
       );
-      await setToken(tokens);
+      await setToken({ shouldStore: true, tokens });
       return tokens !== null;
     },
     [client, setToken],
@@ -275,7 +313,7 @@ function AuthProvider({
         window.location.href = `${result.redirect}?code=` + verifier;
         return false;
       } else if (result.tokens !== undefined) {
-        await setToken(result.tokens);
+        await setToken({ shouldStore: true, tokens: result.tokens });
         return result.tokens !== null;
       }
       return false;
@@ -303,20 +341,37 @@ function AuthProvider({
     [verifyCodeAndSetToken],
   );
 
+  const signOut = useCallback(async () => {
+    // We can't wait for this action to finish,
+    // because it never will if we are already signed out.
+    void client.action("auth:signOut" as unknown as SignOutAction);
+    await setToken({ shouldStore: true, tokens: null });
+  }, [setToken, client]);
+
   const fetchAccessToken = useCallback(
     async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
       if (forceRefreshToken) {
-        const refreshToken =
-          (await getAndRemove(storage, REFRESH_TOKEN_STORAGE_KEY)) ?? null;
-        if (refreshToken !== null) {
-          await verifyCodeAndSetToken({ params: {}, refreshToken });
-        } else {
-          return null;
-        }
+        const tokenBeforeLockAquisition = token.current;
+        return await browserMutex(REFRESH_TOKEN_STORAGE_KEY, async () => {
+          const tokenAfterLockAquisition = token.current;
+          // Another tab or frame just refreshed the token, we can use it
+          // and skip another refresh.
+          if (tokenAfterLockAquisition !== tokenBeforeLockAquisition) {
+            return tokenAfterLockAquisition;
+          }
+          const refreshToken = await storage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+          if (refreshToken !== null) {
+            await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+            await verifyCodeAndSetToken({ params: {}, refreshToken });
+            return token.current;
+          } else {
+            return null;
+          }
+        });
       }
       return token.current;
     },
-    [verifyCodeAndSetToken],
+    [verifyCodeAndSetToken, signOut],
   );
   useEffect(() => {
     // Has to happen in useEffect to avoid SSR.
@@ -339,17 +394,14 @@ function AuthProvider({
         url.searchParams.delete("code");
         window.history.replaceState({}, "", url.toString());
       } else {
-        const token = await storage.getItem(JWT_STORAGE_KEY);
-        const refreshToken = await storage.getItem(REFRESH_TOKEN_STORAGE_KEY);
-        await setToken(token && refreshToken ? { token, refreshToken } : null);
+        const token = (await storage.getItem(JWT_STORAGE_KEY)) ?? null;
+        await setToken({
+          shouldStore: false,
+          tokens: token === null ? null : { token },
+        });
       }
     })();
   }, [client, setToken, verifyCodeAndSetToken]);
-
-  const signOut = useCallback(async () => {
-    await client.action("auth:signOut" as unknown as SignOutAction);
-    await setToken(null);
-  }, [setToken, client]);
 
   return (
     <ConvexAuthInternalContext.Provider
@@ -385,13 +437,20 @@ function useAuth() {
   );
 }
 
-// Only await the `getItem` if it's async, since we want this get and delete
-// to be as atomic as possible.
+// This is not atomic, and cannot be relied upon to be atomic.
 async function getAndRemove(storage: TokenStorage, key: string) {
-  let value = storage.getItem(key);
-  if (value instanceof Promise) {
-    value = await value;
-  }
+  const value = await storage.getItem(key);
   await storage.removeItem(key);
   return value;
+}
+
+// In the browser, executes the callback as the only tab / frame at a time.
+async function browserMutex<T>(
+  key: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const lockManager = window?.navigator?.locks;
+  return lockManager !== undefined
+    ? await lockManager.request(key, callback)
+    : await callback();
 }
