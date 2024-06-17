@@ -1607,7 +1607,7 @@ function convertErrorsToResponse(
       if (error instanceof ConvexError) {
         return new Response(null, {
           status: errorStatusCode,
-          statusText: (error as any).data,
+          statusText: error.data,
         });
       } else {
         console.error((error as Error).message ?? error);
