@@ -3,7 +3,7 @@ import {
   OAuth2Config,
   OAuthConfig,
 } from "@auth/core/providers";
-import { TokenSet, User } from "@auth/core/types";
+import { TokenSet } from "@auth/core/types";
 import { generateState } from "arctic";
 import {
   Auth,
@@ -277,25 +277,36 @@ export function convexAuth<
     args: {
       userId: UserId | null;
       profile: {
-        id: string;
-        email: string;
         name?: string | null;
+        email: string;
+        email_verified?: boolean;
         image?: string | null;
+        [key: string]: unknown;
       };
-      provider: string;
+      provider: AuthProviderMaterializedConfig;
     },
   ) => Promise<UserId>,
 ) {
   // Default implementation if we don't want to ask users to do this
   if (!onSignIn) {
     onSignIn = async (ctx, { userId, profile }) => {
-      // TODO: show how to do account linking
       if (userId) {
-        await ctx.db.patch(userId as any, profile as any);
-        return userId;
-      } else {
-        return (await ctx.db.insert("users" as any, profile as any)) as any;
+        const user = await ctx.db.get(userId as any);
+        if (user) {
+          if (profile.email_verified && !user.emailVerificationTime) {
+            await ctx.db.patch(userId as any, {
+              emailVerificationTime: Date.now(),
+            });
+          }
+          return userId;
+        }
       }
+      return ctx.db.insert("users", {
+        name: profile.name ?? undefined,
+        email: profile.email,
+        image: profile.image ?? undefined,
+        emailVerificationTime: profile.email_verified ? Date.now() : undefined,
+      } as any) as any;
     };
   }
 
@@ -600,6 +611,9 @@ export function convexAuth<
                 profile,
                 tokens,
               );
+              if (!id) {
+                throw new Error(`Missing id in profile from ${provider.id}`);
+              }
 
               const verificationCode = await ctx.runMutation(
                 internal.auth.store,
@@ -607,8 +621,8 @@ export function convexAuth<
                   args: {
                     type: "userOAuth",
                     provider: providerId,
-                    providerAccountId: id!,
-                    profile: profileFromCallback,
+                    providerAccountId: id,
+                    profile: { ...profile, ...profileFromCallback },
                     state,
                   },
                 },
@@ -801,7 +815,17 @@ export function convexAuth<
                 );
                 return null;
               }
-              const userId = account.userId;
+              const userId = await onSignIn(ctx, {
+                userId: account.userId as UserId,
+                profile: {
+                  email: account.providerAccountId,
+                  email_verified: verificationCode.emailVerified,
+                },
+                provider: getProviderOrThrow(account.provider),
+              });
+              if (userId !== account.userId) {
+                await ctx.db.patch(accountId, { userId });
+              }
               if (verificationCode.emailVerified) {
                 if (!account.emailVerified) {
                   await ctx.db.patch(accountId, { emailVerified: true });
@@ -862,8 +886,11 @@ export function convexAuth<
             const userId = await onSignIn(ctx, {
               userId: (existingAccount?.userId as UserId) ?? null,
               profile,
-              provider,
+              provider: providerConfig,
             });
+            if (existingAccount && userId !== existingAccount.userId) {
+              await ctx.db.patch(existingAccount._id, { userId });
+            }
             const accountId =
               existingAccount?._id ??
               (await ctx.db.insert("accounts", {
@@ -871,7 +898,10 @@ export function convexAuth<
                 provider,
                 providerAccountId,
                 type: "oauth",
-                emailVerified: shouldLink,
+                emailVerified:
+                  "email_verified" in profile
+                    ? !!profile.email_verified
+                    : shouldLink,
               }));
 
             const verifier = await ctx.db
@@ -926,9 +956,15 @@ export function convexAuth<
               .unique();
             const userId = await onSignIn(ctx, {
               userId: (existingAccount?.userId as UserId) ?? null,
-              profile: { id: email, email },
-              provider,
+              profile: {
+                email,
+                email_verified: existingAccount?.emailVerified ?? false,
+              },
+              provider: getProviderOrThrow(provider),
             });
+            if (existingAccount && userId !== existingAccount.userId) {
+              await ctx.db.patch(existingAccount._id, { userId });
+            }
             const accountId =
               existingAccount?._id ??
               (await ctx.db.insert("accounts", {
@@ -968,7 +1004,7 @@ export function convexAuth<
             const userId = await onSignIn(ctx, {
               userId: null,
               profile,
-              provider,
+              provider: getProviderOrThrow(provider),
             });
             const newAccountId = await ctx.db.insert("accounts", {
               userId,
