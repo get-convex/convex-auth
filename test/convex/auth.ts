@@ -36,16 +36,17 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
   },
   async (ctx, { profile, provider, userId }) => {
     const fields: Partial<Doc<"users">> = {};
-    let emailVerified = profile.email_verified ?? false;
+    if (profile.name) fields.name = profile.name;
+    let emailVerified = !!profile.email_verified;
     switch (provider.id) {
       case "github":
-        fields.bio = (profile as GitHubProfile).bio ?? undefined;
         // GitHub oauth requires verifying email
         emailVerified = true;
         break;
       case "google":
         fields.phone = (profile as GoogleProfile).phone ?? undefined;
         break;
+      case "resend":
       case "resend-otp":
       case "password-code":
       case "password-link":

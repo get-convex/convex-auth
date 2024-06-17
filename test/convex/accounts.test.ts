@@ -60,7 +60,7 @@ test("automatic linking for signin via email", async () => {
   await t.run(async (ctx) => {
     const users = await ctx.db.query("users").collect();
     expect(users).toHaveLength(1);
-    expect(users[0].emailVerificationTime).not.toBeUndefined();
+    expect(users[0].emailVerified).toEqual(true);
   });
 });
 
@@ -82,7 +82,7 @@ test("automatic linking for signin via verified OAuth", async () => {
   await t.run(async (ctx) => {
     const users = await ctx.db.query("users").collect();
     expect(users).toHaveLength(1);
-    expect(users[0].emailVerificationTime).not.toBeUndefined();
+    expect(users[0].emailVerified).toEqual(true);
   });
 });
 
@@ -110,7 +110,7 @@ test("automatic linking for password email verification", async () => {
   await t.run(async (ctx) => {
     const users = await ctx.db.query("users").collect();
     expect(users).toHaveLength(1);
-    expect(users[0].emailVerificationTime).not.toBeUndefined();
+    expect(users[0].emailVerified).toEqual(true);
   });
 });
 
