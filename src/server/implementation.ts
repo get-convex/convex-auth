@@ -1104,8 +1104,9 @@ function getHashAndVerifyFns(provider: any) {
 }
 
 /**
- * Use this function from a `ConvexCredentials` provider
- * to create an account and a user with a pair of unique
+ * Use this function from a
+ * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * provider to create an account and a user with a pair of unique
  * id and an account secret.
  *
  * @returns user ID if it successfully creates the account
@@ -1162,8 +1163,9 @@ export async function createAccountWithCredentials<
 }
 
 /**
- * Use this function from a `ConvexCredentials` provider
- * to retrieve a user given a pair of unique account
+ * Use this function from a
+ * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * provider to retrieve a user given a pair of unique account
  * id and an account secret.
  *
  * @returns the retrieved user document, or `null` if there is no account
@@ -1207,8 +1209,9 @@ export async function retrieveAccountWithCredentials<
 }
 
 /**
- * Use this function from a `ConvexCredentials` provider
- * to retrieve a user given the account provider ID and
+ * Use this function from a
+ * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * provider to retrieve a user given the account provider ID and
  * the provider-specific account ID.
  *
  * @returns the retrieved user document, or `null` if there is no account
@@ -1248,7 +1251,8 @@ export async function retrieveAccount<
 
 /**
  * Use this function to modify the account credentials
- * from a `ConvexCredentials` provider.
+ * from a [`ConvexCredentials`](./providers/ConvexCredentials)
+ * provider.
  */
 export async function modifyAccountCredentials<
   DataModel extends GenericDataModel = GenericDataModel,
@@ -1304,8 +1308,9 @@ export async function invalidateSessions<
 }
 
 /**
- * Use this function from a `ConvexCredentials` provider
- * to sign in the user via another provider (usually
+ * Use this function from a
+ * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * provider to sign in the user via another provider (usually
  * for email verification on sign up or password reset).
  */
 export async function signInViaProvider<

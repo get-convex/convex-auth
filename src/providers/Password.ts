@@ -1,6 +1,15 @@
 /**
  * Configure {@link Password} provider given a {@link PasswordConfig}.
  *
+ * ```ts
+ * import Password from "@xixixao/convex-auth/providers/Password";
+ * import { convexAuth } from "@xixixao/convex-auth/server";
+ *
+ * export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+ *   providers: [Password],
+ * });
+ * ```
+ *
  * @module
  */
 

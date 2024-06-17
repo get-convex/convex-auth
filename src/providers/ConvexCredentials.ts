@@ -1,8 +1,23 @@
 /**
  * Configure {@link ConvexCredentials} provider given a {@link ConvexCredentialsConfig}.
  *
- * This is for very custom authentication implementation, often you can
- * use the `Password` provider instead.
+ * This is for a very custom authentication implementation, often you can
+ * use the [`Password`](./Password) provider instead.
+ *
+ * ```ts
+ * import ConvexCredentials from "@xixixao/convex-auth/providers/ConvexCredentials";
+ * import { convexAuth } from "@xixixao/convex-auth/server";
+ *
+ * export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+ *   providers: [
+ *     ConvexCredentials({
+ *       authorize: async (credentials, ctx) => {
+ *         // Your custom logic here...
+ *       },
+ *     }),
+ *   ],
+ * });
+ * ```
  *
  * @module
  */
