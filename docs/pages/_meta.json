@@ -3,6 +3,7 @@
   "setup": "Setup",
   "config": "Configuration",
   "authz": "Authorization",
+  "production": "Production",
   "advanced": "Advanced",
   "---": {
     "type": "separator"
