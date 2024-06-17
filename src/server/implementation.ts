@@ -1370,12 +1370,12 @@ async function signInImpl(
     if (user === null) {
       return { tokens: null };
     }
-    const tokens = await ctx.runMutation(internal.auth.store, {
+    const tokens = (await ctx.runMutation(internal.auth.store, {
       args: {
         type: "signIn",
         userId: user.id as any,
       },
-    });
+    })) as { token: string; refreshToken: string };
     return { tokens };
   } else if (provider.type === "oauth" || provider.type === "oidc") {
     // This action call is a bit of a waste, because the client will
