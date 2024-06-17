@@ -112,7 +112,7 @@ export const authTables = {
     secret: v.optional(v.string()),
     emailVerified: v.boolean(),
   })
-    .index("providerAndUserId", ["provider", "userId"])
+    .index("userIdAndProvider", ["userId", "provider"])
     .index("providerAndAccountId", ["provider", "providerAccountId"]),
   /**
    * Refresh tokens.
@@ -814,8 +814,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { userId, provider } = args;
             const account = await ctx.db
               .query("accounts")
-              .withIndex("providerAndUserId", (q) =>
-                q.eq("provider", provider).eq("userId", userId),
+              .withIndex("userIdAndProvider", (q) =>
+                q.eq("userId", userId).eq("provider", provider),
               )
               .unique();
             if (account === null) {
