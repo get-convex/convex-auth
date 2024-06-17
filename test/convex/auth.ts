@@ -9,7 +9,6 @@ import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
   providers: [
     GitHub,
-    GitHub({ id: "github-verified", allowDangerousEmailAccountLinking: true }),
     Google,
     Resend,
     ResendOTP,

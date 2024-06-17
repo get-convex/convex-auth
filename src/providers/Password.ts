@@ -17,17 +17,15 @@ import {
   retrieveAccountWithCredentials,
   signInViaProvider,
 } from "@xixixao/convex-auth/server";
-import {
-  DocumentByName,
-  GenericDataModel,
-  WithoutSystemFields,
-} from "convex/server";
+import { GenericDataModel } from "convex/server";
 import { Scrypt } from "lucia";
 
 /**
  * The available options to a {@link Password} provider for Convex Auth.
  */
-export interface PasswordConfig<DataModel extends GenericDataModel> {
+export interface PasswordConfig<
+  Profile extends { email: string } = { email: string },
+> {
   /**
    * Uniquely identifies the provider, allowing to use
    * multiple different {@link Password} providers.
@@ -39,11 +37,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
    *
    * @param params The values passed to the `signIn` function.
    */
-  profile?: (params: Record<string, unknown>) => WithoutSystemFields<
-    DocumentByName<DataModel, "users">
-  > & {
-    email: string;
-  };
+  profile?: (params: Record<string, unknown>) => Profile;
   /**
    * Provide hashing and verification functions if you want to control
    * how passwords are hashed.
@@ -71,7 +65,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
  * an email provider to the `verify` option.
  */
 export default function Password<DataModel extends GenericDataModel>(
-  config: PasswordConfig<DataModel> = {},
+  config: PasswordConfig = {},
 ) {
   const provider = config.id ?? "password";
   return ConvexCredentials<DataModel>({
@@ -80,16 +74,14 @@ export default function Password<DataModel extends GenericDataModel>(
       const email = params.email as string;
       const secret = params.password as string;
       let account: GenericDoc<DataModel, "accounts">;
-      let user: GenericDoc<DataModel, "users">;
       if (flow === "signUp") {
         const profile = config.profile?.(params) ?? defaultProfile(params);
         const created = await createAccountWithCredentials(ctx, {
           provider,
           account: { id: email, secret },
           profile,
-          shouldLink: config.verify !== undefined,
         });
-        ({ account, user } = created);
+        account = created;
       } else if (flow === "signIn") {
         const retrieved = await retrieveAccountWithCredentials(ctx, {
           provider,
@@ -98,7 +90,7 @@ export default function Password<DataModel extends GenericDataModel>(
         if (retrieved === null) {
           throw new Error("Invalid credentials");
         }
-        ({ account, user } = retrieved);
+        account = retrieved;
         // START: Optional, support password reset
       } else if (flow === "reset" && config.reset) {
         const retrieved = await retrieveAccount(ctx, {
@@ -108,7 +100,7 @@ export default function Password<DataModel extends GenericDataModel>(
         if (retrieved === null) {
           throw new Error("Invalid credentials");
         }
-        ({ account, user } = retrieved);
+        account = retrieved;
         return await signInViaProvider(ctx, config.reset, {
           accountId: account._id,
         });
@@ -123,7 +115,7 @@ export default function Password<DataModel extends GenericDataModel>(
         });
       }
       // END
-      return { id: user._id };
+      return { id: account.userId as string };
     },
     crypto: {
       async hashSecret(password: string) {

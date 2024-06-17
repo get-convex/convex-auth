@@ -3,7 +3,7 @@ import {
   OAuth2Config,
   OAuthConfig,
 } from "@auth/core/providers";
-import { TokenSet } from "@auth/core/types";
+import { TokenSet, User } from "@auth/core/types";
 import { generateState } from "arctic";
 import {
   Auth,
@@ -11,8 +11,8 @@ import {
   FunctionReference,
   GenericActionCtx,
   GenericDataModel,
+  GenericDatabaseReader,
   GenericMutationCtx,
-  GenericQueryCtx,
   HttpRouter,
   PublicHttpAction,
   actionGeneric,
@@ -49,7 +49,6 @@ const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 day
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 const REFRESH_TOKEN_DIVIDER = "|";
-const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
 /**
  * The table definitions required by the library.
@@ -76,21 +75,12 @@ const TOKEN_SUB_CLAIM_DIVIDER = "|";
  */
 export const authTables = {
   /**
-   * Users.
-   */
-  users: defineTable({
-    email: v.string(),
-    emailVerificationTime: v.optional(v.number()),
-    name: v.optional(v.string()),
-    image: v.optional(v.string()),
-  }).index("email", ["email"]),
-  /**
    * Sessions.
    * A single user can have multiple active sessions.
    * See [Session document lifecycle](https://labs.convex.dev/auth/advanced#session-document-lifecycle).
    */
   sessions: defineTable({
-    userId: v.id("users"),
+    userId: v.string(),
     expirationTime: v.number(),
   }).index("userId", ["userId"]),
   /**
@@ -99,7 +89,7 @@ export const authTables = {
    * A single user can have multiple accounts linked.
    */
   accounts: defineTable({
-    userId: v.id("users"),
+    userId: v.string(),
     type: v.union(
       v.literal("oauth"),
       v.literal("oidc"),
@@ -121,7 +111,6 @@ export const authTables = {
    * and reuse is not allowed.
    */
   refreshTokens: defineTable({
-    userId: v.id("users"),
     sessionId: v.id("sessions"),
     expirationTime: v.number(),
   }).index("sessionId", ["sessionId"]),
@@ -204,7 +193,6 @@ const storeArgs = {
       account: v.object({ id: v.string(), secret: v.string() }),
       profile: v.any(),
       emailVerified: v.optional(v.boolean()),
-      shouldLink: v.boolean(),
     }),
     v.object({
       type: v.literal("retrieveAccountAndCheckSecret"),
@@ -223,7 +211,7 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("invalidateSessions"),
-      userId: v.id("users"),
+      userId: v.string(),
       except: v.optional(v.array(v.id("sessions"))),
     }),
   ),
@@ -279,7 +267,38 @@ export type SignOutAction = FunctionReferenceFromExport<
  * @returns An object with `auth` helper for configuring HTTP actions and accessing
  * the current user and session ID.
  */
-export function convexAuth(config_: ConvexAuthConfig) {
+export function convexAuth<
+  DataModel extends GenericDataModel,
+  UserId extends string = GenericId<"users">,
+>(
+  config_: ConvexAuthConfig,
+  onSignIn?: (
+    ctx: GenericMutationCtx<DataModel>,
+    args: {
+      userId: UserId | null;
+      profile: {
+        id: string;
+        email: string;
+        name?: string | null;
+        image?: string | null;
+      };
+      provider: string;
+    },
+  ) => Promise<UserId>,
+) {
+  // Default implementation if we don't want to ask users to do this
+  if (!onSignIn) {
+    onSignIn = async (ctx, { userId, profile }) => {
+      // TODO: show how to do account linking
+      if (userId) {
+        await ctx.db.patch(userId as any, profile as any);
+        return userId;
+      } else {
+        return (await ctx.db.insert("users" as any, profile as any)) as any;
+      }
+    };
+  }
+
   const config = configDefaults(config_);
   const hasOAuth = config.providers.some(
     (provider) => provider.type === "oauth" || provider.type === "oidc",
@@ -301,7 +320,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
 
   const auth = {
     /**
-     * Return the currently signed-in user's ID.
+     * Return the currently signed-in user's ID and validates the auth session.
+     * This is only available from queries & mutations.
      *
      * ```ts filename="convex/myFunctions.tsx"
      * import { mutation } from "./_generated/server";
@@ -320,16 +340,16 @@ export function convexAuth(config_: ConvexAuthConfig) {
      * });
      * ```
      *
-     * @param ctx query, mutation or action `ctx`
+     * @param ctx query or mutation `ctx`
      * @returns the user ID or `null` if the client isn't authenticated
      */
-    getUserId: async (ctx: { auth: Auth }) => {
-      const identity = await ctx.auth.getUserIdentity();
-      if (identity === null) {
-        return null;
-      }
-      const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
-      return userId as GenericId<"users">;
+    getUserId: async (ctx: {
+      db: GenericDatabaseReader<AuthDataModel>;
+      auth: Auth;
+    }) => {
+      const sessionId = await auth.getSessionId(ctx);
+      const session = sessionId && (await ctx.db.get(sessionId));
+      return session && (session.userId as UserId);
     },
     /**
      * Return the current session ID.
@@ -359,8 +379,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
       if (identity === null) {
         return null;
       }
-      const [, sessionId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
-      return sessionId as GenericId<"sessions">;
+      return identity.subject as GenericId<"sessions">;
     },
     /**
      * Add HTTP actions for JWT verification and OAuth sign-in.
@@ -698,10 +717,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
           case "signIn": {
             const { userId } = args;
             const sessionId = await createSession(ctx, userId, config);
-            const ids = { userId, sessionId };
             return {
-              token: await generateToken(ids, config),
-              refreshToken: await createRefreshToken(ctx, ids, config),
+              token: await generateToken(sessionId, config),
+              refreshToken: await createRefreshToken(ctx, sessionId, config),
             };
           }
           case "signOut": {
@@ -747,12 +765,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 return null;
               }
               const { userId, sessionId } = refreshTokenDoc;
-              const ids = { userId, sessionId };
               return {
-                token: await generateToken(ids, config),
+                token: await generateToken(sessionId, config),
                 sessionId,
                 userId,
-                refreshToken: await createRefreshToken(ctx, ids, config),
+                refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             } else {
               if (code === undefined) {
@@ -789,9 +806,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 if (!account.emailVerified) {
                   await ctx.db.patch(accountId, { emailVerified: true });
                 }
-                await ctx.db.patch(userId, {
-                  emailVerificationTime: Date.now(),
-                });
               }
               const existingSessionId = await auth.getSessionId(ctx);
               if (existingSessionId !== null) {
@@ -801,12 +815,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 }
               }
               const sessionId = await createSession(ctx, userId, config);
-              const ids = { userId, sessionId };
               return {
-                token: await generateToken(ids, config),
+                token: await generateToken(sessionId, config),
                 sessionId,
                 userId,
-                refreshToken: await createRefreshToken(ctx, ids, config),
+                refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             }
           }
@@ -846,21 +859,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
               )
               .unique();
 
-            const existingUserId =
-              existingAccount !== null
-                ? existingAccount.userId
-                : shouldLink
-                  ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))
-                      ?._id ?? null
-                  : null;
-
-            let userId: GenericId<"users">;
-            if (existingUserId !== null) {
-              await ctx.db.patch(existingUserId, profile);
-              userId = existingUserId;
-            } else {
-              userId = await ctx.db.insert("users", profile);
-            }
+            const userId = await onSignIn(ctx, {
+              userId: (existingAccount?.userId as UserId) ?? null,
+              profile,
+              provider,
+            });
             const accountId =
               existingAccount?._id ??
               (await ctx.db.insert("accounts", {
@@ -904,19 +907,13 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 `Expected an account to exist for ID "${accountId}"`,
               );
             }
-            const user = await ctx.db.get(existingAccount.userId);
-            if (user === null) {
-              throw new Error(
-                `Expected a user to exist for ID "${existingAccount.userId}"`,
-              );
-            }
             await generateUniqueEmailVerificationCode(
               ctx,
               accountId,
               code,
               expirationTime,
             );
-            return user.email;
+            return existingAccount.providerAccountId;
           }
           case "userAndEmailVerificationCode": {
             const { email, code, expirationTime, provider } = args;
@@ -927,9 +924,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 q.eq("provider", provider).eq("providerAccountId", email),
               )
               .unique();
-            const existingUser = await uniqueUserWithVerifiedEmail(ctx, email);
-            const userId =
-              existingUser?._id ?? (await ctx.db.insert("users", { email }));
+            const userId = await onSignIn(ctx, {
+              userId: (existingAccount?.userId as UserId) ?? null,
+              profile: { id: email, email },
+              provider,
+            });
             const accountId =
               existingAccount?._id ??
               (await ctx.db.insert("accounts", {
@@ -948,8 +947,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return email;
           }
           case "createAccountWithSecret": {
-            const { provider, account, profile, shouldLink, emailVerified } =
-              args;
+            const { provider, account, profile, emailVerified } = args;
             const existingAccount = await ctx.db
               .query("accounts")
               .withIndex("providerAndAccountId", (q) =>
@@ -965,22 +963,13 @@ export function convexAuth(config_: ConvexAuthConfig) {
               ) {
                 throw new Error(`Account ${account.id} already exists`);
               }
-              return {
-                account: existingAccount,
-                user: await ctx.db.get(existingAccount.userId),
-              };
+              return existingAccount;
             }
-            const existingUserId = shouldLink
-              ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))?._id ??
-                null
-              : null;
-            let userId: GenericId<"users">;
-            if (existingUserId !== null) {
-              await ctx.db.patch(existingUserId, profile);
-              userId = existingUserId;
-            } else {
-              userId = await ctx.db.insert("users", profile);
-            }
+            const userId = await onSignIn(ctx, {
+              userId: null,
+              profile,
+              provider,
+            });
             const newAccountId = await ctx.db.insert("accounts", {
               userId,
               provider,
@@ -989,10 +978,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               type: "credentials",
               emailVerified: emailVerified === true,
             });
-            return {
-              account: await ctx.db.get(newAccountId),
-              user: await ctx.db.get(userId),
-            };
+            return ctx.db.get(newAccountId);
           }
           case "retrieveAccountAndCheckSecret": {
             const { provider, account } = args;
@@ -1011,10 +997,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             if (!(await verify(account.secret, existingAccount.secret ?? ""))) {
               throw new Error("Invalid secret");
             }
-            return {
-              account: existingAccount,
-              user: await ctx.db.get(existingAccount.userId),
-            };
+            return existingAccount;
           }
           case "retrieveAccount": {
             const { provider, account } = args;
@@ -1027,10 +1010,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             if (existingAccount === null) {
               return null;
             }
-            return {
-              account: existingAccount,
-              user: await ctx.db.get(existingAccount.userId),
-            };
+            return existingAccount;
           }
           case "modifyAccount": {
             const { provider, account } = args;
@@ -1071,17 +1051,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
       },
     }),
   };
-}
-
-async function uniqueUserWithVerifiedEmail(
-  ctx: GenericQueryCtx<AuthDataModel>,
-  email: string,
-) {
-  return await ctx.db
-    .query("users")
-    .withIndex("email", (q) => q.eq("email", email))
-    .filter((q) => q.neq(q.field("emailVerificationTime"), undefined))
-    .unique();
 }
 
 function getHashAndVerifyFns(provider: any) {
@@ -1139,19 +1108,11 @@ export async function createAccountWithCredentials<
      */
     profile: { email: string } & Record<string, any>;
     /**
-     * If `true`, the account will be linked to an existing user
-     * with the same email address.
-     */
-    shouldLink: boolean;
-    /**
      * Whether the email address ownership was already verified.
      */
     emailVerified?: boolean;
   },
-): Promise<{
-  account: GenericDoc<DataModel, "accounts">;
-  user: GenericDoc<DataModel, "users">;
-}> {
+): Promise<GenericDoc<DataModel, "accounts">> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
@@ -1193,10 +1154,7 @@ export async function retrieveAccountWithCredentials<
       secret: string;
     };
   },
-): Promise<{
-  account: GenericDoc<DataModel, "accounts">;
-  user: GenericDoc<DataModel, "users">;
-}> {
+): Promise<GenericDoc<DataModel, "accounts">> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
@@ -1233,10 +1191,7 @@ export async function retrieveAccount<
       id: string;
     };
   },
-): Promise<{
-  account: GenericDoc<DataModel, "accounts">;
-  user: GenericDoc<DataModel, "users">;
-}> {
+): Promise<GenericDoc<DataModel, "accounts">> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
@@ -1290,7 +1245,7 @@ export async function invalidateSessions<
 >(
   ctx: GenericActionCtx<DataModel>,
   args: {
-    userId: GenericId<"users">;
+    userId: string;
     except?: GenericId<"sessions">[];
   },
 ): Promise<GenericDoc<DataModel, "users">> {
@@ -1428,7 +1383,7 @@ function envProviderId(provider: string) {
 
 async function createSession(
   ctx: GenericMutationCtx<any>,
-  userId: GenericId<"users">,
+  userId: string,
   config: ConvexAuthConfig,
 ) {
   const expirationTime =
@@ -1449,13 +1404,7 @@ async function deleteSession(
 
 async function createRefreshToken(
   ctx: GenericMutationCtx<any>,
-  {
-    userId,
-    sessionId,
-  }: {
-    userId: GenericId<"users">;
-    sessionId: GenericId<"sessions">;
-  },
+  sessionId: GenericId<"sessions">,
   config: ConvexAuthConfig,
 ) {
   const expirationTime =
@@ -1464,7 +1413,6 @@ async function createRefreshToken(
       stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
   const newRefreshTokenId = await ctx.db.insert("refreshTokens", {
-    userId,
     sessionId,
     expirationTime,
   });
@@ -1514,14 +1462,11 @@ async function validateRefreshToken(
     console.error("Expired refresh token session");
     return null;
   }
-  return refreshTokenDoc;
+  return { userId: session.userId, sessionId: session._id };
 }
 
 async function generateToken(
-  args: {
-    userId: GenericId<any>;
-    sessionId: GenericId<any>;
-  },
+  sessionId: GenericId<"sessions">,
   config: ConvexAuthConfig,
 ) {
   const privateKey = await importPKCS8(process.env.JWT_PRIVATE_KEY!, "RS256");
@@ -1529,7 +1474,7 @@ async function generateToken(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
   return await new SignJWT({
-    sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
+    sub: sessionId,
   })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()

@@ -40,7 +40,7 @@ export interface ConvexCredentialsConfig<
      */
     credentials: Partial<Record<string, unknown>>,
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) => Promise<{ id: GenericId<"users"> } | null>;
+  ) => Promise<{ id: string } | null>;
   /**
    * Provide hashing and verification functions if you're
    * storing account secrets and want to control
@@ -78,7 +78,7 @@ export interface ConvexCredentialsConfig<
      */
     credentials: Partial<Record<string, unknown>>,
     verified: {
-      userId: GenericId<"users">;
+      userId: string;
       providerAccountId: string;
       sessionId: GenericId<"sessions">;
     },
