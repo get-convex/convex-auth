@@ -6,7 +6,6 @@ import { ResendOTP } from "./otp/ResendOTP";
 import Password from "@xixixao/convex-auth/providers/Password";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
-import { WithoutSystemFields } from "convex/server";
 
 export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
   DataModel,

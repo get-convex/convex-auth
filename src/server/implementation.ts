@@ -146,7 +146,7 @@ const storeArgs = {
   args: v.union(
     v.object({
       type: v.literal("signIn"),
-      userId: v.id("users"),
+      userId: v.string(),
     }),
     v.object({
       type: v.literal("signOut"),
@@ -159,7 +159,7 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("getProviderAccountId"),
-      userId: v.id("users"),
+      userId: v.string(),
       provider: v.string(),
     }),
     v.object({
@@ -1263,9 +1263,9 @@ export async function modifyAccountCredentials<
       secret: string;
     };
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<void> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
-  return await actionCtx.runMutation(internal.auth.store, {
+  await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "modifyAccount",
       ...args,
@@ -1284,9 +1284,9 @@ export async function invalidateSessions<
     userId: string;
     except?: GenericId<"sessions">[];
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<void> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
-  return await actionCtx.runMutation(internal.auth.store, {
+  await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "invalidateSessions",
       ...args,
