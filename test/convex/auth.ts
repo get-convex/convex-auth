@@ -7,14 +7,43 @@ import Password from "@xixixao/convex-auth/providers/Password";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 
+type MyProfile = {
+  id: string;
+  name: string;
+  email: string;
+  image?: string;
+  phone?: string;
+  bio?: string;
+  email_verified?: boolean;
+};
+
 export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
   DataModel,
   Id<"users">
 >(
   {
     providers: [
-      GitHub,
-      Google,
+      GitHub({
+        profile: (profile): MyProfile => ({
+          id: profile.id.toString(),
+          name: profile.name ?? profile.login,
+          email: profile.email!,
+          // GitHub oauth requires verifying email
+          email_verified: true,
+          image: profile.avatar_url,
+          bio: profile.bio ?? undefined,
+        }),
+      }),
+      Google({
+        profile: (profile): MyProfile => ({
+          id: profile.sub ?? profile.id,
+          name: profile.name ?? profile.nickname ?? profile.preferred_username,
+          email: profile.email,
+          email_verified: !!profile.email_verified,
+          image: profile.picture,
+          phone: profile.phone,
+        }),
+      }),
       Resend,
       ResendOTP,
       Password,
@@ -33,18 +62,11 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
     //   durationMs: 1000 * 20, // 20 seconds
     // },
   },
-  async (ctx, { profile, provider, userId }) => {
+  async (ctx, { profile: raw, provider, userId }) => {
     const fields: Partial<Doc<"users">> = {};
-    if (profile.name) fields.name = profile.name;
+    const profile = raw as MyProfile;
     let emailVerified = !!profile.email_verified;
     switch (provider.id) {
-      case "github":
-        // GitHub oauth requires verifying email
-        emailVerified = true;
-        break;
-      case "google":
-        fields.phone = (profile as GoogleProfile).phone ?? undefined;
-        break;
       case "resend":
       case "resend-otp":
       case "password-code":
@@ -64,6 +86,14 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
         .unique();
       if (userWithVerifiedEmail && userWithVerifiedEmail._id !== userId) {
         // patch any fields that might be useful from the new signin
+        if (!userWithVerifiedEmail.name) {
+          if (existingUserById?.name) fields.name = existingUserById.name;
+          else if (profile.name) fields.name = profile.name;
+        }
+        if (!userWithVerifiedEmail.image) {
+          if (existingUserById?.image) fields.image = existingUserById.image;
+          else if (profile.image) fields.image = profile.image;
+        }
         await ctx.db.patch(userWithVerifiedEmail._id, fields);
         if (existingUserById) {
           // merge accounts: assign anything from the old account to the new one
@@ -75,6 +105,12 @@ export const { auth, signIn, verifyCode, signOut, store } = convexAuth<
     }
     // Update the existing user or create a new one
     if (existingUserById) {
+      if (!existingUserById.name && profile.name) {
+        fields.name = profile.name;
+      }
+      if (!existingUserById.image && profile.image) {
+        fields.image = profile.image;
+      }
       await ctx.db.patch(userId, { ...fields, emailVerified });
       return userId;
     }

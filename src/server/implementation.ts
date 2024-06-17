@@ -277,10 +277,6 @@ export function convexAuth<
     args: {
       userId: UserId | null;
       profile: {
-        name?: string | null;
-        email: string;
-        email_verified?: boolean;
-        image?: string | null;
         [key: string]: unknown;
       };
       provider: AuthProviderMaterializedConfig;
@@ -622,7 +618,7 @@ export function convexAuth<
                     type: "userOAuth",
                     provider: providerId,
                     providerAccountId: id,
-                    profile: { ...profile, ...profileFromCallback },
+                    profile: profileFromCallback,
                     state,
                   },
                 },
