@@ -415,7 +415,7 @@ function AuthProvider({
       if (code) {
         const verifier =
           (await getAndRemove(storage, VERIFIER_STORAGE_KEY)) ?? undefined;
-        void verifyCodeAndSetToken({ params: { code }, verifier });
+        await verifyCodeAndSetToken({ params: { code }, verifier });
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
         window.history.replaceState({}, "", url.toString());
