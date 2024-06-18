@@ -61,6 +61,7 @@ export function useAuthActions() {
 export function ConvexAuthProvider({
   client,
   storage,
+  storageNamespace,
   children,
 }: {
   /**
@@ -77,6 +78,13 @@ export function ConvexAuthProvider({
    */
   storage?: TokenStorage;
   /**
+   * Optional namespace for keys used to store tokens. The keys
+   * determine whether the tokens are shared or not.
+   *
+   * Defaults to the deployment URL, as configured in the given `client`.
+   */
+  storageNamespace?: string;
+  /**
    * Children components can call Convex hooks
    * and {@link useAuthActions}.
    */
@@ -92,6 +100,7 @@ export function ConvexAuthProvider({
         // it in first useEffect.
         (typeof window === "undefined" ? undefined : window?.localStorage)!
       }
+      storageNamespace={storageNamespace ?? (client as any).address}
     >
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
@@ -203,10 +212,12 @@ const REFRESH_TOKEN_STORAGE_KEY = "__convexAuthRefreshToken";
 function AuthProvider({
   client,
   storage,
+  storageNamespace,
   children,
 }: {
   client: ConvexReactClient;
   storage: TokenStorage;
+  storageNamespace: string;
   children: ReactNode;
 }) {
   const token = useRef<string | null>(null);
@@ -221,7 +232,10 @@ function AuthProvider({
     },
     [verbose],
   );
-
+  const { storageSet, storageGet, storageRemove } = useNamespacedStorage(
+    storage,
+    storageNamespace,
+  );
   const setToken = useCallback(
     async (
       args:
@@ -232,8 +246,8 @@ function AuthProvider({
       if (args.tokens === null) {
         token.current = null;
         if (args.shouldStore) {
-          await storage.removeItem(JWT_STORAGE_KEY);
-          await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+          await storageRemove(JWT_STORAGE_KEY);
+          await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
         }
         setIsAuthenticated(false);
       } else {
@@ -241,14 +255,14 @@ function AuthProvider({
         token.current = value;
         if (args.shouldStore) {
           const { refreshToken } = args.tokens;
-          await storage.setItem(JWT_STORAGE_KEY, value);
-          await storage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+          await storageSet(JWT_STORAGE_KEY, value);
+          await storageSet(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
         }
         setIsAuthenticated(true);
       }
       setIsLoading(false);
     },
-    [],
+    [storageSet, storageRemove],
   );
 
   useEffect(() => {
@@ -277,7 +291,7 @@ function AuthProvider({
     };
     browserAddEventListener("storage", listener);
     return () => browserRemoveEventListener("storage", listener);
-  }, []);
+  }, [setToken]);
 
   const verifyCodeAndSetToken = useCallback(
     async (args: {
@@ -319,7 +333,7 @@ function AuthProvider({
       );
       if (result.redirect !== undefined) {
         const verifier = crypto.randomUUID();
-        await storage.setItem(VERIFIER_STORAGE_KEY, verifier);
+        await storageSet(VERIFIER_STORAGE_KEY, verifier);
         window.location.href = `${result.redirect}?code=` + verifier;
         return false;
       } else if (result.tokens !== undefined) {
@@ -330,7 +344,7 @@ function AuthProvider({
       }
       return false;
     },
-    [client, setToken],
+    [client, setToken, storageGet],
   );
 
   const verifyCode = useCallback(
@@ -375,9 +389,9 @@ function AuthProvider({
             );
             return tokenAfterLockAquisition;
           }
-          const refreshToken = await storage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+          const refreshToken = await storageGet(REFRESH_TOKEN_STORAGE_KEY);
           if (refreshToken !== null) {
-            await storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+            await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
             const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
               event.preventDefault();
               event.returnValue = true;
@@ -397,7 +411,7 @@ function AuthProvider({
       }
       return token.current;
     },
-    [verifyCodeAndSetToken, signOut],
+    [verifyCodeAndSetToken, signOut, storageGet],
   );
   useEffect(() => {
     // Has to happen in useEffect to avoid SSR.
@@ -413,8 +427,8 @@ function AuthProvider({
           ? new URLSearchParams(window.location.search).get("code")
           : null;
       if (code) {
-        const verifier =
-          (await getAndRemove(storage, VERIFIER_STORAGE_KEY)) ?? undefined;
+        const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
+        await storageRemove(VERIFIER_STORAGE_KEY);
         await verifyCodeAndSetToken({ params: { code }, verifier });
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
@@ -428,7 +442,7 @@ function AuthProvider({
         });
       }
     })();
-  }, [client, setToken, verifyCodeAndSetToken]);
+  }, [client, setToken, verifyCodeAndSetToken, storageGet]);
 
   return (
     <ConvexAuthInternalContext.Provider
@@ -451,6 +465,26 @@ function AuthProvider({
   );
 }
 
+function useNamespacedStorage(storage: TokenStorage, namespace: string) {
+  const storageKey = useCallback(
+    (key: string) => `${key}:${namespace}`,
+    [namespace],
+  );
+  const storageSet = useCallback(
+    (key: string, value: string) => storage.setItem(storageKey(key), value),
+    [storage, storageKey],
+  );
+  const storageGet = useCallback(
+    (key: string) => storage.getItem(storageKey(key)),
+    [storage, storageKey],
+  );
+  const storageRemove = useCallback(
+    (key: string) => storage.removeItem(storageKey(key)),
+    [storage, storageKey],
+  );
+  return { storageSet, storageGet, storageRemove };
+}
+
 function useAuth() {
   const { isLoading, isAuthenticated, fetchAccessToken } =
     useConvexAuthInternalContext();
@@ -462,13 +496,6 @@ function useAuth() {
     }),
     [fetchAccessToken, isLoading, isAuthenticated],
   );
-}
-
-// This is not atomic, and cannot be relied upon to be atomic.
-async function getAndRemove(storage: TokenStorage, key: string) {
-  const value = await storage.getItem(key);
-  await storage.removeItem(key);
-  return value;
 }
 
 // In the browser, executes the callback as the only tab / frame at a time.
