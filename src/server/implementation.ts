@@ -121,7 +121,6 @@ export const authTables = {
    * and reuse is not allowed.
    */
   refreshTokens: defineTable({
-    userId: v.id("users"),
     sessionId: v.id("sessions"),
     expirationTime: v.number(),
   }).index("sessionId", ["sessionId"]),
@@ -701,7 +700,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const ids = { userId, sessionId };
             return {
               token: await generateToken(ids, config),
-              refreshToken: await createRefreshToken(ctx, ids, config),
+              refreshToken: await createRefreshToken(ctx, sessionId, config),
             };
           }
           case "signOut": {
@@ -721,12 +720,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const [refreshTokenId, tokenSessionId] = refreshToken.split(
                 REFRESH_TOKEN_DIVIDER,
               );
-              const refreshTokenDoc = await validateRefreshToken(
+              const validationResult = await validateRefreshToken(
                 ctx,
                 refreshTokenId,
                 tokenSessionId,
               );
-
               // This invalidates all other refresh tokens for this session,
               // including ones created later, regardless of whether
               // the passed one is valid or not.
@@ -735,7 +733,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 tokenSessionId as GenericId<"sessions">,
               );
 
-              if (refreshTokenDoc === null) {
+              if (validationResult === null) {
                 // Can't call `deleteSession` here because we already deleted
                 // refresh tokens above
                 const session = await ctx.db.get(
@@ -746,13 +744,13 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 }
                 return null;
               }
-              const { userId, sessionId } = refreshTokenDoc;
-              const ids = { userId, sessionId };
+              const { session } = validationResult;
+              const sessionId = session._id;
+              const ids = { userId: session.userId, sessionId };
               return {
+                ...ids,
                 token: await generateToken(ids, config),
-                sessionId,
-                userId,
-                refreshToken: await createRefreshToken(ctx, ids, config),
+                refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             } else {
               if (code === undefined) {
@@ -806,7 +804,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 token: await generateToken(ids, config),
                 sessionId,
                 userId,
-                refreshToken: await createRefreshToken(ctx, ids, config),
+                refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             }
           }
@@ -1454,13 +1452,7 @@ async function deleteSession(
 
 async function createRefreshToken(
   ctx: GenericMutationCtx<any>,
-  {
-    userId,
-    sessionId,
-  }: {
-    userId: GenericId<"users">;
-    sessionId: GenericId<"sessions">;
-  },
+  sessionId: GenericId<"sessions">,
   config: ConvexAuthConfig,
 ) {
   const expirationTime =
@@ -1469,7 +1461,6 @@ async function createRefreshToken(
       stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
   const newRefreshTokenId = await ctx.db.insert("refreshTokens", {
-    userId,
     sessionId,
     expirationTime,
   });
@@ -1519,7 +1510,7 @@ async function validateRefreshToken(
     console.error("Expired refresh token session");
     return null;
   }
-  return refreshTokenDoc;
+  return { session, refreshTokenDoc };
 }
 
 async function generateToken(
