@@ -48,6 +48,7 @@ const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
+const MIN_CODE_LENGTH_TO_SKIP_EMAIL_CHECK = 24;
 const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
@@ -163,7 +164,7 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("verifyCode"),
-      code: v.optional(v.string()),
+      params: v.any(),
       refreshToken: v.optional(v.string()),
       verifier: v.optional(v.string()),
     }),
@@ -648,7 +649,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         const result = await ctx.runMutation(internal.auth.store, {
           args: {
             type: "verifyCode",
-            code: args.params.code,
+            params: args.params,
             refreshToken: args.refreshToken,
             verifier: args.verifier,
           },
@@ -715,7 +716,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return null;
           }
           case "verifyCode": {
-            const { code, verifier, refreshToken } = args;
+            const { refreshToken } = args;
             if (refreshToken !== undefined) {
               const [refreshTokenId, tokenSessionId] = refreshToken.split(
                 REFRESH_TOKEN_DIVIDER,
@@ -753,6 +754,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             } else {
+              const {
+                verifier,
+                params: { code, email },
+              } = args;
               if (code === undefined) {
                 console.error("Missing `code` in params of `verifyCode`");
                 return null;
@@ -779,6 +784,19 @@ export function convexAuth(config_: ConvexAuthConfig) {
               if (account === null) {
                 console.error(
                   "Account associated with this email has been deleted",
+                );
+                return null;
+              }
+              // Short code without verifier must be validated
+              // via an additional credential
+              if (
+                code.length < MIN_CODE_LENGTH_TO_SKIP_EMAIL_CHECK &&
+                verifier === undefined &&
+                account.providerAccountId !== email
+              ) {
+                console.error(
+                  "Short verification code requires a valid `email` " +
+                    "in params of `verifyCode`, invalid email provided.",
                 );
                 return null;
               }

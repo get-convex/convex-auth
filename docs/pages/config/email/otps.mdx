@@ -132,7 +132,7 @@ import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
   const { signIn, verifyCode } = useAuthActions();
-  const [step, setStep] = useState<"signIn" | "code">("signIn");
+  const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
   return step === "signIn" ? (
     <form
       onSubmit={(event) => {
@@ -153,6 +153,7 @@ export function SignIn() {
       }}
     >
       <input name="code" placeholder="Code" type="text" />
+      <input name="email" value={step.email} type="hidden" />
       <button type="submit">Continue</button>
       <button type="button" onClick={() => setStep("signIn")}>
         Cancel
@@ -161,6 +162,9 @@ export function SignIn() {
   );
 }
 ```
+
+Because we're using a short code as an argument to `verifyCode`, we must also
+provide the `email` that matches the account used for sign-in.
 
 Check out the
 [example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormEmailCode.tsx)
