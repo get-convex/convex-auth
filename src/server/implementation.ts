@@ -11,7 +11,6 @@ import {
   FunctionReference,
   GenericActionCtx,
   GenericDataModel,
-  GenericDatabaseReader,
   GenericMutationCtx,
   HttpRouter,
   PublicHttpAction,
@@ -49,6 +48,7 @@ const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 day
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 const REFRESH_TOKEN_DIVIDER = "|";
+const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
 /**
  * The table definitions required by the library.
@@ -332,16 +332,16 @@ export function convexAuth(config_: ConvexAuthConfig) {
      * });
      * ```
      *
-     * @param ctx query or mutation `ctx`
+     * @param ctx query, mutation or action `ctx`
      * @returns the user ID or `null` if the client isn't authenticated
      */
-    getUserId: async (ctx: {
-      db: GenericDatabaseReader<AuthDataModel>;
-      auth: Auth;
-    }) => {
-      const sessionId = await auth.getSessionId(ctx);
-      const session = sessionId && (await ctx.db.get(sessionId));
-      return session && session.userId;
+    getUserId: async (ctx: { auth: Auth }) => {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity === null) {
+        return null;
+      }
+      const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
+      return userId as GenericId<"users">;
     },
     /**
      * Return the current session ID.
@@ -371,7 +371,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
       if (identity === null) {
         return null;
       }
-      return identity.subject as GenericId<"sessions">;
+      const [, sessionId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
+      return sessionId as GenericId<"sessions">;
     },
     /**
      * Add HTTP actions for JWT verification and OAuth sign-in.
@@ -713,7 +714,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { userId } = args;
             const sessionId = await createSession(ctx, userId, config);
             return {
-              token: await generateToken(sessionId, config),
+              token: await generateToken({ userId, sessionId }, config),
               refreshToken: await createRefreshToken(ctx, sessionId, config),
             };
           }
@@ -761,7 +762,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               }
               const { userId, sessionId } = refreshTokenDoc;
               return {
-                token: await generateToken(sessionId, config),
+                token: await generateToken({ userId, sessionId }, config),
                 sessionId,
                 userId,
                 refreshToken: await createRefreshToken(ctx, sessionId, config),
@@ -821,7 +822,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               }
               const sessionId = await createSession(ctx, userId, config);
               return {
-                token: await generateToken(sessionId, config),
+                token: await generateToken({ userId, sessionId }, config),
                 sessionId,
                 userId,
                 refreshToken: await createRefreshToken(ctx, sessionId, config),
@@ -1483,7 +1484,10 @@ async function validateRefreshToken(
 }
 
 async function generateToken(
-  sessionId: GenericId<"sessions">,
+  args: {
+    userId: string;
+    sessionId: GenericId<"sessions">;
+  },
   config: ConvexAuthConfig,
 ) {
   const privateKey = await importPKCS8(process.env.JWT_PRIVATE_KEY!, "RS256");
@@ -1491,7 +1495,7 @@ async function generateToken(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
   return await new SignJWT({
-    sub: sessionId,
+    sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
   })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()
