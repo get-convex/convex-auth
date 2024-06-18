@@ -39,7 +39,8 @@ export interface ConvexCredentialsConfig<
    */
   id?: string;
   /**
-   * Gives full control over how you handle the credentials received from the user.
+   * Gives full control over how you handle the credentials received from the user
+   * via the client-side `signIn` function.
    *
    * This method expects a user ID to be returned for a successful login.
    *
@@ -56,6 +57,27 @@ export interface ConvexCredentialsConfig<
     credentials: Partial<Record<string, unknown>>,
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
   ) => Promise<{ id: GenericId<"users"> } | null>;
+  /**
+   * Gives full control over verifying code received
+   * via the client-side `verifyCode` function.
+   *
+   * Useful for implementing account modification flows that require
+   * sign-in verification (such as password reset via email with OTP).
+   */
+  verifyCode?: (
+    /**
+     * The available keys are determined by your call to `verifyCode()` on the client.
+     *
+     * You can add basic validation depending on your use case,
+     * or you can use a popular library like [Zod](https://zod.dev) for validating
+     * the input.
+     */
+    credentials: Partial<Record<string, unknown>>,
+    ctx: GenericActionCtxWithAuthConfig<DataModel>,
+  ) => Promise<{
+    userId: GenericId<"users">;
+    sessionId: GenericId<"sessions">;
+  } | null>;
   /**
    * Provide hashing and verification functions if you're
    * storing account secrets and want to control
@@ -76,29 +98,6 @@ export interface ConvexCredentialsConfig<
      */
     verifySecret: (secret: string, hash: string) => Promise<boolean>;
   };
-
-  /**
-   * Called after successful sign-in code verification.
-   *
-   * Useful for implementing account modification flows that require
-   * sign-in verification (such as password reset via email with OTP).
-   */
-  afterCodeVerification?: (
-    /**
-     * The available keys are determined by your call to `verifyCode()` on the client.
-     *
-     * You can add basic validation depending on your use case,
-     * or you can use a popular library like [Zod](https://zod.dev) for validating
-     * the input.
-     */
-    credentials: Partial<Record<string, unknown>>,
-    verified: {
-      userId: GenericId<"users">;
-      providerAccountId: string;
-      sessionId: GenericId<"sessions">;
-    },
-    ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) => Promise<void>;
 }
 
 /**

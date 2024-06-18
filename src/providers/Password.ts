@@ -25,6 +25,7 @@ import {
   retrieveAccount,
   retrieveAccountWithCredentials,
   signInViaProvider,
+  verifyCodeForSignIn,
 } from "@xixixao/convex-auth/server";
 import {
   DocumentByName,
@@ -44,9 +45,11 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
   id?: string;
   /**
    * Perform checks on provided params and customize the user
-   * information stored after sign up.
+   * information stored after sign up, including email normalization.
    *
-   * @param params The values passed to the `signIn` function.
+   * Called for every flow ("signUp", "signIn", "reset" and "reset-verification").
+   *
+   * @param params The values passed to the `signIn` or `verifyCode` function.
    */
   profile?: (params: Record<string, unknown>) => WithoutSystemFields<
     DocumentByName<DataModel, "users">
@@ -85,13 +88,14 @@ export default function Password<DataModel extends GenericDataModel>(
   const provider = config.id ?? "password";
   return ConvexCredentials<DataModel>({
     id: "password",
-    authorize: async ({ flow, ...params }, ctx) => {
-      const email = params.email as string;
+    authorize: async (params, ctx) => {
+      const profile = config.profile?.(params) ?? defaultProfile(params);
+      const { email } = profile;
+      const flow = params.flow as string;
       const secret = params.password as string;
       let account: GenericDoc<DataModel, "accounts">;
       let user: GenericDoc<DataModel, "users">;
       if (flow === "signUp") {
-        const profile = config.profile?.(params) ?? defaultProfile(params);
         const created = await createAccountWithCredentials(ctx, {
           provider,
           account: { id: email, secret },
@@ -123,7 +127,10 @@ export default function Password<DataModel extends GenericDataModel>(
         });
         // END
       } else {
-        throw new Error("Must specify `flow`");
+        throw new Error(
+          "Missing `flow` param, it must be one of " +
+            '"signUp", "signIn" or "reset"!',
+        );
       }
       // START: Optional, email verification during sign in
       if (config.verify && !account.emailVerified) {
@@ -143,22 +150,29 @@ export default function Password<DataModel extends GenericDataModel>(
       },
     },
     // START: Optional, support password reset
-    afterCodeVerification: async (
-      { flow, newPassword },
-      { providerAccountId, userId, sessionId },
-      ctx,
-    ) => {
-      if (flow !== "reset") {
-        return;
+    verifyCode: async (params, ctx) => {
+      const { flow } = params;
+      if (flow === "reset-verification") {
+        // Password validation
+        config.profile?.(params) ?? defaultProfile(params);
       }
-      await modifyAccountCredentials(ctx, {
-        provider,
-        account: {
-          id: providerAccountId,
-          secret: newPassword as string,
-        },
-      });
-      await invalidateSessions(ctx, { userId, except: [sessionId] });
+      const result = await verifyCodeForSignIn(
+        ctx,
+        params as { code: string; email?: string },
+      );
+      if (result === null) {
+        throw new Error("Invalid code");
+      }
+      const { providerAccountId, userId, sessionId } = result;
+      if (flow === "reset-verification") {
+        const secret = params.newPassword as string;
+        await modifyAccountCredentials(ctx, {
+          provider,
+          account: { id: providerAccountId, secret },
+        });
+        await invalidateSessions(ctx, { userId, except: [sessionId] });
+      }
+      return { userId, sessionId };
     },
     // END
     ...config,
@@ -166,9 +180,14 @@ export default function Password<DataModel extends GenericDataModel>(
 }
 
 function defaultProfile(params: Record<string, unknown>) {
-  const password = params.password as string;
-  if (!password || password.length < 8) {
-    throw new Error("Invalid password");
+  const flow = params.flow as string;
+  if (flow === "signUp" || flow === "reset-verification") {
+    const password = (
+      flow === "signUp" ? params.password : params.newPassword
+    ) as string;
+    if (!password || password.length < 8) {
+      throw new Error("Invalid password");
+    }
   }
   return {
     email: params.email as string,

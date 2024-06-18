@@ -19,6 +19,7 @@ export {
   invalidateSessions,
   modifyAccountCredentials,
   retrieveAccount,
+  verifyCodeForSignIn,
 } from "./implementation";
 export type {
   ConvexAuthConfig,

@@ -31,6 +31,7 @@ import {
 } from "oslo/crypto";
 import { encodeHex } from "oslo/encoding";
 import { OAuth2Client } from "oslo/oauth2";
+import { ConvexCredentialsConfig } from "../providers/ConvexCredentials";
 import { FunctionReferenceFromExport, GenericDoc } from "./convex_types";
 import {
   configDefaults,
@@ -160,10 +161,19 @@ const storeArgs = {
       userId: v.id("users"),
     }),
     v.object({
+      type: v.literal("signInIntoSession"),
+      userId: v.id("users"),
+      sessionId: v.id("sessions"),
+    }),
+    v.object({
       type: v.literal("signOut"),
     }),
     v.object({
-      type: v.literal("verifyCode"),
+      type: v.literal("verifyCodeOnly"),
+      params: v.any(),
+    }),
+    v.object({
+      type: v.literal("verifyCodeAndSignIn"),
       params: v.any(),
       refreshToken: v.optional(v.string()),
       verifier: v.optional(v.string()),
@@ -646,33 +656,34 @@ export function convexAuth(config_: ConvexAuthConfig) {
       },
       handler: async (ctx, args) => {
         const provider = args.provider ? getProvider(args.provider) : undefined;
-        const result = await ctx.runMutation(internal.auth.store, {
-          args: {
-            type: "verifyCode",
-            params: args.params,
-            refreshToken: args.refreshToken,
-            verifier: args.verifier,
-          },
-        });
-        if (result === null) {
-          return null;
-        }
-        const { userId, sessionId, token, refreshToken } = result;
-        if (provider !== undefined && "afterCodeVerification" in provider) {
-          const providerAccountId = await ctx.runMutation(internal.auth.store, {
+        if (provider?.type === "credentials" && "verifyCode" in provider) {
+          const result =
+            await (provider.verifyCode as ConvexCredentialsConfig["verifyCode"])!(
+              args.params,
+              enrichCtx(ctx),
+            );
+          if (result === null) {
+            return null;
+          }
+          const { userId, sessionId } = result;
+          return await ctx.runMutation(internal.auth.store, {
+            args: { type: "signInIntoSession", userId, sessionId },
+          });
+        } else {
+          const result = await ctx.runMutation(internal.auth.store, {
             args: {
-              type: "getProviderAccountId",
-              provider: provider.id,
-              userId,
+              type: "verifyCodeAndSignIn",
+              params: args.params,
+              refreshToken: args.refreshToken,
+              verifier: args.verifier,
             },
           });
-          (provider.afterCodeVerification as any)(
-            args.params,
-            { userId, providerAccountId, sessionId },
-            enrichCtx(ctx),
-          );
+          if (result === null) {
+            return null;
+          }
+          const { token, refreshToken } = result;
+          return { token, refreshToken };
         }
-        return { token, refreshToken };
       },
     }),
     /**
@@ -697,12 +708,27 @@ export function convexAuth(config_: ConvexAuthConfig) {
         switch (args.type) {
           case "signIn": {
             const { userId } = args;
-            const sessionId = await createSession(ctx, userId, config);
-            const ids = { userId, sessionId };
-            return {
-              token: await generateToken(ids, config),
-              refreshToken: await createRefreshToken(ctx, sessionId, config),
-            };
+            const sessionId = await createNewAndDeleteExistingSession(
+              ctx,
+              config,
+              auth,
+              userId,
+            );
+            return await generateTokensForSession(
+              ctx,
+              config,
+              userId,
+              sessionId,
+            );
+          }
+          case "signInIntoSession": {
+            const { userId, sessionId } = args;
+            return await generateTokensForSession(
+              ctx,
+              config,
+              userId,
+              sessionId,
+            );
           }
           case "signOut": {
             const sessionId = await auth.getSessionId(ctx);
@@ -715,7 +741,21 @@ export function convexAuth(config_: ConvexAuthConfig) {
             }
             return null;
           }
-          case "verifyCode": {
+          case "verifyCodeOnly": {
+            const verifyResult = await verifyCodeOnly(ctx, args);
+            if (verifyResult === null) {
+              return null;
+            }
+            const { userId, providerAccountId } = verifyResult;
+            const sessionId = await createNewAndDeleteExistingSession(
+              ctx,
+              config,
+              auth,
+              userId,
+            );
+            return { userId, providerAccountId, sessionId };
+          }
+          case "verifyCodeAndSignIn": {
             const { refreshToken } = args;
             if (refreshToken !== undefined) {
               const [refreshTokenId, tokenSessionId] = refreshToken.split(
@@ -749,82 +789,27 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const sessionId = session._id;
               const ids = { userId: session.userId, sessionId };
               return {
-                ...ids,
                 token: await generateToken(ids, config),
                 refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             } else {
-              const {
-                verifier,
-                params: { code, email },
-              } = args;
-              if (code === undefined) {
-                console.error("Missing `code` in params of `verifyCode`");
+              const verifyResult = await verifyCodeOnly(ctx, args);
+              if (verifyResult === null) {
                 return null;
               }
-              const codeHash = await sha256(code);
-              const verificationCode = await ctx.db
-                .query("verificationCodes")
-                .withIndex("code", (q) => q.eq("code", codeHash))
-                .unique();
-              if (verificationCode === null) {
-                console.error("Invalid verification code");
-                return null;
-              }
-              await ctx.db.delete(verificationCode._id);
-              if (verificationCode.verifier !== verifier) {
-                console.error("Invalid verifier");
-                return null;
-              }
-              if (verificationCode.expirationTime < Date.now()) {
-                console.error("Expired verification code");
-                return null;
-              }
-              const { accountId } = verificationCode;
-              const account = await ctx.db.get(accountId);
-              if (account === null) {
-                console.error(
-                  "Account associated with this email has been deleted",
-                );
-                return null;
-              }
-              // Short code without verifier must be validated
-              // via an additional credential
-              if (
-                code.length < MIN_CODE_LENGTH_TO_SKIP_EMAIL_CHECK &&
-                verifier === undefined &&
-                account.providerAccountId !== email
-              ) {
-                console.error(
-                  "Short verification code requires a valid `email` " +
-                    "in params of `verifyCode`, invalid email provided.",
-                );
-                return null;
-              }
-              const userId = account.userId;
-              if (verificationCode.emailVerified) {
-                if (!account.emailVerified) {
-                  await ctx.db.patch(accountId, { emailVerified: true });
-                }
-                await ctx.db.patch(userId, {
-                  emailVerificationTime: Date.now(),
-                });
-              }
-              const existingSessionId = await auth.getSessionId(ctx);
-              if (existingSessionId !== null) {
-                const existingSession = await ctx.db.get(existingSessionId);
-                if (existingSession !== null) {
-                  await deleteSession(ctx, existingSession);
-                }
-              }
-              const sessionId = await createSession(ctx, userId, config);
-              const ids = { userId, sessionId };
-              return {
-                token: await generateToken(ids, config),
-                sessionId,
+              const { userId } = verifyResult;
+              const sessionId = await createNewAndDeleteExistingSession(
+                ctx,
+                config,
+                auth,
                 userId,
-                refreshToken: await createRefreshToken(ctx, sessionId, config),
-              };
+              );
+              return await generateTokensForSession(
+                ctx,
+                config,
+                userId,
+                sessionId,
+              );
             }
           }
           case "getProviderAccountId": {
@@ -1090,6 +1075,104 @@ export function convexAuth(config_: ConvexAuthConfig) {
   };
 }
 
+async function createNewAndDeleteExistingSession(
+  ctx: GenericMutationCtx<AuthDataModel>,
+  config: ConvexAuthConfig,
+  auth: {
+    getSessionId: (ctx: {
+      auth: Auth;
+    }) => Promise<GenericId<"sessions"> | null>;
+  },
+  userId: GenericId<"users">,
+) {
+  const existingSessionId = await auth.getSessionId(ctx);
+  if (existingSessionId !== null) {
+    const existingSession = await ctx.db.get(existingSessionId);
+    if (existingSession !== null) {
+      await deleteSession(ctx, existingSession);
+    }
+  }
+  return await createSession(ctx, userId, config);
+}
+
+// Ends the current session
+async function generateTokensForSession(
+  ctx: GenericMutationCtx<AuthDataModel>,
+  config: ConvexAuthConfig,
+  userId: GenericId<"users">,
+  sessionId: GenericId<"sessions">,
+) {
+  const ids = { userId, sessionId };
+  return {
+    token: await generateToken(ids, config),
+    refreshToken: await createRefreshToken(ctx, sessionId, config),
+  };
+}
+
+async function verifyCodeOnly(
+  ctx: GenericMutationCtx<AuthDataModel>,
+  args: {
+    params: { code: string; email?: string };
+    verifier?: string;
+  },
+) {
+  const {
+    verifier,
+    params: { code, email },
+  } = args;
+  if (code === undefined) {
+    console.error("Missing `code` in params of `verifyCode`");
+    return null;
+  }
+  const codeHash = await sha256(code);
+  const verificationCode = await ctx.db
+    .query("verificationCodes")
+    .withIndex("code", (q) => q.eq("code", codeHash))
+    .unique();
+  if (verificationCode === null) {
+    console.error("Invalid verification code");
+    return null;
+  }
+  await ctx.db.delete(verificationCode._id);
+  if (verificationCode.verifier !== verifier) {
+    console.error("Invalid verifier");
+    return null;
+  }
+  if (verificationCode.expirationTime < Date.now()) {
+    console.error("Expired verification code");
+    return null;
+  }
+  const { accountId } = verificationCode;
+  const account = await ctx.db.get(accountId);
+  if (account === null) {
+    console.error("Account associated with this email has been deleted");
+    return null;
+  }
+  // Short code without verifier must be validated
+  // via an additional credential
+  if (
+    code.length < MIN_CODE_LENGTH_TO_SKIP_EMAIL_CHECK &&
+    verifier === undefined &&
+    account.providerAccountId !== email
+  ) {
+    console.error(
+      "Short verification code requires a valid `email` " +
+        "in params of `verifyCode`, invalid email provided.",
+    );
+    return null;
+  }
+  const userId = account.userId;
+  if (verificationCode.emailVerified) {
+    if (!account.emailVerified) {
+      await ctx.db.patch(accountId, { emailVerified: true });
+    }
+    await ctx.db.patch(userId, {
+      emailVerificationTime: Date.now(),
+    });
+  }
+  return { providerAccountId: account.providerAccountId, userId };
+}
+
 async function uniqueUserWithVerifiedEmail(
   ctx: GenericQueryCtx<AuthDataModel>,
   email: string,
@@ -1266,6 +1349,21 @@ export async function retrieveAccount<
   });
 }
 
+export async function verifyCodeForSignIn<
+  DataModel extends GenericDataModel = GenericDataModel,
+>(
+  ctx: GenericActionCtx<DataModel>,
+  params: { code: string; email?: string },
+): Promise<{
+  providerAccountId: string;
+  userId: GenericId<"users">;
+  sessionId: GenericId<"sessions">;
+} | null> {
+  return await ctx.runMutation(internal.auth.store, {
+    args: { type: "verifyCodeOnly", params },
+  });
+}
+
 /**
  * Use this function to modify the account credentials
  * from a [`ConvexCredentials`](./providers/ConvexCredentials)
@@ -1388,15 +1486,14 @@ async function signInImpl(
     });
     return { started: true };
   } else if (provider.type === "credentials") {
-    const user = await provider.authorize(params, ctx as any);
+    const user = await (
+      provider.authorize as unknown as ConvexCredentialsConfig["authorize"]
+    )(params, ctx);
     if (user === null) {
       return { tokens: null };
     }
     const tokens = (await ctx.runMutation(internal.auth.store, {
-      args: {
-        type: "signIn",
-        userId: user.id as any,
-      },
+      args: { type: "signIn", userId: user.id },
     })) as { token: string; refreshToken: string };
     return { tokens };
   } else if (provider.type === "oauth" || provider.type === "oidc") {
@@ -1449,7 +1546,7 @@ function envProviderId(provider: string) {
 }
 
 async function createSession(
-  ctx: GenericMutationCtx<any>,
+  ctx: GenericMutationCtx<AuthDataModel>,
   userId: GenericId<"users">,
   config: ConvexAuthConfig,
 ) {
