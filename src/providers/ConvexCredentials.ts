@@ -25,7 +25,7 @@
 import { CredentialsConfig } from "@auth/core/providers";
 import { GenericActionCtxWithAuthConfig } from "@xixixao/convex-auth/server";
 import { GenericDataModel } from "convex/server";
-import { GenericId } from "convex/values";
+import { GenericId, Value } from "convex/values";
 
 /**
  * The available options to a {@link ConvexCredentials} provider for Convex Auth.
@@ -54,7 +54,7 @@ export interface ConvexCredentialsConfig<
      * or you can use a popular library like [Zod](https://zod.dev) for validating
      * the input.
      */
-    credentials: Partial<Record<string, unknown>>,
+    credentials: Partial<Record<string, Value | undefined>>,
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
   ) => Promise<{ id: GenericId<"users"> } | null>;
   /**
@@ -72,7 +72,7 @@ export interface ConvexCredentialsConfig<
      * or you can use a popular library like [Zod](https://zod.dev) for validating
      * the input.
      */
-    credentials: Partial<Record<string, unknown>>,
+    credentials: Partial<Record<string, Value | undefined>>,
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
   ) => Promise<{
     userId: GenericId<"users">;

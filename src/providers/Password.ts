@@ -32,6 +32,7 @@ import {
   GenericDataModel,
   WithoutSystemFields,
 } from "convex/server";
+import { Value } from "convex/values";
 import { Scrypt } from "lucia";
 
 /**
@@ -51,7 +52,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
    *
    * @param params The values passed to the `signIn` or `verifyCode` function.
    */
-  profile?: (params: Record<string, unknown>) => WithoutSystemFields<
+  profile?: (params: Record<string, Value | undefined>) => WithoutSystemFields<
     DocumentByName<DataModel, "users">
   > & {
     email: string;
