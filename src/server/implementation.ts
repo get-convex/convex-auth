@@ -768,7 +768,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 .withIndex("code", (q) => q.eq("code", codeHash))
                 .unique();
               if (verificationCode === null) {
-                throw new ConvexError("Invalid verification code");
+                console.error("Invalid verification code");
+                return null;
               }
               await ctx.db.delete(verificationCode._id);
               if (verificationCode.verifier !== verifier) {
