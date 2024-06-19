@@ -1,3 +1,5 @@
+import { Aside } from "../components/Aside";
+
 # Advanced: Details
 
 ## Account linking
@@ -83,6 +85,16 @@ Either way, for critical operations (changing account details) you should always
 require either direct reauthentication or recent authentication. The current
 session's `_creationTime` can be used to determine how recently the user has
 signed in.
+
+<Aside title="Reauthentication">
+
+To reauthenticate the user, you need to have a way to show the sign-in UI even
+when the user is already signed in (via routing or app state for example).
+
+Using any authentication method while the user is logged-in will invalidate
+their existing session and create a new one.
+
+</Aside>
 
 ## Session document lifecycle
 
