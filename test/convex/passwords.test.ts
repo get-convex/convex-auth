@@ -45,7 +45,7 @@ test("sign up with password", async () => {
     expect(sessions).toHaveLength(2);
   });
 
-  const claims = decodeJwt(tokens.token);
+  const claims = decodeJwt(tokens!.token);
   await t.withIdentity({ subject: claims.sub }).action(api.auth.signOut);
 
   await t.run(async (ctx) => {
@@ -53,7 +53,7 @@ test("sign up with password", async () => {
     expect(sessions).toHaveLength(1);
   });
 
-  const claims2 = decodeJwt(tokens2.token);
+  const claims2 = decodeJwt(tokens2!.token);
   await t.withIdentity({ subject: claims2.sub }).action(api.auth.signOut);
 
   await t.run(async (ctx) => {

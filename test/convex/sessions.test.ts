@@ -8,12 +8,11 @@ test("session refresh", async () => {
   vi.useFakeTimers();
   setupEnv();
   const t = convexTest(schema);
-  const {
-    tokens: { refreshToken },
-  } = await t.action(api.auth.signIn, {
+  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",
     params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
+  const { refreshToken } = initialTokens!;
 
   const TWO_HOURS_MS = 1000 * 60 * 60 * 2;
   vi.advanceTimersByTime(TWO_HOURS_MS);
@@ -34,12 +33,11 @@ test("refresh token expiration", async () => {
   const ONE_DAY_MS = 1000 * 60 * 60 * 24;
   process.env.SESSION_INACTIVE_DURATION_MS = `${ONE_DAY_MS}`;
   const t = convexTest(schema);
-  const {
-    tokens: { refreshToken },
-  } = await t.action(api.auth.signIn, {
+  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",
     params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
+  const { refreshToken } = initialTokens!;
 
   vi.advanceTimersByTime(2 * ONE_DAY_MS);
 
@@ -58,12 +56,11 @@ test("refresh token reuse detection", async () => {
   setupEnv();
 
   const t = convexTest(schema);
-  const {
-    tokens: { refreshToken },
-  } = await t.action(api.auth.signIn, {
+  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",
     params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
+  const { refreshToken } = initialTokens!;
 
   const newTokens = await t.action(api.auth.verifyCode, {
     refreshToken,
@@ -93,21 +90,20 @@ test("session expiration", async () => {
   const ONE_DAY_MS = 1000 * 60 * 60 * 24;
   process.env.SESSION_TOTAL_DURATION_MS = `${ONE_DAY_MS}`;
   const t = convexTest(schema);
-  const {
-    tokens: { refreshToken },
-  } = await t.action(api.auth.signIn, {
+  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",
     params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
+  const { refreshToken } = initialTokens!;
 
   vi.advanceTimersByTime(2 * ONE_DAY_MS);
 
-  const tokens = await t.action(api.auth.verifyCode, {
+  const refreshedTokens = await t.action(api.auth.verifyCode, {
     refreshToken,
     params: {},
   });
 
-  expect(tokens).toBeNull();
+  expect(refreshedTokens).toBeNull();
 
   vi.useRealTimers();
 });

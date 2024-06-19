@@ -23,7 +23,7 @@ test("sign in with email signs out existing user with different email", async ()
     params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
   });
 
-  const claims = decodeJwt(tokens.token);
+  const claims = decodeJwt(tokens!.token);
   const asMichal = t.withIdentity({ subject: claims.sub });
 
   const newTokens = await signInViaMagicLink(
