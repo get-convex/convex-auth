@@ -144,7 +144,7 @@ export async function signInViaOTP(
   // Note: The client doesn't use auth for this call,
   // so ideally this should be `t.withoutIdentity().action(...)`
   return await t.action(api.auth.verifyCode, {
-    params: { code },
+    params: { code, email: params.email },
   });
 }
 
