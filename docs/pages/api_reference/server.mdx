@@ -119,9 +119,21 @@ PKCE verifiers.
 |`verifier`|  `string`
 |`\_creationTime`|  `number`
 
+#### authRateLimits
+
+
+Rate limits for OTP and password sign-in.
+
+|Field|TS Type
+|---|---
+|`identifier`|  `string`
+|`lastAttemptTime`|  `number`
+|`attemptsLeft`|  `number`
+|`\_creationTime`|  `number`
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:77](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L77)
+[src/server/implementation.ts:80](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L80)
 
 ***
 
@@ -281,7 +293,7 @@ to the database during signin and signout.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:281](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L281)
+[src/server/implementation.ts:301](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L301)
 
 ***
 
@@ -322,7 +334,7 @@ or throws an error.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1113](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1113)
+[src/server/implementation.ts:1244](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1244)
 
 ***
 
@@ -361,7 +373,7 @@ secret does not match.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1173](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1173)
+[src/server/implementation.ts:1304](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1304)
 
 ***
 
@@ -398,7 +410,29 @@ for given account ID.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1218](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1218)
+[src/server/implementation.ts:1353](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1353)
+
+***
+
+## verifyCodeForSignIn()
+
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type |
+| :------ | :------ |
+| `ctx` | `GenericActionCtx`\<`DataModel`\> |
+| `params` | `object` |
+| `params.code` | `string` |
+| `params.email`? | `string` |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<`object` \| `null`\>
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+
+[src/server/implementation.ts:1385](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1385)
 
 ***
 
@@ -426,7 +460,7 @@ provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1255](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1255)
+[src/server/implementation.ts:1405](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1405)
 
 ***
 
@@ -450,7 +484,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1290](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1290)
+[src/server/implementation.ts:1440](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1440)
 
 ***
 
@@ -477,7 +511,7 @@ for email verification on sign up or password reset).
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1314](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1314)
+[src/server/implementation.ts:1464](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1464)
 
 ***
 
@@ -539,6 +573,20 @@ How long is the JWT valid for after it is signed initially.
 
 Defaults to 1 hour.
 
+#### signIn?
+
+
+Sign-in configuration.
+
+#### signIn.maxFailedAttempsPerHour?
+
+> `optional` **maxFailedAttempsPerHour**: `number`
+
+How many times can the user fail to provide the correct credentials
+(password, OTP) per hour.
+
+Defaults to 10 times per hour.
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
 [src/server/types.ts:15](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L15)
@@ -561,7 +609,7 @@ the config passed to `convexAuth`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:63](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L63)
+[src/server/types.ts:75](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L75)
 
 ***
 
@@ -602,7 +650,7 @@ See [ConvexAuthConfig](server.mdx#convexauthconfig)
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:74](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L74)
+[src/server/types.ts:86](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L86)
 
 ***
 
@@ -613,4 +661,4 @@ Materialized Auth.js provider config.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:89](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L89)
+[src/server/types.ts:101](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L101)
