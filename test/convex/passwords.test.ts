@@ -32,7 +32,7 @@ test("sign up with password", async () => {
       provider: "password",
       params: { email: "sarah@gmail.com", password: "wrong", flow: "signIn" },
     });
-  }).rejects.toThrow("Invalid secret");
+  }).rejects.toThrow("InvalidSecret");
 
   await t.run(async (ctx) => {
     const users = await ctx.db.query("users").collect();

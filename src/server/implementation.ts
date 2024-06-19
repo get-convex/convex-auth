@@ -50,6 +50,7 @@ const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 day
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 const MIN_CODE_LENGTH_TO_SKIP_EMAIL_CHECK = 24;
+const DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR = 10;
 const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
@@ -148,6 +149,14 @@ export const authTables = {
     state: v.string(),
     verifier: v.string(),
   }).index("state", ["state"]),
+  /**
+   * Rate limits for OTP and password sign-in.
+   */
+  authRateLimits: defineTable({
+    identifier: v.string(),
+    lastAttemptTime: v.number(),
+    attemptsLeft: v.number(),
+  }).index("identifier", ["identifier"]),
 };
 
 const defaultSchema = defineSchema(authTables);
@@ -793,9 +802,24 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 refreshToken: await createRefreshToken(ctx, sessionId, config),
               };
             } else {
+              const { email } = args.params;
+              if (email !== undefined) {
+                if (await isSignInRateLimited(ctx, email, config)) {
+                  console.error(
+                    "Too many failed attemps to verify code for this email",
+                  );
+                  return null;
+                }
+              }
               const verifyResult = await verifyCodeOnly(ctx, args);
               if (verifyResult === null) {
+                if (email !== undefined) {
+                  await rateLimitSignIn(ctx, email, config);
+                }
                 return null;
+              }
+              if (email !== undefined) {
+                await resetSignInRateLimit(ctx, email);
               }
               const { userId } = verifyResult;
               const sessionId = await createNewAndDeleteExistingSession(
@@ -1005,14 +1029,19 @@ export function convexAuth(config_: ConvexAuthConfig) {
               )
               .unique();
             if (existingAccount === null) {
-              return null;
+              return "InvalidAccountId";
             }
             const { verify } = getHashAndVerifyFns(
               getProviderOrThrow(provider),
             );
-            if (!(await verify(account.secret, existingAccount.secret ?? ""))) {
-              throw new Error("Invalid secret");
+            if (await isSignInRateLimited(ctx, existingAccount._id, config)) {
+              return "TooManyFailedAttempts";
             }
+            if (!(await verify(account.secret, existingAccount.secret ?? ""))) {
+              await rateLimitSignIn(ctx, existingAccount._id, config);
+              return "InvalidSecret";
+            }
+            await resetSignInRateLimit(ctx, existingAccount._id);
             return {
               account: existingAccount,
               user: await ctx.db.get(existingAccount.userId),
@@ -1300,12 +1329,16 @@ export async function retrieveAccountWithCredentials<
   user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
-  return await actionCtx.runMutation(internal.auth.store, {
+  const result = await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "retrieveAccountAndCheckSecret",
       ...args,
     },
   });
+  if (typeof result === "string") {
+    throw new Error(result);
+  }
+  return result;
 }
 
 /**
@@ -1510,6 +1543,81 @@ async function signInImpl(
   } else {
     throw new Error(`Provider type ${provider.type} is not supported yet`);
   }
+}
+
+async function isSignInRateLimited(
+  ctx: GenericMutationCtx<AuthDataModel>,
+  identifier: string,
+  config: ConvexAuthConfig,
+) {
+  const state = await getRateLimitState(ctx, identifier, config);
+  if (state === null) {
+    return false;
+  }
+  return state.attempsLeft < 1;
+}
+
+async function rateLimitSignIn(
+  ctx: GenericMutationCtx<AuthDataModel>,
+  identifier: string,
+  config: ConvexAuthConfig,
+) {
+  const state = await getRateLimitState(ctx, identifier, config);
+  if (state !== null) {
+    await ctx.db.patch(state.limit._id, {
+      attemptsLeft: state.attempsLeft - 1,
+      lastAttemptTime: Date.now(),
+    });
+  } else {
+    const maxAttempsPerHour = configuredMaxAttempsPerHour(config);
+    await ctx.db.insert("authRateLimits", {
+      identifier,
+      attemptsLeft: maxAttempsPerHour - 1,
+      lastAttemptTime: Date.now(),
+    });
+  }
+}
+
+async function resetSignInRateLimit(
+  ctx: GenericMutationCtx<AuthDataModel>,
+  identifier: string,
+) {
+  const existingState = await ctx.db
+    .query("authRateLimits")
+    .withIndex("identifier", (q) => q.eq("identifier", identifier))
+    .unique();
+  if (existingState !== null) {
+    await ctx.db.delete(existingState._id);
+  }
+}
+
+async function getRateLimitState(
+  ctx: GenericQueryCtx<AuthDataModel>,
+  identifier: string,
+  config: ConvexAuthConfig,
+) {
+  const now = Date.now();
+  const maxAttempsPerHour = configuredMaxAttempsPerHour(config);
+  const limit = await ctx.db
+    .query("authRateLimits")
+    .withIndex("identifier", (q) => q.eq("identifier", identifier))
+    .unique();
+  if (limit === null) {
+    return null;
+  }
+  const elapsed = now - limit.lastAttemptTime;
+  const maxAttempsPerMs = maxAttempsPerHour / (60 * 60 * 1000);
+  const attempsLeft = limit.attemptsLeft + elapsed * maxAttempsPerMs;
+  return { limit, attempsLeft };
+}
+
+// Divided by 2 because we want to actually limit to the configured
+// value, and the bucket algorithm allows 2 times the limit.
+function configuredMaxAttempsPerHour(config: ConvexAuthConfig) {
+  return (
+    (config.signIn?.maxFailedAttempsPerHour ??
+      DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR) / 2
+  );
 }
 
 async function generateUniqueEmailVerificationCode(

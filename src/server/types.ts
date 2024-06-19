@@ -54,6 +54,18 @@ export type ConvexAuthConfig = {
      */
     durationMs?: number;
   };
+  /**
+   * Sign-in configuration.
+   */
+  signIn?: {
+    /**
+     * How many times can the user fail to provide the correct credentials
+     * (password, OTP) per hour.
+     *
+     * Defaults to 10 times per hour.
+     */
+    maxFailedAttempsPerHour?: number;
+  };
 };
 
 /**
