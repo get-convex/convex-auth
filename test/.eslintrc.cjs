@@ -4,14 +4,28 @@ module.exports = {
   extends: [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended-type-checked",
+    "plugin:react-hooks/recommended",
   ],
-  ignorePatterns: [".eslintrc.cjs", "convex/_generated", "vitest.config.mts"],
+  ignorePatterns: [
+    "dist",
+    ".eslintrc.cjs",
+    "convex/_generated",
+    "postcss.config.js",
+    "tailwind.config.js",
+    "vite.config.ts",
+  ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: true,
     tsconfigRootDir: __dirname,
   },
+  plugins: ["react-refresh"],
   rules: {
+    "react-refresh/only-export-components": [
+      "warn",
+      { allowConstantExport: true },
+    ],
+
     // All of these overrides ease getting into
     // TypeScript, and can be removed for stricter
     // linting down the line.
