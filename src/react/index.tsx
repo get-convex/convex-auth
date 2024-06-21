@@ -284,7 +284,7 @@ function AuthProvider({
       ).action(
         "auth:signIn" as unknown as SignInAction,
         "code" in args
-          ? { params: { code: args.code, verifier: args.verifier } }
+          ? { params: { code: args.code }, verifier: args.verifier }
           : args,
       );
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
