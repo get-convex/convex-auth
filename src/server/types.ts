@@ -1,5 +1,5 @@
 import {
-  Provider as AuthProviderConfig,
+  Provider as AuthjsProviderConfig,
   CredentialsConfig,
   EmailConfig,
   OAuth2Config,
@@ -7,6 +7,7 @@ import {
 } from "@auth/core/providers";
 import { WebAuthnConfig } from "@auth/core/providers/webauthn";
 import { Theme } from "@auth/core/types";
+import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials";
 import { GenericActionCtx, GenericDataModel } from "convex/server";
 
 /**
@@ -69,6 +70,82 @@ export type ConvexAuthConfig = {
 };
 
 /**
+ * Same as Auth.js provider configs, but adds phone provider
+ * for verification via SMS or another phone-number-connected messaging
+ * service.
+ */
+export type AuthProviderConfig =
+  | Exclude<
+      AuthjsProviderConfig,
+      CredentialsConfig | ((...args: any) => CredentialsConfig)
+    >
+  | ConvexCredentialsConfig
+  | ((...args: any) => ConvexCredentialsConfig)
+  | PhoneConfig
+  | ((...args: any) => PhoneConfig);
+
+/**
+ * Same as email provider config, but verifies
+ * phone number instead of the email address.
+ */
+export interface PhoneConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+> {
+  id: string;
+  type: "phone";
+  /**
+   * Token expiration in seconds.
+   */
+  maxAge: number;
+  /**
+   * Send the phone number verification request.
+   */
+  sendVerificationRequest: (
+    params: {
+      identifier: string;
+      url: string;
+      expires: Date;
+      provider: PhoneConfig;
+      token: string;
+    },
+    ctx: GenericActionCtxWithAuthConfig<DataModel>,
+  ) => Promise<void>;
+  /**
+   * Defaults to `process.env.AUTH_<PROVIDER_ID>_KEY`.
+   */
+  apiKey?: string;
+  /**
+   * Override this to generate a custom token.
+   * Note that the tokens are assumed to be cryptographically secure.
+   * Any tokens shorter than 24 characters are assumed to not
+   * be secure enough on their own, and require providing
+   * the original `phone` used in the initial `signIn` call.
+   * @returns
+   */
+  generateVerificationToken?: () => Promise<string>;
+  /**
+   * Normalize the phone number.
+   * @param identifier Passed as `phone` in params of `signIn`.
+   * @returns The phone number used in `sendVerificationRequest`.
+   */
+  normalizeIdentifier?: (identifier: string) => string;
+  options: PhoneUserConfig;
+}
+
+/**
+ * Configurable options for a phone provider config.
+ */
+export type PhoneUserConfig = Omit<Partial<EmailConfig>, "options" | "type">;
+
+/**
+ * Similar to Auth.js Credentials config.
+ */
+export type ConvexCredentialsConfig = ConvexCredentialsUserConfig<any> & {
+  type: "credentials";
+  id: string;
+};
+
+/**
  * Your `ActionCtx` enriched with `ctx.auth.config` field with
  * the config passed to `convexAuth`.
  */
@@ -102,5 +179,6 @@ export type AuthProviderMaterializedConfig =
   | OIDCConfig<any>
   | OAuth2Config<any>
   | EmailConfig
-  | CredentialsConfig
+  | PhoneConfig
+  | ConvexCredentialsConfig
   | WebAuthnConfig;

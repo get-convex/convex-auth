@@ -1,5 +1,5 @@
 /**
- * Configure {@link ConvexCredentials} provider given a {@link ConvexCredentialsConfig}.
+ * Configure {@link ConvexCredentials} provider given a {@link ConvexCredentialsUserConfig}.
  *
  * This is for a very custom authentication implementation, often you can
  * use the [`Password`](./Password) provider instead.
@@ -8,7 +8,7 @@
  * import ConvexCredentials from "@xixixao/convex-auth/providers/ConvexCredentials";
  * import { convexAuth } from "@xixixao/convex-auth/server";
  *
- * export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+ * export const { auth, signIn, signOut, store } = convexAuth({
  *   providers: [
  *     ConvexCredentials({
  *       authorize: async (credentials, ctx) => {
@@ -22,15 +22,17 @@
  * @module
  */
 
-import { CredentialsConfig } from "@auth/core/providers";
-import { GenericActionCtxWithAuthConfig } from "@xixixao/convex-auth/server";
+import {
+  ConvexCredentialsConfig,
+  GenericActionCtxWithAuthConfig,
+} from "@xixixao/convex-auth/server";
 import { GenericDataModel } from "convex/server";
 import { GenericId, Value } from "convex/values";
 
 /**
  * The available options to a {@link ConvexCredentials} provider for Convex Auth.
  */
-export interface ConvexCredentialsConfig<
+export interface ConvexCredentialsUserConfig<
   DataModel extends GenericDataModel = GenericDataModel,
 > {
   /**
@@ -42,8 +44,8 @@ export interface ConvexCredentialsConfig<
    * Gives full control over how you handle the credentials received from the user
    * via the client-side `signIn` function.
    *
-   * This method expects a user ID to be returned for a successful login.
-   *
+   * @returns This method expects a user ID to be returned for a successful login.
+   * A session ID can be also returned and that session will be used.
    * If an error is thrown or `null` is returned, the sign-in will fail.
    */
   authorize: (
@@ -56,27 +58,9 @@ export interface ConvexCredentialsConfig<
      */
     credentials: Partial<Record<string, Value | undefined>>,
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) => Promise<{ id: GenericId<"users"> } | null>;
-  /**
-   * Gives full control over verifying code received
-   * via the client-side `verifyCode` function.
-   *
-   * Useful for implementing account modification flows that require
-   * sign-in verification (such as password reset via email with OTP).
-   */
-  verifyCode?: (
-    /**
-     * The available keys are determined by your call to `verifyCode()` on the client.
-     *
-     * You can add basic validation depending on your use case,
-     * or you can use a popular library like [Zod](https://zod.dev) for validating
-     * the input.
-     */
-    credentials: Partial<Record<string, Value | undefined>>,
-    ctx: GenericActionCtxWithAuthConfig<DataModel>,
   ) => Promise<{
     userId: GenericId<"users">;
-    sessionId: GenericId<"sessions">;
+    sessionId?: GenericId<"sessions">;
   } | null>;
   /**
    * Provide hashing and verification functions if you're
@@ -84,8 +68,8 @@ export interface ConvexCredentialsConfig<
    * how they're hashed.
    *
    * These functions will be called during
-   * the `createAccountWithCredentials` and `retrieveAccountWithCredentials`
-   * execution.
+   * the `createAccount` and `retrieveAccount` execution when the
+   * `secret` option is used.
    */
   crypto?: {
     /**
@@ -105,14 +89,12 @@ export interface ConvexCredentialsConfig<
  * such as a username and password, domain, or two factor authentication or hardware device (e.g. YubiKey U2F / FIDO).
  */
 export default function ConvexCredentials<DataModel extends GenericDataModel>(
-  config: ConvexCredentialsConfig<DataModel>,
-): CredentialsConfig {
+  config: ConvexCredentialsUserConfig<DataModel>,
+): ConvexCredentialsConfig {
   return {
     id: "credentials",
-    name: "Credentials",
     type: "credentials",
-    credentials: {},
-    authorize: () => null,
+    authorize: async () => null,
     // @ts-expect-error Internal
     options: config,
   };

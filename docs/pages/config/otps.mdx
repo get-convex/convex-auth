@@ -1,17 +1,18 @@
 import { Steps } from "nextra/components";
-import { Aside } from "../../../components/Aside";
+import { Aside } from "../../components/Aside";
 
 # OTPs
 
 This authentication method has two steps:
 
-1. The user provides an email, to which a one-time-password (OTP) code is sent
+1. The user provides an email address or a phone number, to which a
+   one-time-password (OTP) code is sent
 2. The user then fills out the code within your app
 
 Your database keeps track of the issued code that was sent which allows for
 secure verification and expiration.
 
-You will configure your own email template, so you can send an OTP and a
+You will configure your message template, so you can send an OTP and a
 [magic link](/config/email) together.
 
 ## Email providers
@@ -93,7 +94,7 @@ Then use it in `convex/auth.ts`:
 import { convexAuth } from "@xixixao/convex-auth/server";
 import { ResendOTP } from "./ResendOTP";
 
-export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store } = convexAuth({
   providers: [ResendOTP],
 });
 ```
@@ -120,8 +121,8 @@ You can find more examples of email customization in
 Now you can trigger the email sending from a form submission via the `signIn`
 function.
 
-After the email is sent, you should show the second form for submitting the
-code, which can be done via the `verifyCode` function.
+After the email is sent, you should show a second form for submitting the code.
+When the second form is submitted, call the `signIn` function again.
 
 For example for the custom `ResendOTP` provider:
 
@@ -131,7 +132,7 @@ For example for the custom `ResendOTP` provider:
 import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
-  const { signIn, verifyCode } = useAuthActions();
+  const { signIn } = useAuthActions();
   const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
   return step === "signIn" ? (
     <form
@@ -149,7 +150,7 @@ export function SignIn() {
       onSubmit={(event) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
-        void verifyCode("resend-otp", formData);
+        void signIn("resend-otp", formData);
       }}
     >
       <input name="code" placeholder="Code" type="text" />
@@ -163,8 +164,9 @@ export function SignIn() {
 }
 ```
 
-Because we're using a short code as an argument to `verifyCode`, we must also
-provide the `email` that matches the account used for sign-in.
+The second call to `signIn` will include the user-provided `code`. Because this
+is a short code, we must also provide the `email` that matches the account used
+for the sign-in. The library automatically rate-limits failed attempts.
 
 Check out the
 [example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormEmailCode.tsx)
@@ -174,3 +176,20 @@ for a more polished UI.
 
 When you're done configuring your chosen authentication methods, learn how to
 use authentication in your frontend and backend in [Authorization](/authz).
+
+## Phone providers
+
+There are no built-in providers, but one is easy to build. The example repo has
+an example of using
+[Twilio and their Node.js SDK](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/convex/otp/TwilioOTP.tsx).
+
+The sign-in form works the same as above, but uses a `phone` field instead of an
+`email` field:
+[example](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormPhoneCode.tsx).
+
+If you use a third-party service that takes care of generating and validating
+OTPs, you can use a custom
+[`ConvexCredentials`](/api_reference/providers/ConvexCredentials) config to
+implement the authentication method. The example repo shows how to do this with
+the
+[Twilio Verify service](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/convex/otp/TwilioOTP.tsx).

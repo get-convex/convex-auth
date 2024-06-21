@@ -60,7 +60,7 @@ Import Auth.js providers from `@auth/core/providers`. For example for _Resend_:
 import Resend from "@auth/core/providers/resend";
 import { convexAuth } from "@xixixao/convex-auth/server";
 
-export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store } = convexAuth({
   providers: [Resend],
 });
 ```

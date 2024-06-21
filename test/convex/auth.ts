@@ -5,14 +5,17 @@ import { convexAuth } from "@xixixao/convex-auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import Password from "@xixixao/convex-auth/providers/Password";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
+import { FakePhone } from "./otp/FakePhone";
 
-export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store } = convexAuth({
   providers: [
     GitHub,
     GitHub({ id: "github-verified", allowDangerousEmailAccountLinking: true }),
     Google,
     Resend,
     ResendOTP,
+    FakePhone,
+    FakePhone({ id: "fake-phone-2" }),
     Password,
     Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),
     Password({

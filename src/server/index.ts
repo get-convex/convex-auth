@@ -13,16 +13,18 @@
 export {
   authTables,
   convexAuth,
-  createAccountWithCredentials,
-  retrieveAccountWithCredentials,
+  createAccount,
+  retrieveAccount,
   signInViaProvider,
   invalidateSessions,
   modifyAccountCredentials,
-  retrieveAccount,
-  verifyCodeForSignIn,
 } from "./implementation";
 export type {
   ConvexAuthConfig,
+  AuthProviderConfig,
+  PhoneConfig,
+  PhoneUserConfig,
+  ConvexCredentialsConfig,
   GenericActionCtxWithAuthConfig,
   AuthProviderMaterializedConfig,
   ConvexAuthMaterializedConfig,

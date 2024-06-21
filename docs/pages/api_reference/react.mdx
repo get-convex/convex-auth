@@ -5,13 +5,13 @@ React bindings for Convex Auth.
 ## useAuthActions()
 
 
-Use this hook to access the `signIn`, `verifyCode` and `signOut` methods:
+Use this hook to access the `signIn` and `signOut` methods:
 
 ```ts
 import { useAuthActions } from "@xixixao/convex-auth/react";
 
 function SomeComponent() {
-  const { signIn, verifyCode, signOut } = useAuthActions();
+  const { signIn, signOut } = useAuthActions();
   // ...
 }
 ```
@@ -22,7 +22,7 @@ function SomeComponent() {
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/react/index.tsx:40](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L40)
+[src/react/index.tsx:36](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L36)
 
 ***
 
@@ -59,7 +59,7 @@ function RootComponent({ children }: { children: ReactNode }) {
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/react/index.tsx:61](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L61)
+[src/react/index.tsx:57](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L57)
 
 ***
 
@@ -93,7 +93,7 @@ Read a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/react/index.tsx:127](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L127)
+[src/react/index.tsx:123](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L123)
 
 #### setItem()
 
@@ -113,7 +113,7 @@ Write a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/react/index.tsx:135](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L135)
+[src/react/index.tsx:131](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L131)
 
 #### removeItem()
 
@@ -132,7 +132,7 @@ Remove a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/react/index.tsx:140](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L140)
+[src/react/index.tsx:136](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L136)
 
 ***
 
@@ -153,24 +153,7 @@ Sign in via one of your configured authentication providers.
 | Parameter | Type | Description |
 | :------ | :------ | :------ |
 | `provider` | `string` | <p>The ID of the provider (lowercase version of the</p><p>       provider name or a configured `id` option value).</p> |
-| `args`? | `FormData` \| `Record`\<`string`, `Value`\> | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p> |
-
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
-
-`Promise`\<`boolean`\>
-
-#### verifyCode()
-
-
-Complete signin with a verification code via one of your configured
-authentication providers.
-
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
-
-| Parameter | Type | Description |
-| :------ | :------ | :------ |
-| `provider` | `string` | <p>The ID of the provider (lowercase version of the</p><p>       provider name or a configured `id` option value).</p> |
-| `args` | `FormData` \| `object` | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p><p>       The `code` field is required.</p> |
+| `params`? | `FormData` \| `Record`\<`string`, `Value`\> | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p><p>       The shape required depends on the chosen provider's</p><p>       implementation.</p> |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
@@ -190,4 +173,4 @@ and deletes the locally stored JWT and refresh token.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/react/index.tsx:146](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L146)
+[src/react/index.tsx:142](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L142)

@@ -47,14 +47,14 @@ test("rate limit on otp", async () => {
   // First we're gonna fail 10 times in less than an hour
   for (let i = 0; i < 10; i++) {
     vi.advanceTimersByTime(6 * MINUTE_MS - 3 * SECOND_MS);
-    const tokens = await t.action(api.auth.verifyCode, {
+    const tokens = await t.action(api.auth.signIn, {
       params: { code: "Aint gonna work", email: "tom@gmail.com" },
     });
     expect(tokens).toBeNull();
   }
 
   // Now we can't succeed, even with the right code
-  const rateLimitedTokens = await t.action(api.auth.verifyCode, {
+  const { tokens: rateLimitedTokens } = await t.action(api.auth.signIn, {
     params: { code, email: "tom@gmail.com" },
   });
   expect(rateLimitedTokens).toBeNull();
@@ -62,7 +62,7 @@ test("rate limit on otp", async () => {
   // But if we wait a little bit, we can try again
   vi.advanceTimersByTime(8 * MINUTE_MS);
 
-  const tokens = await t.action(api.auth.verifyCode, {
+  const { tokens } = await t.action(api.auth.signIn, {
     params: { code, email: "tom@gmail.com" },
   });
   expect(tokens).not.toBeNull();
@@ -114,7 +114,7 @@ test.only("rate limit on password", async () => {
   // But if we wait a little bit, we can try again
   vi.advanceTimersByTime(8 * MINUTE_MS);
 
-  const tokens = await t.action(api.auth.signIn, {
+  const { tokens } = await t.action(api.auth.signIn, {
     provider: "password",
     params: { email: "sarah@gmail.com", password: "44448888", flow: "signIn" },
   });

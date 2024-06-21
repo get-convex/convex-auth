@@ -11,7 +11,7 @@ import {
 test("sign up with oauth", async () => {
   setupEnv();
   const t = convexTest(schema);
-  const tokens = await signInViaGitHub(t, "github", {
+  const { tokens } = await signInViaGitHub(t, "github", {
     email: "tom@gmail.com",
     name: "Tom",
     id: "someGitHubId",
@@ -41,7 +41,7 @@ test("sign in with oauth", async () => {
     expect(users).toMatchObject([{ email: "tom@gmail.com", name: "Tom" }]);
   });
 
-  const tokens = await signInViaGitHub(t, "github", {
+  const { tokens } = await signInViaGitHub(t, "github", {
     email: "tom@gmail.com",
     name: "Thomas",
     id: "someGitHubId",

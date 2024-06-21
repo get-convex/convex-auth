@@ -19,14 +19,17 @@
 import { setEnvDefaults } from "@auth/core";
 import {
   AccountCallback,
-  Provider as AuthProvider,
   EmailConfig,
   OAuthConfig,
   OAuthEndpointType,
   ProfileCallback,
 } from "@auth/core/providers";
 import { Profile } from "@auth/core/types";
-import { AuthProviderMaterializedConfig, ConvexAuthConfig } from "./types";
+import {
+  AuthProviderConfig,
+  AuthProviderMaterializedConfig,
+  ConvexAuthConfig,
+} from "./types";
 
 /**
  * @internal
@@ -47,7 +50,7 @@ export function configDefaults(config_: ConvexAuthConfig) {
 /**
  * @internal
  */
-export function materializeProvider(provider: AuthProvider) {
+export function materializeProvider(provider: AuthProviderConfig) {
   const config = { providers: [provider] };
   materializeAndDefaultProviders(config);
   return providerDefaults(
@@ -58,13 +61,21 @@ export function materializeProvider(provider: AuthProvider) {
 function materializeAndDefaultProviders(config_: ConvexAuthConfig) {
   // Have to materialize first so that the correct env variables are used
   const providers = config_.providers.map((provider) =>
-    providerDefaults(typeof provider === "function" ? provider() : provider),
+    providerDefaults(
+      typeof provider === "function" ? provider() : (provider as any),
+    ),
   );
   const config = { ...config_, providers };
 
   // Unfortunately mutates its argument
   setEnvDefaults(process.env, config as any);
-
+  // Manually do this for new provider type
+  config.providers.forEach((provider) => {
+    if (provider.type === "phone") {
+      const ID = provider.id.toUpperCase().replace(/-/g, "_");
+      provider.apiKey ??= process.env[`AUTH_${ID}_KEY`];
+    }
+  });
   return config;
 }
 

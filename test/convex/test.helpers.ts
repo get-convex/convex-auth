@@ -85,7 +85,7 @@ export async function signInViaGitHub(
   expect(finalRedirectedTo).not.toBeNull();
   const code = new URL(finalRedirectedTo!).searchParams.get("code");
 
-  return await t.action(api.auth.verifyCode, { params: { code }, verifier });
+  return await t.action(api.auth.signIn, { params: { code }, verifier });
 }
 
 export async function signInViaMagicLink(
@@ -113,9 +113,10 @@ export async function signInViaMagicLink(
 
   // Note: The client doesn't use auth for this call,
   // so ideally this should be `t.withoutIdentity().action(...)`
-  return await t.action(api.auth.verifyCode, {
+  const result = await t.action(api.auth.signIn, {
     params: { code },
   });
+  return result.tokens ?? null;
 }
 
 export async function signInViaOTP(
@@ -143,9 +144,40 @@ export async function signInViaOTP(
 
   // Note: The client doesn't use auth for this call,
   // so ideally this should be `t.withoutIdentity().action(...)`
-  return await t.action(api.auth.verifyCode, {
-    params: { code, email: params.email },
+  const result = await t.action(api.auth.signIn, {
+    provider,
+    params: { code, ...params },
   });
+  return result.tokens ?? null;
+}
+
+export async function signInViaPhone(
+  t: TestConvexForDataModel<DataModel>,
+  provider: string,
+  params: Record<string, unknown>,
+) {
+  let code;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input, init) => {
+      if (typeof input === "string" && input === "https://api.sms.com") {
+        code = init.body.match(/Your code is (\d+)/)?.[1];
+        return new Response(null, { status: 200 });
+      }
+      throw new Error("Unexpected fetch");
+    }),
+  );
+
+  await t.action(api.auth.signIn, { provider, params });
+  vi.unstubAllGlobals();
+
+  // Note: The client doesn't use auth for this call,
+  // so ideally this should be `t.withoutIdentity().action(...)`
+  const result = await t.action(api.auth.signIn, {
+    provider,
+    params: { code, ...params },
+  });
+  return result.tokens ?? null;
 }
 
 function clientId(providerId: string) {

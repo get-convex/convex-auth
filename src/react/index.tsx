@@ -19,20 +19,16 @@ import {
   useRef,
   useState,
 } from "react";
-import type {
-  SignInAction,
-  SignOutAction,
-  VerifyCodeAction,
-} from "../server/implementation";
+import type { SignInAction, SignOutAction } from "../server/implementation";
 
 /**
- * Use this hook to access the `signIn`, `verifyCode` and `signOut` methods:
+ * Use this hook to access the `signIn` and `signOut` methods:
  *
  * ```ts
  * import { useAuthActions } from "@xixixao/convex-auth/react";
  *
  * function SomeComponent() {
- *   const { signIn, verifyCode, signOut } = useAuthActions();
+ *   const { signIn, signOut } = useAuthActions();
  *   // ...
  * }
  * ```
@@ -149,31 +145,17 @@ export type ConvexAuthActionsContext = {
    *
    * @param provider The ID of the provider (lowercase version of the
    *        provider name or a configured `id` option value).
-   * @param args Either a `FormData` object containing the sign-in
+   * @param params Either a `FormData` object containing the sign-in
    *        parameters or a plain object containing them.
+   *        The shape required depends on the chosen provider's
+   *        implementation.
    * @returns Whether the user was immediately signed in (ie. the sign-in
    *          didn't trigger an additional step like email verification
    *          or OAuth signin).
    */
   signIn: (
     provider: string,
-    args?: FormData | Record<string, Value>,
-  ) => Promise<boolean>;
-
-  /**
-   * Complete signin with a verification code via one of your configured
-   * authentication providers.
-   *
-   * @param provider The ID of the provider (lowercase version of the
-   *        provider name or a configured `id` option value).
-   * @param args Either a `FormData` object containing the sign-in
-   *        parameters or a plain object containing them.
-   *        The `code` field is required.
-   * @returns Whether the user was successfully signed in.
-   */
-  verifyCode: (
-    provider: string,
-    args: FormData | { code: string; [key: string]: Value },
+    params?: FormData | Record<string, Value>,
   ) => Promise<boolean>;
 
   /**
@@ -294,18 +276,19 @@ function AuthProvider({
   }, [setToken]);
 
   const verifyCodeAndSetToken = useCallback(
-    async (args: {
-      params: Record<string, Value>;
-      verifier?: string;
-      provider?: string;
-      refreshToken?: string;
-    }) => {
-      const tokens = await new ConvexHttpClient((client as any).address).action(
-        "auth:verifyCode" as unknown as VerifyCodeAction,
-        args,
+    async (
+      args: { code: string; verifier?: string } | { refreshToken: string },
+    ) => {
+      const { tokens } = await new ConvexHttpClient(
+        (client as any).address,
+      ).action(
+        "auth:signIn" as unknown as SignInAction,
+        "code" in args
+          ? { params: { code: args.code, verifier: args.verifier } }
+          : args,
       );
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
-      await setToken({ shouldStore: true, tokens });
+      await setToken({ shouldStore: true, tokens: tokens ?? null });
       return tokens !== null;
     },
     [client, setToken],
@@ -347,26 +330,6 @@ function AuthProvider({
     [client, setToken, storageGet],
   );
 
-  const verifyCode = useCallback(
-    async (
-      provider: string,
-      args: FormData | { code: string; [key: string]: Value },
-    ) => {
-      const params =
-        args instanceof FormData
-          ? Array.from(args.entries()).reduce(
-              (acc, [key, value]) => {
-                acc[key] = value as string;
-                return acc;
-              },
-              {} as Record<string, string>,
-            )
-          : args;
-      return await verifyCodeAndSetToken({ provider, params });
-    },
-    [verifyCodeAndSetToken],
-  );
-
   const signOut = useCallback(async () => {
     // We can't wait for this action to finish,
     // because it never will if we are already signed out.
@@ -389,7 +352,8 @@ function AuthProvider({
             );
             return tokenAfterLockAquisition;
           }
-          const refreshToken = await storageGet(REFRESH_TOKEN_STORAGE_KEY);
+          const refreshToken =
+            (await storageGet(REFRESH_TOKEN_STORAGE_KEY)) ?? null;
           if (refreshToken !== null) {
             await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
             const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
@@ -397,7 +361,7 @@ function AuthProvider({
               event.returnValue = true;
             };
             browserAddEventListener("beforeunload", beforeUnloadHandler);
-            await verifyCodeAndSetToken({ params: {}, refreshToken });
+            await verifyCodeAndSetToken({ refreshToken });
             browserRemoveEventListener("beforeunload", beforeUnloadHandler);
             logVerbose(
               `returning retrieved token, is null: ${tokenAfterLockAquisition === null}`,
@@ -429,7 +393,7 @@ function AuthProvider({
       if (code) {
         const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
         await storageRemove(VERIFIER_STORAGE_KEY);
-        await verifyCodeAndSetToken({ params: { code }, verifier });
+        await verifyCodeAndSetToken({ code, verifier });
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
         window.history.replaceState({}, "", url.toString());
@@ -452,13 +416,7 @@ function AuthProvider({
         fetchAccessToken,
       }}
     >
-      <ConvexAuthActionsContext.Provider
-        value={{
-          verifyCode,
-          signIn,
-          signOut,
-        }}
-      >
+      <ConvexAuthActionsContext.Provider value={{ signIn, signOut }}>
         {children}
       </ConvexAuthActionsContext.Provider>
     </ConvexAuthInternalContext.Provider>

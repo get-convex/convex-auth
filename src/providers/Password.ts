@@ -1,11 +1,21 @@
 /**
  * Configure {@link Password} provider given a {@link PasswordConfig}.
  *
+ * The `Password` provider supports the following flows, determined
+ * by the `flow` parameter:
+ *
+ * - `"signUp"`: Create a new account with a password.
+ * - `"signIn"`: Sign in with an existing account and password.
+ * - `"reset"`: Request a password reset.
+ * - `"reset-verification"`: Verify a password reset code and change password.
+ * - email verification: If email verification is enabled and `code` is included
+ *   in params, verify an OTP.
+ *
  * ```ts
  * import Password from "@xixixao/convex-auth/providers/Password";
  * import { convexAuth } from "@xixixao/convex-auth/server";
  *
- * export const { auth, signIn, verifyCode, signOut, store } = convexAuth({
+ * export const { auth, signIn, signOut, store } = convexAuth({
  *   providers: [Password],
  * });
  * ```
@@ -15,17 +25,15 @@
 
 import { EmailConfig } from "@auth/core/providers";
 import ConvexCredentials, {
-  ConvexCredentialsConfig,
+  ConvexCredentialsUserConfig,
 } from "@xixixao/convex-auth/providers/ConvexCredentials";
 import {
   GenericDoc,
-  createAccountWithCredentials,
+  createAccount,
   invalidateSessions,
   modifyAccountCredentials,
   retrieveAccount,
-  retrieveAccountWithCredentials,
   signInViaProvider,
-  verifyCodeForSignIn,
 } from "@xixixao/convex-auth/server";
 import {
   DocumentByName,
@@ -48,9 +56,10 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
    * Perform checks on provided params and customize the user
    * information stored after sign up, including email normalization.
    *
-   * Called for every flow ("signUp", "signIn", "reset" and "reset-verification").
+   * Called for every flow ("signUp", "signIn", "reset" and
+   * "reset-verification").
    *
-   * @param params The values passed to the `signIn` or `verifyCode` function.
+   * @param params The values passed to the `signIn` function.
    */
   profile?: (params: Record<string, Value | undefined>) => WithoutSystemFields<
     DocumentByName<DataModel, "users">
@@ -61,7 +70,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
    * Provide hashing and verification functions if you want to control
    * how passwords are hashed.
    */
-  crypto?: ConvexCredentialsConfig["crypto"];
+  crypto?: ConvexCredentialsUserConfig["crypto"];
   /**
    * An Auth.js email provider used to require verification
    * before password reset.
@@ -97,15 +106,21 @@ export default function Password<DataModel extends GenericDataModel>(
       let account: GenericDoc<DataModel, "accounts">;
       let user: GenericDoc<DataModel, "users">;
       if (flow === "signUp") {
-        const created = await createAccountWithCredentials(ctx, {
+        if (secret === undefined) {
+          throw new Error("Missing `password` param for `signUp` flow");
+        }
+        const created = await createAccount(ctx, {
           provider,
           account: { id: email, secret },
-          profile,
+          profile: profile as any,
           shouldLink: config.verify !== undefined,
         });
         ({ account, user } = created);
       } else if (flow === "signIn") {
-        const retrieved = await retrieveAccountWithCredentials(ctx, {
+        if (secret === undefined) {
+          throw new Error("Missing `password` param for `signIn` flow");
+        }
+        const retrieved = await retrieveAccount(ctx, {
           provider,
           account: { id: email, secret },
         });
@@ -115,32 +130,46 @@ export default function Password<DataModel extends GenericDataModel>(
         ({ account, user } = retrieved);
         // START: Optional, support password reset
       } else if (flow === "reset" && config.reset) {
-        const retrieved = await retrieveAccount(ctx, {
+        const { account } = await retrieveAccount(ctx, {
           provider,
           account: { id: email },
         });
-        if (retrieved === null) {
-          throw new Error("Invalid credentials");
-        }
-        ({ account, user } = retrieved);
         return await signInViaProvider(ctx, config.reset, {
           accountId: account._id,
         });
+      } else if (flow === "reset-verification" && config.reset) {
+        if (params.newPassword === undefined) {
+          throw new Error("Missing `newPassword` param for `signIn` flow");
+        }
+        const result = await signInViaProvider(ctx, config.reset, { params });
+        if (result === null) {
+          throw new Error("Invalid code");
+        }
+        const { userId, sessionId } = result;
+        const secret = params.newPassword as string;
+        await modifyAccountCredentials(ctx, {
+          provider,
+          account: { id: email, secret },
+        });
+        await invalidateSessions(ctx, { userId, except: [sessionId] });
+        return { userId, sessionId };
         // END
+        // START: Optional, email verification during sign in
       } else {
         throw new Error(
           "Missing `flow` param, it must be one of " +
-            '"signUp", "signIn" or "reset"!',
+            '"signUp", "signIn", "reset" or "reset-verification"!',
         );
       }
       // START: Optional, email verification during sign in
       if (config.verify && !account.emailVerified) {
         return await signInViaProvider(ctx, config.verify, {
           accountId: account._id,
+          params,
         });
       }
       // END
-      return { id: user._id };
+      return { userId: user._id };
     },
     crypto: {
       async hashSecret(password: string) {
@@ -150,32 +179,6 @@ export default function Password<DataModel extends GenericDataModel>(
         return await new Scrypt().verify(hash, password);
       },
     },
-    // START: Optional, support password reset
-    verifyCode: async (params, ctx) => {
-      const { flow } = params;
-      if (flow === "reset-verification") {
-        // Password validation
-        config.profile?.(params) ?? defaultProfile(params);
-      }
-      const result = await verifyCodeForSignIn(
-        ctx,
-        params as { code: string; email?: string },
-      );
-      if (result === null) {
-        throw new Error("Invalid code");
-      }
-      const { providerAccountId, userId, sessionId } = result;
-      if (flow === "reset-verification") {
-        const secret = params.newPassword as string;
-        await modifyAccountCredentials(ctx, {
-          provider,
-          account: { id: providerAccountId, secret },
-        });
-        await invalidateSessions(ctx, { userId, except: [sessionId] });
-      }
-      return { userId, sessionId };
-    },
-    // END
     ...config,
   });
 }
