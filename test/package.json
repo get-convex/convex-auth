@@ -11,14 +11,19 @@
   },
   "dependencies": {
     "@xixixao/convex-auth": "file:..",
-    "convex": "^1.11.2"
+    "convex": "file:../node_modules/convex",
+    "react": "file:../node_modules/react",
+    "react-dom": "file:../node_modules/react-dom"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^3.2.0",
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
     "@typescript-eslint/eslint-plugin": "^6.16.0",
     "@vitest/coverage-v8": "^1.6.0",
     "convex-test": "^0.0.21",
     "eslint": "8.49.0",
+    "jsdom": "^24.1.0",
     "typescript": "^5.4.5",
     "vitest": "^1.5.2"
   }
