@@ -214,10 +214,8 @@ function AuthProvider({
     },
     [verbose],
   );
-  const { storageSet, storageGet, storageRemove } = useNamespacedStorage(
-    storage,
-    storageNamespace,
-  );
+  const { storageSet, storageGet, storageRemove, storageKey } =
+    useNamespacedStorage(storage, storageNamespace);
   const setToken = useCallback(
     async (
       args:
@@ -258,7 +256,7 @@ function AuthProvider({
           return;
         }
         // Another tab/frame set the access token, use it
-        if (event.key === JWT_STORAGE_KEY) {
+        if (event.key === storageKey(JWT_STORAGE_KEY)) {
           const value = event.newValue;
           logVerbose(`synced access token, is null: ${value === null}`);
           // We don't write into storage since the event came from there and
@@ -391,14 +389,14 @@ function AuthProvider({
           ? new URLSearchParams(window.location.search).get("code")
           : null;
       if (code) {
-        const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
-        await storageRemove(VERIFIER_STORAGE_KEY);
-        await verifyCodeAndSetToken({ code, verifier });
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
         window.history.replaceState({}, "", url.toString());
+        const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
+        await storageRemove(VERIFIER_STORAGE_KEY);
+        await verifyCodeAndSetToken({ code, verifier });
       } else {
-        const token = (await storage.getItem(JWT_STORAGE_KEY)) ?? null;
+        const token = (await storageGet(JWT_STORAGE_KEY)) ?? null;
         logVerbose(`retrieved token from storage, is null: ${token === null}`);
         await setToken({
           shouldStore: false,
@@ -440,7 +438,7 @@ function useNamespacedStorage(storage: TokenStorage, namespace: string) {
     (key: string) => storage.removeItem(storageKey(key)),
     [storage, storageKey],
   );
-  return { storageSet, storageGet, storageRemove };
+  return { storageSet, storageGet, storageRemove, storageKey };
 }
 
 function useAuth() {

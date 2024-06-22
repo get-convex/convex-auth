@@ -1,18 +1,22 @@
+import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexReactClient } from "convex/react";
+import { ThemeProvider } from "next-themes";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ThemeProvider } from "next-themes";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { App } from "./App.tsx";
+import App from "./App.tsx";
 import "./index.css";
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+const convex = new ConvexReactClient(
+  import.meta.env.VITE_CONVEX_URL as string,
+  { verbose: true },
+);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider attribute="class">
-      <ConvexProvider client={convex}>
+      <ConvexAuthProvider client={convex}>
         <App />
-      </ConvexProvider>
+      </ConvexAuthProvider>
     </ThemeProvider>
   </React.StrictMode>,
 );

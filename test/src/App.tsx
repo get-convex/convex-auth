@@ -1,22 +1,34 @@
-import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
-import {
-  AuthLoading,
-  Authenticated,
-  ConvexReactClient,
-  Unauthenticated,
-} from "convex/react";
-import { useMemo } from "react";
+import { Chat } from "@/Chat/Chat";
+import { ChatHeader } from "@/Chat/ChatIntro";
+import { Layout } from "@/Layout";
+import { SignInFormsShowcase } from "@/auth/SignInFormsShowcase";
+import { UserMenu } from "@/components/UserMenu";
+import { api } from "../convex/_generated/api";
+import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 
-export function App() {
-  const client = useMemo(
-    () => new ConvexReactClient(process.env.CONVEX_URL!),
-    [],
-  );
+export default function App() {
+  const user = useQuery(api.users.viewer);
   return (
-    <ConvexAuthProvider client={client}>
-      <AuthLoading>loading</AuthLoading>
-      <Unauthenticated>unauthenticated</Unauthenticated>
-      <Authenticated>authenticated</Authenticated>
-    </ConvexAuthProvider>
+    <Layout
+      menu={
+        <>
+          <Authenticated>
+            <UserMenu>{user?.name ?? user?.email ?? user?.phone}</UserMenu>
+          </Authenticated>
+          <Unauthenticated>{null}</Unauthenticated>
+        </>
+      }
+    >
+      <>
+        <Authenticated>
+          <ChatHeader />
+          {/* eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain */}
+          <Chat viewer={user?._id!} />
+        </Authenticated>
+        <Unauthenticated>
+          <SignInFormsShowcase />
+        </Unauthenticated>
+      </>
+    </Layout>
   );
 }

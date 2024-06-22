@@ -676,6 +676,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
     store: internalMutationGeneric({
       args: storeArgs,
       handler: async (ctx: GenericMutationCtx<AuthDataModel>, { args }) => {
+        console.debug(args);
         switch (args.type) {
           case "signIn": {
             const {
@@ -1563,7 +1564,7 @@ async function signInImpl(
             ...provider,
             from:
               provider.from === "Auth.js <no-reply@authjs.dev>"
-                ? "My App <no-reply@convexauth.dev>"
+                ? "My App <onboarding@resend.dev>"
                 : provider.from,
           },
           request: new Request("http://localhost"), // TODO: Document

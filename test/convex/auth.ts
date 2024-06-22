@@ -5,17 +5,17 @@ import { convexAuth } from "@xixixao/convex-auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import Password from "@xixixao/convex-auth/providers/Password";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
-import { FakePhone } from "./otp/FakePhone";
+import TwilioVerify from "./otp/Twilio";
+import TwilioOTP from "./otp/TwilioOTP";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [
     GitHub,
-    GitHub({ id: "github-verified", allowDangerousEmailAccountLinking: true }),
     Google,
     Resend,
     ResendOTP,
-    FakePhone,
-    FakePhone({ id: "fake-phone-2" }),
+    TwilioVerify,
+    TwilioOTP,
     Password,
     Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),
     Password({
@@ -23,12 +23,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
       reset: ResendOTPPasswordReset,
       verify: ResendOTP,
     }),
+    // This one only makes sense with routing, ignore for now:
     Password({ id: "password-link", verify: Resend }),
   ],
-  // session: {
-  //   inactiveDurationMs: 1000 * 60 * 1, // 1 minute
-  // },
-  // jwt: {
-  //   durationMs: 1000 * 20, // 20 seconds
-  // },
 });
