@@ -8,8 +8,8 @@
  * - `"signIn"`: Sign in with an existing account and password.
  * - `"reset"`: Request a password reset.
  * - `"reset-verification"`: Verify a password reset code and change password.
- * - email verification: If email verification is enabled and `code` is included
- *   in params, verify an OTP.
+ * - `"email-verification"`: If email verification is enabled and `code` is
+ *    included in params, verify an OTP.
  *
  * ```ts
  * import Password from "@xixixao/convex-auth/providers/Password";
@@ -129,17 +129,26 @@ export default function Password<DataModel extends GenericDataModel>(
         }
         ({ account, user } = retrieved);
         // START: Optional, support password reset
-      } else if (flow === "reset" && config.reset) {
+      } else if (flow === "reset") {
+        if (!config.reset) {
+          throw new Error(`Password reset is not enabled for ${provider}`);
+        }
         const { account } = await retrieveAccount(ctx, {
           provider,
           account: { id: email },
         });
         return await signInViaProvider(ctx, config.reset, {
           accountId: account._id,
+          params,
         });
-      } else if (flow === "reset-verification" && config.reset) {
+      } else if (flow === "reset-verification") {
+        if (!config.reset) {
+          throw new Error(`Password reset is not enabled for ${provider}`);
+        }
         if (params.newPassword === undefined) {
-          throw new Error("Missing `newPassword` param for `signIn` flow");
+          throw new Error(
+            "Missing `newPassword` param for `reset-verification` flow",
+          );
         }
         const result = await signInViaProvider(ctx, config.reset, { params });
         if (result === null) {
@@ -155,10 +164,24 @@ export default function Password<DataModel extends GenericDataModel>(
         return { userId, sessionId };
         // END
         // START: Optional, email verification during sign in
+      } else if (flow === "email-verification") {
+        if (!config.verify) {
+          throw new Error(`Email verification is not enabled for ${provider}`);
+        }
+        const { account } = await retrieveAccount(ctx, {
+          provider,
+          account: { id: email },
+        });
+        return await signInViaProvider(ctx, config.verify, {
+          accountId: account._id,
+          params,
+        });
+        // END
       } else {
         throw new Error(
           "Missing `flow` param, it must be one of " +
-            '"signUp", "signIn", "reset" or "reset-verification"!',
+            '"signUp", "signIn", "reset", "reset-verification" or ' +
+            '"email-verification"!',
         );
       }
       // START: Optional, email verification during sign in

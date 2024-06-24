@@ -65,6 +65,7 @@ export function SignInFormPasswordAndVerifyViaCode() {
             <label htmlFor="email">Code</label>
             <CodeInput />
             <input name="email" value={step.email} type="hidden" />
+            <input name="flow" value="email-verification" type="hidden" />
             <Button type="submit">Continue</Button>
             <Button
               type="button"

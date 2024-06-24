@@ -31,7 +31,7 @@ export default function TwilioOTP(): PhoneConfig {
       }
       await ctx.runAction(internal.otp.TwilioSDK.message, {
         from: process.env.AUTH_TWILIO_FROM_NUMBER,
-        to: phone as string,
+        to: phone,
         code: token,
       });
     },

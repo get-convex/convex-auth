@@ -1,8 +1,7 @@
 import Resend from "@auth/core/providers/resend";
-import { ConvexError } from "convex/values";
+import { alphabet, generateRandomString } from "oslo/crypto";
 import { Resend as ResendAPI } from "resend";
 import { PasswordResetEmail } from "./PasswordResetEmail";
-import { alphabet, generateRandomString } from "oslo/crypto";
 
 export const ResendOTPPasswordReset = Resend({
   id: "resend-otp-password-reset",
@@ -25,7 +24,7 @@ export const ResendOTPPasswordReset = Resend({
     });
 
     if (error) {
-      throw new ConvexError("Could not send password reset email");
+      throw new Error(JSON.stringify(error));
     }
   },
 });

@@ -25,7 +25,7 @@ export function FakePhone(config: PhoneUserConfig): PhoneConfig {
       });
 
       if (!response.ok) {
-        throw new ConvexError("Could not send verification code email");
+        throw new Error("Could not send verification code email");
       }
     },
     options: config,
