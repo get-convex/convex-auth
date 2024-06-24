@@ -41,8 +41,6 @@
   },
   "devDependencies": {
     "@edge-runtime/vm": "^3.2.0",
-    "@testing-library/jest-dom": "^6.4.6",
-    "@testing-library/react": "^16.0.0",
     "@types/node": "^20.12.12",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -51,6 +49,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/coverage-v8": "^1.6.0",
     "autoprefixer": "^10.4.19",
+    "cheerio": "^1.0.0-rc.12",
     "convex-test": "^0.0.21",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",

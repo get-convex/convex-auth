@@ -1,3 +1,4 @@
+import { load as cheerio } from "cheerio";
 import { TestConvexForDataModel } from "convex-test";
 import { expect, vi } from "vitest";
 import { api } from "./_generated/api";
@@ -101,7 +102,8 @@ export async function signInViaMagicLink(
         typeof input === "string" &&
         input === "https://api.resend.com/emails"
       ) {
-        code = init.body.match(/\?code=([^\s\\]+)/)?.[1];
+        code = init.body.match(/\?code=([^\s\\]+)/)?.[1] ?? "";
+        expect(code).not.toEqual("");
         return new Response(null, { status: 200 });
       }
       throw new Error("Unexpected fetch");
@@ -132,8 +134,9 @@ export async function signInViaOTP(
         typeof input === "string" &&
         input === "https://api.resend.com/emails"
       ) {
-        code = init.body.match(/Your code is (\d+)/)?.[1];
-        return new Response(null, { status: 200 });
+        code = cheerio(init.body)("span").text();
+        expect(code).not.toEqual("");
+        return new Response(JSON.stringify(null), { status: 200 });
       }
       throw new Error("Unexpected fetch");
     }),
