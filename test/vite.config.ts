@@ -4,6 +4,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: process.env.BASE_PATH ?? "/",
   plugins: [react()],
   resolve: {
     alias: {
