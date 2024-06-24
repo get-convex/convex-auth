@@ -1,15 +1,21 @@
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
+import Password from "@xixixao/convex-auth/providers/Password";
 import { convexAuth } from "@xixixao/convex-auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
-import Password from "@xixixao/convex-auth/providers/Password";
-import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 import TwilioVerify from "./otp/Twilio";
 import TwilioOTP from "./otp/TwilioOTP";
+import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
+// !publish: remove
+import { FakePhone } from "./otp/FakePhone";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [
+    // !publish: remove
+    FakePhone,
+    // !publish: remove
+    FakePhone({ id: "fake-phone-2" }),
     GitHub,
     Google,
     Resend,
