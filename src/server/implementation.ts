@@ -676,7 +676,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
     store: internalMutationGeneric({
       args: storeArgs,
       handler: async (ctx: GenericMutationCtx<AuthDataModel>, { args }) => {
-        console.debug(args);
+        // console.debug(args);
         switch (args.type) {
           case "signIn": {
             const {
