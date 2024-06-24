@@ -30,6 +30,7 @@
     "docs": "cd docs && npm run dev",
     "lint": "tsc && eslint . && cd test && npm run lint",
     "prepublishOnly": "npm run build && npm run test:once",
+    "publish:example": "node publishExample.mjs",
     "test": "cd test && npm run test",
     "test:once": "cd test && npm run test:once"
   },
@@ -81,6 +82,7 @@
     "inquirer": "^9.2.22",
     "npm-run-all": "^4.1.5",
     "react-dom": "^18.3.1",
+    "shelljs": "^0.8.5",
     "tsup": "^8.0.1",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0"

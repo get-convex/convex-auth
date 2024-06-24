@@ -17,6 +17,6 @@
       "@xixixao/convex-auth/react": ["./src/react/index"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", "*.mjs"],
   "exclude": ["node_modules", "dist", "docs", "test"]
 }

@@ -2,6 +2,7 @@
 
 /dist
 /distreact
+/publish-example
 
 # dependencies
 /node_modules
