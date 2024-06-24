@@ -100,7 +100,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
 ```
 
 Check out the
-[example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/convex/otp/ResendOTP.ts)
+[example repo](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/ResendOTP.ts)
 for a more polished email template, including using `React` for the email
 templating (add `"jsx": "react-jsx"` to your `convex/tsconfig.json`).
 
@@ -169,7 +169,7 @@ is a short code, we must also provide the `email` that matches the account used
 for the sign-in. The library automatically rate-limits failed attempts.
 
 Check out the
-[example repo](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormEmailCode.tsx)
+[example repo](https://github.com/get-convex/convex-auth-example/blob/main/app/auth/SignInFormEmailCode.tsx)
 for a more polished UI.
 
 </Steps>
@@ -181,15 +181,15 @@ use authentication in your frontend and backend in [Authorization](/authz).
 
 There are no built-in providers, but one is easy to build. The example repo has
 an example of using
-[Twilio and their Node.js SDK](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/convex/otp/TwilioOTP.tsx).
+[Twilio and their Node.js SDK](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.tsx).
 
 The sign-in form works the same as above, but uses a `phone` field instead of an
 `email` field:
-[example](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/app/auth/SignInFormPhoneCode.tsx).
+[example](https://github.com/get-convex/convex-auth-example/blob/main/app/auth/SignInFormPhoneCode.tsx).
 
 If you use a third-party service that takes care of generating and validating
 OTPs, you can use a custom
 [`ConvexCredentials`](/api_reference/providers/ConvexCredentials) config to
 implement the authentication method. The example repo shows how to do this with
 the
-[Twilio Verify service](https://github.com/xixixao/convex-auth/blob/convex-auth-demo-src/convex/otp/TwilioOTP.tsx).
+[Twilio Verify service](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.tsx).
