@@ -1,4 +1,3 @@
-import { ConvexError } from "convex/values";
 import { alphabet, generateRandomString } from "oslo/crypto";
 import { PhoneConfig } from "../../../dist/server";
 import { PhoneUserConfig } from "../../../dist/server/types";

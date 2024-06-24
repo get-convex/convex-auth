@@ -1,5 +1,3 @@
-"use client";
-
 import { SignInFormEmailCode } from "@/auth/SignInFormEmailCode";
 import { SignInFormEmailLink } from "@/auth/SignInFormEmailLink";
 import { SignInFormPassword } from "@/auth/SignInFormPassword";

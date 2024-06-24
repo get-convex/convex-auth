@@ -1,5 +1,3 @@
-"use client";
-
 import { SignInWithPassword } from "@/auth/SignInWithPassword";
 import { Toaster } from "@/components/ui/toaster";
 

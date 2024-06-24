@@ -1,5 +1,3 @@
-"use client";
-
 import { CodeInput6 } from "@/auth/CodeInput";
 import { Button } from "@/components/ui/button";
 import { useAuthActions } from "@xixixao/convex-auth/react";

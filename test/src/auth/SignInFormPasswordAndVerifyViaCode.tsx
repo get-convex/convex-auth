@@ -1,5 +1,3 @@
-"use client";
-
 import { useAuthActions } from "@xixixao/convex-auth/react";
 import { CodeInput } from "@/auth/CodeInput";
 import { ResetPasswordWithEmailCode } from "@/auth/ResetPasswordWithEmailCode";

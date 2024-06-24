@@ -1,5 +1,3 @@
-"use client";
-
 import { SignInMethodDivider } from "@/auth/SignInMethodDivider";
 import { SignInWithOAuth } from "@/auth/SignInWithOAuth";
 import { SignInWithPassword } from "@/auth/SignInWithPassword";

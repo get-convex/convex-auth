@@ -1,5 +1,3 @@
-"use client";
-
 import { useAuthActions } from "@xixixao/convex-auth/react";
 import { SignInMethodDivider } from "@/auth/SignInMethodDivider";
 import { SignInWithOAuth } from "@/auth/SignInWithOAuth";
