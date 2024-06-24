@@ -1,6 +1,5 @@
+import { PhoneConfig, PhoneUserConfig } from "@xixixao/convex-auth/server";
 import { alphabet, generateRandomString } from "oslo/crypto";
-import { PhoneConfig } from "../../../dist/server";
-import { PhoneUserConfig } from "../../../dist/server/types";
 
 export function FakePhone(config: PhoneUserConfig): PhoneConfig {
   return {

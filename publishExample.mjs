@@ -49,6 +49,9 @@ shell.exec(
   `perl -i -pe 's#"react-dom": "file:../node_modules/react-dom",#"react-dom": "^18.3.0",#' package.json`,
 );
 
+// Remove unneeded files
+shell.rm("convex/otp/FakePhone.ts");
+
 // Initialize a new git repo
 shell.exec("git init");
 shell.exec("git add .");
