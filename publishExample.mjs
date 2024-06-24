@@ -28,7 +28,9 @@ shell.cd(tempDir);
 // Initialize a new git repo
 shell.exec("git init");
 shell.exec("git add .");
-shell.exec('git commit -m "Initial commit"');
+shell.exec(
+  'git commit -m "Published from https://github.com/get-convex/convex-auth"',
+);
 
 // Force push to the repository
 shell.exec(`git push --force ${repositoryUrl} HEAD:${branchName}`);
