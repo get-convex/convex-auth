@@ -1,6 +1,6 @@
 {
   "name": "@xixixao/convex-auth",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Authentication for Convex",
   "keywords": [
     "authentication",
