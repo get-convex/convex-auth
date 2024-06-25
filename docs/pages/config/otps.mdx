@@ -139,7 +139,9 @@ export function SignIn() {
       onSubmit={(event) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
-        void signIn("resend-otp", formData).then(() => setStep("code"));
+        void signIn("resend-otp", formData).then(() =>
+          setStep({ email: formData.get("email") as string }),
+        );
       }}
     >
       <input name="email" placeholder="Email" type="text" />
