@@ -63,7 +63,8 @@ export type ConvexAuthConfig = {
      * How many times can the user fail to provide the correct credentials
      * (password, OTP) per hour.
      *
-     * Defaults to 10 times per hour.
+     * Defaults to 10 times per hour (that is 10 failed attempts, and then
+     * allow another one every 6 minutes).
      */
     maxFailedAttempsPerHour?: number;
   };
