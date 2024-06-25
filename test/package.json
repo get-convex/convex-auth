@@ -9,7 +9,7 @@
     "dev:backend": "convex dev",
     "predev": "convex dev --until-success && convex dashboard",
     "build": "tsc && vite build",
-    "lint": "tsc && eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint": "tsc && tsc -p convex/tsconfig.json && eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest",
     "test:once": "vitest run",

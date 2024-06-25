@@ -20,9 +20,11 @@ test("sign up with oauth", async () => {
   expect(tokens).not.toBeNull();
 
   await t.run(async (ctx) => {
-    const verificationCodes = await ctx.db.query("verificationCodes").collect();
+    const verificationCodes = await ctx.db
+      .query("authVerificationCodes")
+      .collect();
     expect(verificationCodes).toHaveLength(0);
-    const verifiers = await ctx.db.query("verifiers").collect();
+    const verifiers = await ctx.db.query("authVerifiers").collect();
     expect(verifiers).toHaveLength(0);
   });
 });
@@ -50,9 +52,11 @@ test("sign in with oauth", async () => {
   expect(tokens).not.toBeNull();
 
   await t.run(async (ctx) => {
-    const verificationCodes = await ctx.db.query("verificationCodes").collect();
+    const verificationCodes = await ctx.db
+      .query("authVerificationCodes")
+      .collect();
     expect(verificationCodes).toHaveLength(0);
-    const verifiers = await ctx.db.query("verifiers").collect();
+    const verifiers = await ctx.db.query("authVerifiers").collect();
     expect(verifiers).toHaveLength(0);
     const users = await ctx.db.query("users").collect();
     expect(users).toMatchObject([{ email: "tom@gmail.com", name: "Thomas" }]);
