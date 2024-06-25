@@ -29,19 +29,19 @@ import {
 } from "oslo/crypto";
 import { encodeHex } from "oslo/encoding";
 import { OAuth2Client } from "oslo/oauth2";
-import { FunctionReferenceFromExport, GenericDoc } from "./convex_types";
+import { FunctionReferenceFromExport, GenericDoc } from "./convex_types.js";
 import {
   configDefaults,
   getOAuthURLs,
   materializeProvider,
-} from "./provider_utils";
+} from "./provider_utils.js";
 import {
   AuthProviderConfig,
   AuthProviderMaterializedConfig,
   ConvexAuthConfig,
   ConvexCredentialsConfig,
   GenericActionCtxWithAuthConfig,
-} from "./types";
+} from "./types.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -314,7 +314,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
      *
      * ```ts filename="convex/myFunctions.tsx"
      * import { mutation } from "./_generated/server";
-     * import { auth } from "./auth";
+     * import { auth } from "./auth.js";
      *
      * export const currentUser = mutation({
      *   args: {/* ... *\/},
@@ -345,7 +345,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
      *
      * ```ts filename="convex/myFunctions.tsx"
      * import { mutation } from "./_generated/server";
-     * import { auth } from "./auth";
+     * import { auth } from "./auth.js";
      *
      * export const currentSession = mutation({
      *   args: {/* ... *\/},
@@ -376,7 +376,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
      *
      * ```ts
      * import { httpRouter } from "convex/server";
-     * import { auth } from "./auth";
+     * import { auth } from "./auth.js";
      *
      * const http = httpRouter();
      *

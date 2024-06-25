@@ -29,7 +29,7 @@ import {
   AuthProviderConfig,
   AuthProviderMaterializedConfig,
   ConvexAuthConfig,
-} from "./types";
+} from "./types.js";
 
 /**
  * @internal

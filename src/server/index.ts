@@ -18,7 +18,7 @@ export {
   signInViaProvider,
   invalidateSessions,
   modifyAccountCredentials,
-} from "./implementation";
+} from "./implementation.js";
 export type {
   ConvexAuthConfig,
   AuthProviderConfig,
@@ -28,5 +28,5 @@ export type {
   GenericActionCtxWithAuthConfig,
   AuthProviderMaterializedConfig,
   ConvexAuthMaterializedConfig,
-} from "./types";
-export type { GenericDoc } from "./convex_types";
+} from "./types.js";
+export type { GenericDoc } from "./convex_types.js";
