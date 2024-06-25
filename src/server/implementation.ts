@@ -128,7 +128,7 @@ export const authTables = {
    * valid at a time. Refresh tokens are rotated
    * and reuse is not allowed.
    */
-  refreshTokens: defineTable({
+  authRefreshTokens: defineTable({
     sessionId: v.id("sessions"),
     expirationTime: v.number(),
   }).index("sessionId", ["sessionId"]),
@@ -138,7 +138,7 @@ export const authTables = {
    * - magic link tokens
    * - OAuth codes
    */
-  verificationCodes: defineTable({
+  authVerificationCodes: defineTable({
     accountId: v.id("accounts"),
     code: v.string(),
     expirationTime: v.number(),
@@ -151,7 +151,7 @@ export const authTables = {
   /**
    * PKCE verifiers.
    */
-  verifiers: defineTable({
+  authVerifiers: defineTable({
     state: v.string(),
     verifier: v.string(),
   }).index("state", ["state"]),
@@ -802,7 +802,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           }
           case "verifier": {
             const { verifier, state } = args;
-            return await ctx.db.insert("verifiers", { verifier, state });
+            return await ctx.db.insert("authVerifiers", { verifier, state });
           }
           case "userOAuth": {
             const { profile, provider, providerAccountId, state } = args;
@@ -848,7 +848,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               }));
 
             const verifier = await ctx.db
-              .query("verifiers")
+              .query("authVerifiers")
               .withIndex("state", (q) => q.eq("state", state))
               .unique();
             if (verifier === null) {
@@ -857,13 +857,13 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const code = generateRandomString(8, alphabet("0-9"));
             await ctx.db.delete(verifier._id);
             const existingVerificationCode = await ctx.db
-              .query("verificationCodes")
+              .query("authVerificationCodes")
               .withIndex("accountId", (q) => q.eq("accountId", accountId))
               .unique();
             if (existingVerificationCode !== null) {
               await ctx.db.delete(existingVerificationCode._id);
             }
-            await ctx.db.insert("verificationCodes", {
+            await ctx.db.insert("authVerificationCodes", {
               code: await sha256(code),
               accountId,
               expirationTime: Date.now() + OAUTH_SIGN_IN_EXPIRATION_MS,
@@ -1145,7 +1145,7 @@ async function verifyCodeOnly(
   const { code, verifier, identifier } = args;
   const codeHash = await sha256(code);
   const verificationCode = await ctx.db
-    .query("verificationCodes")
+    .query("authVerificationCodes")
     .withIndex("code", (q) => q.eq("code", codeHash))
     .unique();
   if (verificationCode === null) {
@@ -1706,13 +1706,13 @@ async function generateUniqueVerificationCode(
   type: "email" | "phone",
 ) {
   const existingCode = await ctx.db
-    .query("verificationCodes")
+    .query("authVerificationCodes")
     .withIndex("accountId", (q) => q.eq("accountId", accountId))
     .unique();
   if (existingCode !== null) {
     await ctx.db.delete(existingCode._id);
   }
-  await ctx.db.insert("verificationCodes", {
+  await ctx.db.insert("authVerificationCodes", {
     accountId,
     code: await sha256(code),
     expirationTime,
@@ -1764,7 +1764,7 @@ async function createRefreshToken(
     (config.session?.inactiveDurationMs ??
       stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
-  const newRefreshTokenId = await ctx.db.insert("refreshTokens", {
+  const newRefreshTokenId = await ctx.db.insert("authRefreshTokens", {
     sessionId,
     expirationTime,
   });
@@ -1776,7 +1776,7 @@ async function deleteRefreshTokens(
   sessionId: GenericId<"sessions">,
 ) {
   const existingRefreshTokens = await ctx.db
-    .query("refreshTokens")
+    .query("authRefreshTokens")
     .withIndex("sessionId", (q) => q.eq("sessionId", sessionId))
     .collect();
   for (const refreshTokenDoc of existingRefreshTokens) {
@@ -1790,7 +1790,7 @@ async function validateRefreshToken(
   tokenSessionId: string,
 ) {
   const refreshTokenDoc = await ctx.db.get(
-    refreshTokenId as GenericId<"refreshTokens">,
+    refreshTokenId as GenericId<"authRefreshTokens">,
   );
 
   if (refreshTokenDoc === null) {
