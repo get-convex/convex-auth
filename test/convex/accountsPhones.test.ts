@@ -9,7 +9,7 @@ import {
   signInViaPhone,
 } from "./test.helpers";
 
-test.only("automatic linking for signin via phone", async () => {
+test("automatic linking for signin via phone", async () => {
   setupEnv();
   const t = convexTest(schema);
 
