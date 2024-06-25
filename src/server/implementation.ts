@@ -1,6 +1,4 @@
 import { OAuth2Config, OAuthConfig } from "@auth/core/providers";
-import { TokenSet } from "@auth/core/types";
-import { generateState } from "arctic";
 import {
   Auth,
   DataModelFromSchemaDefinition,
@@ -20,7 +18,7 @@ import {
   internalMutationGeneric,
 } from "convex/server";
 import { ConvexError, GenericId, ObjectType, Value, v } from "convex/values";
-import * as cookie from "cookie";
+import { serialize as serializeCookie } from "cookie";
 import { SignJWT, importPKCS8 } from "jose";
 import {
   alphabet,
@@ -28,13 +26,9 @@ import {
   sha256 as rawSha256,
 } from "oslo/crypto";
 import { encodeHex } from "oslo/encoding";
-import { OAuth2Client } from "oslo/oauth2";
 import { FunctionReferenceFromExport, GenericDoc } from "./convex_types.js";
-import {
-  configDefaults,
-  getOAuthURLs,
-  materializeProvider,
-} from "./provider_utils.js";
+import { getAuthorizationURL, handleOAuthCallback } from "./oauth.js";
+import { configDefaults, materializeProvider } from "./provider_utils.js";
 import {
   AuthProviderConfig,
   AuthProviderMaterializedConfig,
@@ -152,9 +146,9 @@ export const authTables = {
    * PKCE verifiers.
    */
   authVerifiers: defineTable({
-    state: v.string(),
+    signature: v.string(),
     verifier: v.string(),
-  }).index("state", ["state"]),
+  }).index("signature", ["signature"]),
   /**
    * Rate limits for OTP and password sign-in.
    */
@@ -199,14 +193,14 @@ const storeArgs = {
     v.object({
       type: v.literal("verifier"),
       verifier: v.string(),
-      state: v.string(),
+      signature: v.string(),
     }),
     v.object({
       type: v.literal("userOAuth"),
       provider: v.string(),
       providerAccountId: v.string(),
       profile: v.any(),
-      state: v.string(),
+      signature: v.string(),
     }),
     v.object({
       type: v.literal("createVerificationCode"),
@@ -457,63 +451,27 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const provider = getProviderOrThrow(
                 providerId,
               ) as OAuthConfig<any>;
-              if (provider.clientId === undefined) {
-                throw new Error(
-                  `Missing \`clientId\`, set ${clientId(providerId)}`,
-                );
-              }
-              if (provider.clientSecret === undefined) {
-                throw new Error(
-                  `Missing \`clientSecret\`, set ${clientSecret(providerId)}`,
-                );
-              }
 
-              const state = generateState();
-
-              const { authorization } = await getOAuthURLs(provider);
-              const destinationUrl = new URL(authorization.url);
-              for (const [key, value] of Object.entries({
-                response_type: "code",
-                client_id: provider.clientId,
-                redirect_uri:
-                  process.env.CONVEX_SITE_URL +
-                  "/api/auth/callback/" +
-                  providerId,
-                state,
-                ...(provider.type === "oidc" &&
-                !destinationUrl.searchParams.has("scope")
-                  ? { scope: "openid profile email" }
-                  : null),
-              })) {
-                destinationUrl.searchParams.set(key, value as any);
-              }
+              const { redirect, cookies, signature } =
+                await getAuthorizationURL(provider as any);
 
               await ctx.runMutation(internal.auth.store, {
                 args: {
                   type: "verifier",
                   verifier,
-                  state,
+                  signature,
                 },
               });
 
-              return new Response(null, {
-                status: 302,
-                headers: {
-                  Location: destinationUrl.toString(),
-                  "Set-Cookie": cookie.serialize(
-                    oauthStateCookieName(providerId),
-                    state,
-                    {
-                      httpOnly: true,
-                      sameSite: "none",
-                      secure: true,
-                      path: "/",
-                      partitioned: true,
-                      maxAge: 60 * 10, // 10 minutes
-                    },
-                  ),
-                },
-              });
+              const headers = new Headers({ Location: redirect });
+              for (const { name, value, options } of cookies) {
+                headers.append(
+                  "Set-Cookie",
+                  serializeCookie(name, value, options),
+                );
+              }
+
+              return new Response(null, { status: 302, headers });
             }),
           ),
         });
@@ -528,63 +486,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const provider = getProviderOrThrow(
               providerId,
             ) as OAuth2Config<any>;
-
-            const code = url.searchParams.get("code");
-            const state = url.searchParams.get("state");
-            const storedState =
-              getCookies(request)[oauthStateCookieName(providerId)];
-
-            if (code === null || state === null || state !== storedState) {
-              console.error(
-                `Invalid code or state in ${providerId} auth callback`,
-              );
-              return Response.redirect(siteAfterLoginUrl());
-            }
-
             try {
-              if (provider.clientId === undefined) {
-                throw new Error(
-                  `Missing \`clientId\`, set ${clientId(providerId)}`,
-                );
-              }
-              if (provider.clientSecret === undefined) {
-                throw new Error(
-                  `Missing \`clientSecret\`, set ${clientSecret(providerId)}`,
-                );
-              }
-              const { token, userinfo } = await getOAuthURLs(provider);
-              const client = new OAuth2Client(
-                provider.clientId,
-                "",
-                token.url,
-                {
-                  redirectURI:
-                    process.env.CONVEX_SITE_URL +
-                    "/api/auth/callback/" +
-                    providerId,
-                },
+              const { profile, tokens, signature } = await handleOAuthCallback(
+                provider as any,
+                request,
               );
-              const tokens = (await client.validateAuthorizationCode(code, {
-                authenticateWith: "request_body",
-                credentials: provider.clientSecret,
-              })) as TokenSet;
-
-              let profile;
-              if (userinfo?.request) {
-                profile = await userinfo.request({ tokens, provider });
-              } else if (userinfo?.url) {
-                const response = await fetch(userinfo?.url, {
-                  headers: {
-                    Authorization: `Bearer ${tokens.access_token}`,
-                    "User-Agent": "convex/auth",
-                  },
-                });
-                profile = await response.json();
-              } else {
-                throw new Error(
-                  `No userinfo endpoint configured in provider ${providerId}`,
-                );
-              }
 
               const { id, ...profileFromCallback } = await provider.profile!(
                 profile,
@@ -599,7 +505,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                     provider: providerId,
                     providerAccountId: id!,
                     profile: profileFromCallback,
-                    state,
+                    signature,
                   },
                 },
               );
@@ -801,11 +707,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return account.providerAccountId;
           }
           case "verifier": {
-            const { verifier, state } = args;
-            return await ctx.db.insert("authVerifiers", { verifier, state });
+            const { verifier, signature } = args;
+            return await ctx.db.insert("authVerifiers", {
+              verifier,
+              signature,
+            });
           }
           case "userOAuth": {
-            const { profile, provider, providerAccountId, state } = args;
+            const { profile, provider, providerAccountId, signature } = args;
             const providerConfig = getProviderOrThrow(
               provider,
             ) as OAuthConfig<any>;
@@ -849,7 +758,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
 
             const verifier = await ctx.db
               .query("authVerifiers")
-              .withIndex("state", (q) => q.eq("state", state))
+              .withIndex("signature", (q) => q.eq("signature", signature))
               .unique();
             if (verifier === null) {
               throw new Error("Invalid state");
@@ -1721,18 +1630,6 @@ async function generateUniqueVerificationCode(
   });
 }
 
-function clientId(providerId: string) {
-  return `AUTH_${envProviderId(providerId)}_ID`;
-}
-
-function clientSecret(providerId: string) {
-  return `AUTH_${envProviderId(providerId)}_SECRET`;
-}
-
-function envProviderId(provider: string) {
-  return provider.toUpperCase().replace(/-/g, "_");
-}
-
 async function createSession(
   ctx: GenericMutationCtx<AuthDataModel>,
   userId: GenericId<"users">,
@@ -1839,10 +1736,6 @@ async function generateToken(
     .sign(privateKey);
 }
 
-function oauthStateCookieName(providerId: string) {
-  return providerId + "OAuthState";
-}
-
 function corsRoutes(http: HttpRouter, origin: () => string) {
   return {
     route({
@@ -1918,10 +1811,6 @@ function convertErrorsToResponse(
       }
     }
   };
-}
-
-function getCookies(req: Request): Record<string, string | undefined> {
-  return cookie.parse(req.headers.get("Cookie") ?? "");
 }
 
 function siteAfterLoginUrl() {

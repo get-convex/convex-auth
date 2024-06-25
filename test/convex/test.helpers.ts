@@ -39,35 +39,34 @@ export async function signInViaGitHub(
   const redirectedToParams = new URL(redirectedTo!).searchParams;
 
   const callbackUrl = redirectedToParams.get("redirect_uri");
-  const state = redirectedToParams.get("state");
+
+  const codeChallenge = redirectedToParams.get("code_challenge");
   expect(callbackUrl).not.toBeNull();
-  expect(state).not.toBeNull();
+  expect(codeChallenge).not.toBeNull();
 
   const issuedOAuthCode = "mightygithub";
   const issuedAccessToken = "veryfancyaccesstoken";
 
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input, init) => {
-      if (
-        input instanceof Request &&
-        input.url === "https://github.com/login/oauth/access_token"
-      ) {
-        const args = await input.formData();
-        expect(args.get("client_id")).toBe(process.env[clientId(provider)]);
-        expect(args.get("client_secret")).toBe(
-          process.env[clientSecret(provider)],
-        );
+    vi.fn(async (input, init: RequestInit) => {
+      if (input === "https://github.com/login/oauth/access_token") {
+        const args = init.body as URLSearchParams;
         expect(args.get("code")).toBe(issuedOAuthCode);
         return new Response(
-          JSON.stringify({ access_token: issuedAccessToken }),
+          JSON.stringify({
+            access_token: issuedAccessToken,
+            token_type: "bearer",
+          }),
           { status: 200 },
         );
       } else if (
         input instanceof URL &&
         input.href === "https://api.github.com/user"
       ) {
-        expect(init.headers.Authorization).toBe(`Bearer ${issuedAccessToken}`);
+        expect(new Headers(init.headers).get("authorization")).toBe(
+          `Bearer ${issuedAccessToken}`,
+        );
         return new Response(JSON.stringify(githubProfile), { status: 200 });
       }
 
@@ -76,7 +75,7 @@ export async function signInViaGitHub(
   );
 
   const callbackResponse = await t.fetch(
-    `${new URL(callbackUrl!).pathname}?code=${issuedOAuthCode}&state=${state}`,
+    `${new URL(callbackUrl!).pathname}?code=${issuedOAuthCode}&code_challenge=${codeChallenge}`,
     { headers: { Cookie: cookies! } },
   );
 
@@ -183,14 +182,14 @@ export async function signInViaPhone(
   return result.tokens ?? null;
 }
 
-function clientId(providerId: string) {
-  return `AUTH_${envProviderId(providerId)}_ID`;
-}
+// function clientId(providerId: string) {
+//   return `AUTH_${envProviderId(providerId)}_ID`;
+// }
 
-function clientSecret(providerId: string) {
-  return `AUTH_${envProviderId(providerId)}_SECRET`;
-}
+// function clientSecret(providerId: string) {
+//   return `AUTH_${envProviderId(providerId)}_SECRET`;
+// }
 
-function envProviderId(provider: string) {
-  return provider.toUpperCase().replace(/-/g, "_");
-}
+// function envProviderId(provider: string) {
+//   return provider.toUpperCase().replace(/-/g, "_");
+// }

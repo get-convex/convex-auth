@@ -145,15 +145,20 @@ function normalizeOAuth(c: any): EmailConfig {
   };
 }
 
+export const PLACEHOLDER_URL = "https://convexauth.mumbojumbo";
+
 function normalizeEndpoint(
   e?: OAuthConfig<any>[OAuthEndpointType],
   issuer?: string,
 ) {
-  if (!e && issuer) return;
+  if (!e && issuer) return undefined;
   if (typeof e === "string") {
     return { url: new URL(e) };
   }
-  const url = new URL(e?.url);
+  // Placeholder URL is used to pass around the URL object
+  // even if the URL hasn't been specified: the `issuer`
+  // is used instead.
+  const url = new URL(e?.url ?? PLACEHOLDER_URL);
   if (e?.params != null) {
     for (const [key, value] of Object.entries(e.params)) {
       url.searchParams.set(
@@ -193,24 +198,4 @@ export function merge(target: any, ...sources: any[]): any {
 /** Simple object check */
 function isObject(item: any): boolean {
   return item && typeof item === "object" && !Array.isArray(item);
-}
-
-/**
- * @internal
- */
-export async function getOAuthURLs(provider: OAuthConfig<any>) {
-  if (
-    provider.issuer &&
-    (!provider.authorization || !provider.token || !provider.userinfo)
-  ) {
-    const discovery = `${provider.issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
-    const response = await fetch(discovery);
-    const config = await response.json();
-    return {
-      authorization: { url: new URL(config.authorization_endpoint) },
-      token: { url: new URL(config.token_endpoint) },
-      userinfo: { url: new URL(config.userinfo_endpoint) },
-    };
-  }
-  return provider;
 }
