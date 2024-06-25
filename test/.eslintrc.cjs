@@ -18,7 +18,7 @@ module.exports = {
   parserOptions: {
     EXPERIMENTAL_useProjectService: true,
   },
-  plugins: ["react-refresh"],
+  plugins: ["react-refresh", "no-only-tests"],
   rules: {
     "react-refresh/only-export-components": [
       "warn",
@@ -52,5 +52,7 @@ module.exports = {
     // Allow async functions without await
     // for consistency (esp. Convex `handler`s)
     "@typescript-eslint/require-await": "off",
+
+    "no-only-tests/no-only-tests": "warn",
   },
 };
