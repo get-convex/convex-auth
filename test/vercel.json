@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/auth-example(.*)",
+      "destination": "/auth-example"
+    }
+  ]
+}

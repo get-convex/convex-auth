@@ -16,7 +16,6 @@ const packageJSON = JSON.parse(
 
 const directoryPath = path.join(__dirname, "test");
 const repositoryUrl = "https://github.com/get-convex/convex-auth-example.git";
-const branchName = "main";
 
 // Create a temporary directory
 const tempDir = fs.mkdtempSync(
@@ -60,7 +59,13 @@ shell.exec(
 );
 
 // Force push to the repository
-shell.exec(`git push --force ${repositoryUrl} HEAD:${branchName}`);
+shell.exec(`git push --force ${repositoryUrl} HEAD:vercel`);
+
+// Push to main
+shell.rm("vercel.json");
+shell.exec("git add .");
+shell.exec("git commit --amend -C HEAD");
+shell.exec(`git push --force ${repositoryUrl} HEAD:main`);
 
 // Clean up the temporary directory
 shell.rm("-rf", tempDir);
