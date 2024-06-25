@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // 3. Delete the unused forms.
 export function SignInFormsShowcase() {
   return (
-    <Tabs defaultValue="otp" className="flex flex-col mt-10">
+    <Tabs defaultValue="otp" className="container flex flex-col mt-10">
       <TabsList className="ml-auto mr-10 mb-1 opacity-60">
         <TabsTrigger value="otp">OTP</TabsTrigger>
         <TabsTrigger value="link">Magic Link</TabsTrigger>
