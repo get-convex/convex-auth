@@ -150,3 +150,44 @@ for each environment, and configure the [callback URL](#callback-url) and
 
 Don't forget to also
 [configure your SITE_URL](/setup/manual/#configure-site_url).
+
+## Retrieving other profile information
+
+By default, only `name`, `email` and `image` sourced from the OAuth profile are
+saved in the `users` table.
+
+You can find the logic for sourcing these fields
+[here](https://github.com/get-convex/convex-auth/blob/main/src/server/provider_utils.ts#L92-L99).
+
+You can customize this logic via the `profile` method on the OAuth provider
+config:
+
+```ts filename="convex/auth.ts"
+import GitHub from "@auth/core/providers/github";
+import { convexAuth } from "@xixixao/convex-auth/server";
+
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [
+    GitHub({
+      profile(githubProfile, tokens) {
+        return {
+          id: githubProfile.id,
+          name: githubProfile.name,
+          email: githubProfile.email,
+          image: githubProfile.picture,
+          githubId: githubProfile.id,
+        };
+      },
+    }),
+  ],
+});
+```
+
+The example above adds a `githubId` field. You must
+[customize your schema](/setup/schema) to include this field.
+
+To implement the `profile` method correctly you must understand the profile
+information the particular OAuth provider returns. Consult their documentation.
+
+The method must return an `id` field with a unique ID, which is used to identify
+the [account](/auth/advanced#account-linking).
