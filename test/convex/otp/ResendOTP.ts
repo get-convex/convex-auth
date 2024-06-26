@@ -6,6 +6,7 @@ import { VerificationCodeEmail } from "./VerificationCodeEmail";
 export const ResendOTP = Resend({
   id: "resend-otp",
   apiKey: process.env.AUTH_RESEND_KEY,
+  maxAge: 60 * 20,
   async generateVerificationToken() {
     return generateRandomString(8, alphabet("0-9"));
   },

@@ -5,7 +5,7 @@ export function FakePhone(config: PhoneUserConfig): PhoneConfig {
   return {
     id: "fake-phone",
     type: "phone",
-    maxAge: 60 * 60, // 1 hour
+    maxAge: 60 * 20, // 20 minutes
     async generateVerificationToken() {
       return generateRandomString(6, alphabet("0-9"));
     },
