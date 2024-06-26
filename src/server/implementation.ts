@@ -497,13 +497,19 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 tokens,
               );
 
+              if (typeof id !== "string") {
+                throw new Error(
+                  `The profile method of the ${providerId} config must return a string ID`,
+                );
+              }
+
               const verificationCode = await ctx.runMutation(
                 internal.auth.store,
                 {
                   args: {
                     type: "userOAuth",
                     provider: providerId,
-                    providerAccountId: id!,
+                    providerAccountId: id,
                     profile: profileFromCallback,
                     signature,
                   },
