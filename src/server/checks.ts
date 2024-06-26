@@ -100,7 +100,7 @@ function oauthStateCookieName(
   type: "state" | "pkce" | "nonce",
   providerId: string,
 ) {
-  return providerId + "OAuth" + type;
+  return "__Host-" + providerId + "OAuth" + type;
 }
 
 const NONCE_MAX_AGE = 60 * 15; // 15 minutes in seconds
