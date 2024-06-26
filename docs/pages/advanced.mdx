@@ -16,41 +16,39 @@ Convex Auth follows this logic:
 1.  Each provider is determined "trusted" or not, based on whether the email
     address ownership is verified.
 
-    1.  Email-based authentication methods ([magic links](/config/email) and
-        [OTPs](/config/otps)) are trusted.
-    2.  [OAuth](/config/oauth) providers are trusted by default, since most
-        popular OAuth providers today enforce email verification before the user
-        can use them.
+    - Email-based authentication methods ([magic links](/config/email) and
+      [OTPs](/config/otps)) are trusted.
+    - [OAuth](/config/oauth) providers are trusted by default, since most
+      popular OAuth providers today enforce email verification before the user
+      can use them.
 
-        <details>
+      <details>
 
-        <summary>
-          You can make any OAuth provider untrusted by setting the
-          `allowDangerousEmailAccountLinking` option to `false`:
-        </summary>
+      <summary>
+        You can make any OAuth provider untrusted by setting the
+        `allowDangerousEmailAccountLinking` option to `false`:
+      </summary>
 
-        ```ts filename="convex/auth.ts"
-        import Resend from "@auth/core/providers/resend";
-        import GitHub from "@auth/core/providers/github";
-        import { convexAuth } from "@xixixao/convex-auth/server";
+      ```ts filename="convex/auth.ts"
+      import Resend from "@auth/core/providers/resend";
+      import GitHub from "@auth/core/providers/github";
+      import { convexAuth } from "@xixixao/convex-auth/server";
 
-        export const { auth, signIn, signOut, store } = convexAuth({
-          providers: [
-            Resend,
-            GitHub({ allowDangerousEmailAccountLinking: false }),
-          ],
-        });
-        ```
+      export const { auth, signIn, signOut, store } = convexAuth({
+        providers: [
+          Resend,
+          GitHub({ allowDangerousEmailAccountLinking: false }),
+        ],
+      });
+      ```
 
-         </details>
+      </details>
 
-    3.  Password-based accounts without required email verification are
-        untrusted
+    - Password-based accounts without required email verification are untrusted
 
 2.  If a trusted method is used, and there is a single existing user document
-    with a given email address which is only tied to accounts from trusted
-    methods, signing in via the trusted method will link the new account to the
-    same user document.
+    with a given email address verified, signing in via the trusted method will
+    link the new account to the same user document.
     - This means that there is always guaranteed to be only a single user
       document linked to accounts from trusted methods.
 3.  If an untrusted method is used, the new account will not be linked to any
@@ -58,12 +56,40 @@ Convex Auth follows this logic:
 
 ### Preventing duplicate user accounts
 
-For now we recommend to not mix trusted and untrusted authentication methods. If
-you don't want to have multiple user documents for the same email address, you
-must either:
+We recommend to not mix trusted and untrusted authentication methods. If you
+don't want to have multiple user documents for the same email address, you must
+either:
 
 1. Use only trusted methods.
 2. Use only a single untrusted method.
+
+### Controlling account linking behavior
+
+You can implement your own account linking behavior by providing the
+[`createUser` callback](/api_reference/server#callbackscreateuser):
+
+```ts
+import GitHub from "@auth/core/providers/github";
+import Password from "@xixixao/convex-auth/providers/Password";
+import { DataModel } from "./_generated/dataModel";
+
+export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
+  providers: [GitHub, Password],
+  callbacks: {
+    async createUser(ctx, args) {
+      // `args.type` is one of "oauth" | "email" | "phone" | "credentials" | "verification"
+      // `args.provider` is the currently used provider config
+      return await ctx.db.insert("users", {
+        /* ... */
+      });
+    },
+  },
+});
+```
+
+When you provide this callback, the library doesn't create or update users at
+all. It is up to you to implement all the necessary logic for all providers you
+use.
 
 ## Session validity
 
@@ -103,7 +129,3 @@ The session documents are created and deleted by Convex Auth.
 For this reason if you're tying other documents to sessions, and you don't want
 to lose information when the session expires, you should store both the session
 ID and the user ID in your other document.
-
-```
-
-```

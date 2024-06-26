@@ -5,15 +5,22 @@ import {
   OAuth2Config,
   OIDCConfig,
 } from "@auth/core/providers";
-import { WebAuthnConfig } from "@auth/core/providers/webauthn";
 import { Theme } from "@auth/core/types";
+import {
+  AnyDataModel,
+  GenericActionCtx,
+  GenericDataModel,
+  GenericMutationCtx,
+} from "convex/server";
+import { GenericId } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials";
-import { GenericActionCtx, GenericDataModel } from "convex/server";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
  */
-export type ConvexAuthConfig = {
+export type ConvexAuthConfig<
+  DataModel extends GenericDataModel = AnyDataModel,
+> = {
   /**
    * A list of authentication provider configs.
    *
@@ -67,6 +74,84 @@ export type ConvexAuthConfig = {
      * allow another one every 6 minutes).
      */
     maxFailedAttempsPerHour?: number;
+  };
+  callbacks?: {
+    /**
+     * Control account linking via this callback.
+     *
+     * This callback is called during the sign-in process,
+     * before account creation and token generation.
+     * If specified, this callback is responsible for creating
+     * the user document.
+     *
+     * For "credentials" providers, the callback is only called
+     * when `createAccount` is called.
+     */
+    createUser?: (
+      ctx: GenericMutationCtx<DataModel>,
+      args: {
+        /**
+         * If this is sign-in to an existing account,
+         * the existing user ID linked to that account.
+         */
+        existingUserId: GenericId<"users"> | null;
+      } & (
+        | {
+            type: "oauth";
+            provider: OIDCConfig<any> | OAuth2Config<any>;
+            /**
+             * The profile returned by the OAuth provider's `profile` method.
+             */
+            profile: Record<string, unknown>;
+          }
+        | {
+            type: "credentials";
+            provider: ConvexCredentialsConfig;
+            /**
+             * The profile passed to `createAccount` from a ConvexCredentials
+             * config.
+             */
+            profile: Record<string, unknown>;
+            /**
+             * The `shouldLink` argument passed to `createAccount`.
+             */
+            shouldLink?: boolean;
+          }
+        | {
+            type: "email";
+            provider: EmailConfig;
+            /**
+             * The email address to which an email will be sent.
+             */
+            email: string;
+          }
+        | {
+            type: "phone";
+            provider: PhoneConfig;
+            /**
+             * The phone number to which a text will be sent.
+             */
+            phone: string;
+          }
+        | {
+            type: "verification";
+            provider: EmailConfig | PhoneConfig | ConvexCredentialsConfig;
+            /**
+             * A verified code. The email or phone of the user
+             * has been verified.
+             */
+            code: string;
+            /**
+             * Whether the email address has been verified.
+             */
+            emailVerified: boolean;
+            /**
+             * Whether the phone number has been verified.
+             */
+            phoneVerified: boolean;
+          }
+      ),
+    ) => Promise<GenericId<"users">>;
   };
 };
 
@@ -181,5 +266,4 @@ export type AuthProviderMaterializedConfig =
   | OAuth2Config<any>
   | EmailConfig
   | PhoneConfig
-  | ConvexCredentialsConfig
-  | WebAuthnConfig;
+  | ConvexCredentialsConfig;
