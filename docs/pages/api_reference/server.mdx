@@ -73,15 +73,15 @@ A single user can have multiple accounts linked.
 |Field|TS Type
 |---|---
 |`secret`|  `undefined` \| `string`
-|`type`|  `"credentials"` \| `"email"` \| `"webauthn"` \| `"oidc"` \| `"oauth"`
-|`userId`|  `Id`\<`"users"`\>
+|`type`|  `"oidc"` \| `"oauth"` \| `"credentials"` \| `"email"` \| `"webauthn"`
 |`provider`|  `string`
 |`providerAccountId`|  `string`
+|`userId`|  `Id`\<`"users"`\>
 |`emailVerified`|  `boolean`
 |`phoneVerified`|  `boolean`
 |`\_creationTime`|  `number`
 
-#### refreshTokens
+#### authRefreshTokens
 
 
 Refresh tokens.
@@ -95,7 +95,7 @@ and reuse is not allowed.
 |`sessionId`|  `Id`\<`"sessions"`\>
 |`\_creationTime`|  `number`
 
-#### verificationCodes
+#### authVerificationCodes
 
 
 Verification codes:
@@ -108,20 +108,20 @@ Verification codes:
 |`emailVerified`|  `undefined` \| `boolean`
 |`phoneVerified`|  `undefined` \| `boolean`
 |`verifier`|  `undefined` \| `string`
+|`code`|  `string`
 |`expirationTime`|  `number`
 |`accountId`|  `Id`\<`"accounts"`\>
-|`code`|  `string`
 |`\_creationTime`|  `number`
 
-#### verifiers
+#### authVerifiers
 
 
 PKCE verifiers.
 
 |Field|TS Type
 |---|---
-|`state`|  `string`
 |`verifier`|  `string`
+|`signature`|  `string`
 |`\_creationTime`|  `number`
 
 #### authRateLimits
@@ -138,7 +138,7 @@ Rate limits for OTP and password sign-in.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:79](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L79)
+[src/server/implementation.ts:73](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L73)
 
 ***
 
@@ -180,7 +180,7 @@ Return the currently signed-in user's ID.
 
 ```ts filename="convex/myFunctions.tsx"
 import { mutation } from "./_generated/server";
-import { auth } from "./auth";
+import { auth } from "./auth.js";
 
 export const currentUser = mutation({
   args: {/* ... */},
@@ -213,7 +213,7 @@ Return the current session ID.
 
 ```ts filename="convex/myFunctions.tsx"
 import { mutation } from "./_generated/server";
-import { auth } from "./auth";
+import { auth } from "./auth.js";
 
 export const currentSession = mutation({
   args: {/* ... */},
@@ -246,7 +246,7 @@ Add HTTP actions for JWT verification and OAuth sign-in.
 
 ```ts
 import { httpRouter } from "convex/server";
-import { auth } from "./auth";
+import { auth } from "./auth.js";
 
 const http = httpRouter();
 
@@ -295,7 +295,7 @@ to the database during signin and signout.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:291](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L291)
+[src/server/implementation.ts:285](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L285)
 
 ***
 
@@ -337,7 +337,7 @@ or throws an error.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1264](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1264)
+[src/server/implementation.ts:1179](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1179)
 
 ***
 
@@ -376,7 +376,7 @@ secret does not match.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1330](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1330)
+[src/server/implementation.ts:1245](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1245)
 
 ***
 
@@ -404,7 +404,7 @@ provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1375](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1375)
+[src/server/implementation.ts:1290](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1290)
 
 ***
 
@@ -428,7 +428,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1410](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1410)
+[src/server/implementation.ts:1325](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1325)
 
 ***
 
@@ -459,7 +459,7 @@ or `null`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1437](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1437)
+[src/server/implementation.ts:1352](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1352)
 
 ***
 
@@ -532,7 +532,8 @@ Sign-in configuration.
 How many times can the user fail to provide the correct credentials
 (password, OTP) per hour.
 
-Defaults to 10 times per hour.
+Defaults to 10 times per hour (that is 10 failed attempts, and then
+allow another one every 6 minutes).
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
@@ -549,7 +550,7 @@ service.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:77](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L77)
+[src/server/types.ts:78](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L78)
 
 ***
 
@@ -566,14 +567,14 @@ phone number instead of the email address.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:94](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L94)
+[src/server/types.ts:95](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L95)
 
 #### type
 
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:95](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L95)
+[src/server/types.ts:96](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L96)
 
 #### maxAge
 
@@ -583,7 +584,7 @@ Token expiration in seconds.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:99](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L99)
+[src/server/types.ts:100](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L100)
 
 #### sendVerificationRequest()
 
@@ -608,7 +609,7 @@ Send the phone number verification request.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:103](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L103)
+[src/server/types.ts:104](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L104)
 
 #### apiKey?
 
@@ -618,7 +619,7 @@ Defaults to `process.env.AUTH_<PROVIDER_ID>_KEY`.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:116](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L116)
+[src/server/types.ts:117](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L117)
 
 #### generateVerificationToken()?
 
@@ -635,7 +636,7 @@ the original `phone` used in the initial `signIn` call.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:125](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L125)
+[src/server/types.ts:126](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L126)
 
 #### normalizeIdentifier()?
 
@@ -654,14 +655,14 @@ Normalize the phone number.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:131](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L131)
+[src/server/types.ts:132](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L132)
 
 #### options
 
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/server/types.ts:132](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L132)
+[src/server/types.ts:133](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L133)
 
 ***
 
@@ -672,7 +673,7 @@ Configurable options for a phone provider config.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:138](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L138)
+[src/server/types.ts:139](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L139)
 
 ***
 
@@ -692,7 +693,7 @@ Similar to Auth.js Credentials config.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:143](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L143)
+[src/server/types.ts:144](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L144)
 
 ***
 
@@ -712,7 +713,7 @@ the config passed to `convexAuth`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:152](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L152)
+[src/server/types.ts:153](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L153)
 
 ***
 
@@ -753,7 +754,7 @@ See [ConvexAuthConfig](server.mdx#convexauthconfig)
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:163](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L163)
+[src/server/types.ts:164](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L164)
 
 ***
 
@@ -764,4 +765,4 @@ Materialized Auth.js provider config.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/types.ts:178](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L178)
+[src/server/types.ts:179](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L179)
