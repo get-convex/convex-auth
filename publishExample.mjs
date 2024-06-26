@@ -50,6 +50,8 @@ shell.exec(
 
 // Remove unneeded files
 shell.rm("convex/otp/FakePhone.ts");
+shell.rm("convex/*.test.ts");
+shell.rm("convex/test.helpers.ts");
 
 // Initialize a new git repo
 shell.exec("git init");
