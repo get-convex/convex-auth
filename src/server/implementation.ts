@@ -1,6 +1,5 @@
 import { EmailConfig, OAuth2Config, OAuthConfig } from "@auth/core/providers";
 import {
-  AnyDataModel,
   Auth,
   DataModelFromSchemaDefinition,
   DocumentByName,
@@ -278,9 +277,7 @@ export type SignOutAction = FunctionReferenceFromExport<
  * @returns An object with `auth` helper for configuring HTTP actions and accessing
  * the current user and session ID.
  */
-export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
-  config_: ConvexAuthConfig<DataModel>,
-) {
+export function convexAuth(config_: ConvexAuthConfig) {
   const config = configDefaults(config_ as any);
   const hasOAuth = config.providers.some(
     (provider) => provider.type === "oauth" || provider.type === "oidc",

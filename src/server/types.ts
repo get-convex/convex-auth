@@ -18,9 +18,7 @@ import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials";
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
  */
-export type ConvexAuthConfig<
-  DataModel extends GenericDataModel = AnyDataModel,
-> = {
+export type ConvexAuthConfig = {
   /**
    * A list of authentication provider configs.
    *
@@ -92,7 +90,7 @@ export type ConvexAuthConfig<
      * when `createAccount` is called.
      */
     createOrUpdateUser?: (
-      ctx: GenericMutationCtx<DataModel>,
+      ctx: GenericMutationCtx<AnyDataModel>,
       args: {
         /**
          * If this is a sign-in to an existing account,
