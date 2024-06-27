@@ -10,6 +10,9 @@ This can allow you to build signed-out experiences that seamlessly transition to
 a logged-in experience. For example, an anonymous user can populate a shopping
 cart with items, and only after be required to sign in to complete the purchase.
 
+_This is an advanced feature, which brings additional complexity, so we don't
+recommend it to newcomers._
+
 ## Anonymous users setup
 
 <Steps>
@@ -66,8 +69,9 @@ message.
 ### Convert an anonymous user to a normal user
 
 If the client is currently authenticated as an anonymous user, and then signs in
-with an another authentication method, the anonymous user is automatically
-converted to a normal user.
+with an another authentication method, the anonymous user can be converted to a
+normal user. To support this flow, you must provide a custom
+[account linking](/advanced#account-linking) implementation.
 
 ### Abuse prevention
 

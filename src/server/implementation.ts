@@ -1,9 +1,4 @@
-import {
-  EmailConfig,
-  OAuth2Config,
-  OAuthConfig,
-  OIDCConfig,
-} from "@auth/core/providers";
+import { EmailConfig, OAuth2Config, OAuthConfig } from "@auth/core/providers";
 import {
   AnyDataModel,
   Auth,
@@ -111,6 +106,8 @@ export const authTables = {
     provider: v.string(),
     providerAccountId: v.string(),
     secret: v.optional(v.string()),
+    emailVerified: v.optional(v.string()),
+    phoneVerified: v.optional(v.string()),
   })
     .index("userIdAndProvider", ["userId", "provider"])
     .index("accountIdAndProvider", ["providerAccountId", "provider"]),
@@ -135,8 +132,8 @@ export const authTables = {
     code: v.string(),
     expirationTime: v.number(),
     verifier: v.optional(v.string()),
-    emailVerified: v.optional(v.boolean()),
-    phoneVerified: v.optional(v.boolean()),
+    emailVerified: v.optional(v.string()),
+    phoneVerified: v.optional(v.string()),
   })
     .index("accountId", ["accountId"])
     .index("code", ["code"]),
@@ -144,9 +141,12 @@ export const authTables = {
    * PKCE verifiers.
    */
   authVerifiers: defineTable({
-    signature: v.string(),
     verifier: v.string(),
-  }).index("signature", ["signature"]),
+    sessionId: v.optional(v.id("sessions")),
+    signature: v.optional(v.string()),
+  })
+    .index("signature", ["signature"])
+    .index("verifier", ["verifier"]),
   /**
    * Rate limits for OTP and password sign-in.
    */
@@ -186,6 +186,10 @@ const storeArgs = {
     v.object({
       type: v.literal("verifier"),
       verifier: v.string(),
+    }),
+    v.object({
+      type: v.literal("verifierSignature"),
+      verifier: v.string(),
       signature: v.string(),
     }),
     v.object({
@@ -209,7 +213,8 @@ const storeArgs = {
       provider: v.string(),
       account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
       profile: v.any(),
-      shouldLink: v.boolean(),
+      shouldLinkViaEmail: v.boolean(),
+      shouldLinkViaPhone: v.boolean(),
     }),
     v.object({
       type: v.literal("retrieveAccountWithCredentials"),
@@ -450,7 +455,7 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
 
               await ctx.runMutation(internal.auth.store, {
                 args: {
-                  type: "verifier",
+                  type: "verifierSignature",
                   verifier,
                   signature,
                 },
@@ -670,6 +675,7 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
               args,
               getProviderOrThrow,
               config,
+              await auth.getSessionId(ctx),
             );
             if (verifyResult === null) {
               if (identifier !== undefined) {
@@ -696,11 +702,22 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
             );
           }
           case "verifier": {
-            const { verifier, signature } = args;
+            const { verifier } = args;
             return await ctx.db.insert("authVerifiers", {
               verifier,
-              signature,
+              sessionId: (await auth.getSessionId(ctx)) ?? undefined,
             });
+          }
+          case "verifierSignature": {
+            const { verifier, signature } = args;
+            const verifierDoc = await ctx.db
+              .query("authVerifiers")
+              .withIndex("verifier", (q) => q.eq("verifier", verifier))
+              .unique();
+            if (verifierDoc === null) {
+              throw new Error("Invalid verifier");
+            }
+            return await ctx.db.patch(verifierDoc._id, { signature });
           }
           case "userOAuth": {
             const { profile, provider, providerAccountId, signature } = args;
@@ -716,15 +733,6 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
               )
               .unique();
 
-            const { accountId } = await upsertUserAndAccount(
-              ctx,
-              existingAccount !== null
-                ? { existingAccount }
-                : { providerAccountId },
-              { type: "oauth", provider: providerConfig, profile },
-              config,
-            );
-
             const verifier = await ctx.db
               .query("authVerifiers")
               .withIndex("signature", (q) => q.eq("signature", signature))
@@ -732,6 +740,17 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
             if (verifier === null) {
               throw new Error("Invalid state");
             }
+
+            const { accountId } = await upsertUserAndAccount(
+              ctx,
+              verifier.sessionId ?? null,
+              existingAccount !== null
+                ? { existingAccount }
+                : { providerAccountId },
+              { type: "oauth", provider: providerConfig, profile },
+              config,
+            );
+
             const code = generateRandomString(8, alphabet("0-9"));
             await ctx.db.delete(verifier._id);
             const existingVerificationCode = await ctx.db
@@ -777,12 +796,13 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
               | PhoneConfig;
             const { accountId } = await upsertUserAndAccount(
               ctx,
+              await auth.getSessionId(ctx),
               existingAccount !== null
                 ? { existingAccount }
                 : { providerAccountId: email ?? phone! },
               provider.type === "email"
-                ? { type: "email", provider, email: email! }
-                : { type: "phone", provider, phone: phone! },
+                ? { type: "email", provider, profile: { email: email! } }
+                : { type: "phone", provider, profile: { phone: phone! } },
               config,
             );
             await generateUniqueVerificationCode(
@@ -790,12 +810,18 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
               accountId,
               code,
               expirationTime,
-              email !== undefined ? "email" : "phone",
+              { email, phone },
             );
             return email ?? phone!;
           }
           case "createAccountFromCredentials": {
-            const { provider: providerId, account, profile, shouldLink } = args;
+            const {
+              provider: providerId,
+              account,
+              profile,
+              shouldLinkViaEmail,
+              shouldLinkViaPhone,
+            } = args;
             const provider = getProviderOrThrow(
               providerId,
             ) as ConvexCredentialsConfig;
@@ -831,8 +857,15 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
                 : undefined;
             const { userId, accountId } = await upsertUserAndAccount(
               ctx,
+              await auth.getSessionId(ctx),
               { providerAccountId: account.id, secret },
-              { type: "credentials", provider, profile, shouldLink },
+              {
+                type: "credentials",
+                provider,
+                profile,
+                shouldLinkViaEmail,
+                shouldLinkViaPhone,
+              },
               config,
             );
 
@@ -987,6 +1020,7 @@ async function verifyCodeOnly(
   },
   getProviderOrThrow: (id: string) => AuthProviderMaterializedConfig,
   config: ConvexAuthConfig,
+  sessionId: GenericId<"sessions"> | null,
 ) {
   const { code, verifier, identifier } = args;
   const codeHash = await sha256(code);
@@ -1007,11 +1041,7 @@ async function verifyCodeOnly(
     console.error("Expired verification code");
     return null;
   }
-  const {
-    accountId,
-    emailVerified = false,
-    phoneVerified = false,
-  } = verificationCode;
+  const { accountId, emailVerified, phoneVerified } = verificationCode;
   const account = await ctx.db.get(accountId);
   if (account === null) {
     console.error("Account associated with this email has been deleted");
@@ -1035,8 +1065,20 @@ async function verifyCodeOnly(
   if (!(provider.type === "oauth" || provider.type === "oidc")) {
     ({ userId } = await upsertUserAndAccount(
       ctx,
+      sessionId,
       { existingAccount: account },
-      { type: "verification", provider, code, emailVerified, phoneVerified },
+      {
+        type: "verification",
+        provider,
+        profile: {
+          ...(emailVerified !== undefined
+            ? { email: emailVerified, emailVerified: true }
+            : {}),
+          ...(phoneVerified !== undefined
+            ? { phone: phoneVerified, phoneVerified: true }
+            : {}),
+        },
+      },
       config,
     ));
   }
@@ -1044,37 +1086,29 @@ async function verifyCodeOnly(
   return { providerAccountId: account.providerAccountId, userId };
 }
 
-type CreateUserArgs =
-  | {
-      type: "oauth";
-      provider: OIDCConfig<any> | OAuth2Config<any>;
-      profile: Record<string, unknown>;
-    }
-  | {
-      type: "credentials";
-      provider: ConvexCredentialsConfig;
-      profile: Record<string, unknown>;
-      shouldLink?: boolean;
-    }
-  | { type: "email"; provider: EmailConfig; email: string }
-  | { type: "phone"; provider: PhoneConfig; phone: string }
-  | {
-      type: "verification";
-      provider: EmailConfig | PhoneConfig | ConvexCredentialsConfig;
-      code: string;
-      emailVerified: boolean;
-      phoneVerified: boolean;
-    };
+type CreateOrUpdateUserArgs = {
+  type: "oauth" | "credentials" | "email" | "phone" | "verification";
+  provider: AuthProviderMaterializedConfig;
+  profile: Record<string, unknown> & {
+    email?: string;
+    phone?: string;
+    emailVerified?: boolean;
+    phoneVerified?: boolean;
+  };
+  shouldLinkViaEmail?: boolean;
+  shouldLinkViaPhone?: boolean;
+};
 
 async function upsertUserAndAccount(
   ctx: GenericMutationCtx<AuthDataModel>,
+  sessionId: GenericId<"sessions"> | null,
   account:
     | { existingAccount: GenericDoc<AuthDataModel, "accounts"> }
     | {
         providerAccountId: string;
         secret?: string;
       },
-  args: CreateUserArgs,
+  args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
 ): Promise<{
   userId: GenericId<"users">;
@@ -1082,23 +1116,20 @@ async function upsertUserAndAccount(
 }> {
   const userId = await defaultCreateOrUpdateUser(
     ctx,
+    sessionId,
     "existingAccount" in account ? account.existingAccount : null,
     args,
     config,
   );
-  const accountId = await createOrUpdateAccount(
-    ctx,
-    userId,
-    account,
-    args.provider,
-  );
+  const accountId = await createOrUpdateAccount(ctx, userId, account, args);
   return { userId, accountId };
 }
 
 async function defaultCreateOrUpdateUser(
   ctx: GenericMutationCtx<AuthDataModel>,
+  sessionId: GenericId<"sessions"> | null,
   existingAccount: GenericDoc<AuthDataModel, "accounts"> | null,
-  args: CreateUserArgs,
+  args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
 ) {
   const existingUserId = existingAccount?.userId ?? null;
@@ -1108,109 +1139,47 @@ async function defaultCreateOrUpdateUser(
       ...args,
     });
   }
-  switch (args.type) {
-    case "oauth": {
-      const { provider } = args;
-      // TODO: If people run into this misconfig often enable this error
-      //       and remove the `typeof profile.email === "string"` check below:
-      // if (typeof profile.email !== "string") {
-      //   throw new Error(
-      //     "Default `onSignIn` implementation requires an `email` field " +
-      //       `in an OAuth profile from provider ${provider.id}. ` +
-      //       "If you have a custom `profile` method, check that it returns it, " +
-      //       "otherwise check your provider configuration or override `onSignIn`.",
-      //   );
-      // }
-      const { profile } = args as { profile: Record<string, unknown> };
-      const shouldLink = provider.allowDangerousEmailAccountLinking !== false;
 
-      const matchingUserId =
-        existingUserId ??
-        (shouldLink && typeof profile.email === "string"
-          ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))?._id ?? null
-          : null);
+  const { provider, profile } = args;
+  const emailVerified =
+    profile.emailVerified ??
+    ((provider.type === "oauth" || provider.type === "oidc") &&
+      provider.allowDangerousEmailAccountLinking !== false);
+  const phoneVerified = profile.phoneVerified ?? false;
+  const shouldLinkViaEmail =
+    args.shouldLinkViaEmail || emailVerified || provider.type === "email";
+  const shouldLinkViaPhone =
+    args.shouldLinkViaPhone || phoneVerified || provider.type === "phone";
 
-      let userId: GenericId<"users">;
-      const userData = {
-        ...(shouldLink
-          ? { emailVerificationTime: Date.now(), ...profile }
-          : null),
-        ...profile,
-      };
-      if (matchingUserId !== null) {
-        await ctx.db.patch(matchingUserId, userData);
-        userId = matchingUserId;
-      } else {
-        userId = await ctx.db.insert("users", userData);
-      }
-      return userId;
-    }
-    case "email":
-    case "phone": {
-      if (existingAccount !== null) {
-        const user = await ctx.db.get(existingAccount.userId);
-        if (user === null) {
-          throw new Error(
-            `Expected a user to exist for ID "${existingAccount.userId}"`,
-          );
-        }
-        return existingAccount.userId;
-      } else {
-        const { email, phone } = args as { email?: string; phone?: string };
-        const existingUser =
-          email !== undefined
-            ? await uniqueUserWithVerifiedEmail(ctx, email)
-            : await uniqueUserWithVerifiedPhone(ctx, phone!);
-        const userId =
-          existingUser?._id ?? (await ctx.db.insert("users", { email, phone }));
-        return userId;
-      }
-    }
-    case "credentials": {
-      const { profile, shouldLink } = args as {
-        profile: Record<string, unknown>;
-        shouldLink?: boolean;
-      };
-      const existingUserWithVerifiedEmailId =
-        typeof profile.email === "string" && shouldLink
-          ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))?._id ?? null
-          : null;
+  let userId = existingUserId;
+  if (existingUserId === null) {
+    const existingUserWithVerifiedEmailId =
+      typeof profile.email === "string" && shouldLinkViaEmail
+        ? (await uniqueUserWithVerifiedEmail(ctx, profile.email))?._id ?? null
+        : null;
 
-      const existingUserWithVerifiedPhoneId =
-        typeof profile.phone === "string" && shouldLink
-          ? (await uniqueUserWithVerifiedPhone(ctx, profile.phone))?._id ?? null
-          : null;
-      // If there is both email and phone verified user
-      // already we can't link.
-      const existingUserId =
-        existingUserWithVerifiedEmailId !== null &&
-        existingUserWithVerifiedPhoneId !== null
-          ? null
-          : existingUserWithVerifiedEmailId ?? existingUserWithVerifiedPhoneId;
-      let userId: GenericId<"users">;
-      if (existingUserId !== null) {
-        await ctx.db.patch(existingUserId, profile);
-        userId = existingUserId;
-      } else {
-        userId = await ctx.db.insert("users", profile);
-      }
-      return userId;
-    }
-    case "verification": {
-      const userId = existingAccount!.userId;
-      if (args.emailVerified) {
-        await ctx.db.patch(userId, {
-          emailVerificationTime: Date.now(),
-        });
-      }
-      if (args.phoneVerified) {
-        await ctx.db.patch(userId, {
-          phoneVerificationTime: Date.now(),
-        });
-      }
-      return userId;
-    }
+    const existingUserWithVerifiedPhoneId =
+      typeof profile.phone === "string" && shouldLinkViaPhone
+        ? (await uniqueUserWithVerifiedPhone(ctx, profile.phone))?._id ?? null
+        : null;
+    // If there is both email and phone verified user
+    // already we can't link.
+    userId =
+      existingUserWithVerifiedEmailId !== null &&
+      existingUserWithVerifiedPhoneId !== null
+        ? null
+        : existingUserWithVerifiedEmailId ?? existingUserWithVerifiedPhoneId;
   }
+  const userData = {
+    ...(emailVerified ? { emailVerificationTime: Date.now() } : null),
+    ...(phoneVerified ? { phoneVerificationTime: Date.now() } : null),
+    ...profile,
+  };
+  if (userId !== null) {
+    await ctx.db.patch(userId, userData);
+    return userId;
+  }
+  return await ctx.db.insert("users", userData);
 }
 
 async function createOrUpdateAccount(
@@ -1222,24 +1191,30 @@ async function createOrUpdateAccount(
         providerAccountId: string;
         secret?: string;
       },
-  provider: AuthProviderMaterializedConfig,
+  args: CreateOrUpdateUserArgs,
 ) {
   const accountId =
     "existingAccount" in account
       ? account.existingAccount._id
       : await ctx.db.insert("accounts", {
           userId,
-          provider: provider.id,
+          provider: args.provider.id,
           providerAccountId: account.providerAccountId,
           secret: account.secret,
         });
-  // This is never used with the default `onSignIn` implementation,
-  // but it is used for manual linking via custom `onSignIn`:
+  // This is never used with the default `createOrUpdateUser` implementation,
+  // but it is used for manual linking via custom `createOrUpdateUser`:
   if (
     "existingAccount" in account &&
     account.existingAccount.userId !== userId
   ) {
     await ctx.db.patch(accountId, { userId });
+  }
+  if (args.profile.emailVerified) {
+    await ctx.db.patch(accountId, { emailVerified: args.profile.email });
+  }
+  if (args.profile.phoneVerified) {
+    await ctx.db.patch(accountId, { phoneVerified: args.profile.phone });
   }
   return accountId;
 }
@@ -1248,22 +1223,24 @@ async function uniqueUserWithVerifiedEmail(
   ctx: GenericQueryCtx<AuthDataModel>,
   email: string,
 ) {
-  return await ctx.db
+  const users = await ctx.db
     .query("users")
     .withIndex("email", (q) => q.eq("email", email))
     .filter((q) => q.neq(q.field("emailVerificationTime"), undefined))
-    .unique();
+    .take(2);
+  return users.length === 1 ? users[0] : null;
 }
 
 async function uniqueUserWithVerifiedPhone(
   ctx: GenericQueryCtx<AuthDataModel>,
   phone: string,
 ) {
-  return await ctx.db
+  const users = await ctx.db
     .query("users")
     .withIndex("phone", (q) => q.eq("phone", phone))
     .filter((q) => q.neq(q.field("phoneVerificationTime"), undefined))
-    .unique();
+    .take(2);
+  return users.length === 1 ? users[0] : null;
 }
 
 async function verify(
@@ -1334,11 +1311,18 @@ export async function createAccount<
     profile: WithoutSystemFields<DocumentByName<DataModel, "users">>;
     /**
      * If `true`, the account will be linked to an existing user
-     * with the same verified email address or phone number.
-     * This is only safe if the returned account is verified
+     * with the same verified email address.
+     * This is only safe if the returned account's email is verified
      * before the user is allowed to sign in with it.
      */
-    shouldLink: boolean;
+    shouldLinkViaEmail: boolean;
+    /**
+     * If `true`, the account will be linked to an existing user
+     * with the same verified phone number.
+     * This is only safe if the returned account's phone is verified
+     * before the user is allowed to sign in with it.
+     */
+    shouldLinkViaPhone: boolean;
   },
 ): Promise<{
   account: GenericDoc<DataModel, "accounts">;
@@ -1643,13 +1627,21 @@ async function signInImpl(
       },
     };
   } else if (provider.type === "oauth" || provider.type === "oidc") {
-    // This action call is a bit of a waste, because the client will
-    // immediately redirect to the signin HTTP Action.
-    // But having this action call simplifies things:
-    // 1. The client doesn't need to know the HTTP Actions URL
+    // We have this account because:
+    // 1. We remember the current sessionId if any, so we can account link
+    // 2. The client doesn't need to know the HTTP Actions URL
     //    of the backend (this simplifies using local backend)
-    // 2. The client doesn't need to know which provider is of which type,
+    // 3. The client doesn't need to know which provider is of which type,
     //    and hence which provider requires client-side redirect
+    if (args.verifier === undefined) {
+      throw new Error(`Missing \`verifier\` for sign-in to ${provider.id}`);
+    }
+    await ctx.runMutation(internal.auth.store, {
+      args: {
+        type: "verifier",
+        verifier: args.verifier,
+      },
+    });
     return {
       redirect: process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
     };
@@ -1742,7 +1734,7 @@ async function generateUniqueVerificationCode(
   accountId: GenericId<"accounts">,
   code: string,
   expirationTime: number,
-  type: "email" | "phone",
+  { email, phone }: { email?: string; phone?: string },
 ) {
   const existingCode = await ctx.db
     .query("authVerificationCodes")
@@ -1755,8 +1747,8 @@ async function generateUniqueVerificationCode(
     accountId,
     code: await sha256(code),
     expirationTime,
-    emailVerified: type === "email",
-    phoneVerified: type === "phone",
+    emailVerified: email,
+    phoneVerified: phone,
   });
 }
 

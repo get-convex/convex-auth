@@ -77,7 +77,11 @@ export type ConvexAuthConfig<
   };
   callbacks?: {
     /**
-     * Control account linking via this callback.
+     *
+     */
+
+    /**
+     * Completely control account linking via this callback.
      *
      * This callback is called during the sign-in process,
      * before account creation and token generation.
@@ -91,66 +95,38 @@ export type ConvexAuthConfig<
       ctx: GenericMutationCtx<DataModel>,
       args: {
         /**
-         * If this is sign-in to an existing account,
-         * the existing user ID linked to that account.
+         * If this is a sign-in to an existing account,
+         * this is the existing user ID linked to that account.
          */
         existingUserId: GenericId<"users"> | null;
-      } & (
-        | {
-            type: "oauth";
-            provider: OIDCConfig<any> | OAuth2Config<any>;
-            /**
-             * The profile returned by the OAuth provider's `profile` method.
-             */
-            profile: Record<string, unknown>;
-          }
-        | {
-            type: "credentials";
-            provider: ConvexCredentialsConfig;
-            /**
-             * The profile passed to `createAccount` from a ConvexCredentials
-             * config.
-             */
-            profile: Record<string, unknown>;
-            /**
-             * The `shouldLink` argument passed to `createAccount`.
-             */
-            shouldLink?: boolean;
-          }
-        | {
-            type: "email";
-            provider: EmailConfig;
-            /**
-             * The email address to which an email will be sent.
-             */
-            email: string;
-          }
-        | {
-            type: "phone";
-            provider: PhoneConfig;
-            /**
-             * The phone number to which a text will be sent.
-             */
-            phone: string;
-          }
-        | {
-            type: "verification";
-            provider: EmailConfig | PhoneConfig | ConvexCredentialsConfig;
-            /**
-             * A verified code. The email or phone of the user
-             * has been verified.
-             */
-            code: string;
-            /**
-             * Whether the email address has been verified.
-             */
-            emailVerified: boolean;
-            /**
-             * Whether the phone number has been verified.
-             */
-            phoneVerified: boolean;
-          }
-      ),
+        /**
+         * The provider type or "verification" if this callback is called
+         * after an email or phone token verification.
+         */
+        type: "oauth" | "credentials" | "email" | "phone" | "verification";
+        /**
+         * The provider used for the sign-in, or the provider
+         * tied to the account which is having the email or phone verified.
+         */
+        provider: AuthProviderMaterializedConfig;
+        /**
+         * - The profile returned by the OAuth provider's `profile` method.
+         * - The profile passed to `createAccount` from a ConvexCredentials
+         * config.
+         * - The email address to which an email will be sent.
+         * - The phone number to which a text will be sent.
+         */
+        profile: Record<string, unknown> & {
+          email?: string;
+          phone?: string;
+          emailVerified?: boolean;
+          phoneVerified?: boolean;
+        };
+        /**
+         * The `shouldLink` argument passed to `createAccount`.
+         */
+        shouldLink?: boolean;
+      },
     ) => Promise<GenericId<"users">>;
   };
 };

@@ -305,16 +305,17 @@ function AuthProvider({
             )
           : args ?? {};
 
+      const verifier = crypto.randomUUID();
+      await storageSet(VERIFIER_STORAGE_KEY, verifier);
       const result = await client.action(
         "auth:signIn" as unknown as SignInAction,
         {
           provider: providerId,
           params,
+          verifier,
         },
       );
       if (result.redirect !== undefined) {
-        const verifier = crypto.randomUUID();
-        await storageSet(VERIFIER_STORAGE_KEY, verifier);
         window.location.href = `${result.redirect}?code=` + verifier;
         return false;
       } else if (result.tokens !== undefined) {

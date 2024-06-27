@@ -117,8 +117,9 @@ PKCE verifiers.
 
 |Field|TS Type
 |---|---
+|`sessionId`|  `undefined` \| `Id`\<`"sessions"`\>
+|`signature`|  `undefined` \| `string`
 |`verifier`|  `string`
-|`signature`|  `string`
 |`\_creationTime`|  `number`
 
 #### authRateLimits
@@ -292,7 +293,7 @@ to the database during signin and signout.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:276](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L276)
+[src/server/implementation.ts:283](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L283)
 
 ***
 
@@ -332,7 +333,7 @@ or throws an error.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1308](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1308)
+[src/server/implementation.ts:1341](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1341)
 
 ***
 
@@ -371,7 +372,7 @@ secret does not match.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1366](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1366)
+[src/server/implementation.ts:1399](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1399)
 
 ***
 
@@ -399,7 +400,7 @@ provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1411](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1411)
+[src/server/implementation.ts:1444](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1444)
 
 ***
 
@@ -423,7 +424,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1446](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1446)
+[src/server/implementation.ts:1479](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1479)
 
 ***
 
@@ -454,7 +455,7 @@ or `null`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1473](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1473)
+[src/server/implementation.ts:1506](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1506)
 
 ***
 
