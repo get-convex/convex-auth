@@ -82,12 +82,12 @@ export type ConvexAuthConfig<
      * This callback is called during the sign-in process,
      * before account creation and token generation.
      * If specified, this callback is responsible for creating
-     * the user document.
+     * or updating the user document.
      *
      * For "credentials" providers, the callback is only called
      * when `createAccount` is called.
      */
-    createUser?: (
+    createOrUpdateUser?: (
       ctx: GenericMutationCtx<DataModel>,
       args: {
         /**

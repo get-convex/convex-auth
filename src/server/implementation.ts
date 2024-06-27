@@ -1080,25 +1080,30 @@ async function upsertUserAndAccount(
   userId: GenericId<"users">;
   accountId: GenericId<"accounts">;
 }> {
-  const userId = await defaultCreateUser(
+  const userId = await defaultCreateOrUpdateUser(
     ctx,
     "existingAccount" in account ? account.existingAccount : null,
     args,
     config,
   );
-  const accountId = await upsertAccount(ctx, userId, account, args.provider);
+  const accountId = await createOrUpdateAccount(
+    ctx,
+    userId,
+    account,
+    args.provider,
+  );
   return { userId, accountId };
 }
 
-async function defaultCreateUser(
+async function defaultCreateOrUpdateUser(
   ctx: GenericMutationCtx<AuthDataModel>,
   existingAccount: GenericDoc<AuthDataModel, "accounts"> | null,
   args: CreateUserArgs,
   config: ConvexAuthConfig,
 ) {
   const existingUserId = existingAccount?.userId ?? null;
-  if (config.callbacks?.createUser !== undefined) {
-    return await config.callbacks.createUser(ctx, {
+  if (config.callbacks?.createOrUpdateUser !== undefined) {
+    return await config.callbacks.createOrUpdateUser(ctx, {
       existingUserId,
       ...args,
     });
@@ -1208,7 +1213,7 @@ async function defaultCreateUser(
   }
 }
 
-async function upsertAccount(
+async function createOrUpdateAccount(
   ctx: GenericMutationCtx<AuthDataModel>,
   userId: GenericId<"users">,
   account:
