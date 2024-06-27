@@ -1,11 +1,11 @@
+import { Message } from "@/Chat/Message";
+import { MessageList } from "@/Chat/MessageList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQuery } from "convex/react";
 import { FormEvent, useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { MessageList } from "@/Chat/MessageList";
-import { Message } from "@/Chat/Message";
-import { Id } from "convex/_generated/dataModel";
+import { Id } from "../../convex/_generated/dataModel";
 
 export function Chat({ viewer }: { viewer: Id<"users"> }) {
   const [newMessageText, setNewMessageText] = useState("");
