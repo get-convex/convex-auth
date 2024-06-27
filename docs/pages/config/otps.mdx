@@ -128,8 +128,6 @@ When the second form is submitted, call the `signIn` function again.
 For example for the custom `ResendOTP` provider:
 
 ```tsx filename="src/SignIn.tsx"
-"use client";
-
 import { useAuthActions } from "@xixixao/convex-auth/react";
 
 export function SignIn() {
@@ -196,3 +194,6 @@ OTPs, you can use a custom
 implement the authentication method. The example repo shows how to do this with
 the
 [Twilio Verify service](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.tsx).
+
+When you're done configuring your chosen authentication methods, learn how to
+use authentication in your frontend and backend in [Authorization](/authz).

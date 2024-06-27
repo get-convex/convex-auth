@@ -2,5 +2,6 @@
   "email": "Magic Links",
   "otps": "OTPs",
   "oauth": "OAuth",
-  "passwords": "Passwords"
+  "passwords": "Passwords",
+  "anonymous": "Anonymous"
 }
