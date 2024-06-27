@@ -13,7 +13,9 @@ export default function App() {
       menu={
         <>
           <Authenticated>
-            <UserMenu>{user?.name ?? user?.email ?? user?.phone}</UserMenu>
+            <UserMenu>
+              {user?.name ?? user?.email ?? user?.phone ?? "Anonymous"}
+            </UserMenu>
           </Authenticated>
           <Unauthenticated>{null}</Unauthenticated>
         </>

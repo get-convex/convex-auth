@@ -303,12 +303,12 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
      * import { mutation } from "./_generated/server";
      * import { auth } from "./auth.js";
      *
-     * export const currentUser = mutation({
+     * export const doSomething = mutation({
      *   args: {/* ... *\/},
      *   handler: async (ctx, args) => {
      *     const userId = await auth.getUserId(ctx);
      *     if (userId === null) {
-     *       throw new Error("User is not authenticated!")
+     *       throw new Error("Client is not authenticated!")
      *     }
      *     const user = await ctx.db.get(userId);
      *     // ...
@@ -334,12 +334,12 @@ export function convexAuth<DataModel extends GenericDataModel = AnyDataModel>(
      * import { mutation } from "./_generated/server";
      * import { auth } from "./auth.js";
      *
-     * export const currentSession = mutation({
+     * export const doSomething = mutation({
      *   args: {/* ... *\/},
      *   handler: async (ctx, args) => {
      *     const sessionId = await auth.getSessionId(ctx);
      *     if (sessionId === null) {
-     *       throw new Error("Session is not authenticated!")
+     *       throw new Error("Client is not authenticated!")
      *     }
      *     const session = await ctx.db.get(sessionId);
      *     // ...

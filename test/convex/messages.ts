@@ -11,7 +11,7 @@ export const list = query({
     return Promise.all(
       messages.reverse().map(async (message) => {
         const { name, email, phone } = (await ctx.db.get(message.userId))!;
-        return { ...message, author: (name ?? email ?? phone)! };
+        return { ...message, author: name ?? email ?? phone ?? "Anonymous" };
       }),
     );
   },

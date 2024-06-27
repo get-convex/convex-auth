@@ -132,3 +132,32 @@ mutations.
 
 See [Customizing Schema](/setup/schema) for guidance on attaching additional
 information to users and sessions.
+
+### Detecting anonymous users
+
+If you enabled [anonymous sign-in](/config/anonymous), the user ID returned by
+`auth.getUserId` might belong to an anonymous user. You might want to restrict
+what anonymous users can do compared to authenticated users. To do this, load
+the current user and check the `isAnonymous` field:
+
+```ts filename="convex/myFunctions.tsx"
+import { mutation } from "./_generated/server";
+import { auth } from "./auth";
+
+export const doSomethingAfterProperSignIn = mutation({
+  args: {
+    /* ... */
+  },
+  handler: async (ctx, args) => {
+    const userId = await auth.getUserId(ctx);
+    if (userId === null) {
+      throw new Error("Client is not authenticated!");
+    }
+    const user = await ctx.db.get(userId);
+    if (user.isAnonymous) {
+      throw new Error("User must sign in with an authentication method!");
+    }
+    // ...
+  },
+});
+```

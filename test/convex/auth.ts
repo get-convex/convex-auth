@@ -2,6 +2,7 @@ import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
 import Password from "@xixixao/convex-auth/providers/Password";
+import Anonymous from "@xixixao/convex-auth/providers/Anonymous";
 import { convexAuth } from "@xixixao/convex-auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import TwilioVerify from "./otp/Twilio";
@@ -31,5 +32,6 @@ export const { auth, signIn, signOut, store } = convexAuth({
     }),
     // This one only makes sense with routing, ignore for now:
     Password({ id: "password-link", verify: Resend }),
+    Anonymous,
   ],
 });

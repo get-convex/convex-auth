@@ -1,3 +1,4 @@
+import { SignInFormAnonymous } from "@/auth/SignInFormAnonymous";
 import { SignInFormEmailCode } from "@/auth/SignInFormEmailCode";
 import { SignInFormEmailLink } from "@/auth/SignInFormEmailLink";
 import { SignInFormPassword } from "@/auth/SignInFormPassword";
@@ -13,10 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export function SignInFormsShowcase() {
   return (
     <Tabs defaultValue="otp" className="container flex flex-col mt-10">
-      <TabsList className="ml-auto mr-10 mb-1 opacity-60">
+      <TabsList className="ml-auto mr-10 mb-1 opacity-60 overflow-x-scroll max-w-full justify-start">
         <TabsTrigger value="otp">OTP</TabsTrigger>
         <TabsTrigger value="link">Magic Link</TabsTrigger>
         <TabsTrigger value="password">Password</TabsTrigger>
+        <TabsTrigger value="anonymous">Anonymous</TabsTrigger>
       </TabsList>
       <TabsContent value="otp">
         <Tabs defaultValue="email" className="flex flex-col">
@@ -40,7 +42,7 @@ export function SignInFormsShowcase() {
       </TabsContent>
       <TabsContent value="password">
         <Tabs defaultValue="basic" className="flex flex-col">
-          <TabsList className="ml-auto mr-10 mb-7 opacity-60">
+          <TabsList className="ml-auto mr-10 mb-7 opacity-60 overflow-x-scroll max-w-full justify-start">
             <TabsTrigger value="basic">Basic</TabsTrigger>
             <TabsTrigger value="password reset">Password Reset</TabsTrigger>
             <TabsTrigger value="email verification">
@@ -61,6 +63,10 @@ export function SignInFormsShowcase() {
             <SignInFormPasswordAndVerifyViaCode />
           </TabsContent>
         </Tabs>
+      </TabsContent>
+      <TabsContent className="mt-20" value="anonymous">
+        {/* Sign in anonymously */}
+        <SignInFormAnonymous />
       </TabsContent>
     </Tabs>
   );

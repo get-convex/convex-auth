@@ -28,6 +28,7 @@ import ConvexCredentials, {
   ConvexCredentialsUserConfig,
 } from "@xixixao/convex-auth/providers/ConvexCredentials";
 import {
+  GenericActionCtxWithAuthConfig,
   GenericDoc,
   createAccount,
   invalidateSessions,
@@ -56,14 +57,20 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
    * Perform checks on provided params and customize the user
    * information stored after sign up, including email normalization.
    *
-   * Called for every flow ("signUp", "signIn", "reset" and
-   * "reset-verification").
-   *
-   * @param params The values passed to the `signIn` function.
+   * Called for every flow ("signUp", "signIn", "reset",
+   * "reset-verification" and "email-verification").
    */
-  profile?: (params: Record<string, Value | undefined>) => WithoutSystemFields<
-    DocumentByName<DataModel, "users">
-  > & {
+  profile?: (
+    /**
+     * The values passed to the `signIn` function.
+     */
+    params: Record<string, Value | undefined>,
+    /**
+     * Convex ActionCtx in case you want to read from or write to
+     * the database.
+     */
+    ctx: GenericActionCtxWithAuthConfig<DataModel>,
+  ) => WithoutSystemFields<DocumentByName<DataModel, "users">> & {
     email: string;
   };
   /**
@@ -99,7 +106,7 @@ export default function Password<DataModel extends GenericDataModel>(
   return ConvexCredentials<DataModel>({
     id: "password",
     authorize: async (params, ctx) => {
-      const profile = config.profile?.(params) ?? defaultProfile(params);
+      const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
       const { email } = profile;
       const flow = params.flow as string;
       const secret = params.password as string;

@@ -179,12 +179,12 @@ Return the currently signed-in user's ID.
 import { mutation } from "./_generated/server";
 import { auth } from "./auth.js";
 
-export const currentUser = mutation({
+export const doSomething = mutation({
   args: {/* ... */},
   handler: async (ctx, args) => {
     const userId = await auth.getUserId(ctx);
     if (userId === null) {
-      throw new Error("User is not authenticated!")
+      throw new Error("Client is not authenticated!")
     }
     const user = await ctx.db.get(userId);
     // ...
@@ -212,12 +212,12 @@ Return the current session ID.
 import { mutation } from "./_generated/server";
 import { auth } from "./auth.js";
 
-export const currentSession = mutation({
+export const doSomething = mutation({
   args: {/* ... */},
   handler: async (ctx, args) => {
     const sessionId = await auth.getSessionId(ctx);
     if (sessionId === null) {
-      throw new Error("Session is not authenticated!")
+      throw new Error("Client is not authenticated!")
     }
     const session = await ctx.db.get(sessionId);
     // ...
@@ -332,7 +332,7 @@ or throws an error.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1303](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1303)
+[src/server/implementation.ts:1308](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1308)
 
 ***
 
@@ -371,7 +371,7 @@ secret does not match.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1361](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1361)
+[src/server/implementation.ts:1366](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1366)
 
 ***
 
@@ -399,7 +399,7 @@ provider.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1406](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1406)
+[src/server/implementation.ts:1411](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1411)
 
 ***
 
@@ -423,7 +423,7 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1441](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1441)
+[src/server/implementation.ts:1446](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1446)
 
 ***
 
@@ -454,7 +454,7 @@ or `null`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/server/implementation.ts:1468](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1468)
+[src/server/implementation.ts:1473](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1473)
 
 ***
 
@@ -533,7 +533,7 @@ allow another one every 6 minutes).
 #### callbacks?
 
 
-#### callbacks.createUser()?
+#### callbacks.createOrUpdateUser()?
 
 
 Control account linking via this callback.
@@ -541,7 +541,7 @@ Control account linking via this callback.
 This callback is called during the sign-in process,
 before account creation and token generation.
 If specified, this callback is responsible for creating
-the user document.
+or updating the user document.
 
 For "credentials" providers, the callback is only called
 when `createAccount` is called.
