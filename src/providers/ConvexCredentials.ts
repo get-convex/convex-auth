@@ -60,7 +60,7 @@ export interface ConvexCredentialsUserConfig<
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
   ) => Promise<{
     userId: GenericId<"users">;
-    sessionId?: GenericId<"sessions">;
+    sessionId?: GenericId<"authSessions">;
   } | null>;
   /**
    * Provide hashing and verification functions if you're

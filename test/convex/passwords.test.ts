@@ -42,7 +42,7 @@ test("sign up with password", async () => {
     expect(accounts).toMatchObject([
       { provider: "password", providerAccountId: "sarah@gmail.com" },
     ]);
-    const sessions = await ctx.db.query("sessions").collect();
+    const sessions = await ctx.db.query("authSessions").collect();
     expect(sessions).toHaveLength(2);
   });
 
@@ -52,7 +52,7 @@ test("sign up with password", async () => {
   await t.withIdentity({ subject: claims.sub }).action(api.auth.signOut);
 
   await t.run(async (ctx) => {
-    const sessions = await ctx.db.query("sessions").collect();
+    const sessions = await ctx.db.query("authSessions").collect();
     expect(sessions).toHaveLength(1);
   });
 
@@ -60,7 +60,7 @@ test("sign up with password", async () => {
   await t.withIdentity({ subject: claims2.sub }).action(api.auth.signOut);
 
   await t.run(async (ctx) => {
-    const sessions = await ctx.db.query("sessions").collect();
+    const sessions = await ctx.db.query("authSessions").collect();
     expect(sessions).toHaveLength(0);
   });
 });

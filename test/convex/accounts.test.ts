@@ -36,7 +36,7 @@ test("sign in with email signs out existing user with different email", async ()
 
   // 3. Check the first session got deleted
   await t.run(async (ctx) => {
-    const sessions = await ctx.db.query("sessions").collect();
+    const sessions = await ctx.db.query("authSessions").collect();
     expect(sessions).toHaveLength(1);
   });
 });

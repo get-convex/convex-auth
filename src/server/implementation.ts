@@ -91,7 +91,7 @@ export const authTables = {
    * A single user can have multiple active sessions.
    * See [Session document lifecycle](https://labs.convex.dev/auth/advanced#session-document-lifecycle).
    */
-  sessions: defineTable({
+  authSessions: defineTable({
     userId: v.id("users"),
     expirationTime: v.number(),
   }).index("userId", ["userId"]),
@@ -117,7 +117,7 @@ export const authTables = {
    * and reuse is not allowed.
    */
   authRefreshTokens: defineTable({
-    sessionId: v.id("sessions"),
+    sessionId: v.id("authSessions"),
     expirationTime: v.number(),
   }).index("sessionId", ["sessionId"]),
   /**
@@ -141,7 +141,7 @@ export const authTables = {
    */
   authVerifiers: defineTable({
     verifier: v.string(),
-    sessionId: v.optional(v.id("sessions")),
+    sessionId: v.optional(v.id("authSessions")),
     signature: v.optional(v.string()),
   })
     .index("signature", ["signature"])
@@ -165,7 +165,7 @@ const storeArgs = {
     v.object({
       type: v.literal("signIn"),
       userId: v.id("users"),
-      sessionId: v.optional(v.id("sessions")),
+      sessionId: v.optional(v.id("authSessions")),
       generateTokens: v.boolean(),
     }),
     v.object({
@@ -228,7 +228,7 @@ const storeArgs = {
     v.object({
       type: v.literal("invalidateSessions"),
       userId: v.id("users"),
-      except: v.optional(v.array(v.id("sessions"))),
+      except: v.optional(v.array(v.id("authSessions"))),
     }),
   ),
 };
@@ -358,7 +358,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         return null;
       }
       const [, sessionId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
-      return sessionId as GenericId<"sessions">;
+      return sessionId as GenericId<"authSessions">;
     },
     /**
      * Add HTTP actions for JWT verification and OAuth sign-in.
@@ -633,14 +633,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
             // the passed one is valid or not.
             await deleteRefreshTokens(
               ctx,
-              tokenSessionId as GenericId<"sessions">,
+              tokenSessionId as GenericId<"authSessions">,
             );
 
             if (validationResult === null) {
               // Can't call `deleteSession` here because we already deleted
               // refresh tokens above
               const session = await ctx.db.get(
-                tokenSessionId as GenericId<"sessions">,
+                tokenSessionId as GenericId<"authSessions">,
               );
               if (session !== null) {
                 await ctx.db.delete(session._id);
@@ -928,7 +928,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { userId, except } = args;
             const exceptSet = new Set(except ?? []);
             const sessions = await ctx.db
-              .query("sessions")
+              .query("authSessions")
               .withIndex("userId", (q) => q.eq("userId", userId))
               .collect();
             for (const session of sessions) {
@@ -963,7 +963,7 @@ async function maybeGenerateTokensForSession(
   ctx: GenericMutationCtx<AuthDataModel>,
   config: ConvexAuthConfig,
   userId: GenericId<"users">,
-  sessionId: GenericId<"sessions">,
+  sessionId: GenericId<"authSessions">,
   generateTokens: boolean,
 ) {
   return {
@@ -981,7 +981,7 @@ async function createNewAndDeleteExistingSession(
   auth: {
     getSessionId: (ctx: {
       auth: Auth;
-    }) => Promise<GenericId<"sessions"> | null>;
+    }) => Promise<GenericId<"authSessions"> | null>;
   },
   userId: GenericId<"users">,
 ) {
@@ -999,7 +999,7 @@ async function generateTokensForSession(
   ctx: GenericMutationCtx<AuthDataModel>,
   config: ConvexAuthConfig,
   userId: GenericId<"users">,
-  sessionId: GenericId<"sessions">,
+  sessionId: GenericId<"authSessions">,
 ) {
   const ids = { userId, sessionId };
   return {
@@ -1017,7 +1017,7 @@ async function verifyCodeOnly(
   },
   getProviderOrThrow: (id: string) => AuthProviderMaterializedConfig,
   config: ConvexAuthConfig,
-  sessionId: GenericId<"sessions"> | null,
+  sessionId: GenericId<"authSessions"> | null,
 ) {
   const { code, verifier, identifier } = args;
   const codeHash = await sha256(code);
@@ -1098,7 +1098,7 @@ type CreateOrUpdateUserArgs = {
 
 async function upsertUserAndAccount(
   ctx: GenericMutationCtx<AuthDataModel>,
-  sessionId: GenericId<"sessions"> | null,
+  sessionId: GenericId<"authSessions"> | null,
   account:
     | { existingAccount: GenericDoc<AuthDataModel, "authAccounts"> }
     | {
@@ -1124,7 +1124,7 @@ async function upsertUserAndAccount(
 
 async function defaultCreateOrUpdateUser(
   ctx: GenericMutationCtx<AuthDataModel>,
-  sessionId: GenericId<"sessions"> | null,
+  sessionId: GenericId<"authSessions"> | null,
   existingAccount: GenericDoc<AuthDataModel, "authAccounts"> | null,
   args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
@@ -1437,7 +1437,7 @@ export async function invalidateSessions<
   ctx: GenericActionCtx<DataModel>,
   args: {
     userId: GenericId<"users">;
-    except?: GenericId<"sessions">[];
+    except?: GenericId<"authSessions">[];
   },
 ): Promise<GenericDoc<DataModel, "users">> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
@@ -1473,7 +1473,7 @@ export async function signInViaProvider<
   });
   return (result.signedIn ?? null) as {
     userId: GenericId<"users">;
-    sessionId: GenericId<"sessions">;
+    sessionId: GenericId<"authSessions">;
   } | null;
 }
 
@@ -1547,7 +1547,7 @@ async function signInImpl(
       return {
         signedIn: result as {
           userId: GenericId<"users">;
-          sessionId: GenericId<"sessions">;
+          sessionId: GenericId<"authSessions">;
           tokens: {
             token: string;
             refreshToken: string;
@@ -1623,7 +1623,7 @@ async function signInImpl(
     return {
       signedIn: idsAndTokens as {
         userId: GenericId<"users">;
-        sessionId: GenericId<"sessions">;
+        sessionId: GenericId<"authSessions">;
         tokens: {
           token: string;
           refreshToken: string;
@@ -1766,12 +1766,12 @@ async function createSession(
     (config.session?.totalDurationMs ??
       stringToNumber(process.env.SESSION_TOTAL_DURATION_MS) ??
       DEFAULT_SESSION_TOTAL_DURATION_MS);
-  return await ctx.db.insert("sessions", { expirationTime, userId });
+  return await ctx.db.insert("authSessions", { expirationTime, userId });
 }
 
 async function deleteSession(
   ctx: GenericMutationCtx<any>,
-  session: GenericDoc<AuthDataModel, "sessions">,
+  session: GenericDoc<AuthDataModel, "authSessions">,
 ) {
   await ctx.db.delete(session._id);
   await deleteRefreshTokens(ctx, session._id);
@@ -1779,7 +1779,7 @@ async function deleteSession(
 
 async function createRefreshToken(
   ctx: GenericMutationCtx<any>,
-  sessionId: GenericId<"sessions">,
+  sessionId: GenericId<"authSessions">,
   config: ConvexAuthConfig,
 ) {
   const expirationTime =
@@ -1796,7 +1796,7 @@ async function createRefreshToken(
 
 async function deleteRefreshTokens(
   ctx: GenericMutationCtx<any>,
-  sessionId: GenericId<"sessions">,
+  sessionId: GenericId<"authSessions">,
 ) {
   const existingRefreshTokens = await ctx.db
     .query("authRefreshTokens")

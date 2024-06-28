@@ -1,6 +1,6 @@
 # Customizing Schema
 
-Convex Auth defines the `users` and `sessions` tables for you.
+Convex Auth defines the `users` and `authSessions` tables for you.
 
 If you want to attach more information to users or sessions, you can either:
 
@@ -27,7 +27,7 @@ const schema = defineSchema({
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
   }).index("email", ["email"]),
-  sessions: defineTable({
+  authSessions: defineTable({
     userId: v.id("users"),
     expirationTime: v.number(),
   }).index("userId", ["userId"]),

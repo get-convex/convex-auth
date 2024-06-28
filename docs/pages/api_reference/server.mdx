@@ -50,7 +50,7 @@ Users.
 |`isAnonymous`|  `undefined` \| `boolean`
 |`\_creationTime`|  `number`
 
-#### sessions
+#### authSessions
 
 
 Sessions.
@@ -91,7 +91,7 @@ and reuse is not allowed.
 |Field|TS Type
 |---|---
 |`expirationTime`|  `number`
-|`sessionId`|  `Id`\<`"sessions"`\>
+|`sessionId`|  `Id`\<`"authSessions"`\>
 |`\_creationTime`|  `number`
 
 #### authVerificationCodes
@@ -119,7 +119,7 @@ PKCE verifiers.
 
 |Field|TS Type
 |---|---
-|`sessionId`|  `undefined` \| `Id`\<`"sessions"`\>
+|`sessionId`|  `undefined` \| `Id`\<`"authSessions"`\>
 |`signature`|  `undefined` \| `string`
 |`verifier`|  `string`
 |`\_creationTime`|  `number`
@@ -237,7 +237,7 @@ export const doSomething = mutation({
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
-`Promise`\<`null` \| `Id`\<`"sessions"`\>\>
+`Promise`\<`null` \| `Id`\<`"authSessions"`\>\>
 
 #### auth.addHttpRoutes()
 
@@ -419,7 +419,7 @@ Use this function to invalidate existing sessions.
 | `ctx` | `GenericActionCtx`\<`DataModel`\> |
 | `args` | `object` |
 | `args.userId` | `Id`\<`"users"`\> |
-| `args.except`? | `Id`\<`"sessions"`\>[] |
+| `args.except`? | `Id`\<`"authSessions"`\>[] |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 

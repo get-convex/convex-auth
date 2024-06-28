@@ -64,13 +64,13 @@ The `auth.getUserId` and `auth.getSessionId` methods use the Convex-built-in
 ### Data model
 
 Convex Auth defines [`users`](/api_reference/server#users) and
-[`sessions`](<(/api_reference/server#sessions)>) tables for you.
+[`authSessions`](<(/api_reference/server#authsessions)>) tables for you.
 
 When a user first signs up, a document is created in the `users` table.
 
 When a user signs in (including after initial sign-up), a document is created in
-the `sessions` table. The session document exists until the session expires or
-the user signs out. See
+the `authSessions` table. The session document exists until the session expires
+or the user signs out. See
 [session document lifecycle](/advanced#session-document-lifecycle).
 
 One user can have many active sessions simultaneously. For web apps the same
@@ -122,7 +122,7 @@ export const currentSession = query({
 });
 ```
 
-The function returns `Id<"sessions">` (or `null` when the client isn't
+The function returns `Id<"authSessions">` (or `null` when the client isn't
 authenticated).
 
 ### Loading users and sessions
