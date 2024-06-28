@@ -24,7 +24,8 @@
  */
 
 import { EmailConfig } from "@auth/core/providers";
-import ConvexCredentials, {
+import {
+  ConvexCredentials,
   ConvexCredentialsUserConfig,
 } from "@convex-dev/auth/providers/ConvexCredentials";
 import {
@@ -99,7 +100,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
  * Email verification is not required unless you pass
  * an email provider to the `verify` option.
  */
-export default function Password<DataModel extends GenericDataModel>(
+export function Password<DataModel extends GenericDataModel>(
   config: PasswordConfig<DataModel> = {},
 ) {
   const provider = config.id ?? "password";

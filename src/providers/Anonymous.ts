@@ -13,7 +13,7 @@
  * @module
  */
 
-import ConvexCredentials from "@convex-dev/auth/providers/ConvexCredentials";
+import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import {
   GenericActionCtxWithAuthConfig,
   createAccount,
@@ -58,7 +58,7 @@ export interface AnonymousConfig<DataModel extends GenericDataModel> {
  *
  * This provider doesn't require any user-provided information.
  */
-export default function Anonymous<DataModel extends GenericDataModel>(
+export function Anonymous<DataModel extends GenericDataModel>(
   config: AnonymousConfig<DataModel> = {},
 ) {
   const provider = config.id ?? "anonymous";

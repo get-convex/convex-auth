@@ -88,7 +88,7 @@ export interface ConvexCredentialsUserConfig<
  * The Credentials provider allows you to handle signing in with arbitrary credentials,
  * such as a username and password, domain, or two factor authentication or hardware device (e.g. YubiKey U2F / FIDO).
  */
-export default function ConvexCredentials<DataModel extends GenericDataModel>(
+export function ConvexCredentials<DataModel extends GenericDataModel>(
   config: ConvexCredentialsUserConfig<DataModel>,
 ): ConvexCredentialsConfig {
   return {

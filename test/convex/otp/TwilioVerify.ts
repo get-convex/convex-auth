@@ -1,4 +1,4 @@
-import ConvexCredentials from "@convex-dev/auth/providers/ConvexCredentials";
+import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { internal } from "../_generated/api";
 import { DataModel } from "../_generated/dataModel";
 
@@ -11,7 +11,7 @@ import { DataModel } from "../_generated/dataModel";
  * - AUTH_TWILIO_AUTH_TOKEN
  * - AUTH_TWILIO_SERVICE_SID
  */
-export default function Twilio() {
+export function TwilioVerify() {
   return ConvexCredentials<DataModel>({
     id: "twilio",
     authorize: async (params, ctx) => {
