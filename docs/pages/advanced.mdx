@@ -8,8 +8,8 @@ Using multiple authentication methods poses an additional challenge: What should
 happen when the same email address is used with a different method?
 
 Sign-ups via each authentication method are tracked in the
-[`accounts`](/api_reference/server#accounts) table. Account linking determines
-whether two accounts are linked to the same user document.
+[`authAccounts`](/api_reference/server#authaccounts) table. Account linking
+determines whether two accounts are linked to the same user document.
 
 Convex Auth follows this logic:
 
@@ -92,6 +92,8 @@ export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
 When you provide this callback, the library doesn't create or update users at
 all. It is up to you to implement all the necessary logic for all providers you
 use.
+
+This is required when you configure [anonymous sign-in](/config/anonymous).
 
 ## Session validity
 

@@ -70,7 +70,6 @@ export default function Anonymous<DataModel extends GenericDataModel>(
         provider,
         account: { id: crypto.randomUUID() },
         profile: profile as any,
-        shouldLink: false,
       });
       // END
       return { userId: user._id };

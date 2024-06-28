@@ -100,7 +100,7 @@ export const authTables = {
    * a single authentication provider.
    * A single user can have multiple accounts linked.
    */
-  accounts: defineTable({
+  authAccounts: defineTable({
     userId: v.id("users"),
     provider: v.string(),
     providerAccountId: v.string(),
@@ -127,7 +127,7 @@ export const authTables = {
    * - OAuth codes
    */
   authVerificationCodes: defineTable({
-    accountId: v.id("accounts"),
+    accountId: v.id("authAccounts"),
     code: v.string(),
     expirationTime: v.number(),
     verifier: v.optional(v.string()),
@@ -200,7 +200,7 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("createVerificationCode"),
-      accountId: v.optional(v.id("accounts")),
+      accountId: v.optional(v.id("authAccounts")),
       provider: v.string(),
       email: v.optional(v.string()),
       phone: v.optional(v.string()),
@@ -212,8 +212,8 @@ const storeArgs = {
       provider: v.string(),
       account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
       profile: v.any(),
-      shouldLinkViaEmail: v.boolean(),
-      shouldLinkViaPhone: v.boolean(),
+      shouldLinkViaEmail: v.optional(v.boolean()),
+      shouldLinkViaPhone: v.optional(v.boolean()),
     }),
     v.object({
       type: v.literal("retrieveAccountWithCredentials"),
@@ -722,7 +722,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               provider,
             ) as OAuthConfig<any>;
             const existingAccount = await ctx.db
-              .query("accounts")
+              .query("authAccounts")
               .withIndex("accountIdAndProvider", (q) =>
                 q
                   .eq("providerAccountId", providerAccountId)
@@ -780,7 +780,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               existingAccountId !== undefined
                 ? await getAccountOrThrow(ctx, existingAccountId)
                 : await ctx.db
-                    .query("accounts")
+                    .query("authAccounts")
                     .withIndex("accountIdAndProvider", (q) =>
                       q
                         .eq("providerAccountId", email ?? phone!)
@@ -823,7 +823,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               providerId,
             ) as ConvexCredentialsConfig;
             const existingAccount = await ctx.db
-              .query("accounts")
+              .query("authAccounts")
               .withIndex("accountIdAndProvider", (q) =>
                 q
                   .eq("providerAccountId", account.id)
@@ -874,7 +874,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           case "retrieveAccountWithCredentials": {
             const { provider: providerId, account } = args;
             const existingAccount = await ctx.db
-              .query("accounts")
+              .query("authAccounts")
               .withIndex("accountIdAndProvider", (q) =>
                 q
                   .eq("providerAccountId", account.id)
@@ -909,7 +909,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           case "modifyAccount": {
             const { provider, account } = args;
             const existingAccount = await ctx.db
-              .query("accounts")
+              .query("authAccounts")
               .withIndex("accountIdAndProvider", (q) =>
                 q.eq("providerAccountId", account.id).eq("provider", provider),
               )
@@ -948,7 +948,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
 
 async function getAccountOrThrow(
   ctx: GenericQueryCtx<AuthDataModel>,
-  existingAccountId: GenericId<"accounts">,
+  existingAccountId: GenericId<"authAccounts">,
 ) {
   const existingAccount = await ctx.db.get(existingAccountId);
   if (existingAccount === null) {
@@ -1100,7 +1100,7 @@ async function upsertUserAndAccount(
   ctx: GenericMutationCtx<AuthDataModel>,
   sessionId: GenericId<"sessions"> | null,
   account:
-    | { existingAccount: GenericDoc<AuthDataModel, "accounts"> }
+    | { existingAccount: GenericDoc<AuthDataModel, "authAccounts"> }
     | {
         providerAccountId: string;
         secret?: string;
@@ -1109,7 +1109,7 @@ async function upsertUserAndAccount(
   config: ConvexAuthConfig,
 ): Promise<{
   userId: GenericId<"users">;
-  accountId: GenericId<"accounts">;
+  accountId: GenericId<"authAccounts">;
 }> {
   const userId = await defaultCreateOrUpdateUser(
     ctx,
@@ -1125,7 +1125,7 @@ async function upsertUserAndAccount(
 async function defaultCreateOrUpdateUser(
   ctx: GenericMutationCtx<AuthDataModel>,
   sessionId: GenericId<"sessions"> | null,
-  existingAccount: GenericDoc<AuthDataModel, "accounts"> | null,
+  existingAccount: GenericDoc<AuthDataModel, "authAccounts"> | null,
   args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
 ) {
@@ -1137,12 +1137,19 @@ async function defaultCreateOrUpdateUser(
     });
   }
 
-  const { provider, profile } = args;
+  const {
+    provider,
+    profile: {
+      emailVerified: profileEmailVerified,
+      phoneVerified: profilePhoneVerified,
+      ...profile
+    },
+  } = args;
   const emailVerified =
-    profile.emailVerified ??
+    profileEmailVerified ??
     ((provider.type === "oauth" || provider.type === "oidc") &&
       provider.allowDangerousEmailAccountLinking !== false);
-  const phoneVerified = profile.phoneVerified ?? false;
+  const phoneVerified = profilePhoneVerified ?? false;
   const shouldLinkViaEmail =
     args.shouldLinkViaEmail || emailVerified || provider.type === "email";
   const shouldLinkViaPhone =
@@ -1183,7 +1190,7 @@ async function createOrUpdateAccount(
   ctx: GenericMutationCtx<AuthDataModel>,
   userId: GenericId<"users">,
   account:
-    | { existingAccount: GenericDoc<AuthDataModel, "accounts"> }
+    | { existingAccount: GenericDoc<AuthDataModel, "authAccounts"> }
     | {
         providerAccountId: string;
         secret?: string;
@@ -1193,7 +1200,7 @@ async function createOrUpdateAccount(
   const accountId =
     "existingAccount" in account
       ? account.existingAccount._id
-      : await ctx.db.insert("accounts", {
+      : await ctx.db.insert("authAccounts", {
           userId,
           provider: args.provider.id,
           providerAccountId: account.providerAccountId,
@@ -1312,17 +1319,17 @@ export async function createAccount<
      * This is only safe if the returned account's email is verified
      * before the user is allowed to sign in with it.
      */
-    shouldLinkViaEmail: boolean;
+    shouldLinkViaEmail?: boolean;
     /**
      * If `true`, the account will be linked to an existing user
      * with the same verified phone number.
      * This is only safe if the returned account's phone is verified
      * before the user is allowed to sign in with it.
      */
-    shouldLinkViaPhone: boolean;
+    shouldLinkViaPhone?: boolean;
   },
 ): Promise<{
-  account: GenericDoc<DataModel, "accounts">;
+  account: GenericDoc<DataModel, "authAccounts">;
   user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
@@ -1368,7 +1375,7 @@ export async function retrieveAccount<
     };
   },
 ): Promise<{
-  account: GenericDoc<DataModel, "accounts">;
+  account: GenericDoc<DataModel, "authAccounts">;
   user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
@@ -1457,7 +1464,7 @@ export async function signInViaProvider<
   ctx: GenericActionCtxWithAuthConfig<DataModel>,
   provider: AuthProviderConfig,
   args: {
-    accountId?: GenericId<"accounts">;
+    accountId?: GenericId<"authAccounts">;
     params?: Record<string, Value | undefined>;
   },
 ) {
@@ -1474,7 +1481,7 @@ async function signInImpl(
   ctx: GenericActionCtxWithAuthConfig<AuthDataModel>,
   provider: AuthProviderMaterializedConfig | null,
   args: {
-    accountId?: GenericId<"accounts">;
+    accountId?: GenericId<"authAccounts">;
     params?: Record<string, any>;
     verifier?: string;
     refreshToken?: string;
@@ -1728,7 +1735,7 @@ function configuredMaxAttempsPerHour(config: ConvexAuthConfig) {
 
 async function generateUniqueVerificationCode(
   ctx: GenericMutationCtx<AuthDataModel>,
-  accountId: GenericId<"accounts">,
+  accountId: GenericId<"authAccounts">,
   code: string,
   expirationTime: number,
   { email, phone }: { email?: string; phone?: string },

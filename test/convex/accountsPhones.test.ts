@@ -59,7 +59,7 @@ test("no linking to untrusted accounts", async () => {
       { phone: "+1234567890", email: "sarah@gmail.com" },
       { phone: "+1234567890" },
     ]);
-    const accounts = await ctx.db.query("accounts").collect();
+    const accounts = await ctx.db.query("authAccounts").collect();
     expect(accounts).toHaveLength(2);
     expect(accounts).toMatchObject([
       { provider: "password", userId: users[0]._id },

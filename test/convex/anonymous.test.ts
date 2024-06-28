@@ -23,7 +23,7 @@ test.todo("convert anonymous user to permanent", async () => {
   const { tokens } = await t.action(api.auth.signIn, { provider: "anonymous" });
   const claims = decodeJwt(tokens!.token);
   const asAnonymous = t.withIdentity({ subject: claims.sub });
-  const { tokens: newTokens } = await signInViaMagicLink(
+  const newTokens = await signInViaMagicLink(
     asAnonymous,
     "resend",
     "mike@gmail.com",

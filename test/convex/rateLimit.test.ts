@@ -1,4 +1,3 @@
-import { load as cheerio } from "cheerio";
 import { convexTest } from "convex-test";
 import { expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
@@ -8,6 +7,7 @@ import {
   CONVEX_SITE_URL,
   JWKS,
   JWT_PRIVATE_KEY,
+  mockResendOTP,
 } from "./test.helpers";
 
 test("rate limit on otp", async () => {
@@ -16,31 +16,13 @@ test("rate limit on otp", async () => {
   const t = convexTest(schema);
 
   // Initiate sign-in via OTP
-  let code;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input, init) => {
-      if (
-        typeof input === "string" &&
-        input === "https://api.resend.com/emails"
-      ) {
-        expect(init.headers.get("Authorization")).toBe(
-          `Bearer ${process.env.AUTH_RESEND_OTP_KEY}`,
-        );
-        expect(init.body).toBeTypeOf("string");
-        code = cheerio(init.body)("span").text();
-        expect(code).not.toEqual("");
-        return new Response(JSON.stringify(null), { status: 200 });
-      }
-      throw new Error("Unexpected fetch");
-    }),
+  const { code } = await mockResendOTP(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "resend-otp",
+        params: { email: "tom@gmail.com" },
+      }),
   );
-
-  await t.action(api.auth.signIn, {
-    provider: "resend-otp",
-    params: { email: "tom@gmail.com" },
-  });
-  vi.unstubAllGlobals();
 
   const SECOND_MS = 1000;
   const MINUTE_MS = SECOND_MS * 60;

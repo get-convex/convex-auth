@@ -110,7 +110,7 @@ export default function Password<DataModel extends GenericDataModel>(
       const { email } = profile;
       const flow = params.flow as string;
       const secret = params.password as string;
-      let account: GenericDoc<DataModel, "accounts">;
+      let account: GenericDoc<DataModel, "authAccounts">;
       let user: GenericDoc<DataModel, "users">;
       if (flow === "signUp") {
         if (secret === undefined) {
@@ -120,7 +120,8 @@ export default function Password<DataModel extends GenericDataModel>(
           provider,
           account: { id: email, secret },
           profile: profile as any,
-          shouldLink: config.verify !== undefined,
+          shouldLinkViaEmail: config.verify !== undefined,
+          shouldLinkViaPhone: false,
         });
         ({ account, user } = created);
       } else if (flow === "signIn") {

@@ -16,15 +16,16 @@ export async function signInViaGitHub(
   provider: string,
   githubProfile: Record<string, unknown>,
 ) {
+  const verifier = "123456";
   const { redirect } = await t.action(api.auth.signIn, {
     provider,
     params: {},
+    verifier,
   });
   expect(redirect).toEqual(
     process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider}`,
   );
 
-  const verifier = "123456";
   const url = new URL(redirect!).pathname + `?code=${verifier}`;
   const response = await t.fetch(url);
 
@@ -125,7 +126,21 @@ export async function signInViaOTP(
   provider: string,
   params: Record<string, unknown>,
 ) {
-  let code;
+  const { code } = await mockResendOTP(
+    async () => await t.action(api.auth.signIn, { provider, params }),
+  );
+
+  // Note: The client doesn't use auth for this call,
+  // so ideally this should be `t.withoutIdentity().action(...)`
+  const result = await t.action(api.auth.signIn, {
+    provider,
+    params: { code, ...params },
+  });
+  return result.tokens ?? null;
+}
+
+export async function mockResendOTP<T>(send: () => Promise<T>) {
+  let code: string;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input, init) => {
@@ -141,16 +156,9 @@ export async function signInViaOTP(
     }),
   );
 
-  await t.action(api.auth.signIn, { provider, params });
+  const result = await send();
   vi.unstubAllGlobals();
-
-  // Note: The client doesn't use auth for this call,
-  // so ideally this should be `t.withoutIdentity().action(...)`
-  const result = await t.action(api.auth.signIn, {
-    provider,
-    params: { code, ...params },
-  });
-  return result.tokens ?? null;
+  return { result, code: code! };
 }
 
 export async function signInViaPhone(
