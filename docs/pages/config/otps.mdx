@@ -62,11 +62,11 @@ You can install these with `npm i resend oslo`.
 </Aside>
 
 ```ts filename="convex/ResendOTP.ts"
-import Resend from "@auth/core/providers/resend";
+import { Email } from "@convex-dev/auth/providers/Email";
 import { Resend as ResendAPI } from "resend";
 import { alphabet, generateRandomString } from "oslo/crypto";
 
-export const ResendOTP = Resend({
+export const ResendOTP = Email({
   id: "resend-otp",
   apiKey: process.env.AUTH_RESEND_KEY,
   maxAge: 60 * 15, // 15 minutes
