@@ -1,9 +1,9 @@
-import Resend from "@auth/core/providers/resend";
+import { Email } from "@convex-dev/auth/providers/Email";
 import { alphabet, generateRandomString } from "oslo/crypto";
 import { Resend as ResendAPI } from "resend";
 import { PasswordResetEmail } from "./PasswordResetEmail";
 
-export const ResendOTPPasswordReset = Resend({
+export const ResendOTPPasswordReset = Email({
   id: "resend-otp-password-reset",
   apiKey: process.env.AUTH_RESEND_KEY,
   async generateVerificationToken() {

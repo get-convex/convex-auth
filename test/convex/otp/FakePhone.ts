@@ -1,10 +1,10 @@
-import { PhoneConfig, PhoneUserConfig } from "@convex-dev/auth/server";
+import { Phone } from "@convex-dev/auth/providers/Phone";
+import { PhoneUserConfig } from "@convex-dev/auth/server";
 import { alphabet, generateRandomString } from "oslo/crypto";
 
-export function FakePhone(config: PhoneUserConfig): PhoneConfig {
-  return {
+export function FakePhone(config: PhoneUserConfig) {
+  return Phone({
     id: "fake-phone",
-    type: "phone",
     maxAge: 60 * 20, // 20 minutes
     async generateVerificationToken() {
       return generateRandomString(6, alphabet("0-9"));
@@ -26,6 +26,6 @@ export function FakePhone(config: PhoneUserConfig): PhoneConfig {
         throw new Error("Could not send verification code email");
       }
     },
-    options: config,
-  };
+    ...config,
+  });
 }

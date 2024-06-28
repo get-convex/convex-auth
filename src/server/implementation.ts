@@ -43,7 +43,6 @@ const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
-const MIN_CODE_LENGTH_TO_SKIP_IDENTIFIER_CHECK = 24;
 const DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR = 10;
 const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
@@ -177,9 +176,9 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("verifyCodeAndSignIn"),
-      code: v.string(),
+      params: v.any(),
+      provider: v.optional(v.string()),
       verifier: v.optional(v.string()),
-      identifier: v.optional(v.string()),
       generateTokens: v.boolean(),
     }),
     v.object({
@@ -658,7 +657,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
             );
           }
           case "verifyCodeAndSignIn": {
-            const { identifier, generateTokens } = args;
+            const { generateTokens, provider } = args;
+            const identifier = args.params.email ?? args.params.phone;
             if (identifier !== undefined) {
               if (await isSignInRateLimited(ctx, identifier, config)) {
                 console.error(
@@ -670,6 +670,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const verifyResult = await verifyCodeOnly(
               ctx,
               args,
+              provider !== undefined ? getProviderOrThrow(provider) : null,
               getProviderOrThrow,
               config,
               await auth.getSessionId(ctx),
@@ -1011,16 +1012,25 @@ async function generateTokensForSession(
 async function verifyCodeOnly(
   ctx: GenericMutationCtx<AuthDataModel>,
   args: {
-    code: string;
+    params: any;
     verifier?: string;
     identifier?: string;
   },
+  /**
+   * There are two providers at play:
+   * 1. the provider that generated the code
+   * 2. the provider the account is tied to.
+   * This is because we allow signing into an account
+   * via another provider, see {@link signInViaProvider}.
+   * This is the first provider.
+   */
+  methodProvider: AuthProviderMaterializedConfig | null,
   getProviderOrThrow: (id: string) => AuthProviderMaterializedConfig,
   config: ConvexAuthConfig,
   sessionId: GenericId<"authSessions"> | null,
 ) {
-  const { code, verifier, identifier } = args;
-  const codeHash = await sha256(code);
+  const { params, verifier } = args;
+  const codeHash = await sha256(params.code);
   const verificationCode = await ctx.db
     .query("authVerificationCodes")
     .withIndex("code", (q) => q.eq("code", codeHash))
@@ -1044,21 +1054,17 @@ async function verifyCodeOnly(
     console.error("Account associated with this email has been deleted");
     return null;
   }
-  // Short code without verifier must be validated
-  // via an additional identifier
+  // OTP providers perform an additional check against the provided
+  // params.
   if (
-    code.length < MIN_CODE_LENGTH_TO_SKIP_IDENTIFIER_CHECK &&
-    verifier === undefined &&
-    account.providerAccountId !== identifier
+    methodProvider !== null &&
+    (methodProvider.type === "email" || methodProvider.type === "phone") &&
+    methodProvider.authorize !== undefined
   ) {
-    console.error(
-      "Short verification code requires a matching `email` or `phone` " +
-        "in params of `signIn`.",
-    );
-    return null;
+    await methodProvider.authorize(args.params, account);
   }
-  const provider = getProviderOrThrow(account.provider);
   let userId = account.userId;
+  const provider = getProviderOrThrow(account.provider);
   if (!(provider.type === "oauth" || provider.type === "oidc")) {
     ({ userId } = await upsertUserAndAccount(
       ctx,
@@ -1504,7 +1510,7 @@ async function signInImpl(
       const result = await ctx.runMutation(internal.auth.store, {
         args: {
           type: "verifyCodeAndSignIn",
-          code: args.params.code,
+          params: args.params,
           verifier: args.verifier,
           generateTokens: true,
         },
@@ -1521,26 +1527,13 @@ async function signInImpl(
     }
   }
   if (provider.type === "email" || provider.type === "phone") {
-    // Either code verification or NOT a sign-in to another account
-    if (args.params?.code !== undefined || args.accountId === undefined) {
-      if (provider.type === "email" && args.params?.email === undefined) {
-        throw new Error(
-          `Missing \`email\` in params for provider config ${provider.id}`,
-        );
-      }
-      if (provider.type === "phone" && args.params?.phone === undefined) {
-        throw new Error(
-          `Missing \`phone\` in params for provider config ${provider.id}`,
-        );
-      }
-    }
     if (args.params?.code !== undefined) {
       const result = await ctx.runMutation(internal.auth.store, {
         args: {
           type: "verifyCodeAndSignIn",
-          code: args.params.code,
+          params: args.params,
+          provider: provider.id,
           verifier: args.verifier,
-          identifier: args.params.email ?? args.params.phone!,
           generateTokens: options.generateTokens,
         },
       });
@@ -1587,7 +1580,9 @@ async function signInImpl(
           provider: {
             ...provider,
             from:
-              provider.from === "Auth.js <no-reply@authjs.dev>"
+              // Simplifies demo configuration of Resend
+              provider.from === "Auth.js <no-reply@authjs.dev>" &&
+              provider.id === "resend"
                 ? "My App <onboarding@resend.dev>"
                 : provider.from,
           },

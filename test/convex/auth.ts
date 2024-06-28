@@ -6,7 +6,7 @@ import Anonymous from "@convex-dev/auth/providers/Anonymous";
 import { convexAuth } from "@convex-dev/auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import TwilioVerify from "./otp/Twilio";
-import TwilioOTP from "./otp/TwilioOTP";
+import { TwilioOTP } from "./otp/TwilioOTP";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 // !publish: remove
 import { FakePhone } from "./otp/FakePhone";

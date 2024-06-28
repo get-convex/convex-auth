@@ -1,7 +1,7 @@
 import {
   Provider as AuthjsProviderConfig,
   CredentialsConfig,
-  EmailConfig,
+  EmailConfig as AuthjsEmailConfig,
   OAuth2Config,
   OIDCConfig,
 } from "@auth/core/providers";
@@ -12,8 +12,9 @@ import {
   GenericDataModel,
   GenericMutationCtx,
 } from "convex/server";
-import { GenericId } from "convex/values";
+import { GenericId, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials";
+import { GenericDoc } from "./convex_types";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
@@ -141,6 +142,36 @@ export type AuthProviderConfig =
   | ((...args: any) => PhoneConfig);
 
 /**
+ * Extends the standard Auth.js email provider config
+ * to allow additional checks during token verification.
+ */
+export interface EmailConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+> extends AuthjsEmailConfig {
+  /**
+   * Before the token is verified, check other
+   * provided parameters.
+   *
+   * Used to make sure tha OTPs are accompanied
+   * with the correct email address.
+   */
+  authorize?: (
+    /**
+     * The values passed to the `signIn` function.
+     */
+    params: Record<string, Value | undefined>,
+    account: GenericDoc<DataModel, "authAccounts">,
+  ) => Promise<void>;
+}
+
+/**
+ * Configurable options for an email provider config.
+ */
+export type EmailUserConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+> = Omit<Partial<EmailConfig<DataModel>>, "options" | "type">;
+
+/**
  * Same as email provider config, but verifies
  * phone number instead of the email address.
  */
@@ -185,13 +216,29 @@ export interface PhoneConfig<
    * @returns The phone number used in `sendVerificationRequest`.
    */
   normalizeIdentifier?: (identifier: string) => string;
-  options: PhoneUserConfig;
+  /**
+   * Before the token is verified, check other
+   * provided parameters.
+   *
+   * Used to make sure tha OTPs are accompanied
+   * with the correct phone number.
+   */
+  authorize?: (
+    /**
+     * The values passed to the `signIn` function.
+     */
+    params: Record<string, Value | undefined>,
+    account: GenericDoc<DataModel, "authAccounts">,
+  ) => Promise<void>;
+  options: PhoneUserConfig<DataModel>;
 }
 
 /**
  * Configurable options for a phone provider config.
  */
-export type PhoneUserConfig = Omit<Partial<EmailConfig>, "options" | "type">;
+export type PhoneUserConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+> = Omit<Partial<PhoneConfig<DataModel>>, "options" | "type">;
 
 /**
  * Similar to Auth.js Credentials config.

@@ -1,9 +1,9 @@
-import Resend from "@auth/core/providers/resend";
+import { Email } from "@convex-dev/auth/providers/Email";
 import { alphabet, generateRandomString } from "oslo/crypto";
 import { Resend as ResendAPI } from "resend";
 import { VerificationCodeEmail } from "./VerificationCodeEmail";
 
-export const ResendOTP = Resend({
+export const ResendOTP = Email({
   id: "resend-otp",
   apiKey: process.env.AUTH_RESEND_KEY,
   maxAge: 60 * 20,
