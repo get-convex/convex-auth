@@ -1,6 +1,4 @@
 /**
- * Configure {@link Email} provider given a {@link EmailUserConfig}.
- *
  * Simplifies creating custom email providers, such as for sending OTPs.
  *
  * @module
@@ -26,16 +24,12 @@ import { EmailConfig, EmailUserConfig } from "../server/types";
  *
  * export const { auth, signIn, signOut, store } = convexAuth({
  *   providers: [
- *     Email({
- *       authorize: async () => {
- *         // Allow token verification without extra checks.
- *       },
- *     }),
+ *     Email({ authorize: undefined }),
  *   ],
  * });
  * ```
  *
- * Make sure the token is has enough entropy to be secure.
+ * Make sure the token has high enough entropy to be secure.
  */
 export function Email<DataModel extends GenericDataModel>(
   config: EmailUserConfig<DataModel> &

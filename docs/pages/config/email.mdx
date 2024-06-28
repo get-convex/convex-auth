@@ -104,3 +104,37 @@ You can find more examples of email customization in
 
 When you're done configuring your chosen authentication methods, learn how to
 use authentication in your frontend and backend in [Authorization](/authz).
+
+## Security: Preventing Session Fixation or Phishing
+
+When a user clicks on the link in the email, they will be immediately signed in.
+This can enable a form of a session fixation attack:
+
+1. Malicious actor M targets a victim V
+2. M signs up to your app, and creates an account that looks like V's account
+   (for example, uses V's name during sign-up)
+3. M generates a magic link
+4. M makes V click on the link (via a website, email, instant-messaging) or
+   redirects to it from a different webpage
+5. V is now instantly signed in to an account that M has access to. Any data
+   that V provides to your app, will be accessible by M.
+
+To make this kind of an attack less likely to succeed, you can add an interstial
+page that shows the user which email they are signing-in with, and require a
+user interaction (button click) to proceed.
+
+You can do this similarly to setting up the [OTP](/config/otps) method:
+
+1. Create a custom email provider via [`Email`](/api_reference/providers/Email)
+2. Change the link so that it includes the token and the email (but don't use
+   the `code` URL param)
+   - optionally pick a specific path where your app will handle this flow
+   - for example:
+     "https://myapp.com/email-sign-in?token=${token}&email=${identifier}"
+3. At the specific path (or based on the URL params), render the interstitial
+   page with a button
+4. When the user clicks on the button, call the `signIn` function with `code`
+   and `email` params.
+   - Providers created via [`Email`](/api_reference/providers/Email)
+     automatically check that the `email` matches the `email` used for sending
+     the token, so the malicious actor cannot spoof it.
