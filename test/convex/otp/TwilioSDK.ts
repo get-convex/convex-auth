@@ -34,7 +34,7 @@ export const verify = internalAction({
       profile: {
         phone,
       },
-      shouldLink: true,
+      shouldLinkViaPhone: true,
     });
     return { userId: user._id };
   },
