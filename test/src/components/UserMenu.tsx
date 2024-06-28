@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PersonIcon } from "@radix-ui/react-icons";
 import { ReactNode } from "react";
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export function UserMenu({ children }: { children: ReactNode }) {
   return (

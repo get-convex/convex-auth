@@ -1,6 +1,6 @@
 "use node";
 
-import { createAccount } from "@xixixao/convex-auth/server";
+import { createAccount } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import twilio from "twilio";
 import { internalAction } from "../_generated/server";

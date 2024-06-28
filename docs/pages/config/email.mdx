@@ -58,7 +58,7 @@ Import Auth.js providers from `@auth/core/providers`. For example for _Resend_:
 
 ```ts filename="convex/auth.ts"
 import Resend from "@auth/core/providers/resend";
-import { convexAuth } from "@xixixao/convex-auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [Resend],
@@ -74,7 +74,7 @@ The first argument to the function is the provider ID, which unless customized
 is a lowercase version of the provider name. For example for _Resend_:
 
 ```tsx filename="src/SignIn.tsx"
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export function SignIn() {
   const { signIn } = useAuthActions();

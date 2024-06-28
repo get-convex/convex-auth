@@ -1,4 +1,4 @@
-import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { ThemeProvider } from "next-themes";
 import React from "react";

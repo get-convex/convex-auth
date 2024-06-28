@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export function SignInFormAnonymous() {
   const { signIn } = useAuthActions();

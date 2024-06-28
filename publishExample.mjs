@@ -36,7 +36,7 @@ shell.exec(
 
 // Fix up package.json
 shell.exec(
-  `perl -i -pe 's#"\\@xixixao/convex-auth": "file:..",#"\\@xixixao/convex-auth": "^${packageJSON.version}",#' package.json`,
+  `perl -i -pe 's#"\\@convex-dev/auth": "file:..",#"\\@convex-dev/auth": "^${packageJSON.version}",#' package.json`,
 );
 shell.exec(
   `perl -i -pe 's#"convex": "file:../node_modules/convex",#"convex": "^1.12.2",#' package.json`,

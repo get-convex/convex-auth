@@ -12,9 +12,9 @@
     "jsx": "react-jsx",
     "moduleResolution": "node",
     "paths": {
-      "@xixixao/convex-auth/server": ["./src/server/index"],
-      "@xixixao/convex-auth/providers/*": ["./src/providers/*"],
-      "@xixixao/convex-auth/react": ["./src/react/index"]
+      "@convex-dev/auth/server": ["./src/server/index"],
+      "@convex-dev/auth/providers/*": ["./src/providers/*"],
+      "@convex-dev/auth/react": ["./src/react/index"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "*.mjs"],

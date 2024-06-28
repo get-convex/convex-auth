@@ -25,7 +25,7 @@ import type { SignInAction, SignOutAction } from "../server/implementation";
  * Use this hook to access the `signIn` and `signOut` methods:
  *
  * ```ts
- * import { useAuthActions } from "@xixixao/convex-auth/react";
+ * import { useAuthActions } from "@convex-dev/auth/react";
  *
  * function SomeComponent() {
  *   const { signIn, signOut } = useAuthActions();
@@ -41,7 +41,7 @@ export function useAuthActions() {
  * Replace your `ConvexProvider` with this component to enable authentication.
  *
  * ```tsx
- * import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+ * import { ConvexAuthProvider } from "@convex-dev/auth/react";
  * import { ConvexReactClient } from "convex/react";
  * import { ReactNode } from "react";
  *

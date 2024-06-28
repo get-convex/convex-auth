@@ -1,4 +1,4 @@
-import { PhoneConfig } from "@xixixao/convex-auth/server";
+import { PhoneConfig } from "@convex-dev/auth/server";
 import { internal } from "../_generated/api";
 import { alphabet, generateRandomString } from "oslo/crypto";
 

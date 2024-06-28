@@ -22,11 +22,11 @@ recommend it to newcomers._
 Add the provider config to the `providers` array in `convex/auth.ts`.
 
 You can import the `Anonymous` provider from
-`@xixixao/convex-auth/providers/Anonymous`:
+`@convex-dev/auth/providers/Anonymous`:
 
 ```ts filename="convex/auth.ts"
-import Anonymous from "@xixixao/convex-auth/providers/Anonymous";
-import { convexAuth } from "@xixixao/convex-auth/server";
+import Anonymous from "@convex-dev/auth/providers/Anonymous";
+import { convexAuth } from "@convex-dev/auth/server";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [Anonymous],
@@ -40,7 +40,7 @@ Now you can trigger an anonymous sign-in via the `signIn` function.
 Usually you'll want to do this before writing some data to the database.
 
 ```tsx filename="src/SendMessage.tsx"
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 
@@ -95,8 +95,8 @@ And you can then validate it in the `profile` method of the provider config.
 This example matches the Cloudflare Turnstile API:
 
 ```ts filename="convex/auth.ts"
-import Anonymous from "@xixixao/convex-auth/providers/Anonymous";
-import { convexAuth } from "@xixixao/convex-auth/server";
+import Anonymous from "@convex-dev/auth/providers/Anonymous";
+import { convexAuth } from "@convex-dev/auth/server";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [

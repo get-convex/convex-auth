@@ -57,7 +57,7 @@ const TOKEN_SUB_CLAIM_DIVIDER = "|";
  *
  * ```ts filename="convex/schema.ts"
  * import { defineSchema } from "convex/server";
- * import { authTables } from "@xixixao/convex-auth/server";
+ * import { authTables } from "@convex-dev/auth/server";
  *
  * const schema = defineSchema({
  *   ...authTables,
@@ -267,7 +267,7 @@ export type SignOutAction = FunctionReferenceFromExport<
  * from `convex/auth.ts` to make them callable:
  *
  * ```ts filename="convex/auth.ts"
- * import { convexAuth } from "@xixixao/convex-auth/server";
+ * import { convexAuth } from "@convex-dev/auth/server";
  *
  * export const { auth, signIn, signOut, store } = convexAuth({
  *   providers: [],

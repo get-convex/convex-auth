@@ -1,9 +1,9 @@
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
-import Password from "@xixixao/convex-auth/providers/Password";
-import Anonymous from "@xixixao/convex-auth/providers/Anonymous";
-import { convexAuth } from "@xixixao/convex-auth/server";
+import Password from "@convex-dev/auth/providers/Password";
+import Anonymous from "@convex-dev/auth/providers/Anonymous";
+import { convexAuth } from "@convex-dev/auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import TwilioVerify from "./otp/Twilio";
 import TwilioOTP from "./otp/TwilioOTP";

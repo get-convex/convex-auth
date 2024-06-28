@@ -1,6 +1,6 @@
 import { CodeInput6 } from "@/auth/CodeInput";
 import { Button } from "@/components/ui/button";
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/toaster";

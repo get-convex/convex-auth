@@ -1,4 +1,4 @@
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { SignInMethodDivider } from "@/auth/SignInMethodDivider";
 import { SignInWithOAuth } from "@/auth/SignInWithOAuth";
 import { Button } from "@/components/ui/button";

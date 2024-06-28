@@ -26,7 +26,7 @@
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-toggle-group": "^1.0.4",
     "@react-email/components": "^0.0.20-canary.0",
-    "@xixixao/convex-auth": "file:..",
+    "@convex-dev/auth": "file:..",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "convex": "file:../node_modules/convex",

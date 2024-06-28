@@ -10,7 +10,7 @@ Next.js or React Native [quickstart](https://docs.convex.dev/quickstarts) first.
 ### Install the NPM library
  
 ```sh
-npm install @xixixao/convex-auth @auth/core
+npm install @convex-dev/auth @auth/core
 ```
 
 This also installs `@auth/core`, which you will use during provider
@@ -19,7 +19,7 @@ configuration later.
 ### Run the initialization command
 
 ```sh
-npx @xixixao/convex-auth
+npx @convex-dev/auth
 ```
 
 This sets up your project for authenticating via the library.
@@ -36,7 +36,7 @@ You can add these tables to your
 
 ```ts filename="convex/schema.ts"
 import { defineSchema } from "convex/server";
-import { authTables } from "@xixixao/convex-auth/server";
+import { authTables } from "@convex-dev/auth/server";
 
 const schema = defineSchema({
   ...authTables,
@@ -54,10 +54,10 @@ Convex Auth currently only supports authenticating from React client components.
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@xixixao/convex-auth/react`:
+`@convex-dev/auth/react`:
 
 ```ts filename="src/main.tsx" {1,8,12,14}
-import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ConvexReactClient } from "convex/react";
@@ -79,12 +79,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@xixixao/convex-auth/react`:
+`@convex-dev/auth/react`:
 
 ```ts filename="app/ConvexClientProvider.tsx" {3,4,11,13}
 "use client";
 
-import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 
@@ -113,12 +113,12 @@ npx expo install expo-secure-store
 ```
 
 Then replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
-`@xixixao/convex-auth/react`.
+`@convex-dev/auth/react`.
 
 Provide a `storage` implementation using `expo-secure-store` as shown:
 
 ```ts filename="app/_layout.tsx" {1,2,4,10-14,18,22}
-import { ConvexAuthProvider } from "@xixixao/convex-auth/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";

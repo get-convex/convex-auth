@@ -3,8 +3,8 @@ import { Tabs } from "nextra-theme-docs";
 
 # Manual Setup
 
-If you don't want the `npx @xixixao/convex-auth` command to make these changes
-for you, follow these steps after you've installed the library.
+If you don't want the `npx @convex-dev/auth` command to make these changes for
+you, follow these steps after you've installed the library.
 
 For code changes you can also refer to the
 [example repo](https://github.com/get-convex/convex-auth-example/blob/main).
@@ -94,7 +94,7 @@ export default {
 ### Initialize `auth.ts`
 
 ```ts filename="convex/auth.ts"
-import { convexAuth } from "@xixixao/convex-auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [],

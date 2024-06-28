@@ -1,4 +1,4 @@
-import { authTables } from "@xixixao/convex-auth/server";
+import { authTables } from "@convex-dev/auth/server";
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 

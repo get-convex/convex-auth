@@ -1,4 +1,4 @@
-import { useAuthActions } from "@xixixao/convex-auth/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { GitHubLogo } from "@/components/GitHubLogo";
 import { Button } from "@/components/ui/button";
 
