@@ -75,10 +75,6 @@ export type ConvexAuthConfig = {
   };
   callbacks?: {
     /**
-     *
-     */
-
-    /**
      * Completely control account linking via this callback.
      *
      * This callback is called during the sign-in process,
