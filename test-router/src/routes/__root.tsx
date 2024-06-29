@@ -1,12 +1,18 @@
+import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { Chat } from "@/Chat/Chat";
 import { ChatHeader } from "@/Chat/ChatIntro";
 import { Layout } from "@/Layout";
 import { SignInFormsShowcase } from "@/auth/SignInFormsShowcase";
 import { UserMenu } from "@/components/UserMenu";
-import { api } from "../convex/_generated/api";
+import { api } from "../../convex/_generated/api";
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 
-export default function App() {
+export const Route = createRootRoute({
+  component: () => <App />,
+});
+
+function App() {
   const user = useQuery(api.users.viewer);
   return (
     <Layout
@@ -21,16 +27,8 @@ export default function App() {
         </>
       }
     >
-      <>
-        <Authenticated>
-          <ChatHeader />
-          {/* eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain */}
-          <Chat viewer={user?._id!} />
-        </Authenticated>
-        <Unauthenticated>
-          <SignInFormsShowcase />
-        </Unauthenticated>
-      </>
+      <Outlet />
+      <TanStackRouterDevtools />
     </Layout>
   );
 }
