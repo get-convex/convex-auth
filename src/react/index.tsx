@@ -316,7 +316,9 @@ function AuthProvider({
         },
       );
       if (result.redirect !== undefined) {
-        window.location.href = `${result.redirect}?code=` + verifier;
+        const url = new URL(result.redirect);
+        url.searchParams.set("code", verifier);
+        window.location.href = url.toString();
         return false;
       } else if (result.tokens !== undefined) {
         const { tokens } = result;

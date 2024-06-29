@@ -76,6 +76,27 @@ export type ConvexAuthConfig = {
   };
   callbacks?: {
     /**
+     * Control which URLs are allowed as a destination after OAuth sign-in
+     * and for magic links.
+     *
+     * Convex Auth performs redirect only during OAuth sign-in. By default,
+     * it redirects back to the URL specified via the `SITE_URL` environment
+     * variable. Similarly magic links link to `SITE_URL`.
+     *
+     * You can customize that behavior by providing a `redirectTo` param
+     * to the `signIn` function.
+     *
+     * This callback, if specified, is then called with the provided
+     * `redirectTo` param. Otherwise, only query params, relative paths
+     * and URLs starting with `SITE_URL` are allowed.
+     */
+    redirect?: (params: {
+      /**
+       * The param value passed to the `signIn` function.
+       */
+      redirectTo: string;
+    }) => Promise<string>;
+    /**
      * Completely control account linking via this callback.
      *
      * This callback is called during the sign-in process,
@@ -266,14 +287,7 @@ export type GenericActionCtxWithAuthConfig<DataModel extends GenericDataModel> =
 export type ConvexAuthMaterializedConfig = {
   providers: AuthProviderMaterializedConfig[];
   theme: Theme;
-  session?: {
-    totalDurationMs?: number;
-    inactiveDurationMs?: number;
-  };
-  jwt?: {
-    durationMs?: number;
-  };
-};
+} & Pick<ConvexAuthConfig, "session" | "jwt" | "signIn" | "callbacks">;
 
 /**
  * Materialized Auth.js provider config.

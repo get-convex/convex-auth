@@ -47,6 +47,40 @@ test("sign in with email", async () => {
   expect(tokens).not.toBeNull();
 });
 
+test("redirectTo with email", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input, init) => {
+      if (
+        typeof input === "string" &&
+        input === "https://api.resend.com/emails"
+      ) {
+        expect(init.headers.Authorization).toBe(
+          `Bearer ${process.env.AUTH_RESEND_KEY}`,
+        );
+        expect(init.body).toBeTypeOf("string");
+
+        // Custom URL via redirectTo
+        const code = init.body.match(
+          /http:\/\/localhost:5173\/dashboard\?code=([^\s\\]+)/,
+        )?.[1];
+        expect(code).toBeTypeOf("string");
+        return new Response(null, { status: 200 });
+      }
+      throw new Error("Unexpected fetch");
+    }),
+  );
+
+  await t.action(api.auth.signIn, {
+    provider: "resend",
+    params: { email: "tom@gmail.com", redirectTo: "/dashboard" },
+  });
+  vi.unstubAllGlobals();
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;

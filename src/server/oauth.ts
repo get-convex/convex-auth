@@ -26,7 +26,6 @@ import {
   UserinfoEndpointHandler,
 } from "@auth/core/providers";
 import { Account, TokenSet } from "@auth/core/types";
-import { parse as parseCookies } from "cookie";
 import * as o from "oauth4webapi";
 import * as checks from "./checks.js";
 import { PLACEHOLDER_URL } from "./provider_utils.js";
@@ -130,6 +129,7 @@ export async function getAuthorizationURL(provider: InternalProvider) {
 export async function handleOAuthCallback(
   provider: InternalProvider,
   request: Request,
+  cookies: Record<string, string | undefined>,
 ) {
   const {
     userinfo,
@@ -144,7 +144,6 @@ export async function handleOAuthCallback(
     ...provider.client,
   };
 
-  const cookies = getCookies(request);
   const updatedCookies: Cookie[] = [];
 
   let state: string | undefined;
@@ -337,10 +336,6 @@ function clientSecret(providerId: string) {
 
 function envProviderId(provider: string) {
   return provider.toUpperCase().replace(/-/g, "_");
-}
-
-function getCookies(request: Request): Record<string, string | undefined> {
-  return parseCookies(request.headers.get("Cookie") ?? "");
 }
 
 async function getOAuthConfig(provider: InternalProvider) {

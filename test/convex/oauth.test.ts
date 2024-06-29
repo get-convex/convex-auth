@@ -63,6 +63,25 @@ test("sign in with oauth", async () => {
   });
 });
 
+test("redirectTo with oauth", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { url } = await signInViaGitHub(
+    t,
+    "github",
+    {
+      email: "tom@gmail.com",
+      name: "Tom",
+      id: "someGitHubId",
+    },
+    { redirectTo: "/dashboard" },
+  );
+
+  expect(url).toEqual(
+    expect.stringContaining("http://localhost:5173/dashboard"),
+  );
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;

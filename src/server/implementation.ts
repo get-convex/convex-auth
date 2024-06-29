@@ -9,7 +9,6 @@ import {
   GenericMutationCtx,
   GenericQueryCtx,
   HttpRouter,
-  PublicHttpAction,
   WithoutSystemFields,
   actionGeneric,
   defineSchema,
@@ -18,7 +17,7 @@ import {
   internalMutationGeneric,
 } from "convex/server";
 import { ConvexError, GenericId, ObjectType, Value, v } from "convex/values";
-import { serialize as serializeCookie } from "cookie";
+import { parse as parseCookies, serialize as serializeCookie } from "cookie";
 import { SignJWT, importPKCS8 } from "jose";
 import {
   alphabet,
@@ -26,6 +25,7 @@ import {
   sha256 as rawSha256,
 } from "oslo/crypto";
 import { encodeHex } from "oslo/encoding";
+import { redirectToParamCookie, useRedirectToParam } from "./checks.js";
 import { FunctionReferenceFromExport, GenericDoc } from "./convex_types.js";
 import { getAuthorizationURL, handleOAuthCallback } from "./oauth.js";
 import { configDefaults, materializeProvider } from "./provider_utils.js";
@@ -33,6 +33,7 @@ import {
   AuthProviderConfig,
   AuthProviderMaterializedConfig,
   ConvexAuthConfig,
+  ConvexAuthMaterializedConfig,
   ConvexCredentialsConfig,
   GenericActionCtxWithAuthConfig,
   PhoneConfig,
@@ -386,7 +387,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
      * @param http your HTTP router
      */
     addHttpRoutes: (http: HttpRouter) => {
-      const httpWithCors = corsRoutes(http, siteUrl);
       http.route({
         path: "/.well-known/openid-configuration",
         method: "GET",
@@ -426,10 +426,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
       });
 
       if (hasOAuth) {
-        httpWithCors.route({
+        http.route({
           pathPrefix: "/api/auth/signin/",
           method: "GET",
-          credentials: true,
           handler: httpActionGeneric(
             convertErrorsToResponse(400, async (ctx, request) => {
               const url = new URL(request.url);
@@ -457,6 +456,12 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 },
               });
 
+              const redirectTo = url.searchParams.get("redirectTo");
+
+              if (redirectTo !== null) {
+                cookies.push(redirectToParamCookie(providerId, redirectTo));
+              }
+
               const headers = new Headers({ Location: redirect });
               for (const { name, value, options } of cookies) {
                 headers.append(
@@ -480,10 +485,22 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const provider = getProviderOrThrow(
               providerId,
             ) as OAuth2Config<any>;
+
+            const cookies = getCookies(request);
+
+            const maybeRedirectTo = useRedirectToParam(provider.id, cookies);
+
+            const destinationUrl = new URL(
+              await redirectUrl(config, {
+                redirectTo: maybeRedirectTo?.redirectTo,
+              }),
+            );
+
             try {
               const { profile, tokens, signature } = await handleOAuthCallback(
                 provider as any,
                 request,
+                cookies,
               );
 
               const { id, ...profileFromCallback } = await provider.profile!(
@@ -509,7 +526,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                   },
                 },
               );
-              const destinationUrl = new URL(siteAfterLoginUrl());
+
               destinationUrl.searchParams.set(
                 "code",
                 verificationCode as string,
@@ -523,7 +540,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               });
             } catch (error) {
               console.error(error);
-              return Response.redirect(siteAfterLoginUrl());
+              return Response.redirect(destinationUrl);
             }
           }),
         });
@@ -1567,9 +1584,14 @@ async function signInImpl(
         expirationTime,
       },
     })) as string;
+    const destination = await redirectUrl(
+      ctx.auth.config,
+      (args.params ?? {}) as { redirectTo: unknown },
+    );
+    destination.searchParams.set("code", code);
     const verificationArgs = {
       identifier,
-      url: siteAfterLoginUrl() + "?code=" + code, // TODO should be configurable specifically for email sign in
+      url: destination.toString(),
       token: code,
       expires: new Date(expirationTime),
     };
@@ -1626,8 +1648,8 @@ async function signInImpl(
       },
     };
   } else if (provider.type === "oauth" || provider.type === "oidc") {
-    // We have this account because:
-    // 1. We remember the current sessionId if any, so we can account link
+    // We have this action because:
+    // 1. We remember the current sessionId if any, so we can link accounts
     // 2. The client doesn't need to know the HTTP Actions URL
     //    of the backend (this simplifies using local backend)
     // 3. The client doesn't need to know which provider is of which type,
@@ -1641,15 +1663,66 @@ async function signInImpl(
         verifier: args.verifier,
       },
     });
-    return {
-      redirect: process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
-    };
+    const redirect = new URL(
+      process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
+    );
+    if (args.params?.redirectTo !== undefined) {
+      if (typeof args.params.redirectTo !== "string") {
+        throw new Error(
+          `Expected \`redirectTo\` to be a string, got ${args.params.redirectTo}`,
+        );
+      }
+      redirect.searchParams.set("redirectTo", args.params.redirectTo);
+    }
+    return { redirect: redirect.toString() };
   } else {
     provider satisfies never;
     throw new Error(
       `Provider type ${(provider as any).type} is not supported yet`,
     );
   }
+}
+
+async function redirectUrl(
+  config: ConvexAuthMaterializedConfig,
+  params: { redirectTo: unknown },
+) {
+  if (params.redirectTo !== undefined) {
+    if (typeof params.redirectTo !== "string") {
+      throw new Error(
+        `Expected \`redirectTo\` to be a string, got ${params.redirectTo as any}`,
+      );
+    }
+    const redirectCallback =
+      config.callbacks?.redirect ?? defaultRedirectCallback;
+    return new URL(await redirectCallback(params as { redirectTo: string }));
+  }
+  return siteUrl();
+}
+
+async function defaultRedirectCallback({ redirectTo }: { redirectTo: string }) {
+  const baseUrl = siteUrl();
+  if (redirectTo.startsWith("?") || redirectTo.startsWith("/")) {
+    return `${baseUrl.toString().replace(/\/$/, "")}${redirectTo}`;
+  }
+  let url;
+  try {
+    url = new URL(redirectTo);
+  } catch {
+    throw new Error(
+      `\`redirectTo\` must be a query params string, relative or absolute URL, got ${redirectTo}`,
+    );
+  }
+  if (
+    url.origin === baseUrl.origin &&
+    (url.pathname === baseUrl.pathname ||
+      url.pathname.startsWith(baseUrl.pathname + "/"))
+  ) {
+    return redirectTo;
+  }
+  throw new Error(
+    `Invalid \`redirectTo\` ${redirectTo} for configured SITE_URL: ${baseUrl.toString()}`,
+  );
 }
 
 async function isSignInRateLimited(
@@ -1857,59 +1930,6 @@ async function generateToken(
     .sign(privateKey);
 }
 
-function corsRoutes(http: HttpRouter, origin: () => string) {
-  return {
-    route({
-      method,
-      handler,
-      credentials,
-      ...paths
-    }: {
-      method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-      handler: PublicHttpAction;
-      credentials: boolean;
-    } & ({ path: string } | { pathPrefix: string })) {
-      if (method !== "GET") {
-        http.route({
-          ...paths,
-          method: "OPTIONS",
-          handler: httpActionGeneric(async () => {
-            const headers = new Headers();
-            headers.set("Access-Control-Allow-Origin", origin());
-            headers.set("Access-Control-Allow-Methods", method);
-            headers.set("Access-Control-Allow-Headers", "Content-Type, Digest");
-            headers.set("Vary", "Origin");
-            if (credentials) {
-              headers.set("Access-Control-Allow-Credentials", "true");
-            }
-
-            return new Response(null, { status: 200, headers: headers });
-          }),
-        });
-      }
-
-      http.route({
-        ...paths,
-        method,
-        handler: httpActionGeneric(async (ctx, req) => {
-          const response = await (handler as any)(ctx, req);
-          const headers = new Headers(response.headers);
-          headers.set("Access-Control-Allow-Origin", origin());
-          if (credentials) {
-            headers.set("Access-Control-Allow-Credentials", "true");
-          }
-
-          return new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: headers,
-          });
-        }),
-      });
-    },
-  };
-}
-
 function convertErrorsToResponse(
   errorStatusCode: number,
   action: (ctx: GenericActionCtx<any>, request: Request) => Promise<Response>,
@@ -1934,15 +1954,21 @@ function convertErrorsToResponse(
   };
 }
 
-function siteAfterLoginUrl() {
-  return process.env.SITE_AFTER_LOGIN_URL ?? siteUrl();
-}
-
 function siteUrl() {
   if (process.env.SITE_URL === undefined) {
     throw new Error("Missing `SITE_URL` environment variable");
   }
-  return process.env.SITE_URL;
+  try {
+    return new URL(process.env.SITE_URL.replace(/\/$/, ""));
+  } catch {
+    throw new Error(
+      `Invalid \`SITE_URL\` environment variable: ${process.env.SITE_URL}`,
+    );
+  }
+}
+
+function getCookies(request: Request): Record<string, string | undefined> {
+  return parseCookies(request.headers.get("Cookie") ?? "");
 }
 
 async function sha256(input: string) {

@@ -132,16 +132,13 @@ async function configureSiteUrl(config: ProjectConfig) {
   }
   const description =
     config.deployment.type === "dev"
-      ? "the origin of your local web server (e.g. http://localhost:1234)"
-      : "the origin where your site is hosted (e.g. https://example.com)";
+      ? "the URL of your local web server (e.g. http://localhost:1234)"
+      : "the URL where your site is hosted (e.g. https://example.com)";
   const chosenValue = await promptForInput(`Enter ${description}`, {
     default: value,
     validate: (input) => {
       try {
-        const url = new URL(input);
-        if (url.pathname !== "/") {
-          return "The URL must be an origin without any path, like http://localhost:1234 or https://example.com";
-        }
+        new URL(input);
         return true;
       } catch (error: any) {
         return "The URL must start with http:// or https://";

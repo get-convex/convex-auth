@@ -15,19 +15,25 @@ export async function signInViaGitHub(
   t: TestConvexForDataModel<DataModel>,
   provider: string,
   githubProfile: Record<string, unknown>,
+  params: {
+    redirectTo?: string;
+  } = {},
 ) {
   const verifier = "123456";
   const { redirect } = await t.action(api.auth.signIn, {
     provider,
-    params: {},
+    params,
     verifier,
   });
   expect(redirect).toEqual(
-    process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider}`,
+    expect.stringContaining(
+      process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider}`,
+    ),
   );
 
-  const url = new URL(redirect!).pathname + `?code=${verifier}`;
-  const response = await t.fetch(url);
+  const url = new URL(redirect!);
+  url.searchParams.set("code", verifier);
+  const response = await t.fetch(`${url.pathname}${url.search}`);
 
   expect(response.status).toBe(302);
 
@@ -77,7 +83,17 @@ export async function signInViaGitHub(
 
   const callbackResponse = await t.fetch(
     `${new URL(callbackUrl!).pathname}?code=${issuedOAuthCode}&code_challenge=${codeChallenge}`,
-    { headers: { Cookie: cookies! } },
+    {
+      headers: {
+        Cookie: cookies!
+          .split(",")
+          .map((cookie) => {
+            const [name, value] = cookie.split(";")[0].split("=");
+            return `${name}=${value};`;
+          })
+          .join(" "),
+      },
+    },
   );
 
   vi.unstubAllGlobals();
@@ -86,7 +102,11 @@ export async function signInViaGitHub(
   expect(finalRedirectedTo).not.toBeNull();
   const code = new URL(finalRedirectedTo!).searchParams.get("code");
 
-  return await t.action(api.auth.signIn, { params: { code }, verifier });
+  const { tokens } = await t.action(api.auth.signIn, {
+    params: { code },
+    verifier,
+  });
+  return { tokens, url: finalRedirectedTo! };
 }
 
 export async function signInViaMagicLink(

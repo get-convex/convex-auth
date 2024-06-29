@@ -96,13 +96,6 @@ export const pkce = {
 
 const STATE_MAX_AGE = 60 * 15; // 15 minutes in seconds
 
-function oauthStateCookieName(
-  type: "state" | "pkce" | "nonce",
-  providerId: string,
-) {
-  return "__Host-" + providerId + "OAuth" + type;
-}
-
 const NONCE_MAX_AGE = 60 * 15; // 15 minutes in seconds
 export const nonce = {
   async create(provider: InternalProvider) {
@@ -137,3 +130,43 @@ export const nonce = {
     return { nonce, updatedCookie };
   },
 };
+
+const REDIRECT_MAX_AGE = 60 * 15; // 15 minutes in seconds
+export function redirectToParamCookie(providerId: string, redirectTo: string) {
+  return {
+    name: redirectToParamCookieName(providerId),
+    value: redirectTo,
+    options: { ...SHARED_COOKIE_OPTIONS, maxAge: REDIRECT_MAX_AGE },
+  };
+}
+
+export function useRedirectToParam(
+  providerId: string,
+  cookies: Record<string, string | undefined>,
+) {
+  const cookieName = redirectToParamCookieName(providerId);
+  const redirectTo = cookies[cookieName];
+  if (redirectTo === undefined) {
+    return null;
+  }
+
+  // Clear the cookie
+  const updatedCookie = {
+    name: cookieName,
+    value: "",
+    options: { ...SHARED_COOKIE_OPTIONS, maxAge: 0 },
+  };
+
+  return { redirectTo, updatedCookie };
+}
+
+function redirectToParamCookieName(providerId: string) {
+  return "__Host-" + providerId + "RedirectTo";
+}
+
+function oauthStateCookieName(
+  type: "state" | "pkce" | "nonce",
+  providerId: string,
+) {
+  return "__Host-" + providerId + "OAuth" + type;
+}
