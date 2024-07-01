@@ -111,7 +111,6 @@ async function configureSiteUrl(config: ProjectConfig) {
     return;
   }
 
-  const existing = await backendEnvVar(config, "SITE_URL");
   // Default to localhost for dev and also for local backend
   // this is not perfect but OK since it's just the default.
   const value =
@@ -120,22 +119,15 @@ async function configureSiteUrl(config: ProjectConfig) {
         ? "http://localhost:5173"
         : "http://localhost:3000"
       : undefined;
-  if (existing !== "") {
-    if (
-      !(await promptForConfirmation(
-        `The ${printDeployment(config)} already has SITE_URL configured to ${chalk.bold(existing)}. Do you want to change it?`,
-        { default: false },
-      ))
-    ) {
-      return;
-    }
-  }
   const description =
     config.deployment.type === "dev"
       ? "the URL of your local web server (e.g. http://localhost:1234)"
       : "the URL where your site is hosted (e.g. https://example.com)";
-  const chosenValue = await promptForInput(`Enter ${description}`, {
+
+  await configureEnvVar(config, {
+    name: "SITE_URL",
     default: value,
+    description,
     validate: (input) => {
       try {
         new URL(input);
@@ -145,7 +137,33 @@ async function configureSiteUrl(config: ProjectConfig) {
       }
     },
   });
-  await setEnvVar(config, "SITE_URL", new URL(chosenValue).origin);
+}
+
+async function configureEnvVar(
+  config: ProjectConfig,
+  variable: {
+    name: string;
+    default?: string;
+    description: string;
+    validate?: (input: string) => true | string;
+  },
+) {
+  const existing = await backendEnvVar(config, variable.name);
+  if (existing !== "") {
+    if (
+      !(await promptForConfirmation(
+        `The ${printDeployment(config)} already has ${variable.name} configured to ${chalk.bold(existing)}. Do you want to change it?`,
+        { default: false },
+      ))
+    ) {
+      return;
+    }
+  }
+  const chosenValue = await promptForInput(`Enter ${variable.description}`, {
+    default: variable.default,
+    validate: variable.validate,
+  });
+  await setEnvVar(config, variable.name, chosenValue);
 }
 
 async function configureKeys(config: ProjectConfig) {
