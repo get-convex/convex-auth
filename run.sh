@@ -16,4 +16,4 @@ npm run build:bin > /dev/null
 cd "$current_dir" || exit 1
 
 # Run the generated .cjs file with Node.js
-node "$script_dir"/dist/bin.cjs
+node "$script_dir"/dist/bin.cjs "$@"
