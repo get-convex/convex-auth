@@ -50,7 +50,6 @@
   },
   "dependencies": {
     "@auth/core": "^0.31.0",
-    "@commander-js/extra-typings": "^12.1.0",
     "arctic": "^1.2.0",
     "jose": "^5.2.2",
     "lucia": "^3.2.0",
@@ -70,6 +69,7 @@
     "a bundle."
   ],
   "devDependencies": {
+    "@commander-js/extra-typings": "^12.1.0",
     "@edge-runtime/vm": "^3.2.0",
     "@types/inquirer": "^9.0.7",
     "@types/node": "20.6.0",
@@ -85,6 +85,7 @@
     "shelljs": "^0.8.5",
     "tsup": "^8.0.1",
     "typescript": "^5.4.5",
+    "valibot": "^0.35.0",
     "vitest": "^1.6.0"
   }
 }

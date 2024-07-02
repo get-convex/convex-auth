@@ -7,14 +7,19 @@ import { config as loadEnvFile } from "dotenv";
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import inquirer from "inquirer";
 import path from "path";
-import { generateKeys } from "./generateKeys.js";
+import * as v from "valibot";
 import { actionDescription } from "./command.js";
+import { generateKeys } from "./generateKeys.js";
 
 new Command()
   .name("@convex-dev/auth")
   .description(
     "Add code and set environment variables for @convex-dev/auth.\n\n" +
       "The steps are detailed here: https://labs.convex.dev/auth/setup/manual",
+  )
+  .option(
+    "--variables <json>",
+    "Configure additional variables for interactive configuration.",
   )
   .addDeploymentSelectionOptions(
     actionDescription("Set environment variables on"),
@@ -77,9 +82,14 @@ new Command()
     // and give instructions otherwise
     await configureHttp(config);
 
-    logSuccess(
-      "You're all set. Continue by configuring your schema and frontend.",
-    );
+    // Extra: Configure providers interactively.
+    if (options.variables !== undefined) {
+      await configureOtherVariables(config, options.variables);
+    } else {
+      logSuccess(
+        "You're all set. Continue by configuring your schema and frontend.",
+      );
+    }
   })
   .parse(process.argv);
 
@@ -470,6 +480,54 @@ export default http;
       : `${httpPath}.js`;
     writeFileSync(newHttpPath, source);
     logSuccess(`Created ${chalk.bold(newHttpPath)}`);
+  }
+}
+
+const VariablesSchema = v.object({
+  help: v.optional(v.string()),
+  providers: v.array(
+    v.object({
+      name: v.string(),
+      help: v.optional(v.string()),
+      variables: v.array(
+        v.object({
+          name: v.string(),
+          description: v.string(),
+        }),
+      ),
+    }),
+  ),
+  success: v.optional(v.string()),
+});
+
+async function configureOtherVariables(config: ProjectConfig, json: string) {
+  const variables = v.parse(VariablesSchema, JSON.parse(json));
+  logStep(config, "Configure extra environment variables");
+  // Ex: The default setup includes sign-in with GitHub OAuth
+  // and sending magic links via Resend.
+  if (variables.help !== undefined) {
+    console.error(variables.help);
+  }
+  for (const provider of variables.providers) {
+    if (
+      !(await promptForConfirmation(
+        `Do you want to configure ${provider.name}?`,
+      ))
+    ) {
+      continue;
+    }
+    if (provider.help !== undefined) {
+      console.error(provider.help);
+    }
+    for (const variable of provider.variables) {
+      await configureEnvVar(config, {
+        name: variable.name,
+        description: variable.description,
+      });
+    }
+  }
+  if (variables.success !== undefined) {
+    logSuccess(variables.success);
   }
 }
 
