@@ -21,11 +21,12 @@ new Command()
     "--variables <json>",
     "Configure additional variables for interactive configuration.",
   )
+  .option("--skip-git-check", "Don't warn when running outside a Git checkout.")
   .addDeploymentSelectionOptions(
     actionDescription("Set environment variables on"),
   )
   .action(async (options) => {
-    await checkSourceControl();
+    await checkSourceControl(options);
 
     const packageJson = readPackageJson();
     const convexJson = readConvexJson();
@@ -565,7 +566,7 @@ function logStep(config: ProjectConfig, message: string) {
   logInfo(chalk.bold(`Step ${config.step++}: ${message}`));
 }
 
-async function checkSourceControl() {
+async function checkSourceControl(options: { skipGitCheck?: boolean }) {
   const isGit = existsSync(".git");
   if (isGit) {
     const gitStatus = execSync("git status --porcelain").toString();
@@ -582,6 +583,9 @@ async function checkSourceControl() {
       await promptForConfirmationOrExit("Continue anyway?", { default: false });
     }
   } else {
+    if (options.skipGitCheck) {
+      return;
+    }
     logWarning(
       "No source control detected. We strongly recommend committing the current state of your code before proceeding.",
     );
