@@ -3,5 +3,7 @@
   "otps": "OTPs",
   "oauth": "OAuth",
   "passwords": "Passwords",
-  "anonymous": "Anonymous"
+  "anonymous": {
+    "display": "hidden"
+  }
 }
