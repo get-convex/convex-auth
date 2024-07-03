@@ -39,17 +39,6 @@ for more details.
 
 Users.
 
-|Field|TS Type
-|---|---
-|`name`|  `undefined` \| `string`
-|`email`|  `undefined` \| `string`
-|`phone`|  `undefined` \| `string`
-|`image`|  `undefined` \| `string`
-|`emailVerificationTime`|  `undefined` \| `number`
-|`phoneVerificationTime`|  `undefined` \| `number`
-|`isAnonymous`|  `undefined` \| `boolean`
-|`\_creationTime`|  `number`
-
 #### authSessions
 
 
@@ -57,28 +46,12 @@ Sessions.
 A single user can have multiple active sessions.
 See [Session document lifecycle](https://labs.convex.dev/auth/advanced#session-document-lifecycle).
 
-|Field|TS Type
-|---|---
-|`userId`|  `Id`\<`"users"`\>
-|`expirationTime`|  `number`
-|`\_creationTime`|  `number`
-
 #### authAccounts
 
 
 Accounts. An account corresponds to
 a single authentication provider.
 A single user can have multiple accounts linked.
-
-|Field|TS Type
-|---|---
-|`secret`|  `undefined` \| `string`
-|`emailVerified`|  `undefined` \| `string`
-|`phoneVerified`|  `undefined` \| `string`
-|`provider`|  `string`
-|`providerAccountId`|  `string`
-|`userId`|  `Id`\<`"users"`\>
-|`\_creationTime`|  `number`
 
 #### authRefreshTokens
 
@@ -88,12 +61,6 @@ Each session has only a single refresh token
 valid at a time. Refresh tokens are rotated
 and reuse is not allowed.
 
-|Field|TS Type
-|---|---
-|`expirationTime`|  `number`
-|`sessionId`|  `Id`\<`"authSessions"`\>
-|`\_creationTime`|  `number`
-
 #### authVerificationCodes
 
 
@@ -102,39 +69,15 @@ Verification codes:
 - magic link tokens
 - OAuth codes
 
-|Field|TS Type
-|---|---
-|`emailVerified`|  `undefined` \| `string`
-|`phoneVerified`|  `undefined` \| `string`
-|`verifier`|  `undefined` \| `string`
-|`code`|  `string`
-|`expirationTime`|  `number`
-|`accountId`|  `Id`\<`"authAccounts"`\>
-|`\_creationTime`|  `number`
-
 #### authVerifiers
 
 
 PKCE verifiers.
 
-|Field|TS Type
-|---|---
-|`sessionId`|  `undefined` \| `Id`\<`"authSessions"`\>
-|`signature`|  `undefined` \| `string`
-|`verifier`|  `string`
-|`\_creationTime`|  `number`
-
 #### authRateLimits
 
 
 Rate limits for OTP and password sign-in.
-
-|Field|TS Type
-|---|---
-|`identifier`|  `string`
-|`lastAttemptTime`|  `number`
-|`attemptsLeft`|  `number`
-|`\_creationTime`|  `number`
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 

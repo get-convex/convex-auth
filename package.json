@@ -56,7 +56,7 @@
     "oslo": "^1.1.2"
   },
   "peerDependencies": {
-    "convex": "^1.11.2",
+    "convex": "^1.13.0",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
