@@ -1,5 +1,4 @@
 import { ReactNode } from "react";
-import { GetStartedDialog } from "@/GetStarted/GetStartedDialog";
 
 export function Layout({
   menu,
@@ -17,11 +16,13 @@ export function Layout({
               <h1 className="text-base font-semibold">Convex Auth Demo</h1>
             </a>
             <div className="flex items-center gap-4 text-sm">
-              <GetStartedDialog>
-                <button className="text-muted-foreground transition-colors hover:text-foreground">
-                  Help
-                </button>
-              </GetStartedDialog>
+              <a
+                href="https://convex.dev"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+                target="_blank"
+              >
+                Convex
+              </a>
               <a
                 href="https://docs.convex.dev"
                 className="text-muted-foreground transition-colors hover:text-foreground"
@@ -42,7 +43,12 @@ export function Layout({
           Powered by Convex,{" "}
           <FooterLink href="https://vitejs.dev">Vite</FooterLink>,{" "}
           <FooterLink href="https://react.dev/">React</FooterLink> and{" "}
-          <FooterLink href="https://ui.shadcn.com/">shadcn/ui</FooterLink>.
+          <FooterLink href="https://ui.shadcn.com/">shadcn/ui</FooterLink>. The
+          source code is available on{" "}
+          <FooterLink href="https://github.com/get-convex/convex-auth-example/">
+            GitHub
+          </FooterLink>
+          .
         </div>
       </footer>
     </div>
