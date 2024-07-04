@@ -68,7 +68,7 @@ either:
 ### Controlling account linking behavior
 
 You can implement your own account linking behavior by providing the
-[`createUser` callback](/api_reference/server#callbackscreateuser):
+[`createOrUpdateUser` callback](/api_reference/server#callbackscreateorupdateuser):
 
 ```ts
 import GitHub from "@auth/core/providers/github";
@@ -78,7 +78,7 @@ import { DataModel } from "./_generated/dataModel";
 export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
   providers: [GitHub, Password],
   callbacks: {
-    async createUser(ctx, args) {
+    async createOrUpdateUser(ctx, args) {
       // `args.type` is one of "oauth" | "email" | "phone" | "credentials" | "verification"
       // `args.provider` is the currently used provider config
       return await ctx.db.insert("users", {
