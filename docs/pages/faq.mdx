@@ -1,15 +1,19 @@
-# Project Status
+# FAQs
+
+## What is the project status of the library?
 
 Convex Auth is in early preview.
 
-## I found a bug
+### I found a bug
 
 Please [file an issue](https://github.com/get-convex/convex-auth/issues/new) or
 open a PR [on GitHub](https://github.com/get-convex/convex-auth).
 
-## FAQs
+### What are the known issues?
 
-### Why should I use Convex Auth instead of NextAuth?
+See [issues on Github](https://github.com/get-convex/convex-auth/issues).
+
+## Why should I use Convex Auth instead of NextAuth?
 
 - NextAuth (Auth.js) requires a Next.js (or similar) server. Convex Auth works
   with and without a Next.js server, you can use it directly from an SPA hosted
@@ -18,7 +22,7 @@ open a PR [on GitHub](https://github.com/get-convex/convex-auth).
   the complexity of syncing state between two servers.
 - Convex Auth has built-in support for OTP and email+passwords methods
 
-### Why should I use Convex Auth instead of Clerk or Auth0?
+## Why should I use Convex Auth instead of Clerk or Auth0?
 
 - Convex Auth doesn’t require signing up for another service, except for:
   - Email provider for email-based authentication methods
@@ -30,7 +34,7 @@ open a PR [on GitHub](https://github.com/get-convex/convex-auth).
   although your email provider or OAuth provider might.
 - We still recommend Clerk and Auth0 as featureful auth solutions.
 
-### Why should I use Convex Auth instead of Firebase Auth or Supabase Auth?
+## Why should I use Convex Auth instead of Firebase Auth or Supabase Auth?
 
 - Firebase and Supabase Auth store user data in their respective databases.
   Convex Auth stores user data directly in your Convex database.
@@ -38,11 +42,7 @@ open a PR [on GitHub](https://github.com/get-convex/convex-auth).
   For advanced authentication functionality (SSO, MFA, etc.) we recommend using
   Clerk or Auth0.
 
-### Why should I use Convex Auth instead of Lucia?
+## Why should I use Convex Auth instead of Lucia?
 
 - Lucia is oriented towards traditional servers that host a website.
 - The previous Convex+Lucia integrations are now deprecated.
-
-## Known Issues
-
-See [issues on Github](https://github.com/get-convex/convex-auth/issues).
