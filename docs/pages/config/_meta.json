@@ -1,7 +1,7 @@
 {
+  "oauth": "OAuth",
   "email": "Magic Links",
   "otps": "OTPs",
-  "oauth": "OAuth",
   "passwords": "Passwords",
   "anonymous": {
     "display": "hidden"
