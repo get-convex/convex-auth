@@ -351,7 +351,7 @@ async function modifyTsConfig(config: ProjectConfig) {
     }
   }
     `;
-    console.error(indent(`\n${source}\n`));
+    print(indent(`\n${source}\n`));
     await promptForConfirmationOrExit("Ready to continue?");
   }
   const changedTsConfig = addCompilerOption(
@@ -405,7 +405,7 @@ export default {
       logInfo(
         `You already have a ${chalk.bold(existingConfigPath)}, make sure the \`providers\` include the following config:`,
       );
-      console.error(indent(`\n${source}\n`));
+      print(indent(`\n${source}\n`));
       await promptForConfirmationOrExit("Ready to continue?");
     }
   } else {
@@ -437,7 +437,7 @@ export const { auth, signIn, signOut, store } = convexAuth({$$
       logInfo(
         `You already have a ${chalk.bold(existingAuthPath)}, make sure it initializes \`convexAuth\` like this:`,
       );
-      console.error(indent(`\n${source}\n`));
+      print(indent(`\n${source}\n`));
       await promptForConfirmationOrExit("Ready to continue?");
     }
   } else {
@@ -472,7 +472,7 @@ export default http;
       logInfo(
         `You already have a ${chalk.bold(existingHttpPath)}, make sure it includes the call to \`auth.addHttpRoutes\`:`,
       );
-      console.error(indent(`\n${source}\n`));
+      print(indent(`\n${source}\n`));
       await promptForConfirmationOrExit("Ready to continue?");
     }
   } else {
@@ -507,7 +507,7 @@ async function configureOtherVariables(config: ProjectConfig, json: string) {
   // Ex: The default setup includes sign-in with GitHub OAuth
   // and sending magic links via Resend.
   if (variables.help !== undefined) {
-    console.error(variables.help);
+    print(variables.help);
   }
   for (const provider of variables.providers) {
     if (
@@ -518,7 +518,7 @@ async function configureOtherVariables(config: ProjectConfig, json: string) {
       continue;
     }
     if (provider.help !== undefined) {
-      console.error(provider.help);
+      print(provider.help);
     }
     for (const variable of provider.variables) {
       await configureEnvVar(config, {
@@ -561,7 +561,7 @@ async function existsAndNotEmpty(path: string) {
 
 function logStep(config: ProjectConfig, message: string) {
   if (config.step > 1) {
-    console.error();
+    print();
   }
   logInfo(chalk.bold(`Step ${config.step++}: ${message}`));
 }
@@ -777,7 +777,7 @@ function logErrorAndExit(message: string, error?: string): never {
 }
 
 function logError(message: string, error?: string) {
-  console.error(
+  print(
     `${chalk.red(`✖`)} ${indent(message)}${
       error !== undefined ? `\n  ${chalk.grey(`Error: ${indent(error)}`)}` : ""
     }`,
@@ -785,15 +785,19 @@ function logError(message: string, error?: string) {
 }
 
 function logWarning(message: string) {
-  console.warn(`${chalk.yellow.bold(`!`)} ${indent(message)}`);
+  print(`${chalk.yellow.bold(`!`)} ${indent(message)}`);
 }
 
 function logInfo(message: string) {
-  console.error(`${chalk.blue.bold(`i`)} ${indent(message)}`);
+  print(`${chalk.blue.bold(`i`)} ${indent(message)}`);
 }
 
 function logSuccess(message: string) {
-  console.error(`${chalk.green(`✔`)} ${indent(message)}`);
+  print(`${chalk.green(`✔`)} ${indent(message)}`);
+}
+
+function print(message?: string) {
+  process.stderr.write((message ?? "") + "\n");
 }
 
 function indent(string: string) {
