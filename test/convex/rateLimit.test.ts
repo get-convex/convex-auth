@@ -30,19 +30,22 @@ test("rate limit on otp", async () => {
   // First we're gonna fail 10 times quickly
   for (let i = 0; i < 10; i++) {
     vi.advanceTimersByTime(10 * SECOND_MS);
-    const { tokens } = await t.action(api.auth.signIn, {
-      provider: "resend-otp",
-      params: { code: "Aint gonna work", email: "tom@gmail.com" },
-    });
-    expect(tokens).toBeNull();
+    await expect(async () =>
+      t.action(api.auth.signIn, {
+        provider: "resend-otp",
+        params: { code: "Aint gonna work", email: "tom@gmail.com" },
+      }),
+    ).rejects.toThrow();
   }
 
   // Now we can't succeed, even with the right code
-  const { tokens: rateLimitedTokens } = await t.action(api.auth.signIn, {
-    provider: "resend-otp",
-    params: { code, email: "tom@gmail.com" },
-  });
-  expect(rateLimitedTokens).toBeNull();
+  await expect(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "resend-otp",
+        params: { code, email: "tom@gmail.com" },
+      }),
+  ).rejects.toThrow();
 
   // But if we wait a little bit, we can try again
   vi.advanceTimersByTime(8 * MINUTE_MS);

@@ -19,11 +19,9 @@ export async function signInViaGitHub(
     redirectTo?: string;
   } = {},
 ) {
-  const verifier = "123456";
-  const { redirect } = await t.action(api.auth.signIn, {
+  const { redirect, verifier } = await t.action(api.auth.signIn, {
     provider,
     params,
-    verifier,
   });
   expect(redirect).toEqual(
     expect.stringContaining(
@@ -32,7 +30,6 @@ export async function signInViaGitHub(
   );
 
   const url = new URL(redirect!);
-  url.searchParams.set("code", verifier);
   const response = await t.fetch(`${url.pathname}${url.search}`);
 
   expect(response.status).toBe(302);
@@ -168,8 +165,6 @@ export async function mockResendOTP<T>(send: () => Promise<T>) {
         typeof input === "string" &&
         input === "https://api.resend.com/emails"
       ) {
-        console.log(init.body);
-
         code = cheerio(init.body)('p[style*="font-size:2.25rem"]').text();
         expect(code).not.toEqual("");
         return new Response(JSON.stringify(null), { status: 200 });

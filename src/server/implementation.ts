@@ -137,15 +137,12 @@ export const authTables = {
     .index("accountId", ["accountId"])
     .index("code", ["code"]),
   /**
-   * PKCE verifiers.
+   * PKCE verifiers for OAuth.
    */
   authVerifiers: defineTable({
-    verifier: v.string(),
     sessionId: v.optional(v.id("authSessions")),
     signature: v.optional(v.string()),
-  })
-    .index("signature", ["signature"])
-    .index("verifier", ["verifier"]),
+  }).index("signature", ["signature"]),
   /**
    * Rate limits for OTP and password sign-in.
    */
@@ -184,7 +181,6 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("verifier"),
-      verifier: v.string(),
     }),
     v.object({
       type: v.literal("verifierSignature"),
@@ -574,7 +570,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           generateTokens: true,
         });
         return result.redirect !== undefined
-          ? { redirect: result.redirect }
+          ? { redirect: result.redirect, verifier: result.verifier }
           : result.started !== undefined
             ? { started: result.started }
             : { tokens: result.signedIn?.tokens ?? null };
@@ -717,18 +713,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
             );
           }
           case "verifier": {
-            const { verifier } = args;
             return await ctx.db.insert("authVerifiers", {
-              verifier,
               sessionId: (await auth.getSessionId(ctx)) ?? undefined,
             });
           }
           case "verifierSignature": {
             const { verifier, signature } = args;
-            const verifierDoc = await ctx.db
-              .query("authVerifiers")
-              .withIndex("verifier", (q) => q.eq("verifier", verifier))
-              .unique();
+            const verifierDoc = await ctx.db.get(
+              verifier as GenericId<"authVerifiers">,
+            );
             if (verifierDoc === null) {
               throw new Error("Invalid verifier");
             }
@@ -781,7 +774,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               expirationTime: Date.now() + OAUTH_SIGN_IN_EXPIRATION_MS,
               // The use of a verifier means we don't need an identifier
               // during verification.
-              verifier: verifier.verifier,
+              verifier: verifier._id,
             });
             return code;
           }
@@ -1550,10 +1543,12 @@ async function signInImpl(
           type: "verifyCodeAndSignIn",
           params: args.params,
           provider: provider.id,
-          verifier: args.verifier,
           generateTokens: options.generateTokens,
         },
       });
+      if (result === null) {
+        throw new Error("Could not verify code");
+      }
       return {
         signedIn: result as {
           userId: GenericId<"users">;
@@ -1562,7 +1557,7 @@ async function signInImpl(
             token: string;
             refreshToken: string;
           };
-        } | null,
+        },
       };
     }
 
@@ -1654,18 +1649,13 @@ async function signInImpl(
     //    of the backend (this simplifies using local backend)
     // 3. The client doesn't need to know which provider is of which type,
     //    and hence which provider requires client-side redirect
-    if (args.verifier === undefined) {
-      throw new Error(`Missing \`verifier\` for sign-in to ${provider.id}`);
-    }
-    await ctx.runMutation(internal.auth.store, {
-      args: {
-        type: "verifier",
-        verifier: args.verifier,
-      },
-    });
     const redirect = new URL(
       process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
     );
+    const verifier = (await ctx.runMutation(internal.auth.store, {
+      args: { type: "verifier" },
+    })) as GenericId<"authVerifiers">;
+    redirect.searchParams.set("code", verifier);
     if (args.params?.redirectTo !== undefined) {
       if (typeof args.params.redirectTo !== "string") {
         throw new Error(
@@ -1674,7 +1664,7 @@ async function signInImpl(
       }
       redirect.searchParams.set("redirectTo", args.params.redirectTo);
     }
-    return { redirect: redirect.toString() };
+    return { redirect: redirect.toString(), verifier };
   } else {
     provider satisfies never;
     throw new Error(

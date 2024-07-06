@@ -305,19 +305,13 @@ function AuthProvider({
             )
           : args ?? {};
 
-      const verifier = crypto.randomUUID();
-      await storageSet(VERIFIER_STORAGE_KEY, verifier);
       const result = await client.action(
         "auth:signIn" as unknown as SignInAction,
-        {
-          provider: providerId,
-          params,
-          verifier,
-        },
+        { provider: providerId, params },
       );
       if (result.redirect !== undefined) {
         const url = new URL(result.redirect);
-        url.searchParams.set("code", verifier);
+        await storageSet(VERIFIER_STORAGE_KEY, result.verifier);
         window.location.href = url.toString();
         return false;
       } else if (result.tokens !== undefined) {
