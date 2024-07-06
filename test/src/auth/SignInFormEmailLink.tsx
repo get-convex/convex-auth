@@ -48,11 +48,13 @@ function SignInWithMagicLink({
 }) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
   return (
     <form
       className="flex flex-col"
       onSubmit={(event) => {
         event.preventDefault();
+        setSubmitting(true);
         const formData = new FormData(event.currentTarget);
         signIn("resend", formData)
           .then(handleLinkSent)
@@ -62,12 +64,15 @@ function SignInWithMagicLink({
               title: "Could not send sign-in link",
               variant: "destructive",
             });
+            setSubmitting(false);
           });
       }}
     >
       <label htmlFor="email">Email</label>
       <Input name="email" id="email" className="mb-4" autoComplete="email" />
-      <Button type="submit">Send sign-in link</Button>
+      <Button type="submit" disabled={submitting}>
+        Send sign-in link
+      </Button>
     </form>
   );
 }

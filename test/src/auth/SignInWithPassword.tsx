@@ -16,12 +16,13 @@ export function SignInWithPassword({
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
-
+  const [submitting, setSubmitting] = useState(false);
   return (
     <form
       className="flex flex-col"
       onSubmit={(event) => {
         event.preventDefault();
+        setSubmitting(true);
         const formData = new FormData(event.currentTarget);
         signIn(provider ?? "password", formData)
           .then(() => {
@@ -34,6 +35,7 @@ export function SignInWithPassword({
                 ? "Could not sign in, did you mean to sign up?"
                 : "Could not sign up, did you mean to sign in?";
             toast({ title, variant: "destructive" });
+            setSubmitting(false);
           });
       }}
     >
@@ -60,7 +62,9 @@ export function SignInWithPassword({
         autoComplete={flow === "signIn" ? "current-password" : "new-password"}
       />
       <input name="flow" value={flow} type="hidden" />
-      <Button type="submit">{flow === "signIn" ? "Sign in" : "Sign up"}</Button>
+      <Button type="submit" disabled={submitting}>
+        {flow === "signIn" ? "Sign in" : "Sign up"}
+      </Button>
       <Button
         variant="link"
         type="button"

@@ -19,6 +19,7 @@ export function SignInFormPasswordAndVerifyViaCode() {
   const [step, setStep] = useState<"signIn" | { email: string } | "forgot">(
     "signIn",
   );
+  const [submitting, setSubmitting] = useState(false);
   return (
     <div className="max-w-[384px] mx-auto flex flex-col gap-4">
       {step === "signIn" ? (
@@ -51,12 +52,15 @@ export function SignInFormPasswordAndVerifyViaCode() {
             className="flex flex-col"
             onSubmit={(event) => {
               event.preventDefault();
+              setSubmitting(true);
               const formData = new FormData(event.currentTarget);
-              signIn("password-code", formData).catch(() => {
+              signIn("password-code", formData).catch((error) => {
+                console.error(error);
                 toast({
                   title: "Code could not be verified, try again",
                   variant: "destructive",
                 });
+                setSubmitting(false);
               });
             }}
           >
@@ -64,7 +68,9 @@ export function SignInFormPasswordAndVerifyViaCode() {
             <CodeInput />
             <input name="email" value={step.email} type="hidden" />
             <input name="flow" value="email-verification" type="hidden" />
-            <Button type="submit">Continue</Button>
+            <Button type="submit" disabled={submitting}>
+              Continue
+            </Button>
             <Button
               type="button"
               variant="link"

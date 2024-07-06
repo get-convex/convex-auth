@@ -16,7 +16,7 @@ export function ResetPasswordWithEmailCode({
   const { signIn } = useAuthActions();
   const { toast } = useToast();
   const [step, setStep] = useState<"forgot" | { email: string }>("forgot");
-
+  const [submitting, setSubmitting] = useState(false);
   return step === "forgot" ? (
     <>
       <h2 className="font-semibold text-2xl tracking-tight">
@@ -45,13 +45,16 @@ export function ResetPasswordWithEmailCode({
         className="flex flex-col"
         onSubmit={(event) => {
           event.preventDefault();
+          setSubmitting(true);
           const formData = new FormData(event.currentTarget);
-          signIn(provider, formData).catch(() => {
+          signIn(provider, formData).catch((error) => {
+            console.error(error);
             toast({
               title:
                 "Code could not be verified or new password is too short, try again",
               variant: "destructive",
             });
+            setSubmitting(false);
           });
         }}
       >
@@ -67,7 +70,9 @@ export function ResetPasswordWithEmailCode({
         />
         <input type="hidden" name="flow" value="reset-verification" />
         <input type="hidden" name="email" value={step.email} />
-        <Button type="submit">Continue</Button>
+        <Button type="submit" disabled={submitting}>
+          Continue
+        </Button>
         <Button type="button" variant="link" onClick={() => setStep("forgot")}>
           Cancel
         </Button>
