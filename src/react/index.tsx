@@ -372,6 +372,7 @@ function AuthProvider({
     },
     [verifyCodeAndSetToken, signOut, storageGet],
   );
+  const codeFromURL = useRef<string | null>(null);
   useEffect(() => {
     // Has to happen in useEffect to avoid SSR.
     if (storage === undefined || storage === null) {
@@ -380,27 +381,36 @@ function AuthProvider({
           "set the `storage` prop on `ConvexAuthProvider`!",
       );
     }
-    void (async () => {
-      const code =
-        typeof window?.location !== "undefined"
-          ? new URLSearchParams(window.location.search).get("code")
-          : null;
+    const code =
+      typeof window?.location !== "undefined"
+        ? new URLSearchParams(window.location.search).get("code")
+        : null;
+    // code from URL is only consumed initially,
+    // ref avoids racing in Strict mode
+    if (codeFromURL.current ?? code) {
       if (code) {
+        codeFromURL.current = code;
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
         window.history.replaceState({}, "", url.toString());
-        const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
-        await storageRemove(VERIFIER_STORAGE_KEY);
-        await verifyCodeAndSetToken({ code, verifier });
-      } else {
+        void (async () => {
+          const verifier =
+            (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
+          await storageRemove(VERIFIER_STORAGE_KEY);
+          await verifyCodeAndSetToken({ code, verifier });
+          codeFromURL.current = null;
+        })();
+      }
+    } else {
+      void (async () => {
         const token = (await storageGet(JWT_STORAGE_KEY)) ?? null;
         logVerbose(`retrieved token from storage, is null: ${token === null}`);
         await setToken({
           shouldStore: false,
           tokens: token === null ? null : { token },
         });
-      }
-    })();
+      })();
+    }
   }, [client, setToken, verifyCodeAndSetToken, storageGet]);
 
   return (
