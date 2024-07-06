@@ -29,10 +29,7 @@ export function PasswordResetEmail({
           </Text>
           <Section className="text-center">
             <Text className="font-semibold">Verification code</Text>
-            <Text className="font-bold text-4xl">
-              <span className="mr-2">{code.slice(0, 4)}</span>
-              <span>{code.slice(4)}</span>
-            </Text>
+            <Text className="font-bold text-4xl">{code}</Text>
             <Text>
               (This code is valid for{" "}
               {Math.floor((+expires - Date.now()) / (60 * 60 * 1000))} hours)

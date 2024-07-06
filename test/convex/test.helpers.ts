@@ -168,7 +168,9 @@ export async function mockResendOTP<T>(send: () => Promise<T>) {
         typeof input === "string" &&
         input === "https://api.resend.com/emails"
       ) {
-        code = cheerio(init.body)("span").text();
+        console.log(init.body);
+
+        code = cheerio(init.body)('p[style*="font-size:2.25rem"]').text();
         expect(code).not.toEqual("");
         return new Response(JSON.stringify(null), { status: 200 });
       }

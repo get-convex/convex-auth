@@ -1,4 +1,4 @@
-import { CodeInput6 } from "@/auth/CodeInput";
+import { CodeInput } from "@/auth/CodeInput";
 import { Button } from "@/components/ui/button";
 import { useAuthActions } from "@convex-dev/auth/react";
 
@@ -67,7 +67,7 @@ export function SignInFormPhoneCode() {
             }}
           >
             <label htmlFor="code">Code</label>
-            <CodeInput6 />
+            <CodeInput length={6} />
             <input name="phone" value={step.phone} type="hidden" />
             <Button type="submit">Continue</Button>
             <Button
