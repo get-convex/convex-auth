@@ -430,7 +430,7 @@ function AuthProvider({
 
 function useNamespacedStorage(storage: TokenStorage, namespace: string) {
   const storageKey = useCallback(
-    (key: string) => `${key}:${namespace}`,
+    (key: string) => `${key}_${namespace}`,
     [namespace],
   );
   const storageSet = useCallback(
