@@ -220,8 +220,9 @@ async function setEnvVar(
   value: string,
   options?: { hideValue: boolean },
 ) {
+  const valueEscaped = value.replace(/"/g, '\\"');
   execSync(
-    `npx convex env set ${deploymentOptions(config)} -- ${name} '${value}'`,
+    `npx convex env set ${deploymentOptions(config)} -- ${name} "${valueEscaped}"`,
     {
       stdio: options?.hideValue ? "ignore" : "inherit",
     },
