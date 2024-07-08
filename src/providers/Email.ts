@@ -49,7 +49,7 @@ export function Email<DataModel extends GenericDataModel>(
       }
       if (account.providerAccountId !== params.email) {
         throw new Error(
-          "Short verification code requires a matching `email` or `phone` " +
+          "Short verification code requires a matching `email` " +
             "in params of `signIn`.",
         );
       }

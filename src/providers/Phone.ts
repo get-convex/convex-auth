@@ -35,7 +35,7 @@ export function Phone<DataModel extends GenericDataModel>(
       }
       if (account.providerAccountId !== params.phone) {
         throw new Error(
-          "Short verification code requires a matching `phone` or `phone` " +
+          "Short verification code requires a matching `phone` " +
             "in params of `signIn`.",
         );
       }

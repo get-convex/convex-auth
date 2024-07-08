@@ -111,15 +111,6 @@ templating (add `"jsx": "react-jsx"` to your `convex/tsconfig.json`).
 You can find more examples of email customization in
 [Auth.js docs](https://authjs.dev/getting-started/providers/resend#customization).
 
-<details>
-  <summary>
-    To send both a magic link and an OTP, include a link with `?code={token}`
-    query string to your web app in your email template.
-  </summary>
-  Security note: This will make the magic link use a short token (the same as the
-  OTP), which is less secure.
-</details>
-
 ### Add sign-in form
 
 Now you can trigger the email sending from a form submission via the `signIn`
@@ -173,7 +164,7 @@ is a short code, we must also provide the `email` that matches the account used
 for the sign-in. The library automatically rate-limits failed attempts.
 
 Check out the
-[example repo](https://github.com/get-convex/convex-auth-example/blob/main/app/auth/SignInFormEmailCode.tsx)
+[example repo](https://github.com/get-convex/convex-auth-example/blob/main/src/auth/SignInFormEmailCode.tsx)
 for a more polished UI.
 
 </Steps>
@@ -189,7 +180,7 @@ an example of using
 
 The sign-in form works the same as above, but uses a `phone` field instead of an
 `email` field:
-[example](https://github.com/get-convex/convex-auth-example/blob/main/app/auth/SignInFormPhoneCode.tsx).
+[example](https://github.com/get-convex/convex-auth-example/blob/main/src/auth/SignInFormPhoneCode.tsx).
 
 If you use a third-party service that takes care of generating and validating
 OTPs, you can use a custom
