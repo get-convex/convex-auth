@@ -77,6 +77,8 @@ export function ConvexAuthProvider({
    * Optional namespace for keys used to store tokens. The keys
    * determine whether the tokens are shared or not.
    *
+   * Any non-alphanumeric characters will be ignored (for RN compatibility).
+   *
    * Defaults to the deployment URL, as configured in the given `client`.
    */
   storageNamespace?: string;
@@ -429,8 +431,9 @@ function AuthProvider({
 }
 
 function useNamespacedStorage(storage: TokenStorage, namespace: string) {
+  const escapedNamespace = namespace.replace(/[^a-zA-Z0-9]/g, "");
   const storageKey = useCallback(
-    (key: string) => `${key}_${namespace}`,
+    (key: string) => `${key}_${escapedNamespace}`,
     [namespace],
   );
   const storageSet = useCallback(
