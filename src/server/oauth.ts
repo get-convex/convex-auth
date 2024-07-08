@@ -258,7 +258,7 @@ export async function handleOAuthCallback(
       );
       profile = await userinfoResponse.json();
     } else {
-      throw new Error("No userinfo endpoint configured");
+      console.warn(`No userinfo endpoint configured for ${provider.id}`);
     }
   }
 
@@ -356,7 +356,7 @@ async function getOAuthConfig(provider: InternalProvider) {
         issuer: string;
         authorization_endpoint: string;
         token_endpoint: string;
-        userinfo_endpoint: string;
+        userinfo_endpoint?: string;
         code_challenge_methods_supported: string[];
       },
       fakeServer: null,
@@ -367,7 +367,9 @@ async function getOAuthConfig(provider: InternalProvider) {
       token: { ...provider.token, url: new URL(config.token_endpoint) },
       userinfo: {
         ...provider.userinfo,
-        url: new URL(config.userinfo_endpoint),
+        url: config.userinfo_endpoint
+          ? new URL(config.userinfo_endpoint)
+          : null,
       },
     };
   } else {
