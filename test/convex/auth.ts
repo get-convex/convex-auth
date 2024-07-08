@@ -1,6 +1,7 @@
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
+import Apple from "@auth/core/providers/apple";
 import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
@@ -19,6 +20,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
     FakePhone({ id: "fake-phone-2" }),
     GitHub,
     Google,
+    Apple,
     Resend,
     ResendOTP,
     TwilioVerify,
