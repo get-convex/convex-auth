@@ -1934,7 +1934,11 @@ function convertErrorsToResponse(
           statusText: (error as any).data,
         });
       } else {
-        console.error((error as Error).message ?? error);
+        console.error(
+          error instanceof Error
+            ? error.message + "\n" + error.stack?.replace("\\n", "\n")
+            : error,
+        );
         return new Response(null, {
           status: 500,
           statusText: "Internal Server Error",
