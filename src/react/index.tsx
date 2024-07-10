@@ -58,6 +58,7 @@ export function ConvexAuthProvider({
   client,
   storage,
   storageNamespace,
+  replaceURL,
   children,
 }: {
   /**
@@ -83,6 +84,20 @@ export function ConvexAuthProvider({
    */
   storageNamespace?: string;
   /**
+   * Provide this function if you're using a JS router (Expo router etc.)
+   * and after OAuth or magic link sign-in the `code` param is not being
+   * erased from the URL.
+   *
+   * The implementation will depend on your chosen router.
+   */
+  replaceURL?: (
+    /**
+     * The URL, always starting with '/' and include the path, query and
+     * fragment components, that the window location should be set to.
+     */
+    relativeUrl: string,
+  ) => void | Promise<void>;
+  /**
    * Children components can call Convex hooks
    * and {@link useAuthActions}.
    */
@@ -99,6 +114,12 @@ export function ConvexAuthProvider({
         (typeof window === "undefined" ? undefined : window?.localStorage)!
       }
       storageNamespace={storageNamespace ?? (client as any).address}
+      replaceURL={
+        replaceURL ??
+        ((url) => {
+          window.history.replaceState({}, "", url);
+        })
+      }
     >
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
@@ -157,8 +178,43 @@ export type ConvexAuthActionsContext = {
    */
   signIn: (
     provider: string,
-    params?: FormData | Record<string, Value>,
-  ) => Promise<boolean>;
+    params?:
+      | FormData
+      | (Record<string, Value> & {
+          /**
+           * If provided, customizes the destination the user is
+           * redirected to at the end of an OAuth flow or the magic link URL.
+           */
+          redirectTo?: string;
+          /**
+           * OTP code for email or phone verification, or
+           * (used only in RN) the code from an OAuth flow or magic link URL.
+           */
+          code?: string;
+          /**
+           * (used only in RN) If true, it will not initiate the OAuth flow
+           * by redirecting the browser to the sign-in HTTP endpoint.
+           */
+          skipBrowserRedirect?: boolean;
+        }),
+  ) => Promise<{
+    /**
+     * Whether the call led to an immediate successful sign-in.
+     *
+     * Note that there's a delay between the `signIn` function
+     * returning and the client performing the handshake with
+     * the server to confirm the sign-in.
+     */
+    signingIn: boolean;
+    /**
+     * If the sign-in started an OAuth flow, this is the URL
+     * the browser should be redirected to.
+     *
+     * Useful in RN for opening the in-app browser to
+     * this URL.
+     */
+    redirect?: URL;
+  }>;
 
   /**
    * Sign out the current user.
@@ -197,11 +253,13 @@ function AuthProvider({
   client,
   storage,
   storageNamespace,
+  replaceURL,
   children,
 }: {
   client: ConvexReactClient;
   storage: TokenStorage;
   storageNamespace: string;
+  replaceURL: (relativeUrl: string) => void | Promise<void>;
   children: ReactNode;
 }) {
   const token = useRef<string | null>(null);
@@ -295,7 +353,7 @@ function AuthProvider({
   );
 
   const signIn = useCallback(
-    async (providerId: string, args?: FormData | Record<string, Value>) => {
+    async (provider?: string, args?: FormData | Record<string, Value>) => {
       const params =
         args instanceof FormData
           ? Array.from(args.entries()).reduce(
@@ -307,22 +365,27 @@ function AuthProvider({
             )
           : args ?? {};
 
+      const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
+      await storageRemove(VERIFIER_STORAGE_KEY);
       const result = await client.action(
         "auth:signIn" as unknown as SignInAction,
-        { provider: providerId, params },
+        { provider, params, verifier },
       );
       if (result.redirect !== undefined) {
         const url = new URL(result.redirect);
         await storageSet(VERIFIER_STORAGE_KEY, result.verifier);
-        window.location.href = url.toString();
-        return false;
+        // Do not redirect in React Native
+        if (window.location !== undefined) {
+          window.location.href = url.toString();
+        }
+        return { signingIn: false, redirect: url };
       } else if (result.tokens !== undefined) {
         const { tokens } = result;
         logVerbose(`signed in and got tokens, is null: ${tokens === null}`);
         await setToken({ shouldStore: true, tokens });
-        return result.tokens !== null;
+        return { signingIn: result.tokens !== null };
       }
-      return false;
+      return { signingIn: false };
     },
     [client, setToken, storageGet],
   );
@@ -374,7 +437,7 @@ function AuthProvider({
     },
     [verifyCodeAndSetToken, signOut, storageGet],
   );
-  const codeFromURL = useRef<string | null>(null);
+  const signingInWithCodeFromURL = useRef<boolean>(false);
   useEffect(() => {
     // Has to happen in useEffect to avoid SSR.
     if (storage === undefined || storage === null) {
@@ -389,18 +452,15 @@ function AuthProvider({
         : null;
     // code from URL is only consumed initially,
     // ref avoids racing in Strict mode
-    if (codeFromURL.current ?? code) {
+    if (signingInWithCodeFromURL.current || code) {
       if (code) {
-        codeFromURL.current = code;
+        signingInWithCodeFromURL.current = true;
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
-        window.history.replaceState({}, "", url.toString());
         void (async () => {
-          const verifier =
-            (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
-          await storageRemove(VERIFIER_STORAGE_KEY);
-          await verifyCodeAndSetToken({ code, verifier });
-          codeFromURL.current = null;
+          await replaceURL(url.pathname + url.search + url.hash);
+          await signIn(undefined, { code });
+          signingInWithCodeFromURL.current = false;
         })();
       }
     } else {
@@ -413,7 +473,7 @@ function AuthProvider({
         });
       })();
     }
-  }, [client, setToken, verifyCodeAndSetToken, storageGet]);
+  }, [client, setToken, signIn, storageGet]);
 
   return (
     <ConvexAuthInternalContext.Provider

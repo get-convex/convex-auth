@@ -486,11 +486,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
 
             const maybeRedirectTo = useRedirectToParam(provider.id, cookies);
 
-            const destinationUrl = new URL(
-              await redirectUrl(config, {
-                redirectTo: maybeRedirectTo?.redirectTo,
-              }),
-            );
+            const destinationUrl = await redirectAbsoluteUrl(config, {
+              redirectTo: maybeRedirectTo?.redirectTo,
+            });
 
             try {
               const { profile, tokens, signature } = await handleOAuthCallback(
@@ -523,14 +521,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 },
               );
 
-              destinationUrl.searchParams.set(
-                "code",
-                verificationCode as string,
-              );
               return new Response(null, {
                 status: 302,
                 headers: {
-                  Location: destinationUrl.toString(),
+                  Location: setURLSearchParam(
+                    destinationUrl,
+                    "code",
+                    verificationCode as string,
+                  ),
                   "Cache-Control": "must-revalidate",
                 },
               });
@@ -1579,14 +1577,13 @@ async function signInImpl(
         expirationTime,
       },
     })) as string;
-    const destination = await redirectUrl(
+    const destination = await redirectAbsoluteUrl(
       ctx.auth.config,
       (args.params ?? {}) as { redirectTo: unknown },
     );
-    destination.searchParams.set("code", code);
     const verificationArgs = {
       identifier,
-      url: destination.toString(),
+      url: setURLSearchParam(destination, "code", code),
       token: code,
       expires: new Date(expirationTime),
     };
@@ -1649,6 +1646,22 @@ async function signInImpl(
     //    of the backend (this simplifies using local backend)
     // 3. The client doesn't need to know which provider is of which type,
     //    and hence which provider requires client-side redirect
+    // 4. On mobile the client can complete the flow manually
+    if (args.params?.code !== undefined) {
+      const result = await ctx.runMutation(internal.auth.store, {
+        args: {
+          type: "verifyCodeAndSignIn",
+          params: args.params,
+          verifier: args.verifier,
+          generateTokens: true,
+        },
+      });
+      return {
+        signedIn: result as {
+          tokens: { token: string; refreshToken: string };
+        } | null,
+      };
+    }
     const redirect = new URL(
       process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
     );
@@ -1673,7 +1686,7 @@ async function signInImpl(
   }
 }
 
-async function redirectUrl(
+async function redirectAbsoluteUrl(
   config: ConvexAuthMaterializedConfig,
   params: { redirectTo: unknown },
 ) {
@@ -1685,7 +1698,7 @@ async function redirectUrl(
     }
     const redirectCallback =
       config.callbacks?.redirect ?? defaultRedirectCallback;
-    return new URL(await redirectCallback(params as { redirectTo: string }));
+    return await redirectCallback(params as { redirectTo: string });
   }
   return siteUrl();
 }
@@ -1693,26 +1706,28 @@ async function redirectUrl(
 async function defaultRedirectCallback({ redirectTo }: { redirectTo: string }) {
   const baseUrl = siteUrl();
   if (redirectTo.startsWith("?") || redirectTo.startsWith("/")) {
-    return `${baseUrl.toString().replace(/\/$/, "")}${redirectTo}`;
+    return `${baseUrl}${redirectTo}`;
   }
-  let url;
-  try {
-    url = new URL(redirectTo);
-  } catch {
-    throw new Error(
-      `\`redirectTo\` must be a query params string, relative or absolute URL, got ${redirectTo}`,
-    );
-  }
-  if (
-    url.origin === baseUrl.origin &&
-    (url.pathname === baseUrl.pathname ||
-      url.pathname.startsWith(baseUrl.pathname + "/"))
-  ) {
-    return redirectTo;
+  if (redirectTo.startsWith(baseUrl)) {
+    const after = redirectTo[baseUrl.length];
+    if (after === undefined || after === "?" || after === "/") {
+      return redirectTo;
+    }
   }
   throw new Error(
     `Invalid \`redirectTo\` ${redirectTo} for configured SITE_URL: ${baseUrl.toString()}`,
   );
+}
+
+// Temporary work-around because Convex doesn't support
+// schemes other than http and https.
+function setURLSearchParam(absoluteUrl: string, param: string, value: string) {
+  const pattern = /([^:]+):(.*)/;
+  const [, scheme, rest] = absoluteUrl.match(pattern)!;
+  const url = new URL(`http:${rest}`);
+  url.searchParams.set(param, value);
+  const [, , withParam] = url.toString().match(pattern)!;
+  return `${scheme}:${withParam}`;
 }
 
 async function isSignInRateLimited(
@@ -1953,7 +1968,7 @@ function siteUrl() {
     throw new Error("Missing `SITE_URL` environment variable");
   }
   try {
-    return new URL(process.env.SITE_URL.replace(/\/$/, ""));
+    return process.env.SITE_URL.replace(/\/$/, "");
   } catch {
     throw new Error(
       `Invalid \`SITE_URL\` environment variable: ${process.env.SITE_URL}`,
