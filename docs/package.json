@@ -5,7 +5,7 @@
   "scripts": {
     "api": "typedoc",
     "api-watch": "typedoc --watch",
-    "dev": "npm run api && next dev",
+    "dev": "npm run api && next dev --port 3333",
     "build": "next build",
     "start": "next start"
   },
