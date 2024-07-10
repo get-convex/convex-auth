@@ -1,4 +1,5 @@
 import { Steps } from "nextra/components";
+import { Tabs } from "nextra-theme-docs";
 
 # OAuth
 
@@ -14,8 +15,6 @@ This authentication method has two steps:
 
 Convex Auth ensures a secure exchange of secrets between the third-party
 provider and your backend.
-
-OAuth isn't supported for React Native yet.
 
 ## Providers
 
@@ -44,8 +43,8 @@ _GitHub_.
 Github has better-than-most configuration DX, even if it is not a very good
 choice for apps targeting the general population.
 
-Google, which is very popular among users, unfortunately has a very complicated
-OAuth setup and documentation.
+Google, which is very popular among users, unfortunately has a somewhat
+complicated OAuth setup and documentation. Apple is even worse.
 
 </details>
 
@@ -113,6 +112,9 @@ export const { auth, signIn, signOut, store } = convexAuth({
 Now you can trigger the OAuth sign-in flow from a button click via the Convex
 Auth `signIn` function.
 
+<Tabs items={['React', 'React Native']}>
+<Tabs.Tab>
+
 The first argument to the function is the provider ID, which unless customized
 is a lowercase version of the provider name. For example for _GitHub_:
 
@@ -134,6 +136,84 @@ for a more polished UI.
 You can control which page the user will be redirect to after the sign-in by
 passing a `redirectTo` param to the `signIn` function. See
 [`redirect` callback](/api_reference/server#callbacksredirect).
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+The first argument to the function is the provider ID, which unless customized
+is a lowercase version of the provider name.
+
+With React Native, on mobile, your app performs two steps:
+
+1. The first call to `signIn` returns the URL to open in the in-app browser via
+   [`openAuthSessionAsync`](https://docs.expo.dev/versions/latest/sdk/webbrowser/#webbrowseropenauthsessionasyncurl-redirecturl-options).
+2. After the in-app browser redirects back to your app, the second call to
+   `signIn` actually signs the client in with the `code` param from the final
+   redirect URL.
+
+The
+[`makeRedirectUri`](https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions)
+function is used to create the URL for your app.
+
+This code leverages the `expo-auth-session` package, install it via
+`npm i expo-auth-session`.
+
+```tsx filename="app/SignIn.tsx"
+import { useAuthActions } from "@convex-dev/auth/react";
+import { makeRedirectUri } from "expo-auth-session";
+import { openAuthSessionAsync } from "expo-web-browser";
+import { Button, Platform } from "react-native";
+
+const redirectTo = makeRedirectUri();
+
+function SignIn() {
+  const { signIn } = useAuthActions();
+  const handleSignIn = async () => {
+    const { redirect } = await signIn("github", { redirectTo });
+    if (Platform.OS === "web") {
+      return;
+    }
+    const result = await openAuthSessionAsync(redirect!.toString(), redirectTo);
+    if (result.type === "success") {
+      const { url } = result;
+      const code = new URL(url).searchParams.get("code")!;
+      await signIn("github", { code });
+    }
+  };
+  return <Button onPress={handleSignIn} title="Sign in with GitHub" />;
+}
+```
+
+If you're only targeting mobile you can
+[configure SITE_URL](/setup/manual#configure-site_url) to match your app's URL.
+
+If you need to support multiple `redirectTo` URL schemes or origins, you must
+override the [`redirect` callback](/api_reference/server#callbacksredirect), for
+example:
+
+```ts convex/auth.ts
+import GitHub from "@auth/core/providers/github";
+import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [GitHub],
+  callbacks: {
+    async redirect({ redirectTo }) {
+      if (
+        redirectTo !== "exp://10.0.1.30:8081" &&
+        redirectTo !== "http://localhost:3000"
+      ) {
+        throw new Error(`Invalid redirectTo URI ${redirectTo}`);
+      }
+      return redirectTo;
+    },
+  },
+});
+```
+
+</Tabs.Tab>
+
+</Tabs>
 
 </Steps>
 
