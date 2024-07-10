@@ -50,7 +50,8 @@ function RootComponent({ children }: { children: ReactNode }) {
 | `props` | `object` |  |
 | `props.client` | `ConvexReactClient` | Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). |
 | `props.storage`? | [`TokenStorage`](react.mdx#tokenstorage) | <p>Optional custom storage object that implements the [TokenStorage](react.mdx#tokenstorage) interface, otherwise</p><p>[`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) is used.</p><p>You must set this for React Native.</p> |
-| `props.storageNamespace`? | `string` | <p>Optional namespace for keys used to store tokens. The keys determine whether the tokens are shared or not.</p><p>Defaults to the deployment URL, as configured in the given `client`.</p> |
+| `props.storageNamespace`? | `string` | <p>Optional namespace for keys used to store tokens. The keys determine whether the tokens are shared or not.</p><p>Any non-alphanumeric characters will be ignored (for RN compatibility).</p><p>Defaults to the deployment URL, as configured in the given `client`.</p> |
+| `props.replaceURL`? | (`relativeUrl`) => `void` \| `Promise`\<`void`\> | <p>Provide this function if you're using a JS router (Expo router etc.) and after OAuth or magic link sign-in the `code` param is not being erased from the URL.</p><p>The implementation will depend on your chosen router.</p> |
 | `props.children` | `ReactNode` | Children components can call Convex hooks and [useAuthActions](react.mdx#useauthactions). |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
@@ -93,7 +94,7 @@ Read a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/react/index.tsx:123](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L123)
+[src/react/index.tsx:146](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L146)
 
 #### setItem()
 
@@ -113,7 +114,7 @@ Write a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/react/index.tsx:131](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L131)
+[src/react/index.tsx:154](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L154)
 
 #### removeItem()
 
@@ -132,7 +133,7 @@ Remove a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
 
-[src/react/index.tsx:136](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L136)
+[src/react/index.tsx:159](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L159)
 
 ***
 
@@ -153,11 +154,31 @@ Sign in via one of your configured authentication providers.
 | Parameter | Type | Description |
 | :------ | :------ | :------ |
 | `provider` | `string` | <p>The ID of the provider (lowercase version of the</p><p>       provider name or a configured `id` option value).</p> |
-| `params`? | `FormData` \| `Record`\<`string`, `Value`\> | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p><p>       The shape required depends on the chosen provider's</p><p>       implementation.</p> |
+| `params`? | `FormData` \| `Record`\<`string`, `Value`\> & `object` | <p>Either a `FormData` object containing the sign-in</p><p>       parameters or a plain object containing them.</p><p>       The shape required depends on the chosen provider's</p><p>       implementation.</p> |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
-`Promise`\<`boolean`\>
+`Promise`\<`object`\>
+
+###### signingIn
+
+> **signingIn**: `boolean`
+
+Whether the call led to an immediate successful sign-in.
+
+Note that there's a delay between the `signIn` function
+returning and the client performing the handshake with
+the server to confirm the sign-in.
+
+###### redirect?
+
+> `optional` **redirect**: `URL`
+
+If the sign-in started an OAuth flow, this is the URL
+the browser should be redirected to.
+
+Useful in RN for opening the in-app browser to
+this URL.
 
 #### signOut()
 
@@ -173,4 +194,4 @@ and deletes the locally stored JWT and refresh token.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
 
-[src/react/index.tsx:142](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L142)
+[src/react/index.tsx:165](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L165)
