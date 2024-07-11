@@ -1,4 +1,4 @@
-import { SignInFormAnonymous } from "@/auth/SignInFormAnonymous";
+// import { SignInFormAnonymous } from "@/auth/SignInFormAnonymous";
 import { SignInFormEmailCode } from "@/auth/SignInFormEmailCode";
 import { SignInFormEmailLink } from "@/auth/SignInFormEmailLink";
 import { SignInFormPassword } from "@/auth/SignInFormPassword";
@@ -18,7 +18,7 @@ export function SignInFormsShowcase() {
         <TabsTrigger value="otp">OTP</TabsTrigger>
         <TabsTrigger value="link">Magic Link</TabsTrigger>
         <TabsTrigger value="password">Password</TabsTrigger>
-        <TabsTrigger value="anonymous">Anonymous</TabsTrigger>
+        {/* <TabsTrigger value="anonymous">Anonymous</TabsTrigger> */}
       </TabsList>
       <TabsContent value="otp">
         <Tabs defaultValue="email" className="flex flex-col">
@@ -64,10 +64,10 @@ export function SignInFormsShowcase() {
           </TabsContent>
         </Tabs>
       </TabsContent>
-      <TabsContent className="mt-20" value="anonymous">
-        {/* Sign in anonymously */}
+      {/* Sign in anonymously */}
+      {/* <TabsContent className="mt-20" value="anonymous">
         <SignInFormAnonymous />
-      </TabsContent>
+      </TabsContent> */}
     </Tabs>
   );
 }
