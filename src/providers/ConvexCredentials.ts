@@ -23,6 +23,7 @@
  */
 
 import {
+  AuthProviderConfig,
   ConvexCredentialsConfig,
   GenericActionCtxWithAuthConfig,
 } from "@convex-dev/auth/server";
@@ -82,6 +83,12 @@ export interface ConvexCredentialsUserConfig<
      */
     verifySecret: (secret: string, hash: string) => Promise<boolean>;
   };
+  /**
+   * Register extra providers used in the implementation of the credentials
+   * provider. They will only be available to the `signInViaProvider`
+   * function, and not to the `signIn` function exposed to clients.
+   */
+  extraProviders?: (AuthProviderConfig | undefined)[];
 }
 
 /**

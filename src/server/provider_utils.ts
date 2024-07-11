@@ -36,8 +36,15 @@ import {
  */
 export function configDefaults(config_: ConvexAuthConfig) {
   const config = materializeAndDefaultProviders(config_);
+  // Collect extra providers
+  const extraProviders = config.providers
+    .filter((p) => p.type === "credentials")
+    .map((p) => p.extraProviders)
+    .flat()
+    .filter((p) => p !== undefined);
   return {
     ...config,
+    extraProviders: materializeProviders(extraProviders),
     theme: config.theme ?? {
       colorScheme: "auto",
       logo: "",
@@ -53,9 +60,13 @@ export function configDefaults(config_: ConvexAuthConfig) {
 export function materializeProvider(provider: AuthProviderConfig) {
   const config = { providers: [provider] };
   materializeAndDefaultProviders(config);
-  return providerDefaults(
-    config.providers[0] as AuthProviderMaterializedConfig,
-  );
+  return config.providers[0] as AuthProviderMaterializedConfig;
+}
+
+function materializeProviders(providers: AuthProviderConfig[]) {
+  const config = { providers };
+  materializeAndDefaultProviders(config);
+  return config.providers as AuthProviderMaterializedConfig[];
 }
 
 function materializeAndDefaultProviders(config_: ConvexAuthConfig) {

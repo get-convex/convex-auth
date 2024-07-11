@@ -23,12 +23,12 @@
  * @module
  */
 
-import { EmailConfig } from "@auth/core/providers";
 import {
   ConvexCredentials,
   ConvexCredentialsUserConfig,
 } from "@convex-dev/auth/providers/ConvexCredentials";
 import {
+  EmailConfig,
   GenericActionCtxWithAuthConfig,
   GenericDoc,
   createAccount,
@@ -211,6 +211,7 @@ export function Password<DataModel extends GenericDataModel>(
         return await new Scrypt().verify(hash, password);
       },
     },
+    extraProviders: [config.reset, config.verify],
     ...config,
   });
 }

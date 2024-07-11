@@ -22,6 +22,8 @@ export {
 export type {
   ConvexAuthConfig,
   AuthProviderConfig,
+  EmailConfig,
+  EmailUserConfig,
   PhoneConfig,
   PhoneUserConfig,
   ConvexCredentialsConfig,

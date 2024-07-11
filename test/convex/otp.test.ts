@@ -6,8 +6,10 @@ import {
   CONVEX_SITE_URL,
   JWKS,
   JWT_PRIVATE_KEY,
+  mockResendOTP,
   signInViaOTP,
 } from "./test.helpers";
+import { api } from "./_generated/api";
 
 test("sign in with otp", async () => {
   setupEnv();
@@ -18,6 +20,30 @@ test("sign in with otp", async () => {
   });
 
   expect(tokens).not.toBeNull();
+});
+
+test("make sure OTP requires email check", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  const { code } = await mockResendOTP(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "resend-otp",
+        params: {
+          email: "tom@gmail.com",
+        },
+      }),
+  );
+
+  await expect(
+    async () =>
+      await t.action(api.auth.signIn, {
+        params: { code },
+      }),
+  ).rejects.toThrowError(
+    "Token verification requires an `email` in params of `signIn`",
+  );
 });
 
 function setupEnv() {
