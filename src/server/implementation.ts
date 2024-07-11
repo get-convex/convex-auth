@@ -1920,7 +1920,10 @@ async function generateToken(
   },
   config: ConvexAuthConfig,
 ) {
-  const privateKey = await importPKCS8(process.env.JWT_PRIVATE_KEY!, "RS256");
+  if (process.env.JWT_PRIVATE_KEY === undefined) {
+    throw new Error("Missing `JWT_PRIVATE_KEY` environment variable");
+  }
+  const privateKey = await importPKCS8(process.env.JWT_PRIVATE_KEY, "RS256");
   const expirationTime = new Date(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
