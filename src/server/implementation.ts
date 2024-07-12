@@ -204,6 +204,7 @@ const storeArgs = {
       phone: v.optional(v.string()),
       code: v.string(),
       expirationTime: v.number(),
+      allowExtraProviders: v.boolean(),
     }),
     v.object({
       type: v.literal("createAccountFromCredentials"),
@@ -797,6 +798,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               expirationTime,
               provider: providerId,
               accountId: existingAccountId,
+              allowExtraProviders,
             } = args;
             const existingAccount =
               existingAccountId !== undefined
@@ -810,9 +812,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
                     )
                     .unique();
 
-            const provider = getProviderOrThrow(providerId) as
-              | EmailConfig
-              | PhoneConfig;
+            const provider = getProviderOrThrow(
+              providerId,
+              allowExtraProviders,
+            ) as EmailConfig | PhoneConfig;
             const { accountId } = await upsertUserAndAccount(
               ctx,
               await auth.getSessionId(ctx),
@@ -1611,6 +1614,7 @@ async function signInImpl(
         phone: args.params?.phone,
         code,
         expirationTime,
+        allowExtraProviders: options.allowExtraProviders,
       },
     })) as string;
     const destination = await redirectAbsoluteUrl(
