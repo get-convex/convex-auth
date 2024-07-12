@@ -1972,7 +1972,7 @@ async function generateToken(
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()
     .setIssuer(process.env.CONVEX_SITE_URL!)
-    .setAudience("convex")
+    .setAudience(config.audience ?? "convex")
     .setExpirationTime(expirationTime)
     .sign(privateKey);
 }

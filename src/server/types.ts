@@ -145,6 +145,11 @@ export type ConvexAuthConfig = {
       },
     ) => Promise<GenericId<"users">>;
   };
+  /**
+   * Control the audience of the JWT token.
+   * This should match the applicationID in your auth.config.ts file.
+   */
+  audience?: string;
 };
 
 /**
