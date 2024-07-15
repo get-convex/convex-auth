@@ -60,11 +60,20 @@ shell.exec(
   'git commit -m "Published from https://github.com/get-convex/convex-auth"',
 );
 
-// Force push to the repository
+// Force push to the repository for deploying to Vercel
 shell.exec(`git push --force ${repositoryUrl} HEAD:vercel`);
 
-// Push to main
+/// Push to main
+
+// Remove base URL handling from links
+shell.exec(
+  `find src -type f | xargs perl -i -pe 's#\\{import\\.meta\\.env\\.BASE_URL\\}#"/"#'`,
+);
+
+// Remove unneeded Vercel config
 shell.rm("vercel.json");
+
+// Push
 shell.exec("git add .");
 shell.exec("git commit --amend -C HEAD");
 shell.exec(`git push --force ${repositoryUrl} HEAD:main`);
