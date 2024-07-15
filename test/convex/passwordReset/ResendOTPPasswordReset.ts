@@ -17,8 +17,10 @@ export const ResendOTPPasswordReset = Email({
   }) {
     const resend = new ResendAPI(provider.apiKey);
     const { error } = await resend.emails.send({
+      // TODO: Update with your app name and email address
       from: "My App <onboarding@resend.dev>",
       to: [email],
+      // TODO: Update with your app name
       subject: `Reset password in My App`,
       react: PasswordResetEmail({ code: token, expires }),
     });
