@@ -191,11 +191,6 @@ export type ConvexAuthActionsContext = {
            * (used only in RN) the code from an OAuth flow or magic link URL.
            */
           code?: string;
-          /**
-           * (used only in RN) If true, it will not initiate the OAuth flow
-           * by redirecting the browser to the sign-in HTTP endpoint.
-           */
-          skipBrowserRedirect?: boolean;
         }),
   ) => Promise<{
     /**
