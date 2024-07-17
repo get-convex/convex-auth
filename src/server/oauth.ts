@@ -28,7 +28,7 @@ import {
 import { Account, TokenSet } from "@auth/core/types";
 import * as o from "oauth4webapi";
 import * as checks from "./checks.js";
-import { PLACEHOLDER_URL } from "./provider_utils.js";
+import { PLACEHOLDER_URL_HOST } from "./provider_utils.js";
 
 export type InternalProvider = (
   | OAuthConfigInternal<any>
@@ -340,14 +340,18 @@ function envProviderId(provider: string) {
 
 async function getOAuthConfig(provider: InternalProvider) {
   if (
-    provider.issuer &&
-    (!provider.authorization ||
-      !provider.token ||
-      !provider.userinfo ||
-      provider.authorization?.url?.host === PLACEHOLDER_URL ||
-      provider.token?.url?.host === PLACEHOLDER_URL ||
-      provider.userinfo?.url?.host === PLACEHOLDER_URL)
+    !provider.authorization ||
+    !provider.token ||
+    !provider.userinfo ||
+    provider.authorization?.url?.host === PLACEHOLDER_URL_HOST ||
+    provider.token?.url?.host === PLACEHOLDER_URL_HOST ||
+    provider.userinfo?.url?.host === PLACEHOLDER_URL_HOST
   ) {
+    if (!provider.issuer) {
+      throw new Error(
+        `Provider '${provider.id}' is missing an \`issuer\` URL configuration. Consult the provider docs.`,
+      );
+    }
     const discovery = `${provider.issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
     const response = await fetch(discovery);
     const config = await response.json();

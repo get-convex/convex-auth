@@ -156,7 +156,9 @@ function normalizeOAuth(c: any): EmailConfig {
   };
 }
 
-export const PLACEHOLDER_URL = "https://convexauth.mumbojumbo";
+export const PLACEHOLDER_URL_HOST = "convexauth.mumbojumbo";
+
+const PLACEHOLDER_URL = `https://${PLACEHOLDER_URL_HOST}`;
 
 function normalizeEndpoint(
   e?: OAuthConfig<any>[OAuthEndpointType],
