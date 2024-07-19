@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "main": "../dist/server/index.js",
+  "module": "../dist/server/index.js",
+  "types": "../dist/server/index.d.ts"
+}
