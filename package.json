@@ -32,7 +32,8 @@
     "prepublishOnly": "npm run lint && npm run build && npm run test:once",
     "publish:example": "node publishExample.mjs",
     "test": "cd test && npm run test",
-    "test:once": "cd test && npm run test:once"
+    "test:once": "cd test && npm run test:once",
+    "prepare": "npm run build"
   },
   "exports": {
     "./server": {
