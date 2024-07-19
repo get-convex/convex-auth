@@ -4,6 +4,8 @@
     "module": "ESNext",
     "lib": ["esnext", "ESNext.Array", "dom", "dom.iterable"],
     "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "outDir": "dist",
     "allowJs": true,
     "skipLibCheck": true,
