@@ -27,9 +27,7 @@ const config: DocsThemeConfig = {
         />
         <meta
           property="og:description"
-          content={
-            "Relations, default values, unique fields and more for Convex"
-          }
+          content="Authentication library for your Convex backend"
         />
       </>
     );
