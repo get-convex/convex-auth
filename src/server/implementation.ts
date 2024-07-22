@@ -1765,10 +1765,14 @@ async function defaultRedirectCallback({ redirectTo }: { redirectTo: string }) {
 function setURLSearchParam(absoluteUrl: string, param: string, value: string) {
   const pattern = /([^:]+):(.*)/;
   const [, scheme, rest] = absoluteUrl.match(pattern)!;
-  const url = new URL(`http:${rest}`);
+  const hasNoDomain = /^\/\/(?:\/|$|\?)/.test(rest);
+  const startsWithPath = hasNoDomain && rest.startsWith("///");
+  const url = new URL(
+    `http:${hasNoDomain ? "//googblibok" + rest.slice(2) : rest}`,
+  );
   url.searchParams.set(param, value);
   const [, , withParam] = url.toString().match(pattern)!;
-  return `${scheme}:${withParam}`;
+  return `${scheme}:${hasNoDomain ? (startsWithPath ? "/" : "") + "//" + withParam.slice(13) : withParam}`;
 }
 
 async function isSignInRateLimited(
