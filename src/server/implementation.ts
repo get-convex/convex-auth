@@ -93,7 +93,15 @@ export const authTables = {
    */
   authSessions: defineTable({
     userId: v.id("users"),
+    /**
+     * When the session expires. Automatically
+     * extended when the user is active.
+     */
     expirationTime: v.number(),
+    /**
+     * When the session expires. Never extended.
+     */
+    absoluteExpirationTime: v.number(),
   }).index("userId", ["userId"]),
   /**
    * Accounts. An account corresponds to
@@ -110,16 +118,6 @@ export const authTables = {
   })
     .index("userIdAndProvider", ["userId", "provider"])
     .index("accountIdAndProvider", ["providerAccountId", "provider"]),
-  /**
-   * Refresh tokens.
-   * Each session has only a single refresh token
-   * valid at a time. Refresh tokens are rotated
-   * and reuse is not allowed.
-   */
-  authRefreshTokens: defineTable({
-    sessionId: v.id("authSessions"),
-    expirationTime: v.number(),
-  }).index("sessionId", ["sessionId"]),
   /**
    * Verification codes:
    * - OTP tokens
@@ -171,7 +169,7 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("refreshSession"),
-      refreshToken: v.string(),
+      refreshToken: v.id("authSessions"),
     }),
     v.object({
       type: v.literal("verifyCodeAndSignIn"),
@@ -574,7 +572,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         provider: v.optional(v.string()),
         params: v.optional(v.any()),
         verifier: v.optional(v.string()),
-        refreshToken: v.optional(v.string()),
+        refreshToken: v.optional(v.id("authSessions")),
       },
       handler: async (ctx, args) => {
         const provider =
@@ -647,36 +645,19 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return null;
           }
           case "refreshSession": {
-            const { refreshToken } = args;
-            const [refreshTokenId, tokenSessionId] = refreshToken.split(
-              REFRESH_TOKEN_DIVIDER,
-            );
-            const validationResult = await validateRefreshToken(
-              ctx,
-              refreshTokenId,
-              tokenSessionId,
-            );
-            // This invalidates all other refresh tokens for this session,
-            // including ones created later, regardless of whether
-            // the passed one is valid or not.
-            await deleteRefreshTokens(
-              ctx,
-              tokenSessionId as GenericId<"authSessions">,
-            );
+            const { refreshToken: sessionId } = args;
+            const validationResult = await validateSessionId(ctx, sessionId);
 
             if (validationResult === null) {
-              // Can't call `deleteSession` here because we already deleted
-              // refresh tokens above
-              const session = await ctx.db.get(
-                tokenSessionId as GenericId<"authSessions">,
-              );
-              if (session !== null) {
-                await ctx.db.delete(session._id);
-              }
               return null;
             }
-            const { session } = validationResult;
-            const sessionId = session._id;
+
+            const { expired } = validationResult;
+            if (expired !== undefined) {
+              await deleteSession(ctx, expired);
+              return null;
+            }
+            const { valid: session } = validationResult;
             const userId = session.userId;
             return await generateTokensForSession(
               ctx,
@@ -994,8 +975,7 @@ async function getAccountOrThrow(
 async function maybeGenerateTokensForSession(
   ctx: GenericMutationCtx<AuthDataModel>,
   config: ConvexAuthConfig,
-  userId: GenericId<"users">,
-  sessionId: GenericId<"authSessions">,
+  session: GenericDoc<AuthDataModel, "authSessions">,
   generateTokens: boolean,
 ) {
   return {
@@ -1030,13 +1010,12 @@ async function createNewAndDeleteExistingSession(
 async function generateTokensForSession(
   ctx: GenericMutationCtx<AuthDataModel>,
   config: ConvexAuthConfig,
-  userId: GenericId<"users">,
-  sessionId: GenericId<"authSessions">,
+  session: GenericDoc<AuthDataModel, "authSessions">,
 ) {
-  const ids = { userId, sessionId };
+  await refreshSession(ctx, session, config);
   return {
-    token: await generateToken(ids, config),
-    refreshToken: await createRefreshToken(ctx, sessionId, config),
+    token: await generateToken(session, config),
+    refreshToken: session._id,
   };
 }
 
@@ -1540,7 +1519,7 @@ async function signInImpl(
     accountId?: GenericId<"authAccounts">;
     params?: Record<string, any>;
     verifier?: string;
-    refreshToken?: string;
+    refreshToken?: GenericId<"authSessions">;
   },
   options: {
     generateTokens: boolean;
@@ -1887,12 +1866,21 @@ async function createSession(
   userId: GenericId<"users">,
   config: ConvexAuthConfig,
 ) {
-  const expirationTime =
+  const absoluteExpirationTime =
     Date.now() +
     (config.session?.totalDurationMs ??
       stringToNumber(process.env.SESSION_TOTAL_DURATION_MS) ??
       DEFAULT_SESSION_TOTAL_DURATION_MS);
-  return await ctx.db.insert("authSessions", { expirationTime, userId });
+  const expirationTime =
+    Date.now() +
+    (config.session?.inactiveDurationMs ??
+      stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
+      DEFAULT_SESSION_INACTIVE_DURATION_MS);
+  return await ctx.db.insert("authSessions", {
+    expirationTime,
+    absoluteExpirationTime,
+    userId,
+  });
 }
 
 async function deleteSession(
@@ -1900,12 +1888,11 @@ async function deleteSession(
   session: GenericDoc<AuthDataModel, "authSessions">,
 ) {
   await ctx.db.delete(session._id);
-  await deleteRefreshTokens(ctx, session._id);
 }
 
-async function createRefreshToken(
+async function refreshSession(
   ctx: GenericMutationCtx<any>,
-  sessionId: GenericId<"authSessions">,
+  session: GenericDoc<AuthDataModel, "authSessions">,
   config: ConvexAuthConfig,
 ) {
   const expirationTime =
@@ -1913,64 +1900,33 @@ async function createRefreshToken(
     (config.session?.inactiveDurationMs ??
       stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
-  const newRefreshTokenId = await ctx.db.insert("authRefreshTokens", {
-    sessionId,
-    expirationTime,
+  await ctx.db.patch(session._id, {
+    expirationTime: Math.min(expirationTime, session.absoluteExpirationTime),
   });
-  return `${newRefreshTokenId}${REFRESH_TOKEN_DIVIDER}${sessionId}`;
 }
 
-async function deleteRefreshTokens(
-  ctx: GenericMutationCtx<any>,
+async function validateSessionId(
+  ctx: GenericMutationCtx<AuthDataModel>,
   sessionId: GenericId<"authSessions">,
 ) {
-  const existingRefreshTokens = await ctx.db
-    .query("authRefreshTokens")
-    .withIndex("sessionId", (q) => q.eq("sessionId", sessionId))
-    .collect();
-  for (const refreshTokenDoc of existingRefreshTokens) {
-    await ctx.db.delete(refreshTokenDoc._id);
-  }
-}
-
-async function validateRefreshToken(
-  ctx: GenericMutationCtx<AuthDataModel>,
-  refreshTokenId: string,
-  tokenSessionId: string,
-) {
-  const refreshTokenDoc = await ctx.db.get(
-    refreshTokenId as GenericId<"authRefreshTokens">,
-  );
-
-  if (refreshTokenDoc === null) {
-    console.error("Invalid refresh token");
-    return null;
-  }
-  if (refreshTokenDoc.expirationTime < Date.now()) {
-    console.error("Expired refresh token");
-    return null;
-  }
-  if (refreshTokenDoc.sessionId !== tokenSessionId) {
-    console.error("Invalid refresh token session ID");
-    return null;
-  }
-  const session = await ctx.db.get(refreshTokenDoc.sessionId);
+  const session = await ctx.db.get(sessionId);
   if (session === null) {
-    console.error("Invalid refresh token session");
+    console.error("Invalid session");
     return null;
   }
   if (session.expirationTime < Date.now()) {
-    console.error("Expired refresh token session");
-    return null;
+    console.error("Expired session via inactive duration");
+    return { expired: session };
   }
-  return { session, refreshTokenDoc };
+  if (session.absoluteExpirationTime < Date.now()) {
+    console.error("Expired session via total duration");
+    return { expired: session };
+  }
+  return { valid: session };
 }
 
 async function generateToken(
-  args: {
-    userId: GenericId<any>;
-    sessionId: GenericId<any>;
-  },
+  session: GenericDoc<AuthDataModel, "authSessions">,
   config: ConvexAuthConfig,
 ) {
   if (process.env.JWT_PRIVATE_KEY === undefined) {
@@ -1981,7 +1937,7 @@ async function generateToken(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
   return await new SignJWT({
-    sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
+    sub: session.userId + TOKEN_SUB_CLAIM_DIVIDER + session._id,
   })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()
