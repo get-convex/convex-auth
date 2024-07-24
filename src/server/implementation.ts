@@ -45,7 +45,6 @@ const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 day
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 const DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR = 10;
-const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
 /**
@@ -169,7 +168,7 @@ const storeArgs = {
     }),
     v.object({
       type: v.literal("refreshSession"),
-      refreshToken: v.id("authSessions"),
+      refreshToken: v.string(),
     }),
     v.object({
       type: v.literal("verifyCodeAndSignIn"),
@@ -572,7 +571,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         provider: v.optional(v.string()),
         params: v.optional(v.any()),
         verifier: v.optional(v.string()),
-        refreshToken: v.optional(v.id("authSessions")),
+        refreshToken: v.optional(v.string()),
       },
       handler: async (ctx, args) => {
         const provider =
@@ -617,19 +616,24 @@ export function convexAuth(config_: ConvexAuthConfig) {
               sessionId: existingSessionId,
               generateTokens,
             } = args;
-            const sessionId =
-              existingSessionId ??
-              (await createNewAndDeleteExistingSession(
+            let session;
+            if (existingSessionId !== undefined) {
+              session = await ctx.db.get(existingSessionId);
+              if (session === null) {
+                throw new Error("Expected valid session ID");
+              }
+            } else {
+              session = await createNewAndDeleteExistingSession(
                 ctx,
                 config,
                 auth,
                 userId,
-              ));
+              );
+            }
             return await maybeGenerateTokensForSession(
               ctx,
               config,
-              userId,
-              sessionId,
+              session,
               generateTokens,
             );
           }
@@ -645,7 +649,12 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return null;
           }
           case "refreshSession": {
-            const { refreshToken: sessionId } = args;
+            const { refreshToken } = args;
+            const sessionId = ctx.db.normalizeId("authSessions", refreshToken);
+            if (sessionId === null) {
+              console.error("Old format refresh token");
+              return null;
+            }
             const validationResult = await validateSessionId(ctx, sessionId);
 
             if (validationResult === null) {
@@ -658,13 +667,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               return null;
             }
             const { valid: session } = validationResult;
-            const userId = session.userId;
-            return await generateTokensForSession(
-              ctx,
-              config,
-              userId,
-              sessionId,
-            );
+            return await generateTokensForSession(ctx, config, session);
           }
           case "verifyCodeAndSignIn": {
             const { generateTokens, provider, allowExtraProviders } = args;
@@ -696,7 +699,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               await resetSignInRateLimit(ctx, identifier);
             }
             const { userId } = verifyResult;
-            const sessionId = await createNewAndDeleteExistingSession(
+            const session = await createNewAndDeleteExistingSession(
               ctx,
               config,
               auth,
@@ -705,8 +708,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             return await maybeGenerateTokensForSession(
               ctx,
               config,
-              userId,
-              sessionId,
+              session,
               generateTokens,
             );
           }
@@ -979,10 +981,10 @@ async function maybeGenerateTokensForSession(
   generateTokens: boolean,
 ) {
   return {
-    userId,
-    sessionId,
+    userId: session.userId,
+    sessionId: session._id,
     tokens: generateTokens
-      ? await generateTokensForSession(ctx, config, userId, sessionId)
+      ? await generateTokensForSession(ctx, config, session)
       : null,
   };
 }
@@ -1012,9 +1014,9 @@ async function generateTokensForSession(
   config: ConvexAuthConfig,
   session: GenericDoc<AuthDataModel, "authSessions">,
 ) {
-  await refreshSession(ctx, session, config);
+  const refreshedSession = await refreshSession(ctx, session, config);
   return {
-    token: await generateToken(session, config),
+    token: await generateToken(refreshedSession, config),
     refreshToken: session._id,
   };
 }
@@ -1519,7 +1521,7 @@ async function signInImpl(
     accountId?: GenericId<"authAccounts">;
     params?: Record<string, any>;
     verifier?: string;
-    refreshToken?: GenericId<"authSessions">;
+    refreshToken?: string;
   },
   options: {
     generateTokens: boolean;
@@ -1869,18 +1871,19 @@ async function createSession(
   const absoluteExpirationTime =
     Date.now() +
     (config.session?.totalDurationMs ??
-      stringToNumber(process.env.SESSION_TOTAL_DURATION_MS) ??
+      stringToNumber(process.env.AUTH_SESSION_TOTAL_DURATION_MS) ??
       DEFAULT_SESSION_TOTAL_DURATION_MS);
   const expirationTime =
     Date.now() +
     (config.session?.inactiveDurationMs ??
-      stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
+      stringToNumber(process.env.AUTH_SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
-  return await ctx.db.insert("authSessions", {
+  const sessionId = await ctx.db.insert("authSessions", {
     expirationTime,
     absoluteExpirationTime,
     userId,
   });
+  return (await ctx.db.get(sessionId))!;
 }
 
 async function deleteSession(
@@ -1898,11 +1901,12 @@ async function refreshSession(
   const expirationTime =
     Date.now() +
     (config.session?.inactiveDurationMs ??
-      stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
+      stringToNumber(process.env.AUTH_SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
   await ctx.db.patch(session._id, {
     expirationTime: Math.min(expirationTime, session.absoluteExpirationTime),
   });
+  return (await ctx.db.get(session._id))!;
 }
 
 async function validateSessionId(
