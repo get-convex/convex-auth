@@ -160,7 +160,7 @@ export const PLACEHOLDER_URL_HOST = "convexauth.mumbojumbo";
 
 const PLACEHOLDER_URL = `https://${PLACEHOLDER_URL_HOST}`;
 
-function normalizeEndpoint(
+export function normalizeEndpoint(
   e?: OAuthConfig<any>[OAuthEndpointType],
   issuer?: string,
 ) {

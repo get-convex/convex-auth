@@ -28,7 +28,7 @@ import {
 import { Account, TokenSet } from "@auth/core/types";
 import * as o from "oauth4webapi";
 import * as checks from "./checks.js";
-import { PLACEHOLDER_URL_HOST } from "./provider_utils.js";
+import { normalizeEndpoint, PLACEHOLDER_URL_HOST } from "./provider_utils.js";
 
 export type InternalProvider = (
   | OAuthConfigInternal<any>
@@ -364,17 +364,20 @@ async function getOAuthConfig(provider: InternalProvider) {
         code_challenge_methods_supported: string[];
       },
       fakeServer: null,
-      authorization: {
+      authorization: normalizeEndpoint({
         ...provider.authorization,
         url: new URL(config.authorization_endpoint),
-      },
-      token: { ...provider.token, url: new URL(config.token_endpoint) },
-      userinfo: {
+      }),
+      token: normalizeEndpoint({
+        ...provider.token,
+        url: new URL(config.token_endpoint),
+      }),
+      userinfo: normalizeEndpoint({
         ...provider.userinfo,
         url: config.userinfo_endpoint
           ? new URL(config.userinfo_endpoint)
           : null,
-      },
+      }),
     };
   } else {
     return {
