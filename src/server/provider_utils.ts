@@ -130,15 +130,6 @@ function stripUndefined<T extends object>(o: T): T {
 function normalizeOAuth(c: any): EmailConfig {
   if (c.issuer) c.wellKnown ??= `${c.issuer}/.well-known/openid-configuration`;
 
-  const authorization = normalizeEndpoint(c.authorization, c.issuer);
-  if (authorization && !authorization.url?.searchParams.has("scope")) {
-    authorization.url.searchParams.set("scope", "openid profile email");
-  }
-
-  const token = normalizeEndpoint(c.token, c.issuer);
-
-  const userinfo = normalizeEndpoint(c.userinfo, c.issuer);
-
   const checks = c.checks ?? ["pkce"];
   if (c.redirectProxyUrl) {
     if (!checks.includes("state")) checks.push("state");
@@ -147,10 +138,7 @@ function normalizeOAuth(c: any): EmailConfig {
 
   return {
     ...c,
-    authorization,
-    token,
     checks,
-    userinfo,
     profile: c.profile ?? defaultProfile,
     account: c.account ?? defaultAccount,
   };

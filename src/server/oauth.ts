@@ -108,9 +108,7 @@ export async function getAuthorizationURL(provider: InternalProvider) {
     cookies.push(cookie);
   }
 
-  // TODO: This does not work in normalizeOAuth because authorization endpoint can come from discovery
-  // Need to make normalizeOAuth async
-  if (provider.type === "oidc" && !url.searchParams.has("scope")) {
+  if (!url.searchParams.has("scope")) {
     authParams.set("scope", "openid profile email");
   }
 
@@ -372,21 +370,29 @@ async function getOAuthConfig(provider: InternalProvider) {
         ...provider.token,
         url: new URL(config.token_endpoint),
       }),
-      userinfo: normalizeEndpoint({
-        ...provider.userinfo,
-        url: config.userinfo_endpoint
-          ? new URL(config.userinfo_endpoint)
-          : null,
-      }),
+      userinfo: config.userinfo_endpoint
+        ? normalizeEndpoint({
+            ...provider.userinfo,
+            url: new URL(config.userinfo_endpoint),
+          })
+        : provider.userinfo,
     };
   } else {
+    const authorization = normalizeEndpoint(provider.authorization);
+    const token = normalizeEndpoint(provider.token);
+    const userinfo = provider.userinfo
+      ? normalizeEndpoint(provider.userinfo)
+      : undefined;
     return {
       ...provider,
+      authorization,
+      token,
+      userinfo,
       fakeServer: {
         issuer: provider.issuer ?? "theremustbeastringhere.dev",
-        authorization_endpoint: provider.authorization?.url.toString(),
-        token_endpoint: provider.token?.url.toString(),
-        userinfo_endpoint: provider.userinfo?.url.toString(),
+        authorization_endpoint: authorization?.url.toString(),
+        token_endpoint: token?.url.toString(),
+        userinfo_endpoint: userinfo?.url.toString(),
       },
       server: null,
     };
