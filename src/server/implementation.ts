@@ -482,72 +482,78 @@ export function convexAuth(config_: ConvexAuthConfig) {
           ),
         });
 
+        const callbackAction = httpActionGeneric(async (ctx, request) => {
+          const url = new URL(request.url);
+          const pathParts = url.pathname.split("/");
+          const providerId = pathParts.at(-1)!;
+          const provider = getProviderOrThrow(providerId) as OAuth2Config<any>;
+
+          const cookies = getCookies(request);
+
+          const maybeRedirectTo = useRedirectToParam(provider.id, cookies);
+
+          const destinationUrl = await redirectAbsoluteUrl(config, {
+            redirectTo: maybeRedirectTo?.redirectTo,
+          });
+
+          try {
+            const { profile, tokens, signature } = await handleOAuthCallback(
+              provider as any,
+              request,
+              cookies,
+            );
+
+            const { id, ...profileFromCallback } = await provider.profile!(
+              profile,
+              tokens,
+            );
+
+            if (typeof id !== "string") {
+              throw new Error(
+                `The profile method of the ${providerId} config must return a string ID`,
+              );
+            }
+
+            const verificationCode = await ctx.runMutation(
+              internal.auth.store,
+              {
+                args: {
+                  type: "userOAuth",
+                  provider: providerId,
+                  providerAccountId: id,
+                  profile: profileFromCallback,
+                  signature,
+                },
+              },
+            );
+
+            return new Response(null, {
+              status: 302,
+              headers: {
+                Location: setURLSearchParam(
+                  destinationUrl,
+                  "code",
+                  verificationCode as string,
+                ),
+                "Cache-Control": "must-revalidate",
+              },
+            });
+          } catch (error) {
+            console.error(error);
+            return Response.redirect(destinationUrl);
+          }
+        });
+
         http.route({
           pathPrefix: "/api/auth/callback/",
           method: "GET",
-          handler: httpActionGeneric(async (ctx, request) => {
-            const url = new URL(request.url);
-            const pathParts = url.pathname.split("/");
-            const providerId = pathParts.at(-1)!;
-            const provider = getProviderOrThrow(
-              providerId,
-            ) as OAuth2Config<any>;
+          handler: callbackAction,
+        });
 
-            const cookies = getCookies(request);
-
-            const maybeRedirectTo = useRedirectToParam(provider.id, cookies);
-
-            const destinationUrl = await redirectAbsoluteUrl(config, {
-              redirectTo: maybeRedirectTo?.redirectTo,
-            });
-
-            try {
-              const { profile, tokens, signature } = await handleOAuthCallback(
-                provider as any,
-                request,
-                cookies,
-              );
-
-              const { id, ...profileFromCallback } = await provider.profile!(
-                profile,
-                tokens,
-              );
-
-              if (typeof id !== "string") {
-                throw new Error(
-                  `The profile method of the ${providerId} config must return a string ID`,
-                );
-              }
-
-              const verificationCode = await ctx.runMutation(
-                internal.auth.store,
-                {
-                  args: {
-                    type: "userOAuth",
-                    provider: providerId,
-                    providerAccountId: id,
-                    profile: profileFromCallback,
-                    signature,
-                  },
-                },
-              );
-
-              return new Response(null, {
-                status: 302,
-                headers: {
-                  Location: setURLSearchParam(
-                    destinationUrl,
-                    "code",
-                    verificationCode as string,
-                  ),
-                  "Cache-Control": "must-revalidate",
-                },
-              });
-            } catch (error) {
-              console.error(error);
-              return Response.redirect(destinationUrl);
-            }
-          }),
+        http.route({
+          pathPrefix: "/api/auth/callback/",
+          method: "POST",
+          handler: callbackAction,
         });
       }
     },
