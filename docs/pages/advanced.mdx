@@ -65,9 +65,10 @@ either:
 1. Use only trusted methods.
 2. Use only a single untrusted method.
 
-### Controlling account linking behavior
+### Controlling user creation and account linking behavior
 
-You can implement your own account linking behavior by providing the
+You can implement your own user creation and account linking behavior by
+providing the
 [`createOrUpdateUser` callback](/api_reference/server#callbackscreateorupdateuser):
 
 ```ts
@@ -78,10 +79,20 @@ import { DataModel } from "./_generated/dataModel";
 export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
   providers: [GitHub, Password],
   callbacks: {
+    // `args.type` is one of "oauth" | "email" | "phone" | "credentials" | "verification"
+    // `args.provider` is the currently used provider config
     async createOrUpdateUser(ctx, args) {
-      // `args.type` is one of "oauth" | "email" | "phone" | "credentials" | "verification"
-      // `args.provider` is the currently used provider config
-      return await ctx.db.insert("users", {
+      if (args.existingUserId) {
+        // Optionally merge updated fields into the existing user object here
+        return args.existingUserId;
+      }
+
+      // Implement your own account linking logic:
+      const existingUser = await findUserByEmail(ctx, args.profile.email);
+      if (existingUser) return existingUser._id;
+
+      // Implement your own user creation:
+      return ctx.db.insert("users", {
         /* ... */
       });
     },
