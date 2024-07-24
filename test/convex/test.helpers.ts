@@ -65,8 +65,8 @@ export async function signInViaGitHub(
           { status: 200 },
         );
       } else if (
-        input instanceof URL &&
-        input.href === "https://api.github.com/user"
+        input === "https://api.github.com/user" ||
+        (input instanceof URL && input.href === "https://api.github.com/user")
       ) {
         expect(new Headers(init.headers).get("authorization")).toBe(
           `Bearer ${issuedAccessToken}`,

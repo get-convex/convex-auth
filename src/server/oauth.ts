@@ -337,14 +337,7 @@ function envProviderId(provider: string) {
 }
 
 async function getOAuthConfig(provider: InternalProvider) {
-  if (
-    !provider.authorization ||
-    !provider.token ||
-    !provider.userinfo ||
-    provider.authorization?.url?.host === PLACEHOLDER_URL_HOST ||
-    provider.token?.url?.host === PLACEHOLDER_URL_HOST ||
-    provider.userinfo?.url?.host === PLACEHOLDER_URL_HOST
-  ) {
+  if (!provider.authorization || !provider.token || !provider.userinfo) {
     if (!provider.issuer) {
       throw new Error(
         `Provider '${provider.id}' is missing an \`issuer\` URL configuration. Consult the provider docs.`,
