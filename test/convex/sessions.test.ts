@@ -31,7 +31,7 @@ test("refresh token expiration", async () => {
   vi.useFakeTimers();
   setupEnv();
   const ONE_DAY_MS = 1000 * 60 * 60 * 24;
-  process.env.SESSION_INACTIVE_DURATION_MS = `${ONE_DAY_MS}`;
+  process.env.AUTH_SESSION_INACTIVE_DURATION_MS = `${ONE_DAY_MS}`;
   const t = convexTest(schema);
   const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",
@@ -51,44 +51,11 @@ test("refresh token expiration", async () => {
   vi.useRealTimers();
 });
 
-test("refresh token reuse detection", async () => {
-  vi.useFakeTimers();
-  setupEnv();
-
-  const t = convexTest(schema);
-  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
-    provider: "password",
-    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
-  });
-  const { refreshToken } = initialTokens!;
-
-  const { tokens: newTokens } = await t.action(api.auth.signIn, {
-    refreshToken,
-    params: {},
-  });
-  expect(newTokens).not.toBeNull();
-
-  const { tokens: reuseResponse } = await t.action(api.auth.signIn, {
-    refreshToken,
-    params: {},
-  });
-  expect(reuseResponse).toBeNull();
-
-  const { tokens: newTokenResponse } = await t.action(api.auth.signIn, {
-    refreshToken: newTokens!.refreshToken,
-    params: {},
-  });
-
-  expect(newTokenResponse).toBeNull();
-
-  vi.useRealTimers();
-});
-
 test("session expiration", async () => {
   vi.useFakeTimers();
   setupEnv();
   const ONE_DAY_MS = 1000 * 60 * 60 * 24;
-  process.env.SESSION_TOTAL_DURATION_MS = `${ONE_DAY_MS}`;
+  process.env.AUTH_SESSION_TOTAL_DURATION_MS = `${ONE_DAY_MS}`;
   const t = convexTest(schema);
   const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",

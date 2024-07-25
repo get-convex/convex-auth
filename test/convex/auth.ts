@@ -44,7 +44,4 @@ export const { auth, signIn, signOut, store } = convexAuth({
     Password({ id: "password-link", verify: Resend }),
     Anonymous,
   ],
-  session: {
-    inactiveDurationMs: 1000 * 60 * 2,
-  },
 });
