@@ -27,7 +27,9 @@ export const { auth, signIn, signOut, store } = convexAuth({
       },
       profile: undefined,
     }),
-    Resend,
+    Resend({
+      from: process.env.AUTH_EMAIL ?? "My App <onboarding@resend.dev>",
+    }),
     ResendOTP,
     TwilioVerify,
     TwilioOTP,
