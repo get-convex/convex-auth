@@ -28,7 +28,7 @@ import {
 import { Account, TokenSet } from "@auth/core/types";
 import * as o from "oauth4webapi";
 import * as checks from "./checks.js";
-import { normalizeEndpoint, PLACEHOLDER_URL_HOST } from "./provider_utils.js";
+import { normalizeEndpoint } from "./provider_utils.js";
 
 export type InternalProvider = (
   | OAuthConfigInternal<any>
@@ -40,7 +40,11 @@ export type InternalProvider = (
 };
 
 export async function getAuthorizationURL(provider: InternalProvider) {
-  const { authorization, server } = await getOAuthConfig(provider);
+  const {
+    authorization,
+    server,
+    checks: providerChecks,
+  } = await getOAuthConfig(provider);
   const url = authorization!.url;
   const authParams = url.searchParams;
 
@@ -84,15 +88,11 @@ export async function getAuthorizationURL(provider: InternalProvider) {
   }
 
   let codeVerifier: string | undefined;
-  if (provider.checks?.includes("pkce")) {
+  if (providerChecks?.includes("pkce")) {
     if (
-      server !== null &&
-      !server.code_challenge_methods_supported?.includes("S256")
+      server === null ||
+      server.code_challenge_methods_supported?.includes("S256")
     ) {
-      // We assume S256 PKCE support, if the server does not advertise that,
-      // a random `nonce` must be used for CSRF protection.
-      if (provider.type === "oidc") provider.checks = ["nonce"] as any;
-    } else {
       const result = await checks.pkce.create(provider);
       authParams.set("code_challenge", result.codeChallenge);
       authParams.set("code_challenge_method", "S256");
@@ -102,7 +102,7 @@ export async function getAuthorizationURL(provider: InternalProvider) {
   }
 
   // @ts-expect-error TS is confused by the combined types
-  if (provider.checks?.includes("nonce")) {
+  if (providerChecks?.includes("nonce")) {
     const { nonce, cookie } = await checks.nonce.create(provider);
     authParams.set("nonce", nonce);
     cookies.push(cookie);
@@ -133,6 +133,7 @@ export async function handleOAuthCallback(
     userinfo,
     server: realServer,
     fakeServer,
+    checks: providerChecks,
   } = await getOAuthConfig(provider);
   const server = realServer ?? fakeServer;
 
@@ -145,18 +146,31 @@ export async function handleOAuthCallback(
   const updatedCookies: Cookie[] = [];
 
   let state: string | undefined;
-  if (provider.checks?.includes("state")) {
+  if (providerChecks?.includes("state")) {
     const result = checks.state.use(provider, cookies);
     updatedCookies.push(result.updatedCookie);
     state = result.state;
   }
 
   const params = new URL(request.url).searchParams;
+
+  // Handle OAuth providers that use formData (such as Apple)
+  if (
+    request.headers.get("Content-Type") === "application/x-www-form-urlencoded"
+  ) {
+    const formData = await request.formData();
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === "string") {
+        params.append(key, value);
+      }
+    }
+  }
+
   const codeGrantParams = o.validateAuthResponse(
     server,
     client,
     params,
-    provider.checks?.includes("state") ? state : o.skipStateCheck,
+    providerChecks?.includes("state") ? state : o.skipStateCheck,
   );
 
   /** https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1 */
@@ -168,7 +182,7 @@ export async function handleOAuthCallback(
   }
 
   let codeVerifier;
-  if (provider.checks?.includes("pkce")) {
+  if (providerChecks?.includes("pkce")) {
     const result = checks.pkce.use(provider, cookies);
     updatedCookies.push(result.updatedCookie);
     codeVerifier = result.codeVerifier;
@@ -189,7 +203,7 @@ export async function handleOAuthCallback(
       // https://github.com/nextauthjs/next-auth/pull/10765
       [o.customFetch]: (...args) => {
         if (
-          !provider.checks.includes("pkce") &&
+          !providerChecks.includes("pkce") &&
           args[1]?.body instanceof URLSearchParams
         ) {
           args[1].body.delete("code_verifier");
@@ -215,7 +229,7 @@ export async function handleOAuthCallback(
   let nonce;
   if (provider.type === "oidc") {
     // @ts-expect-error TS is confused by the combined types
-    if (provider.checks?.includes("nonce")) {
+    if (providerChecks?.includes("nonce")) {
       const result = checks.nonce.use(provider, cookies);
       updatedCookies.push(result.updatedCookie);
       nonce = result.nonce;
@@ -347,6 +361,13 @@ async function getOAuthConfig(provider: InternalProvider) {
     const response = await fetch(discovery);
     const config = await response.json();
     return {
+      ...provider,
+      checks:
+        provider.type === "oidc" &&
+        provider.checks?.includes("pkce") &&
+        !config.code_challenge_methods_supported?.includes("S256")
+          ? ["nonce"]
+          : provider.checks,
       server: config as {
         issuer: string;
         authorization_endpoint: string;

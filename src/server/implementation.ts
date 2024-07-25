@@ -539,7 +539,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               },
             });
           } catch (error) {
-            console.error(error);
+            logError(error);
             return Response.redirect(destinationUrl);
           }
         });
@@ -2005,11 +2005,7 @@ function convertErrorsToResponse(
           statusText: (error as any).data,
         });
       } else {
-        console.error(
-          error instanceof Error
-            ? error.message + "\n" + error.stack?.replace("\\n", "\n")
-            : error,
-        );
+        logError(error);
         return new Response(null, {
           status: 500,
           statusText: "Internal Server Error",
@@ -2017,6 +2013,14 @@ function convertErrorsToResponse(
       }
     }
   };
+}
+
+function logError(error: unknown) {
+  console.error(
+    error instanceof Error
+      ? error.message + "\n" + error.stack?.replace("\\n", "\n")
+      : error,
+  );
 }
 
 function siteUrl() {

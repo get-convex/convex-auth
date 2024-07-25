@@ -20,7 +20,13 @@ export const { auth, signIn, signOut, store } = convexAuth({
     FakePhone({ id: "fake-phone-2" }),
     GitHub,
     Google,
-    Apple,
+    Apple({
+      clientSecret: process.env.AUTH_APPLE_SECRET!,
+      client: {
+        token_endpoint_auth_method: "client_secret_post",
+      },
+      profile: undefined,
+    }),
     Resend,
     ResendOTP,
     TwilioVerify,

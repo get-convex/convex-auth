@@ -19,9 +19,10 @@
 import { setEnvDefaults } from "@auth/core";
 import {
   AccountCallback,
-  EmailConfig,
+  OAuth2Config,
   OAuthConfig,
   OAuthEndpointType,
+  OIDCConfig,
   ProfileCallback,
 } from "@auth/core/providers";
 import { Profile } from "@auth/core/types";
@@ -92,20 +93,21 @@ function materializeAndDefaultProviders(config_: ConvexAuthConfig) {
 
 function providerDefaults(provider: AuthProviderMaterializedConfig) {
   // TODO: Add `redirectProxyUrl` to oauth providers
-  return merge(
-    provider.type === "oauth" || provider.type === "oidc"
-      ? normalizeOAuth(provider)
-      : provider,
+  const merged = merge(
+    provider,
     (provider as any).options,
   ) as AuthProviderMaterializedConfig;
+  return merged.type === "oauth" || merged.type === "oidc"
+    ? normalizeOAuth(merged)
+    : merged;
 }
 
 const defaultProfile: ProfileCallback<Profile> = (profile) => {
   return stripUndefined({
     id: profile.sub ?? profile.id ?? crypto.randomUUID(),
     name: profile.name ?? profile.nickname ?? profile.preferred_username,
-    email: profile.email,
-    image: profile.picture,
+    email: profile.email ?? undefined,
+    image: profile.picture ?? undefined,
   });
 };
 
@@ -127,7 +129,9 @@ function stripUndefined<T extends object>(o: T): T {
   return result as T;
 }
 
-function normalizeOAuth(c: any): EmailConfig {
+function normalizeOAuth<T extends OIDCConfig<any> | OAuth2Config<any>>(
+  c: T,
+): T {
   if (c.issuer) c.wellKnown ??= `${c.issuer}/.well-known/openid-configuration`;
 
   const checks = c.checks ?? ["pkce"];
