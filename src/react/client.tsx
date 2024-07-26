@@ -36,6 +36,7 @@ function useConvexAuthInternalContext() {
 const VERIFIER_STORAGE_KEY = "__convexAuthOAuthVerifier";
 const JWT_STORAGE_KEY = "__convexAuthJWT";
 const REFRESH_TOKEN_STORAGE_KEY = "__convexAuthRefreshToken";
+const SERVER_STATE_FETCH_TIME_STORAGE_KEY = "__convexAuthServerStateFetchTime";
 
 export function AuthProvider({
   client,
@@ -48,6 +49,7 @@ export function AuthProvider({
   client: AuthClient;
   serverState?: {
     _state: { token: string | null; refreshToken: string | null };
+    _timeFetched: number;
   };
   storage: TokenStorage | null;
   storageNamespace: string;
@@ -59,7 +61,6 @@ export function AuthProvider({
   const [isAuthenticated, setIsAuthenticated] = useState(
     token.current !== null,
   );
-  console.log(isAuthenticated, serverState);
 
   const verbose: boolean = (client as any).options?.verbose;
   const logVerbose = useCallback(
@@ -241,12 +242,33 @@ export function AuthProvider({
       );
     }
     if (serverState !== undefined) {
-      const { token, refreshToken } = serverState._state;
-      const tokens =
-        token === null || refreshToken === null
-          ? null
-          : { token, refreshToken };
-      void setToken({ tokens, shouldStore: true });
+      // First check that this isn't a subsequent render
+      // with stale serverState.
+      const timeFetched = storageGet(SERVER_STATE_FETCH_TIME_STORAGE_KEY);
+      const setTokensFromServerState = (
+        timeFetched: string | null | undefined,
+      ) => {
+        if (!timeFetched || serverState._timeFetched > +timeFetched) {
+          const { token, refreshToken } = serverState._state;
+          const tokens =
+            token === null || refreshToken === null
+              ? null
+              : { token, refreshToken };
+          void storageSet(
+            SERVER_STATE_FETCH_TIME_STORAGE_KEY,
+            serverState._timeFetched.toString(),
+          );
+          void setToken({ tokens, shouldStore: true });
+        }
+      };
+
+      // We want to avoid async if possible.
+      if (timeFetched instanceof Promise) {
+        void timeFetched.then(setTokensFromServerState);
+      } else {
+        setTokensFromServerState(timeFetched);
+      }
+
       return;
     }
     const code =

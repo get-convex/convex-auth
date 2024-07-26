@@ -1,19 +1,10 @@
+"use client";
+
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { ReactNode } from "react";
+import { createContext, ReactNode, useContext } from "react";
 import { AuthProvider, useAuth } from "../react/client";
 import { AuthClient } from "../react/clientType";
 import type { TokenStorage } from "../react/index";
-
-/**
- * The server state returned by `convexAuthNextjsServerState`
- * used to initialize the client.
- *
- * You should treat this as an opaque value and never access
- * its properties.
- */
-export type ConvexAuthServerState = {
-  _state: { token: string | null; refreshToken: string | null };
-};
 
 /**
  * Replace your `ConvexProvider` in a Client Component with this component
@@ -50,7 +41,6 @@ export type ConvexAuthServerState = {
  */
 export function ConvexAuthNextjsProvider({
   client,
-  serverState,
   apiRoute,
   storage,
   storageNamespace,
@@ -60,10 +50,6 @@ export function ConvexAuthNextjsProvider({
    * Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient).
    */
   client: ConvexReactClient;
-  /**
-   * The server state returned by `convexAuthNextjsServerState`
-   */
-  serverState: ConvexAuthServerState;
   /**
    * You can customize the route path that handles authentication
    * actions via this prop and the `apiRoute` option to `convexAuthNextjsMiddleWare`.
@@ -93,6 +79,7 @@ export function ConvexAuthNextjsProvider({
    */
   children: ReactNode;
 }) {
+  const serverState = useContext(ConvexAuthServerStateContext);
   const call: AuthClient["authenticatedCall"] = async (action, args) => {
     const params = { action, args };
     const response = await fetch(apiRoute ?? "/api/auth", {
@@ -125,5 +112,34 @@ export function ConvexAuthNextjsProvider({
         {children}
       </ConvexProviderWithAuth>
     </AuthProvider>
+  );
+}
+
+/**
+ * @internal
+ */
+export type ConvexAuthServerState = {
+  _state: { token: string | null; refreshToken: string | null };
+  _timeFetched: number;
+};
+
+const ConvexAuthServerStateContext = createContext<
+  ConvexAuthServerState | undefined
+>(undefined);
+
+/**
+ * @internal
+ */
+export function ConvexAuthServerStateProvider({
+  value,
+  children,
+}: {
+  value: ConvexAuthServerState;
+  children: ReactNode;
+}) {
+  return (
+    <ConvexAuthServerStateContext.Provider value={value}>
+      {children}
+    </ConvexAuthServerStateContext.Provider>
   );
 }

@@ -8,16 +8,30 @@ import {
   NextResponse,
 } from "next/server";
 import { ReactNode } from "react";
-import { ConvexAuthServerState } from "..";
 import { getRequestCookies } from "./cookies";
 import { proxyAuthActionToConvex } from "./proxy";
 import { handleAuthenticationInRequest } from "./request";
+import { ConvexAuthServerState, ConvexAuthServerStateProvider } from "..";
 
-export function convexAuthNextjsServerState(): ConvexAuthServerState {
-  const { token, refreshToken } = getRequestCookies();
-  return {
-    _state: { token, refreshToken },
-  };
+/**
+ * Wrap the component that renders your `ConvexAuthNextjsProvider`
+ * with this component. This must be done in a Server Component.
+ *
+ * This will speed up the initial page load by providing
+ * the authentication state to the client.
+ */
+export function ConvexAuthNextjsServerProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  console.log(ConvexAuthServerStateProvider);
+
+  return (
+    <ConvexAuthServerStateProvider value={convexAuthNextjsServerState()}>
+      {children}
+    </ConvexAuthServerStateProvider>
+  );
 }
 
 export function convexAuthNextjsToken() {
@@ -156,3 +170,11 @@ export function nextjsMiddlewareRedirect(
 // If we do use localStorage, we will be able to sync the state
 // between browser tabs (sign in and sign out),
 // not using localStorage probably doesn't offer much better security
+
+function convexAuthNextjsServerState(): ConvexAuthServerState {
+  const { token, refreshToken } = getRequestCookies();
+  return {
+    _state: { token, refreshToken },
+    _timeFetched: Date.now(),
+  };
+}
