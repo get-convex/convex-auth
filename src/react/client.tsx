@@ -41,6 +41,7 @@ const SERVER_STATE_FETCH_TIME_STORAGE_KEY = "__convexAuthServerStateFetchTime";
 export function AuthProvider({
   client,
   serverState,
+  onChange,
   storage,
   storageNamespace,
   replaceURL,
@@ -51,6 +52,7 @@ export function AuthProvider({
     _state: { token: string | null; refreshToken: string | null };
     _timeFetched: number;
   };
+  onChange?: () => Promise<unknown>;
   storage: TokenStorage | null;
   storageNamespace: string;
   replaceURL: (relativeUrl: string) => void | Promise<void>;
@@ -123,12 +125,15 @@ export function AuthProvider({
             shouldStore: false,
             tokens: value === null ? null : { token: value },
           });
+          if (isAuthenticated !== (value !== null)) {
+            await onChange?.();
+          }
         }
       })();
     };
     browserAddEventListener("storage", listener);
     return () => browserRemoveEventListener("storage", listener);
-  }, [setToken]);
+  }, [setToken, isAuthenticated]);
 
   const verifyCodeAndSetToken = useCallback(
     async (

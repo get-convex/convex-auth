@@ -5,6 +5,7 @@ import { createContext, ReactNode, useContext } from "react";
 import { AuthProvider, useAuth } from "../react/client";
 import { AuthClient } from "../react/clientType";
 import type { TokenStorage } from "../react/index";
+import { invalidateCache } from "./server/invalidateCache";
 
 /**
  * Replace your `ConvexProvider` in a Client Component with this component
@@ -93,6 +94,7 @@ export function ConvexAuthNextjsProvider({
     <AuthProvider
       client={authClient}
       serverState={serverState}
+      onChange={invalidateCache}
       storage={
         storage ??
         // Handle SSR, Client, etc.
