@@ -241,6 +241,15 @@ export function AuthProvider({
           "set the `storage` prop on `ConvexAuthProvider`!",
       );
     }
+    const readStateFromStorage = async () => {
+      const token = (await storageGet(JWT_STORAGE_KEY)) ?? null;
+      logVerbose(`retrieved token from storage, is null: ${token === null}`);
+      await setToken({
+        shouldStore: false,
+        tokens: token === null ? null : { token },
+      });
+    };
+
     if (serverState !== undefined) {
       // First check that this isn't a subsequent render
       // with stale serverState.
@@ -259,6 +268,8 @@ export function AuthProvider({
             serverState._timeFetched.toString(),
           );
           void setToken({ tokens, shouldStore: true });
+        } else {
+          void readStateFromStorage();
         }
       };
 
@@ -289,14 +300,7 @@ export function AuthProvider({
         })();
       }
     } else {
-      void (async () => {
-        const token = (await storageGet(JWT_STORAGE_KEY)) ?? null;
-        logVerbose(`retrieved token from storage, is null: ${token === null}`);
-        await setToken({
-          shouldStore: false,
-          tokens: token === null ? null : { token },
-        });
-      })();
+      void readStateFromStorage();
     }
   }, [client, setToken, signIn, storageGet]);
 
