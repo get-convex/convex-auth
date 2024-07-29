@@ -12,25 +12,57 @@ import { getRequestCookies } from "./cookies";
 import { proxyAuthActionToConvex } from "./proxy";
 import { handleAuthenticationInRequest } from "./request";
 import { ConvexAuthServerState, ConvexAuthServerStateProvider } from "..";
+import { ConvexAuthNextjsClientProvider } from "../client";
 
 /**
- * Wrap the component that renders your `ConvexAuthNextjsProvider`
- * with this component. This must be done in a Server Component.
- *
- * This will speed up the initial page load by providing
- * the authentication state to the client.
+ * Wrap your app with this provider in your root layout.
  */
 export function ConvexAuthNextjsServerProvider({
+  apiRoute,
+  storage,
+  storageNamespace,
   children,
 }: {
+  /**
+   * You can customize the route path that handles authentication
+   * actions via this prop and the `apiRoute` option to `convexAuthNextjsMiddleWare`.
+   *
+   * Defaults to `/api/auth`.
+   */
+  apiRoute?: string;
+  /**
+   * Choose how the auth information will be stored on the client.
+   *
+   * Defaults to `"localStorage"`.
+   *
+   * If you choose `"inMemory"`, different browser tabs will not
+   * have a synchronized authentication state.
+   */
+  storage?: "localStorage" | "inMemory";
+  /**
+   * Optional namespace for keys used to store tokens. The keys
+   * determine whether the tokens are shared or not.
+   *
+   * Any non-alphanumeric characters will be ignored.
+   *
+   * Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
+   */
+  storageNamespace?: string;
+  /**
+   * Children components can call Convex hooks
+   * and {@link useAuthActions}.
+   */
   children: ReactNode;
 }) {
-  console.log(ConvexAuthServerStateProvider);
-
   return (
-    <ConvexAuthServerStateProvider value={convexAuthNextjsServerState()}>
+    <ConvexAuthNextjsClientProvider
+      serverState={convexAuthNextjsServerState()}
+      apiRoute={apiRoute}
+      storage={storage}
+      storageNamespace={storageNamespace}
+    >
       {children}
-    </ConvexAuthServerStateProvider>
+    </ConvexAuthNextjsClientProvider>
   );
 }
 
