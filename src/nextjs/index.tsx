@@ -90,6 +90,7 @@ export function ConvexAuthNextjsProvider({
     return await response.json();
   };
   const authClient = { authenticatedCall: call, unauthenticatedCall: call };
+  console.log("ConvexAuthNextjsProvider should render first");
   return (
     <AuthProvider
       client={authClient}

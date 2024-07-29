@@ -58,6 +58,8 @@ export function AuthProvider({
   replaceURL: (relativeUrl: string) => void | Promise<void>;
   children: ReactNode;
 }) {
+  console.log("Provider is being rendered");
+
   const token = useRef<string | null>(serverState?._state.token ?? null);
   const [isLoading, setIsLoading] = useState(token.current === null);
   const [isAuthenticated, setIsAuthenticated] = useState(
@@ -82,13 +84,15 @@ export function AuthProvider({
         | { shouldStore: false; tokens: { token: string } }
         | { shouldStore: boolean; tokens: null },
     ) => {
+      const wasAuthenticated = token.current !== null;
+      let newIsAuthenticated: boolean;
       if (args.tokens === null) {
         token.current = null;
         if (args.shouldStore) {
           await storageRemove(JWT_STORAGE_KEY);
           await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
         }
-        setIsAuthenticated(false);
+        newIsAuthenticated = false;
       } else {
         const { token: value } = args.tokens;
         token.current = value;
@@ -97,8 +101,13 @@ export function AuthProvider({
           await storageSet(JWT_STORAGE_KEY, value);
           await storageSet(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
         }
-        setIsAuthenticated(true);
+        newIsAuthenticated = true;
       }
+      if (wasAuthenticated !== newIsAuthenticated) {
+        console.log("Calling onChange");
+        await onChange?.();
+      }
+      setIsAuthenticated(newIsAuthenticated);
       setIsLoading(false);
     },
     [storageSet, storageRemove],
@@ -125,9 +134,6 @@ export function AuthProvider({
             shouldStore: false,
             tokens: value === null ? null : { token: value },
           });
-          if (isAuthenticated !== (value !== null)) {
-            await onChange?.();
-          }
         }
       })();
     };
@@ -238,76 +244,82 @@ export function AuthProvider({
     [verifyCodeAndSetToken, signOut, storageGet],
   );
   const signingInWithCodeFromURL = useRef<boolean>(false);
-  useEffect(() => {
-    // Has to happen in useEffect to avoid SSR.
-    if (storage === undefined) {
-      throw new Error(
-        "`localStorage` is not available in this environment, " +
-          "set the `storage` prop on `ConvexAuthProvider`!",
-      );
-    }
-    const readStateFromStorage = async () => {
-      const token = (await storageGet(JWT_STORAGE_KEY)) ?? null;
-      logVerbose(`retrieved token from storage, is null: ${token === null}`);
-      await setToken({
-        shouldStore: false,
-        tokens: token === null ? null : { token },
-      });
-    };
-
-    if (serverState !== undefined) {
-      // First check that this isn't a subsequent render
-      // with stale serverState.
-      const timeFetched = storageGet(SERVER_STATE_FETCH_TIME_STORAGE_KEY);
-      const setTokensFromServerState = (
-        timeFetched: string | null | undefined,
-      ) => {
-        if (!timeFetched || serverState._timeFetched > +timeFetched) {
-          const { token, refreshToken } = serverState._state;
-          const tokens =
-            token === null || refreshToken === null
-              ? null
-              : { token, refreshToken };
-          void storageSet(
-            SERVER_STATE_FETCH_TIME_STORAGE_KEY,
-            serverState._timeFetched.toString(),
-          );
-          void setToken({ tokens, shouldStore: true });
-        } else {
-          void readStateFromStorage();
-        }
+  useEffect(
+    () => {
+      // Has to happen in useEffect to avoid SSR.
+      if (storage === undefined) {
+        throw new Error(
+          "`localStorage` is not available in this environment, " +
+            "set the `storage` prop on `ConvexAuthProvider`!",
+        );
+      }
+      const readStateFromStorage = async () => {
+        const token = (await storageGet(JWT_STORAGE_KEY)) ?? null;
+        logVerbose(`retrieved token from storage, is null: ${token === null}`);
+        await setToken({
+          shouldStore: false,
+          tokens: token === null ? null : { token },
+        });
       };
 
-      // We want to avoid async if possible.
-      if (timeFetched instanceof Promise) {
-        void timeFetched.then(setTokensFromServerState);
-      } else {
-        setTokensFromServerState(timeFetched);
-      }
+      if (serverState !== undefined) {
+        // First check that this isn't a subsequent render
+        // with stale serverState.
+        const timeFetched = storageGet(SERVER_STATE_FETCH_TIME_STORAGE_KEY);
+        const setTokensFromServerState = (
+          timeFetched: string | null | undefined,
+        ) => {
+          if (!timeFetched || serverState._timeFetched > +timeFetched) {
+            const { token, refreshToken } = serverState._state;
+            const tokens =
+              token === null || refreshToken === null
+                ? null
+                : { token, refreshToken };
+            void storageSet(
+              SERVER_STATE_FETCH_TIME_STORAGE_KEY,
+              serverState._timeFetched.toString(),
+            );
+            void setToken({ tokens, shouldStore: true });
+          } else {
+            void readStateFromStorage();
+          }
+        };
 
-      return;
-    }
-    const code =
-      typeof window?.location !== "undefined"
-        ? new URLSearchParams(window.location.search).get("code")
-        : null;
-    // code from URL is only consumed initially,
-    // ref avoids racing in Strict mode
-    if (signingInWithCodeFromURL.current || code) {
-      if (code) {
-        signingInWithCodeFromURL.current = true;
-        const url = new URL(window.location.href);
-        url.searchParams.delete("code");
-        void (async () => {
-          await replaceURL(url.pathname + url.search + url.hash);
-          await signIn(undefined, { code });
-          signingInWithCodeFromURL.current = false;
-        })();
+        // We want to avoid async if possible.
+        if (timeFetched instanceof Promise) {
+          void timeFetched.then(setTokensFromServerState);
+        } else {
+          setTokensFromServerState(timeFetched);
+        }
+
+        return;
       }
-    } else {
-      void readStateFromStorage();
-    }
-  }, [client, setToken, signIn, storageGet]);
+      const code =
+        typeof window?.location !== "undefined"
+          ? new URLSearchParams(window.location.search).get("code")
+          : null;
+      // code from URL is only consumed initially,
+      // ref avoids racing in Strict mode
+      if (signingInWithCodeFromURL.current || code) {
+        if (code) {
+          signingInWithCodeFromURL.current = true;
+          const url = new URL(window.location.href);
+          url.searchParams.delete("code");
+          void (async () => {
+            await replaceURL(url.pathname + url.search + url.hash);
+            await signIn(undefined, { code });
+            signingInWithCodeFromURL.current = false;
+          })();
+        }
+      } else {
+        void readStateFromStorage();
+      }
+    },
+    // Explicitly chosen dependencies.
+    // This effect should mostly only run once
+    // on mount.
+    [client, storageGet],
+  );
 
   return (
     <ConvexAuthInternalContext.Provider
@@ -372,14 +384,20 @@ function useInMemoryStorage() {
 export function useAuth() {
   const { isLoading, isAuthenticated, fetchAccessToken } =
     useConvexAuthInternalContext();
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    console.log(
+      "Returning from useAuth",
+      fetchAccessToken,
+      isLoading,
+      isAuthenticated,
+    );
+
+    return {
       isLoading,
       isAuthenticated,
       fetchAccessToken,
-    }),
-    [fetchAccessToken, isLoading, isAuthenticated],
-  );
+    };
+  }, [fetchAccessToken, isLoading, isAuthenticated]);
 }
 
 // In the browser, executes the callback as the only tab / frame at a time.
