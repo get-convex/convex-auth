@@ -20,7 +20,7 @@
   "entryFileName": "../api_reference",
   "hidePageHeader": true,
   "hideBreadcrumbs": true,
-  "excludeGroups": true,
+  "hideGroupHeadings": true,
   "sort": ["source-order", "external-last"],
   "parametersFormat": "table",
   "disableGit": true,
