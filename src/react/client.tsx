@@ -58,15 +58,15 @@ export function AuthProvider({
   replaceURL: (relativeUrl: string) => void | Promise<void>;
   children: ReactNode;
 }) {
-  console.log("Provider is being rendered");
-
   const token = useRef<string | null>(serverState?._state.token ?? null);
   const [isLoading, setIsLoading] = useState(token.current === null);
   const [isAuthenticated, setIsAuthenticated] = useState(
     token.current !== null,
   );
 
-  const verbose: boolean = (client as any).options?.verbose;
+  console.log("Provider is being rendered", isLoading, isAuthenticated);
+
+  const verbose: boolean = client.verbose ?? false;
   const logVerbose = useCallback(
     (message: string) => {
       if (verbose) {
@@ -105,8 +105,9 @@ export function AuthProvider({
       }
       if (wasAuthenticated !== newIsAuthenticated) {
         console.log("Calling onChange");
-        await onChange?.();
+        // await onChange?.();
       }
+      console.log("Is it this set state?");
       setIsAuthenticated(newIsAuthenticated);
       setIsLoading(false);
     },
@@ -139,7 +140,7 @@ export function AuthProvider({
     };
     browserAddEventListener("storage", listener);
     return () => browserRemoveEventListener("storage", listener);
-  }, [setToken, isAuthenticated]);
+  }, [setToken]);
 
   const verifyCodeAndSetToken = useCallback(
     async (
@@ -269,6 +270,8 @@ export function AuthProvider({
         const setTokensFromServerState = (
           timeFetched: string | null | undefined,
         ) => {
+          console.log(timeFetched, serverState._timeFetched);
+
           if (!timeFetched || serverState._timeFetched > +timeFetched) {
             const { token, refreshToken } = serverState._state;
             const tokens =
@@ -341,7 +344,10 @@ function useNamespacedStorage(
   namespace: string,
 ) {
   const inMemoryStorage = useInMemoryStorage();
-  const storage = peristentStorage ?? inMemoryStorage();
+  const storage = useMemo(
+    () => peristentStorage ?? inMemoryStorage(),
+    [peristentStorage],
+  );
   const escapedNamespace = namespace.replace(/[^a-zA-Z0-9]/g, "");
   const storageKey = useCallback(
     (key: string) => `${key}_${escapedNamespace}`,

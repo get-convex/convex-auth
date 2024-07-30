@@ -105,6 +105,7 @@ export function ConvexAuthProvider({
             args,
           );
         },
+        verbose: (client as any).options?.verbose,
       }) satisfies AuthClient,
     [client],
   );

@@ -11,4 +11,5 @@ export type AuthClient = {
     action: Action,
     ...args: OptionalRestArgs<Action>
   ): Promise<Action["_returnType"]>;
+  verbose: boolean | undefined;
 };

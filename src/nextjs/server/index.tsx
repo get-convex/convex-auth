@@ -8,19 +8,22 @@ import {
   NextResponse,
 } from "next/server";
 import { ReactNode } from "react";
+import {
+  ConvexAuthNextjsClientProvider,
+  ConvexAuthServerState,
+} from "../client";
 import { getRequestCookies } from "./cookies";
 import { proxyAuthActionToConvex } from "./proxy";
 import { handleAuthenticationInRequest } from "./request";
-import { ConvexAuthServerState, ConvexAuthServerStateProvider } from "..";
-import { ConvexAuthNextjsClientProvider } from "../client";
 
 /**
- * Wrap your app with this provider in your root layout.
+ * Wrap your app with this provider in your root `layout.tsx`.
  */
 export function ConvexAuthNextjsServerProvider({
   apiRoute,
   storage,
   storageNamespace,
+  verbose,
   children,
 }: {
   /**
@@ -49,6 +52,10 @@ export function ConvexAuthNextjsServerProvider({
    */
   storageNamespace?: string;
   /**
+   * Turn on debugging logs.
+   */
+  verbose?: boolean;
+  /**
    * Children components can call Convex hooks
    * and {@link useAuthActions}.
    */
@@ -60,6 +67,7 @@ export function ConvexAuthNextjsServerProvider({
       apiRoute={apiRoute}
       storage={storage}
       storageNamespace={storageNamespace}
+      verbose={verbose}
     >
       {children}
     </ConvexAuthNextjsClientProvider>
