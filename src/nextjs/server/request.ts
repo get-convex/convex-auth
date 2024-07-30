@@ -42,7 +42,6 @@ export async function handleAuthenticationInRequest(request: NextRequest) {
 
   const response = NextResponse.next();
   if (refreshTokens !== undefined) {
-    console.log("Refresh cookies on non-action request", refreshTokens);
     setAuthCookies(response, refreshTokens);
   }
   return response;

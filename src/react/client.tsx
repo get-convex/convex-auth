@@ -64,8 +64,6 @@ export function AuthProvider({
     token.current !== null,
   );
 
-  console.log("Provider is being rendered", isLoading, isAuthenticated);
-
   const verbose: boolean = client.verbose ?? false;
   const logVerbose = useCallback(
     (message: string) => {
@@ -104,10 +102,8 @@ export function AuthProvider({
         newIsAuthenticated = true;
       }
       if (wasAuthenticated !== newIsAuthenticated) {
-        console.log("Calling onChange");
         await onChange?.();
       }
-      console.log("Is it this set state?");
       setIsAuthenticated(newIsAuthenticated);
       setIsLoading(false);
     },
@@ -275,8 +271,6 @@ export function AuthProvider({
         const setTokensFromServerState = (
           timeFetched: string | null | undefined,
         ) => {
-          console.log(timeFetched, serverState._timeFetched);
-
           if (!timeFetched || serverState._timeFetched > +timeFetched) {
             const { token, refreshToken } = serverState._state;
             const tokens =
@@ -396,13 +390,6 @@ export function useAuth() {
   const { isLoading, isAuthenticated, fetchAccessToken } =
     useConvexAuthInternalContext();
   return useMemo(() => {
-    console.log(
-      "Returning from useAuth",
-      fetchAccessToken,
-      isLoading,
-      isAuthenticated,
-    );
-
     return {
       isLoading,
       isAuthenticated,
