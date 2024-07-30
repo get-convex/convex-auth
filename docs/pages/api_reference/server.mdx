@@ -79,7 +79,7 @@ PKCE verifiers for OAuth.
 
 Rate limits for OTP and password sign-in.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/implementation.ts:74](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L74)
 
@@ -103,7 +103,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type |
-| :------ | :------ |
+| ------ | ------ |
 | `config_` | [`ConvexAuthConfig`](server.mdx#convexauthconfig) |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
@@ -116,32 +116,16 @@ the current user and session ID.
 #### auth
 
 
+Helper for configuring HTTP actions and accessing
+the current user and session ID.
+
 #### auth.getUserId()
 
-
-Return the currently signed-in user's ID.
-
-```ts filename="convex/myFunctions.tsx"
-import { mutation } from "./_generated/server";
-import { auth } from "./auth.js";
-
-export const doSomething = mutation({
-  args: {/* ... */},
-  handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
-    if (userId === null) {
-      throw new Error("Client is not authenticated!")
-    }
-    const user = await ctx.db.get(userId);
-    // ...
-  },
-});
-```
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `ctx` | `object` | query, mutation or action `ctx` |
 | `ctx.auth` | `Auth` | - |
 
@@ -149,38 +133,23 @@ export const doSomething = mutation({
 
 `Promise`\<`null` \| `Id`\<`"users"`\>\>
 
+the user ID or `null` if the client isn't authenticated
+
 #### auth.getSessionId()
 
-
-Return the current session ID.
-
-```ts filename="convex/myFunctions.tsx"
-import { mutation } from "./_generated/server";
-import { auth } from "./auth.js";
-
-export const doSomething = mutation({
-  args: {/* ... */},
-  handler: async (ctx, args) => {
-    const sessionId = await auth.getSessionId(ctx);
-    if (sessionId === null) {
-      throw new Error("Client is not authenticated!")
-    }
-    const session = await ctx.db.get(sessionId);
-    // ...
-  },
-});
-```
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `ctx` | `object` | query, mutation or action `ctx` |
 | `ctx.auth` | `Auth` | - |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `Promise`\<`null` \| `Id`\<`"authSessions"`\>\>
+
+the session ID or `null` if the client isn't authenticated
 
 #### auth.addHttpRoutes()
 
@@ -211,7 +180,7 @@ The following routes are handled if OAuth is configured:
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `http` | `HttpRouter` | your HTTP router |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
@@ -236,9 +205,9 @@ Action called by the client to invalidate the current session.
 Internal mutation used by the library to read and write
 to the database during signin and signout.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:276](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L276)
+[src/server/implementation.ts:279](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L279)
 
 ***
 
@@ -253,10 +222,10 @@ provider ID, email address, phone number, username etc.).
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
 | `args` | `object` | - |
-| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the provider's `crypto` option.</p> |
+| `args.provider` | `string` | The provider ID (like "password"), used to disambiguate accounts. It is also used to configure account secret hashing via the provider's `crypto` option. |
 | `args.account` | `object` | - |
 | `args.account.id` | `string` | The unique external ID for the account, for example email address. |
 | `args.account.secret`? | `string` | The secret credential to store for this account, if given. |
@@ -277,9 +246,9 @@ or throws an error.
 #### user
 
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1303](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1303)
+[src/server/implementation.ts:1344](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1344)
 
 ***
 
@@ -294,10 +263,10 @@ the provider-specific account ID.
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
 | `args` | `object` | - |
-| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the provider's `crypto` option.</p> |
+| `args.provider` | `string` | The provider ID (like "password"), used to disambiguate accounts. It is also used to configure account secret hashing via the provider's `crypto` option. |
 | `args.account` | `object` | - |
 | `args.account.id` | `string` | The unique external ID for the account, for example email address. |
 | `args.account.secret`? | `string` | The secret that should match the stored credential, if given. |
@@ -316,9 +285,9 @@ secret does not match.
 #### user
 
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1368](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1368)
+[src/server/implementation.ts:1409](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1409)
 
 ***
 
@@ -332,21 +301,21 @@ provider.
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `ctx` | `GenericActionCtx`\<`DataModel`\> | - |
 | `args` | `object` | - |
-| `args.provider` | `string` | <p>The provider ID (like "password"), used to disambiguate accounts.</p><p>It is also used to configure account secret hashing via the `crypto` option.</p> |
+| `args.provider` | `string` | The provider ID (like "password"), used to disambiguate accounts. It is also used to configure account secret hashing via the `crypto` option. |
 | `args.account` | `object` | - |
 | `args.account.id` | `string` | The unique external ID for the account, for example email address. |
 | `args.account.secret` | `string` | The new secret credential to store for this account. |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodel-tablename)\<`DataModel`, `"users"`\>\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1413](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1413)
+[src/server/implementation.ts:1454](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1454)
 
 ***
 
@@ -358,7 +327,7 @@ Use this function to invalidate existing sessions.
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type |
-| :------ | :------ |
+| ------ | ------ |
 | `ctx` | `GenericActionCtx`\<`DataModel`\> |
 | `args` | `object` |
 | `args.userId` | `Id`\<`"users"`\> |
@@ -366,11 +335,11 @@ Use this function to invalidate existing sessions.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodel-tablename)\<`DataModel`, `"users"`\>\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1448](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1448)
+[src/server/implementation.ts:1489](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1489)
 
 ***
 
@@ -388,7 +357,7 @@ or `null`.
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type |
-| :------ | :------ |
+| ------ | ------ |
 | `ctx` | [`GenericActionCtxWithAuthConfig`](server.mdx#genericactionctxwithauthconfigdatamodel)\<`DataModel`\> |
 | `provider` | [`AuthProviderConfig`](server.mdx#authproviderconfig) |
 | `args` | `object` |
@@ -399,9 +368,9 @@ or `null`.
 
 `Promise`\<`null` \| `object`\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1475](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1475)
+[src/server/implementation.ts:1516](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1516)
 
 ***
 
@@ -500,7 +469,7 @@ and URLs starting with `SITE_URL` are allowed.
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `params` | `object` | - |
 | `params.redirectTo` | `string` | The param value passed to the `signIn` function. |
 
@@ -524,20 +493,20 @@ when `createAccount` is called.
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `ctx` | `GenericMutationCtx`\<`AnyDataModel`\> | - |
 | `args` | `object` | - |
 | `args.existingUserId` | `GenericId`\<`"users"`\> \| `null` | If this is a sign-in to an existing account, this is the existing user ID linked to that account. |
 | `args.type` | `"oauth"` \| `"credentials"` \| `"email"` \| `"phone"` \| `"verification"` | The provider type or "verification" if this callback is called after an email or phone token verification. |
 | `args.provider` | [`AuthProviderMaterializedConfig`](server.mdx#authprovidermaterializedconfig) | The provider used for the sign-in, or the provider tied to the account which is having the email or phone verified. |
-| `args.profile` | `Record`\<`string`, `unknown`\> & `object` | <ul><li>The profile returned by the OAuth provider's `profile` method.</li><li>The profile passed to `createAccount` from a ConvexCredentials config.</li><li>The email address to which an email will be sent.</li><li>The phone number to which a text will be sent.</li></ul> |
+| `args.profile` | `Record`\<`string`, `unknown`\> & `object` | - The profile returned by the OAuth provider's `profile` method. - The profile passed to `createAccount` from a ConvexCredentials config. - The email address to which an email will be sent. - The phone number to which a text will be sent. |
 | `args.shouldLink`? | `boolean` | The `shouldLink` argument passed to `createAccount`. |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `Promise`\<`GenericId`\<`"users"`\>\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:22](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L22)
 
@@ -550,9 +519,243 @@ Same as Auth.js provider configs, but adds phone provider
 for verification via SMS or another phone-number-connected messaging
 service.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:155](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L155)
+
+***
+
+## EmailConfig\<DataModel\>
+
+Extends the standard Auth.js email provider config
+to allow additional checks during token verification.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Extends</h3>
+
+- `EmailConfig`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Properties</h3>
+
+#### id
+
+> **id**: `string`
+
+Uniquely identifies the provider in AuthConfig.providers
+It's also part of the URL
+
+##### Inherited from
+
+`AuthjsEmailConfig.id`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:14](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L14)
+
+#### type
+
+
+See ProviderType
+
+##### Inherited from
+
+`AuthjsEmailConfig.type`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:15](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L15)
+
+#### name
+
+> **name**: `string`
+
+The provider name used on the default sign-in page's sign-in button.
+For example if it's "Google", the corresponding button will say:
+"Sign in with Google"
+
+##### Inherited from
+
+`AuthjsEmailConfig.name`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:16](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L16)
+
+#### from
+
+> **from**: `string`
+
+##### Inherited from
+
+`AuthjsEmailConfig.from`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:17](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L17)
+
+#### maxAge
+
+> **maxAge**: `number`
+
+##### Inherited from
+
+`AuthjsEmailConfig.maxAge`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:18](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L18)
+
+#### sendVerificationRequest()
+
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type |
+| ------ | ------ |
+| `params` | `object` |
+| `params.identifier` | `string` |
+| `params.url` | `string` |
+| `params.expires` | `Date` |
+| `params.provider` | `EmailConfig` |
+| `params.token` | `string` |
+| `params.theme` | `Theme` |
+| `params.request` | `Request` |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Awaitable`\<`void`\>
+
+##### Inherited from
+
+`AuthjsEmailConfig.sendVerificationRequest`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:19](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L19)
+
+#### secret?
+
+> `optional` **secret**: `string`
+
+Used to hash the verification token.
+
+##### Inherited from
+
+`AuthjsEmailConfig.secret`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:29](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L29)
+
+#### apiKey?
+
+> `optional` **apiKey**: `string`
+
+Used with HTTP-based email providers.
+
+##### Inherited from
+
+`AuthjsEmailConfig.apiKey`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:31](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L31)
+
+#### server?
+
+> `optional` **server**: `any`
+
+Used with SMTP-based email providers.
+
+##### Inherited from
+
+`AuthjsEmailConfig.server`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:33](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L33)
+
+#### generateVerificationToken()?
+
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Awaitable`\<`string`\>
+
+##### Inherited from
+
+`AuthjsEmailConfig.generateVerificationToken`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:34](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L34)
+
+#### normalizeIdentifier()?
+
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type |
+| ------ | ------ |
+| `identifier` | `string` |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`string`
+
+##### Inherited from
+
+`AuthjsEmailConfig.normalizeIdentifier`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:35](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L35)
+
+#### options
+
+> **options**: `EmailUserConfig`
+
+##### Inherited from
+
+`AuthjsEmailConfig.options`
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[node\_modules/@auth/core/providers/email.d.ts:36](https://github.com/get-convex/convex-auth/blob/main/node_modules/@auth/core/providers/email.d.ts#L36)
+
+#### authorize()?
+
+
+Before the token is verified, check other
+provided parameters.
+
+Used to make sure tha OTPs are accompanied
+with the correct email address.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `params` | `Record`\<`string`, `undefined` \| `Value`\> | The values passed to the `signIn` function. |
+| `account` | [`GenericDoc`](server.mdx#genericdocdatamodel-tablename)\<`DataModel`, `"authAccounts"`\> | - |
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`Promise`\<`void`\>
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+
+[src/server/types.ts:179](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L179)
+
+***
+
+## EmailUserConfig\<DataModel\>
+
+
+Configurable options for an email provider config.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/types.ts:191](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L191)
 
 ***
 
@@ -567,14 +770,14 @@ phone number instead of the email address.
 
 > **id**: `string`
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:202](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L202)
 
 #### type
 
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:203](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L203)
 
@@ -584,7 +787,7 @@ phone number instead of the email address.
 
 Token expiration in seconds.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:207](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L207)
 
@@ -596,7 +799,7 @@ Send the phone number verification request.
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type |
-| :------ | :------ |
+| ------ | ------ |
 | `params` | `object` |
 | `params.identifier` | `string` |
 | `params.url` | `string` |
@@ -609,7 +812,7 @@ Send the phone number verification request.
 
 `Promise`\<`void`\>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:211](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L211)
 
@@ -619,43 +822,37 @@ Send the phone number verification request.
 
 Defaults to `process.env.AUTH_<PROVIDER_ID>_KEY`.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:224](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L224)
 
 #### generateVerificationToken()?
 
 
-Override this to generate a custom token.
-Note that the tokens are assumed to be cryptographically secure.
-Any tokens shorter than 24 characters are assumed to not
-be secure enough on their own, and require providing
-the original `phone` used in the initial `signIn` call.
-
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `Promise`\<`string`\>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:233](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L233)
 
 #### normalizeIdentifier()?
 
 
-Normalize the phone number.
-
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `identifier` | `string` | Passed as `phone` in params of `signIn`. |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `string`
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+The phone number used in `sendVerificationRequest`.
+
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:239](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L239)
 
@@ -671,22 +868,22 @@ with the correct phone number.
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
 | Parameter | Type | Description |
-| :------ | :------ | :------ |
+| ------ | ------ | ------ |
 | `params` | `Record`\<`string`, `undefined` \| `Value`\> | The values passed to the `signIn` function. |
-| `account` | [`GenericDoc`](server.mdx#genericdocdatamodeltablename)\<`DataModel`, `"authAccounts"`\> | - |
+| `account` | [`GenericDoc`](server.mdx#genericdocdatamodel-tablename)\<`DataModel`, `"authAccounts"`\> | - |
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `Promise`\<`void`\>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:247](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L247)
 
 #### options
 
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Source</h5>
+<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/server/types.ts:254](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L254)
 
@@ -697,7 +894,7 @@ with the correct phone number.
 
 Configurable options for a phone provider config.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:260](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L260)
 
@@ -717,7 +914,7 @@ Similar to Auth.js Credentials config.
 
 > **id**: `string`
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:267](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L267)
 
@@ -737,7 +934,7 @@ the config passed to `convexAuth`.
 #### auth.config
 
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:276](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L276)
 
@@ -760,7 +957,7 @@ See [ConvexAuthConfig](server.mdx#convexauthconfig)
 
 > **theme**: `Theme`
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:287](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L287)
 
@@ -771,6 +968,6 @@ See [ConvexAuthConfig](server.mdx#convexauthconfig)
 
 Materialized Auth.js provider config.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Source</h3>
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:295](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L295)
