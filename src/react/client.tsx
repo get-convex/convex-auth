@@ -198,9 +198,14 @@ export function AuthProvider({
   );
 
   const signOut = useCallback(async () => {
-    // We can't wait for this action to finish,
-    // because it never will if we are already signed out.
-    void client.authenticatedCall("auth:signOut" as unknown as SignOutAction);
+    try {
+      await client.authenticatedCall(
+        "auth:signOut" as unknown as SignOutAction,
+      );
+    } catch (error) {
+      // Ignore any errors, they are usually caused by being
+      // already signed out, which is ok.
+    }
     logVerbose(`signed out, erasing tokens`);
     await setToken({ shouldStore: true, tokens: null });
   }, [setToken, client]);
