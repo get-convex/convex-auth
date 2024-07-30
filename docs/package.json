@@ -34,6 +34,6 @@
     "typedoc": "^0.25.13",
     "typedoc-plugin-markdown": "^4.0.3",
     "typedoc-plugin-rename-defaults": "^0.7.0",
-    "typescript": "^5.0.4"
+    "typescript": "^5.5.4"
   }
 }

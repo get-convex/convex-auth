@@ -22,7 +22,7 @@ function SomeComponent() {
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/react/index.tsx:36](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L36)
+[src/react/index.tsx:28](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L28)
 
 ***
 
@@ -47,12 +47,12 @@ function RootComponent({ children }: { children: ReactNode }) {
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `props` | `object` |  |
-| `props.client` | `ConvexReactClient` | Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). |
-| `props.storage`? | [`TokenStorage`](react.mdx#tokenstorage) | Optional custom storage object that implements the [TokenStorage](react.mdx#tokenstorage) interface, otherwise [`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) is used. You must set this for React Native. |
-| `props.storageNamespace`? | `string` | Optional namespace for keys used to store tokens. The keys determine whether the tokens are shared or not. Any non-alphanumeric characters will be ignored (for RN compatibility). Defaults to the deployment URL, as configured in the given `client`. |
-| `props.replaceURL`? | (`relativeUrl`) => `void` \| `Promise`\<`void`\> | Provide this function if you're using a JS router (Expo router etc.) and after OAuth or magic link sign-in the `code` param is not being erased from the URL. The implementation will depend on your chosen router. |
-| `props.children` | `ReactNode` | Children components can call Convex hooks and [useAuthActions](react.mdx#useauthactions). |
+| `__namedParameters` | `object` | - |
+| `__namedParameters.client` | `ConvexReactClient` | Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). |
+| `__namedParameters.storage`? | [`TokenStorage`](react.mdx#tokenstorage) | Optional custom storage object that implements the [TokenStorage](react.mdx#tokenstorage) interface, otherwise [`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) is used. You must set this for React Native. |
+| `__namedParameters.storageNamespace`? | `string` | Optional namespace for keys used to store tokens. The keys determine whether the tokens are shared or not. Any non-alphanumeric characters will be ignored (for RN compatibility). Defaults to the deployment URL, as configured in the given `client`. |
+| `__namedParameters.replaceURL`? | (`relativeUrl`) => `void` \| `Promise`\<`void`\> | Provide this function if you're using a JS router (Expo router etc.) and after OAuth or magic link sign-in the `code` param is not being erased from the URL. The implementation will depend on your chosen router. |
+| `__namedParameters.children` | `ReactNode` | Children components can call Convex hooks and [useAuthActions](react.mdx#useauthactions). |
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
@@ -60,7 +60,7 @@ function RootComponent({ children }: { children: ReactNode }) {
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/react/index.tsx:57](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L57)
+[src/react/index.tsx:47](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L47)
 
 ***
 
@@ -94,7 +94,7 @@ Read a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
-[src/react/index.tsx:146](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L146)
+[src/react/index.tsx:152](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L152)
 
 #### setItem()
 
@@ -114,7 +114,7 @@ Write a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
-[src/react/index.tsx:154](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L154)
+[src/react/index.tsx:160](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L160)
 
 #### removeItem()
 
@@ -133,7 +133,7 @@ Remove a value.
 
 <h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
-[src/react/index.tsx:159](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L159)
+[src/react/index.tsx:165](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L165)
 
 ***
 
@@ -196,4 +196,4 @@ and deletes the locally stored JWT and refresh token.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/react/index.tsx:165](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L165)
+[src/react/index.tsx:171](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L171)
