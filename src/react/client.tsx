@@ -105,7 +105,7 @@ export function AuthProvider({
       }
       if (wasAuthenticated !== newIsAuthenticated) {
         console.log("Calling onChange");
-        // await onChange?.();
+        await onChange?.();
       }
       console.log("Is it this set state?");
       setIsAuthenticated(newIsAuthenticated);
