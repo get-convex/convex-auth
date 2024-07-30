@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class">
-          <ConvexAuthNextjsServerProvider verbose>
+          <ConvexAuthNextjsServerProvider>
             {children}
           </ConvexAuthNextjsServerProvider>
         </ThemeProvider>
