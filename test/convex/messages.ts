@@ -5,6 +5,10 @@ import { auth } from "./auth";
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    const userId = await auth.getUserId(ctx);
+    if (userId === null) {
+      throw new Error("Not signed in");
+    }
     // Grab the most recent messages.
     const messages = await ctx.db.query("messages").order("desc").take(100);
     // Reverse the list so that it's in a chronological order.
