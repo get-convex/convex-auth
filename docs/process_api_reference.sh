@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Fix incorrect base path for links from index page
+perl -i -pe 's/\(docs\//(api_reference\//' pages/api_reference.mdx
+
 # Delete the GenericDoc docs, because they cannot
 # be reordered but show up first in server.
 perl -i -0777 -pe 's/\n## GenericDoc.*?\*\*\*\n//gs' pages/api_reference/server.mdx
