@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "main": "../dist/providers/Password/index.js",
-  "module": "../dist/providers/Password/index.js",
-  "types": "../dist/providers/Password/index.d.ts"
+  "main": "../../dist/providers/Password/index.js",
+  "module": "../../dist/providers/Password/index.js",
+  "types": "../../dist/providers/Password/index.d.ts"
 }
