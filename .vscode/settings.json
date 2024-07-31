@@ -1,0 +1,10 @@
+// Workspace settings
+{
+  "files.exclude": {
+    ".vscode": true,
+    "dist": true,
+    "react": true,
+    "providers": true,
+    "server": true
+  }
+}

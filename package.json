@@ -17,7 +17,9 @@
   "author": "xixixao",
   "files": [
     "dist",
-    "react"
+    "providers",
+    "react",
+    "server"
   ],
   "type": "module",
   "bin": "./dist/bin.cjs",
