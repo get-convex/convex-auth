@@ -69,23 +69,37 @@ export function ConvexAuthNextjsServerProvider(props: {
   );
 }
 
+/**
+ * Retrieve the token for authenticating calls to your
+ * Convex backend from Server Components, Server Actions and Route Handlers.
+ * @returns The token if the the client is authenticated, otherwise `undefined`.
+ */
 export function convexAuthNextjsToken() {
   return getRequestCookies().token ?? undefined;
 }
 
+/**
+ * Whether the client is authenticated, which you can check
+ * in Server Actions, Route Handlers and Middleware.
+ *
+ * Avoid the pitfall of checking authentication state in layouts,
+ * since they won't stop nested pages from rendering.
+ */
 export function isAuthenticatedNextjs() {
   return convexAuthNextjsToken() !== undefined;
 }
 
-export function AuthenticatedNextjs({ children }: { children: ReactNode }) {
-  return isAuthenticatedNextjs() ? <>{children}</> : null;
-}
-
-export function UnauthenticatedNextjs({ children }: { children: ReactNode }) {
-  return isAuthenticatedNextjs() ? null : <>{children}</>;
-}
-
+/**
+ * Use in your `middleware.ts` to enable your Next.js app to use
+ * Convex Auth for authentication on the server.
+ *
+ * @returns A Next.js middleware.
+ */
 export function convexAuthNextjsMiddleware(
+  /**
+   * A custom handler, which you can use to decide
+   * which routes should be accessible based on the client's authentication.
+   */
   handler?: (
     request: NextRequest,
     event: NextFetchEvent,
@@ -165,46 +179,6 @@ export function nextjsMiddlewareRedirect(
   url.pathname = pathname;
   return NextResponse.redirect(url);
 }
-
-// Initial page load
-// nothing
-
-// Sign in: (say email + password)
-// has to go through Next.js server (route handler instead of Convex Action)
-// from the API route, we call the Convex Action
-// we get back the tokens
-// we set the tokens on cookies
-// we also return the tokens to the client
-
-// Page reload (access token still valid)
-// We read the cookies
-// We trust the cookie (developers have to revalidate themselves)
-// make the token available for fetchQuery
-// server components can call fetchQuery(api.foo.bar, {}, {token})
-// we pass the tokens to the client provider (this means the client provider does not! have to use localStorage (double check))
-// (so the client provider has the tokens available without any async calls and can immediately authenticate)
-
-// Page reload (access token expired)
-// We read the cookies
-// We can see that the access token is invalid (or soon expires, we need some grace period, configurable)
-// We refresh the token via signIn action
-// We set the new tokens on cookies
-// we pass the tokens to the client provider
-
-// Sign out
-// client calls Next.js server route handler
-// we remove the cookies
-// we return to client
-// client deletes the tokens from memory
-
-// to protect against CSRF we check origin header
-
-// The client will try to refresh the token
-// That has to go through the Next.js server too
-
-// If we do use localStorage, we will be able to sync the state
-// between browser tabs (sign in and sign out),
-// not using localStorage probably doesn't offer much better security
 
 function convexAuthNextjsServerState(): ConvexAuthServerState {
   const { token, refreshToken } = getRequestCookies();

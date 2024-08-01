@@ -29,18 +29,29 @@ Wrap your app with this provider in your root `layout.tsx`.
 ## convexAuthNextjsToken()
 
 
+Retrieve the token for authenticating calls to your
+Convex backend from Server Components, Server Actions and Route Handlers.
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 `undefined` \| `string`
 
+The token if the the client is authenticated, otherwise `undefined`.
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:72](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L72)
+[src/nextjs/server/index.tsx:77](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L77)
 
 ***
 
 ## isAuthenticatedNextjs()
 
+
+Whether the client is authenticated, which you can check
+in Server Actions, Route Handlers and Middleware.
+
+Avoid the pitfall of checking authentication state in layouts,
+since they won't stop nested pages from rendering.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
@@ -48,58 +59,21 @@ Wrap your app with this provider in your root `layout.tsx`.
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:76](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L76)
-
-***
-
-## AuthenticatedNextjs()
-
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
-
-| Parameter | Type |
-| ------ | ------ |
-| `__namedParameters` | `object` |
-| `__namedParameters.children` | `ReactNode` |
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
-
-`null` \| `Element`
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
-
-[src/nextjs/server/index.tsx:80](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L80)
-
-***
-
-## UnauthenticatedNextjs()
-
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
-
-| Parameter | Type |
-| ------ | ------ |
-| `__namedParameters` | `object` |
-| `__namedParameters.children` | `ReactNode` |
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
-
-`null` \| `Element`
-
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
-
-[src/nextjs/server/index.tsx:84](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L84)
+[src/nextjs/server/index.tsx:88](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L88)
 
 ***
 
 ## convexAuthNextjsMiddleware()
 
 
+Use in your `middleware.ts` to enable your Next.js app to use
+Convex Auth for authentication on the server.
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `handler`? | (`request`, `event`) => `NextMiddlewareResult` \| `Promise`\<`NextMiddlewareResult`\> | - |
+| `handler`? | (`request`, `event`) => `NextMiddlewareResult` \| `Promise`\<`NextMiddlewareResult`\> | A custom handler, which you can use to decide which routes should be accessible based on the client's authentication. |
 | `options`? | `object` | - |
 | `options.convexUrl`? | `string` | The URL of the Convex deployment to use for authentication. Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`. |
 | `options.apiRoute`? | `string` | You can customize the route path that handles authentication actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`. Defaults to `/api/auth`. |
@@ -108,9 +82,11 @@ Wrap your app with this provider in your root `layout.tsx`.
 
 `NextMiddleware`
 
+A Next.js middleware.
+
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:88](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L88)
+[src/nextjs/server/index.tsx:98](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L98)
 
 ***
 
@@ -137,7 +113,7 @@ return nextjsMiddlewareRedirect(request, "/login");
 
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:154](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L154)
+[src/nextjs/server/index.tsx:168](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L168)
 
 ***
 
