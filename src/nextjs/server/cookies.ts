@@ -1,8 +1,12 @@
 import { cookies, headers } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export function getRequestCookies() {
   return getCookieStore(headers(), cookies());
+}
+
+export function getRequestCookiesInMiddleware(request: NextRequest) {
+  return getCookieStore(headers(), request.cookies);
 }
 
 export function getResponseCookies(response: NextResponse) {
@@ -19,7 +23,7 @@ function getCookieStore(
 };
 function getCookieStore(
   headers: Headers,
-  cookies: NextResponse["cookies"],
+  cookies: NextResponse["cookies"] | NextRequest["cookies"],
 ): {
   token: string | null;
   refreshToken: string | null;
@@ -27,7 +31,7 @@ function getCookieStore(
 };
 function getCookieStore(
   requestHeaders: ReturnType<typeof headers>,
-  responseCookies: NextResponse["cookies"],
+  responseCookies: NextResponse["cookies"] | NextRequest["cookies"],
 ) {
   const isLocalhost = /localhost:\d+/.test(requestHeaders.get("Host") ?? "");
   const prefix = isLocalhost ? "" : "__Host-";

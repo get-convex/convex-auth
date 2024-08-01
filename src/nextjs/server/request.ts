@@ -2,11 +2,14 @@ import { fetchAction } from "convex/nextjs";
 import { jwtDecode } from "jwt-decode";
 import { NextRequest, NextResponse } from "next/server";
 import { SignInAction } from "../../server/implementation";
-import { getRequestCookies } from "./cookies";
+import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies";
 import { setAuthCookies } from "./utils";
 
 export async function handleAuthenticationInRequest(request: NextRequest) {
   const requestUrl = new URL(request.url);
+
+  // Validate CORS
+  validateCors(request);
 
   // Refresh tokens if necessary
   const refreshTokens = await getRefreshedTokens();
@@ -45,6 +48,19 @@ export async function handleAuthenticationInRequest(request: NextRequest) {
     setAuthCookies(response, refreshTokens);
   }
   return response;
+}
+
+// If this is a cross-origin request with `Origin` header set
+// do not allow the app to read auth cookies.
+function validateCors(request: NextRequest) {
+  const origin = request.headers.get("Origin");
+  const originHost = origin ? new URL(origin).host : null;
+  if (origin !== null && originHost !== request.headers.get("Host")) {
+    const cookies = getRequestCookiesInMiddleware(request);
+    cookies.token = null;
+    cookies.refreshToken = null;
+    cookies.verifier = null;
+  }
 }
 
 const REQUIRED_TOKEN_LIFETIME_MS = 60_000; // 1 minute
