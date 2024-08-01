@@ -143,9 +143,9 @@ Convex queries are safe to call from components and `GET` Route Handlers.
 Essentially, a malicious site might cause your user's browser to make an
 authenticated `GET` request without the user's permission, but it won't be able
 to read the response. Outside of `GET` requests, Convex Auth makes
-authentication state available only to same-origin requests by default.
+authentication state available only to same-origin requests.
 
-Convex Auth is not special here, and the same applies to most other
-authentication solutions.
+_Convex Auth is not special here, and the same security considerations apply to
+most other authentication solutions._
 
 </Callout>
