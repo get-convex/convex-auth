@@ -220,6 +220,33 @@ export type ConvexAuthActionsContext = {
   signOut: () => Promise<void>;
 };
 
+/**
+ * Use this hook to access the JWT token on the client, for authenticating
+ * your Convex HTTP actions.
+ *
+ * You should not pass this token to other servers (think of it
+ * as an "ID token").
+ *
+ * ```ts
+ * import { useAuthToken } from "@convex-dev/auth/react";
+ *
+ * function SomeComponent() {
+ *   const token = useAuthToken();
+ *   const onClick = async () => {
+ *     await fetch(`${CONVEX_SITE_URL}/someEndpoint`, {
+ *       headers: {
+ *         Authorization: `Bearer ${token}`,
+ *       },
+ *     });
+ *   };
+ *   // ...
+ * }
+ * ```
+ */
+export function useAuthToken() {
+  return useContext(ConvexAuthTokenContext);
+}
+
 /// Implementation details below
 
 const ConvexAuthActionsContext = createContext<ConvexAuthActionsContext>(
@@ -236,9 +263,11 @@ const ConvexAuthInternalContext = createContext<{
   }) => Promise<string | null>;
 }>(undefined as any);
 
-function useConvexAuthInternalContext() {
+function useAuth() {
   return useContext(ConvexAuthInternalContext);
 }
+
+const ConvexAuthTokenContext = createContext<string | null>(null);
 
 const VERIFIER_STORAGE_KEY = "__convexAuthOAuthVerifier";
 const JWT_STORAGE_KEY = "__convexAuthJWT";
@@ -259,7 +288,7 @@ function AuthProvider({
 }) {
   const token = useRef<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [tokenState, setTokenState] = useState<string | null>(null);
   const verbose: boolean = (client as any).options?.verbose;
   const logVerbose = useCallback(
     (message: string) => {
@@ -284,7 +313,7 @@ function AuthProvider({
           await storageRemove(JWT_STORAGE_KEY);
           await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
         }
-        setIsAuthenticated(false);
+        setTokenState(null);
       } else {
         const { token: value } = args.tokens;
         token.current = value;
@@ -293,7 +322,7 @@ function AuthProvider({
           await storageSet(JWT_STORAGE_KEY, value);
           await storageSet(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
         }
-        setIsAuthenticated(true);
+        setTokenState(value);
       }
       setIsLoading(false);
     },
@@ -470,16 +499,21 @@ function AuthProvider({
     }
   }, [client, setToken, signIn, storageGet]);
 
+  const actions = useMemo(() => ({ signIn, signOut }), [signIn, signOut]);
+  const authState = useMemo(
+    () => ({
+      isLoading,
+      isAuthenticated: tokenState !== null,
+      fetchAccessToken,
+    }),
+    [fetchAccessToken, isLoading, tokenState],
+  );
   return (
-    <ConvexAuthInternalContext.Provider
-      value={{
-        isLoading,
-        isAuthenticated,
-        fetchAccessToken,
-      }}
-    >
-      <ConvexAuthActionsContext.Provider value={{ signIn, signOut }}>
-        {children}
+    <ConvexAuthInternalContext.Provider value={authState}>
+      <ConvexAuthActionsContext.Provider value={actions}>
+        <ConvexAuthTokenContext.Provider value={tokenState}>
+          {children}
+        </ConvexAuthTokenContext.Provider>
       </ConvexAuthActionsContext.Provider>
     </ConvexAuthInternalContext.Provider>
   );
@@ -504,19 +538,6 @@ function useNamespacedStorage(storage: TokenStorage, namespace: string) {
     [storage, storageKey],
   );
   return { storageSet, storageGet, storageRemove, storageKey };
-}
-
-function useAuth() {
-  const { isLoading, isAuthenticated, fetchAccessToken } =
-    useConvexAuthInternalContext();
-  return useMemo(
-    () => ({
-      isLoading,
-      isAuthenticated,
-      fetchAccessToken,
-    }),
-    [fetchAccessToken, isLoading, isAuthenticated],
-  );
 }
 
 // In the browser, executes the callback as the only tab / frame at a time.

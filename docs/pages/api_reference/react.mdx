@@ -197,3 +197,38 @@ and deletes the locally stored JWT and refresh token.
 <h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/react/index.tsx:165](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L165)
+
+***
+
+## useAuthToken()
+
+
+Use this hook to access the JWT token on the client, for authenticating
+your Convex HTTP actions.
+
+You should not pass this token to other servers (think of it
+as an "ID token").
+
+```ts
+import { useAuthToken } from "@convex-dev/auth/react";
+
+function SomeComponent() {
+  const token = useAuthToken();
+  const onClick = async () => {
+    await fetch(`${CONVEX_SITE_URL}/someEndpoint`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  };
+  // ...
+}
+```
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`null` \| `string`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/react/index.tsx:246](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L246)
