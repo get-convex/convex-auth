@@ -19,13 +19,7 @@ import { handleAuthenticationInRequest } from "./request";
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
  */
-export function ConvexAuthNextjsServerProvider({
-  apiRoute,
-  storage,
-  storageNamespace,
-  verbose,
-  children,
-}: {
+export function ConvexAuthNextjsServerProvider(props: {
   /**
    * You can customize the route path that handles authentication
    * actions via this prop and the `apiRoute` option to `convexAuthNextjsMiddleWare`.
@@ -61,6 +55,7 @@ export function ConvexAuthNextjsServerProvider({
    */
   children: ReactNode;
 }) {
+  const { apiRoute, storage, storageNamespace, verbose, children } = props;
   return (
     <ConvexAuthNextjsClientProvider
       serverState={convexAuthNextjsServerState()}

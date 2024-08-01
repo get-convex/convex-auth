@@ -30,10 +30,7 @@ import { useAuth } from "../react/client";
  * }
  * ```
  */
-export function ConvexAuthNextjsProvider({
-  client,
-  children,
-}: {
+export function ConvexAuthNextjsProvider(props: {
   /**
    * Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient).
    */
@@ -44,6 +41,7 @@ export function ConvexAuthNextjsProvider({
    */
   children: ReactNode;
 }) {
+  const { client, children } = props;
   return (
     <ConvexProviderWithAuth client={client} useAuth={useAuth}>
       {children}
