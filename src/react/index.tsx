@@ -44,13 +44,7 @@ export function useAuthActions() {
  * }
  * ```
  */
-export function ConvexAuthProvider({
-  client,
-  storage,
-  storageNamespace,
-  replaceURL,
-  children,
-}: {
+export function ConvexAuthProvider(props: {
   /**
    * Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient).
    */
@@ -93,6 +87,7 @@ export function ConvexAuthProvider({
    */
   children: ReactNode;
 }) {
+  const { client, storage, storageNamespace, replaceURL, children } = props;
   const authClient = useMemo(
     () =>
       ({
