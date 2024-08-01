@@ -4,6 +4,8 @@
   "entryPoints": [
     "../src/server/index.ts",
     "../src/react/index.tsx",
+    "../src/nextjs/index.tsx",
+    "../src/nextjs/server/index.tsx",
     "../src/providers"
   ],
   "exclude": ["../README.md"],

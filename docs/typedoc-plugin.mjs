@@ -9,6 +9,10 @@ export function load(app) {
   const setupPostprocess = () => {
     app.renderer.postRenderAsyncJobs.push(async (renderer) => {
       const navigation = renderer.navigation;
+      // Temporary workaround for https://github.com/typedoc2md/typedoc-plugin-markdown/issues/663
+      navigation[0].children = [
+        { title: "server", kind: 2, path: "nextjs/server.mdx" },
+      ];
       printMeta(navigation, "pages/api_reference");
       execSync("bash process_api_reference.sh");
     });
@@ -21,7 +25,7 @@ export function load(app) {
   });
 }
 
-const sortLast = new Set(["providers", "ConvexCredentials"]);
+const sortLast = new Set(["nextjs", "providers", "ConvexCredentials"]);
 
 function printMeta(navigation, path) {
   let meta = {};

@@ -38,6 +38,9 @@ type RouteMatcherWithNextTypedRoutes = Autocomplete<
   WithPathPatternWildcard<NextTypedRoute> | NextTypedRoute
 >;
 
+/**
+ * See {@link createRouteMatcher} for more information.
+ */
 export type RouteMatcherParam =
   | Array<RegExp | RouteMatcherWithNextTypedRoutes>
   | RegExp

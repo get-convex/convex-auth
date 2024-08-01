@@ -146,7 +146,7 @@ export function convexAuthNextjsMiddleware(
   };
 }
 
-export { createRouteMatcher } from "./routeMatcher";
+export { createRouteMatcher, RouteMatcherParam } from "./routeMatcher";
 
 /**
  * Helper for redirecting to a different route from
