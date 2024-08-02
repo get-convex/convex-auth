@@ -31,7 +31,7 @@ test("refresh token expiration", async () => {
   vi.useFakeTimers();
   setupEnv();
   const ONE_DAY_MS = 1000 * 60 * 60 * 24;
-  process.env.SESSION_INACTIVE_DURATION_MS = `${ONE_DAY_MS}`;
+  process.env.AUTH_SESSION_INACTIVE_DURATION_MS = `${ONE_DAY_MS}`;
   const t = convexTest(schema);
   const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",
@@ -88,7 +88,7 @@ test("session expiration", async () => {
   vi.useFakeTimers();
   setupEnv();
   const ONE_DAY_MS = 1000 * 60 * 60 * 24;
-  process.env.SESSION_TOTAL_DURATION_MS = `${ONE_DAY_MS}`;
+  process.env.AUTH_SESSION_TOTAL_DURATION_MS = `${ONE_DAY_MS}`;
   const t = convexTest(schema);
   const { tokens: initialTokens } = await t.action(api.auth.signIn, {
     provider: "password",

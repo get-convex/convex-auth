@@ -4,6 +4,7 @@
   "config": "Configuration",
   "authz": "Authorization",
   "production": "Production",
+  "security": "Security",
   "advanced": "Advanced",
   "---": {
     "type": "separator"

@@ -1,0 +1,45 @@
+# nextjs
+
+## ConvexAuthNextjsProvider()
+
+
+Replace your `ConvexProvider` in a Client Component with this component
+to enable authentication in your Next.js app.
+
+```tsx
+"use client";
+
+import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
+import { ConvexReactClient } from "convex/react";
+import { ReactNode } from "react";
+
+const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
+export default function ConvexClientProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <ConvexAuthNextjsProvider client={convex}>
+      {children}
+    </ConvexAuthNextjsProvider>
+  );
+}
+```
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `props` | `object` | - |
+| `props.client` | `ConvexReactClient` | Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). |
+| `props.children` | `ReactNode` | Children components can call Convex hooks and useAuthActions. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Element`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/index.tsx:33](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/index.tsx#L33)

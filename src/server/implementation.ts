@@ -1890,7 +1890,7 @@ async function createSession(
   const expirationTime =
     Date.now() +
     (config.session?.totalDurationMs ??
-      stringToNumber(process.env.SESSION_TOTAL_DURATION_MS) ??
+      stringToNumber(process.env.AUTH_SESSION_TOTAL_DURATION_MS) ??
       DEFAULT_SESSION_TOTAL_DURATION_MS);
   return await ctx.db.insert("authSessions", { expirationTime, userId });
 }
@@ -1911,7 +1911,7 @@ async function createRefreshToken(
   const expirationTime =
     Date.now() +
     (config.session?.inactiveDurationMs ??
-      stringToNumber(process.env.SESSION_INACTIVE_DURATION_MS) ??
+      stringToNumber(process.env.AUTH_SESSION_INACTIVE_DURATION_MS) ??
       DEFAULT_SESSION_INACTIVE_DURATION_MS);
   const newRefreshTokenId = await ctx.db.insert("authRefreshTokens", {
     sessionId,

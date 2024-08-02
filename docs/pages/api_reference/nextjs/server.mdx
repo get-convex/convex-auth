@@ -1,0 +1,163 @@
+# nextjs/server
+
+## ConvexAuthNextjsServerProvider()
+
+
+Wrap your app with this provider in your root `layout.tsx`.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `props` | `object` | - |
+| `props.apiRoute`? | `string` | You can customize the route path that handles authentication actions via this prop and the `apiRoute` option to `convexAuthNextjsMiddleWare`. Defaults to `/api/auth`. |
+| `props.storage`? | `"localStorage"` \| `"inMemory"` | Choose how the auth information will be stored on the client. Defaults to `"localStorage"`. If you choose `"inMemory"`, different browser tabs will not have a synchronized authentication state. |
+| `props.storageNamespace`? | `string` | Optional namespace for keys used to store tokens. The keys determine whether the tokens are shared or not. Any non-alphanumeric characters will be ignored. Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`. |
+| `props.verbose`? | `boolean` | Turn on debugging logs. |
+| `props.children` | `ReactNode` | Children components can call Convex hooks and useAuthActions. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Element`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:22](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L22)
+
+***
+
+## convexAuthNextjsToken()
+
+
+Retrieve the token for authenticating calls to your
+Convex backend from Server Components, Server Actions and Route Handlers.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`undefined` \| `string`
+
+The token if the the client is authenticated, otherwise `undefined`.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:77](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L77)
+
+***
+
+## isAuthenticatedNextjs()
+
+
+Whether the client is authenticated, which you can check
+in Server Actions, Route Handlers and Middleware.
+
+Avoid the pitfall of checking authentication state in layouts,
+since they won't stop nested pages from rendering.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`boolean`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:88](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L88)
+
+***
+
+## convexAuthNextjsMiddleware()
+
+
+Use in your `middleware.ts` to enable your Next.js app to use
+Convex Auth for authentication on the server.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `handler`? | (`request`, `event`) => `NextMiddlewareResult` \| `Promise`\<`NextMiddlewareResult`\> | A custom handler, which you can use to decide which routes should be accessible based on the client's authentication. |
+| `options`? | `object` | - |
+| `options.convexUrl`? | `string` | The URL of the Convex deployment to use for authentication. Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`. |
+| `options.apiRoute`? | `string` | You can customize the route path that handles authentication actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`. Defaults to `/api/auth`. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`NextMiddleware`
+
+A Next.js middleware.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:98](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L98)
+
+***
+
+## nextjsMiddlewareRedirect()
+
+
+Helper for redirecting to a different route from
+a Next.js middleware.
+
+```ts
+return nextjsMiddlewareRedirect(request, "/login");
+```
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `request` | `NextRequest` | The incoming request handled by the middleware. |
+| `pathname` | `string` | The route path to redirect to. |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`NextResponse`\<`unknown`\>
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:168](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L168)
+
+***
+
+## RouteMatcherParam
+
+
+See [createRouteMatcher](server.mdx#createroutematcher) for more information.
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/routeMatcher.ts:44](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/routeMatcher.ts#L44)
+
+***
+
+## createRouteMatcher()
+
+
+Returns a function that accepts a `Request` object and returns whether the request matches the list of
+predefined routes that can be passed in as the first argument.
+
+You can use glob patterns to match multiple routes or a function to match against the request object.
+Path patterns and regular expressions are supported, for example: `['/foo', '/bar(.*)'] or `[/^/foo/.*$/]`
+For more information, see: https://github.com/pillarjs/path-to-regexp
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+| Parameter | Type |
+| ------ | ------ |
+| `routes` | [`RouteMatcherParam`](server.mdx#routematcherparam) |
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Function`
+
+<h4 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h4>
+
+| Parameter | Type |
+| ------ | ------ |
+| `req` | `NextRequest` |
+
+<h4 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h4>
+
+`boolean`
+
+<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/routeMatcher.ts:58](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/routeMatcher.ts#L58)
