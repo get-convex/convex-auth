@@ -1,4 +1,4 @@
-import { Steps } from "nextra/components";
+import { Callout, Steps } from "nextra/components";
 import { Tabs } from "nextra-theme-docs";
 
 # Set Up Convex Auth
@@ -93,6 +93,16 @@ Next.js server with App Router.
 
 <Tabs items={['App Router with SSA', 'App Router without SSA', 'Pages Router without SSA']}>
 <Tabs.Tab>
+
+<Callout type="warning" emoji="⚠️">
+
+This integration is in alpha:
+
+```sh
+npm i @convex-dev/auth@0.0.48-alpha.0
+```
+
+</Callout>
 
 Wrap your app in `ConvexAuthNextjsServerProvider` from
 `@convex-dev/auth/nextjs/server`:
