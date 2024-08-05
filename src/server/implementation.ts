@@ -1236,9 +1236,15 @@ async function defaultCreateOrUpdateUser(
   };
   if (userId !== null) {
     await ctx.db.patch(userId, userData);
-    return userId;
+  } else {
+    userId = await ctx.db.insert("users", userData);
   }
-  return await ctx.db.insert("users", userData);
+  await config.callbacks?.afterUserCreationOrUpdate?.(ctx, {
+    userId,
+    existingUserId,
+    ...args,
+  });
+  return userId;
 }
 
 async function createOrUpdateAccount(

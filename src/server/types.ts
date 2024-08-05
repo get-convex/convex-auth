@@ -144,6 +144,61 @@ export type ConvexAuthConfig = {
         shouldLink?: boolean;
       },
     ) => Promise<GenericId<"users">>;
+    /**
+     * Perform additional writes after a user is created.
+     *
+     * This callback is called during the sign-in process,
+     * after the user is created or updated,
+     * before account creation and token generation.
+     *
+     * **This callback is only called if `createOrUpdateUser`
+     * is not specified.** If `createOrUpdateUser` is specified,
+     * you can perform any additional writes in that callback.
+     *
+     * For "credentials" providers, the callback is only called
+     * when `createAccount` is called.
+     */
+    afterUserCreationOrUpdate?: (
+      ctx: GenericMutationCtx<AnyDataModel>,
+      args: {
+        /**
+         * The ID of the user that is being signed in.
+         */
+        userId: GenericId<"users"> | null;
+        /**
+         * If this is a sign-in to an existing account,
+         * this is the existing user ID linked to that account.
+         */
+        existingUserId: GenericId<"users"> | null;
+        /**
+         * The provider type or "verification" if this callback is called
+         * after an email or phone token verification.
+         */
+        type: "oauth" | "credentials" | "email" | "phone" | "verification";
+        /**
+         * The provider used for the sign-in, or the provider
+         * tied to the account which is having the email or phone verified.
+         */
+        provider: AuthProviderMaterializedConfig;
+        /**
+         * - The profile returned by the OAuth provider's `profile` method.
+         * - The profile passed to `createAccount` from a ConvexCredentials
+         * config.
+         * - The email address to which an email will be sent.
+         * - The phone number to which a text will be sent.
+         */
+        profile: Record<string, unknown> & {
+          email?: string;
+          phone?: string;
+          emailVerified?: boolean;
+          phoneVerified?: boolean;
+        };
+        /**
+         * The `shouldLink` argument passed to `createAccount`.
+         */
+        shouldLink?: boolean;
+      },
+    ) => Promise<void>;
   };
 };
 
