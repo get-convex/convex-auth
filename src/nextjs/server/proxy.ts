@@ -41,6 +41,7 @@ export async function proxyAuthActionToConvex(
       setAuthCookies(response, result.tokens);
       return response;
     }
+    return jsonResponse(result);
   } else {
     const response = jsonResponse(null);
     setAuthCookies(response, null);
