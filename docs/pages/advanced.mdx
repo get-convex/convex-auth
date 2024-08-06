@@ -106,6 +106,32 @@ use.
 
 {/* This is required when you configure [anonymous sign-in](/config/anonymous). */}
 
+## Writing additional data during authentication
+
+If you don't specify the
+[`createOrUpdateUser` callback](#controlling-user-creation-and-account-linking-behavior)
+you can still perform additional writes to the database with the
+[`afterUserCreatedOrUpdated` callback](/api_reference/server#callbacksafterusercreatedorupdated):
+
+```ts
+import GitHub from "@auth/core/providers/github";
+import Password from "@convex-dev/auth/providers/Password";
+import { DataModel } from "./_generated/dataModel";
+
+export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
+  providers: [GitHub, Password],
+  callbacks: {
+    // `args` are the same the as for `createOrUpdateUser` but include `userId`
+    async afterUserCreatedOrUpdated(ctx, { userId }) {
+      await ctx.db.insert("someTable", { userId, data: "some data" });
+    },
+  },
+});
+```
+
+This is helpful when the default user creation implementation in the library
+satisfies your app's needs.
+
 ## Session validity
 
 Convex Auth issues JWTs which allow your client to authenticate.
