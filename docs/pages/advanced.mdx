@@ -111,7 +111,7 @@ use.
 If you don't specify the
 [`createOrUpdateUser` callback](#controlling-user-creation-and-account-linking-behavior)
 you can still perform additional writes to the database with the
-[`afterUserCreationOrUpdate` callback](/api_reference/server#callbacksafterusercreationorupdate):
+[`afterUserCreatedOrUpdated` callback](/api_reference/server#callbacksafterusercreatedorupdated):
 
 ```ts
 import GitHub from "@auth/core/providers/github";
@@ -122,7 +122,7 @@ export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
   providers: [GitHub, Password],
   callbacks: {
     // `args` are the same the as for `createOrUpdateUser` but include `userId`
-    async afterUserCreationOrUpdate(ctx, { userId }) {
+    async afterUserCreatedOrUpdated(ctx, { userId }) {
       await ctx.db.insert("someTable", { userId, data: "some data" });
     },
   },

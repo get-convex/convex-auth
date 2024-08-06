@@ -158,7 +158,7 @@ export type ConvexAuthConfig = {
      * For "credentials" providers, the callback is only called
      * when `createAccount` is called.
      */
-    afterUserCreationOrUpdate?: (
+    afterUserCreatedOrUpdated?: (
       ctx: GenericMutationCtx<AnyDataModel>,
       args: {
         /**

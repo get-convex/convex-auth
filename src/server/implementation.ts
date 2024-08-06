@@ -1239,7 +1239,7 @@ async function defaultCreateOrUpdateUser(
   } else {
     userId = await ctx.db.insert("users", userData);
   }
-  await config.callbacks?.afterUserCreationOrUpdate?.(ctx, {
+  await config.callbacks?.afterUserCreatedOrUpdated?.(ctx, {
     userId,
     existingUserId,
     ...args,
