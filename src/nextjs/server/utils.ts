@@ -24,6 +24,10 @@ export function setAuthCookies(
 
 export function isCorsRequest(request: NextRequest) {
   const origin = request.headers.get("Origin");
-  const originHost = origin ? new URL(origin).host : null;
-  return origin !== null && originHost !== request.headers.get("Host");
+  const originURL = origin ? new URL(origin) : null;
+  return (
+    originURL !== null &&
+    (originURL.host !== request.headers.get("Host") ||
+      originURL.protocol !== new URL(request.url).protocol)
+  );
 }
