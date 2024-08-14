@@ -31,6 +31,7 @@ import {
   AuthProviderMaterializedConfig,
   ConvexAuthConfig,
 } from "./types.js";
+import { requireEnv } from "./utils.js";
 
 /**
  * @internal
@@ -85,7 +86,7 @@ function materializeAndDefaultProviders(config_: ConvexAuthConfig) {
   config.providers.forEach((provider) => {
     if (provider.type === "phone") {
       const ID = provider.id.toUpperCase().replace(/-/g, "_");
-      provider.apiKey ??= process.env[`AUTH_${ID}_KEY`];
+      provider.apiKey ??= requireEnv(`AUTH_${ID}_KEY`);
     }
   });
   return config;

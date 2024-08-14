@@ -29,6 +29,7 @@ import { Account, TokenSet } from "@auth/core/types";
 import * as o from "oauth4webapi";
 import * as checks from "./checks.js";
 import { normalizeEndpoint } from "./provider_utils.js";
+import { requireEnv } from "./utils.js";
 
 export type InternalProvider = (
   | OAuthConfigInternal<any>
@@ -288,7 +289,7 @@ export async function handleOAuthCallback(
 
 // TODO(convex auth): We need to support custom callback URLs
 function callbackUrl(providerId: string) {
-  return process.env.CONVEX_SITE_URL + "/api/auth/callback/" + providerId;
+  return requireEnv("CONVEX_SITE_URL") + "/api/auth/callback/" + providerId;
 }
 
 function getAuthorizationSignature({

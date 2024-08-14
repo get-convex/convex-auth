@@ -38,6 +38,7 @@ import {
   GenericActionCtxWithAuthConfig,
   PhoneConfig,
 } from "./types.js";
+import { requireEnv } from "./utils.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -400,10 +401,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
         handler: httpActionGeneric(async () => {
           return new Response(
             JSON.stringify({
-              issuer: process.env.CONVEX_SITE_URL,
-              jwks_uri: process.env.CONVEX_SITE_URL + "/.well-known/jwks.json",
+              issuer: requireEnv("CONVEX_SITE_URL"),
+              jwks_uri:
+                requireEnv("CONVEX_SITE_URL") + "/.well-known/jwks.json",
               authorization_endpoint:
-                process.env.CONVEX_SITE_URL + "/oauth/authorize",
+                requireEnv("CONVEX_SITE_URL") + "/oauth/authorize",
             }),
             {
               status: 200,
@@ -421,7 +423,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         path: "/.well-known/jwks.json",
         method: "GET",
         handler: httpActionGeneric(async () => {
-          return new Response(process.env.JWKS, {
+          return new Response(requireEnv("JWKS"), {
             status: 200,
             headers: {
               "Content-Type": "application/json",
@@ -1716,7 +1718,7 @@ async function signInImpl(
       };
     }
     const redirect = new URL(
-      process.env.CONVEX_SITE_URL + `/api/auth/signin/${provider.id}`,
+      requireEnv("CONVEX_SITE_URL") + `/api/auth/signin/${provider.id}`,
     );
     const verifier = (await ctx.runMutation(internal.auth.store, {
       args: { type: "verifier" },
@@ -1979,10 +1981,7 @@ async function generateToken(
   },
   config: ConvexAuthConfig,
 ) {
-  if (process.env.JWT_PRIVATE_KEY === undefined) {
-    throw new Error("Missing `JWT_PRIVATE_KEY` environment variable");
-  }
-  const privateKey = await importPKCS8(process.env.JWT_PRIVATE_KEY, "RS256");
+  const privateKey = await importPKCS8(requireEnv("JWT_PRIVATE_KEY"), "RS256");
   const expirationTime = new Date(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
@@ -1991,7 +1990,7 @@ async function generateToken(
   })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()
-    .setIssuer(process.env.CONVEX_SITE_URL!)
+    .setIssuer(requireEnv("CONVEX_SITE_URL"))
     .setAudience("convex")
     .setExpirationTime(expirationTime)
     .sign(privateKey);
@@ -2030,16 +2029,7 @@ function logError(error: unknown) {
 }
 
 function siteUrl() {
-  if (process.env.SITE_URL === undefined) {
-    throw new Error("Missing `SITE_URL` environment variable");
-  }
-  try {
-    return process.env.SITE_URL.replace(/\/$/, "");
-  } catch {
-    throw new Error(
-      `Invalid \`SITE_URL\` environment variable: ${process.env.SITE_URL}`,
-    );
-  }
+  return requireEnv("SITE_URL").replace(/\/$/, "");
 }
 
 function getCookies(request: Request): Record<string, string | undefined> {
