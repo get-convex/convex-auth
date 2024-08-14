@@ -28,7 +28,11 @@ import { encodeHex } from "oslo/encoding";
 import { redirectToParamCookie, useRedirectToParam } from "./checks.js";
 import { FunctionReferenceFromExport, GenericDoc } from "./convex_types.js";
 import { getAuthorizationURL, handleOAuthCallback } from "./oauth.js";
-import { configDefaults, materializeProvider } from "./provider_utils.js";
+import {
+  configDefaults,
+  listAvailableProviders,
+  materializeProvider,
+} from "./provider_utils.js";
 import {
   AuthProviderConfig,
   AuthProviderMaterializedConfig,
@@ -296,8 +300,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
   ) => {
     const provider = getProvider(id, allowExtraProviders);
     if (provider === undefined) {
-      console.error(`Provider ${id} is not configured`);
-      throw new Error(`Provider ${id} is not configured`);
+      const message =
+        `Provider \`${id}\` is not configured, ` +
+        `available providers are ${listAvailableProviders(config, allowExtraProviders)}.`;
+      console.error(message);
+      throw new Error(message);
     }
     return provider;
   };

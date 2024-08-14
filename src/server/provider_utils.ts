@@ -86,7 +86,9 @@ function materializeAndDefaultProviders(config_: ConvexAuthConfig) {
   config.providers.forEach((provider) => {
     if (provider.type === "phone") {
       const ID = provider.id.toUpperCase().replace(/-/g, "_");
-      provider.apiKey ??= requireEnv(`AUTH_${ID}_KEY`);
+      // Should not require this env var at push time, as the provider's
+      // implementation might not use it
+      provider.apiKey ??= process.env[`AUTH_${ID}_KEY`];
     }
   });
   return config;
@@ -204,4 +206,18 @@ export function merge(target: any, ...sources: any[]): any {
 /** Simple object check */
 function isObject(item: any): boolean {
   return item && typeof item === "object" && !Array.isArray(item);
+}
+/**
+ * @internal
+ */
+export function listAvailableProviders(
+  config: ReturnType<typeof configDefaults>,
+  allowExtraProviders: boolean,
+) {
+  const availableProviders = config.providers
+    .concat(allowExtraProviders ? config.extraProviders : [])
+    .map((provider) => `\`${provider.id}\``);
+  return availableProviders.length > 0
+    ? availableProviders.join(", ")
+    : "no providers have been configured";
 }
