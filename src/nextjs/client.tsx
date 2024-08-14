@@ -54,7 +54,9 @@ export function ConvexAuthNextjsClientProvider({
             ? null
             : window.localStorage)!
       }
-      storageNamespace={storageNamespace ?? process.env.NEXT_PUBLIC_CONVEX_URL!}
+      storageNamespace={
+        storageNamespace ?? requireEnv("NEXT_PUBLIC_CONVEX_URL")
+      }
       replaceURL={
         // Not used, since the redirect is handled by the Next.js server.
         (url) => {
@@ -65,6 +67,14 @@ export function ConvexAuthNextjsClientProvider({
       {children}
     </AuthProvider>
   );
+}
+
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (value === undefined) {
+    throw new Error(`Missing environment variable \`${name}\``);
+  }
+  return value;
 }
 
 export type ConvexAuthServerState = {
