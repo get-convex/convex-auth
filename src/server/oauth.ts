@@ -59,11 +59,11 @@ export async function getAuthorizationURL(provider: InternalProvider) {
   // }
 
   if (provider.clientId === undefined) {
-    throw new Error(`Missing \`clientId\`, set ${clientId(provider.id)}`);
+    throw new Error(`Missing \`clientId\`, set \`${clientId(provider.id)}\``);
   }
   if (provider.clientSecret === undefined) {
     throw new Error(
-      `Missing \`clientSecret\`, set ${clientSecret(provider.id)}`,
+      `Missing \`clientSecret\`, set \`${clientSecret(provider.id)}\``,
     );
   }
 
@@ -355,7 +355,7 @@ async function getOAuthConfig(provider: InternalProvider) {
   if (!provider.authorization || !provider.token || !provider.userinfo) {
     if (!provider.issuer) {
       throw new Error(
-        `Provider '${provider.id}' is missing an \`issuer\` URL configuration. Consult the provider docs.`,
+        `Provider \`${provider.id}\` is missing an \`issuer\` URL configuration. Consult the provider docs.`,
       );
     }
     const discovery = `${provider.issuer.replace(/\/$/, "")}/.well-known/openid-configuration`;
