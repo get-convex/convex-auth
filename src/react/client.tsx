@@ -324,13 +324,14 @@ export function AuthProvider({
   );
 
   const actions = useMemo(() => ({ signIn, signOut }), [signIn, signOut]);
+  const isAuthenticated = tokenState !== null;
   const authState = useMemo(
     () => ({
       isLoading,
-      isAuthenticated: tokenState !== null,
+      isAuthenticated,
       fetchAccessToken,
     }),
-    [fetchAccessToken, isLoading, tokenState],
+    [fetchAccessToken, isLoading, isAuthenticated],
   );
 
   return (
