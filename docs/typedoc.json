@@ -26,5 +26,6 @@
   "sort": ["source-order", "external-last"],
   "parametersFormat": "htmlTable",
   "disableGit": true,
-  "sourceLinkTemplate": "https://github.com/get-convex/convex-auth/blob/main/{path}#L{line}"
+  "sourceLinkTemplate": "https://github.com/get-convex/convex-auth/blob/main/{path}#L{line}",
+  "intentionallyNotExported": ["RouteMatcherWithNextTypedRoutes"]
 }

@@ -29,4 +29,4 @@ find pages/api_reference -type f -exec perl -i -0777 -pe 's/<table>/<table class
 
 # Make absolute links relative so they open in the same tab
 # and on localhost.
-find pages/api_reference -type f -exec perl -i -pe 's#http://labs.convex.dev/auth##g' {} +
+find pages/api_reference -type f -exec perl -i -pe 's#https://labs.convex.dev/auth##g' {} +

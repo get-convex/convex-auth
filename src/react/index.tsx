@@ -191,7 +191,7 @@ export type ConvexAuthActionsContext = {
      * Special fields:
      *  - `redirectTo`: If provided, customizes the destination the user is
      *     redirected to at the end of an OAuth flow or the magic link URL.
-     *     See [redirect callback](http://labs.convex.dev/auth/api_reference/server#callbacksredirect).
+     *     See [redirect callback](https://labs.convex.dev/auth/api_reference/server#callbacksredirect).
      *  - `code`: OTP code for email or phone verification, or
      *     (used only in RN) the code from an OAuth flow or magic link URL.
      */

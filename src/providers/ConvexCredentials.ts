@@ -2,7 +2,7 @@
  * Configure {@link ConvexCredentials} provider given a {@link ConvexCredentialsUserConfig}.
  *
  * This is for a very custom authentication implementation, often you can
- * use the [`Password`](./Password) provider instead.
+ * use the [`Password`](https://labs.convex.dev/auth/api_reference/providers/Password) provider instead.
  *
  * ```ts
  * import ConvexCredentials from "@convex-dev/auth/providers/ConvexCredentials";

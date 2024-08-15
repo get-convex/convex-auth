@@ -51,7 +51,7 @@ export function ConvexAuthNextjsServerProvider(props: {
   verbose?: boolean;
   /**
    * Children components can call Convex hooks
-   * and {@link useAuthActions}.
+   * and [useAuthActions](https://labs.convex.dev/auth/api_reference/react#useauthactions).
    */
   children: ReactNode;
 }) {

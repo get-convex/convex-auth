@@ -1349,7 +1349,7 @@ async function hash(provider: any, secret: string) {
 
 /**
  * Use this function from a
- * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * [`ConvexCredentials`](https://labs.convex.dev/auth/api_reference/providers/ConvexCredentials)
  * provider to create an account and a user with a unique account "id" (OAuth
  * provider ID, email address, phone number, username etc.).
  *
@@ -1413,7 +1413,7 @@ export async function createAccount<
 
 /**
  * Use this function from a
- * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * [`ConvexCredentials`](https://labs.convex.dev/auth/api_reference/providers/ConvexCredentials)
  * provider to retrieve a user given the account provider ID and
  * the provider-specific account ID.
  *
@@ -1463,7 +1463,7 @@ export async function retrieveAccount<
 
 /**
  * Use this function to modify the account credentials
- * from a [`ConvexCredentials`](./providers/ConvexCredentials)
+ * from a [`ConvexCredentials`](https://labs.convex.dev/auth/api_reference/providers/ConvexCredentials)
  * provider.
  */
 export async function modifyAccountCredentials<
@@ -1521,7 +1521,7 @@ export async function invalidateSessions<
 
 /**
  * Use this function from a
- * [`ConvexCredentials`](./providers/ConvexCredentials)
+ * [`ConvexCredentials`](https://labs.convex.dev/auth/api_reference/providers/ConvexCredentials)
  * provider to sign in the user via another provider (usually
  * for email verification on sign up or password reset).
  *
