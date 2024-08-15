@@ -9,12 +9,12 @@ import {
   useRef,
   useState,
 } from "react";
-import type { SignInAction, SignOutAction } from "../server/implementation";
-import { AuthClient } from "./clientType";
+import type { SignInAction, SignOutAction } from "../server/implementation.js";
+import { AuthClient } from "./clientType.js";
 import type {
   ConvexAuthActionsContext as ConvexAuthActionsContextType,
   TokenStorage,
-} from "./index";
+} from "./index.js";
 
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);

@@ -10,7 +10,7 @@
  */
 
 import { GenericDataModel } from "convex/server";
-import { PhoneConfig, PhoneUserConfig } from "../server/types";
+import { PhoneConfig, PhoneUserConfig } from "../server/types.js";
 
 /**
  * Phone providers send a token to the user's phone number

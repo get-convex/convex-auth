@@ -2,7 +2,7 @@
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
-import { useAuth } from "../react/client";
+import { useAuth } from "../react/client.js";
 
 /**
  * Replace your `ConvexProvider` in a Client Component with this component

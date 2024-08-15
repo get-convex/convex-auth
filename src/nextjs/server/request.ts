@@ -1,9 +1,9 @@
 import { fetchAction } from "convex/nextjs";
 import { jwtDecode } from "jwt-decode";
 import { NextRequest, NextResponse } from "next/server";
-import { SignInAction } from "../../server/implementation";
-import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies";
-import { isCorsRequest, setAuthCookies } from "./utils";
+import { SignInAction } from "../../server/implementation.js";
+import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies.js";
+import { isCorsRequest, setAuthCookies } from "./utils.js";
 
 export async function handleAuthenticationInRequest(request: NextRequest) {
   const requestUrl = new URL(request.url);

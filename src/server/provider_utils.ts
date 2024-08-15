@@ -31,7 +31,6 @@ import {
   AuthProviderMaterializedConfig,
   ConvexAuthConfig,
 } from "./types.js";
-import { requireEnv } from "./utils.js";
 
 /**
  * @internal

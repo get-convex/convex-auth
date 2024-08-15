@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getResponseCookies } from "./cookies";
+import { getResponseCookies } from "./cookies.js";
 
 export function jsonResponse(body: any) {
   return new NextResponse(JSON.stringify(body), {

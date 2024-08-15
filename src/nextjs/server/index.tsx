@@ -11,10 +11,10 @@ import { ReactNode } from "react";
 import {
   ConvexAuthNextjsClientProvider,
   ConvexAuthServerState,
-} from "../client";
-import { getRequestCookies } from "./cookies";
-import { proxyAuthActionToConvex } from "./proxy";
-import { handleAuthenticationInRequest } from "./request";
+} from "../client.js";
+import { getRequestCookies } from "./cookies.js";
+import { proxyAuthActionToConvex } from "./proxy.js";
+import { handleAuthenticationInRequest } from "./request.js";
 
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
@@ -155,7 +155,7 @@ export function convexAuthNextjsMiddleware(
   };
 }
 
-export { createRouteMatcher, RouteMatcherParam } from "./routeMatcher";
+export { createRouteMatcher, RouteMatcherParam } from "./routeMatcher.js";
 
 /**
  * Helper for redirecting to a different route from

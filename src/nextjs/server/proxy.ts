@@ -2,9 +2,9 @@ import "server-only";
 
 import { fetchAction } from "convex/nextjs";
 import { NextRequest } from "next/server";
-import { SignInAction } from "../../server/implementation";
-import { getRequestCookies, getResponseCookies } from "./cookies";
-import { isCorsRequest, jsonResponse, setAuthCookies } from "./utils";
+import { SignInAction } from "../../server/implementation.js";
+import { getRequestCookies, getResponseCookies } from "./cookies.js";
+import { isCorsRequest, jsonResponse, setAuthCookies } from "./utils.js";
 
 export async function proxyAuthActionToConvex(
   request: NextRequest,

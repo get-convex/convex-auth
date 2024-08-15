@@ -15,8 +15,8 @@ import {
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
-} from "./client";
-import { AuthClient } from "./clientType";
+} from "./client.js";
+import { AuthClient } from "./clientType.js";
 
 /**
  * Use this hook to access the `signIn` and `signOut` methods:

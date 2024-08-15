@@ -1,9 +1,9 @@
 "use client";
 
 import { ReactNode, useCallback, useMemo } from "react";
-import { AuthProvider } from "../react/client";
-import { AuthClient } from "../react/clientType";
-import { invalidateCache } from "./server/invalidateCache";
+import { AuthProvider } from "../react/client.js";
+import { AuthClient } from "../react/clientType.js";
+import { invalidateCache } from "./server/invalidateCache.js";
 
 export function ConvexAuthNextjsClientProvider({
   apiRoute,

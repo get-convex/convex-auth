@@ -13,8 +13,8 @@ import {
   GenericMutationCtx,
 } from "convex/server";
 import { GenericId, Value } from "convex/values";
-import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials";
-import { GenericDoc } from "./convex_types";
+import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
+import { GenericDoc } from "./convex_types.js";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
