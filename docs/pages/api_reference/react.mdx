@@ -16,11 +16,11 @@ function SomeComponent() {
 }
 ```
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 [`ConvexAuthActionsContext`](react.mdx#convexauthactionscontext)
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/react/index.tsx:33](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L33)
 
@@ -43,22 +43,138 @@ function RootComponent({ children }: { children: ReactNode }) {
 }
 ```
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `props` | `object` | - |
-| `props.client` | `ConvexReactClient` | Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). |
-| `props.storage`? | [`TokenStorage`](react.mdx#tokenstorage) | Optional custom storage object that implements the [TokenStorage](react.mdx#tokenstorage) interface, otherwise [`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) is used. You must set this for React Native. |
-| `props.storageNamespace`? | `string` | Optional namespace for keys used to store tokens. The keys determine whether the tokens are shared or not. Any non-alphanumeric characters will be ignored (for RN compatibility). Defaults to the deployment URL, as configured in the given `client`. |
-| `props.replaceURL`? | (`relativeUrl`) => `void` \| `Promise`\<`void`\> | Provide this function if you're using a JS router (Expo router etc.) and after OAuth or magic link sign-in the `code` param is not being erased from the URL. The implementation will depend on your chosen router. |
-| `props.children` | `ReactNode` | Children components can call Convex hooks and [useAuthActions](react.mdx#useauthactions). |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+`props`
+
+</td>
+<td>
+
+`object`
+
+</td>
+<td>
+
+&hyphen;
+
+</td>
+</tr>
+<tr>
+<td>
+
+`props.client`
+
+</td>
+<td>
+
+`ConvexReactClient`
+
+</td>
+<td>
+
+Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient).
+
+</td>
+</tr>
+<tr>
+<td>
+
+`props.storage`?
+
+</td>
+<td>
+
+[`TokenStorage`](react.mdx#tokenstorage)
+
+</td>
+<td>
+
+Optional custom storage object that implements
+the [TokenStorage](react.mdx#tokenstorage) interface, otherwise
+[`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
+is used.
+
+You must set this for React Native.
+
+</td>
+</tr>
+<tr>
+<td>
+
+`props.storageNamespace`?
+
+</td>
+<td>
+
+`string`
+
+</td>
+<td>
+
+Optional namespace for keys used to store tokens. The keys
+determine whether the tokens are shared or not.
+
+Any non-alphanumeric characters will be ignored (for RN compatibility).
+
+Defaults to the deployment URL, as configured in the given `client`.
+
+</td>
+</tr>
+<tr>
+<td>
+
+`props.replaceURL`?
+
+</td>
+<td>
+
+(`relativeUrl`) => `void` \| `Promise`\<`void`\>
+
+</td>
+<td>
+
+Provide this function if you're using a JS router (Expo router etc.)
+and after OAuth or magic link sign-in the `code` param is not being
+erased from the URL.
+
+The implementation will depend on your chosen router.
+
+</td>
+</tr>
+<tr>
+<td>
+
+`props.children`
+
+</td>
+<td>
+
+`ReactNode`
+
+</td>
+<td>
+
+Children components can call Convex hooks
+and [useAuthActions](react.mdx#useauthactions).
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 `Element`
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/react/index.tsx:52](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L52)
 
@@ -75,24 +191,45 @@ browser tab.
 
 In React Native we recommend wrapping `expo-secure-store`.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Properties</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Properties</h3>
 
 #### getItem()
 
 
 Read a value.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `key` | `string` | Unique key. |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+`key`
+
+</td>
+<td>
+
+`string`
+
+</td>
+<td>
+
+Unique key.
+
+</td>
+</tr>
+</tbody></table>
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `undefined` \| `null` \| `string` \| `Promise`\<`undefined` \| `null` \| `string`\>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/react/index.tsx:152](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L152)
 
@@ -101,18 +238,55 @@ Read a value.
 
 Write a value.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `key` | `string` | Unique key. |
-| `value` | `string` | The value to store. |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+`key`
+
+</td>
+<td>
+
+`string`
+
+</td>
+<td>
+
+Unique key.
+
+</td>
+</tr>
+<tr>
+<td>
+
+`value`
+
+</td>
+<td>
+
+`string`
+
+</td>
+<td>
+
+The value to store.
+
+</td>
+</tr>
+</tbody></table>
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `void` \| `Promise`\<`void`\>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/react/index.tsx:160](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L160)
 
@@ -121,17 +295,38 @@ Write a value.
 
 Remove a value.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `key` | `string` | Unique key. |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+`key`
+
+</td>
+<td>
+
+`string`
+
+</td>
+<td>
+
+Unique key.
+
+</td>
+</tr>
+</tbody></table>
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `void` \| `Promise`\<`void`\>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Defined in</h5>
 
 [src/react/index.tsx:165](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L165)
 
@@ -142,19 +337,68 @@ Remove a value.
 
 The result of calling [useAuthActions](react.mdx#useauthactions).
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
 
 #### signIn()
 
+Sign in via one of your configured authentication providers.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
 
-| Parameter | Type | Description |
-| ------ | ------ | ------ |
-| `provider` | `string` | The ID of the provider (lowercase version of the provider name or a configured `id` option value). |
-| `params`? | `FormData` \| `Record`\<`string`, `Value`\> & `object` | Either a `FormData` object containing the sign-in parameters or a plain object containing them. The shape required depends on the chosen provider's implementation. |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+`provider`
+
+</td>
+<td>
+
+`string`
+
+</td>
+<td>
+
+The ID of the provider (lowercase version of the
+provider name or a configured `id` option value).
+
+</td>
+</tr>
+<tr>
+<td>
+
+`params`?
+
+</td>
+<td>
+
+`FormData` \| `Record`\<`string`, `Value`\> & `object`
+
+</td>
+<td>
+
+Either a `FormData` object containing the sign-in
+       parameters or a plain object containing them.
+       The shape required depends on the chosen provider's
+       implementation.
+
+Special fields:
+ - `redirectTo`: If provided, customizes the destination the user is
+    redirected to at the end of an OAuth flow or the magic link URL.
+    See [redirect callback](/api_reference/server#callbacksredirect).
+ - `code`: OTP code for email or phone verification, or
+    (used only in RN) the code from an OAuth flow or magic link URL.
+
+</td>
+</tr>
+</tbody></table>
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `Promise`\<`object`\>
 
@@ -184,17 +428,16 @@ this URL.
 
 #### signOut()
 
-
 Sign out the current user.
 
 Calls the server to invalidate the server session
 and deletes the locally stored JWT and refresh token.
 
-<h5 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
 `Promise`\<`void`\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/react/index.tsx:171](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L171)
 
@@ -225,10 +468,10 @@ function SomeComponent() {
 }
 ```
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 `null` \| `string`
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/react/index.tsx:252](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L252)
+[src/react/index.tsx:263](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L263)

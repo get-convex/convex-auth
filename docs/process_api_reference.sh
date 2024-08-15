@@ -21,4 +21,12 @@ find pages/api_reference -type f -exec perl -i -0777 -pe 's/\n(#+) Type Paramete
 #
 # Also by rewriting the markdown headings to HTML we prevent Nextra from
 # including them in the RHS TOC sidebar.
-find pages/api_reference -type f -exec perl -i -pe 's/^> (?!(`optional` )?\*\*\w+\*\*: `(?!object)\w+`(\[\])?\n).*\n//; s/^(#+) (Returns|Defined in|Parameters|Properties|Type declaration|Extends|Overrides)/"<h" . length($1) . " class=\"nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-" . (length($1) > 3 ? "lg" : "2xl") . "\">" . $2 . "<\/h" . length($1) . ">"/eg' {} +
+find pages/api_reference -type f -exec perl -i -pe 's/^> (?!(`optional` )?\*\*\w+\*\*: `(?!object)\w+`(\[\])?\n).*\n//; s/^(#+) (Returns|Defined in|Parameters|Properties|Type declaration|Extends|Overrides)/"<h" . length($1) . " className=\"nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-" . (length($1) > 3 ? "lg" : "2xl") . "\">" . $2 . "<\/h" . length($1) . ">"/eg' {} +
+
+# Fix tables missing tbody, see https://github.com/typedoc2md/typedoc-plugin-markdown/issues/671
+# Apply table styles.
+find pages/api_reference -type f -exec perl -i -0777 -pe 's/<table>/<table className="api_reference_table"><tbody>/g; s#</table>#</tbody></table>#g' {} \;
+
+# Make absolute links relative so they open in the same tab
+# and on localhost.
+find pages/api_reference -type f -exec perl -i -pe 's#http://labs.convex.dev/auth##g' {} +

@@ -24,7 +24,7 @@
   "hideBreadcrumbs": true,
   "hideGroupHeadings": true,
   "sort": ["source-order", "external-last"],
-  "parametersFormat": "table",
+  "parametersFormat": "htmlTable",
   "disableGit": true,
   "sourceLinkTemplate": "https://github.com/get-convex/convex-auth/blob/main/{path}#L{line}"
 }

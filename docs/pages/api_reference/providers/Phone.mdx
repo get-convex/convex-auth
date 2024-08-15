@@ -17,16 +17,31 @@ When you use this function to create your config, it
 checks that there is a `phone` field during token verification
 that matches the `phone` used during the initial `signIn` call.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
-| Parameter | Type |
-| ------ | ------ |
-| `config` | [`PhoneUserConfig`](../server.mdx#phoneuserconfigdatamodel) & `Pick`\<[`PhoneConfig`](../server.mdx#phoneconfigdatamodel)\<`GenericDataModel`\>, `"sendVerificationRequest"`\> |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+</tr>
+<tr>
+<td>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+`config`
+
+</td>
+<td>
+
+[`PhoneUserConfig`](../server.mdx#phoneuserconfigdatamodel) & `Pick`\<[`PhoneConfig`](../server.mdx#phoneconfigdatamodel)\<`GenericDataModel`\>, `"sendVerificationRequest"`\>
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 [`PhoneConfig`](../server.mdx#phoneconfigdatamodel)\<`DataModel`\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/providers/Phone.ts:23](https://github.com/get-convex/convex-auth/blob/main/src/providers/Phone.ts#L23)

@@ -1,3 +1,40 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .nextra-scrollbar {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: oklch(55.55% 0 0 / 40%) transparent; /* Firefox */
+
+    scrollbar-gutter: stable;
+    &::-webkit-scrollbar {
+      @apply w-3 h-3;
+    }
+    &::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      @apply rounded-[10px];
+    }
+    &:hover::-webkit-scrollbar-thumb {
+      border: 3px solid transparent;
+      background-color: var(--tw-shadow-color);
+      background-clip: content-box;
+      @apply shadow-neutral-500/20 hover:shadow-neutral-500/40;
+    }
+  }
+
+  .api_reference_table {
+    @apply block overflow-x-scroll nextra-scrollbar mt-6 p-0 first:mt-0;
+  }
+  .api_reference_table tr {
+    @apply m-0 border-t border-gray-300 p-0 dark:border-gray-600 even:bg-gray-100 even:dark:bg-gray-600/20;
+  }
+  .api_reference_table th {
+    @apply m-0 border border-gray-300 px-4 py-2 font-semibold dark:border-gray-600;
+  }
+  .api_reference_table td {
+    @apply m-0 border border-gray-300 px-4 py-2 dark:border-gray-600;
+  }
+}

@@ -172,18 +172,29 @@ export type ConvexAuthActionsContext = {
   /**
    * Sign in via one of your configured authentication providers.
    *
-   * @param provider The ID of the provider (lowercase version of the
-   *        provider name or a configured `id` option value).
-   * @param params Either a `FormData` object containing the sign-in
-   *        parameters or a plain object containing them.
-   *        The shape required depends on the chosen provider's
-   *        implementation.
    * @returns Whether the user was immediately signed in (ie. the sign-in
    *          didn't trigger an additional step like email verification
    *          or OAuth signin).
    */
-  signIn: (
+  signIn(
+    /**
+     * The ID of the provider (lowercase version of the
+     * provider name or a configured `id` option value).
+     */
     provider: string,
+    /**
+     * Either a `FormData` object containing the sign-in
+     *        parameters or a plain object containing them.
+     *        The shape required depends on the chosen provider's
+     *        implementation.
+     *
+     * Special fields:
+     *  - `redirectTo`: If provided, customizes the destination the user is
+     *     redirected to at the end of an OAuth flow or the magic link URL.
+     *     See [redirect callback](http://labs.convex.dev/auth/api_reference/server#callbacksredirect).
+     *  - `code`: OTP code for email or phone verification, or
+     *     (used only in RN) the code from an OAuth flow or magic link URL.
+     */
     params?:
       | FormData
       | (Record<string, Value> & {
@@ -198,7 +209,7 @@ export type ConvexAuthActionsContext = {
            */
           code?: string;
         }),
-  ) => Promise<{
+  ): Promise<{
     /**
      * Whether the call led to an immediate successful sign-in.
      *
@@ -223,7 +234,7 @@ export type ConvexAuthActionsContext = {
    * Calls the server to invalidate the server session
    * and deletes the locally stored JWT and refresh token.
    */
-  signOut: () => Promise<void>;
+  signOut(): Promise<void>;
 };
 
 /**

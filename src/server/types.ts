@@ -77,14 +77,32 @@ export type ConvexAuthConfig = {
   callbacks?: {
     /**
      * Control which URLs are allowed as a destination after OAuth sign-in
-     * and for magic links.
+     * and for magic links:
+     *
+     * ```ts
+     * export const { auth, signIn, signOut, store } = convexAuth({
+     *   providers: [GitHub],
+     *   callbacks: {
+     *     async redirect({ redirectTo }) {
+     *       // Check that `redirectTo` is valid...
+     *       return redirectTo;
+     *     },
+     *   },
+     * });
+     * ```
      *
      * Convex Auth performs redirect only during OAuth sign-in. By default,
      * it redirects back to the URL specified via the `SITE_URL` environment
      * variable. Similarly magic links link to `SITE_URL`.
      *
      * You can customize that behavior by providing a `redirectTo` param
-     * to the `signIn` function.
+     * to the `signIn` function:
+     *
+     * ```ts
+     * signIn("google", { redirectTo: "/dashboard" })
+     * ```
+     *
+     * You can even redirect to a different site.
      *
      * This callback, if specified, is then called with the provided
      * `redirectTo` param. Otherwise, only query params, relative paths

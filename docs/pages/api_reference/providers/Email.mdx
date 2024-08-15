@@ -28,16 +28,31 @@ export const { auth, signIn, signOut, store } = convexAuth({
 
 Make sure the token has high enough entropy to be secure.
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 
-| Parameter | Type |
-| ------ | ------ |
-| `config` | [`EmailUserConfig`](../server.mdx#emailuserconfigdatamodel)\<`DataModel`\> & `Pick`\<[`EmailConfig`](../server.mdx#emailconfigdatamodel)\<`GenericDataModel`\>, `"sendVerificationRequest"`\> |
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+</tr>
+<tr>
+<td>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+`config`
+
+</td>
+<td>
+
+[`EmailUserConfig`](../server.mdx#emailuserconfigdatamodel)\<`DataModel`\> & `Pick`\<[`EmailConfig`](../server.mdx#emailconfigdatamodel)\<`GenericDataModel`\>, `"sendVerificationRequest"`\>
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 [`EmailConfig`](../server.mdx#emailconfigdatamodel)\<`DataModel`\>
 
-<h3 class="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/providers/Email.ts:34](https://github.com/get-convex/convex-auth/blob/main/src/providers/Email.ts#L34)
