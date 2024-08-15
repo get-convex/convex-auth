@@ -302,8 +302,8 @@ export function AuthProvider({
           : null;
       // code from URL is only consumed initially,
       // ref avoids racing in Strict mode
-      if (!signingInWithCodeFromURL.current && code) {
-        if (code) {
+      if (signingInWithCodeFromURL.current || code) {
+        if (code && !signingInWithCodeFromURL.current) {
           signingInWithCodeFromURL.current = true;
           const url = new URL(window.location.href);
           url.searchParams.delete("code");

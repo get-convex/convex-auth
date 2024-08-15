@@ -1,8 +1,7 @@
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
-import { ConvexReactClient } from "convex/react";
+import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ThemeProvider } from "next-themes";
-import React, { useEffect } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import { routeTree } from "./routeTree.gen";
@@ -25,14 +24,9 @@ const convex = new ConvexReactClient(
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider attribute="class">
-      <ConvexAuthProvider
-        client={convex}
-        replaceURL={(to) => {
-          return router.navigate({ to, replace: true });
-        }}
-      >
+      <ConvexProvider client={convex}>
         <RouterProvider router={router} />
-      </ConvexAuthProvider>
+      </ConvexProvider>
     </ThemeProvider>
   </React.StrictMode>,
 );

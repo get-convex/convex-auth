@@ -1,18 +1,30 @@
-import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/router-devtools";
-import { Chat } from "@/Chat/Chat";
-import { ChatHeader } from "@/Chat/ChatIntro";
 import { Layout } from "@/Layout";
-import { SignInFormsShowcase } from "@/auth/SignInFormsShowcase";
 import { UserMenu } from "@/components/UserMenu";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+import { createRootRoute, Outlet, useRouter } from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/router-devtools";
+import {
+  Authenticated,
+  Unauthenticated,
+  useConvex,
+  useQuery,
+} from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 
 export const Route = createRootRoute({
   component: () => <App />,
 });
 
 function App() {
+  const convex = useConvex();
+  return (
+    <ConvexAuthProvider client={convex}>
+      <Content />
+    </ConvexAuthProvider>
+  );
+}
+
+function Content() {
   const user = useQuery(api.users.viewer);
   return (
     <Layout
