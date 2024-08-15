@@ -177,6 +177,7 @@ export type ConvexAuthActionsContext = {
    *          or OAuth signin).
    */
   signIn(
+    this: void,
     /**
      * The ID of the provider (lowercase version of the
      * provider name or a configured `id` option value).
@@ -234,7 +235,7 @@ export type ConvexAuthActionsContext = {
    * Calls the server to invalidate the server session
    * and deletes the locally stored JWT and refresh token.
    */
-  signOut(): Promise<void>;
+  signOut(this: void): Promise<void>;
 };
 
 /**
