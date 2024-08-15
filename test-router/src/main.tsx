@@ -25,22 +25,26 @@ const convex = new ConvexReactClient(
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider attribute="class">
-      <ConvexAuthProvider client={convex}>
+      <ConvexAuthProvider
+        client={convex}
+        replaceURL={(to) => {
+          return router.navigate({ to, replace: true });
+        }}
+      >
         <RouterProvider router={router} />
-        <Test />
       </ConvexAuthProvider>
     </ThemeProvider>
   </React.StrictMode>,
 );
 
-function Test() {
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("code") !== null) {
-      url.searchParams.delete("code");
-      window.history.replaceState({}, "", url.toString());
-      console.log("replaceing", url.toString());
-    }
-  });
-  return null;
-}
+// function Test() {
+//   useEffect(() => {
+//     const url = new URL(window.location.href);
+//     if (url.searchParams.get("code") !== null) {
+//       url.searchParams.delete("code");
+//       window.history.replaceState({}, "", url.toString());
+//       console.log("replaceing", url.toString());
+//     }
+//   });
+//   return null;
+// }
