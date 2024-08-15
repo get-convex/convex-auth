@@ -43,7 +43,17 @@ function getCookieStore(
   }
   function setValue(name: string, value: string | null) {
     if (value === null) {
-      responseCookies.delete(name);
+      // Only request cookies have a `size` property
+      if ("size" in responseCookies) {
+        responseCookies.delete(name);
+      } else {
+        // See https://github.com/vercel/next.js/issues/56632
+        // for why .delete({}) doesn't work:
+        responseCookies.set(name, "", {
+          ...COOKIE_OPTIONS,
+          expires: 0,
+        });
+      }
     } else {
       responseCookies.set(name, value, COOKIE_OPTIONS);
     }
