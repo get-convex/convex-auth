@@ -186,7 +186,7 @@ export type ConvexAuthConfig = {
         /**
          * The ID of the user that is being signed in.
          */
-        userId: GenericId<"users"> | null;
+        userId: GenericId<"users">;
         /**
          * If this is a sign-in to an existing account,
          * this is the existing user ID linked to that account.

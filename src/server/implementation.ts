@@ -1243,6 +1243,7 @@ async function defaultCreateOrUpdateUser(
     ...(phoneVerified ? { phoneVerificationTime: Date.now() } : null),
     ...profile,
   };
+  const existingOrLinkedUserId = userId;
   if (userId !== null) {
     await ctx.db.patch(userId, userData);
   } else {
@@ -1250,7 +1251,7 @@ async function defaultCreateOrUpdateUser(
   }
   await config.callbacks?.afterUserCreatedOrUpdated?.(ctx, {
     userId,
-    existingUserId,
+    existingUserId: existingOrLinkedUserId,
     ...args,
   });
   return userId;
