@@ -1214,7 +1214,7 @@ async function upsertUserAndAccount(
 
 async function defaultCreateOrUpdateUser(
   ctx: GenericMutationCtx<AuthDataModel>,
-  sessionId: GenericId<"authSessions"> | null,
+  existingSessionId: GenericId<"authSessions"> | null,
   existingAccount: GenericDoc<AuthDataModel, "authAccounts"> | null,
   args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
