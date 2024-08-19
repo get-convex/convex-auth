@@ -20,13 +20,20 @@ export async function proxyAuthActionToConvex(
   if (action !== "auth:signIn" && action !== "auth:signOut") {
     return new Response("Invalid action", { status: 400 });
   }
-  // The client has a dummy refreshToken, the real one is only
-  // stored in cookies.
+  let token: string | undefined;
   if (action === "auth:signIn" && args.refreshToken !== undefined) {
+    // The client has a dummy refreshToken, the real one is only
+    // stored in cookies.
     args.refreshToken = getRequestCookies().refreshToken;
+  } else {
+    // Make sure the proxy is authenticated if the client is,
+    // important for signOut and any other logic working
+    // with existing sessions.
+    token = getRequestCookies().token ?? undefined;
   }
   const untypedResult = await fetchAction(action, args, {
     url: options?.convexUrl,
+    token,
   });
 
   if (action === "auth:signIn") {
