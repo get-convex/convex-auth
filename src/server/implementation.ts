@@ -114,7 +114,7 @@ export const authTables = {
     phoneVerified: v.optional(v.string()),
   })
     .index("userIdAndProvider", ["userId", "provider"])
-    .index("accountIdAndProvider", ["providerAccountId", "provider"]),
+    .index("providerAndAccountId", ["provider", "providerAccountId"]),
   /**
    * Refresh tokens.
    * Each session has only a single refresh token
@@ -760,10 +760,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
             ) as OAuthConfig<any>;
             const existingAccount = await ctx.db
               .query("authAccounts")
-              .withIndex("accountIdAndProvider", (q) =>
+              .withIndex("providerAndAccountId", (q) =>
                 q
-                  .eq("providerAccountId", providerAccountId)
-                  .eq("provider", provider),
+                  .eq("provider", provider)
+                  .eq("providerAccountId", providerAccountId),
               )
               .unique();
 
@@ -820,10 +820,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 ? await getAccountOrThrow(ctx, existingAccountId)
                 : await ctx.db
                     .query("authAccounts")
-                    .withIndex("accountIdAndProvider", (q) =>
+                    .withIndex("providerAndAccountId", (q) =>
                       q
-                        .eq("providerAccountId", email ?? phone!)
-                        .eq("provider", providerId),
+                        .eq("provider", providerId)
+                        .eq("providerAccountId", email ?? phone!),
                     )
                     .unique();
 
@@ -865,10 +865,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
             ) as ConvexCredentialsConfig;
             const existingAccount = await ctx.db
               .query("authAccounts")
-              .withIndex("accountIdAndProvider", (q) =>
+              .withIndex("providerAndAccountId", (q) =>
                 q
-                  .eq("providerAccountId", account.id)
-                  .eq("provider", provider.id),
+                  .eq("provider", provider.id)
+                  .eq("providerAccountId", account.id),
               )
               .unique();
             if (existingAccount !== null) {
@@ -916,10 +916,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { provider: providerId, account } = args;
             const existingAccount = await ctx.db
               .query("authAccounts")
-              .withIndex("accountIdAndProvider", (q) =>
+              .withIndex("providerAndAccountId", (q) =>
                 q
-                  .eq("providerAccountId", account.id)
-                  .eq("provider", providerId),
+                  .eq("provider", providerId)
+                  .eq("providerAccountId", account.id),
               )
               .unique();
             if (existingAccount === null) {
@@ -951,8 +951,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { provider, account } = args;
             const existingAccount = await ctx.db
               .query("authAccounts")
-              .withIndex("accountIdAndProvider", (q) =>
-                q.eq("providerAccountId", account.id).eq("provider", provider),
+              .withIndex("providerAndAccountId", (q) =>
+                q.eq("provider", provider).eq("providerAccountId", account.id),
               )
               .unique();
             if (existingAccount === null) {
@@ -2015,7 +2015,7 @@ function convertErrorsToResponse(
       if (error instanceof ConvexError) {
         return new Response(null, {
           status: errorStatusCode,
-          statusText: (error as any).data,
+          statusText: error.data,
         });
       } else {
         logError(error);
