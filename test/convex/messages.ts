@@ -1,11 +1,11 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getUserId } from "@convex-dev/auth/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await auth.getUserId(ctx);
+    const userId = await getAuthUserId(ctx);
     if (userId === null) {
       throw new Error("Not signed in");
     }
@@ -24,7 +24,7 @@ export const list = query({
 export const send = mutation({
   args: { body: v.string() },
   handler: async (ctx, { body }) => {
-    const userId = await getUserId(ctx);
+    const userId = await getAuthUserId(ctx);
     if (userId === null) {
       throw new Error("Not signed in");
     }
