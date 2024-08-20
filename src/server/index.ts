@@ -14,6 +14,8 @@ export {
   authTables,
   convexAuth,
   createAccount,
+  getUserId,
+  getSessionId,
   retrieveAccount,
   signInViaProvider,
   invalidateSessions,

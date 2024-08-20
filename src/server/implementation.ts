@@ -158,6 +158,69 @@ export const authTables = {
     attemptsLeft: v.number(),
   }).index("identifier", ["identifier"]),
 };
+/**
+ * Return the currently signed-in user's ID.
+ *
+ * ```ts filename="convex/myFunctions.tsx"
+ * import { mutation } from "./_generated/server";
+ * import { getUserId } from "@convex-dev/auth/server";
+ *
+ * export const doSomething = mutation({
+ *   args: {/* ... *\/},
+ *   handler: async (ctx, args) => {
+ *     const userId = await getUserId(ctx);
+ *     if (userId === null) {
+ *       throw new Error("Client is not authenticated!")
+ *     }
+ *     const user = await ctx.db.get(userId);
+ *     // ...
+ *   },
+ * });
+ * ```
+ *
+ * @param ctx query, mutation or action `ctx`
+ * @returns the user ID or `null` if the client isn't authenticated
+ */
+export async function getUserId(ctx: { auth: Auth }) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity === null) {
+    return null;
+  }
+  const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
+  return userId as GenericId<"users">;
+}
+
+/**
+ * Return the current session ID.
+ *
+ * ```ts filename="convex/myFunctions.tsx"
+ * import { mutation } from "./_generated/server";
+ * import { getSessionId } from "@convex-dev/auth/server";
+ *
+ * export const doSomething = mutation({
+ *   args: {/* ... *\/},
+ *   handler: async (ctx, args) => {
+ *     const sessionId = await getSessionId(ctx);
+ *     if (sessionId === null) {
+ *       throw new Error("Client is not authenticated!")
+ *     }
+ *     const session = await ctx.db.get(sessionId);
+ *     // ...
+ *   },
+ * });
+ * ```
+ *
+ * @param ctx query, mutation or action `ctx`
+ * @returns the session ID or `null` if the client isn't authenticated
+ */
+export async function getSessionId(ctx: { auth: Auth }) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity === null) {
+    return null;
+  }
+  const [, sessionId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
+  return sessionId as GenericId<"authSessions">;
+}
 
 const defaultSchema = defineSchema(authTables);
 
@@ -316,23 +379,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
     /**
      * Return the currently signed-in user's ID.
      *
-     * ```ts filename="convex/myFunctions.tsx"
-     * import { mutation } from "./_generated/server";
-     * import { auth } from "./auth.js";
+     * @deprecated - Use `getUserId` from "@convex-dev/auth/server":
      *
-     * export const doSomething = mutation({
-     *   args: {/* ... *\/},
-     *   handler: async (ctx, args) => {
-     *     const userId = await auth.getUserId(ctx);
-     *     if (userId === null) {
-     *       throw new Error("Client is not authenticated!")
-     *     }
-     *     const user = await ctx.db.get(userId);
-     *     // ...
-     *   },
-     * });
-     * ```
-     *
+     * `import { getUserId } from "@convex-dev/auth/server";`
      * @param ctx query, mutation or action `ctx`
      * @returns the user ID or `null` if the client isn't authenticated
      */
@@ -347,23 +396,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
     /**
      * Return the current session ID.
      *
-     * ```ts filename="convex/myFunctions.tsx"
-     * import { mutation } from "./_generated/server";
-     * import { auth } from "./auth.js";
+     * @deprecated - Use `getSessionId` from "@convex-dev/auth/server":
      *
-     * export const doSomething = mutation({
-     *   args: {/* ... *\/},
-     *   handler: async (ctx, args) => {
-     *     const sessionId = await auth.getSessionId(ctx);
-     *     if (sessionId === null) {
-     *       throw new Error("Client is not authenticated!")
-     *     }
-     *     const session = await ctx.db.get(sessionId);
-     *     // ...
-     *   },
-     * });
-     * ```
-     *
+     * `import { getSessionId } from "@convex-dev/auth/server";`
      * @param ctx query, mutation or action `ctx`
      * @returns the session ID or `null` if the client isn't authenticated
      */
@@ -645,7 +680,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             );
           }
           case "signOut": {
-            const sessionId = await auth.getSessionId(ctx);
+            const sessionId = await getSessionId(ctx);
             if (sessionId !== null) {
               const session = await ctx.db.get(sessionId);
               if (session !== null) {
@@ -712,7 +747,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               getProviderOrThrow,
               allowExtraProviders,
               config,
-              await auth.getSessionId(ctx),
+              await getSessionId(ctx),
             );
             if (verifyResult === null) {
               if (identifier !== undefined) {
@@ -740,7 +775,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           }
           case "verifier": {
             return await ctx.db.insert("authVerifiers", {
-              sessionId: (await auth.getSessionId(ctx)) ?? undefined,
+              sessionId: (await getSessionId(ctx)) ?? undefined,
             });
           }
           case "verifierSignature": {
@@ -833,7 +868,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             ) as EmailConfig | PhoneConfig;
             const { accountId } = await upsertUserAndAccount(
               ctx,
-              await auth.getSessionId(ctx),
+              await getSessionId(ctx),
               existingAccount !== null
                 ? { existingAccount }
                 : { providerAccountId: email ?? phone! },
@@ -895,7 +930,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 : undefined;
             const { userId, accountId } = await upsertUserAndAccount(
               ctx,
-              await auth.getSessionId(ctx),
+              await getSessionId(ctx),
               { providerAccountId: account.id, secret },
               {
                 type: "credentials",
@@ -1026,7 +1061,7 @@ async function createNewAndDeleteExistingSession(
   },
   userId: GenericId<"users">,
 ) {
-  const existingSessionId = await auth.getSessionId(ctx);
+  const existingSessionId = await getSessionId(ctx);
   if (existingSessionId !== null) {
     const existingSession = await ctx.db.get(existingSessionId);
     if (existingSession !== null) {
@@ -1188,7 +1223,7 @@ async function upsertUserAndAccount(
 
 async function defaultCreateOrUpdateUser(
   ctx: GenericMutationCtx<AuthDataModel>,
-  sessionId: GenericId<"authSessions"> | null,
+  existingSessionId: GenericId<"authSessions"> | null,
   existingAccount: GenericDoc<AuthDataModel, "authAccounts"> | null,
   args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
