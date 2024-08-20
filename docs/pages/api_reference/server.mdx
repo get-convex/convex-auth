@@ -125,120 +125,13 @@ export const { auth, signIn, signOut, store } = convexAuth({
 
 `object`
 
-An object with `auth` helper for configuring HTTP actions and accessing
-the current user and session ID.
+An object with fields you should reexport from your
+         `convex/auth.ts` file.
 
 #### auth
 
 
-Helper for configuring HTTP actions and accessing
-the current user and session ID.
-
-#### auth.getUserId()
-
-
-<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
-
-<table className="api_reference_table"><tbody>
-<tr>
-<th>Parameter</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-<tr>
-<td>
-
-`ctx`
-
-</td>
-<td>
-
-`object`
-
-</td>
-<td>
-
-query, mutation or action `ctx`
-
-</td>
-</tr>
-<tr>
-<td>
-
-`ctx.auth`
-
-</td>
-<td>
-
-`Auth`
-
-</td>
-<td>
-
-&hyphen;
-
-</td>
-</tr>
-</tbody></table>
-
-<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
-
-`Promise`\<`null` \| `Id`\<`"users"`\>\>
-
-the user ID or `null` if the client isn't authenticated
-
-#### auth.getSessionId()
-
-
-<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
-
-<table className="api_reference_table"><tbody>
-<tr>
-<th>Parameter</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-<tr>
-<td>
-
-`ctx`
-
-</td>
-<td>
-
-`object`
-
-</td>
-<td>
-
-query, mutation or action `ctx`
-
-</td>
-</tr>
-<tr>
-<td>
-
-`ctx.auth`
-
-</td>
-<td>
-
-`Auth`
-
-</td>
-<td>
-
-&hyphen;
-
-</td>
-</tr>
-</tbody></table>
-
-<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
-
-`Promise`\<`null` \| `Id`\<`"authSessions"`\>\>
-
-the session ID or `null` if the client isn't authenticated
+Helper for configuring HTTP actions.
 
 #### auth.addHttpRoutes()
 
@@ -318,6 +211,162 @@ to the database during signin and signout.
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/implementation.ts:284](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L284)
+
+***
+
+## getAuthUserId()
+
+
+Return the currently signed-in user's ID.
+
+```ts filename="convex/myFunctions.tsx"
+import { mutation } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
+
+export const doSomething = mutation({
+  args: {/* ... */},
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Client is not authenticated!")
+    }
+    const user = await ctx.db.get(userId);
+    // ...
+  },
+});
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
+
+`ctx`
+
+</td>
+<td>
+
+`object`
+
+</td>
+<td>
+
+query, mutation or action `ctx`
+
+</td>
+</tr>
+<tr>
+<td>
+
+`ctx.auth`
+
+</td>
+<td>
+
+`Auth`
+
+</td>
+<td>
+
+&hyphen;
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<`null` \| `Id`\<`"users"`\>\>
+
+the user ID or `null` if the client isn't authenticated
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation.ts:978](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L978)
+
+***
+
+## getAuthSessionId()
+
+
+Return the current session ID.
+
+```ts filename="convex/myFunctions.tsx"
+import { mutation } from "./_generated/server";
+import { getAuthSessionId } from "@convex-dev/auth/server";
+
+export const doSomething = mutation({
+  args: {/* ... */},
+  handler: async (ctx, args) => {
+    const sessionId = await getAuthSessionId(ctx);
+    if (sessionId === null) {
+      throw new Error("Client is not authenticated!")
+    }
+    const session = await ctx.db.get(sessionId);
+    // ...
+  },
+});
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
+
+`ctx`
+
+</td>
+<td>
+
+`object`
+
+</td>
+<td>
+
+query, mutation or action `ctx`
+
+</td>
+</tr>
+<tr>
+<td>
+
+`ctx.auth`
+
+</td>
+<td>
+
+`Auth`
+
+</td>
+<td>
+
+&hyphen;
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<`null` \| `Id`\<`"authSessions"`\>\>
+
+the session ID or `null` if the client isn't authenticated
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation.ts:1010](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1010)
 
 ***
 
@@ -517,7 +566,7 @@ or throws an error.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1359](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1359)
+[src/server/implementation.ts:1384](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1384)
 
 ***
 
@@ -660,7 +709,7 @@ secret does not match.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1424](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1424)
+[src/server/implementation.ts:1449](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1449)
 
 ***
 
@@ -791,7 +840,7 @@ The new secret credential to store for this account.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1469](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1469)
+[src/server/implementation.ts:1494](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1494)
 
 ***
 
@@ -863,7 +912,7 @@ Use this function to invalidate existing sessions.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1504](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1504)
+[src/server/implementation.ts:1529](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1529)
 
 ***
 
@@ -953,7 +1002,7 @@ or `null`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1531](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1531)
+[src/server/implementation.ts:1556](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1556)
 
 ***
 
@@ -1338,7 +1387,7 @@ when `createAccount` is called.
 </td>
 <td>
 
-`GenericId`\<`"users"`\> \| `null`
+`GenericId`\<`"users"`\>
 
 </td>
 <td>

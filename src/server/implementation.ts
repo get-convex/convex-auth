@@ -278,8 +278,8 @@ export type SignOutAction = FunctionReferenceFromExport<
  * });
  * ```
  *
- * @returns An object with `auth` helper for configuring HTTP actions and accessing
- * the current user and session ID.
+ * @returns An object with fields you should reexport from your
+ *          `convex/auth.ts` file.
  */
 export function convexAuth(config_: ConvexAuthConfig) {
   const config = configDefaults(config_ as any);
@@ -319,6 +319,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
      * ```ts
      * import { getAuthUserId } from "@convex-dev/auth/server";
      * ```
+     *
+     * @hidden
      */
     getUserId: async (ctx: { auth: Auth }) => {
       const identity = await ctx.auth.getUserIdentity();
@@ -334,6 +336,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
      * ```
      * import { getAuthSessionId } from "@convex-dev/auth/server";
      * ```
+     *
+     * @hidden
      */
     getSessionId: async (ctx: { auth: Auth }) => {
       const identity = await ctx.auth.getUserIdentity();
@@ -537,8 +541,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
   };
   return {
     /**
-     * Helper for configuring HTTP actions and accessing
-     * the current user and session ID.
+     * Helper for configuring HTTP actions.
      */
     auth,
     /**
