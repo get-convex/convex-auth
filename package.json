@@ -71,7 +71,7 @@
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
-    "convex": "^1.14.2",
+    "convex": "^1.14.3",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
