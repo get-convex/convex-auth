@@ -1269,7 +1269,16 @@ async function defaultCreateOrUpdateUser(
   };
   const existingOrLinkedUserId = userId;
   if (userId !== null) {
-    await ctx.db.patch(userId, userData);
+    try {
+      await ctx.db.patch(userId, userData);
+    } catch (error) {
+      throw new Error(
+        `Could not update user document with ID \`${userId}\`, ` +
+          `either the user has been deleted but their account has not, ` +
+          `or the profile data doesn't match the \`users\` table schema: ` +
+          `${(error as Error).message}`,
+      );
+    }
   } else {
     userId = await ctx.db.insert("users", userData);
   }
