@@ -24,7 +24,14 @@ export async function proxyAuthActionToConvex(
   if (action === "auth:signIn" && args.refreshToken !== undefined) {
     // The client has a dummy refreshToken, the real one is only
     // stored in cookies.
-    args.refreshToken = getRequestCookies().refreshToken;
+    const refreshToken = getRequestCookies().refreshToken;
+    if (refreshToken === null) {
+      console.error(
+        "Convex Auth: Unexpected missing refreshToken cookie during client refresh",
+      );
+      return new Response(JSON.stringify({ tokens: null }));
+    }
+    args.refreshToken = refreshToken;
   } else {
     // Make sure the proxy is authenticated if the client is,
     // important for signOut and any other logic working
@@ -44,7 +51,15 @@ export async function proxyAuthActionToConvex(
       getResponseCookies(response).verifier = result.verifier;
       return response;
     } else if (result.tokens !== undefined) {
-      const response = jsonResponse(result);
+      // The server doesn't share the refresh token with the client
+      // for added security - the client has to use the server
+      // to refresh the access token via cookies.
+      const response = jsonResponse({
+        tokens:
+          result.tokens !== null
+            ? { token: result.tokens.token, refreshToken: "dummy" }
+            : null,
+      });
       setAuthCookies(response, result.tokens);
       return response;
     }
