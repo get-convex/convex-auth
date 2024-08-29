@@ -43,13 +43,7 @@ import {
   PhoneConfig,
 } from "../types.js";
 import { requireEnv } from "../utils.js";
-import {
-  ActionCtx,
-  AuthDataModel,
-  MutationCtx,
-  internal,
-  storeArgs,
-} from "./types.js";
+import { ActionCtx, AuthDataModel, MutationCtx } from "./types.js";
 import {
   isSignInRateLimited,
   recordFailedSignIn,
@@ -65,6 +59,15 @@ import {
   maybeGenerateTokensForSession,
 } from "./sessions.js";
 import { upsertUserAndAccount } from "./users.js";
+import {
+  invalidateSessionsArgs,
+  invalidateSessionsImpl,
+} from "./mutations/invalidateSessions.js";
+import { GetProviderOrThrowFunc, hash } from "./provider.js";
+import {
+  modifyAccountArgs,
+  modifyAccountImpl,
+} from "./mutations/modifyAccount.js";
 export { getAuthSessionId } from "./sessions.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
@@ -82,6 +85,93 @@ export type SignInAction = FunctionReferenceFromExport<
 export type SignOutAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signOut"]
 >;
+
+export const storeArgs = {
+  args: v.union(
+    v.object({
+      type: v.literal("signIn"),
+      userId: v.id("users"),
+      sessionId: v.optional(v.id("authSessions")),
+      generateTokens: v.boolean(),
+    }),
+    v.object({
+      type: v.literal("signOut"),
+    }),
+    v.object({
+      type: v.literal("refreshSession"),
+      refreshToken: v.string(),
+    }),
+    v.object({
+      type: v.literal("verifyCodeAndSignIn"),
+      params: v.any(),
+      provider: v.optional(v.string()),
+      verifier: v.optional(v.string()),
+      generateTokens: v.boolean(),
+      allowExtraProviders: v.boolean(),
+    }),
+    v.object({
+      type: v.literal("verifier"),
+    }),
+    v.object({
+      type: v.literal("verifierSignature"),
+      verifier: v.string(),
+      signature: v.string(),
+    }),
+    v.object({
+      type: v.literal("userOAuth"),
+      provider: v.string(),
+      providerAccountId: v.string(),
+      profile: v.any(),
+      signature: v.string(),
+    }),
+    v.object({
+      type: v.literal("createVerificationCode"),
+      accountId: v.optional(v.id("authAccounts")),
+      provider: v.string(),
+      email: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      code: v.string(),
+      expirationTime: v.number(),
+      allowExtraProviders: v.boolean(),
+    }),
+    v.object({
+      type: v.literal("createAccountFromCredentials"),
+      provider: v.string(),
+      account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
+      profile: v.any(),
+      shouldLinkViaEmail: v.optional(v.boolean()),
+      shouldLinkViaPhone: v.optional(v.boolean()),
+    }),
+    v.object({
+      type: v.literal("retrieveAccountWithCredentials"),
+      provider: v.string(),
+      account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
+    }),
+    v.object({
+      type: v.literal("modifyAccount"),
+      ...modifyAccountArgs.fields,
+    }),
+    v.object({
+      type: v.literal("invalidateSessions"),
+      ...invalidateSessionsArgs.fields,
+    }),
+  ),
+};
+
+export const internal: {
+  auth: {
+    store: FunctionReference<
+      "mutation",
+      "internal",
+      ObjectType<typeof storeArgs>,
+      any
+    >;
+  };
+} = {
+  auth: {
+    store: "auth:store" as any,
+  },
+};
 
 /**
  * Configure the Convex Auth library. Returns an object with
@@ -112,7 +202,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         : undefined)
     );
   };
-  const getProviderOrThrow = (
+  const getProviderOrThrow: GetProviderOrThrowFunc = (
     id: string,
     allowExtraProviders: boolean = false,
   ) => {
@@ -732,36 +822,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
             };
           }
           case "modifyAccount": {
-            const { provider, account } = args;
-            const existingAccount = await ctx.db
-              .query("authAccounts")
-              .withIndex("providerAndAccountId", (q) =>
-                q.eq("provider", provider).eq("providerAccountId", account.id),
-              )
-              .unique();
-            if (existingAccount === null) {
-              throw new Error(
-                `Cannot modify account with ID ${account.id} because it does not exist`,
-              );
-            }
-            await ctx.db.patch(existingAccount._id, {
-              secret: await hash(getProviderOrThrow(provider), account.secret),
-            });
-            return;
+            return modifyAccountImpl(ctx, args, getProviderOrThrow);
           }
           case "invalidateSessions": {
-            const { userId, except } = args;
-            const exceptSet = new Set(except ?? []);
-            const sessions = await ctx.db
-              .query("authSessions")
-              .withIndex("userId", (q) => q.eq("userId", userId))
-              .collect();
-            for (const session of sessions) {
-              if (!exceptSet.has(session._id)) {
-                await deleteSession(ctx, session);
-              }
-            }
-            return;
+            return invalidateSessionsImpl(ctx, args);
           }
           default:
             args satisfies never;
@@ -929,19 +993,6 @@ async function verify(
     );
   }
   return await verify(secret, hash);
-}
-
-async function hash(provider: any, secret: string) {
-  if (provider.type !== "credentials") {
-    throw new Error(`Provider ${provider.id} is not a credentials provider`);
-  }
-  const hash = provider.crypto?.hashSecret;
-  if (hash === undefined) {
-    throw new Error(
-      `Provider ${provider.id} does not have a \`crypto.hashSecret\` function`,
-    );
-  }
-  return await hash(secret);
 }
 
 /**
