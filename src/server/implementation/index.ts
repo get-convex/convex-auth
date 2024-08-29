@@ -50,6 +50,11 @@ import {
   internal,
   storeArgs,
 } from "./types.js";
+import {
+  isSignInRateLimited,
+  recordFailedSignIn,
+  resetSignInRateLimit,
+} from "./rateLimit.js";
 export { authTables } from "./types.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
@@ -57,7 +62,6 @@ const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
-const DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR = 10;
 const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
@@ -1637,79 +1641,6 @@ function setURLSearchParam(absoluteUrl: string, param: string, value: string) {
   url.searchParams.set(param, value);
   const [, , withParam] = url.toString().match(pattern)!;
   return `${scheme}:${hasNoDomain ? (startsWithPath ? "/" : "") + "//" + withParam.slice(13) : withParam}`;
-}
-
-async function isSignInRateLimited(
-  ctx: MutationCtx,
-  identifier: string,
-  config: ConvexAuthConfig,
-) {
-  const state = await getRateLimitState(ctx, identifier, config);
-  if (state === null) {
-    return false;
-  }
-  return state.attempsLeft < 1;
-}
-
-async function recordFailedSignIn(
-  ctx: MutationCtx,
-  identifier: string,
-  config: ConvexAuthConfig,
-) {
-  const state = await getRateLimitState(ctx, identifier, config);
-  if (state !== null) {
-    await ctx.db.patch(state.limit._id, {
-      attemptsLeft: state.attempsLeft - 1,
-      lastAttemptTime: Date.now(),
-    });
-  } else {
-    const maxAttempsPerHour = configuredMaxAttempsPerHour(config);
-    await ctx.db.insert("authRateLimits", {
-      identifier,
-      attemptsLeft: maxAttempsPerHour - 1,
-      lastAttemptTime: Date.now(),
-    });
-  }
-}
-
-async function resetSignInRateLimit(ctx: MutationCtx, identifier: string) {
-  const existingState = await ctx.db
-    .query("authRateLimits")
-    .withIndex("identifier", (q) => q.eq("identifier", identifier))
-    .unique();
-  if (existingState !== null) {
-    await ctx.db.delete(existingState._id);
-  }
-}
-
-async function getRateLimitState(
-  ctx: MutationCtx,
-  identifier: string,
-  config: ConvexAuthConfig,
-) {
-  const now = Date.now();
-  const maxAttempsPerHour = configuredMaxAttempsPerHour(config);
-  const limit = await ctx.db
-    .query("authRateLimits")
-    .withIndex("identifier", (q) => q.eq("identifier", identifier))
-    .unique();
-  if (limit === null) {
-    return null;
-  }
-  const elapsed = now - limit.lastAttemptTime;
-  const maxAttempsPerMs = maxAttempsPerHour / (60 * 60 * 1000);
-  const attempsLeft = Math.min(
-    maxAttempsPerHour,
-    limit.attemptsLeft + elapsed * maxAttempsPerMs,
-  );
-  return { limit, attempsLeft };
-}
-
-function configuredMaxAttempsPerHour(config: ConvexAuthConfig) {
-  return (
-    config.signIn?.maxFailedAttempsPerHour ??
-    DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR
-  );
 }
 
 async function generateUniqueVerificationCode(
