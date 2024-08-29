@@ -56,14 +56,18 @@ import {
   resetSignInRateLimit,
 } from "./rateLimit.js";
 export { authTables } from "./types.js";
+import { TOKEN_SUB_CLAIM_DIVIDER, REFRESH_TOKEN_DIVIDER } from "./utils.js";
+import { deleteRefreshTokens, validateRefreshToken } from "./refreshTokens.js";
+import {
+  createNewAndDeleteExistingSession,
+  deleteSession,
+  getAuthSessionId,
+  maybeGenerateTokensForSession,
+} from "./session.js";
+export { getAuthSessionId } from "./session.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
-const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
-const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
-const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
-const REFRESH_TOKEN_DIVIDER = "|";
-const TOKEN_SUB_CLAIM_DIVIDER = "|";
 
 /**
  * @internal
@@ -466,11 +470,12 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const { session } = validationResult;
             const sessionId = session._id;
             const userId = session.userId;
-            return await generateTokensForSession(
+            return await maybeGenerateTokensForSession(
               ctx,
               config,
               userId,
               sessionId,
+              true,
             );
           }
           case "verifyCodeAndSignIn": {
@@ -797,38 +802,6 @@ export async function getAuthUserId(ctx: { auth: Auth }) {
   return userId as GenericId<"users">;
 }
 
-/**
- * Return the current session ID.
- *
- * ```ts filename="convex/myFunctions.tsx"
- * import { mutation } from "./_generated/server";
- * import { getAuthSessionId } from "@convex-dev/auth/server";
- *
- * export const doSomething = mutation({
- *   args: {/* ... *\/},
- *   handler: async (ctx, args) => {
- *     const sessionId = await getAuthSessionId(ctx);
- *     if (sessionId === null) {
- *       throw new Error("Client is not authenticated!")
- *     }
- *     const session = await ctx.db.get(sessionId);
- *     // ...
- *   },
- * });
- * ```
- *
- * @param ctx query, mutation or action `ctx`
- * @returns the session ID or `null` if the client isn't authenticated
- */
-export async function getAuthSessionId(ctx: { auth: Auth }) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (identity === null) {
-    return null;
-  }
-  const [, sessionId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
-  return sessionId as GenericId<"authSessions">;
-}
-
 async function getAccountOrThrow(
   ctx: GenericQueryCtx<AuthDataModel>,
   existingAccountId: GenericId<"authAccounts">,
@@ -840,50 +813,6 @@ async function getAccountOrThrow(
     );
   }
   return existingAccount;
-}
-
-async function maybeGenerateTokensForSession(
-  ctx: MutationCtx,
-  config: ConvexAuthConfig,
-  userId: GenericId<"users">,
-  sessionId: GenericId<"authSessions">,
-  generateTokens: boolean,
-) {
-  return {
-    userId,
-    sessionId,
-    tokens: generateTokens
-      ? await generateTokensForSession(ctx, config, userId, sessionId)
-      : null,
-  };
-}
-
-async function createNewAndDeleteExistingSession(
-  ctx: MutationCtx,
-  config: ConvexAuthConfig,
-  userId: GenericId<"users">,
-) {
-  const existingSessionId = await getAuthSessionId(ctx);
-  if (existingSessionId !== null) {
-    const existingSession = await ctx.db.get(existingSessionId);
-    if (existingSession !== null) {
-      await deleteSession(ctx, existingSession);
-    }
-  }
-  return await createSession(ctx, userId, config);
-}
-
-async function generateTokensForSession(
-  ctx: MutationCtx,
-  config: ConvexAuthConfig,
-  userId: GenericId<"users">,
-  sessionId: GenericId<"authSessions">,
-) {
-  const ids = { userId, sessionId };
-  return {
-    token: await generateToken(ids, config),
-    refreshToken: await createRefreshToken(ctx, sessionId, config),
-  };
 }
 
 async function verifyCodeOnly(
@@ -1668,112 +1597,6 @@ async function generateUniqueVerificationCode(
   });
 }
 
-async function createSession(
-  ctx: MutationCtx,
-  userId: GenericId<"users">,
-  config: ConvexAuthConfig,
-) {
-  const expirationTime =
-    Date.now() +
-    (config.session?.totalDurationMs ??
-      stringToNumber(process.env.AUTH_SESSION_TOTAL_DURATION_MS) ??
-      DEFAULT_SESSION_TOTAL_DURATION_MS);
-  return await ctx.db.insert("authSessions", { expirationTime, userId });
-}
-
-async function deleteSession(
-  ctx: GenericMutationCtx<any>,
-  session: GenericDoc<AuthDataModel, "authSessions">,
-) {
-  await ctx.db.delete(session._id);
-  await deleteRefreshTokens(ctx, session._id);
-}
-
-async function createRefreshToken(
-  ctx: GenericMutationCtx<any>,
-  sessionId: GenericId<"authSessions">,
-  config: ConvexAuthConfig,
-) {
-  const expirationTime =
-    Date.now() +
-    (config.session?.inactiveDurationMs ??
-      stringToNumber(process.env.AUTH_SESSION_INACTIVE_DURATION_MS) ??
-      DEFAULT_SESSION_INACTIVE_DURATION_MS);
-  const newRefreshTokenId = await ctx.db.insert("authRefreshTokens", {
-    sessionId,
-    expirationTime,
-  });
-  return `${newRefreshTokenId}${REFRESH_TOKEN_DIVIDER}${sessionId}`;
-}
-
-async function deleteRefreshTokens(
-  ctx: GenericMutationCtx<any>,
-  sessionId: GenericId<"authSessions">,
-) {
-  const existingRefreshTokens = await ctx.db
-    .query("authRefreshTokens")
-    .withIndex("sessionId", (q) => q.eq("sessionId", sessionId))
-    .collect();
-  for (const refreshTokenDoc of existingRefreshTokens) {
-    await ctx.db.delete(refreshTokenDoc._id);
-  }
-}
-
-async function validateRefreshToken(
-  ctx: MutationCtx,
-  refreshTokenId: string,
-  tokenSessionId: string,
-) {
-  const refreshTokenDoc = await ctx.db.get(
-    refreshTokenId as GenericId<"authRefreshTokens">,
-  );
-
-  if (refreshTokenDoc === null) {
-    console.error("Invalid refresh token");
-    return null;
-  }
-  if (refreshTokenDoc.expirationTime < Date.now()) {
-    console.error("Expired refresh token");
-    return null;
-  }
-  if (refreshTokenDoc.sessionId !== tokenSessionId) {
-    console.error("Invalid refresh token session ID");
-    return null;
-  }
-  const session = await ctx.db.get(refreshTokenDoc.sessionId);
-  if (session === null) {
-    console.error("Invalid refresh token session");
-    return null;
-  }
-  if (session.expirationTime < Date.now()) {
-    console.error("Expired refresh token session");
-    return null;
-  }
-  return { session, refreshTokenDoc };
-}
-
-async function generateToken(
-  args: {
-    userId: GenericId<any>;
-    sessionId: GenericId<any>;
-  },
-  config: ConvexAuthConfig,
-) {
-  const privateKey = await importPKCS8(requireEnv("JWT_PRIVATE_KEY"), "RS256");
-  const expirationTime = new Date(
-    Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
-  );
-  return await new SignJWT({
-    sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
-  })
-    .setProtectedHeader({ alg: "RS256" })
-    .setIssuedAt()
-    .setIssuer(requireEnv("CONVEX_SITE_URL"))
-    .setAudience("convex")
-    .setExpirationTime(expirationTime)
-    .sign(privateKey);
-}
-
 function convertErrorsToResponse(
   errorStatusCode: number,
   action: (ctx: GenericActionCtx<any>, request: Request) => Promise<Response>,
@@ -1816,8 +1639,4 @@ function getCookies(request: Request): Record<string, string | undefined> {
 
 async function sha256(input: string) {
   return encodeHex(await rawSha256(new TextEncoder().encode(input)));
-}
-
-function stringToNumber(value: string | undefined) {
-  return value !== undefined ? Number(value) : undefined;
 }

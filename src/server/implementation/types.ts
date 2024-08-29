@@ -3,10 +3,12 @@ import {
   FunctionReference,
   GenericActionCtx,
   GenericMutationCtx,
+  TableNamesInDataModel,
   defineSchema,
   defineTable,
 } from "convex/server";
 import { ObjectType, v } from "convex/values";
+import { GenericDoc } from "../convex_types.js";
 
 /**
  * The table definitions required by the library.
@@ -119,6 +121,10 @@ const defaultSchema = defineSchema(authTables);
 export type AuthDataModel = DataModelFromSchemaDefinition<typeof defaultSchema>;
 export type ActionCtx = GenericActionCtx<AuthDataModel>;
 export type MutationCtx = GenericMutationCtx<AuthDataModel>;
+export type Doc<T extends TableNamesInDataModel<AuthDataModel>> = GenericDoc<
+  AuthDataModel,
+  T
+>;
 
 export const storeArgs = {
   args: v.union(
