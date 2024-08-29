@@ -20,7 +20,7 @@ export {
   signInViaProvider,
   invalidateSessions,
   modifyAccountCredentials,
-} from "./implementation.js";
+} from "./implementation/index.js";
 export type {
   ConvexAuthConfig,
   AuthProviderConfig,

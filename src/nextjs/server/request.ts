@@ -1,7 +1,7 @@
 import { fetchAction } from "convex/nextjs";
 import { jwtDecode } from "jwt-decode";
 import { NextRequest, NextResponse } from "next/server";
-import { SignInAction } from "../../server/implementation.js";
+import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies.js";
 import { isCorsRequest, setAuthCookies } from "./utils.js";
 

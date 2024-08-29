@@ -2,7 +2,7 @@ import "server-only";
 
 import { fetchAction } from "convex/nextjs";
 import { NextRequest } from "next/server";
-import { SignInAction } from "../../server/implementation.js";
+import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getResponseCookies } from "./cookies.js";
 import { isCorsRequest, jsonResponse, setAuthCookies } from "./utils.js";
 

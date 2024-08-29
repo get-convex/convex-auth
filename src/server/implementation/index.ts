@@ -25,14 +25,14 @@ import {
   sha256 as rawSha256,
 } from "oslo/crypto";
 import { encodeHex } from "oslo/encoding";
-import { redirectToParamCookie, useRedirectToParam } from "./checks.js";
-import { FunctionReferenceFromExport, GenericDoc } from "./convex_types.js";
-import { getAuthorizationURL, handleOAuthCallback } from "./oauth.js";
+import { redirectToParamCookie, useRedirectToParam } from "../checks.js";
+import { FunctionReferenceFromExport, GenericDoc } from "../convex_types.js";
+import { getAuthorizationURL, handleOAuthCallback } from "../oauth.js";
 import {
   configDefaults,
   listAvailableProviders,
   materializeProvider,
-} from "./provider_utils.js";
+} from "../provider_utils.js";
 import {
   AuthProviderConfig,
   AuthProviderMaterializedConfig,
@@ -41,8 +41,16 @@ import {
   ConvexCredentialsConfig,
   GenericActionCtxWithAuthConfig,
   PhoneConfig,
+} from "../types.js";
+import { requireEnv } from "../utils.js";
+import {
+  ActionCtx,
+  AuthDataModel,
+  MutationCtx,
+  internal,
+  storeArgs,
 } from "./types.js";
-import { requireEnv } from "./utils.js";
+export { authTables } from "./types.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
@@ -52,205 +60,6 @@ const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 const DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR = 10;
 const REFRESH_TOKEN_DIVIDER = "|";
 const TOKEN_SUB_CLAIM_DIVIDER = "|";
-
-/**
- * The table definitions required by the library.
- *
- * Your schema must include these so that the indexes
- * are set up:
- *
- *
- * ```ts filename="convex/schema.ts"
- * import { defineSchema } from "convex/server";
- * import { authTables } from "@convex-dev/auth/server";
- *
- * const schema = defineSchema({
- *   ...authTables,
- * });
- *
- * export default schema;
- * ```
- *
- * You can inline the table definitions into your schema
- * and extend them with additional optional and required
- * fields. See https://labs.convex.dev/auth/setup/schema
- * for more details.
- */
-export const authTables = {
-  /**
-   * Users.
-   */
-  users: defineTable({
-    name: v.optional(v.string()),
-    image: v.optional(v.string()),
-    email: v.optional(v.string()),
-    emailVerificationTime: v.optional(v.number()),
-    phone: v.optional(v.string()),
-    phoneVerificationTime: v.optional(v.number()),
-    isAnonymous: v.optional(v.boolean()),
-  })
-    .index("email", ["email"])
-    .index("phone", ["phone"]),
-  /**
-   * Sessions.
-   * A single user can have multiple active sessions.
-   * See [Session document lifecycle](https://labs.convex.dev/auth/advanced#session-document-lifecycle).
-   */
-  authSessions: defineTable({
-    userId: v.id("users"),
-    expirationTime: v.number(),
-  }).index("userId", ["userId"]),
-  /**
-   * Accounts. An account corresponds to
-   * a single authentication provider.
-   * A single user can have multiple accounts linked.
-   */
-  authAccounts: defineTable({
-    userId: v.id("users"),
-    provider: v.string(),
-    providerAccountId: v.string(),
-    secret: v.optional(v.string()),
-    emailVerified: v.optional(v.string()),
-    phoneVerified: v.optional(v.string()),
-  })
-    .index("userIdAndProvider", ["userId", "provider"])
-    .index("providerAndAccountId", ["provider", "providerAccountId"]),
-  /**
-   * Refresh tokens.
-   * Each session has only a single refresh token
-   * valid at a time. Refresh tokens are rotated
-   * and reuse is not allowed.
-   */
-  authRefreshTokens: defineTable({
-    sessionId: v.id("authSessions"),
-    expirationTime: v.number(),
-  }).index("sessionId", ["sessionId"]),
-  /**
-   * Verification codes:
-   * - OTP tokens
-   * - magic link tokens
-   * - OAuth codes
-   */
-  authVerificationCodes: defineTable({
-    accountId: v.id("authAccounts"),
-    provider: v.string(),
-    code: v.string(),
-    expirationTime: v.number(),
-    verifier: v.optional(v.string()),
-    emailVerified: v.optional(v.string()),
-    phoneVerified: v.optional(v.string()),
-  })
-    .index("accountId", ["accountId"])
-    .index("code", ["code"]),
-  /**
-   * PKCE verifiers for OAuth.
-   */
-  authVerifiers: defineTable({
-    sessionId: v.optional(v.id("authSessions")),
-    signature: v.optional(v.string()),
-  }).index("signature", ["signature"]),
-  /**
-   * Rate limits for OTP and password sign-in.
-   */
-  authRateLimits: defineTable({
-    identifier: v.string(),
-    lastAttemptTime: v.number(),
-    attemptsLeft: v.number(),
-  }).index("identifier", ["identifier"]),
-};
-
-const defaultSchema = defineSchema(authTables);
-
-type AuthDataModel = DataModelFromSchemaDefinition<typeof defaultSchema>;
-
-const storeArgs = {
-  args: v.union(
-    v.object({
-      type: v.literal("signIn"),
-      userId: v.id("users"),
-      sessionId: v.optional(v.id("authSessions")),
-      generateTokens: v.boolean(),
-    }),
-    v.object({
-      type: v.literal("signOut"),
-    }),
-    v.object({
-      type: v.literal("refreshSession"),
-      refreshToken: v.string(),
-    }),
-    v.object({
-      type: v.literal("verifyCodeAndSignIn"),
-      params: v.any(),
-      provider: v.optional(v.string()),
-      verifier: v.optional(v.string()),
-      generateTokens: v.boolean(),
-      allowExtraProviders: v.boolean(),
-    }),
-    v.object({
-      type: v.literal("verifier"),
-    }),
-    v.object({
-      type: v.literal("verifierSignature"),
-      verifier: v.string(),
-      signature: v.string(),
-    }),
-    v.object({
-      type: v.literal("userOAuth"),
-      provider: v.string(),
-      providerAccountId: v.string(),
-      profile: v.any(),
-      signature: v.string(),
-    }),
-    v.object({
-      type: v.literal("createVerificationCode"),
-      accountId: v.optional(v.id("authAccounts")),
-      provider: v.string(),
-      email: v.optional(v.string()),
-      phone: v.optional(v.string()),
-      code: v.string(),
-      expirationTime: v.number(),
-      allowExtraProviders: v.boolean(),
-    }),
-    v.object({
-      type: v.literal("createAccountFromCredentials"),
-      provider: v.string(),
-      account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
-      profile: v.any(),
-      shouldLinkViaEmail: v.optional(v.boolean()),
-      shouldLinkViaPhone: v.optional(v.boolean()),
-    }),
-    v.object({
-      type: v.literal("retrieveAccountWithCredentials"),
-      provider: v.string(),
-      account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
-    }),
-    v.object({
-      type: v.literal("modifyAccount"),
-      provider: v.string(),
-      account: v.object({ id: v.string(), secret: v.string() }),
-    }),
-    v.object({
-      type: v.literal("invalidateSessions"),
-      userId: v.id("users"),
-      except: v.optional(v.array(v.id("authSessions"))),
-    }),
-  ),
-};
-
-const internal: {
-  auth: {
-    store: FunctionReference<
-      "mutation",
-      "internal",
-      ObjectType<typeof storeArgs>,
-      any
-    >;
-  };
-} = {
-  auth: {
-    store: "auth:store" as any,
-  },
-};
 
 /**
  * @internal
@@ -590,7 +399,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
      */
     store: internalMutationGeneric({
       args: storeArgs,
-      handler: async (ctx: GenericMutationCtx<AuthDataModel>, { args }) => {
+      handler: async (ctx: MutationCtx, { args }) => {
         // console.debug(args);
         switch (args.type) {
           case "signIn": {
@@ -1030,7 +839,7 @@ async function getAccountOrThrow(
 }
 
 async function maybeGenerateTokensForSession(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   config: ConvexAuthConfig,
   userId: GenericId<"users">,
   sessionId: GenericId<"authSessions">,
@@ -1046,7 +855,7 @@ async function maybeGenerateTokensForSession(
 }
 
 async function createNewAndDeleteExistingSession(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   config: ConvexAuthConfig,
   userId: GenericId<"users">,
 ) {
@@ -1061,7 +870,7 @@ async function createNewAndDeleteExistingSession(
 }
 
 async function generateTokensForSession(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   config: ConvexAuthConfig,
   userId: GenericId<"users">,
   sessionId: GenericId<"authSessions">,
@@ -1074,7 +883,7 @@ async function generateTokensForSession(
 }
 
 async function verifyCodeOnly(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   args: {
     params: any;
     verifier?: string;
@@ -1185,7 +994,7 @@ type CreateOrUpdateUserArgs = {
 };
 
 async function upsertUserAndAccount(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   sessionId: GenericId<"authSessions"> | null,
   account:
     | { existingAccount: GenericDoc<AuthDataModel, "authAccounts"> }
@@ -1211,7 +1020,7 @@ async function upsertUserAndAccount(
 }
 
 async function defaultCreateOrUpdateUser(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   existingSessionId: GenericId<"authSessions"> | null,
   existingAccount: GenericDoc<AuthDataModel, "authAccounts"> | null,
   args: CreateOrUpdateUserArgs,
@@ -1291,7 +1100,7 @@ async function defaultCreateOrUpdateUser(
 }
 
 async function createOrUpdateAccount(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   userId: GenericId<"users">,
   account:
     | { existingAccount: GenericDoc<AuthDataModel, "authAccounts"> }
@@ -1436,7 +1245,7 @@ export async function createAccount<
   account: GenericDoc<DataModel, "authAccounts">;
   user: GenericDoc<DataModel, "users">;
 }> {
-  const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
+  const actionCtx = ctx as unknown as ActionCtx;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "createAccountFromCredentials",
@@ -1482,7 +1291,7 @@ export async function retrieveAccount<
   account: GenericDoc<DataModel, "authAccounts">;
   user: GenericDoc<DataModel, "users">;
 }> {
-  const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
+  const actionCtx = ctx as unknown as ActionCtx;
   const result = await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "retrieveAccountWithCredentials",
@@ -1523,7 +1332,7 @@ export async function modifyAccountCredentials<
     };
   },
 ): Promise<GenericDoc<DataModel, "users">> {
-  const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
+  const actionCtx = ctx as unknown as ActionCtx;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "modifyAccount",
@@ -1544,7 +1353,7 @@ export async function invalidateSessions<
     except?: GenericId<"authSessions">[];
   },
 ): Promise<GenericDoc<DataModel, "users">> {
-  const actionCtx = ctx as unknown as GenericActionCtx<AuthDataModel>;
+  const actionCtx = ctx as unknown as ActionCtx;
   return await actionCtx.runMutation(internal.auth.store, {
     args: {
       type: "invalidateSessions",
@@ -1831,7 +1640,7 @@ function setURLSearchParam(absoluteUrl: string, param: string, value: string) {
 }
 
 async function isSignInRateLimited(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   identifier: string,
   config: ConvexAuthConfig,
 ) {
@@ -1843,7 +1652,7 @@ async function isSignInRateLimited(
 }
 
 async function recordFailedSignIn(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   identifier: string,
   config: ConvexAuthConfig,
 ) {
@@ -1863,10 +1672,7 @@ async function recordFailedSignIn(
   }
 }
 
-async function resetSignInRateLimit(
-  ctx: GenericMutationCtx<AuthDataModel>,
-  identifier: string,
-) {
+async function resetSignInRateLimit(ctx: MutationCtx, identifier: string) {
   const existingState = await ctx.db
     .query("authRateLimits")
     .withIndex("identifier", (q) => q.eq("identifier", identifier))
@@ -1877,7 +1683,7 @@ async function resetSignInRateLimit(
 }
 
 async function getRateLimitState(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   identifier: string,
   config: ConvexAuthConfig,
 ) {
@@ -1907,7 +1713,7 @@ function configuredMaxAttempsPerHour(config: ConvexAuthConfig) {
 }
 
 async function generateUniqueVerificationCode(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   accountId: GenericId<"authAccounts">,
   provider: string,
   code: string,
@@ -1932,7 +1738,7 @@ async function generateUniqueVerificationCode(
 }
 
 async function createSession(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   userId: GenericId<"users">,
   config: ConvexAuthConfig,
 ) {
@@ -1983,7 +1789,7 @@ async function deleteRefreshTokens(
 }
 
 async function validateRefreshToken(
-  ctx: GenericMutationCtx<AuthDataModel>,
+  ctx: MutationCtx,
   refreshTokenId: string,
   tokenSessionId: string,
 ) {
