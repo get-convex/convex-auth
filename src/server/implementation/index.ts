@@ -1,30 +1,17 @@
 import { OAuth2Config, OAuthConfig } from "@auth/core/providers";
 import {
   Auth,
-  DataModelFromSchemaDefinition,
   DocumentByName,
-  FunctionReference,
   GenericActionCtx,
   GenericDataModel,
-  GenericMutationCtx,
-  GenericQueryCtx,
   HttpRouter,
   WithoutSystemFields,
   actionGeneric,
-  defineSchema,
-  defineTable,
   httpActionGeneric,
   internalMutationGeneric,
 } from "convex/server";
-import { ConvexError, GenericId, ObjectType, Value, v } from "convex/values";
+import { ConvexError, GenericId, Value, v } from "convex/values";
 import { parse as parseCookies, serialize as serializeCookie } from "cookie";
-import { SignJWT, importPKCS8 } from "jose";
-import {
-  alphabet,
-  generateRandomString,
-  sha256 as rawSha256,
-} from "oslo/crypto";
-import { encodeHex } from "oslo/encoding";
 import { redirectToParamCookie, useRedirectToParam } from "../checks.js";
 import { FunctionReferenceFromExport, GenericDoc } from "../convex_types.js";
 import { getAuthorizationURL, handleOAuthCallback } from "../oauth.js";
@@ -35,36 +22,22 @@ import {
 } from "../provider_utils.js";
 import {
   AuthProviderConfig,
-  AuthProviderMaterializedConfig,
   ConvexAuthConfig,
-  ConvexAuthMaterializedConfig,
-  ConvexCredentialsConfig,
   GenericActionCtxWithAuthConfig,
-  PhoneConfig,
 } from "../types.js";
 import { requireEnv } from "../utils.js";
-import { ActionCtx, AuthDataModel, MutationCtx } from "./types.js";
-import {
-  isSignInRateLimited,
-  recordFailedSignIn,
-  resetSignInRateLimit,
-} from "./rateLimit.js";
+import { ActionCtx, MutationCtx } from "./types.js";
 export { authTables } from "./types.js";
 import { TOKEN_SUB_CLAIM_DIVIDER, logError } from "./utils.js";
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
   callCreateAccountFromCredentials,
-  callCreateVerificationCode,
   callInvalidateSessions,
   callModifyAccount,
-  callRefreshSession,
   callRetreiveAccountWithCredentials,
-  callSignIn,
   callSignOut,
   callUserOAuth,
-  callVerifier,
   callVerifierSignature,
-  callVerifyCodeAndSignIn,
   storeArgs,
   storeImpl,
 } from "./mutations/index.js";

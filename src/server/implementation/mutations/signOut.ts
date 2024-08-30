@@ -1,4 +1,4 @@
-import { GenericId, Infer } from "convex/values";
+import { GenericId } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { deleteSession, getAuthSessionId } from "../sessions.js";
 

@@ -1,6 +1,5 @@
 import {
   DataModelFromSchemaDefinition,
-  FunctionReference,
   GenericActionCtx,
   GenericMutationCtx,
   GenericQueryCtx,
@@ -8,7 +7,7 @@ import {
   defineSchema,
   defineTable,
 } from "convex/server";
-import { ObjectType, v } from "convex/values";
+import { v } from "convex/values";
 import { GenericDoc } from "../convex_types.js";
 
 /**
