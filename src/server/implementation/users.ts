@@ -175,3 +175,16 @@ async function createOrUpdateAccount(
   }
   return accountId;
 }
+
+export async function getAccountOrThrow(
+  ctx: QueryCtx,
+  existingAccountId: GenericId<"authAccounts">,
+) {
+  const existingAccount = await ctx.db.get(existingAccountId);
+  if (existingAccount === null) {
+    throw new Error(
+      `Expected an account to exist for ID "${existingAccountId}"`,
+    );
+  }
+  return existingAccount;
+}

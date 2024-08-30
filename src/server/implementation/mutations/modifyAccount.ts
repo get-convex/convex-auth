@@ -35,7 +35,9 @@ export const callModifyAccount = async (
   args: Infer<typeof modifyAccountArgs>,
 ): Promise<void> => {
   return ctx.runMutation("auth:store" as any, {
-    type: "modifyAccount",
-    ...args,
+    args: {
+      type: "modifyAccount",
+      ...args,
+    },
   });
 };

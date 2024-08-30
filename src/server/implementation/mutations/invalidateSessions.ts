@@ -12,8 +12,10 @@ export const callInvalidateSessions = async (
   args: Infer<typeof invalidateSessionsArgs>,
 ): Promise<void> => {
   return ctx.runMutation("auth:store" as any, {
-    type: "invalidateSessions",
-    ...args,
+    args: {
+      type: "invalidateSessions",
+      ...args,
+    },
   });
 };
 

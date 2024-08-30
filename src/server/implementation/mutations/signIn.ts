@@ -1,0 +1,49 @@
+import { GenericId, Infer, v } from "convex/values";
+import { ActionCtx, MutationCtx } from "../types.js";
+import * as Provider from "../provider.js";
+import {
+  createNewAndDeleteExistingSession,
+  maybeGenerateTokensForSession,
+} from "../sessions.js";
+
+export const signInArgs = v.object({
+  userId: v.id("users"),
+  sessionId: v.optional(v.id("authSessions")),
+  generateTokens: v.boolean(),
+});
+
+type ReturnType = {
+  userId: GenericId<"users">;
+  sessionId: GenericId<"authSessions">;
+  tokens: null | { token: string; refreshToken: string };
+};
+
+export async function signInImpl(
+  ctx: MutationCtx,
+  args: Infer<typeof signInArgs>,
+  config: Provider.Config,
+): Promise<ReturnType> {
+  const { userId, sessionId: existingSessionId, generateTokens } = args;
+  const sessionId =
+    existingSessionId ??
+    (await createNewAndDeleteExistingSession(ctx, config, userId));
+  return await maybeGenerateTokensForSession(
+    ctx,
+    config,
+    userId,
+    sessionId,
+    generateTokens,
+  );
+}
+
+export const callSignIn = async (
+  ctx: ActionCtx,
+  args: Infer<typeof signInArgs>,
+): Promise<ReturnType> => {
+  return ctx.runMutation("auth:store" as any, {
+    args: {
+      type: "signIn",
+      ...args,
+    },
+  });
+};

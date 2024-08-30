@@ -1,4 +1,4 @@
-import { EmailConfig, OAuth2Config, OAuthConfig } from "@auth/core/providers";
+import { OAuth2Config, OAuthConfig } from "@auth/core/providers";
 import {
   Auth,
   DataModelFromSchemaDefinition,
@@ -50,28 +50,27 @@ import {
   resetSignInRateLimit,
 } from "./rateLimit.js";
 export { authTables } from "./types.js";
-import { TOKEN_SUB_CLAIM_DIVIDER, REFRESH_TOKEN_DIVIDER } from "./utils.js";
-import { deleteRefreshTokens, validateRefreshToken } from "./refreshTokens.js";
+import { TOKEN_SUB_CLAIM_DIVIDER } from "./utils.js";
+import { GetProviderOrThrowFunc } from "./provider.js";
 import {
-  createNewAndDeleteExistingSession,
-  deleteSession,
-  getAuthSessionId,
-  maybeGenerateTokensForSession,
-} from "./sessions.js";
-import { upsertUserAndAccount } from "./users.js";
-import {
-  invalidateSessionsArgs,
-  invalidateSessionsImpl,
-} from "./mutations/invalidateSessions.js";
-import { GetProviderOrThrowFunc, hash } from "./provider.js";
-import {
-  modifyAccountArgs,
-  modifyAccountImpl,
-} from "./mutations/modifyAccount.js";
+  callCreateAccountFromCredentials,
+  callCreateVerificationCode,
+  callInvalidateSessions,
+  callModifyAccount,
+  callRefreshSession,
+  callRetreiveAccountWithCredentials,
+  callSignIn,
+  callSignOut,
+  callUserOAuth,
+  callVerifier,
+  callVerifierSignature,
+  callVerifyCodeAndSignIn,
+  storeArgs,
+  storeImpl,
+} from "./mutations/index.js";
 export { getAuthSessionId } from "./sessions.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
-const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 
 /**
  * @internal
@@ -85,93 +84,6 @@ export type SignInAction = FunctionReferenceFromExport<
 export type SignOutAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signOut"]
 >;
-
-export const storeArgs = {
-  args: v.union(
-    v.object({
-      type: v.literal("signIn"),
-      userId: v.id("users"),
-      sessionId: v.optional(v.id("authSessions")),
-      generateTokens: v.boolean(),
-    }),
-    v.object({
-      type: v.literal("signOut"),
-    }),
-    v.object({
-      type: v.literal("refreshSession"),
-      refreshToken: v.string(),
-    }),
-    v.object({
-      type: v.literal("verifyCodeAndSignIn"),
-      params: v.any(),
-      provider: v.optional(v.string()),
-      verifier: v.optional(v.string()),
-      generateTokens: v.boolean(),
-      allowExtraProviders: v.boolean(),
-    }),
-    v.object({
-      type: v.literal("verifier"),
-    }),
-    v.object({
-      type: v.literal("verifierSignature"),
-      verifier: v.string(),
-      signature: v.string(),
-    }),
-    v.object({
-      type: v.literal("userOAuth"),
-      provider: v.string(),
-      providerAccountId: v.string(),
-      profile: v.any(),
-      signature: v.string(),
-    }),
-    v.object({
-      type: v.literal("createVerificationCode"),
-      accountId: v.optional(v.id("authAccounts")),
-      provider: v.string(),
-      email: v.optional(v.string()),
-      phone: v.optional(v.string()),
-      code: v.string(),
-      expirationTime: v.number(),
-      allowExtraProviders: v.boolean(),
-    }),
-    v.object({
-      type: v.literal("createAccountFromCredentials"),
-      provider: v.string(),
-      account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
-      profile: v.any(),
-      shouldLinkViaEmail: v.optional(v.boolean()),
-      shouldLinkViaPhone: v.optional(v.boolean()),
-    }),
-    v.object({
-      type: v.literal("retrieveAccountWithCredentials"),
-      provider: v.string(),
-      account: v.object({ id: v.string(), secret: v.optional(v.string()) }),
-    }),
-    v.object({
-      type: v.literal("modifyAccount"),
-      ...modifyAccountArgs.fields,
-    }),
-    v.object({
-      type: v.literal("invalidateSessions"),
-      ...invalidateSessionsArgs.fields,
-    }),
-  ),
-};
-
-export const internal: {
-  auth: {
-    store: FunctionReference<
-      "mutation",
-      "internal",
-      ObjectType<typeof storeArgs>,
-      any
-    >;
-  };
-} = {
-  auth: {
-    store: "auth:store" as any,
-  },
-};
 
 /**
  * Configure the Convex Auth library. Returns an object with
@@ -344,12 +256,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const { redirect, cookies, signature } =
                 await getAuthorizationURL(provider as any);
 
-              await ctx.runMutation(internal.auth.store, {
-                args: {
-                  type: "verifierSignature",
-                  verifier,
-                  signature,
-                },
+              await callVerifierSignature(ctx, {
+                verifier,
+                signature,
               });
 
               const redirectTo = url.searchParams.get("redirectTo");
@@ -371,67 +280,66 @@ export function convexAuth(config_: ConvexAuthConfig) {
           ),
         });
 
-        const callbackAction = httpActionGeneric(async (ctx, request) => {
-          const url = new URL(request.url);
-          const pathParts = url.pathname.split("/");
-          const providerId = pathParts.at(-1)!;
-          const provider = getProviderOrThrow(providerId) as OAuth2Config<any>;
+        const callbackAction = httpActionGeneric(
+          async (genericCtx, request) => {
+            const ctx = genericCtx as unknown as ActionCtx;
+            const url = new URL(request.url);
+            const pathParts = url.pathname.split("/");
+            const providerId = pathParts.at(-1)!;
+            const provider = getProviderOrThrow(
+              providerId,
+            ) as OAuth2Config<any>;
 
-          const cookies = getCookies(request);
+            const cookies = getCookies(request);
 
-          const maybeRedirectTo = useRedirectToParam(provider.id, cookies);
+            const maybeRedirectTo = useRedirectToParam(provider.id, cookies);
 
-          const destinationUrl = await redirectAbsoluteUrl(config, {
-            redirectTo: maybeRedirectTo?.redirectTo,
-          });
-
-          try {
-            const { profile, tokens, signature } = await handleOAuthCallback(
-              provider as any,
-              request,
-              cookies,
-            );
-
-            const { id, ...profileFromCallback } = await provider.profile!(
-              profile,
-              tokens,
-            );
-
-            if (typeof id !== "string") {
-              throw new Error(
-                `The profile method of the ${providerId} config must return a string ID`,
-              );
-            }
-
-            const verificationCode = await ctx.runMutation(
-              internal.auth.store,
-              {
-                args: {
-                  type: "userOAuth",
-                  provider: providerId,
-                  providerAccountId: id,
-                  profile: profileFromCallback,
-                  signature,
-                },
-              },
-            );
-
-            return new Response(null, {
-              status: 302,
-              headers: {
-                Location: setURLSearchParam(
-                  destinationUrl,
-                  "code",
-                  verificationCode as string,
-                ),
-                "Cache-Control": "must-revalidate",
-              },
+            const destinationUrl = await redirectAbsoluteUrl(config, {
+              redirectTo: maybeRedirectTo?.redirectTo,
             });
-          } catch (error) {
-            logError(error);
-            return Response.redirect(destinationUrl);
-          }
-        });
+
+            try {
+              const { profile, tokens, signature } = await handleOAuthCallback(
+                provider as any,
+                request,
+                cookies,
+              );
+
+              const { id, ...profileFromCallback } = await provider.profile!(
+                profile,
+                tokens,
+              );
+
+              if (typeof id !== "string") {
+                throw new Error(
+                  `The profile method of the ${providerId} config must return a string ID`,
+                );
+              }
+
+              const verificationCode = await callUserOAuth(ctx, {
+                provider: providerId,
+                providerAccountId: id,
+                profile: profileFromCallback,
+                signature,
+              });
+
+              return new Response(null, {
+                status: 302,
+                headers: {
+                  Location: setURLSearchParam(
+                    destinationUrl,
+                    "code",
+                    verificationCode,
+                  ),
+                  "Cache-Control": "must-revalidate",
+                },
+              });
+            } catch (error) {
+              logError(error);
+              return Response.redirect(destinationUrl);
+            }
+          },
+        );
 
         http.route({
           pathPrefix: "/api/auth/callback/",
@@ -486,9 +394,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
     signOut: actionGeneric({
       args: {},
       handler: async (ctx) => {
-        await ctx.runMutation(internal.auth.store, {
-          args: { type: "signOut" },
-        });
+        await callSignOut(ctx);
       },
     }),
 
@@ -498,338 +404,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
      */
     store: internalMutationGeneric({
       args: storeArgs,
-      handler: async (ctx: MutationCtx, { args }) => {
-        // console.debug(args);
-        switch (args.type) {
-          case "signIn": {
-            const {
-              userId,
-              sessionId: existingSessionId,
-              generateTokens,
-            } = args;
-            const sessionId =
-              existingSessionId ??
-              (await createNewAndDeleteExistingSession(ctx, config, userId));
-            return await maybeGenerateTokensForSession(
-              ctx,
-              config,
-              userId,
-              sessionId,
-              generateTokens,
-            );
-          }
-          case "signOut": {
-            const sessionId = await getAuthSessionId(ctx);
-            if (sessionId !== null) {
-              const session = await ctx.db.get(sessionId);
-              if (session !== null) {
-                await deleteSession(ctx, session);
-                return { userId: session.userId, sessionId: session._id };
-              }
-            }
-            return null;
-          }
-          case "refreshSession": {
-            const { refreshToken } = args;
-            const [refreshTokenId, tokenSessionId] = refreshToken.split(
-              REFRESH_TOKEN_DIVIDER,
-            );
-            const validationResult = await validateRefreshToken(
-              ctx,
-              refreshTokenId,
-              tokenSessionId,
-            );
-            // This invalidates all other refresh tokens for this session,
-            // including ones created later, regardless of whether
-            // the passed one is valid or not.
-            await deleteRefreshTokens(
-              ctx,
-              tokenSessionId as GenericId<"authSessions">,
-            );
-
-            if (validationResult === null) {
-              // Can't call `deleteSession` here because we already deleted
-              // refresh tokens above
-              const session = await ctx.db.get(
-                tokenSessionId as GenericId<"authSessions">,
-              );
-              if (session !== null) {
-                await ctx.db.delete(session._id);
-              }
-              return null;
-            }
-            const { session } = validationResult;
-            const sessionId = session._id;
-            const userId = session.userId;
-            return await maybeGenerateTokensForSession(
-              ctx,
-              config,
-              userId,
-              sessionId,
-              true,
-            );
-          }
-          case "verifyCodeAndSignIn": {
-            const { generateTokens, provider, allowExtraProviders } = args;
-            const identifier = args.params.email ?? args.params.phone;
-            if (identifier !== undefined) {
-              if (await isSignInRateLimited(ctx, identifier, config)) {
-                console.error(
-                  "Too many failed attemps to verify code for this email",
-                );
-                return null;
-              }
-            }
-            const verifyResult = await verifyCodeOnly(
-              ctx,
-              args,
-              provider ?? null,
-              getProviderOrThrow,
-              allowExtraProviders,
-              config,
-              await getAuthSessionId(ctx),
-            );
-            if (verifyResult === null) {
-              if (identifier !== undefined) {
-                await recordFailedSignIn(ctx, identifier, config);
-              }
-              return null;
-            }
-            if (identifier !== undefined) {
-              await resetSignInRateLimit(ctx, identifier);
-            }
-            const { userId } = verifyResult;
-            const sessionId = await createNewAndDeleteExistingSession(
-              ctx,
-              config,
-              userId,
-            );
-            return await maybeGenerateTokensForSession(
-              ctx,
-              config,
-              userId,
-              sessionId,
-              generateTokens,
-            );
-          }
-          case "verifier": {
-            return await ctx.db.insert("authVerifiers", {
-              sessionId: (await getAuthSessionId(ctx)) ?? undefined,
-            });
-          }
-          case "verifierSignature": {
-            const { verifier, signature } = args;
-            const verifierDoc = await ctx.db.get(
-              verifier as GenericId<"authVerifiers">,
-            );
-            if (verifierDoc === null) {
-              throw new Error("Invalid verifier");
-            }
-            return await ctx.db.patch(verifierDoc._id, { signature });
-          }
-          case "userOAuth": {
-            const { profile, provider, providerAccountId, signature } = args;
-            const providerConfig = getProviderOrThrow(
-              provider,
-            ) as OAuthConfig<any>;
-            const existingAccount = await ctx.db
-              .query("authAccounts")
-              .withIndex("providerAndAccountId", (q) =>
-                q
-                  .eq("provider", provider)
-                  .eq("providerAccountId", providerAccountId),
-              )
-              .unique();
-
-            const verifier = await ctx.db
-              .query("authVerifiers")
-              .withIndex("signature", (q) => q.eq("signature", signature))
-              .unique();
-            if (verifier === null) {
-              throw new Error("Invalid state");
-            }
-
-            const { accountId } = await upsertUserAndAccount(
-              ctx,
-              verifier.sessionId ?? null,
-              existingAccount !== null
-                ? { existingAccount }
-                : { providerAccountId },
-              { type: "oauth", provider: providerConfig, profile },
-              config,
-            );
-
-            const code = generateRandomString(8, alphabet("0-9"));
-            await ctx.db.delete(verifier._id);
-            const existingVerificationCode = await ctx.db
-              .query("authVerificationCodes")
-              .withIndex("accountId", (q) => q.eq("accountId", accountId))
-              .unique();
-            if (existingVerificationCode !== null) {
-              await ctx.db.delete(existingVerificationCode._id);
-            }
-            await ctx.db.insert("authVerificationCodes", {
-              code: await sha256(code),
-              accountId,
-              provider,
-              expirationTime: Date.now() + OAUTH_SIGN_IN_EXPIRATION_MS,
-              // The use of a verifier means we don't need an identifier
-              // during verification.
-              verifier: verifier._id,
-            });
-            return code;
-          }
-          case "createVerificationCode": {
-            const {
-              email,
-              phone,
-              code,
-              expirationTime,
-              provider: providerId,
-              accountId: existingAccountId,
-              allowExtraProviders,
-            } = args;
-            const existingAccount =
-              existingAccountId !== undefined
-                ? await getAccountOrThrow(ctx, existingAccountId)
-                : await ctx.db
-                    .query("authAccounts")
-                    .withIndex("providerAndAccountId", (q) =>
-                      q
-                        .eq("provider", providerId)
-                        .eq("providerAccountId", email ?? phone!),
-                    )
-                    .unique();
-
-            const provider = getProviderOrThrow(
-              providerId,
-              allowExtraProviders,
-            ) as EmailConfig | PhoneConfig;
-            const { accountId } = await upsertUserAndAccount(
-              ctx,
-              await getAuthSessionId(ctx),
-              existingAccount !== null
-                ? { existingAccount }
-                : { providerAccountId: email ?? phone! },
-              provider.type === "email"
-                ? { type: "email", provider, profile: { email: email! } }
-                : { type: "phone", provider, profile: { phone: phone! } },
-              config,
-            );
-            await generateUniqueVerificationCode(
-              ctx,
-              accountId,
-              providerId,
-              code,
-              expirationTime,
-              { email, phone },
-            );
-            return email ?? phone!;
-          }
-          case "createAccountFromCredentials": {
-            const {
-              provider: providerId,
-              account,
-              profile,
-              shouldLinkViaEmail,
-              shouldLinkViaPhone,
-            } = args;
-            const provider = getProviderOrThrow(
-              providerId,
-            ) as ConvexCredentialsConfig;
-            const existingAccount = await ctx.db
-              .query("authAccounts")
-              .withIndex("providerAndAccountId", (q) =>
-                q
-                  .eq("provider", provider.id)
-                  .eq("providerAccountId", account.id),
-              )
-              .unique();
-            if (existingAccount !== null) {
-              if (
-                account.secret !== undefined &&
-                !(await verify(
-                  provider,
-                  account.secret,
-                  existingAccount.secret ?? "",
-                ))
-              ) {
-                throw new Error(`Account ${account.id} already exists`);
-              }
-              return {
-                account: existingAccount,
-                // TODO: Ian removed this,
-                user: await ctx.db.get(existingAccount.userId),
-              };
-            }
-
-            const secret =
-              account.secret !== undefined
-                ? await hash(provider, account.secret)
-                : undefined;
-            const { userId, accountId } = await upsertUserAndAccount(
-              ctx,
-              await getAuthSessionId(ctx),
-              { providerAccountId: account.id, secret },
-              {
-                type: "credentials",
-                provider,
-                profile,
-                shouldLinkViaEmail,
-                shouldLinkViaPhone,
-              },
-              config,
-            );
-
-            return {
-              account: await ctx.db.get(accountId),
-              user: await ctx.db.get(userId),
-            };
-          }
-          case "retrieveAccountWithCredentials": {
-            const { provider: providerId, account } = args;
-            const existingAccount = await ctx.db
-              .query("authAccounts")
-              .withIndex("providerAndAccountId", (q) =>
-                q
-                  .eq("provider", providerId)
-                  .eq("providerAccountId", account.id),
-              )
-              .unique();
-            if (existingAccount === null) {
-              return "InvalidAccountId";
-            }
-            if (account.secret !== undefined) {
-              if (await isSignInRateLimited(ctx, existingAccount._id, config)) {
-                return "TooManyFailedAttempts";
-              }
-              if (
-                !(await verify(
-                  getProviderOrThrow(providerId),
-                  account.secret,
-                  existingAccount.secret ?? "",
-                ))
-              ) {
-                await recordFailedSignIn(ctx, existingAccount._id, config);
-                return "InvalidSecret";
-              }
-              await resetSignInRateLimit(ctx, existingAccount._id);
-            }
-            return {
-              account: existingAccount,
-              // TODO: Ian removed this
-              user: await ctx.db.get(existingAccount.userId),
-            };
-          }
-          case "modifyAccount": {
-            return modifyAccountImpl(ctx, args, getProviderOrThrow);
-          }
-          case "invalidateSessions": {
-            return invalidateSessionsImpl(ctx, args);
-          }
-          default:
-            args satisfies never;
-        }
+      handler: async (ctx: MutationCtx, args) => {
+        return storeImpl(ctx, args, getProviderOrThrow, config);
       },
     }),
   };
@@ -865,134 +441,6 @@ export async function getAuthUserId(ctx: { auth: Auth }) {
   }
   const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
   return userId as GenericId<"users">;
-}
-
-async function getAccountOrThrow(
-  ctx: GenericQueryCtx<AuthDataModel>,
-  existingAccountId: GenericId<"authAccounts">,
-) {
-  const existingAccount = await ctx.db.get(existingAccountId);
-  if (existingAccount === null) {
-    throw new Error(
-      `Expected an account to exist for ID "${existingAccountId}"`,
-    );
-  }
-  return existingAccount;
-}
-
-async function verifyCodeOnly(
-  ctx: MutationCtx,
-  args: {
-    params: any;
-    verifier?: string;
-    identifier?: string;
-  },
-  /**
-   * There are two providers at play:
-   * 1. the provider that generated the code
-   * 2. the provider the account is tied to.
-   * This is because we allow signing into an account
-   * via another provider, see {@link signInViaProvider}.
-   * This is the first provider.
-   */
-  methodProviderId: string | null,
-  getProviderOrThrow: (
-    id: string,
-    allowExtraProviders?: boolean,
-  ) => AuthProviderMaterializedConfig,
-  allowExtraProviders: boolean,
-  config: ConvexAuthConfig,
-  sessionId: GenericId<"authSessions"> | null,
-) {
-  const { params, verifier } = args;
-  const codeHash = await sha256(params.code);
-  const verificationCode = await ctx.db
-    .query("authVerificationCodes")
-    .withIndex("code", (q) => q.eq("code", codeHash))
-    .unique();
-  if (verificationCode === null) {
-    console.error("Invalid verification code");
-    return null;
-  }
-  await ctx.db.delete(verificationCode._id);
-  if (verificationCode.verifier !== verifier) {
-    console.error("Invalid verifier");
-    return null;
-  }
-  if (verificationCode.expirationTime < Date.now()) {
-    console.error("Expired verification code");
-    return null;
-  }
-  const { accountId, emailVerified, phoneVerified } = verificationCode;
-  const account = await ctx.db.get(accountId);
-  if (account === null) {
-    console.error("Account associated with this email has been deleted");
-    return null;
-  }
-  if (
-    methodProviderId !== null &&
-    verificationCode.provider !== methodProviderId
-  ) {
-    console.error(
-      `Invalid provider "${methodProviderId}" for given \`code\`, ` +
-        `which was generated by provider "${verificationCode.provider}"`,
-    );
-    return null;
-  }
-  // OTP providers perform an additional check against the provided
-  // params.
-  const methodProvider = getProviderOrThrow(
-    verificationCode.provider,
-    allowExtraProviders,
-  );
-  if (
-    methodProvider !== null &&
-    (methodProvider.type === "email" || methodProvider.type === "phone") &&
-    methodProvider.authorize !== undefined
-  ) {
-    await methodProvider.authorize(args.params, account);
-  }
-  let userId = account.userId;
-  const provider = getProviderOrThrow(account.provider);
-  if (!(provider.type === "oauth" || provider.type === "oidc")) {
-    ({ userId } = await upsertUserAndAccount(
-      ctx,
-      sessionId,
-      { existingAccount: account },
-      {
-        type: "verification",
-        provider,
-        profile: {
-          ...(emailVerified !== undefined
-            ? { email: emailVerified, emailVerified: true }
-            : {}),
-          ...(phoneVerified !== undefined
-            ? { phone: phoneVerified, phoneVerified: true }
-            : {}),
-        },
-      },
-      config,
-    ));
-  }
-
-  return { providerAccountId: account.providerAccountId, userId };
-}
-
-async function verify(
-  provider: AuthProviderMaterializedConfig,
-  secret: string,
-  hash: string,
-) {
-  if (provider.type !== "credentials") {
-    throw new Error(`Provider ${provider.id} is not a credentials provider`);
-  }
-  const verify = provider.crypto?.verifySecret;
-  if (verify === undefined) {
-    throw new Error(
-      `Provider ${provider.id} does not have a \`crypto.verifySecret\` function`,
-    );
-  }
-  return await verify(secret, hash);
 }
 
 /**
@@ -1051,12 +499,7 @@ export async function createAccount<
   user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as ActionCtx;
-  return await actionCtx.runMutation(internal.auth.store, {
-    args: {
-      type: "createAccountFromCredentials",
-      ...args,
-    },
-  });
+  return await callCreateAccountFromCredentials(actionCtx, args);
 }
 
 /**
@@ -1097,12 +540,7 @@ export async function retrieveAccount<
   user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as ActionCtx;
-  const result = await actionCtx.runMutation(internal.auth.store, {
-    args: {
-      type: "retrieveAccountWithCredentials",
-      ...args,
-    },
-  });
+  const result = await callRetreiveAccountWithCredentials(actionCtx, args);
   if (typeof result === "string") {
     throw new Error(result);
   }
@@ -1136,14 +574,9 @@ export async function modifyAccountCredentials<
       secret: string;
     };
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<void> {
   const actionCtx = ctx as unknown as ActionCtx;
-  return await actionCtx.runMutation(internal.auth.store, {
-    args: {
-      type: "modifyAccount",
-      ...args,
-    },
-  });
+  return await callModifyAccount(actionCtx, args);
 }
 
 /**
@@ -1157,14 +590,9 @@ export async function invalidateSessions<
     userId: GenericId<"users">;
     except?: GenericId<"authSessions">[];
   },
-): Promise<GenericDoc<DataModel, "users">> {
+): Promise<void> {
   const actionCtx = ctx as unknown as ActionCtx;
-  return await actionCtx.runMutation(internal.auth.store, {
-    args: {
-      type: "invalidateSessions",
-      ...args,
-    },
-  });
+  return await callInvalidateSessions(actionCtx, args);
 }
 
 /**
@@ -1212,23 +640,18 @@ async function signInImpl(
 ) {
   if (provider === null) {
     if (args.refreshToken) {
-      const tokens: { token: string; refreshToken: string } =
-        await ctx.runMutation(internal.auth.store, {
-          args: {
-            type: "refreshSession",
-            refreshToken: args.refreshToken,
-          },
-        });
-      return { signedIn: { tokens } };
+      const refreshedSession: {
+        tokens: { token: string; refreshToken: string };
+      } = (await callRefreshSession(ctx, {
+        refreshToken: args.refreshToken,
+      }))!;
+      return { signedIn: refreshedSession };
     } else if (args.params?.code !== undefined) {
-      const result = await ctx.runMutation(internal.auth.store, {
-        args: {
-          type: "verifyCodeAndSignIn",
-          params: args.params,
-          verifier: args.verifier,
-          generateTokens: true,
-          allowExtraProviders: options.allowExtraProviders,
-        },
+      const result = await callVerifyCodeAndSignIn(ctx, {
+        params: args.params,
+        verifier: args.verifier,
+        generateTokens: true,
+        allowExtraProviders: options.allowExtraProviders,
       });
       return {
         signedIn: result as {
@@ -1243,14 +666,11 @@ async function signInImpl(
   }
   if (provider.type === "email" || provider.type === "phone") {
     if (args.params?.code !== undefined) {
-      const result = await ctx.runMutation(internal.auth.store, {
-        args: {
-          type: "verifyCodeAndSignIn",
-          params: args.params,
-          provider: provider.id,
-          generateTokens: options.generateTokens,
-          allowExtraProviders: options.allowExtraProviders,
-        },
+      const result = await callVerifyCodeAndSignIn(ctx, {
+        params: args.params,
+        provider: provider.id,
+        generateTokens: options.generateTokens,
+        allowExtraProviders: options.allowExtraProviders,
       });
       if (result === null) {
         throw new Error("Could not verify code");
@@ -1274,18 +694,15 @@ async function signInImpl(
       Date.now() +
       (provider.maxAge ?? DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S) * 1000;
 
-    const identifier = (await ctx.runMutation(internal.auth.store, {
-      args: {
-        type: "createVerificationCode",
-        provider: provider.id,
-        accountId: args.accountId,
-        email: args.params?.email,
-        phone: args.params?.phone,
-        code,
-        expirationTime,
-        allowExtraProviders: options.allowExtraProviders,
-      },
-    })) as string;
+    const identifier = await callCreateVerificationCode(ctx, {
+      provider: provider.id,
+      accountId: args.accountId,
+      email: args.params?.email,
+      phone: args.params?.phone,
+      code,
+      expirationTime,
+      allowExtraProviders: options.allowExtraProviders,
+    });
     const destination = await redirectAbsoluteUrl(
       ctx.auth.config,
       (args.params ?? {}) as { redirectTo: unknown },
@@ -1330,13 +747,10 @@ async function signInImpl(
     if (result === null) {
       return { signedIn: null };
     }
-    const idsAndTokens = await ctx.runMutation(internal.auth.store, {
-      args: {
-        type: "signIn",
-        userId: result.userId,
-        sessionId: result.sessionId,
-        generateTokens: options.generateTokens,
-      },
+    const idsAndTokens = await callSignIn(ctx, {
+      userId: result.userId,
+      sessionId: result.sessionId,
+      generateTokens: options.generateTokens,
     });
     return {
       signedIn: idsAndTokens as {
@@ -1357,14 +771,11 @@ async function signInImpl(
     //    and hence which provider requires client-side redirect
     // 4. On mobile the client can complete the flow manually
     if (args.params?.code !== undefined) {
-      const result = await ctx.runMutation(internal.auth.store, {
-        args: {
-          type: "verifyCodeAndSignIn",
-          params: args.params,
-          verifier: args.verifier,
-          generateTokens: true,
-          allowExtraProviders: options.allowExtraProviders,
-        },
+      const result = await callVerifyCodeAndSignIn(ctx, {
+        params: args.params,
+        verifier: args.verifier,
+        generateTokens: true,
+        allowExtraProviders: options.allowExtraProviders,
       });
       return {
         signedIn: result as {
@@ -1375,9 +786,7 @@ async function signInImpl(
     const redirect = new URL(
       requireEnv("CONVEX_SITE_URL") + `/api/auth/signin/${provider.id}`,
     );
-    const verifier = (await ctx.runMutation(internal.auth.store, {
-      args: { type: "verifier" },
-    })) as GenericId<"authVerifiers">;
+    const verifier = await callVerifier(ctx);
     redirect.searchParams.set("code", verifier);
     if (args.params?.redirectTo !== undefined) {
       if (typeof args.params.redirectTo !== "string") {
@@ -1444,31 +853,6 @@ function setURLSearchParam(absoluteUrl: string, param: string, value: string) {
   return `${scheme}:${hasNoDomain ? (startsWithPath ? "/" : "") + "//" + withParam.slice(13) : withParam}`;
 }
 
-async function generateUniqueVerificationCode(
-  ctx: MutationCtx,
-  accountId: GenericId<"authAccounts">,
-  provider: string,
-  code: string,
-  expirationTime: number,
-  { email, phone }: { email?: string; phone?: string },
-) {
-  const existingCode = await ctx.db
-    .query("authVerificationCodes")
-    .withIndex("accountId", (q) => q.eq("accountId", accountId))
-    .unique();
-  if (existingCode !== null) {
-    await ctx.db.delete(existingCode._id);
-  }
-  await ctx.db.insert("authVerificationCodes", {
-    accountId,
-    provider,
-    code: await sha256(code),
-    expirationTime,
-    emailVerified: email,
-    phoneVerified: phone,
-  });
-}
-
 function convertErrorsToResponse(
   errorStatusCode: number,
   action: (ctx: GenericActionCtx<any>, request: Request) => Promise<Response>,
@@ -1507,8 +891,4 @@ function siteUrl() {
 
 function getCookies(request: Request): Record<string, string | undefined> {
   return parseCookies(request.headers.get("Cookie") ?? "");
-}
-
-async function sha256(input: string) {
-  return encodeHex(await rawSha256(new TextEncoder().encode(input)));
 }

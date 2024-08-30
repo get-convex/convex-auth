@@ -5,6 +5,7 @@ import { Auth } from "convex/server";
 import { TOKEN_SUB_CLAIM_DIVIDER, stringToNumber } from "./utils.js";
 import { generateToken } from "./tokens.js";
 import { createRefreshToken, deleteRefreshTokens } from "./refreshTokens.js";
+
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
 export async function maybeGenerateTokensForSession(
