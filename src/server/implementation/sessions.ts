@@ -1,6 +1,6 @@
 import { GenericId } from "convex/values";
 import { ConvexAuthConfig } from "../index.js";
-import { Doc, MutationCtx } from "./types.js";
+import { Doc, MutationCtx, SessionInfo } from "./types.js";
 import { Auth } from "convex/server";
 import { TOKEN_SUB_CLAIM_DIVIDER, stringToNumber } from "./utils.js";
 import { generateToken } from "./tokens.js";
@@ -14,7 +14,7 @@ export async function maybeGenerateTokensForSession(
   userId: GenericId<"users">,
   sessionId: GenericId<"authSessions">,
   generateTokens: boolean,
-) {
+): Promise<SessionInfo> {
   return {
     userId,
     sessionId,

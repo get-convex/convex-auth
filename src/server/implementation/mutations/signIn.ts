@@ -1,5 +1,5 @@
 import { GenericId, Infer, v } from "convex/values";
-import { ActionCtx, MutationCtx } from "../types.js";
+import { ActionCtx, MutationCtx, SessionInfo } from "../types.js";
 import * as Provider from "../provider.js";
 import {
   createNewAndDeleteExistingSession,
@@ -12,11 +12,7 @@ export const signInArgs = v.object({
   generateTokens: v.boolean(),
 });
 
-type ReturnType = {
-  userId: GenericId<"users">;
-  sessionId: GenericId<"authSessions">;
-  tokens: null | { token: string; refreshToken: string };
-};
+type ReturnType = SessionInfo;
 
 export async function signInImpl(
   ctx: MutationCtx,

@@ -7,7 +7,7 @@ import {
   defineSchema,
   defineTable,
 } from "convex/server";
-import { v } from "convex/values";
+import { GenericId, v } from "convex/values";
 import { GenericDoc } from "../convex_types.js";
 
 /**
@@ -126,3 +126,15 @@ export type Doc<T extends TableNamesInDataModel<AuthDataModel>> = GenericDoc<
   AuthDataModel,
   T
 >;
+
+export type Tokens = { token: string; refreshToken: string };
+export type SessionInfo = {
+  userId: GenericId<"users">;
+  sessionId: GenericId<"authSessions">;
+  tokens: Tokens | null;
+};
+export type SessionInfoWithTokens = {
+  userId: GenericId<"users">;
+  sessionId: GenericId<"authSessions">;
+  tokens: Tokens;
+};

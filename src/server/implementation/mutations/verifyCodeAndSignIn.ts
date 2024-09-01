@@ -1,5 +1,5 @@
 import { GenericId, Infer, v } from "convex/values";
-import { ActionCtx, MutationCtx } from "../types.js";
+import { ActionCtx, MutationCtx, SessionInfo } from "../types.js";
 import {
   isSignInRateLimited,
   recordFailedSignIn,
@@ -23,11 +23,7 @@ export const verifyCodeAndSignInArgs = v.object({
   allowExtraProviders: v.boolean(),
 });
 
-type ReturnType = null | {
-  userId: GenericId<"users">;
-  sessionId: GenericId<"authSessions">;
-  tokens: { token: string; refreshToken: string } | null;
-};
+type ReturnType = null | SessionInfo;
 
 export async function verifyCodeAndSignInImpl(
   ctx: MutationCtx,

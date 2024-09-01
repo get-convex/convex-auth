@@ -354,11 +354,18 @@ export function convexAuth(config_: ConvexAuthConfig) {
           generateTokens: true,
           allowExtraProviders: false,
         });
-        return result.redirect !== undefined
-          ? { redirect: result.redirect, verifier: result.verifier }
-          : result.started !== undefined
-            ? { started: result.started }
-            : { tokens: result.signedIn?.tokens ?? null };
+        switch (result.kind) {
+          case "redirect":
+            return { redirect: result.redirect, verifier: result.verifier };
+          case "signedIn":
+            return { tokens: result.signedIn?.tokens ?? null };
+          case "started":
+            return { started: true };
+          default: {
+            const _typecheck: never = result;
+            throw new Error(`Unexpected result from signIn, ${result as any}`);
+          }
+        }
       },
     }),
     /**
@@ -591,10 +598,11 @@ export async function signInViaProvider<
     generateTokens: false,
     allowExtraProviders: true,
   });
-  return (result.signedIn ?? null) as {
-    userId: GenericId<"users">;
-    sessionId: GenericId<"authSessions">;
-  } | null;
+  return result.kind === "signedIn"
+    ? result.signedIn !== null
+      ? { userId: result.signedIn.userId, sessionId: result.signedIn.sessionId }
+      : null
+    : null;
 }
 
 function convertErrorsToResponse(
