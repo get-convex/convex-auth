@@ -358,6 +358,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           case "redirect":
             return { redirect: result.redirect, verifier: result.verifier };
           case "signedIn":
+          case "refreshTokens":
             return { tokens: result.signedIn?.tokens ?? null };
           case "started":
             return { started: true };

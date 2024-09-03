@@ -1,4 +1,4 @@
-import { GenericId, Infer, v } from "convex/values";
+import { Infer, v } from "convex/values";
 import { ActionCtx, MutationCtx, SessionInfo } from "../types.js";
 import * as Provider from "../provider.js";
 import {

@@ -3,19 +3,15 @@ import { ActionCtx, MutationCtx } from "../types.js";
 import * as Provider from "../provider.js";
 import { REFRESH_TOKEN_DIVIDER } from "../utils.js";
 import { deleteRefreshTokens, validateRefreshToken } from "../refreshTokens.js";
-import { maybeGenerateTokensForSession } from "../sessions.js";
+import { generateTokensForSession } from "../sessions.js";
 
 export const refreshSessionArgs = v.object({
   refreshToken: v.string(),
 });
 
 type ReturnType = null | {
-  userId: GenericId<"users">;
-  sessionId: GenericId<"authSessions">;
-  tokens: {
-    token: string;
-    refreshToken: string;
-  };
+  token: string;
+  refreshToken: string;
 };
 
 export async function refreshSessionImpl(
@@ -52,13 +48,7 @@ export async function refreshSessionImpl(
   const { session } = validationResult;
   const sessionId = session._id;
   const userId = session.userId;
-  return (await maybeGenerateTokensForSession(
-    ctx,
-    config,
-    userId,
-    sessionId,
-    true,
-  )) as ReturnType;
+  return await generateTokensForSession(ctx, config, userId, sessionId);
 }
 
 export const callRefreshSession = async (

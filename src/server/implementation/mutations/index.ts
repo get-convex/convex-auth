@@ -102,7 +102,7 @@ export const storeImpl = async (
   config: Provider.Config,
 ) => {
   const args = fnArgs.args;
-  // console.debug(args);
+  console.log(`\`auth:store\` type: ${args.type}`);
   switch (args.type) {
     case "signIn": {
       return signInImpl(ctx, args, config);

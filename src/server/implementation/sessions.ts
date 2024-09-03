@@ -39,7 +39,7 @@ export async function createNewAndDeleteExistingSession(
   return await createSession(ctx, userId, config);
 }
 
-async function generateTokensForSession(
+export async function generateTokensForSession(
   ctx: MutationCtx,
   config: ConvexAuthConfig,
   userId: GenericId<"users">,

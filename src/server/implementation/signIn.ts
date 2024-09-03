@@ -6,7 +6,12 @@ import {
   GenericActionCtxWithAuthConfig,
   PhoneConfig,
 } from "../types.js";
-import { AuthDataModel, SessionInfo, SessionInfoWithTokens } from "./types.js";
+import {
+  AuthDataModel,
+  SessionInfo,
+  SessionInfoWithTokens,
+  Tokens,
+} from "./types.js";
 import {
   callCreateVerificationCode,
   callRefreshSession,
@@ -38,19 +43,18 @@ export async function signInImpl(
   },
 ): Promise<
   | { kind: "signedIn"; signedIn: SessionInfo | null }
+  // refresh tokens
+  | { kind: "refreshTokens"; signedIn: { tokens: Tokens } }
   // Multi-step flows like magic link + OTP
   | { kind: "started"; started: true }
   // OAuth2 and OIDC flows
   | { kind: "redirect"; redirect: string; verifier: string }
 > {
   if (provider === null && args.refreshToken) {
-    const refreshedSession: SessionInfoWithTokens = (await callRefreshSession(
-      ctx,
-      {
-        refreshToken: args.refreshToken,
-      },
-    ))!;
-    return { kind: "signedIn", signedIn: refreshedSession };
+    const tokens: Tokens = (await callRefreshSession(ctx, {
+      refreshToken: args.refreshToken,
+    }))!;
+    return { kind: "refreshTokens", signedIn: { tokens } };
   }
   if (provider === null && args.params?.code !== undefined) {
     const result = await callVerifyCodeAndSignIn(ctx, {
