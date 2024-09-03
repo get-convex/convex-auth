@@ -41,6 +41,7 @@ function getCookieStore(
   function getValue(name: string) {
     return responseCookies.get(name)?.value ?? null;
   }
+  const cookieOptions = getCookieOptions(isLocalhost);
   function setValue(name: string, value: string | null) {
     if (value === null) {
       // Only request cookies have a `size` property
@@ -50,12 +51,12 @@ function getCookieStore(
         // See https://github.com/vercel/next.js/issues/56632
         // for why .delete({}) doesn't work:
         responseCookies.set(name, "", {
-          ...COOKIE_OPTIONS,
+          ...cookieOptions,
           expires: 0,
         });
       }
     } else {
-      responseCookies.set(name, value, COOKIE_OPTIONS);
+      responseCookies.set(name, value, cookieOptions);
     }
   }
   return {
@@ -80,9 +81,13 @@ function getCookieStore(
   };
 }
 
-const COOKIE_OPTIONS = {
-  secure: true,
-  httpOnly: true,
-  sameSite: "lax",
-  path: "/",
-} as const;
+function getCookieOptions(isLocalhost: boolean) {
+  // Safari does not send headers with `secure: true` on http:// domains including localhost,
+  // so set `secure: false` (https://codedamn.com/news/web-development/safari-cookie-is-not-being-set)
+  return {
+    secure: isLocalhost ? false : true,
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+  } as const;
+}
