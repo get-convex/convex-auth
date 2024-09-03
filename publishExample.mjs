@@ -15,7 +15,7 @@ const packageJSON = JSON.parse(
 );
 
 const directoryPath = path.join(__dirname, "test");
-const repositoryUrl = "https://github.com/get-convex/convex-auth-example.git";
+const repositoryUrl = "git@github.com:get-convex/convex-auth-example.git";
 
 // Create a temporary directory
 const tempDir = fs.mkdtempSync(
