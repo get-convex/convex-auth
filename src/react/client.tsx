@@ -9,7 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
-import type { SignInAction, SignOutAction } from "../server/implementation.js";
+import type {
+  SignInAction,
+  SignOutAction,
+} from "../server/implementation/index.js";
 import { AuthClient } from "./clientType.js";
 import type {
   ConvexAuthActionsContext as ConvexAuthActionsContextType,
