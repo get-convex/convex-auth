@@ -78,6 +78,8 @@ export function AuthProvider({
   );
   const { storageSet, storageGet, storageRemove, storageKey } =
     useNamespacedStorage(storage, storageNamespace);
+
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const setToken = useCallback(
     async (
       args:
@@ -112,6 +114,27 @@ export function AuthProvider({
     },
     [storageSet, storageRemove],
   );
+
+  useEffect(() => {
+    const listener = async (e: Event) => {
+      if (isRefreshingToken) {
+        // There are 3 different ways to trigger this pop up so just try all of
+        // them.
+
+        e.preventDefault();
+        // This confirmation message doesn't actually appear in most modern
+        // browsers but we tried.
+        const confirmationMessage =
+          "Are you sure you want to leave? Your changes may not be saved.";
+        e.returnValue = true;
+        return confirmationMessage;
+      }
+    };
+    browserAddEventListener("beforeunload", listener);
+    return () => {
+      browserRemoveEventListener("beforeunload", listener);
+    };
+  });
 
   useEffect(() => {
     // We're listening for:
@@ -226,19 +249,17 @@ export function AuthProvider({
           const refreshToken =
             (await storageGet(REFRESH_TOKEN_STORAGE_KEY)) ?? null;
           if (refreshToken !== null) {
+            setIsRefreshingToken(true);
             await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
-            const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
-              event.preventDefault();
-              event.returnValue = true;
-            };
-            browserAddEventListener("beforeunload", beforeUnloadHandler);
-            await verifyCodeAndSetToken({ refreshToken });
-            browserRemoveEventListener("beforeunload", beforeUnloadHandler);
+            await verifyCodeAndSetToken({ refreshToken }).finally(() => {
+              setIsRefreshingToken(false);
+            });
             logVerbose(
               `returning retrieved token, is null: ${tokenAfterLockAquisition === null}`,
             );
             return token.current;
           } else {
+            setIsRefreshingToken(false);
             logVerbose(`returning null, there is no refresh token`);
             return null;
           }
@@ -404,7 +425,81 @@ async function browserMutex<T>(
   const lockManager = window?.navigator?.locks;
   return lockManager !== undefined
     ? await lockManager.request(key, callback)
-    : await callback();
+    : await manualMutex(key, callback);
+}
+
+function getMutexValue(key: string): {
+  currentlyRunning: Promise<void> | null;
+  waiting: Array<() => Promise<void>>;
+} {
+  if ((globalThis as any).__convexAuthMutexes === undefined) {
+    (globalThis as any).__convexAuthMutexes = {} as Record<
+      string,
+      {
+        currentlyRunning: Promise<void>;
+        waiting: Array<() => Promise<void>>;
+      }
+    >;
+  }
+  let mutex = (globalThis as any).__convexAuthMutexes[key];
+  if (mutex === undefined) {
+    (globalThis as any).__convexAuthMutexes[key] = {
+      currentlyRunning: null,
+      waiting: [],
+    };
+  }
+  mutex = (globalThis as any).__convexAuthMutexes[key];
+  return mutex;
+}
+
+function setMutexValue(
+  key: string,
+  value: {
+    currentlyRunning: Promise<void> | null;
+    waiting: Array<() => Promise<void>>;
+  },
+) {
+  (globalThis as any).__convexAuthMutexes[key] = value;
+}
+
+async function enqueueCallbackForMutex(
+  key: string,
+  callback: () => Promise<void>,
+) {
+  const mutex = getMutexValue(key);
+  if (mutex.currentlyRunning === null) {
+    setMutexValue(key, {
+      currentlyRunning: callback().finally(() => {
+        const nextCb = getMutexValue(key).waiting.shift();
+        setMutexValue(key, {
+          ...getMutexValue(key),
+          currentlyRunning:
+            nextCb === undefined ? null : enqueueCallbackForMutex(key, nextCb),
+        });
+      }),
+      waiting: [],
+    });
+  } else {
+    setMutexValue(key, {
+      ...mutex,
+      waiting: [...mutex.waiting, callback],
+    });
+  }
+}
+
+async function manualMutex<T>(
+  key: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const outerPromise = new Promise<T>((resolve, reject) => {
+    const wrappedCallback: () => Promise<void> = () => {
+      return callback()
+        .then((v) => resolve(v))
+        .catch((e) => reject(e));
+    };
+    void enqueueCallbackForMutex(key, wrappedCallback);
+  });
+  return outerPromise;
 }
 
 function browserAddEventListener<K extends keyof WindowEventMap>(
