@@ -30,6 +30,7 @@ import * as o from "oauth4webapi";
 import * as checks from "./checks.js";
 import { normalizeEndpoint } from "./provider_utils.js";
 import { requireEnv } from "./utils.js";
+import { LOG_LEVELS, logWithLevel } from "./implementation/utils.js";
 
 export type InternalProvider = (
   | OAuthConfigInternal<any>
@@ -243,7 +244,7 @@ export async function handleOAuthCallback(
     );
 
     if (o.isOAuth2Error(result)) {
-      console.error("OAuth2 error:", result);
+      logWithLevel(LOG_LEVELS.ERROR, "OAuth2 error:", result);
       throw new Error("OIDC response body error");
     }
 
@@ -256,7 +257,7 @@ export async function handleOAuthCallback(
       codeGrantResponse,
     );
     if (o.isOAuth2Error(tokens as any)) {
-      console.error("OAuth2 error:", tokens);
+      logWithLevel(LOG_LEVELS.ERROR, "OAuth2 error:", tokens);
       throw new Error("OAuth response body error");
     }
 
@@ -271,7 +272,10 @@ export async function handleOAuthCallback(
       );
       profile = await userinfoResponse.json();
     } else {
-      console.warn(`No userinfo endpoint configured for ${provider.id}`);
+      logWithLevel(
+        LOG_LEVELS.WARN,
+        `No userinfo endpoint configured for ${provider.id}`,
+      );
     }
   }
 

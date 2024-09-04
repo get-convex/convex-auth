@@ -28,7 +28,12 @@ import {
 import { requireEnv } from "../utils.js";
 import { ActionCtx, MutationCtx } from "./types.js";
 export { authTables } from "./types.js";
-import { TOKEN_SUB_CLAIM_DIVIDER, logError } from "./utils.js";
+import {
+  LOG_LEVELS,
+  TOKEN_SUB_CLAIM_DIVIDER,
+  logError,
+  logWithLevel,
+} from "./utils.js";
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
   callCreateAccountFromCredentials,
@@ -96,7 +101,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
       const message =
         `Provider \`${id}\` is not configured, ` +
         `available providers are ${listAvailableProviders(config, allowExtraProviders)}.`;
-      console.error(message);
+      logWithLevel(LOG_LEVELS.ERROR, message);
       throw new Error(message);
     }
     return provider;
