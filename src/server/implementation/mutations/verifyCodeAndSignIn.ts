@@ -31,6 +31,13 @@ export async function verifyCodeAndSignInImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  logWithLevel(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
+    params: { email: args.params.email, phone: args.params.phone },
+    provider: args.provider,
+    verifier: args.verifier,
+    generateTokens: args.generateTokens,
+    allowExtraProviders: args.allowExtraProviders,
+  });
   const { generateTokens, provider, allowExtraProviders } = args;
   const identifier = args.params.email ?? args.params.phone;
   if (identifier !== undefined) {

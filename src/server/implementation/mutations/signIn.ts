@@ -5,6 +5,7 @@ import {
   createNewAndDeleteExistingSession,
   maybeGenerateTokensForSession,
 } from "../sessions.js";
+import { LOG_LEVELS, logWithLevel } from "../utils.js";
 
 export const signInArgs = v.object({
   userId: v.id("users"),
@@ -19,6 +20,7 @@ export async function signInImpl(
   args: Infer<typeof signInArgs>,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  logWithLevel(LOG_LEVELS.DEBUG, "signInImpl args:", args);
   const { userId, sessionId: existingSessionId, generateTokens } = args;
   const sessionId =
     existingSessionId ??

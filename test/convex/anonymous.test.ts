@@ -41,4 +41,5 @@ function setupEnv() {
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;
   process.env.JWT_PRIVATE_KEY = JWT_PRIVATE_KEY;
   process.env.JWKS = JWKS;
+  process.env.AUTH_LOG_LEVEL = "ERROR";
 }

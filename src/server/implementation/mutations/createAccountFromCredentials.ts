@@ -4,6 +4,7 @@ import * as Provider from "../provider.js";
 import { ConvexCredentialsConfig } from "../../types.js";
 import { upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
+import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
 
 export const createAccountFromCredentialsArgs = v.object({
   provider: v.string(),
@@ -21,6 +22,13 @@ export async function createAccountFromCredentialsImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  logWithLevel(LOG_LEVELS.DEBUG, "createAccountFromCredentialsImpl args:", {
+    provider: args.provider,
+    account: {
+      id: args.account.id,
+      secret: maybeRedact(args.account.secret ?? ""),
+    },
+  });
   const {
     provider: providerId,
     account,

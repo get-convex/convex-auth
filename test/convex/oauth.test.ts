@@ -89,4 +89,5 @@ function setupEnv() {
   process.env.JWKS = JWKS;
   process.env.AUTH_GITHUB_ID = "githubClientId";
   process.env.AUTH_GITHUB_SECRET = "githubClientSecret";
+  process.env.AUTH_LOG_LEVEL = "ERROR";
 }

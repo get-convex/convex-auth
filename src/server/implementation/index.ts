@@ -264,6 +264,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
             const url = new URL(request.url);
             const pathParts = url.pathname.split("/");
             const providerId = pathParts.at(-1)!;
+            logWithLevel(
+              LOG_LEVELS.DEBUG,
+              "Handling OAuth callback for provider:",
+              providerId,
+            );
             const provider = getProviderOrThrow(
               providerId,
             ) as OAuth2Config<any>;

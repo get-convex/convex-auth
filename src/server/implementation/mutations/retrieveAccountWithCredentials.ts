@@ -6,6 +6,7 @@ import {
   resetSignInRateLimit,
 } from "../rateLimit.js";
 import * as Provider from "../provider.js";
+import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
 
 export const retrieveAccountWithCredentialsArgs = v.object({
   provider: v.string(),
@@ -25,6 +26,13 @@ export async function retrieveAccountWithCredentialsImpl(
   config: Provider.Config,
 ): Promise<ReturnType> {
   const { provider: providerId, account } = args;
+  logWithLevel(LOG_LEVELS.DEBUG, "retrieveAccountWithCredentialsImpl args:", {
+    provider: providerId,
+    account: {
+      id: account.id,
+      secret: maybeRedact(account.secret ?? ""),
+    },
+  });
   const existingAccount = await ctx.db
     .query("authAccounts")
     .withIndex("providerAndAccountId", (q) =>
