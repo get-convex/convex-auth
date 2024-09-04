@@ -52,4 +52,5 @@ function setupEnv() {
   process.env.JWT_PRIVATE_KEY = JWT_PRIVATE_KEY;
   process.env.JWKS = JWKS;
   process.env.AUTH_RESEND_OTP_KEY = AUTH_RESEND_KEY;
+  process.env.AUTH_LOG_LEVEL = "ERROR";
 }

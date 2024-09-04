@@ -1,6 +1,7 @@
 import { GenericId } from "convex/values";
 import { Doc, MutationCtx, QueryCtx } from "./types.js";
 import { AuthProviderMaterializedConfig, ConvexAuthConfig } from "../types.js";
+import { LOG_LEVELS, logWithLevel } from "./utils.js";
 
 type CreateOrUpdateUserArgs = {
   type: "oauth" | "credentials" | "email" | "phone" | "verification";
@@ -48,8 +49,14 @@ async function defaultCreateOrUpdateUser(
   args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
 ) {
+  logWithLevel(LOG_LEVELS.DEBUG, "defaultCreateOrUpdateUser args:", {
+    existingAccountId: existingAccount?._id,
+    existingSessionId,
+    args,
+  });
   const existingUserId = existingAccount?.userId ?? null;
   if (config.callbacks?.createOrUpdateUser !== undefined) {
+    logWithLevel(LOG_LEVELS.DEBUG, "Using custom createOrUpdateUser callback");
     return await config.callbacks.createOrUpdateUser(ctx, {
       existingUserId,
       ...args,
@@ -87,11 +94,34 @@ async function defaultCreateOrUpdateUser(
         : null;
     // If there is both email and phone verified user
     // already we can't link.
-    userId =
+    if (
       existingUserWithVerifiedEmailId !== null &&
       existingUserWithVerifiedPhoneId !== null
-        ? null
-        : existingUserWithVerifiedEmailId ?? existingUserWithVerifiedPhoneId;
+    ) {
+      logWithLevel(
+        LOG_LEVELS.DEBUG,
+        `Found existing email and phone verified users, so not linking: email: ${existingUserWithVerifiedEmailId}, phone: ${existingUserWithVerifiedPhoneId}`,
+      );
+      userId = null;
+    } else if (existingUserWithVerifiedEmailId !== null) {
+      logWithLevel(
+        LOG_LEVELS.DEBUG,
+        `Found existing email verified user, linking: ${existingUserWithVerifiedEmailId}`,
+      );
+      userId = existingUserWithVerifiedEmailId;
+    } else if (existingUserWithVerifiedPhoneId !== null) {
+      logWithLevel(
+        LOG_LEVELS.DEBUG,
+        `Found existing phone verified user, linking: ${existingUserWithVerifiedPhoneId}`,
+      );
+      userId = existingUserWithVerifiedPhoneId;
+    } else {
+      logWithLevel(
+        LOG_LEVELS.DEBUG,
+        "No existing verified users found, creating new user",
+      );
+      userId = null;
+    }
   }
   const userData = {
     ...(emailVerified ? { emailVerificationTime: Date.now() } : null),
@@ -113,11 +143,23 @@ async function defaultCreateOrUpdateUser(
   } else {
     userId = await ctx.db.insert("users", userData);
   }
-  await config.callbacks?.afterUserCreatedOrUpdated?.(ctx, {
-    userId,
-    existingUserId: existingOrLinkedUserId,
-    ...args,
-  });
+  const afterUserCreatedOrUpdated = config.callbacks?.afterUserCreatedOrUpdated;
+  if (afterUserCreatedOrUpdated !== undefined) {
+    logWithLevel(
+      LOG_LEVELS.DEBUG,
+      "Calling custom afterUserCreatedOrUpdated callback",
+    );
+    await afterUserCreatedOrUpdated(ctx, {
+      userId,
+      existingUserId: existingOrLinkedUserId,
+      ...args,
+    });
+  } else {
+    logWithLevel(
+      LOG_LEVELS.DEBUG,
+      "No custom afterUserCreatedOrUpdated callback, skipping",
+    );
+  }
   return userId;
 }
 

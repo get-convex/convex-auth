@@ -1,7 +1,12 @@
 import { GenericId } from "convex/values";
 import { ConvexAuthConfig } from "../index.js";
 import { MutationCtx } from "./types.js";
-import { REFRESH_TOKEN_DIVIDER, stringToNumber } from "./utils.js";
+import {
+  LOG_LEVELS,
+  REFRESH_TOKEN_DIVIDER,
+  logWithLevel,
+  stringToNumber,
+} from "./utils.js";
 
 const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
@@ -45,24 +50,24 @@ export async function validateRefreshToken(
   );
 
   if (refreshTokenDoc === null) {
-    console.error("Invalid refresh token");
+    logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token");
     return null;
   }
   if (refreshTokenDoc.expirationTime < Date.now()) {
-    console.error("Expired refresh token");
+    logWithLevel(LOG_LEVELS.ERROR, "Expired refresh token");
     return null;
   }
   if (refreshTokenDoc.sessionId !== tokenSessionId) {
-    console.error("Invalid refresh token session ID");
+    logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token session ID");
     return null;
   }
   const session = await ctx.db.get(refreshTokenDoc.sessionId);
   if (session === null) {
-    console.error("Invalid refresh token session");
+    logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token session");
     return null;
   }
   if (session.expirationTime < Date.now()) {
-    console.error("Expired refresh token session");
+    logWithLevel(LOG_LEVELS.ERROR, "Expired refresh token session");
     return null;
   }
   return { session, refreshTokenDoc };

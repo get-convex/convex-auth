@@ -13,9 +13,62 @@ export async function sha256(input: string) {
 }
 
 export function logError(error: unknown) {
-  console.error(
+  logWithLevel(
+    LOG_LEVELS.ERROR,
     error instanceof Error
       ? error.message + "\n" + error.stack?.replace("\\n", "\n")
       : error,
   );
+}
+
+export const LOG_LEVELS = {
+  ERROR: "ERROR",
+  WARN: "WARN",
+  INFO: "INFO",
+  DEBUG: "DEBUG",
+} as const;
+type LogLevel = keyof typeof LOG_LEVELS;
+
+export function logWithLevel(level: LogLevel, ...args: unknown[]) {
+  const configuredLogLevel =
+    LOG_LEVELS[
+      (process.env.AUTH_LOG_LEVEL as LogLevel | undefined) ?? "INFO"
+    ] ?? "INFO";
+  switch (level) {
+    case "ERROR":
+      console.error(...args);
+      break;
+    case "WARN":
+      if (configuredLogLevel !== "ERROR") {
+        console.warn(...args);
+      }
+      break;
+    case "INFO":
+      if (configuredLogLevel === "INFO" || configuredLogLevel === "DEBUG") {
+        console.info(...args);
+      }
+      break;
+    case "DEBUG":
+      if (configuredLogLevel === "DEBUG") {
+        console.debug(...args);
+      }
+      break;
+  }
+}
+
+export function maybeRedact(value: string) {
+  if (value === "") {
+    return "";
+  }
+  const shouldRedact = process.env.AUTH_LOG_SECRETS !== "true";
+  if (shouldRedact) {
+    if (value.length < 6) {
+      return "<redacted>";
+    }
+    return (
+      value.substring(0, 3) + "<redacted>" + value.substring(value.length - 3)
+    );
+  } else {
+    return value;
+  }
 }

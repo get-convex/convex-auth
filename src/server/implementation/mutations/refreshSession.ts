@@ -1,7 +1,7 @@
 import { GenericId, Infer, v } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 import * as Provider from "../provider.js";
-import { REFRESH_TOKEN_DIVIDER } from "../utils.js";
+import { REFRESH_TOKEN_DIVIDER, logWithLevel } from "../utils.js";
 import { deleteRefreshTokens, validateRefreshToken } from "../refreshTokens.js";
 import { generateTokensForSession } from "../sessions.js";
 
@@ -20,6 +20,7 @@ export async function refreshSessionImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  logWithLevel("DEBUG", "refreshSessionImpl args:", args);
   const { refreshToken } = args;
   const [refreshTokenId, tokenSessionId] = refreshToken.split(
     REFRESH_TOKEN_DIVIDER,

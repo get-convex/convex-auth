@@ -4,7 +4,7 @@ import * as Provider from "../provider.js";
 import { EmailConfig, PhoneConfig } from "../../types.js";
 import { getAccountOrThrow, upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
-import { sha256 } from "../utils.js";
+import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
 
 export const createVerificationCodeArgs = v.object({
   accountId: v.optional(v.id("authAccounts")),
@@ -24,6 +24,7 @@ export async function createVerificationCodeImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  logWithLevel(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", args);
   const {
     email,
     phone,

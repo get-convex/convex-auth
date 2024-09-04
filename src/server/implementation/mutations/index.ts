@@ -31,6 +31,7 @@ import {
 } from "./invalidateSessions.js";
 import * as Provider from "../provider.js";
 import { verifierImpl } from "./verifier.js";
+import { LOG_LEVELS, logWithLevel } from "../utils.js";
 export { callInvalidateSessions } from "./invalidateSessions.js";
 export { callModifyAccount } from "./modifyAccount.js";
 export { callRetreiveAccountWithCredentials } from "./retrieveAccountWithCredentials.js";
@@ -102,7 +103,7 @@ export const storeImpl = async (
   config: Provider.Config,
 ) => {
   const args = fnArgs.args;
-  console.log(`\`auth:store\` type: ${args.type}`);
+  logWithLevel(LOG_LEVELS.INFO, `\`auth:store\` type: ${args.type}`);
   switch (args.type) {
     case "signIn": {
       return signInImpl(ctx, args, config);

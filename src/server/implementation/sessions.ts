@@ -2,7 +2,12 @@ import { GenericId } from "convex/values";
 import { ConvexAuthConfig } from "../index.js";
 import { Doc, MutationCtx, SessionInfo } from "./types.js";
 import { Auth } from "convex/server";
-import { TOKEN_SUB_CLAIM_DIVIDER, stringToNumber } from "./utils.js";
+import {
+  LOG_LEVELS,
+  TOKEN_SUB_CLAIM_DIVIDER,
+  logWithLevel,
+  stringToNumber,
+} from "./utils.js";
 import { generateToken } from "./tokens.js";
 import { createRefreshToken, deleteRefreshTokens } from "./refreshTokens.js";
 
@@ -46,10 +51,12 @@ export async function generateTokensForSession(
   sessionId: GenericId<"authSessions">,
 ) {
   const ids = { userId, sessionId };
-  return {
+  const result = {
     token: await generateToken(ids, config),
     refreshToken: await createRefreshToken(ctx, sessionId, config),
   };
+  logWithLevel(LOG_LEVELS.DEBUG, "Generated tokens for session:", result);
+  return result;
 }
 
 async function createSession(

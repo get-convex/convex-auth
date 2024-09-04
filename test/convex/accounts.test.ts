@@ -160,4 +160,5 @@ function setupEnv() {
   process.env.AUTH_RESEND_KEY = AUTH_RESEND_KEY;
   process.env.AUTH_GITHUB_ID = "githubClientId";
   process.env.AUTH_GITHUB_SECRET = "githubClientSecret";
+  process.env.AUTH_LOG_LEVEL = "ERROR";
 }
