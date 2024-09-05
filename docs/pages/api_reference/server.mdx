@@ -8,83 +8,6 @@ and use the helpers it returns.
 
 Include [authTables](server.mdx#authtables) in your schema.
 
-## authTables
-
-
-The table definitions required by the library.
-
-Your schema must include these so that the indexes
-are set up:
-
-```ts filename="convex/schema.ts"
-import { defineSchema } from "convex/server";
-import { authTables } from "@convex-dev/auth/server";
-
-const schema = defineSchema({
-  ...authTables,
-});
-
-export default schema;
-```
-
-You can inline the table definitions into your schema
-and extend them with additional optional and required
-fields. See /setup/schema
-for more details.
-
-<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
-
-#### users
-
-
-Users.
-
-#### authSessions
-
-
-Sessions.
-A single user can have multiple active sessions.
-See [Session document lifecycle](/advanced#session-document-lifecycle).
-
-#### authAccounts
-
-
-Accounts. An account corresponds to
-a single authentication provider.
-A single user can have multiple accounts linked.
-
-#### authRefreshTokens
-
-
-Refresh tokens.
-Each session has only a single refresh token
-valid at a time. Refresh tokens are rotated
-and reuse is not allowed.
-
-#### authVerificationCodes
-
-
-Verification codes:
-- OTP tokens
-- magic link tokens
-- OAuth codes
-
-#### authVerifiers
-
-
-PKCE verifiers for OAuth.
-
-#### authRateLimits
-
-
-Rate limits for OTP and password sign-in.
-
-<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
-
-[src/server/implementation.ts:79](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L79)
-
-***
-
 ## convexAuth()
 
 
@@ -210,7 +133,7 @@ to the database during signin and signout.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:284](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L284)
+[src/server/implementation/index.ts:82](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L82)
 
 ***
 
@@ -288,85 +211,7 @@ the user ID or `null` if the client isn't authenticated
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:978](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L978)
-
-***
-
-## getAuthSessionId()
-
-
-Return the current session ID.
-
-```ts filename="convex/myFunctions.tsx"
-import { mutation } from "./_generated/server";
-import { getAuthSessionId } from "@convex-dev/auth/server";
-
-export const doSomething = mutation({
-  args: {/* ... */},
-  handler: async (ctx, args) => {
-    const sessionId = await getAuthSessionId(ctx);
-    if (sessionId === null) {
-      throw new Error("Client is not authenticated!")
-    }
-    const session = await ctx.db.get(sessionId);
-    // ...
-  },
-});
-```
-
-<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
-
-<table className="api_reference_table"><tbody>
-<tr>
-<th>Parameter</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-<tr>
-<td>
-
-`ctx`
-
-</td>
-<td>
-
-`object`
-
-</td>
-<td>
-
-query, mutation or action `ctx`
-
-</td>
-</tr>
-<tr>
-<td>
-
-`ctx.auth`
-
-</td>
-<td>
-
-`Auth`
-
-</td>
-<td>
-
-&hyphen;
-
-</td>
-</tr>
-</tbody></table>
-
-<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
-
-`Promise`\<`null` \| `Id`\<`"authSessions"`\>\>
-
-the session ID or `null` if the client isn't authenticated
-
-<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
-
-[src/server/implementation.ts:1010](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1010)
+[src/server/implementation/index.ts:428](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L428)
 
 ***
 
@@ -566,7 +411,7 @@ or throws an error.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1384](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1384)
+[src/server/implementation/index.ts:446](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L446)
 
 ***
 
@@ -709,7 +554,7 @@ secret does not match.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1449](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1449)
+[src/server/implementation/index.ts:506](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L506)
 
 ***
 
@@ -836,11 +681,11 @@ The new secret credential to store for this account.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodel-tablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<`void`\>
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1494](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1494)
+[src/server/implementation/index.ts:546](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L546)
 
 ***
 
@@ -908,11 +753,11 @@ Use this function to invalidate existing sessions.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise`\<[`GenericDoc`](server.mdx#genericdocdatamodel-tablename)\<`DataModel`, `"users"`\>\>
+`Promise`\<`void`\>
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1529](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1529)
+[src/server/implementation/index.ts:576](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L576)
 
 ***
 
@@ -1002,7 +847,162 @@ or `null`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation.ts:1556](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation.ts#L1556)
+[src/server/implementation/index.ts:598](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L598)
+
+***
+
+## getAuthSessionId()
+
+
+Return the current session ID.
+
+```ts filename="convex/myFunctions.tsx"
+import { mutation } from "./_generated/server";
+import { getAuthSessionId } from "@convex-dev/auth/server";
+
+export const doSomething = mutation({
+  args: {/* ... */},
+  handler: async (ctx, args) => {
+    const sessionId = await getAuthSessionId(ctx);
+    if (sessionId === null) {
+      throw new Error("Client is not authenticated!")
+    }
+    const session = await ctx.db.get(sessionId);
+    // ...
+  },
+});
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+<tr>
+<td>
+
+`ctx`
+
+</td>
+<td>
+
+`object`
+
+</td>
+<td>
+
+query, mutation or action `ctx`
+
+</td>
+</tr>
+<tr>
+<td>
+
+`ctx.auth`
+
+</td>
+<td>
+
+`Auth`
+
+</td>
+<td>
+
+&hyphen;
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
+
+`Promise`\<`null` \| `Id`\<`"authSessions"`\>\>
+
+the session ID or `null` if the client isn't authenticated
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/sessions.ts:106](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/sessions.ts#L106)
+
+***
+
+## authTables
+
+
+The table definitions required by the library.
+
+Your schema must include these so that the indexes
+are set up:
+
+```ts filename="convex/schema.ts"
+import { defineSchema } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
+
+const schema = defineSchema({
+  ...authTables,
+});
+
+export default schema;
+```
+
+You can inline the table definitions into your schema
+and extend them with additional optional and required
+fields. See /setup/schema
+for more details.
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### users
+
+
+Users.
+
+#### authSessions
+
+
+Sessions.
+A single user can have multiple active sessions.
+See [Session document lifecycle](/advanced#session-document-lifecycle).
+
+#### authAccounts
+
+
+Accounts. An account corresponds to
+a single authentication provider.
+A single user can have multiple accounts linked.
+
+#### authRefreshTokens
+
+
+Refresh tokens.
+Each session has only a single refresh token
+valid at a time. Refresh tokens are rotated
+and reuse is not allowed.
+
+#### authVerificationCodes
+
+
+Verification codes:
+- OTP tokens
+- magic link tokens
+- OAuth codes
+
+#### authVerifiers
+
+
+PKCE verifiers for OAuth.
+
+#### authRateLimits
+
+
+Rate limits for OTP and password sign-in.
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:36](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L36)
 
 ***
 
