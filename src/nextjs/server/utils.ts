@@ -31,3 +31,11 @@ export function isCorsRequest(request: NextRequest) {
       originURL.protocol !== new URL(request.url).protocol)
   );
 }
+
+export function logVerbose(message: string, verbose: boolean) {
+  if (verbose) {
+    console.debug(
+      `[verbose] ${new Date().toISOString()} [ConvexAuthNextjs] ${message}`,
+    );
+  }
+}
