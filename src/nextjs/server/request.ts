@@ -3,16 +3,20 @@ import { jwtDecode } from "jwt-decode";
 import { NextRequest, NextResponse } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies.js";
-import { isCorsRequest, setAuthCookies } from "./utils.js";
+import { isCorsRequest, logVerbose, setAuthCookies } from "./utils.js";
 
-export async function handleAuthenticationInRequest(request: NextRequest) {
+export async function handleAuthenticationInRequest(
+  request: NextRequest,
+  verbose: boolean,
+) {
+  logVerbose(`Begin handleAuthenticationInRequest`, verbose);
   const requestUrl = new URL(request.url);
 
   // Validate CORS
   validateCors(request);
 
   // Refresh tokens if necessary
-  const refreshTokens = await getRefreshedTokens();
+  const refreshTokens = await getRefreshedTokens(verbose);
 
   // Handle code exchange for OAuth and magic links via server-side redirect
   const code = requestUrl.searchParams.get("code");
@@ -21,6 +25,7 @@ export async function handleAuthenticationInRequest(request: NextRequest) {
     request.method === "GET" &&
     request.headers.get("accept")?.includes("text/html")
   ) {
+    logVerbose(`Handling code exchange for OAuth or magic link`, verbose);
     const verifier = getRequestCookies().verifier ?? undefined;
     const redirectUrl = new URL(requestUrl);
     redirectUrl.searchParams.delete("code");
@@ -34,9 +39,17 @@ export async function handleAuthenticationInRequest(request: NextRequest) {
       }
       const response = NextResponse.redirect(redirectUrl);
       setAuthCookies(response, result.tokens);
+      logVerbose(
+        `Successfully validated code, redirecting to ${redirectUrl.toString()} with auth cookies`,
+        verbose,
+      );
       return response;
     } catch (error) {
       console.error(error);
+      logVerbose(
+        `Error validating code, redirecting to ${redirectUrl.toString()} and clearing auth cookies`,
+        verbose,
+      );
       const response = NextResponse.redirect(redirectUrl);
       setAuthCookies(response, null);
       return NextResponse.redirect(redirectUrl);
@@ -64,17 +77,23 @@ function validateCors(request: NextRequest) {
 const REQUIRED_TOKEN_LIFETIME_MS = 60_000; // 1 minute
 const MINIMUM_REQUIRED_TOKEN_LIFETIME_MS = 10_000; // 10 seconds
 
-async function getRefreshedTokens() {
+async function getRefreshedTokens(verbose: boolean) {
   const cookies = getRequestCookies();
   const { token, refreshToken } = cookies;
   if (refreshToken === null && token === null) {
+    logVerbose(`No tokens to refresh, returning undefined`, verbose);
     return undefined;
   }
   if (refreshToken === null || token === null) {
+    logVerbose(
+      `Refresh token null? ${refreshToken === null}, token null? ${token === null}, returning null`,
+      verbose,
+    );
     return null;
   }
   const decodedToken = decodeToken(token);
   if (decodedToken === null) {
+    logVerbose(`Failed to decode token, returning null`, verbose);
     return null;
   }
   const totalTokenLifetimeMs =
@@ -88,6 +107,10 @@ async function getRefreshedTokens() {
       Math.max(MINIMUM_REQUIRED_TOKEN_LIFETIME_MS, totalTokenLifetimeMs / 10),
     );
   if (decodedToken.exp! * 1000 > minimumExpiration) {
+    logVerbose(
+      `Token expires far enough in the future, no need to refresh, returning undefined`,
+      verbose,
+    );
     return undefined;
   }
   try {
@@ -97,9 +120,11 @@ async function getRefreshedTokens() {
     if (result.tokens === undefined) {
       throw new Error("Invalid `signIn` action result for token refresh");
     }
+    logVerbose(`Successfully refreshed tokens`, verbose);
     return result.tokens;
   } catch (error) {
     console.error(error);
+    logVerbose(`Failed to refresh tokens, returning null`, verbose);
     return null;
   }
 }

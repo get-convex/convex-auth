@@ -15,6 +15,7 @@ import {
 import { getRequestCookies } from "./cookies.js";
 import { proxyAuthActionToConvex } from "./proxy.js";
 import { handleAuthenticationInRequest } from "./request.js";
+import { logVerbose } from "./utils.js";
 
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
@@ -118,31 +119,56 @@ export function convexAuthNextjsMiddleware(
      * Defaults to `/api/auth`.
      */
     apiRoute?: string;
+    /**
+     * Turn on debugging logs.
+     */
+    verbose?: boolean;
   } = {},
 ): NextMiddleware {
   return async (request, event) => {
+    const verbose = options.verbose ?? false;
+    logVerbose(`Begin middleware for request with URL ${request.url}`, verbose);
     const requestUrl = new URL(request.url);
     // Proxy signIn and signOut actions to Convex backend
-    if (requestUrl.pathname === (options?.apiRoute ?? "/api/auth")) {
+    const apiRoute = options?.apiRoute ?? "/api/auth";
+    if (requestUrl.pathname === apiRoute) {
+      logVerbose(
+        `Proxying auth action to Convex, path matches ${apiRoute}`,
+        verbose,
+      );
       return await proxyAuthActionToConvex(request, options);
     }
+    logVerbose(
+      `Not proxying auth action to Convex, path ${requestUrl.pathname} does not match ${apiRoute}`,
+      verbose,
+    );
     // Refresh tokens, handle code query param
-    const authResult = await handleAuthenticationInRequest(request);
+    const authResult = await handleAuthenticationInRequest(request, verbose);
 
     // If redirecting, proceed, the middleware will run again on next request
     if (authResult?.headers.get("Location")) {
+      logVerbose(
+        `Redirecting to ${authResult.headers.get("Location")}`,
+        verbose,
+      );
       return authResult;
     }
 
+    let response: Response | null = null;
     // Forward cookies to request for custom handler
-    if (handler !== undefined && authResult.headers) {
-      authResult.cookies.getAll().forEach((cookie) => {
-        request.cookies.set(cookie.name, cookie.value);
-      });
+    if (handler === undefined) {
+      logVerbose(`No custom handler`, verbose);
+      response = NextResponse.next();
+    } else {
+      // Forward cookies to request for custom handler
+      if (authResult.headers) {
+        authResult.cookies.getAll().forEach((cookie) => {
+          request.cookies.set(cookie.name, cookie.value);
+        });
+      }
+      // Call the custom handler
+      response = (await handler(request, event)) ?? NextResponse.next();
     }
-
-    // Maybe call the custom handler
-    const response = (await handler?.(request, event)) ?? NextResponse.next();
 
     // Port the cookies from the auth middleware to the response
     if (authResult.headers) {
