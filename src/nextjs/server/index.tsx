@@ -13,7 +13,7 @@ import {
   ConvexAuthServerState,
 } from "../client.js";
 import { getRequestCookies } from "./cookies.js";
-import { proxyAuthActionToConvex } from "./proxy.js";
+import { proxyAuthActionToConvex, shouldProxyAuthAction } from "./proxy.js";
 import { handleAuthenticationInRequest } from "./request.js";
 import { logVerbose } from "./utils.js";
 
@@ -131,9 +131,9 @@ export function convexAuthNextjsMiddleware(
     const requestUrl = new URL(request.url);
     // Proxy signIn and signOut actions to Convex backend
     const apiRoute = options?.apiRoute ?? "/api/auth";
-    if (requestUrl.pathname === apiRoute) {
+    if (shouldProxyAuthAction(request, apiRoute)) {
       logVerbose(
-        `Proxying auth action to Convex, path matches ${apiRoute}`,
+        `Proxying auth action to Convex, path matches ${apiRoute} with or without trailing slash`,
         verbose,
       );
       return await proxyAuthActionToConvex(request, options);
