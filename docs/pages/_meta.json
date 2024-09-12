@@ -6,6 +6,7 @@
   "production": "Production",
   "security": "Security",
   "advanced": "Advanced",
+  "debugging": "Debugging",
   "---": {
     "type": "separator"
   },
