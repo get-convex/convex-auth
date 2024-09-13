@@ -74,14 +74,14 @@ providing the
 ```ts
 import GitHub from "@auth/core/providers/github";
 import Password from "@convex-dev/auth/providers/Password";
-import { DataModel } from "./_generated/dataModel";
+import { MutationCtx } from "./_generated/server";
 
-export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
+export const { auth, signIn, signOut, store } = {
   providers: [GitHub, Password],
   callbacks: {
     // `args.type` is one of "oauth" | "email" | "phone" | "credentials" | "verification"
     // `args.provider` is the currently used provider config
-    async createOrUpdateUser(ctx, args) {
+    async createOrUpdateUser(ctx: MutationCtx, args) {
       if (args.existingUserId) {
         // Optionally merge updated fields into the existing user object here
         return args.existingUserId;
@@ -97,7 +97,7 @@ export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
       });
     },
   },
-});
+};
 ```
 
 When you provide this callback, the library doesn't create or update users at
@@ -116,13 +116,13 @@ you can still perform additional writes to the database with the
 ```ts
 import GitHub from "@auth/core/providers/github";
 import Password from "@convex-dev/auth/providers/Password";
-import { DataModel } from "./_generated/dataModel";
+import { MutationCtx } from "./_generated/server";
 
-export const { auth, signIn, signOut, store } = convexAuth<DataModel>({
+export const { auth, signIn, signOut, store } = convexAuth({
   providers: [GitHub, Password],
   callbacks: {
     // `args` are the same the as for `createOrUpdateUser` but include `userId`
-    async afterUserCreatedOrUpdated(ctx, { userId }) {
+    async afterUserCreatedOrUpdated(ctx: MutationCtx, { userId }) {
       await ctx.db.insert("someTable", { userId, data: "some data" });
     },
   },
