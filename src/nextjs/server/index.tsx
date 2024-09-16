@@ -15,7 +15,11 @@ import {
 import { getRequestCookies } from "./cookies.js";
 import { proxyAuthActionToConvex, shouldProxyAuthAction } from "./proxy.js";
 import { handleAuthenticationInRequest } from "./request.js";
-import { logVerbose } from "./utils.js";
+import {
+  logVerbose,
+  setAuthCookies,
+  setAuthCookiesInMiddleware,
+} from "./utils.js";
 
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
@@ -146,35 +150,39 @@ export function convexAuthNextjsMiddleware(
     const authResult = await handleAuthenticationInRequest(request, verbose);
 
     // If redirecting, proceed, the middleware will run again on next request
-    if (authResult?.headers.get("Location")) {
+    if (authResult.kind === "redirect") {
       logVerbose(
-        `Redirecting to ${authResult.headers.get("Location")}`,
+        `Redirecting to ${authResult.response.headers.get("Location")}`,
         verbose,
       );
-      return authResult;
+      return authResult.response;
     }
 
     let response: Response | null = null;
     // Forward cookies to request for custom handler
+    if (
+      authResult.kind === "refreshTokens" &&
+      authResult.refreshTokens !== undefined
+    ) {
+      logVerbose(`Forwarding cookies to request`, verbose);
+      setAuthCookiesInMiddleware(request, authResult.refreshTokens);
+    }
     if (handler === undefined) {
       logVerbose(`No custom handler`, verbose);
       response = NextResponse.next();
     } else {
-      // Forward cookies to request for custom handler
-      if (authResult.headers) {
-        authResult.cookies.getAll().forEach((cookie) => {
-          request.cookies.set(cookie.name, cookie.value);
-        });
-      }
       // Call the custom handler
+      logVerbose(`Calling custom handler`, verbose);
       response = (await handler(request, event)) ?? NextResponse.next();
     }
 
     // Port the cookies from the auth middleware to the response
-    if (authResult.headers) {
-      authResult.headers.forEach((value, key) => {
-        response.headers.append(key, value);
-      });
+    if (
+      authResult.kind === "refreshTokens" &&
+      authResult.refreshTokens !== undefined
+    ) {
+      response.headers.getSetCookie();
+      setAuthCookies(NextResponse.next(response), authResult.refreshTokens);
     }
 
     return response;

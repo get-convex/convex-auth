@@ -8,7 +8,13 @@ import { isCorsRequest, logVerbose, setAuthCookies } from "./utils.js";
 export async function handleAuthenticationInRequest(
   request: NextRequest,
   verbose: boolean,
-) {
+): Promise<
+  | { kind: "redirect"; response: NextResponse }
+  | {
+      kind: "refreshTokens";
+      refreshTokens: { token: string; refreshToken: string } | null | undefined;
+    }
+> {
   logVerbose(`Begin handleAuthenticationInRequest`, verbose);
   const requestUrl = new URL(request.url);
 
@@ -43,7 +49,7 @@ export async function handleAuthenticationInRequest(
         `Successfully validated code, redirecting to ${redirectUrl.toString()} with auth cookies`,
         verbose,
       );
-      return response;
+      return { kind: "redirect", response };
     } catch (error) {
       console.error(error);
       logVerbose(
@@ -52,15 +58,11 @@ export async function handleAuthenticationInRequest(
       );
       const response = NextResponse.redirect(redirectUrl);
       setAuthCookies(response, null);
-      return NextResponse.redirect(redirectUrl);
+      return { kind: "redirect", response };
     }
   }
 
-  const response = NextResponse.next();
-  if (refreshTokens !== undefined) {
-    setAuthCookies(response, refreshTokens);
-  }
-  return response;
+  return { kind: "refreshTokens", refreshTokens };
 }
 
 // If this is a cross-origin request with `Origin` header set

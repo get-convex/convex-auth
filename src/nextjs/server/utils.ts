@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getResponseCookies } from "./cookies.js";
+import {
+  getRequestCookiesInMiddleware,
+  getResponseCookies,
+} from "./cookies.js";
 
 export function jsonResponse(body: any) {
   return new NextResponse(JSON.stringify(body), {
@@ -20,6 +23,26 @@ export function setAuthCookies(
     responseCookies.refreshToken = tokens.refreshToken;
   }
   responseCookies.verifier = null;
+}
+
+/**
+ * Forward on any auth cookies in the request to the next handler.
+ *
+ * @param request
+ * @param tokens
+ */
+export function setAuthCookiesInMiddleware(
+  request: NextRequest,
+  tokens: { token: string; refreshToken: string } | null,
+) {
+  const requestCookies = getRequestCookiesInMiddleware(request);
+  if (tokens === null) {
+    requestCookies.token = null;
+    requestCookies.refreshToken = null;
+  } else {
+    requestCookies.token = tokens.token;
+    requestCookies.refreshToken = tokens.refreshToken;
+  }
 }
 
 export function isCorsRequest(request: NextRequest) {
