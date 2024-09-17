@@ -137,7 +137,7 @@ and [useAuthActions](/api_reference/react#useauthactions).
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:23](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L23)
+[src/nextjs/server/index.tsx:27](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L27)
 
 ***
 
@@ -155,7 +155,7 @@ The token if the the client is authenticated, otherwise `undefined`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:78](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L78)
+[src/nextjs/server/index.tsx:82](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L82)
 
 ***
 
@@ -174,7 +174,45 @@ since they won't stop nested pages from rendering.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:89](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L89)
+[src/nextjs/server/index.tsx:93](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L93)
+
+***
+
+## ConvexAuthNextjsMiddlewareContext
+
+
+In `convexAuthNextjsMiddleware`, you can use this context
+to get the token and check if the client is authenticated in place of
+`convexAuthNextjsToken` and `isAuthenticatedNextjs`.
+
+```ts
+export function convexAuthNextjsMiddleware(handler, options) {
+  return async (request, event, convexAuth) => {
+    if (!convexAuth.isAuthenticated()) {
+      return nextjsMiddlewareRedirect(request, "/login");
+    }
+  };
+}
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### getToken()
+
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`string` \| `undefined`
+
+#### isAuthenticated()
+
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`boolean`
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:111](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L111)
 
 ***
 
@@ -200,7 +238,7 @@ Convex Auth for authentication on the server.
 </td>
 <td>
 
-(`request`, `event`) => `NextMiddlewareResult` \| `Promise`\<`NextMiddlewareResult`\>
+(`request`, `ctx`) => `NextMiddlewareResult` \| `Promise`\<`NextMiddlewareResult`\>
 
 </td>
 <td>
@@ -293,7 +331,7 @@ A Next.js middleware.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:99](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L99)
+[src/nextjs/server/index.tsx:122](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L122)
 
 ***
 
@@ -357,7 +395,7 @@ The route path to redirect to.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:194](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L194)
+[src/nextjs/server/index.tsx:241](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L241)
 
 ***
 

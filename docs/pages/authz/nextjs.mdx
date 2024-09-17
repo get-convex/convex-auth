@@ -19,18 +19,17 @@ which routes require authentication in your `middleware.ts`:
 import {
   convexAuthNextjsMiddleware,
   createRouteMatcher,
-  isAuthenticatedNextjs,
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
 
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isProtectedRoute = createRouteMatcher(["/product(.*)"]);
 
-export default convexAuthNextjsMiddleware((request) => {
-  if (isSignInPage(request) && isAuthenticatedNextjs()) {
+export default convexAuthNextjsMiddleware((request, { convexAuth }) => {
+  if (isSignInPage(request) && convexAuth.isAuthenticated()) {
     return nextjsMiddlewareRedirect(request, "/product");
   }
-  if (isProtectedRoute(request) && !isAuthenticatedNextjs()) {
+  if (isProtectedRoute(request) && !convexAuth.isAuthenticated()) {
     return nextjsMiddlewareRedirect(request, "/signin");
   }
 });
@@ -48,6 +47,12 @@ access a route that requires authentication.
 To do this, you can pass a function to `convexAuthNextjsMiddleware`. This
 function can also be used to compose other middleware behaviors.
 
+This function has as arguments the `NextRequest`, the `NextFetchEvent`, and the
+`ConvexAuthNextjsContext`. `convexAuth.isAuthenticated()` and
+`convexAuth.getToken()` function similarly to `isAuthenticatedNextjs` and
+`convexAuthNextjsToken`, but should be used in middleware to ensure they reflect
+any updates to the request context from `convexAuthNextjsMiddleware`.
+
 Convex Auth provides an API and helper functions for implementing your
 middleware:
 
@@ -55,11 +60,6 @@ middleware:
   [syntax](https://github.com/pillarjs/path-to-regexp) as the middleware
   `config`. You call it with a list of glob patterns, and it returns a function
   that given the `NextRequest` returns whether the route matches.
-
-- `isAuthenticatedNextjs` function returns whether the current request is
-  authenticated or not. When using `ConvexAuthNextjsServerProvider`,
-  authentication state is stored both in http-only cookies and on the client, so
-  this state is also available during page requests.
 
 - `nextjsMiddlewareRedirect` is a simple shortcut for triggering redirects:
 
