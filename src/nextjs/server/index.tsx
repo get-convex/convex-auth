@@ -12,7 +12,7 @@ import {
   ConvexAuthNextjsClientProvider,
   ConvexAuthServerState,
 } from "../client.js";
-import { getRequestCookies } from "./cookies.js";
+import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies.js";
 import { proxyAuthActionToConvex, shouldProxyAuthAction } from "./proxy.js";
 import { handleAuthenticationInRequest } from "./request.js";
 import {
@@ -95,6 +95,25 @@ export function isAuthenticatedNextjs() {
 }
 
 /**
+ * In `convexAuthNextjsMiddleware`, you can use this context
+ * to get the token and check if the client is authenticated in place of
+ * `convexAuthNextjsToken` and `isAuthenticatedNextjs`.
+ *
+ * ```ts
+ * export function convexAuthNextjsMiddleware(handler, options) {
+ *   return async (request, event, convexAuth) => {
+ *     if (!convexAuth.isAuthenticated()) {
+ *       return nextjsMiddlewareRedirect(request, "/login");
+ *     }
+ *   };
+ * }
+ */
+export type ConvexAuthNextjsMiddlewareContext = {
+  getToken: () => string | undefined;
+  isAuthenticated: () => boolean;
+};
+
+/**
  * Use in your `middleware.ts` to enable your Next.js app to use
  * Convex Auth for authentication on the server.
  *
@@ -107,7 +126,10 @@ export function convexAuthNextjsMiddleware(
    */
   handler?: (
     request: NextRequest,
-    event: NextFetchEvent,
+    ctx: {
+      event: NextFetchEvent;
+      convexAuth: ConvexAuthNextjsMiddlewareContext;
+    },
   ) => NextMiddlewareResult | Promise<NextMiddlewareResult>,
   options: {
     /**
@@ -169,11 +191,29 @@ export function convexAuthNextjsMiddleware(
     }
     if (handler === undefined) {
       logVerbose(`No custom handler`, verbose);
-      response = NextResponse.next();
+      response = NextResponse.next({
+        headers: request.headers,
+      });
     } else {
       // Call the custom handler
       logVerbose(`Calling custom handler`, verbose);
-      response = (await handler(request, event)) ?? NextResponse.next();
+      response =
+        (await handler(request, {
+          event,
+          convexAuth: {
+            getToken: () => {
+              const cookies = getRequestCookiesInMiddleware(request);
+              return cookies.token ?? undefined;
+            },
+            isAuthenticated: () => {
+              const cookies = getRequestCookiesInMiddleware(request);
+              return (cookies.token ?? undefined) !== undefined;
+            },
+          },
+        })) ??
+        NextResponse.next({
+          headers: request.headers,
+        });
     }
 
     // Port the cookies from the auth middleware to the response
@@ -181,7 +221,6 @@ export function convexAuthNextjsMiddleware(
       authResult.kind === "refreshTokens" &&
       authResult.refreshTokens !== undefined
     ) {
-      response.headers.getSetCookie();
       setAuthCookies(NextResponse.next(response), authResult.refreshTokens);
     }
 
