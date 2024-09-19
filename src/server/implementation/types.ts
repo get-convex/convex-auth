@@ -76,11 +76,13 @@ export const authTables = {
    * Refresh tokens.
    * Each session has only a single refresh token
    * valid at a time. Refresh tokens are rotated
-   * and reuse is not allowed.
+   * and reuse is not allowed, except for within
+   * a 10 second window.
    */
   authRefreshTokens: defineTable({
     sessionId: v.id("authSessions"),
     expirationTime: v.number(),
+    firstUsedTime: v.optional(v.number()),
   }).index("sessionId", ["sessionId"]),
   /**
    * Verification codes:

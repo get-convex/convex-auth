@@ -68,6 +68,19 @@ test("refresh token reuse detection", async () => {
   });
   expect(newTokens).not.toBeNull();
 
+  // Advance time within the reuse window (10 seconds)
+  vi.advanceTimersByTime(5000);
+
+  const { tokens: newTokens2 } = await t.action(api.auth.signIn, {
+    refreshToken,
+    params: {},
+  });
+  expect(newTokens2).not.toBeNull();
+  expect(newTokens2).not.toEqual(newTokens);
+
+  // Advance time again to be outside of the reuse window
+  vi.advanceTimersByTime(5001);
+
   const { tokens: reuseResponse } = await t.action(api.auth.signIn, {
     refreshToken,
     params: {},

@@ -33,16 +33,26 @@ export async function refreshSessionImpl(
   // This invalidates all other refresh tokens for this session,
   // including ones created later, regardless of whether
   // the passed one is valid or not.
-  await deleteRefreshTokens(ctx, tokenSessionId as GenericId<"authSessions">);
+  await deleteRefreshTokens(
+    ctx,
+    tokenSessionId as GenericId<"authSessions">,
+    refreshTokenId as GenericId<"authRefreshTokens">,
+  );
 
   if (validationResult === null) {
-    // Can't call `deleteSession` here because we already deleted
-    // refresh tokens above
+    // Replicating `deleteSession` but ensuring that we delete both the session
+    // and the refresh token, even if one of them is missing.
     const session = await ctx.db.get(
       tokenSessionId as GenericId<"authSessions">,
     );
     if (session !== null) {
       await ctx.db.delete(session._id);
+    }
+    const refreshTokenDoc = await ctx.db.get(
+      refreshTokenId as GenericId<"authRefreshTokens">,
+    );
+    if (refreshTokenDoc !== null) {
+      await ctx.db.delete(refreshTokenDoc._id);
     }
     return null;
   }
