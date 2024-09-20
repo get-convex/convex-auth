@@ -77,7 +77,7 @@ export async function deleteSession(
   session: Doc<"authSessions">,
 ) {
   await ctx.db.delete(session._id);
-  await deleteRefreshTokens(ctx, session._id);
+  await deleteRefreshTokens(ctx, session._id, null);
 }
 
 /**
