@@ -59,7 +59,7 @@ export async function proxyAuthActionToConvex(
     if (result.redirect !== undefined) {
       const { redirect } = result;
       const response = jsonResponse({ redirect });
-      getResponseCookies(response).verifier = result.verifier;
+      getResponseCookies(response).verifier = result.verifier!;
       logVerbose(`Redirecting to ${redirect}`, verbose);
       return response;
     } else if (result.tokens !== undefined) {
