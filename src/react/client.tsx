@@ -202,7 +202,7 @@ export function AuthProvider({
       );
       if (result.redirect !== undefined) {
         const url = new URL(result.redirect);
-        await storageSet(VERIFIER_STORAGE_KEY, result.verifier);
+        await storageSet(VERIFIER_STORAGE_KEY, result.verifier!);
         // Do not redirect in React Native
         if (window.location !== undefined) {
           window.location.href = url.toString();

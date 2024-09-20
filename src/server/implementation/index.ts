@@ -26,8 +26,8 @@ import {
   GenericActionCtxWithAuthConfig,
 } from "../types.js";
 import { requireEnv } from "../utils.js";
-import { ActionCtx, MutationCtx } from "./types.js";
-export { authTables } from "./types.js";
+import { ActionCtx, MutationCtx, Tokens } from "./types.js";
+export { authTables, Tokens } from "./types.js";
 import {
   LOG_LEVELS,
   TOKEN_SUB_CLAIM_DIVIDER,
@@ -355,7 +355,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier: v.optional(v.string()),
         refreshToken: v.optional(v.string()),
       },
-      handler: async (ctx, args) => {
+      handler: async (
+        ctx,
+        args,
+      ): Promise<{
+        redirect?: string;
+        verifier?: string;
+        tokens?: Tokens | null;
+        started?: boolean;
+      }> => {
         const provider =
           args.provider !== undefined
             ? getProviderOrThrow(args.provider)
