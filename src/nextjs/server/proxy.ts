@@ -49,13 +49,20 @@ export async function proxyAuthActionToConvex(
     `Fetching action ${action} with args ${JSON.stringify(args)}`,
     verbose,
   );
-  const untypedResult = await fetchAction(action, args, {
-    url: options?.convexUrl,
-    token,
-  });
 
   if (action === "auth:signIn") {
-    const result = untypedResult as SignInAction["_returnType"];
+    let result: SignInAction["_returnType"];
+    try {
+      result = await fetchAction(action, args, {
+        url: options?.convexUrl,
+      });
+    } catch (error) {
+      console.error(`Hit error while running \`auth:signIn\`: ${error}`);
+      logVerbose(`Clearing auth cookies`, verbose);
+      const response = jsonResponse(null);
+      setAuthCookies(response, null);
+      return response;
+    }
     if (result.redirect !== undefined) {
       const { redirect } = result;
       const response = jsonResponse({ redirect });
@@ -83,6 +90,14 @@ export async function proxyAuthActionToConvex(
     }
     return jsonResponse(result);
   } else {
+    try {
+      await fetchAction(action, args, {
+        url: options?.convexUrl,
+        token,
+      });
+    } catch (error) {
+      console.error(`Hit error while running \`auth:signOut\`: ${error}`);
+    }
     logVerbose(`Clearing auth cookies`, verbose);
     const response = jsonResponse(null);
     setAuthCookies(response, null);
