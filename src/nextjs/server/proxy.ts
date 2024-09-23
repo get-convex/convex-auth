@@ -64,7 +64,8 @@ export async function proxyAuthActionToConvex(
         ...fetchActionAuthOptions,
       });
     } catch (error) {
-      console.error(`Hit error while running \`auth:signIn\`: ${error}`);
+      console.error(`Hit error while running \`auth:signIn\`:`);
+      console.error(error);
       logVerbose(`Clearing auth cookies`, verbose);
       const response = jsonResponse(null);
       setAuthCookies(response, null);
@@ -103,7 +104,8 @@ export async function proxyAuthActionToConvex(
         token,
       });
     } catch (error) {
-      console.error(`Hit error while running \`auth:signOut\`: ${error}`);
+      console.error(`Hit error while running \`auth:signOut\`:`);
+      console.error(error);
     }
     logVerbose(`Clearing auth cookies`, verbose);
     const response = jsonResponse(null);
