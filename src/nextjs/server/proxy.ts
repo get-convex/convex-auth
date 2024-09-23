@@ -52,9 +52,16 @@ export async function proxyAuthActionToConvex(
 
   if (action === "auth:signIn") {
     let result: SignInAction["_returnType"];
+    // Do not require auth when refreshing tokens or validating a code since they
+    // are steps in the auth flow.
+    const fetchActionAuthOptions =
+      args.refreshToken !== undefined || args.params?.code !== undefined
+        ? {}
+        : { token };
     try {
       result = await fetchAction(action, args, {
         url: options?.convexUrl,
+        ...fetchActionAuthOptions,
       });
     } catch (error) {
       console.error(`Hit error while running \`auth:signIn\`: ${error}`);
