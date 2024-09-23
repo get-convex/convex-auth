@@ -354,6 +354,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         params: v.optional(v.any()),
         verifier: v.optional(v.string()),
         refreshToken: v.optional(v.string()),
+        calledBy: v.optional(v.string()),
       },
       handler: async (
         ctx,
@@ -364,6 +365,9 @@ export function convexAuth(config_: ConvexAuthConfig) {
         tokens?: Tokens | null;
         started?: boolean;
       }> => {
+        if (args.calledBy !== undefined) {
+          logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
+        }
         const provider =
           args.provider !== undefined
             ? getProviderOrThrow(args.provider)
