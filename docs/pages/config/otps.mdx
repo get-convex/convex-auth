@@ -89,7 +89,7 @@ export const ResendOTP = Email({
     });
 
     if (error) {
-      throw new Error("Could not send");
+      throw new Error(JSON.stringify(error));
     }
   },
 });
