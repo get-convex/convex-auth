@@ -211,7 +211,7 @@ the user ID or `null` if the client isn't authenticated
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:428](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L428)
+[src/server/implementation/index.ts:440](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L440)
 
 ***
 
@@ -411,7 +411,7 @@ or throws an error.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:446](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L446)
+[src/server/implementation/index.ts:458](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L458)
 
 ***
 
@@ -554,7 +554,7 @@ secret does not match.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:506](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L506)
+[src/server/implementation/index.ts:518](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L518)
 
 ***
 
@@ -685,7 +685,7 @@ The new secret credential to store for this account.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:546](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L546)
+[src/server/implementation/index.ts:558](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L558)
 
 ***
 
@@ -757,7 +757,7 @@ Use this function to invalidate existing sessions.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:576](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L576)
+[src/server/implementation/index.ts:588](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L588)
 
 ***
 
@@ -847,7 +847,7 @@ or `null`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:598](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L598)
+[src/server/implementation/index.ts:610](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L610)
 
 ***
 
@@ -980,7 +980,8 @@ A single user can have multiple accounts linked.
 Refresh tokens.
 Each session has only a single refresh token
 valid at a time. Refresh tokens are rotated
-and reuse is not allowed.
+and reuse is not allowed, except for within
+a 10 second window.
 
 #### authVerificationCodes
 
