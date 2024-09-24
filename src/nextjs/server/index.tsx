@@ -221,7 +221,9 @@ export function convexAuthNextjsMiddleware(
       authResult.kind === "refreshTokens" &&
       authResult.refreshTokens !== undefined
     ) {
-      setAuthCookies(NextResponse.next(response), authResult.refreshTokens);
+      const nextResponse = NextResponse.next(response);
+      setAuthCookies(nextResponse, authResult.refreshTokens);
+      return nextResponse;
     }
 
     return response;
