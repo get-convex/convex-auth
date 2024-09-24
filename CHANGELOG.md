@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.70
+
+- Improve error handling when calling Convex auth functions from Next.js
+
 ## 0.0.69
 
 - Add a 10s reuse window for refresh tokens
