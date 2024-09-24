@@ -74,7 +74,7 @@ const precomputePathRegex = (patterns: Array<string | RegExp>) => {
 
 function pathStringToRegExp(path: string) {
   try {
-    return pathToRegexp(path);
+    return pathToRegexp(path).regexp;
   } catch (e: any) {
     throw new Error(
       `Invalid path: ${path}.\nConsult the documentation of path-to-regexp here: https://github.com/pillarjs/path-to-regexp\n${e.message}`,
