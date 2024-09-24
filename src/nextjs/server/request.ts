@@ -122,7 +122,10 @@ async function getRefreshedTokens(verbose: boolean) {
     if (result.tokens === undefined) {
       throw new Error("Invalid `signIn` action result for token refresh");
     }
-    logVerbose(`Successfully refreshed tokens`, verbose);
+    logVerbose(
+      `Successfully refreshed tokens: is null? ${result.tokens === null}`,
+      verbose,
+    );
     return result.tokens;
   } catch (error) {
     console.error(error);
