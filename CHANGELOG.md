@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.71
+
+- Fix bug with setting auth cookies on Next.js response
+
 ## 0.0.70
 
 - Improve error handling when calling Convex auth functions from Next.js
