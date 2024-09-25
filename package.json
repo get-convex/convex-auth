@@ -27,9 +27,9 @@
   "scripts": {
     "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --format=cjs --outfile=dist/bin.cjs",
     "build:server": "tsc --project tsconfig.server.json",
-    "build:react": "tsc --project tsconfig.react.json && mkdir -p dist && rm -rf dist/react && mv distreact/react dist/react && rm -r distreact",
-    "build:nextjs": "tsc --project tsconfig.nextjs.json && mkdir -p dist && rm -rf dist/nextjs && mv distnextjs/nextjs dist/nextjs && rm -r distnextjs",
-    "build": "rm -rf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs",
+    "build:react": "tsc --project tsconfig.react.json && mkdirp dist && rimraf dist/react && node moveFiles.js",
+    "build:nextjs": "tsc --project tsconfig.nextjs.json && mkdirp dist && rimraf dist/nextjs && node moveFiles.js",
+    "build": "rimraf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs",
     "docs": "cd docs && npm run dev",
     "lint": "tsc && eslint . && cd test && npm run lint",
     "prepare": "npm run build",
@@ -63,11 +63,15 @@
   "dependencies": {
     "@auth/core": "^0.31.0",
     "arctic": "^1.2.0",
+    "cross-env": "^7.0.3",
+    "fs-extra": "^11.2.0",
     "jose": "^5.2.2",
     "jwt-decode": "^4.0.0",
     "lucia": "^3.2.0",
+    "mkdirp": "^3.0.1",
     "oslo": "^1.1.2",
     "path-to-regexp": "^7.1.0",
+    "rimraf": "^6.0.1",
     "server-only": "^0.0.1"
   },
   "peerDependencies": {

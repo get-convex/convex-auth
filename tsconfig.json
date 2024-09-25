@@ -24,6 +24,7 @@
     "docs",
     "test",
     "test-router",
-    "test-nextjs"
+    "test-nextjs",
+    "moveFiles.js"
   ]
 }
