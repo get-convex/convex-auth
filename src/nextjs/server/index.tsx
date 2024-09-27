@@ -107,6 +107,7 @@ export function isAuthenticatedNextjs() {
  *     }
  *   };
  * }
+ * ```
  */
 export type ConvexAuthNextjsMiddlewareContext = {
   getToken: () => string | undefined;

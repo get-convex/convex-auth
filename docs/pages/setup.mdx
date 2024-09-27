@@ -3,20 +3,42 @@ import { Tabs } from "nextra-theme-docs";
 
 # Set Up Convex Auth
 
+## Creating a new project
+
+<Tabs items={['React (Vite)', 'Next.js', 'React Native']}>
+<Tabs.Tab>
+
 To start a new project from scratch with Convex and Convex Auth, run
 
 ```sh
 npm create convex@latest
 ```
 
-and choose `React (Vite)` or `Next.js` and then `Convex Auth`.
+and choose `React (Vite)` and then `Convex Auth`.
 
-Otherwise follow the guide below.
+</Tabs.Tab>
+<Tabs.Tab>
+**NOTE:** Convex Auth support for Next.js with server-side authentication (SSA) is experimental.
+
+To start a new project from scratch with Convex and Convex Auth, run
+
+```sh
+npm create convex@latest
+```
+
+and choose `Next.js` and then `Convex Auth`.
+
+</Tabs.Tab>
+<Tabs.Tab>
+Follow the Convex [React Native quickstart](https://docs.convex.dev/quickstart/react-native)
+to create an app with Convex. Then follow the instructions below to finish setting up Convex Auth.
+</Tabs.Tab>
+</Tabs>
 
 ---
 
-This guide assumes you have a working Convex app. If not, follow our React,
-Next.js or React Native [quickstart](https://docs.convex.dev/quickstarts) first.
+This guide assumes you already have a working Convex app from following the
+instructions above.
 
 <Steps>
 ### Install the NPM library
@@ -60,7 +82,7 @@ export default schema;
 
 ### Set up the React provider
 
-<Tabs items={['Vite', 'Next.js', 'React Native']}>
+<Tabs items={['React (Vite)', 'Next.js', 'React Native']}>
 <Tabs.Tab>
 
 Replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
@@ -88,11 +110,18 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 </Tabs.Tab>
 <Tabs.Tab>
 
-Convex Auth currently only supports server-side authentication (**SSA**) on the
-Next.js server with App Router.
+Convex Auth has support for both App Router and Pages Router without any
+server-side authentication **(SSA)**.
+
+There is experimental support for SSA on the Next.js server with App Router. SSA
+with the Pages Router is currently unsupported.
 
 <Tabs items={['App Router with SSA', 'App Router without SSA', 'Pages Router without SSA']}>
 <Tabs.Tab>
+
+<Steps>
+
+### Server provider
 
 Wrap your app in `ConvexAuthNextjsServerProvider` from
 `@convex-dev/auth/nextjs/server`:
@@ -115,7 +144,10 @@ export default function RootLayout({
 }
 ```
 
-And in your client provider file replace `ConvexProvider` from `convex/react`
+### Client provider
+
+In your client provider file, replace `ConvexProvider` from `convex/react`
+
 with `ConvexAuthNextjsProvider` from `@convex-dev/auth/nextjs`:
 
 ```tsx filename="app/ConvexClientProvider.tsx" {3,11,13}
@@ -162,7 +194,9 @@ export default function RootLayout({
 }
 ```
 
-Finally add a `middleware.ts` file using `convexAuthNextjsMiddleware`:
+### Middleware
+
+Finally, add a `middleware.ts` file using `convexAuthNextjsMiddleware`:
 
 ```tsx filename="middleware.ts"
 import { convexAuthNextjsMiddleware } from "@convex-dev/auth/nextjs/server";
@@ -175,6 +209,8 @@ export const config = {
   matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
 };
 ```
+
+</Steps>
 
 Note that the React examples in this documentation are all Client Components
 unless noted otherwise, so you might need to add `"use client"` to their source.
