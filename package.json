@@ -67,7 +67,7 @@
     "jwt-decode": "^4.0.0",
     "lucia": "^3.2.0",
     "oslo": "^1.1.2",
-    "path-to-regexp": "^7.1.0",
+    "path-to-regexp": "^8.1.0",
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
