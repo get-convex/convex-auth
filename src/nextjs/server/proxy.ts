@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getResponseCookies } from "./cookies.js";
 import {
+  getRedactedMessage,
   isCorsRequest,
   jsonResponse,
   logVerbose,
@@ -46,7 +47,10 @@ export async function proxyAuthActionToConvex(
     token = getRequestCookies().token ?? undefined;
   }
   logVerbose(
-    `Fetching action ${action} with args ${JSON.stringify(args)}`,
+    `Fetching action ${action} with args ${JSON.stringify({
+      ...args,
+      refreshToken: getRedactedMessage(args?.refreshToken ?? ""),
+    })}`,
     verbose,
   );
 

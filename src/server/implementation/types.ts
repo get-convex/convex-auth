@@ -83,7 +83,14 @@ export const authTables = {
     sessionId: v.id("authSessions"),
     expirationTime: v.number(),
     firstUsedTime: v.optional(v.number()),
-  }).index("sessionId", ["sessionId"]),
+    parentRefreshTokenId: v.optional(v.id("authRefreshTokens")),
+  })
+    // Sort by creationTime
+    .index("sessionId", ["sessionId"])
+    .index("sessionIdAndParentRefreshTokenId", [
+      "sessionId",
+      "parentRefreshTokenId",
+    ]),
   /**
    * Verification codes:
    * - OTP tokens

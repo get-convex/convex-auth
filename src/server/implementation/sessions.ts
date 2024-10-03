@@ -6,10 +6,15 @@ import {
   LOG_LEVELS,
   TOKEN_SUB_CLAIM_DIVIDER,
   logWithLevel,
+  maybeRedact,
   stringToNumber,
 } from "./utils.js";
 import { generateToken } from "./tokens.js";
-import { createRefreshToken, deleteRefreshTokens } from "./refreshTokens.js";
+import {
+  createRefreshToken,
+  formatRefreshToken,
+  deleteAllRefreshTokens,
+} from "./refreshTokens.js";
 
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
@@ -24,7 +29,12 @@ export async function maybeGenerateTokensForSession(
     userId,
     sessionId,
     tokens: generateTokens
-      ? await generateTokensForSession(ctx, config, userId, sessionId)
+      ? await generateTokensForSession(ctx, config, {
+          userId,
+          sessionId,
+          issuedRefreshTokenId: null,
+          parentRefreshTokenId: null,
+        })
       : null,
   };
 }
@@ -47,15 +57,30 @@ export async function createNewAndDeleteExistingSession(
 export async function generateTokensForSession(
   ctx: MutationCtx,
   config: ConvexAuthConfig,
-  userId: GenericId<"users">,
-  sessionId: GenericId<"authSessions">,
+  args: {
+    userId: GenericId<"users">;
+    sessionId: GenericId<"authSessions">;
+    issuedRefreshTokenId: GenericId<"authRefreshTokens"> | null;
+    parentRefreshTokenId: GenericId<"authRefreshTokens"> | null;
+  },
 ) {
-  const ids = { userId, sessionId };
+  const ids = { userId: args.userId, sessionId: args.sessionId };
+  const refreshTokenId =
+    args.issuedRefreshTokenId ??
+    (await createRefreshToken(
+      ctx,
+      config,
+      args.sessionId,
+      args.parentRefreshTokenId,
+    ));
   const result = {
     token: await generateToken(ids, config),
-    refreshToken: await createRefreshToken(ctx, sessionId, config),
+    refreshToken: formatRefreshToken(refreshTokenId, args.sessionId),
   };
-  logWithLevel(LOG_LEVELS.DEBUG, "Generated tokens for session:", result);
+  logWithLevel(
+    LOG_LEVELS.DEBUG,
+    `Generated token ${maybeRedact(result.token)} and refresh token ${maybeRedact(refreshTokenId)} for session ${maybeRedact(args.sessionId)}`,
+  );
   return result;
 }
 
@@ -77,7 +102,7 @@ export async function deleteSession(
   session: Doc<"authSessions">,
 ) {
   await ctx.db.delete(session._id);
-  await deleteRefreshTokens(ctx, session._id, null);
+  await deleteAllRefreshTokens(ctx, session._id);
 }
 
 /**
