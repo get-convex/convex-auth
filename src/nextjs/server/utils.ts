@@ -13,8 +13,11 @@ export function jsonResponse(body: any) {
 export function setAuthCookies(
   response: NextResponse,
   tokens: { token: string; refreshToken: string } | null,
+  cookieConfig: {
+    maxAge: number | null;
+  },
 ) {
-  const responseCookies = getResponseCookies(response);
+  const responseCookies = getResponseCookies(response, cookieConfig);
   if (tokens === null) {
     responseCookies.token = null;
     responseCookies.refreshToken = null;

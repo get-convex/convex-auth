@@ -13,8 +13,9 @@ import {
 
 export async function proxyAuthActionToConvex(
   request: NextRequest,
-  options: { convexUrl?: string; verbose?: boolean },
+  options: { convexUrl?: string; verbose?: boolean; cookieMaxAge?: number },
 ) {
+  const cookieMaxAge = options?.cookieMaxAge ?? null;
   const verbose = options?.verbose ?? false;
   if (request.method !== "POST") {
     return new Response("Invalid method", { status: 405 });
