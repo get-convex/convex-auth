@@ -71,6 +71,7 @@
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
+    "@auth/core": "^0.31.0",
     "convex": "^1.14.4",
     "react": "^18.2.0"
   },
