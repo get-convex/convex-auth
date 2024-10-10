@@ -61,7 +61,6 @@
     }
   },
   "dependencies": {
-    "@auth/core": "^0.31.0",
     "arctic": "^1.2.0",
     "jose": "^5.2.2",
     "jwt-decode": "^4.0.0",
@@ -71,7 +70,7 @@
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
-    "@auth/core": "^0.31.0",
+    "@auth/core": "^0.36.0",
     "convex": "^1.14.4",
     "react": "^18.2.0"
   },
