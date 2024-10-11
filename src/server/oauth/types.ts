@@ -11,18 +11,18 @@ export type InternalProvider<T extends ConvexAuthProviderType> = any;
 
 /** @internal */
 export interface InternalOptions<TProviderType extends ConvexAuthProviderType> {
-  providers: InternalProvider<TProviderType>[];
-  url: URL;
+  // providers: InternalProvider<TProviderType>[];
+  // url: URL;
   // ConvexAuth: omit this option for now
   // action: AuthAction;
   provider: InternalProvider<TProviderType>;
-  csrfToken?: string;
+  // csrfToken?: string;
   /**
    * `true` if the [Double-submit CSRF check](https://owasp.org/www-chapter-london/assets/slides/David_Johansson-Double_Defeat_of_Double-Submit_Cookie.pdf) was succesful
    * or [`skipCSRFCheck`](https://authjs.dev/reference/core#skipcsrfcheck) was enabled.
    */
-  csrfTokenVerified?: boolean;
-  secret: string | string[];
+  // csrfTokenVerified?: boolean;
+  // secret: string | string[];
   // ConvexAuth: omit the following options for now
   //   theme: Theme;
   //   debug: boolean;
