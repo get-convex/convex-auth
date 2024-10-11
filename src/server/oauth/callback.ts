@@ -1,25 +1,14 @@
 // This maps to packages/core/src/lib/actions/callback/oauth/callback.ts in the @auth/core package (commit 5af1f30a32e64591abc50ae4d2dba4682e525431)
 
-import * as checks from "./checks.js";
+import * as checks from "./checks";
 import * as o from "oauth4webapi";
-import {
-  OAuthCallbackError,
-  OAuthProfileParseError,
-} from "../../../../errors.js";
-
-import type {
-  Account,
-  InternalOptions,
-  LoggerInstance,
-  Profile,
-  RequestInternal,
-  TokenSet,
-  User,
-} from "../../../../types.js";
-import { type OAuthConfigInternal } from "../../../../providers/index.js";
-import type { Cookie } from "../../../utils/cookie.js";
-import { isOIDCProvider } from "../../../utils/providers.js";
-import { fetchOpt } from "../../../utils/custom-fetch.js";
+import { InternalOptions } from "./types.js";
+import { fetchOpt } from "./lib/utils/customFetch.js";
+import { Cookie } from "@auth/core/lib/utils/cookie.js";
+import { logWithLevel } from "../implementation/utils.js";
+import { requireEnv } from "../utils.js";
+import { Account, Profile, TokenSet } from "@auth/core/types.js";
+import { isOIDCProvider } from "./lib/utils/providers.js";
 
 function formUrlEncode(token: string) {
   return encodeURIComponent(token).replace(/%20/g, "+");
@@ -46,51 +35,46 @@ function clientSecretBasic(clientId: string, clientSecret: string) {
  * we fetch it anyway. This is because we always want a user profile.
  */
 export async function handleOAuth(
-  params: RequestInternal["query"],
-  cookies: RequestInternal["cookies"],
+  // ConvexAuth: `params` is a Record<string, string> instead of RequestInternal["query"]
+  params: Record<string, string>,
+  // ConvexAuth: `cookies` is a Record<string, string | undefined> instead of RequestInternal["cookies"]
+  cookies: Record<string, string | undefined>,
   options: InternalOptions<"oauth" | "oidc">,
 ) {
-  const { logger, provider } = options;
+  const { provider } = options;
 
-  let as: o.AuthorizationServer;
+  // ConvexAuth: The `token` property is not used here
+  const { userinfo } = provider;
+  // ConvexAuth: Logic for a fallback to authjs.dev is omitted
 
-  const { token, userinfo } = provider;
-  // Falls back to authjs.dev if the user only passed params
-  if (
-    (!token?.url || token.url.host === "authjs.dev") &&
-    (!userinfo?.url || userinfo.url.host === "authjs.dev")
-  ) {
-    // We assume that issuer is always defined as this has been asserted earlier
+  if (!provider.issuer) {
+    throw new Error(
+      `Provider \`${provider.id}\` is missing an \`issuer\` URL configuration. Consult the provider docs.`,
+    );
+  }
 
-    const issuer = new URL(provider.issuer!);
-    // TODO: move away from allowing insecure HTTP requests
-    const discoveryResponse = await o.discoveryRequest(issuer, {
-      ...fetchOpt(provider),
-      [o.allowInsecureRequests]: true,
-    });
-    const discoveredAs = await o.processDiscoveryResponse(
-      issuer,
-      discoveryResponse,
+  const issuer = new URL(provider.issuer);
+  // TODO: move away from allowing insecure HTTP requests
+  const discoveryResponse = await o.discoveryRequest(issuer, {
+    ...fetchOpt(provider),
+    [o.allowInsecureRequests]: true,
+  });
+  const discoveredAs = await o.processDiscoveryResponse(
+    issuer,
+    discoveryResponse,
+  );
+
+  if (!discoveredAs.token_endpoint)
+    throw new TypeError(
+      "TODO: Authorization server did not provide a token endpoint.",
     );
 
-    if (!discoveredAs.token_endpoint)
-      throw new TypeError(
-        "TODO: Authorization server did not provide a token endpoint.",
-      );
+  if (!discoveredAs.userinfo_endpoint)
+    throw new TypeError(
+      "TODO: Authorization server did not provide a userinfo endpoint.",
+    );
 
-    if (!discoveredAs.userinfo_endpoint)
-      throw new TypeError(
-        "TODO: Authorization server did not provide a userinfo endpoint.",
-      );
-
-    as = discoveredAs;
-  } else {
-    as = {
-      issuer: provider.issuer ?? "https://authjs.dev", // TODO: review fallback issuer
-      token_endpoint: token?.url.toString(),
-      userinfo_endpoint: userinfo?.url.toString(),
-    };
-  }
+  const as: o.AuthorizationServer = discoveredAs;
 
   const client: o.Client = {
     client_id: provider.clientId,
@@ -107,18 +91,18 @@ export async function handleOAuth(
       clientAuth = (_as, _client, _body, headers) => {
         headers.set(
           "authorization",
-          clientSecretBasic(provider.clientId, provider.clientSecret!),
+          clientSecretBasic(provider.clientId, provider.clientSecret),
         );
       };
       break;
     case "client_secret_post":
-      clientAuth = o.ClientSecretPost(provider.clientSecret!);
+      clientAuth = o.ClientSecretPost(provider.clientSecret);
       break;
     case "client_secret_jwt":
-      clientAuth = o.ClientSecretJwt(provider.clientSecret!);
+      clientAuth = o.ClientSecretJwt(provider.clientSecret);
       break;
     case "private_key_jwt":
-      clientAuth = o.PrivateKeyJwt(provider.token!.clientPrivateKey!, {
+      clientAuth = o.PrivateKeyJwt(provider.token!.clientPrivateKey, {
         // TODO: review in the next breaking change
         [o.modifyAssertion](_header, payload) {
           payload.aud = [as.issuer, as.token_endpoint!];
@@ -147,18 +131,20 @@ export async function handleOAuth(
         providerId: provider.id,
         ...Object.fromEntries(err.cause.entries()),
       };
-      logger.debug("OAuthCallbackError", cause);
-      throw new OAuthCallbackError("OAuth Provider returned an error", cause);
+      logWithLevel("DEBUG", "OAuthCallbackError", cause);
+      throw new Error("OAuth Provider returned an error", { cause });
     }
     throw err;
   }
 
   const codeVerifier = await checks.pkce.use(cookies, resCookies, options);
 
-  let redirect_uri = provider.callbackUrl;
-  if (!options.isOnRedirectProxy && provider.redirectProxyUrl) {
-    redirect_uri = provider.redirectProxyUrl;
-  }
+  // ConvexAuth: The logic for the callback URL is different from Auth.js
+  const redirect_uri = callbackUrl(provider.id);
+  // TODO(ConvexAuth): Support redirect proxy URLs
+  // if (!options.isOnRedirectProxy && provider.redirectProxyUrl) {
+  //   redirect_uri = provider.redirectProxyUrl;
+  // }
 
   let codeGrantResponse = await o.authorizationCodeGrantRequest(
     as,
@@ -187,13 +173,17 @@ export async function handleOAuth(
 
   let profile: Profile = {};
 
+  // ConvexAuth: We use the value of the nonce later, aside from feeding it into the
+  // `processAuthorizationCodeResponse` function.
+  const nonce = await checks.nonce.use(cookies, resCookies, options);
+
   const isOidc = isOIDCProvider(provider);
   const processedCodeResponse = await o.processAuthorizationCodeResponse(
     as,
     client,
     codeGrantResponse,
     {
-      expectedNonce: await checks.nonce.use(cookies, resCookies, options),
+      expectedNonce: nonce,
       requireIdToken: isOidc,
     },
   );
@@ -201,7 +191,14 @@ export async function handleOAuth(
   const tokens: TokenSet & Pick<Account, "expires_at"> = processedCodeResponse;
 
   if (isOidc) {
-    const idTokenClaims = o.getValidatedIdTokenClaims(processedCodeResponse)!;
+    // ConvexAuth: the next few lines are changed slightly to make TypeScript happy
+    const idTokenClaimsOrUndefined = o.getValidatedIdTokenClaims(
+      processedCodeResponse,
+    );
+    if (idTokenClaimsOrUndefined === undefined) {
+      throw new Error("ID Token claims are missing");
+    }
+    const idTokenClaims = idTokenClaimsOrUndefined;
     profile = idTokenClaims;
 
     if (provider.idToken === false) {
@@ -245,54 +242,35 @@ export async function handleOAuth(
       Math.floor(Date.now() / 1000) + Number(tokens.expires_in);
   }
 
-  const profileResult = await getUserAndAccount(
-    profile,
-    provider,
-    tokens,
-    logger,
-  );
+  // ConvexAuth: The Auth.js code would handle user + account creation here, but for
+  // ConvexAuth we want to handle that in a Convex function. Instead, we return the
+  // information needed for the mutation.
 
-  return { ...profileResult, profile, cookies: resCookies };
+  return {
+    profile,
+    tokens,
+    cookies: resCookies,
+    signature: getAuthorizationSignature({ codeVerifier, state, nonce }),
+  };
 }
 
-/**
- * Returns the user and account that is going to be created in the database.
- * @internal
- */
-export async function getUserAndAccount(
-  OAuthProfile: Profile,
-  provider: OAuthConfigInternal<any>,
-  tokens: TokenSet,
-  logger: LoggerInstance,
-) {
-  try {
-    const userFromProfile = await provider.profile(OAuthProfile, tokens);
-    const user = {
-      ...userFromProfile,
-      id: crypto.randomUUID(),
-      email: userFromProfile.email?.toLowerCase(),
-    } satisfies User;
+// ConvexAuth: The logic for the callback URL is different from Auth.js
+function callbackUrl(providerId: string) {
+  return requireEnv("CONVEX_SITE_URL") + "/api/auth/callback/" + providerId;
+}
 
-    return {
-      user,
-      account: {
-        ...tokens,
-        provider: provider.id,
-        type: provider.type,
-        providerAccountId: userFromProfile.id ?? crypto.randomUUID(),
-      },
-    };
-  } catch (e) {
-    // If we didn't get a response either there was a problem with the provider
-    // response *or* the user cancelled the action with the provider.
-    //
-    // Unfortunately, we can't tell which - at least not in a way that works for
-    // all providers, so we return an empty object; the user should then be
-    // redirected back to the sign up page. We log the error to help developers
-    // who might be trying to debug this when configuring a new provider.
-    logger.debug("getProfile error details", OAuthProfile);
-    logger.error(
-      new OAuthProfileParseError(e as Error, { provider: provider.id }),
-    );
-  }
+// ConvexAuth: This is a ConvexAuth specific function that produces a string that the
+// Convex functions will validate
+function getAuthorizationSignature({
+  codeVerifier,
+  state,
+  nonce,
+}: {
+  codeVerifier?: string;
+  state?: string;
+  nonce?: string;
+}) {
+  return [codeVerifier, state, nonce]
+    .filter((param) => param !== undefined)
+    .join(" ");
 }
