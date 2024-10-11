@@ -1,3 +1,5 @@
+// This maps to packages/core/src/lib/actions/callback/oauth/checks.ts in the @auth/core package (commit 5af1f30a32e64591abc50ae4d2dba4682e525431)
+
 import * as o from "oauth4webapi";
 import { InvalidCheck } from "../../../../errors.js";
 
