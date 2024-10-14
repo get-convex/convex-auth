@@ -6,9 +6,9 @@ import { InternalOptions } from "./types.js";
 import { fetchOpt } from "./lib/utils/customFetch.js";
 import { Cookie } from "@auth/core/lib/utils/cookie.js";
 import { logWithLevel } from "../implementation/utils.js";
-import { requireEnv } from "../utils.js";
 import { Account, Profile, TokenSet } from "@auth/core/types.js";
 import { isOIDCProvider } from "./lib/utils/providers.js";
+import { callbackUrl, getAuthorizationSignature } from "./convexAuth.js";
 
 function formUrlEncode(token: string) {
   return encodeURIComponent(token).replace(/%20/g, "+");
@@ -252,25 +252,4 @@ export async function handleOAuth(
     cookies: resCookies,
     signature: getAuthorizationSignature({ codeVerifier, state, nonce }),
   };
-}
-
-// ConvexAuth: The logic for the callback URL is different from Auth.js
-function callbackUrl(providerId: string) {
-  return requireEnv("CONVEX_SITE_URL") + "/api/auth/callback/" + providerId;
-}
-
-// ConvexAuth: This is a ConvexAuth specific function that produces a string that the
-// Convex functions will validate
-function getAuthorizationSignature({
-  codeVerifier,
-  state,
-  nonce,
-}: {
-  codeVerifier?: string;
-  state?: string;
-  nonce?: string;
-}) {
-  return [codeVerifier, state, nonce]
-    .filter((param) => param !== undefined)
-    .join(" ");
 }
