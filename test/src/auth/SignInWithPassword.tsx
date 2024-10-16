@@ -18,7 +18,7 @@ export function SignInWithPassword({
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [color, setColor] = useState<string | undefined>();
+  const [color, setColor] = useState<string | null>(null);
   return (
     <form
       className="flex flex-col"
@@ -65,12 +65,18 @@ export function SignInWithPassword({
       />
       {flow === "signUp" && (
         <>
-          {color !== undefined && (
+          {color !== null && (
             <input name="favoriteColor" value={color} type="hidden" />
           )}
-          <label>Favorite Color</label>
+          <span>Favorite Color</span>
+          <div
+            style={{ backgroundColor: color ?? "transparent" }}
+            className="h-9 w-full mb-2 rounded-md border border-gray-800"
+          >
+            &nbsp;
+          </div>
           <HexColorPicker
-            color={color}
+            color={color ?? "#aabbcc"}
             onChange={setColor}
             className="mb-4 w-max"
           />

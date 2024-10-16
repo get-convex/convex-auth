@@ -32,11 +32,11 @@ export function UserMenu({
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>{children}</DropdownMenuLabel>
           {favoriteColor !== undefined && (
-            <DropdownMenuLabel>
-              Favorite color:{" "}
+            <DropdownMenuLabel className="flex items-center">
+              Favorite color:
               <div
                 style={{ backgroundColor: favoriteColor }}
-                className="inline-block w-4 h-4"
+                className="inline-block ml-1 w-5 h-5 border border-gray-800 rounded-sm"
               >
                 &nbsp;
               </div>
