@@ -35,7 +35,7 @@ export function Layout({
           {menu}
         </nav>
       </header>
-      <main className="flex grow flex-col overflow-hidden">{children}</main>
+      <main className="flex grow flex-col">{children}</main>
       <footer className="border-t hidden sm:block">
         <div className="container py-4 text-sm leading-loose">
           Built with ❤️ at{" "}

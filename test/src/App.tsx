@@ -13,7 +13,7 @@ export default function App() {
       menu={
         <>
           <Authenticated>
-            <UserMenu>
+            <UserMenu favoriteColor={user?.favoriteColor}>
               {user?.name ?? user?.email ?? user?.phone ?? "Anonymous"}
             </UserMenu>
           </Authenticated>

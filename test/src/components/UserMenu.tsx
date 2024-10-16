@@ -12,7 +12,13 @@ import { PersonIcon } from "@radix-ui/react-icons";
 import { ReactNode } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 
-export function UserMenu({ children }: { children: ReactNode }) {
+export function UserMenu({
+  favoriteColor,
+  children,
+}: {
+  favoriteColor: string | undefined;
+  children: ReactNode;
+}) {
   return (
     <div className="flex items-center gap-2 text-sm font-medium">
       {children}
@@ -25,6 +31,17 @@ export function UserMenu({ children }: { children: ReactNode }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>{children}</DropdownMenuLabel>
+          {favoriteColor !== undefined && (
+            <DropdownMenuLabel>
+              Favorite color:{" "}
+              <div
+                style={{ backgroundColor: favoriteColor }}
+                className="inline-block w-4 h-4"
+              >
+                &nbsp;
+              </div>
+            </DropdownMenuLabel>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="flex items-center gap-2 py-0 font-normal">
             Theme

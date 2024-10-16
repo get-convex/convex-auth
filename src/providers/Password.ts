@@ -107,9 +107,14 @@ export function Password<DataModel extends GenericDataModel>(
   return ConvexCredentials<DataModel>({
     id: "password",
     authorize: async (params, ctx) => {
+      const flow = params.flow as string;
+      if (flow === "signUp" || flow === "reset-verification") {
+        enforcePasswordRequirements(
+          (flow === "signUp" ? params.password : params.newPassword) as string,
+        );
+      }
       const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
       const { email } = profile;
-      const flow = params.flow as string;
       const secret = params.password as string;
       let account: GenericDoc<DataModel, "authAccounts">;
       let user: GenericDoc<DataModel, "users">;
@@ -216,16 +221,13 @@ export function Password<DataModel extends GenericDataModel>(
   });
 }
 
-function defaultProfile(params: Record<string, unknown>) {
-  const flow = params.flow as string;
-  if (flow === "signUp" || flow === "reset-verification") {
-    const password = (
-      flow === "signUp" ? params.password : params.newPassword
-    ) as string;
-    if (!password || password.length < 8) {
-      throw new Error("Invalid password");
-    }
+function enforcePasswordRequirements(password: string) {
+  if (!password || password.length < 8) {
+    throw new Error("Invalid password");
   }
+}
+
+function defaultProfile(params: Record<string, unknown>) {
   return {
     email: params.email as string,
   };

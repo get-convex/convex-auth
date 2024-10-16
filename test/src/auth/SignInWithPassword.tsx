@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
+import { HexColorPicker } from "react-colorful";
 
 export function SignInWithPassword({
   provider,
@@ -17,6 +18,7 @@ export function SignInWithPassword({
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [color, setColor] = useState<string | undefined>();
   return (
     <form
       className="flex flex-col"
@@ -61,6 +63,19 @@ export function SignInWithPassword({
         className="mb-4 "
         autoComplete={flow === "signIn" ? "current-password" : "new-password"}
       />
+      {flow === "signUp" && (
+        <>
+          {color !== undefined && (
+            <input name="favoriteColor" value={color} type="hidden" />
+          )}
+          <label>Favorite Color</label>
+          <HexColorPicker
+            color={color}
+            onChange={setColor}
+            className="mb-4 w-max"
+          />
+        </>
+      )}
       <input name="flow" value={flow} type="hidden" />
       <Button type="submit" disabled={submitting}>
         {flow === "signIn" ? "Sign in" : "Sign up"}
