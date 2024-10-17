@@ -50,7 +50,7 @@
     "@vitest/coverage-v8": "^1.6.0",
     "autoprefixer": "^10.4.19",
     "cheerio": "^1.0.0-rc.12",
-    "convex-test": "^0.0.21",
+    "convex-test": "^0.0.32",
     "eslint": "^8.57.0",
     "eslint-plugin-no-only-tests": "^3.1.0",
     "eslint-plugin-react-hooks": "^4.6.0",

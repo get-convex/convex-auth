@@ -56,17 +56,20 @@ export function logWithLevel(level: LogLevel, ...args: unknown[]) {
   }
 }
 
+const UNREDACTED_LENGTH = 5;
 export function maybeRedact(value: string) {
   if (value === "") {
     return "";
   }
   const shouldRedact = process.env.AUTH_LOG_SECRETS !== "true";
   if (shouldRedact) {
-    if (value.length < 6) {
+    if (value.length < UNREDACTED_LENGTH * 2) {
       return "<redacted>";
     }
     return (
-      value.substring(0, 3) + "<redacted>" + value.substring(value.length - 3)
+      value.substring(0, UNREDACTED_LENGTH) +
+      "<redacted>" +
+      value.substring(value.length - UNREDACTED_LENGTH)
     );
   } else {
     return value;
