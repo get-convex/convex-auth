@@ -2,10 +2,14 @@ import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 export function getRequestCookies() {
+  // maxAge doesn't matter for request cookies since they're only relevant for the
+  // length of the request
   return getCookieStore(headers(), cookies(), { maxAge: null });
 }
 
 export function getRequestCookiesInMiddleware(request: NextRequest) {
+  // maxAge doesn't matter for request cookies since they're only relevant for the
+  // length of the request
   return getCookieStore(headers(), request.cookies, { maxAge: null });
 }
 

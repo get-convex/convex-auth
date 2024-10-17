@@ -76,6 +76,24 @@ middleware:
 
   You can inline this code if you need more control over the target URL.
 
+## Configure cookie expiration
+
+You can configure the expiration of the authentication cookie by passing a
+`cookieConfig` option to `convexAuthNextjsMiddleware`.
+
+```ts filename="middleware.ts"
+export default convexAuthNextjsMiddleware(
+  (request, { convexAuth }) => {
+    // ...
+  },
+  { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } },
+); // 30 days
+```
+
+If you don't set this option, the cookie will be considered a "session cookie"
+and be deleted when the browser session ends, which depends from browser to
+browser.
+
 ## Preloading and loading data
 
 To preload or load data on your Next.js server from your Convex backend, you can

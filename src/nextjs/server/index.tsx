@@ -147,6 +147,15 @@ export function convexAuthNextjsMiddleware(
      */
     apiRoute?: string;
     /**
+     * The cookie config to use for the auth cookies.
+     *
+     * `maxAge` is the number of seconds the cookie will be valid for. If this is not set, the cookie will be a session cookie.
+     *
+     * See [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#defining_the_lifetime_of_a_cookie)
+     * for more information.
+     */
+    cookieConfig?: { maxAge: number | null };
+    /**
      * Turn on debugging logs.
      */
     verbose?: boolean;
@@ -170,7 +179,11 @@ export function convexAuthNextjsMiddleware(
       verbose,
     );
     // Refresh tokens, handle code query param
-    const authResult = await handleAuthenticationInRequest(request, verbose);
+    const authResult = await handleAuthenticationInRequest(
+      request,
+      verbose,
+      options.cookieConfig ?? { maxAge: null },
+    );
 
     // If redirecting, proceed, the middleware will run again on next request
     if (authResult.kind === "redirect") {
@@ -223,7 +236,11 @@ export function convexAuthNextjsMiddleware(
       authResult.refreshTokens !== undefined
     ) {
       const nextResponse = NextResponse.next(response);
-      setAuthCookies(nextResponse, authResult.refreshTokens);
+      setAuthCookies(
+        nextResponse,
+        authResult.refreshTokens,
+        options.cookieConfig ?? { maxAge: null },
+      );
       return nextResponse;
     }
 
