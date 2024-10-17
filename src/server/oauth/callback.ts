@@ -8,7 +8,11 @@ import { Cookie } from "@auth/core/lib/utils/cookie.js";
 import { logWithLevel } from "../implementation/utils.js";
 import { Account, Profile, TokenSet } from "@auth/core/types.js";
 import { isOIDCProvider } from "./lib/utils/providers.js";
-import { callbackUrl, getAuthorizationSignature } from "./convexAuth.js";
+import {
+  callbackUrl,
+  getAuthorizationSignature,
+  getConfig,
+} from "./convexAuth.js";
 
 function formUrlEncode(token: string) {
   return encodeURIComponent(token).replace(/%20/g, "+");
@@ -45,36 +49,7 @@ export async function handleOAuth(
 
   // ConvexAuth: The `token` property is not used here
   const { userinfo } = provider;
-  // ConvexAuth: Logic for a fallback to authjs.dev is omitted
-
-  if (!provider.issuer) {
-    throw new Error(
-      `Provider \`${provider.id}\` is missing an \`issuer\` URL configuration. Consult the provider docs.`,
-    );
-  }
-
-  const issuer = new URL(provider.issuer);
-  // TODO: move away from allowing insecure HTTP requests
-  const discoveryResponse = await o.discoveryRequest(issuer, {
-    ...fetchOpt(provider),
-    [o.allowInsecureRequests]: true,
-  });
-  const discoveredAs = await o.processDiscoveryResponse(
-    issuer,
-    discoveryResponse,
-  );
-
-  if (!discoveredAs.token_endpoint)
-    throw new TypeError(
-      "TODO: Authorization server did not provide a token endpoint.",
-    );
-
-  if (!discoveredAs.userinfo_endpoint)
-    throw new TypeError(
-      "TODO: Authorization server did not provide a userinfo endpoint.",
-    );
-
-  const as: o.AuthorizationServer = discoveredAs;
+  const { as } = await getConfig(provider);
 
   const client: o.Client = {
     client_id: provider.clientId,

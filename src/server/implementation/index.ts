@@ -12,9 +12,8 @@ import {
 } from "convex/server";
 import { ConvexError, GenericId, Value, v } from "convex/values";
 import { parse as parseCookies, serialize as serializeCookie } from "cookie";
-import { redirectToParamCookie, useRedirectToParam } from "../checks.js";
+import { redirectToParamCookie, useRedirectToParam } from "../cookies.js";
 import { FunctionReferenceFromExport, GenericDoc } from "../convex_types.js";
-import { getAuthorizationURL, handleOAuthCallback } from "../oauth.js";
 import {
   configDefaults,
   listAvailableProviders,
@@ -48,6 +47,9 @@ import {
 } from "./mutations/index.js";
 import { signInImpl } from "./signIn.js";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
+import { getAuthorizationUrl } from "../oauth/authorizationUrl.js";
+import { defaultCookiesOptions, jwtOptions } from "../oauth/convexAuth.js";
+import { handleOAuth } from "../oauth/callback.js";
 export { getAuthSessionId } from "./sessions.js";
 
 /**
@@ -232,7 +234,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
               ) as OAuthConfig<any>;
 
               const { redirect, cookies, signature } =
-                await getAuthorizationURL(provider as any);
+                await getAuthorizationUrl(
+                  Object.fromEntries(url.searchParams.entries()),
+                  {
+                    provider: provider as any,
+                    jwt: jwtOptions(config.jwt?.durationMs ?? null),
+                    cookies: defaultCookiesOptions(providerId),
+                  },
+                );
 
               await callVerifierSignature(ctx, {
                 verifier,
@@ -282,10 +291,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
             });
 
             try {
-              const { profile, tokens, signature } = await handleOAuthCallback(
-                provider as any,
-                request,
+              const { profile, tokens, signature } = await handleOAuth(
+                Object.fromEntries(url.searchParams.entries()),
                 cookies,
+                {
+                  provider: provider as any,
+                  jwt: jwtOptions(config.jwt?.durationMs ?? null),
+                  cookies: defaultCookiesOptions(provider.id),
+                },
               );
 
               const { id, ...profileFromCallback } = await provider.profile!(
