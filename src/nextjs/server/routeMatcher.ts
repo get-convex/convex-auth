@@ -52,7 +52,10 @@ export type RouteMatcherParam =
  * predefined routes that can be passed in as the first argument.
  *
  * You can use glob patterns to match multiple routes or a function to match against the request object.
- * Path patterns and regular expressions are supported, for example: `['/foo', '/bar(.*)'] or `[/^\/foo\/.*$/]`
+ * Path patterns are supported, for example: `['/foo', '/bar{/*extra}'].
+ * 
+ * Note: regular expressions are not supported in path patterns.
+ * 
  * For more information, see: https://github.com/pillarjs/path-to-regexp
  */
 export const createRouteMatcher = (routes: RouteMatcherParam) => {
@@ -74,7 +77,7 @@ const precomputePathRegex = (patterns: Array<string | RegExp>) => {
 
 function pathStringToRegExp(path: string) {
   try {
-    return pathToRegexp(path);
+    return pathToRegexp(path).regexp;
   } catch (e: any) {
     throw new Error(
       `Invalid path: ${path}.\nConsult the documentation of path-to-regexp here: https://github.com/pillarjs/path-to-regexp\n${e.message}`,
