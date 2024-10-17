@@ -3,7 +3,7 @@
 import * as o from "oauth4webapi";
 
 // NOTE: We use the default JWT methods here because they encrypt/decrypt the payload, not just sign it.
-import { decode, encode } from "@auth/core/jwt.js";
+import { decode, encode } from "@auth/core/jwt";
 
 import type { InternalOptions } from "./types.js";
 import { Cookie } from "@auth/core/lib/utils/cookie.js";

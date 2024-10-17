@@ -3,7 +3,11 @@ import * as checks from "./checks.js";
 import * as o from "oauth4webapi";
 import { InternalOptions } from "./types.js";
 import { fetchOpt } from "./lib/utils/customFetch.js";
-import { callbackUrl } from "./convexAuth.js";
+import {
+  callbackUrl,
+  getAuthorizationSignature,
+  getConfig,
+} from "./convexAuth.js";
 import { Cookie } from "@auth/core/lib/utils/cookie.js";
 import { logWithLevel } from "../implementation/utils.js";
 
@@ -21,28 +25,15 @@ export async function getAuthorizationUrl(
 
   let url = provider.authorization?.url;
 
-  // ConvexAuth: Logic for a fallback to authjs.dev is omitted
-  if (provider.issuer === undefined) {
-    throw new Error(
-      `Provider \`${provider.id}\` is missing an \`issuer\` URL configuration. Consult the provider docs.`,
-    );
+  // ConvexAuth: ConvexAuth does slightly different logic to determine the authorization endpoint
+  const { as, authorization: authorizationEndpoint } =
+    await getConfig(provider);
+
+  if (!authorizationEndpoint) {
+    throw new TypeError("Could not determine the authorization endpoint.");
   }
 
-  const issuer = new URL(provider.issuer);
-  // TODO: move away from allowing insecure HTTP requests
-  const discoveryResponse = await o.discoveryRequest(issuer, {
-    ...fetchOpt(options.provider),
-    [o.allowInsecureRequests]: true,
-  });
-  const as = await o.processDiscoveryResponse(issuer, discoveryResponse);
-
-  if (!as.authorization_endpoint) {
-    throw new TypeError(
-      "Authorization server did not provide an authorization endpoint.",
-    );
-  }
-
-  url = new URL(as.authorization_endpoint);
+  url = new URL(authorizationEndpoint);
 
   const authParams = url.searchParams;
 
@@ -78,6 +69,8 @@ export async function getAuthorizationUrl(
     cookies.push(state.cookie);
   }
 
+  // ConvexAuth: We need to save the value of the codeVerifier.
+  let codeVerifier: string | undefined;
   if (provider.checks?.includes("pkce")) {
     if (as && !as.code_challenge_methods_supported?.includes("S256")) {
       // We assume S256 PKCE support, if the server does not advertise that,
@@ -88,6 +81,7 @@ export async function getAuthorizationUrl(
       authParams.set("code_challenge", value);
       authParams.set("code_challenge_method", "S256");
       cookies.push(cookie);
+      codeVerifier = value;
     }
   }
 
@@ -108,5 +102,12 @@ export async function getAuthorizationUrl(
     cookies,
     provider,
   });
-  return { redirect: url.toString(), cookies };
+
+  const convexAuthSignature = getAuthorizationSignature({
+    codeVerifier,
+    state: authParams.get("state") ?? undefined,
+    nonce: authParams.get("nonce") ?? undefined,
+  });
+
+  return { redirect: url.toString(), cookies, signature: convexAuthSignature };
 }

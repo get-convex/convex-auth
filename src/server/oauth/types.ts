@@ -1,6 +1,6 @@
 // This maps to packages/core/src/types.ts in the @auth/core package (commit 5af1f30a32e64591abc50ae4d2dba4682e525431).
 
-import { JWTOptions } from "@auth/core/jwt.js";
+import * as AuthCoreJwt from "@auth/core/jwt";
 import { CookieOption, CookiesOptions } from "@auth/core/types.js";
 
 export type ConvexAuthProviderType = "oauth" | "oidc";
@@ -8,6 +8,9 @@ export type ConvexAuthProviderType = "oauth" | "oidc";
 // ConvexAuth: Auth.js has a more complex type for this, but it's internal.
 // For now, just use `any` and accept the type unsafety.
 export type InternalProvider<T extends ConvexAuthProviderType> = any;
+
+// ConvexAuth: `secret` is internal to @auth/core, so we copy its type here
+export type JWTOptions = AuthCoreJwt.JWTOptions & { secret: string | string[] };
 
 /** @internal */
 export interface InternalOptions<TProviderType extends ConvexAuthProviderType> {
@@ -29,8 +32,7 @@ export interface InternalOptions<TProviderType extends ConvexAuthProviderType> {
   //   logger: LoggerInstance;
   //   session: NonNullable<Required<AuthConfig["session"]>>;
   //   pages: Partial<PagesOptions>;
-  // ConvexAuth: `secret` is internal to @auth/core, so we copy its type here
-  jwt: JWTOptions & { secret: string | string[] };
+  jwt: JWTOptions;
   //   events: NonNullable<AuthConfig["events"]>;
   //   adapter: Required<Adapter> | undefined;
   //   callbacks: NonNullable<Required<AuthConfig["callbacks"]>>;
