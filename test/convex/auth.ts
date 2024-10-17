@@ -11,6 +11,7 @@ import { TwilioVerify } from "./otp/TwilioVerify";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 // !publish: remove
 import { FakePhone } from "./otp/FakePhone";
+import { DataModel } from "./_generated/dataModel.js";
 
 export const { auth, signIn, signOut, store } = convexAuth({
   providers: [
@@ -33,7 +34,15 @@ export const { auth, signIn, signOut, store } = convexAuth({
     ResendOTP,
     TwilioVerify,
     TwilioOTP,
-    Password,
+    // Sample password auth with a custom parameter provided during sign-up flow.
+    Password<DataModel>({
+      profile(params, _) {
+        return {
+          email: params.email as string,
+          favoriteColor: params.favoriteColor as string,
+        };
+      },
+    }),
     Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),
     Password({
       id: "password-code",
