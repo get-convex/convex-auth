@@ -2,20 +2,32 @@ import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 export function getRequestCookies() {
-  return getCookieStore(headers(), cookies());
+  // maxAge doesn't matter for request cookies since they're only relevant for the
+  // length of the request
+  return getCookieStore(headers(), cookies(), { maxAge: null });
 }
 
 export function getRequestCookiesInMiddleware(request: NextRequest) {
-  return getCookieStore(headers(), request.cookies);
+  // maxAge doesn't matter for request cookies since they're only relevant for the
+  // length of the request
+  return getCookieStore(headers(), request.cookies, { maxAge: null });
 }
 
-export function getResponseCookies(response: NextResponse) {
-  return getCookieStore(headers(), response.cookies);
+export function getResponseCookies(
+  response: NextResponse,
+  cookieConfig: {
+    maxAge: number | null;
+  },
+) {
+  return getCookieStore(headers(), response.cookies, cookieConfig);
 }
 
 function getCookieStore(
   requestHeaders: ReturnType<typeof headers>,
   requestCookies: ReturnType<typeof cookies>,
+  cookieConfig: {
+    maxAge: number | null;
+  },
 ): {
   readonly token: string | null;
   readonly refreshToken: string | null;
@@ -24,6 +36,9 @@ function getCookieStore(
 function getCookieStore(
   headers: Headers,
   cookies: NextResponse["cookies"] | NextRequest["cookies"],
+  cookieConfig: {
+    maxAge: number | null;
+  },
 ): {
   token: string | null;
   refreshToken: string | null;
@@ -32,6 +47,9 @@ function getCookieStore(
 function getCookieStore(
   requestHeaders: ReturnType<typeof headers>,
   responseCookies: NextResponse["cookies"] | NextRequest["cookies"],
+  cookieConfig: {
+    maxAge: number | null;
+  },
 ) {
   const isLocalhost = /localhost:\d+/.test(requestHeaders.get("Host") ?? "");
   const prefix = isLocalhost ? "" : "__Host-";
@@ -41,7 +59,7 @@ function getCookieStore(
   function getValue(name: string) {
     return responseCookies.get(name)?.value ?? null;
   }
-  const cookieOptions = getCookieOptions(isLocalhost);
+  const cookieOptions = getCookieOptions(isLocalhost, cookieConfig);
   function setValue(name: string, value: string | null) {
     if (value === null) {
       // Only request cookies have a `size` property
@@ -52,6 +70,7 @@ function getCookieStore(
         // for why .delete({}) doesn't work:
         responseCookies.set(name, "", {
           ...cookieOptions,
+          maxAge: undefined,
           expires: 0,
         });
       }
@@ -81,7 +100,10 @@ function getCookieStore(
   };
 }
 
-function getCookieOptions(isLocalhost: boolean) {
+function getCookieOptions(
+  isLocalhost: boolean,
+  cookieConfig: { maxAge: number | null },
+) {
   // Safari does not send headers with `secure: true` on http:// domains including localhost,
   // so set `secure: false` (https://codedamn.com/news/web-development/safari-cookie-is-not-being-set)
   return {
@@ -89,5 +111,6 @@ function getCookieOptions(isLocalhost: boolean) {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    maxAge: cookieConfig.maxAge ?? undefined,
   } as const;
 }

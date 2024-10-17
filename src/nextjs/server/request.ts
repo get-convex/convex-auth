@@ -8,6 +8,7 @@ import { isCorsRequest, logVerbose, setAuthCookies } from "./utils.js";
 export async function handleAuthenticationInRequest(
   request: NextRequest,
   verbose: boolean,
+  cookieConfig: { maxAge: number | null },
 ): Promise<
   | { kind: "redirect"; response: NextResponse }
   | {
@@ -44,7 +45,7 @@ export async function handleAuthenticationInRequest(
         throw new Error("Invalid `signIn` action result for code exchange");
       }
       const response = NextResponse.redirect(redirectUrl);
-      setAuthCookies(response, result.tokens);
+      setAuthCookies(response, result.tokens, cookieConfig);
       logVerbose(
         `Successfully validated code, redirecting to ${redirectUrl.toString()} with auth cookies`,
         verbose,
@@ -57,7 +58,7 @@ export async function handleAuthenticationInRequest(
         verbose,
       );
       const response = NextResponse.redirect(redirectUrl);
-      setAuthCookies(response, null);
+      setAuthCookies(response, null, cookieConfig);
       return { kind: "redirect", response };
     }
   }
