@@ -65,3 +65,15 @@ export function logVerbose(message: string, verbose: boolean) {
     );
   }
 }
+
+export function getRedactedMessage(value: string) {
+  const length = 5;
+  if (value.length < length * 2) {
+    return "<redacted>";
+  }
+  return (
+    value.substring(0, length) +
+    "<redacted>" +
+    value.substring(value.length - length)
+  );
+}
