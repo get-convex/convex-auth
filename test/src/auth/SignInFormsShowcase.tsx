@@ -4,6 +4,7 @@ import { SignInFormEmailLink } from "@/auth/SignInFormEmailLink";
 import { SignInFormPassword } from "@/auth/SignInFormPassword";
 import { SignInFormPasswordAndResetViaCode } from "@/auth/SignInFormPasswordAndResetViaCode";
 import { SignInFormPasswordAndVerifyViaCode } from "@/auth/SignInFormPasswordAndVerifyViaCode";
+import { SignInFormPasswordAndCustomField } from "@/auth/SignInFormPasswordAndCustomField";
 import { SignInFormPhoneCode } from "@/auth/SignInFormPhoneCode";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -44,6 +45,7 @@ export function SignInFormsShowcase() {
         <Tabs defaultValue="basic" className="flex flex-col">
           <TabsList className="ml-auto mr-10 mb-7 opacity-60 overflow-x-scroll max-w-full justify-start">
             <TabsTrigger value="basic">Basic</TabsTrigger>
+            <TabsTrigger value="custom">Custom Sign Up</TabsTrigger>
             <TabsTrigger value="password reset">Password Reset</TabsTrigger>
             <TabsTrigger value="email verification">
               OAuth + Email Verification
@@ -52,6 +54,10 @@ export function SignInFormsShowcase() {
           <TabsContent value="basic">
             {/* Simplest email + password, no recovery */}
             <SignInFormPassword />
+          </TabsContent>
+          <TabsContent value="custom">
+            {/* Email + password and custom field in sign up flow */}
+            <SignInFormPasswordAndCustomField />
           </TabsContent>
           <TabsContent value="password reset">
             {/* Email + password, plus password reset via OTP */}

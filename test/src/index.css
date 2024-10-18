@@ -58,4 +58,8 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  form .react-colorful {
+    @apply w-full
+  }
 }
