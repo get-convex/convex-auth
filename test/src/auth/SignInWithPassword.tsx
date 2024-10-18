@@ -3,22 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
-import { HexColorPicker } from "react-colorful";
 
 export function SignInWithPassword({
   provider,
   handleSent,
   handlePasswordReset,
+  customSignUp: customSignUp,
 }: {
   provider?: string;
   handleSent?: (email: string) => void;
   handlePasswordReset?: () => void;
+  customSignUp?: React.ReactNode;
 }) {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [color, setColor] = useState<string | null>(null);
   return (
     <form
       className="flex flex-col"
@@ -63,25 +63,7 @@ export function SignInWithPassword({
         className="mb-4 "
         autoComplete={flow === "signIn" ? "current-password" : "new-password"}
       />
-      {flow === "signUp" && (
-        <>
-          {color !== null && (
-            <input name="favoriteColor" value={color} type="hidden" />
-          )}
-          <span>Favorite Color</span>
-          <div
-            style={{ backgroundColor: color ?? "transparent" }}
-            className="h-9 w-full mb-2 rounded-md border border-gray-800"
-          >
-            &nbsp;
-          </div>
-          <HexColorPicker
-            color={color ?? "#aabbcc"}
-            onChange={setColor}
-            className="mb-4 w-max"
-          />
-        </>
-      )}
+      {flow === "signUp" && customSignUp}
       <input name="flow" value={flow} type="hidden" />
       <Button type="submit" disabled={submitting}>
         {flow === "signIn" ? "Sign in" : "Sign up"}
