@@ -50,10 +50,12 @@ export const parseRefreshToken = (
 };
 
 /**
- * Mark all refresh tokens for a session as invalid. They will still be usable
- * for 10 seconds (the length of the reuse window).
+ * Mark all refresh tokens descending from the given refresh token as invalid immediately.
+ * This is used when we detect an invalid use of a refresh token, and want to revoke
+ * the entire tree.
+ *
  * @param ctx
- * @param sessionId
+ * @param refreshToken
  */
 export async function invalidateRefreshTokensInSubtree(
   ctx: MutationCtx,
@@ -144,17 +146,15 @@ export async function refreshTokenIfValid(
  *
  * @param ctx
  * @param sessionId
- * @returns
  */
 export async function loadActiveRefreshToken(
   ctx: QueryCtx,
   sessionId: GenericId<"authSessions">,
 ) {
-  const refreshTokenDoc = await ctx.db
+  return ctx.db
     .query("authRefreshTokens")
     .withIndex("sessionId", (q) => q.eq("sessionId", sessionId))
     .filter((q) => q.eq(q.field("firstUsedTime"), undefined))
     .order("desc")
     .first();
-  return refreshTokenDoc;
 }
