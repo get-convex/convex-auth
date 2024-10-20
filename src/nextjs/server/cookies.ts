@@ -51,7 +51,9 @@ function getCookieStore(
     maxAge: number | null;
   },
 ) {
-  const isLocalhost = /localhost:\d+/.test(requestHeaders.get("Host") ?? "");
+  const isLocalhost = /(localhost|127\.0\.0\.1):\d+/.test(
+    requestHeaders.get("Host") ?? "",
+  );
   const prefix = isLocalhost ? "" : "__Host-";
   const tokenName = prefix + "__convexAuthJWT";
   const refreshTokenName = prefix + "__convexAuthRefreshToken";
