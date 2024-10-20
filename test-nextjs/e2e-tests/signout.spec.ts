@@ -1,9 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("signout works", async ({ page }) => {
-  await page.goto("/signin");
-
-  // await page.getByRole("link").getByText("Get Started").first().click();
+  await page.goto("/signin-test");
 
   await page.getByLabel("Secret").fill(process.env.AUTH_E2E_TEST_SECRET!);
 

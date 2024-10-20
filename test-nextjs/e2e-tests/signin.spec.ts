@@ -1,9 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("signin fails correctly", async ({ page }) => {
-  await page.goto("/");
-
-  await page.getByRole("link").getByText("Get Started").first().click();
+  await page.goto("/signin-test");
 
   await page
     .getByLabel("Secret")
