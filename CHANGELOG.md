@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.73
+
+- Update implementation of refresh tokens reuse **Note:** After upgrading to
+  this version, downgrading will require migrating the `authRefreshTokens` table
+  to drop the `parentRefreshTokenId` field.
+- Add configuration for cookie age in Next.js middleware
+
 ## 0.0.72
 
 - Upgrade + pin `@auth/core` to 0.36.0 to avoid issues with mismatched types
