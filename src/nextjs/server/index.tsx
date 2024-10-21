@@ -212,7 +212,9 @@ export function convexAuthNextjsMiddleware(
     if (handler === undefined) {
       logVerbose(`No custom handler`, verbose);
       response = NextResponse.next({
-        headers: request.headers,
+        request: {
+          headers: request.headers,
+        },
       });
     } else {
       // Call the custom handler
@@ -232,7 +234,9 @@ export function convexAuthNextjsMiddleware(
           },
         })) ??
         NextResponse.next({
-          headers: request.headers,
+          request: {
+            headers: request.headers,
+          },
         });
     }
 
