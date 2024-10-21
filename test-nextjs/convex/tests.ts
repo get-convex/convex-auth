@@ -19,7 +19,7 @@ export const init = internalAction({
   handler: async (ctx) => {
     const existingUser = await ctx.runQuery(internal.tests.getTestUser);
     if (existingUser !== null) {
-      console.log("Test user already exists, skipping creation");
+      console.info("Test user already exists, skipping creation");
       return;
     }
     await createAccount(ctx, {
@@ -27,6 +27,6 @@ export const init = internalAction({
       account: { id: TEST_USER_EMAIL },
       profile: { email: TEST_USER_EMAIL },
     });
-    console.log("Test user created");
+    console.info("Test user created");
   },
 });

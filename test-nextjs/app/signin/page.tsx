@@ -47,16 +47,13 @@ function SignInWithSecret() {
     <form
       className="flex flex-col gap-2 mt-8"
       onSubmit={(event) => {
-        console.log("signin with secret");
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         signIn("secret", formData)
           .then(() => {
-            console.log("signin with secret success");
             router.push("/product");
           })
           .catch(() => {
-            console.log("signin with secret failure");
             window.alert("Invalid secret");
           });
       }}

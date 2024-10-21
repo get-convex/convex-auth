@@ -10,11 +10,6 @@ export const { auth, signIn, signOut, store } = convexAuth({
       id: "secret",
       authorize: async (params, ctx) => {
         const secret = params.secret;
-        console.log("secret", secret);
-        console.log(
-          "process.env.AUTH_E2E_TEST_SECRET",
-          process.env.AUTH_E2E_TEST_SECRET,
-        );
         if (
           process.env.AUTH_E2E_TEST_SECRET &&
           secret === process.env.AUTH_E2E_TEST_SECRET
