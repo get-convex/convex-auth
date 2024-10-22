@@ -34,13 +34,28 @@ export const { auth, signIn, signOut, store } = convexAuth({
     ResendOTP,
     TwilioVerify,
     TwilioOTP,
-    // Sample password auth with a custom parameter provided during sign-up flow.
+    Password,
+    // Sample password auth with a custom parameter provided during sign-up
+    // flow and custom password validation requirements (at least six chars
+    // with at least one number, upper and lower case chars).
     Password<DataModel>({
+      id: "password-custom",
       profile(params, _) {
         return {
           email: params.email as string,
           favoriteColor: params.favoriteColor as string,
         };
+      },
+      validate: (password?: string) => {
+        if (
+          !password ||
+          password.length < 6 ||
+          !/\d/.test(password) ||
+          !/[a-z]/.test(password) ||
+          !/[A-Z]/.test(password)
+        ) {
+          throw new Error("Invalid password.");
+        }
       },
     }),
     Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),

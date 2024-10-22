@@ -75,6 +75,18 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
     email: string;
   };
   /**
+   * Performs custom validation on password provided during sign up or reset.
+   *
+   * Otherwise the default validation is used (password is not empty and
+   * at least 8 characters in length).
+   *
+   * If the provided password is invalid, implementations must throw an Error.
+   *
+   * @param password the password supplied during "signUp" or
+   *                 "reset-verification" flows.
+   */
+  validate?: (password?: string) => void;
+  /**
    * Provide hashing and verification functions if you want to control
    * how passwords are hashed.
    */
@@ -109,9 +121,14 @@ export function Password<DataModel extends GenericDataModel>(
     authorize: async (params, ctx) => {
       const flow = params.flow as string;
       if (flow === "signUp" || flow === "reset-verification") {
-        enforcePasswordRequirements(
-          (flow === "signUp" ? params.password : params.newPassword) as string,
-        );
+        const password = (
+          flow === "signUp" ? params.password : params.newPassword
+        ) as string;
+        if (config.validate !== undefined) {
+          config.validate(password);
+        } else {
+          enforcePasswordRequirements(password);
+        }
       }
       const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
       const { email } = profile;

@@ -9,11 +9,13 @@ export function SignInWithPassword({
   handleSent,
   handlePasswordReset,
   customSignUp: customSignUp,
+  passwordRequirements,
 }: {
   provider?: string;
   handleSent?: (email: string) => void;
   handlePasswordReset?: () => void;
   customSignUp?: React.ReactNode;
+  passwordRequirements?: string;
 }) {
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
@@ -60,12 +62,16 @@ export function SignInWithPassword({
         type="password"
         name="password"
         id="password"
-        className="mb-4 "
         autoComplete={flow === "signIn" ? "current-password" : "new-password"}
       />
+      {flow === "signUp" && passwordRequirements !== null && (
+        <span className="text-gray-500 font-thin text-sm">
+          {passwordRequirements}
+        </span>
+      )}
       {flow === "signUp" && customSignUp}
       <input name="flow" value={flow} type="hidden" />
-      <Button type="submit" disabled={submitting}>
+      <Button type="submit" disabled={submitting} className="mt-4">
         {flow === "signIn" ? "Sign in" : "Sign up"}
       </Button>
       <Button

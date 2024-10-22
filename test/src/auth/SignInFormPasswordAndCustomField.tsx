@@ -11,12 +11,14 @@ export function SignInFormPasswordAndCustomField() {
         Sign in or create an account
       </h2>
       <SignInWithPassword
+        provider="password-custom"
+        passwordRequirements="6 or more characters with uppercase, lowercase and digits"
         customSignUp={
           <>
             {color !== null && (
               <input name="favoriteColor" value={color} type="hidden" />
             )}
-            <span>Favorite Color</span>
+            <span className="mt-4">Favorite Color</span>
             <div
               style={{ backgroundColor: color ?? "transparent" }}
               className="h-9 w-full mb-2 rounded-md border border-gray-800"
