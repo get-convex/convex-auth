@@ -47,7 +47,7 @@ export type RouteMatcherParam =
  * predefined routes that can be passed in as the first argument.
  *
  * You can use glob patterns to match multiple routes or a function to match against the request object.
- * Path patterns are supported, for example: `['/foo', '/bar{/*extra}'].
+ * Path patterns are supported, for example: `['/foo', '/bar{/*extra}']`.
  *
  * Note: regular expressions are not supported in path patterns.
  *
