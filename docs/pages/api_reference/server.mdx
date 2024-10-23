@@ -925,7 +925,7 @@ the session ID or `null` if the client isn't authenticated
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/sessions.ts:106](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/sessions.ts#L106)
+[src/server/implementation/sessions.ts:131](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/sessions.ts#L131)
 
 ***
 
@@ -978,10 +978,15 @@ A single user can have multiple accounts linked.
 
 
 Refresh tokens.
-Each session has only a single refresh token
-valid at a time. Refresh tokens are rotated
-and reuse is not allowed, except for within
-a 10 second window.
+Refresh tokens are generally meant to be used once, to be exchanged for another
+refresh token and a JWT access token, but with a few exceptions:
+- The "active refresh token" is the most recently created refresh token that has
+  not been used yet. The parent of the active refresh token can always be used to
+  obtain the active refresh token.
+- A refresh token can be used within a 10 second window ("reuse window") to
+  obtain a new refresh token.
+- On any invalid use of a refresh token, the token itself and all its descendants
+  are invalidated.
 
 #### authVerificationCodes
 
