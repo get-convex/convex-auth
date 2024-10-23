@@ -85,7 +85,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
    * @param password the password supplied during "signUp" or
    *                 "reset-verification" flows.
    */
-  validate?: (password?: string) => void;
+  validatePasswordRequirements?: (password: string) => void;
   /**
    * Provide hashing and verification functions if you want to control
    * how passwords are hashed.
@@ -120,14 +120,17 @@ export function Password<DataModel extends GenericDataModel>(
     id: "password",
     authorize: async (params, ctx) => {
       const flow = params.flow as string;
-      if (flow === "signUp" || flow === "reset-verification") {
-        const password = (
-          flow === "signUp" ? params.password : params.newPassword
-        ) as string;
-        if (config.validate !== undefined) {
-          config.validate(password);
+      const passwordToValidate =
+        flow === "signUp"
+          ? (params.password as string)
+          : flow === "reset-verification"
+            ? (params.newPassword as string)
+            : null;
+      if (passwordToValidate !== null) {
+        if (config.validatePasswordRequirements !== undefined) {
+          config.validatePasswordRequirements(passwordToValidate);
         } else {
-          enforcePasswordRequirements(password);
+          validateDefaultPasswordRequirements(passwordToValidate);
         }
       }
       const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
@@ -238,7 +241,7 @@ export function Password<DataModel extends GenericDataModel>(
   });
 }
 
-function enforcePasswordRequirements(password: string) {
+function validateDefaultPasswordRequirements(password: string) {
   if (!password || password.length < 8) {
     throw new Error("Invalid password");
   }

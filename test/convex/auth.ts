@@ -40,13 +40,13 @@ export const { auth, signIn, signOut, store } = convexAuth({
     // with at least one number, upper and lower case chars).
     Password<DataModel>({
       id: "password-custom",
-      profile(params, _) {
+      profile(params, _ctx) {
         return {
           email: params.email as string,
           favoriteColor: params.favoriteColor as string,
         };
       },
-      validate: (password?: string) => {
+      validatePasswordRequirements: (password: string) => {
         if (
           !password ||
           password.length < 6 ||
