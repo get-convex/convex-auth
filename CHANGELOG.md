@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.74
+
+- Fix to header propagation in Next.js middleware
+- Update Password provider to separate password requirement validation from
+  custom profile information
+  - **Breaking** If using Password with a custom profile to enforce password
+    requirements, you must now implement `validatePasswordRequirements`
+
 ## 0.0.73
 
 - Update implementation of refresh tokens reuse **Note:** After upgrading to
