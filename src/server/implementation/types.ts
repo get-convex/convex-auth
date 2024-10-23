@@ -74,16 +74,29 @@ export const authTables = {
     .index("providerAndAccountId", ["provider", "providerAccountId"]),
   /**
    * Refresh tokens.
-   * Each session has only a single refresh token
-   * valid at a time. Refresh tokens are rotated
-   * and reuse is not allowed, except for within
-   * a 10 second window.
+   * Refresh tokens are generally meant to be used once, to be exchanged for another
+   * refresh token and a JWT access token, but with a few exceptions:
+   * - The "active refresh token" is the most recently created refresh token that has
+   *   not been used yet. The parent of the active refresh token can always be used to
+   *   obtain the active refresh token.
+   * - A refresh token can be used within a 10 second window ("reuse window") to
+   *   obtain a new refresh token.
+   * - On any invalid use of a refresh token, the token itself and all its descendants
+   *   are invalidated.
    */
   authRefreshTokens: defineTable({
     sessionId: v.id("authSessions"),
     expirationTime: v.number(),
     firstUsedTime: v.optional(v.number()),
-  }).index("sessionId", ["sessionId"]),
+    // This is the ID of the refresh token that was exchanged to create this one.
+    parentRefreshTokenId: v.optional(v.id("authRefreshTokens")),
+  })
+    // Sort by creationTime
+    .index("sessionId", ["sessionId"])
+    .index("sessionIdAndParentRefreshTokenId", [
+      "sessionId",
+      "parentRefreshTokenId",
+    ]),
   /**
    * Verification codes:
    * - OTP tokens

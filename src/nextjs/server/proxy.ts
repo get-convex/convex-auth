@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getResponseCookies } from "./cookies.js";
 import {
+  getRedactedMessage,
   isCorsRequest,
   jsonResponse,
   logVerbose,
@@ -13,8 +14,13 @@ import {
 
 export async function proxyAuthActionToConvex(
   request: NextRequest,
-  options: { convexUrl?: string; verbose?: boolean },
+  options: {
+    convexUrl?: string;
+    verbose?: boolean;
+    cookieConfig?: { maxAge: number | null };
+  },
 ) {
+  const cookieConfig = options?.cookieConfig ?? { maxAge: null };
   const verbose = options?.verbose ?? false;
   if (request.method !== "POST") {
     return new Response("Invalid method", { status: 405 });
@@ -46,7 +52,10 @@ export async function proxyAuthActionToConvex(
     token = getRequestCookies().token ?? undefined;
   }
   logVerbose(
-    `Fetching action ${action} with args ${JSON.stringify(args)}`,
+    `Fetching action ${action} with args ${JSON.stringify({
+      ...args,
+      refreshToken: getRedactedMessage(args?.refreshToken ?? ""),
+    })}`,
     verbose,
   );
 
@@ -68,13 +77,13 @@ export async function proxyAuthActionToConvex(
       console.error(error);
       logVerbose(`Clearing auth cookies`, verbose);
       const response = jsonResponse(null);
-      setAuthCookies(response, null);
+      setAuthCookies(response, null, cookieConfig);
       return response;
     }
     if (result.redirect !== undefined) {
       const { redirect } = result;
       const response = jsonResponse({ redirect });
-      getResponseCookies(response).verifier = result.verifier!;
+      getResponseCookies(response, cookieConfig).verifier = result.verifier!;
       logVerbose(`Redirecting to ${redirect}`, verbose);
       return response;
     } else if (result.tokens !== undefined) {
@@ -93,7 +102,7 @@ export async function proxyAuthActionToConvex(
             ? { token: result.tokens.token, refreshToken: "dummy" }
             : null,
       });
-      setAuthCookies(response, result.tokens);
+      setAuthCookies(response, result.tokens, cookieConfig);
       return response;
     }
     return jsonResponse(result);
@@ -109,7 +118,7 @@ export async function proxyAuthActionToConvex(
     }
     logVerbose(`Clearing auth cookies`, verbose);
     const response = jsonResponse(null);
-    setAuthCookies(response, null);
+    setAuthCookies(response, null, cookieConfig);
     return response;
   }
 }
