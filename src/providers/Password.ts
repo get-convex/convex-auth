@@ -75,6 +75,18 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
     email: string;
   };
   /**
+   * Performs custom validation on password provided during sign up or reset.
+   *
+   * Otherwise the default validation is used (password is not empty and
+   * at least 8 characters in length).
+   *
+   * If the provided password is invalid, implementations must throw an Error.
+   *
+   * @param password the password supplied during "signUp" or
+   *                 "reset-verification" flows.
+   */
+  validatePasswordRequirements?: (password: string) => void;
+  /**
    * Provide hashing and verification functions if you want to control
    * how passwords are hashed.
    */
@@ -107,9 +119,22 @@ export function Password<DataModel extends GenericDataModel>(
   return ConvexCredentials<DataModel>({
     id: "password",
     authorize: async (params, ctx) => {
+      const flow = params.flow as string;
+      const passwordToValidate =
+        flow === "signUp"
+          ? (params.password as string)
+          : flow === "reset-verification"
+            ? (params.newPassword as string)
+            : null;
+      if (passwordToValidate !== null) {
+        if (config.validatePasswordRequirements !== undefined) {
+          config.validatePasswordRequirements(passwordToValidate);
+        } else {
+          validateDefaultPasswordRequirements(passwordToValidate);
+        }
+      }
       const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
       const { email } = profile;
-      const flow = params.flow as string;
       const secret = params.password as string;
       let account: GenericDoc<DataModel, "authAccounts">;
       let user: GenericDoc<DataModel, "users">;
@@ -216,16 +241,13 @@ export function Password<DataModel extends GenericDataModel>(
   });
 }
 
-function defaultProfile(params: Record<string, unknown>) {
-  const flow = params.flow as string;
-  if (flow === "signUp" || flow === "reset-verification") {
-    const password = (
-      flow === "signUp" ? params.password : params.newPassword
-    ) as string;
-    if (!password || password.length < 8) {
-      throw new Error("Invalid password");
-    }
+function validateDefaultPasswordRequirements(password: string) {
+  if (!password || password.length < 8) {
+    throw new Error("Invalid password");
   }
+}
+
+function defaultProfile(params: Record<string, unknown>) {
   return {
     email: params.email as string,
   };
