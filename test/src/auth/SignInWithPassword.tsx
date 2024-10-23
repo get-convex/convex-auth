@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
+import { ConvexError } from "convex/values";
+import { passwordValidationFailed } from "../../convex/errors.js";
 
 export function SignInWithPassword({
   provider,
@@ -20,6 +22,8 @@ export function SignInWithPassword({
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
+  const [passwordRequirementsColor, setPasswordRequirementsColor] =
+    useState("text-gray-500");
   const [submitting, setSubmitting] = useState(false);
   return (
     <form
@@ -34,11 +38,18 @@ export function SignInWithPassword({
           })
           .catch((error) => {
             console.error(error);
-            const title =
-              flow === "signIn"
-                ? "Could not sign in, did you mean to sign up?"
-                : "Could not sign up, did you mean to sign in?";
-            toast({ title, variant: "destructive" });
+            if (
+              error instanceof ConvexError &&
+              error.data === passwordValidationFailed
+            ) {
+              setPasswordRequirementsColor("text-red-500");
+            } else {
+              const title =
+                flow === "signIn"
+                  ? "Could not sign in, did you mean to sign up?"
+                  : "Could not sign up, did you mean to sign in?";
+              toast({ title, variant: "destructive" });
+            }
             setSubmitting(false);
           });
       }}
@@ -65,7 +76,7 @@ export function SignInWithPassword({
         autoComplete={flow === "signIn" ? "current-password" : "new-password"}
       />
       {flow === "signUp" && passwordRequirements !== null && (
-        <span className="text-gray-500 font-thin text-sm">
+        <span className={`${passwordRequirementsColor} font-thin text-sm`}>
           {passwordRequirements}
         </span>
       )}
