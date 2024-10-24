@@ -21,7 +21,12 @@ export function UserMenu({ children }: { children: ReactNode }) {
       {children}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="secondary" size="icon" className="rounded-full">
+          <Button
+            variant="secondary"
+            size="icon"
+            className="rounded-full"
+            aria-label="user menu"
+          >
             <PersonIcon className="h-5 w-5" />
             <span className="sr-only">Toggle user menu</span>
           </Button>

@@ -9,7 +9,8 @@
     "predev": "convex dev --until-success && convex dashboard",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "playwright test"
   },
   "dependencies": {
     "@convex-dev/auth": "file:..",
@@ -29,6 +30,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
