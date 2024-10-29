@@ -1,4 +1,4 @@
-import { passwordValidationFailed } from "./errors.js"
+import { INVALID_PASSWORD } from "./errors.js"
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
@@ -56,7 +56,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
           !/[a-z]/.test(password) ||
           !/[A-Z]/.test(password)
         ) {
-          throw new ConvexError(passwordValidationFailed);
+          throw new ConvexError(INVALID_PASSWORD);
         }
       },
     }),

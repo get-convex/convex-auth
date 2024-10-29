@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
 import { ConvexError } from "convex/values";
-import { passwordValidationFailed } from "../../convex/errors.js";
+import { INVALID_PASSWORD } from "../../convex/errors.js";
 
 export function SignInWithPassword({
   provider,
@@ -22,8 +22,6 @@ export function SignInWithPassword({
   const { signIn } = useAuthActions();
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
-  const [passwordRequirementsColor, setPasswordRequirementsColor] =
-    useState("text-gray-500");
   const [submitting, setSubmitting] = useState(false);
   return (
     <form
@@ -38,18 +36,20 @@ export function SignInWithPassword({
           })
           .catch((error) => {
             console.error(error);
+            let toastTitle: string;
             if (
               error instanceof ConvexError &&
-              error.data === passwordValidationFailed
+              error.data === INVALID_PASSWORD
             ) {
-              setPasswordRequirementsColor("text-red-500");
+              toastTitle =
+                "Invalid password - check the requirements and try again.";
             } else {
-              const title =
+              toastTitle =
                 flow === "signIn"
                   ? "Could not sign in, did you mean to sign up?"
                   : "Could not sign up, did you mean to sign in?";
-              toast({ title, variant: "destructive" });
             }
+            toast({ title: toastTitle, variant: "destructive" });
             setSubmitting(false);
           });
       }}
@@ -76,7 +76,7 @@ export function SignInWithPassword({
         autoComplete={flow === "signIn" ? "current-password" : "new-password"}
       />
       {flow === "signUp" && passwordRequirements !== null && (
-        <span className={`${passwordRequirementsColor} font-thin text-sm`}>
+        <span className="text-gray-500 font-thin text-sm">
           {passwordRequirements}
         </span>
       )}

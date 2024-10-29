@@ -1,1 +1,1 @@
-export const passwordValidationFailed = "password_validation_failed";
+export const INVALID_PASSWORD = "INVALID_PASSWORD";
