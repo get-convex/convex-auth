@@ -1,9 +1,11 @@
+import { INVALID_PASSWORD } from "./errors.js"
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
 import Apple from "@auth/core/providers/apple";
 import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
 import { Password } from "@convex-dev/auth/providers/Password";
+import { ConvexError } from "convex/values";
 import { convexAuth } from "@convex-dev/auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import { TwilioOTP } from "./otp/TwilioOTP";
@@ -54,7 +56,7 @@ export const { auth, signIn, signOut, store } = convexAuth({
           !/[a-z]/.test(password) ||
           !/[A-Z]/.test(password)
         ) {
-          throw new Error("Invalid password.");
+          throw new ConvexError(INVALID_PASSWORD);
         }
       },
     }),

@@ -1,0 +1,1 @@
+export const INVALID_PASSWORD = "INVALID_PASSWORD";

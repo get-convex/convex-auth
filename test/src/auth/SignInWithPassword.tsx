@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
+import { ConvexError } from "convex/values";
+import { INVALID_PASSWORD } from "../../convex/errors.js";
 
 export function SignInWithPassword({
   provider,
@@ -34,11 +36,20 @@ export function SignInWithPassword({
           })
           .catch((error) => {
             console.error(error);
-            const title =
-              flow === "signIn"
-                ? "Could not sign in, did you mean to sign up?"
-                : "Could not sign up, did you mean to sign in?";
-            toast({ title, variant: "destructive" });
+            let toastTitle: string;
+            if (
+              error instanceof ConvexError &&
+              error.data === INVALID_PASSWORD
+            ) {
+              toastTitle =
+                "Invalid password - check the requirements and try again.";
+            } else {
+              toastTitle =
+                flow === "signIn"
+                  ? "Could not sign in, did you mean to sign up?"
+                  : "Could not sign up, did you mean to sign in?";
+            }
+            toast({ title: toastTitle, variant: "destructive" });
             setSubmitting(false);
           });
       }}
