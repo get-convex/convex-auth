@@ -44,7 +44,12 @@ export async function handleOAuth(
   // ConvexAuth: `cookies` is a Record<string, string | undefined> instead of RequestInternal["cookies"]
   cookies: Record<string, string | undefined>,
   options: InternalOptions<"oauth" | "oidc">,
-) {
+): Promise<{
+  profile: Profile,
+  tokens: TokenSet & Pick<Account, "expires_at">,
+  cookies: Cookie[],
+  signature: string,
+}> {
   const { provider } = options;
 
   // ConvexAuth: The `token` property is not used here

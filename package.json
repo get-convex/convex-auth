@@ -69,7 +69,8 @@
     "lucia": "^3.2.0",
     "oslo": "^1.1.2",
     "path-to-regexp": "^7.1.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "oauth4webapi": "^3.1.2"
   },
   "peerDependencies": {
     "@auth/core": "^0.36.0",
