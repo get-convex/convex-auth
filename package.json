@@ -62,6 +62,7 @@
   },
   "dependencies": {
     "arctic": "^1.2.0",
+    "cookie": "^1.0.1",
     "jose": "^5.2.2",
     "jwt-decode": "^4.0.0",
     "lucia": "^3.2.0",
