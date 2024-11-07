@@ -19,6 +19,7 @@
 import { generateState } from "arctic";
 import * as o from "oauth4webapi";
 import { InternalProvider } from "./oauth.js";
+import { isLocalHost } from "./utils.js";
 
 const SHARED_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -168,5 +169,5 @@ function oauthStateCookieName(
   type: "state" | "pkce" | "nonce",
   providerId: string,
 ) {
-  return "__Host-" + providerId + "OAuth" + type;
+  return (!isLocalHost(process.env.CONVEX_SITE_URL) ? "__Host-" : "") + providerId + "OAuth" + type;
 }
