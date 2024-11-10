@@ -24,7 +24,7 @@ import {
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
  */
-export function ConvexAuthNextjsServerProvider(props: {
+export async function ConvexAuthNextjsServerProvider(props: {
   /**
    * You can customize the route path that handles authentication
    * actions via this prop and the `apiRoute` option to `convexAuthNextjsMiddleWare`.
@@ -61,9 +61,10 @@ export function ConvexAuthNextjsServerProvider(props: {
   children: ReactNode;
 }) {
   const { apiRoute, storage, storageNamespace, verbose, children } = props;
+  const serverState = await convexAuthNextjsServerState();
   return (
     <ConvexAuthNextjsClientProvider
-      serverState={convexAuthNextjsServerState()}
+      serverState={serverState}
       apiRoute={apiRoute}
       storage={storage}
       storageNamespace={storageNamespace}
@@ -79,8 +80,8 @@ export function ConvexAuthNextjsServerProvider(props: {
  * Convex backend from Server Components, Server Actions and Route Handlers.
  * @returns The token if the the client is authenticated, otherwise `undefined`.
  */
-export function convexAuthNextjsToken() {
-  return getRequestCookies().token ?? undefined;
+export async function convexAuthNextjsToken() {
+  return (await getRequestCookies()).token ?? undefined;
 }
 
 /**
@@ -90,8 +91,8 @@ export function convexAuthNextjsToken() {
  * Avoid the pitfall of checking authentication state in layouts,
  * since they won't stop nested pages from rendering.
  */
-export function isAuthenticatedNextjs() {
-  return convexAuthNextjsToken() !== undefined;
+export async function isAuthenticatedNextjs() {
+  return (await convexAuthNextjsToken()) !== undefined;
 }
 
 /**
@@ -102,7 +103,7 @@ export function isAuthenticatedNextjs() {
  * ```ts
  * export function convexAuthNextjsMiddleware(handler, options) {
  *   return async (request, event, convexAuth) => {
- *     if (!convexAuth.isAuthenticated()) {
+ *     if (!(await convexAuth.isAuthenticated())) {
  *       return nextjsMiddlewareRedirect(request, "/login");
  *     }
  *   };
@@ -110,8 +111,8 @@ export function isAuthenticatedNextjs() {
  * ```
  */
 export type ConvexAuthNextjsMiddlewareContext = {
-  getToken: () => string | undefined;
-  isAuthenticated: () => boolean;
+  getToken: () => Promise<string | undefined>;
+  isAuthenticated: () => Promise<boolean>;
 };
 
 /**
@@ -207,7 +208,7 @@ export function convexAuthNextjsMiddleware(
       authResult.refreshTokens !== undefined
     ) {
       logVerbose(`Forwarding cookies to request`, verbose);
-      setAuthCookiesInMiddleware(request, authResult.refreshTokens);
+      await setAuthCookiesInMiddleware(request, authResult.refreshTokens);
     }
     if (handler === undefined) {
       logVerbose(`No custom handler`, verbose);
@@ -223,12 +224,12 @@ export function convexAuthNextjsMiddleware(
         (await handler(request, {
           event,
           convexAuth: {
-            getToken: () => {
-              const cookies = getRequestCookiesInMiddleware(request);
+            getToken: async () => {
+              const cookies = await getRequestCookiesInMiddleware(request);
               return cookies.token ?? undefined;
             },
-            isAuthenticated: () => {
-              const cookies = getRequestCookiesInMiddleware(request);
+            isAuthenticated: async () => {
+              const cookies = await getRequestCookiesInMiddleware(request);
               return (cookies.token ?? undefined) !== undefined;
             },
           },
@@ -246,7 +247,11 @@ export function convexAuthNextjsMiddleware(
       authResult.refreshTokens !== undefined
     ) {
       const nextResponse = NextResponse.next(response);
-      setAuthCookies(nextResponse, authResult.refreshTokens, cookieConfig);
+      await setAuthCookies(
+        nextResponse,
+        authResult.refreshTokens,
+        cookieConfig,
+      );
       return nextResponse;
     }
 
@@ -279,8 +284,8 @@ export function nextjsMiddlewareRedirect(
   return NextResponse.redirect(url);
 }
 
-function convexAuthNextjsServerState(): ConvexAuthServerState {
-  const { token } = getRequestCookies();
+async function convexAuthNextjsServerState(): Promise<ConvexAuthServerState> {
+  const { token } = await getRequestCookies();
   return {
     // The server doesn't share the refresh token with the client
     // for added security - the client has to use the server

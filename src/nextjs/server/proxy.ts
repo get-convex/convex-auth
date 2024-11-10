@@ -37,7 +37,7 @@ export async function proxyAuthActionToConvex(
   if (action === "auth:signIn" && args.refreshToken !== undefined) {
     // The client has a dummy refreshToken, the real one is only
     // stored in cookies.
-    const refreshToken = getRequestCookies().refreshToken;
+    const refreshToken = (await getRequestCookies()).refreshToken;
     if (refreshToken === null) {
       console.error(
         "Convex Auth: Unexpected missing refreshToken cookie during client refresh",
@@ -49,7 +49,7 @@ export async function proxyAuthActionToConvex(
     // Make sure the proxy is authenticated if the client is,
     // important for signOut and any other logic working
     // with existing sessions.
-    token = getRequestCookies().token ?? undefined;
+    token = (await getRequestCookies()).token ?? undefined;
   }
   logVerbose(
     `Fetching action ${action} with args ${JSON.stringify({
@@ -77,13 +77,14 @@ export async function proxyAuthActionToConvex(
       console.error(error);
       logVerbose(`Clearing auth cookies`, verbose);
       const response = jsonResponse(null);
-      setAuthCookies(response, null, cookieConfig);
+      await setAuthCookies(response, null, cookieConfig);
       return response;
     }
     if (result.redirect !== undefined) {
       const { redirect } = result;
       const response = jsonResponse({ redirect });
-      getResponseCookies(response, cookieConfig).verifier = result.verifier!;
+      (await getResponseCookies(response, cookieConfig)).verifier =
+        result.verifier!;
       logVerbose(`Redirecting to ${redirect}`, verbose);
       return response;
     } else if (result.tokens !== undefined) {
@@ -102,7 +103,7 @@ export async function proxyAuthActionToConvex(
             ? { token: result.tokens.token, refreshToken: "dummy" }
             : null,
       });
-      setAuthCookies(response, result.tokens, cookieConfig);
+      await setAuthCookies(response, result.tokens, cookieConfig);
       return response;
     }
     return jsonResponse(result);
@@ -118,7 +119,7 @@ export async function proxyAuthActionToConvex(
     }
     logVerbose(`Clearing auth cookies`, verbose);
     const response = jsonResponse(null);
-    setAuthCookies(response, null, cookieConfig);
+    await setAuthCookies(response, null, cookieConfig);
     return response;
   }
 }
