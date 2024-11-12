@@ -5,3 +5,8 @@ export function requireEnv(name: string) {
   }
   return value;
 }
+
+export function isLocalHost(host?: string) {
+  return /(localhost|127\.0\.0\.1):\d+/.test(
+  host ?? "");
+}

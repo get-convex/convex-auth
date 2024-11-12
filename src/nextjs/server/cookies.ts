@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import * as utils from "../../server/utils.js";
 
 export function getRequestCookies() {
   // maxAge doesn't matter for request cookies since they're only relevant for the
@@ -51,8 +52,8 @@ function getCookieStore(
     maxAge: number | null;
   },
 ) {
-  const isLocalhost = /(localhost|127\.0\.0\.1):\d+/.test(
-    requestHeaders.get("Host") ?? "",
+  const isLocalhost = utils.isLocalHost(
+    requestHeaders.get("Host") ?? ""
   );
   const prefix = isLocalhost ? "" : "__Host-";
   const tokenName = prefix + "__convexAuthJWT";
