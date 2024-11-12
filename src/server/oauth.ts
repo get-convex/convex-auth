@@ -126,6 +126,21 @@ export async function getAuthorizationURL(provider: InternalProvider) {
   };
 }
 
+function formUrlEncode(token: string) {
+  return encodeURIComponent(token).replace(/%20/g, "+")
+}
+
+/**
+ * Formats client_id and client_secret as an HTTP Basic Authentication header as per the OAuth 2.0
+ * specified in RFC6749.
+ */
+function clientSecretBasic(clientId: string, clientSecret: string) {
+  const username = formUrlEncode(clientId)
+  const password = formUrlEncode(clientSecret)
+  const credentials = btoa(`${username}:${password}`)
+  return `Basic ${credentials}`
+}
+
 export async function handleOAuthCallback(
   provider: InternalProvider,
   request: Request,
@@ -144,6 +159,37 @@ export async function handleOAuthCallback(
     client_secret: provider.clientSecret,
     ...provider.client,
   };
+
+  let clientAuth: o.ClientAuth;
+
+  // ConvexAuth: this switch block comes from:
+  // https://github.com/nextauthjs/next-auth/blob/4b01b466b1d65d36945c07f1ee1d4944b218113d/packages/core/src/lib/actions/callback/oauth/callback.ts#L95
+  // 
+  // Our version doesn't support the "private_key_jwt" token_endpoint_auth_method though.
+  switch (client.token_endpoint_auth_method) {
+    // TODO: in the next breaking major version have undefined be `client_secret_post`
+    case undefined:
+    case "client_secret_basic":
+      // TODO: in the next breaking major version use o.ClientSecretBasic() here
+      clientAuth = (_as, _client, _body, headers) => {
+        headers.set(
+          "authorization",
+          clientSecretBasic(provider.clientId, provider.clientSecret!)
+        );
+      }
+      break;
+    case "client_secret_post":
+      clientAuth = o.ClientSecretPost(provider.clientSecret!);
+      break;
+    case "client_secret_jwt":
+      clientAuth = o.ClientSecretJwt(provider.clientSecret!);
+      break;
+    case "none":
+      clientAuth = o.None();
+      break;
+    default:
+      throw new Error("unsupported client authentication method:" + client.token_endpoint_auth_method);
+  }
 
   const updatedCookies: Cookie[] = [];
 
@@ -175,14 +221,6 @@ export async function handleOAuthCallback(
     providerChecks?.includes("state") ? state : o.skipStateCheck,
   );
 
-  /** https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1 */
-  if (o.isOAuth2Error(codeGrantParams)) {
-    const cause = { providerId: provider.id, ...codeGrantParams };
-    throw new Error(
-      "OAuth Provider returned an error " + JSON.stringify(cause),
-    );
-  }
-
   let codeVerifier;
   if (providerChecks?.includes("pkce")) {
     const result = checks.pkce.use(provider, cookies);
@@ -198,6 +236,7 @@ export async function handleOAuthCallback(
   let codeGrantResponse = await o.authorizationCodeGrantRequest(
     server,
     client,
+    clientAuth,
     codeGrantParams,
     redirect_uri,
     codeVerifier ?? "auth", // TODO: review fallback code verifier,
@@ -221,10 +260,6 @@ export async function handleOAuthCallback(
       codeGrantResponse;
   }
 
-  if (o.parseWwwAuthenticateChallenges(codeGrantResponse)) {
-    throw new Error("www-authenticate challenges are not supported atm");
-  }
-
   let profile: unknown = {};
   let tokens: TokenSet & Pick<Account, "expires_at">;
 
@@ -236,30 +271,24 @@ export async function handleOAuthCallback(
       updatedCookies.push(result.updatedCookie);
       nonce = result.nonce;
     }
-    const result = await o.processAuthorizationCodeOpenIDResponse(
+    const result = await o.processAuthorizationCodeResponse(
       server,
       client,
       codeGrantResponse,
-      nonce ?? o.expectNoNonce,
+      {
+        expectedNonce: nonce ?? o.expectNoNonce,
+        requireIdToken: true,
+      }
     );
-
-    if (o.isOAuth2Error(result)) {
-      logWithLevel(LOG_LEVELS.ERROR, "OAuth2 error:", result);
-      throw new Error("OIDC response body error");
-    }
 
     profile = o.getValidatedIdTokenClaims(result);
     tokens = result;
   } else {
-    tokens = await o.processAuthorizationCodeOAuth2Response(
+    tokens = await o.processAuthorizationCodeResponse(
       server,
       client,
       codeGrantResponse,
     );
-    if (o.isOAuth2Error(tokens as any)) {
-      logWithLevel(LOG_LEVELS.ERROR, "OAuth2 error:", tokens);
-      throw new Error("OAuth response body error");
-    }
 
     if (userinfo?.request) {
       const _profile = await userinfo.request({ tokens, provider });
