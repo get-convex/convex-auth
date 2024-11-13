@@ -1,3 +1,5 @@
+import { isLocalHost } from "./utils.js";
+
 export const SHARED_COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "none" as const,
@@ -36,5 +38,5 @@ export function useRedirectToParam(
 }
 
 function redirectToParamCookieName(providerId: string) {
-  return "__Host-" + providerId + "RedirectTo";
+  return (!isLocalHost(process.env.CONVEX_SITE_URL) ? "__Host-" : "") + providerId + "RedirectTo";
 }

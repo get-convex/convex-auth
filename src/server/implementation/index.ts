@@ -48,7 +48,7 @@ import {
 import { signInImpl } from "./signIn.js";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { getAuthorizationUrl } from "../oauth/authorizationUrl.js";
-import { defaultCookiesOptions, jwtOptions } from "../oauth/convexAuth.js";
+import { defaultCookiesOptions } from "../oauth/convexAuth.js";
 import { handleOAuth } from "../oauth/callback.js";
 export { getAuthSessionId } from "./sessions.js";
 
@@ -235,10 +235,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
               logWithLevel("DEBUG", `\`api/auth/signin/\` with ${url}, ${pathParts}, ${providerId}`);
               const { redirect, cookies, signature } =
                 await getAuthorizationUrl(
-                  Object.fromEntries(url.searchParams.entries()),
                   {
                     provider: provider as any,
-                    jwt: jwtOptions(config.jwt?.durationMs ?? null),
                     cookies: defaultCookiesOptions(providerId),
                   },
                 );
@@ -299,7 +297,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 cookies,
                 {
                   provider: provider as any,
-                  jwt: jwtOptions(config.jwt?.durationMs ?? null),
                   cookies: defaultCookiesOptions(provider.id),
                 },
               );

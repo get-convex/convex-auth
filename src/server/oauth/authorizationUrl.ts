@@ -1,8 +1,6 @@
 // This file corresponds to packages/core/src/lib/actions/signin/authorization-url.ts in the @auth/core package (commit 5af1f30a32e64591abc50ae4d2dba4682e525431).
 import * as checks from "./checks.js";
-import * as o from "oauth4webapi";
 import { InternalOptions } from "./types.js";
-import { fetchOpt } from "./lib/utils/customFetch.js";
 import {
   callbackUrl,
   getAuthorizationSignature,
@@ -17,8 +15,7 @@ import { logWithLevel } from "../implementation/utils.js";
  * [OAuth 2](https://www.oauth.com/oauth2-servers/authorization/the-authorization-request/)
  */
 export async function getAuthorizationUrl(
-  // ConvexAuth: `params` is a Record<string, string> instead of RequestInternal["query"]
-  query: Record<string, string>,
+  // ConvexAuth: we don't accept a query argument
   options: InternalOptions<"oauth" | "oidc">,
 ) {
   const { provider } = options;
@@ -26,21 +23,22 @@ export async function getAuthorizationUrl(
   let url = provider.authorization?.url;
 
   // ConvexAuth: ConvexAuth does slightly different logic to determine the authorization endpoint
-  const { as, authorization: authorizationEndpoint } =
+  const { as, authorization: authorizationEndpoint, configSource } =
     await getConfig(provider);
 
   if (!authorizationEndpoint) {
     throw new TypeError("Could not determine the authorization endpoint.");
   }
 
-  url = new URL(authorizationEndpoint);
+  url = new URL(authorizationEndpoint.url);
 
   const authParams = url.searchParams;
 
   // ConvexAuth: The logic for the callback URL is different from Auth.js
   const redirect_uri = callbackUrl(provider.id);
-  // TODO(ConvexAuth): Support redirect proxy URLs
-  let data: string | undefined;
+  // TODO(ConvexAuth): Support redirect proxy URLs.
+  // If we do so, update state.create to take the data value as an origin parameter (see the Auth.js code for ref).
+  // let data: string | undefined;
   // if (!options.isOnRedirectProxy && provider.redirectProxyUrl) {
   //   redirect_uri = provider.redirectProxyUrl;
   //   data = provider.callbackUrl;
@@ -53,17 +51,19 @@ export async function getAuthorizationUrl(
       // clientId can technically be undefined, should we check this in assert.ts or rely on the Authorization Server to do it?
       client_id: provider.clientId,
       redirect_uri,
+      // @ts-expect-error TODO:
       ...provider.authorization?.params,
     },
     Object.fromEntries(provider.authorization?.url.searchParams ?? []),
-    query,
+    // ConvexAuth: no query arguments are combined in the params
   );
 
   for (const k in params) authParams.set(k, params[k]);
 
   const cookies: Cookie[] = [];
 
-  const state = await checks.state.create(options, data);
+  // ConvexAuth: no value passed for `origin` (Auth.js uses `data` from above)
+  const state = await checks.state.create(options);
   if (state) {
     authParams.set("state", state.value);
     cookies.push(state.cookie);
@@ -72,16 +72,17 @@ export async function getAuthorizationUrl(
   // ConvexAuth: We need to save the value of the codeVerifier.
   let codeVerifier: string | undefined;
   if (provider.checks?.includes("pkce")) {
-    if (as && !as.code_challenge_methods_supported?.includes("S256")) {
+    // ConvexAuth: we check where the config came from to help decide which branch to take here
+    if (configSource === "discovered" && !as.code_challenge_methods_supported?.includes("S256")) {
       // We assume S256 PKCE support, if the server does not advertise that,
       // a random `nonce` must be used for CSRF protection.
       if (provider.type === "oidc") provider.checks = ["nonce"];
     } else {
-      const { value, cookie } = await checks.pkce.create(options);
-      authParams.set("code_challenge", value);
+      const pkce = await checks.pkce.create(options);
+      authParams.set("code_challenge", pkce.codeChallenge);
       authParams.set("code_challenge_method", "S256");
-      cookies.push(cookie);
-      codeVerifier = value;
+      cookies.push(pkce.cookie);
+      codeVerifier = pkce.codeVerifier;
     }
   }
 

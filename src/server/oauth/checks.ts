@@ -2,22 +2,16 @@
 
 import * as o from "oauth4webapi";
 
-// NOTE: We use the default JWT methods here because they encrypt/decrypt the payload, not just sign it.
-import { decode, encode } from "@auth/core/jwt";
-
 import type { InternalOptions } from "./types.js";
 import { Cookie } from "@auth/core/lib/utils/cookie.js";
 import { CookiesOptions } from "@auth/core/types.js";
 import { logWithLevel } from "../implementation/utils.js";
 
-interface CookiePayload {
-  value: string;
-}
-
 const COOKIE_TTL = 60 * 15; // 15 minutes
 
-/** Returns a cookie with a JWT encrypted payload. */
-async function sealCookie(
+/** Returns a cookie with the given payload and options. */
+// ConvexAuth: Auth.js calls this `sealCookie` and encrypts the payload wrapped in a JWT.
+async function createCookie(
   name: keyof CookiesOptions,
   payload: string,
   options: InternalOptions<"oauth" | "oidc">,
@@ -34,38 +28,9 @@ async function sealCookie(
     expires,
   });
 
-  const encoded = await encode({
-    ...options.jwt,
-    maxAge: COOKIE_TTL,
-    token: { value: payload } satisfies CookiePayload,
-    salt: cookie.name,
-  });
   const cookieOptions = { ...cookie.options, expires };
-  return { name: cookie.name, value: encoded, options: cookieOptions };
-}
 
-async function parseCookie(
-  name: keyof CookiesOptions,
-  value: string | undefined,
-  options: InternalOptions<"oauth" | "oidc">,
-): Promise<string> {
-  try {
-    const { cookies, jwt } = options;
-    logWithLevel("DEBUG", `PARSE_${name.toUpperCase()}`, { cookie: value });
-
-    if (!value) throw new Error(`${name} cookie was missing`);
-    const parsed = await decode<CookiePayload>({
-      ...jwt,
-      token: value,
-      salt: cookies[name].name,
-    });
-    if (parsed?.value) return parsed.value;
-    throw new Error("Invalid cookie");
-  } catch (error) {
-    throw new Error(`${name} value could not be parsed`, {
-      cause: error,
-    });
-  }
+  return { name: cookie.name, value: payload, options: cookieOptions };
 }
 
 function clearCookie(
@@ -97,9 +62,8 @@ function useCookie(
     if (!provider?.checks?.includes(check)) return;
     const cookieValue = cookies?.[options.cookies[name].name];
     logWithLevel("DEBUG", `USE_${name.toUpperCase()}`, { value: cookieValue });
-    const parsed = await parseCookie(name, cookieValue, options);
     clearCookie(name, options, resCookies);
-    return parsed;
+    return cookieValue;
   };
 }
 
@@ -108,12 +72,12 @@ function useCookie(
  * @see https://danielfett.de/2020/05/16/pkce-vs-nonce-equivalent-or-not/#pkce
  */
 export const pkce = {
-  /** Creates a PKCE code challenge and verifier pair. The verifier in stored in the cookie. */
+  /** Creates a PKCE code challenge and verifier pair. The verifier is stored in the cookie. */
   async create(options: InternalOptions<"oauth">) {
-    const code_verifier = o.generateRandomCodeVerifier();
-    const value = await o.calculatePKCECodeChallenge(code_verifier);
-    const cookie = await sealCookie("pkceCodeVerifier", code_verifier, options);
-    return { cookie, value };
+    const codeVerifier = o.generateRandomCodeVerifier();
+    const codeChallenge = await o.calculatePKCECodeChallenge(codeVerifier);
+    const cookie = await createCookie("pkceCodeVerifier", codeVerifier, options);
+    return { cookie, codeChallenge: codeChallenge, codeVerifier };
   },
   /**
    * Returns code_verifier if the provider is configured to use PKCE,
@@ -122,14 +86,6 @@ export const pkce = {
    */
   use: useCookie("pkce", "pkceCodeVerifier"),
 };
-
-interface EncodedState {
-  origin?: string;
-  random: string;
-}
-
-const STATE_MAX_AGE = 60 * 15; // 15 minutes in seconds
-const encodedStateSalt = "encodedState";
 
 /**
  * @see https://www.rfc-editor.org/rfc/rfc6749#section-10.12
@@ -148,20 +104,9 @@ export const state = {
       return;
     }
 
-    // IDEA: Allow the user to pass data to be stored in the state
-    const payload = {
-      origin,
-      random: o.generateRandomState(),
-    } satisfies EncodedState;
-    const value = await encode({
-      secret: options.jwt.secret,
-      token: payload,
-      salt: encodedStateSalt,
-      maxAge: STATE_MAX_AGE,
-    });
-    const cookie = await sealCookie("state", value, options);
-
-    return { cookie, value };
+    const payload = o.generateRandomState();
+    const cookie = await createCookie("state", payload, options);
+    return { cookie, value: payload };
   },
   /**
    * Returns state if the provider is configured to use state,
@@ -169,28 +114,13 @@ export const state = {
    * An error is thrown if the state is missing or invalid.
    */
   use: useCookie("state", "state"),
-  /** Decodes the state. If it could not be decoded, it throws an error. */
-  async decode(state: string, options: InternalOptions<"oauth" | "oidc">) {
-    try {
-      logWithLevel("DEBUG", "DECODE_STATE", { state });
-      const payload = await decode<EncodedState>({
-        secret: options.jwt.secret,
-        token: state,
-        salt: encodedStateSalt,
-      });
-      if (payload) return payload;
-      throw new Error("Invalid state");
-    } catch (error) {
-      throw new Error("State could not be decoded", { cause: error });
-    }
-  },
 };
 
 export const nonce = {
   async create(options: InternalOptions<"oidc">) {
     if (!options.provider.checks.includes("nonce")) return;
     const value = o.generateRandomNonce();
-    const cookie = await sealCookie("nonce", value, options);
+    const cookie = await createCookie("nonce", value, options);
     return { cookie, value };
   },
   /**

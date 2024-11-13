@@ -71,18 +71,18 @@ export async function handleOAuth(
       clientAuth = (_as, _client, _body, headers) => {
         headers.set(
           "authorization",
-          clientSecretBasic(provider.clientId, provider.clientSecret),
+          clientSecretBasic(provider.clientId, provider.clientSecret!),
         );
       };
       break;
     case "client_secret_post":
-      clientAuth = o.ClientSecretPost(provider.clientSecret);
+      clientAuth = o.ClientSecretPost(provider.clientSecret!);
       break;
     case "client_secret_jwt":
-      clientAuth = o.ClientSecretJwt(provider.clientSecret);
+      clientAuth = o.ClientSecretJwt(provider.clientSecret!);
       break;
     case "private_key_jwt":
-      clientAuth = o.PrivateKeyJwt(provider.token!.clientPrivateKey, {
+      clientAuth = o.PrivateKeyJwt(provider.token!.clientPrivateKey!, {
         // TODO: review in the next breaking change
         [o.modifyAssertion](_header, payload) {
           payload.aud = [as.issuer, as.token_endpoint!];
