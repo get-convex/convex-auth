@@ -19,7 +19,8 @@
     "dist",
     "providers",
     "react",
-    "server"
+    "server",
+    "src"
   ],
   "type": "module",
   "bin": "./dist/bin.cjs",
