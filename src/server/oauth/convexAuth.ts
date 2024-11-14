@@ -1,6 +1,6 @@
 import { CookieOption, CookiesOptions } from "@auth/core/types.js";
 import { requireEnv } from "../utils.js";
-import { InternalProvider, JWTOptions } from "./types.js";
+import { InternalProvider } from "./types.js";
 import { SHARED_COOKIE_OPTIONS } from "../cookies.js";
 import { fetchOpt } from "./lib/utils/customFetch.js";
 import * as o from "oauth4webapi";
