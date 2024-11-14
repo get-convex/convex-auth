@@ -27,7 +27,7 @@ import {
 } from "../types.js";
 import { requireEnv } from "../utils.js";
 import { ActionCtx, MutationCtx, Tokens } from "./types.js";
-export { authTables, Tokens } from "./types.js";
+export { authTables, Doc, Tokens } from "./types.js";
 import {
   LOG_LEVELS,
   TOKEN_SUB_CLAIM_DIVIDER,
