@@ -260,7 +260,7 @@ export async function handleOAuthCallback(
       codeGrantResponse;
   }
 
-  let profile: unknown = {};
+  let profile: any = {};
   let tokens: TokenSet & Pick<Account, "expires_at">;
 
   let nonce;
@@ -282,6 +282,18 @@ export async function handleOAuthCallback(
     );
 
     profile = o.getValidatedIdTokenClaims(result);
+    // Apple sends some of the user information in a `user` parameter as a stringified JSON.
+    // It also only does so the first time the user consents to share their information.
+    // ConvexAuth: code adapted from https://github.com/nextauthjs/next-auth/blob/1c9bcdd0c4538a852f8d2b2b7c60eb962e3a50eb/packages/core/src/lib/actions/callback/oauth/callback.ts#L231
+    if (provider.id === "apple") {
+      try {
+        const userData = params.get("user");
+        if (userData) {
+          profile.user = JSON.parse(userData);
+        }
+      } catch {}
+    }
+    
     tokens = result;
   } else {
     tokens = await o.processAuthorizationCodeResponse(
@@ -313,7 +325,7 @@ export async function handleOAuthCallback(
       Math.floor(Date.now() / 1000) + Number(tokens.expires_in);
   }
   return {
-    profile,
+    profile: profile as Object,
     cookies: updatedCookies,
     tokens,
     signature: getAuthorizationSignature({ codeVerifier, state, nonce }),
