@@ -46,7 +46,7 @@ export const defaultCookiesOptions: (
       },
     },
     state: {
-      name: oauthStateCookieName("nonce", providerId),
+      name: oauthStateCookieName("state", providerId),
       options: {
         ...SHARED_COOKIE_OPTIONS,
       },
@@ -112,11 +112,6 @@ export async function getConfig(provider: InternalProvider<"oauth" | "oidc">): P
     if (!discoveredAs.token_endpoint)
       throw new TypeError(
         "TODO: Authorization server did not provide a token endpoint.",
-      );
-
-    if (!discoveredAs.userinfo_endpoint)
-      throw new TypeError(
-        "TODO: Authorization server did not provide a userinfo endpoint.",
       );
 
     const as: o.AuthorizationServer = discoveredAs;

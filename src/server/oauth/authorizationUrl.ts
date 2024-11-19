@@ -29,8 +29,9 @@ export async function getAuthorizationUrl(
   if (!authorizationEndpoint) {
     throw new TypeError("Could not determine the authorization endpoint.");
   }
-
-  url = new URL(authorizationEndpoint.url);
+  if (!url) {
+    url = new URL(authorizationEndpoint.url);
+  }
 
   const authParams = url.searchParams;
 
@@ -54,7 +55,7 @@ export async function getAuthorizationUrl(
       // @ts-expect-error TODO:
       ...provider.authorization?.params,
     },
-    Object.fromEntries(provider.authorization?.url.searchParams ?? []),
+    Object.fromEntries(url.searchParams.entries() ?? []),
     // ConvexAuth: no query arguments are combined in the params
   );
 

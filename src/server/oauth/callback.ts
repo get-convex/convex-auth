@@ -181,6 +181,14 @@ export async function handleOAuth(
     const idTokenClaims = idTokenClaimsOrUndefined;
     profile = idTokenClaims;
 
+    // Apple sends some of the user information in a `user` parameter as a stringified JSON.
+    // It also only does so the first time the user consents to share their information.
+    if (provider.id === "apple") {
+      try {
+        profile.user = JSON.parse(params?.user)
+      } catch {}
+    } 
+    
     if (provider.idToken === false) {
       const userinfoResponse = await o.userInfoRequest(
         as,

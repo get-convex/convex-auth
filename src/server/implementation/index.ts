@@ -291,9 +291,23 @@ export function convexAuth(config_: ConvexAuthConfig) {
               redirectTo: maybeRedirectTo?.redirectTo,
             });
 
+            const params = url.searchParams;
+            
+            // Handle OAuth providers that use formData (such as Apple)
+            if (
+              request.headers.get("Content-Type") === "application/x-www-form-urlencoded"
+            ) {
+              const formData = await request.formData();
+              for (const [key, value] of formData.entries()) {
+                if (typeof value === "string") {
+                  params.append(key, value);
+                }
+              }
+            }
+
             try {
               const { profile, tokens, signature } = await handleOAuth(
-                Object.fromEntries(url.searchParams.entries()),
+                Object.fromEntries(params.entries()),
                 cookies,
                 {
                   provider: provider as any,
