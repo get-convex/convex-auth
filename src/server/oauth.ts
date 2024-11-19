@@ -293,7 +293,7 @@ export async function handleOAuthCallback(
         }
       } catch {}
     }
-    
+
     tokens = result;
   } else {
     tokens = await o.processAuthorizationCodeResponse(
