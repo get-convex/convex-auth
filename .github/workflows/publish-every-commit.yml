@@ -4,6 +4,7 @@ on: [push]
 
 jobs:
   build:
+    if: github.repository == 'get-convex/convex-auth'
     runs-on: ubuntu-latest
 
     steps:
