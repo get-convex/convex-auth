@@ -232,7 +232,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const provider = getProviderOrThrow(
                 providerId,
               ) as OAuthConfig<any>;
-              logWithLevel("DEBUG", `\`api/auth/signin/\` with ${url}, ${pathParts}, ${providerId}`);
               const { redirect, cookies, signature } =
                 await getAuthorizationUrl(
                   {
@@ -240,14 +239,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
                     cookies: defaultCookiesOptions(providerId),
                   },
                 );
-                logWithLevel("DEBUG", `\`api/auth/signin/\` got authorization URL`);
 
               await callVerifierSignature(ctx, {
                 verifier,
                 signature,
               });
-              logWithLevel("DEBUG", `\`api/auth/signin/\` called verifier signature`);
-
 
               const redirectTo = url.searchParams.get("redirectTo");
 
