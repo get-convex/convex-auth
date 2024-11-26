@@ -48,7 +48,7 @@ import {
 import { signInImpl } from "./signIn.js";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { getAuthorizationUrl } from "../oauth/authorizationUrl.js";
-import { defaultCookiesOptions } from "../oauth/convexAuth.js";
+import { defaultCookiesOptions, oAuthConfigToInternalProvider } from "../oauth/convexAuth.js";
 import { handleOAuth } from "../oauth/callback.js";
 export { getAuthSessionId } from "./sessions.js";
 
@@ -236,7 +236,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const { redirect, cookies, signature } =
                 await getAuthorizationUrl(
                   {
-                    provider: provider as any,
+                    provider: await oAuthConfigToInternalProvider(provider),
                     cookies: defaultCookiesOptions(providerId),
                   },
                 );
@@ -310,7 +310,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 Object.fromEntries(params.entries()),
                 cookies,
                 {
-                  provider: provider as any,
+                  provider: await oAuthConfigToInternalProvider(provider),
                   cookies: defaultCookiesOptions(provider.id),
                 },
               );

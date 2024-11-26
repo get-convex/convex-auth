@@ -4,19 +4,18 @@ import * as AuthCoreJwt from "@auth/core/jwt";
 import { CookieOption, CookiesOptions } from "@auth/core/types.js";
 import { OAuthConfigInternal, OIDCConfigInternal } from "./providers/oauth.js";
 import { ProviderType } from "@auth/core/providers/index.js";
+import * as o from "oauth4webapi";
 
 export type ConvexAuthProviderType = "oauth" | "oidc";
+
+export type ConfigSource = "discovered" | "provided";
 
 // ConvexAuth: Auth.js has a more complex type for this, ours is stripped down.
 export type InternalProvider<T = ProviderType> = (T extends "oauth"
   ? OAuthConfigInternal<any>
   : T extends "oidc"
     ? OIDCConfigInternal<any>
-    : never) & {
-  signinUrl: string
-  /** @example `"https://example.com/api/auth/callback/id"` */
-  callbackUrl: string
-}
+    : never)  & {as: o.AuthorizationServer, configSource: ConfigSource}
 
 
 // ConvexAuth: `secret` is internal to @auth/core, so we copy its type here

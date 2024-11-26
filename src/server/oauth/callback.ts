@@ -11,7 +11,6 @@ import { isOIDCProvider } from "./lib/utils/providers.js";
 import {
   callbackUrl,
   getAuthorizationSignature,
-  getConfig,
 } from "./convexAuth.js";
 
 function formUrlEncode(token: string) {
@@ -53,8 +52,7 @@ export async function handleOAuth(
   const { provider } = options;
 
   // ConvexAuth: The `token` property is not used here
-  const { userinfo } = provider;
-  const { as } = await getConfig(provider);
+  const { userinfo, as } = provider;
 
   const client: o.Client = {
     client_id: provider.clientId,

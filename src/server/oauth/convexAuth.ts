@@ -6,6 +6,7 @@ import { fetchOpt } from "./lib/utils/customFetch.js";
 import * as o from "oauth4webapi";
 import { normalizeEndpoint } from "../provider_utils.js";
 import { isLocalHost } from "../utils.js";
+import { OAuthConfig } from "@auth/core/providers/oauth.js";
 
 // ConvexAuth: The logic for the callback URL is different from Auth.js
 export function callbackUrl(providerId: string) {
@@ -86,22 +87,20 @@ export const defaultCookiesOptions: (
   };
 };
 
-export type ConfigSource = "discovered" | "provided";
-
-export async function getConfig(provider: InternalProvider<"oauth" | "oidc">): Promise<InternalProvider<"oauth" | "oidc"> & {as: o.AuthorizationServer, configSource: ConfigSource}> {
+export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): Promise<InternalProvider<"oauth" | "oidc">> {
   // Only do service discovery if the provider does not have the required configuration
-  if (!provider.authorization || !provider.token || !provider.userinfo) {
+  if (!config.authorization || !config.token || !config.userinfo) {
     // Taken from https://github.com/nextauthjs/next-auth/blob/a7491dcb9355ff2d01fb8e9236636605e2090145/packages/core/src/lib/actions/callback/oauth/callback.ts#L63
-    if (!provider.issuer) {
+    if (!config.issuer) {
       throw new Error(
-        `Provider \`${provider.id}\` is missing an \`issuer\` URL configuration. Consult the provider docs.`,
+        `Provider \`${config.id}\` is missing an \`issuer\` URL configuration. Consult the provider docs.`,
       );
     }
 
-    const issuer = new URL(provider.issuer);
+    const issuer = new URL(config.issuer);
     // TODO: move away from allowing insecure HTTP requests
     const discoveryResponse = await o.discoveryRequest(issuer, {
-      ...fetchOpt(provider),
+      ...fetchOpt(config),
       [o.allowInsecureRequests]: true,
     });
     const discoveredAs = await o.processDiscoveryResponse(
@@ -116,40 +115,50 @@ export async function getConfig(provider: InternalProvider<"oauth" | "oidc">): P
 
     const as: o.AuthorizationServer = discoveredAs;
     return {
-      ...provider,
+      ...config,
+      checks: config.checks!,
+      profile: config.profile!,
+      account: config.account!,
+      clientId: config.clientId!,
+      idToken: config.type === "oidc" ? config.idToken : undefined,
       // ConvexAuth: Apparently it's important for us to normalize the endpoint after
       // service discovery (https://github.com/get-convex/convex-auth/commit/35bf716bfb0d29dbce1cbca318973b0732f75015)
       authorization: normalizeEndpoint({
-        ...provider.authorization,
+        ...config.authorization,
         url: as.authorization_endpoint,
       }),
       token: normalizeEndpoint({
-        ...provider.token,
+        ...config.token,
         url: as.token_endpoint,
       }),
       userinfo: as.userinfo_endpoint
         ? normalizeEndpoint({
-            ...provider.userinfo,
+            ...config.userinfo,
             url: as.userinfo_endpoint,
           })
-        : provider.userinfo,
+        : config.userinfo,
       as,
       configSource: "discovered"
     };
   }
 
-  const authorization = normalizeEndpoint(provider.authorization);
-  const token = normalizeEndpoint(provider.token);
-  const userinfo = provider.userinfo
-    ? normalizeEndpoint(provider.userinfo)
+  const authorization = normalizeEndpoint(config.authorization);
+  const token = normalizeEndpoint(config.token);
+  const userinfo = config.userinfo
+    ? normalizeEndpoint(config.userinfo)
     : undefined;
   return {
-    ...provider,
+    ...config,
+    checks: config.checks!,
+    profile: config.profile!,
+    account: config.account!,
+    clientId: config.clientId!,
+    idToken: config.type === "oidc" ? config.idToken : undefined,
     authorization,
     token,
     userinfo,
     as: {
-      issuer: provider.issuer ?? "theremustbeastringhere.dev",
+      issuer: config.issuer ?? "theremustbeastringhere.dev",
       authorization_endpoint: authorization?.url.toString(),
       token_endpoint: token?.url.toString(),
       userinfo_endpoint: userinfo?.url.toString(),

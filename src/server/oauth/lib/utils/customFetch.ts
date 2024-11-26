@@ -3,10 +3,16 @@
 import * as o from "oauth4webapi";
 import type { InternalProvider } from "../../types";
 import { customFetch } from "@auth/core";
+import { OAuthConfig } from "@auth/core/providers/index.js";
 // ConvexAuth:re-export the symbol from @auth/core
 export { customFetch } from "@auth/core";
 
+type FetchOptResult = {
+  [o.customFetch]: typeof fetch;
+};
+
 // ConvexAuth: Expose this internal function so we can use it.
-export function fetchOpt(provider: InternalProvider<"oauth" | "oidc">) {
-  return { [o.customFetch]: provider[customFetch] ?? fetch };
+// ConvexAuth: Make a version that works on InternalProvider and OAuthConfig
+export function fetchOpt(providerOrConfig: InternalProvider<"oauth" | "oidc"> | OAuthConfig<any>): FetchOptResult {
+  return { [o.customFetch]: providerOrConfig[customFetch] ?? fetch };
 }

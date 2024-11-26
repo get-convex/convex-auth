@@ -4,7 +4,6 @@ import { InternalOptions } from "./types.js";
 import {
   callbackUrl,
   getAuthorizationSignature,
-  getConfig,
 } from "./convexAuth.js";
 import { Cookie } from "@auth/core/lib/utils/cookie.js";
 import { logWithLevel } from "../implementation/utils.js";
@@ -23,8 +22,7 @@ export async function getAuthorizationUrl(
   let url = provider.authorization?.url;
 
   // ConvexAuth: ConvexAuth does slightly different logic to determine the authorization endpoint
-  const { as, authorization: authorizationEndpoint, configSource } =
-    await getConfig(provider);
+  const { as, authorization: authorizationEndpoint, configSource } = provider;
 
   if (!authorizationEndpoint) {
     throw new TypeError("Could not determine the authorization endpoint.");
