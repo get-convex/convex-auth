@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.75
 
 - BREAKING: `convexAuthNextjsToken()` and `isAuthenticatedNextjs()` now return
   promises so must be `await`ed.
