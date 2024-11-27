@@ -1,7 +1,7 @@
 import { Layout } from "@/Layout";
 import { UserMenu } from "@/components/UserMenu";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { createRootRoute, Outlet, useRouter } from "@tanstack/react-router";
+import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import {
   Authenticated,

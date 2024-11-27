@@ -1,6 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
 
 export const Route = createFileRoute("/loggedin")({
   component: About,
