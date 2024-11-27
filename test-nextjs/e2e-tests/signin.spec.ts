@@ -15,7 +15,7 @@ test("signin fails correctly", async ({ page }) => {
   let message = "";
   page.on("dialog", (dialog) => {
     message = dialog.message();
-    dialog.accept();
+    void dialog.accept();
   });
 
   await page.getByRole("button").getByText("Sign in with secret").click();

@@ -5,7 +5,13 @@ module.exports = {
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended-type-checked",
   ],
-  ignorePatterns: [".eslintrc.cjs", "test", "docs", "dist"],
+  ignorePatterns: [
+    ".eslintrc.cjs",
+    "test",
+    "docs",
+    "dist",
+    "test-nextjs/backendHarness.js",
+  ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
     project: true,
