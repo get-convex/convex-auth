@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- BREAKING: `convexAuthNextjsToken()` and `isAuthenticatedNextjs()` now return
+  promises so must be `await`ed.
+- Support for Next.js 15.
+- Update convex peer dependency to ^1.17.0
+
 ## 0.0.74
 
 - Fix to header propagation in Next.js middleware

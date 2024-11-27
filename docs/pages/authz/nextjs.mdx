@@ -1,11 +1,9 @@
 import { Callout } from "nextra/components";
 
-# Server-side authentication in Next.js 14
+# Server-side authentication in Next.js
 
 You can set up your Next.js App Router app to have access to the authentication
 state on the server.
-
-Next.js 15 is not supported yet.
 
 ## Setup
 
@@ -28,10 +26,10 @@ const isSignInPage = createRouteMatcher(["/signin"]);
 const isProtectedRoute = createRouteMatcher(["/product(.*)"]);
 
 export default convexAuthNextjsMiddleware((request, { convexAuth }) => {
-  if (isSignInPage(request) && convexAuth.isAuthenticated()) {
+  if (isSignInPage(request) && (await convexAuth.isAuthenticated())) {
     return nextjsMiddlewareRedirect(request, "/product");
   }
-  if (isProtectedRoute(request) && !convexAuth.isAuthenticated()) {
+  if (isProtectedRoute(request) && !(await convexAuth.isAuthenticated())) {
     return nextjsMiddlewareRedirect(request, "/signin");
   }
 });
@@ -113,7 +111,7 @@ export async function TasksWrapper() {
   const preloadedTasks = await preloadQuery(
     api.tasks.list,
     { list: "default" },
-    { token: convexAuthNextjsToken() },
+    { token: await convexAuthNextjsToken() },
   );
   return <Tasks preloadedTasks={preloadedTasks} />;
 }
@@ -143,7 +141,7 @@ export default async function PureServerPage() {
       {
         text: formData.get("text") as string,
       },
-      { token: convexAuthNextjsToken() },
+      { token: await convexAuthNextjsToken() },
     );
     revalidatePath("/example");
   }

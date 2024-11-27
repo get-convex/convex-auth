@@ -20,7 +20,7 @@ export async function handleAuthenticationInRequest(
   const requestUrl = new URL(request.url);
 
   // Validate CORS
-  validateCors(request);
+  await validateCors(request);
 
   // Refresh tokens if necessary
   const refreshTokens = await getRefreshedTokens(verbose);
@@ -33,7 +33,7 @@ export async function handleAuthenticationInRequest(
     request.headers.get("accept")?.includes("text/html")
   ) {
     logVerbose(`Handling code exchange for OAuth or magic link`, verbose);
-    const verifier = getRequestCookies().verifier ?? undefined;
+    const verifier = (await getRequestCookies()).verifier ?? undefined;
     const redirectUrl = new URL(requestUrl);
     redirectUrl.searchParams.delete("code");
     try {
@@ -45,7 +45,7 @@ export async function handleAuthenticationInRequest(
         throw new Error("Invalid `signIn` action result for code exchange");
       }
       const response = NextResponse.redirect(redirectUrl);
-      setAuthCookies(response, result.tokens, cookieConfig);
+      await setAuthCookies(response, result.tokens, cookieConfig);
       logVerbose(
         `Successfully validated code, redirecting to ${redirectUrl.toString()} with auth cookies`,
         verbose,
@@ -58,7 +58,7 @@ export async function handleAuthenticationInRequest(
         verbose,
       );
       const response = NextResponse.redirect(redirectUrl);
-      setAuthCookies(response, null, cookieConfig);
+      await setAuthCookies(response, null, cookieConfig);
       return { kind: "redirect", response };
     }
   }
@@ -68,9 +68,9 @@ export async function handleAuthenticationInRequest(
 
 // If this is a cross-origin request with `Origin` header set
 // do not allow the app to read auth cookies.
-function validateCors(request: NextRequest) {
+async function validateCors(request: NextRequest) {
   if (isCorsRequest(request)) {
-    const cookies = getRequestCookiesInMiddleware(request);
+    const cookies = await getRequestCookiesInMiddleware(request);
     cookies.token = null;
     cookies.refreshToken = null;
     cookies.verifier = null;
@@ -81,7 +81,7 @@ const REQUIRED_TOKEN_LIFETIME_MS = 60_000; // 1 minute
 const MINIMUM_REQUIRED_TOKEN_LIFETIME_MS = 10_000; // 10 seconds
 
 async function getRefreshedTokens(verbose: boolean) {
-  const cookies = getRequestCookies();
+  const cookies = await getRequestCookies();
   const { token, refreshToken } = cookies;
   if (refreshToken === null && token === null) {
     logVerbose(`No tokens to refresh, returning undefined`, verbose);

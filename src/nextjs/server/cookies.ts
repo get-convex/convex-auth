@@ -1,31 +1,46 @@
-import { cookies, headers } from "next/headers";
+import { cookies as nextCookies, headers as nextHeaders } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import * as utils from "../../server/utils.js";
 
-export function getRequestCookies() {
+/**
+ * Before Next.js 15 introduced Async Request APIs https://nextjs.org/blog/next-15#async-request-apis-breaking-change
+ * many APIs were sync. Add this return type to help us stay compatible with Next.js 14.
+ */
+type RememberNext14<F extends (...args: any[]) => any> = F extends (
+  ...args: infer Args
+) => infer Return
+  ? (...args: Args) => Return | Awaited<Return>
+  : never;
+
+const cookies = nextCookies as RememberNext14<typeof nextCookies>;
+const headers = nextHeaders as RememberNext14<typeof nextHeaders>;
+
+export async function getRequestCookies() {
   // maxAge doesn't matter for request cookies since they're only relevant for the
   // length of the request
-  return getCookieStore(headers(), cookies(), { maxAge: null });
+  return getCookieStore(await headers(), await cookies(), {
+    maxAge: null,
+  });
 }
 
-export function getRequestCookiesInMiddleware(request: NextRequest) {
+export async function getRequestCookiesInMiddleware(request: NextRequest) {
   // maxAge doesn't matter for request cookies since they're only relevant for the
   // length of the request
-  return getCookieStore(headers(), request.cookies, { maxAge: null });
+  return getCookieStore(await headers(), request.cookies, { maxAge: null });
 }
 
-export function getResponseCookies(
+export async function getResponseCookies(
   response: NextResponse,
   cookieConfig: {
     maxAge: number | null;
   },
 ) {
-  return getCookieStore(headers(), response.cookies, cookieConfig);
+  return getCookieStore(await headers(), response.cookies, cookieConfig);
 }
 
 function getCookieStore(
-  requestHeaders: ReturnType<typeof headers>,
-  requestCookies: ReturnType<typeof cookies>,
+  requestHeaders: Awaited<ReturnType<typeof headers>>,
+  requestCookies: Awaited<ReturnType<typeof cookies>>,
   cookieConfig: {
     maxAge: number | null;
   },
@@ -45,8 +60,9 @@ function getCookieStore(
   refreshToken: string | null;
   verifier: string | null;
 };
+
 function getCookieStore(
-  requestHeaders: ReturnType<typeof headers>,
+  requestHeaders: Awaited<ReturnType<typeof headers>>,
   responseCookies: NextResponse["cookies"] | NextRequest["cookies"],
   cookieConfig: {
     maxAge: number | null;

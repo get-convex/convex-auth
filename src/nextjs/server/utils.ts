@@ -10,14 +10,14 @@ export function jsonResponse(body: any) {
   });
 }
 
-export function setAuthCookies(
+export async function setAuthCookies(
   response: NextResponse,
   tokens: { token: string; refreshToken: string } | null,
   cookieConfig: {
     maxAge: number | null;
   },
 ) {
-  const responseCookies = getResponseCookies(response, cookieConfig);
+  const responseCookies = await getResponseCookies(response, cookieConfig);
   if (tokens === null) {
     responseCookies.token = null;
     responseCookies.refreshToken = null;
@@ -34,11 +34,11 @@ export function setAuthCookies(
  * @param request
  * @param tokens
  */
-export function setAuthCookiesInMiddleware(
+export async function setAuthCookiesInMiddleware(
   request: NextRequest,
   tokens: { token: string; refreshToken: string } | null,
 ) {
-  const requestCookies = getRequestCookiesInMiddleware(request);
+  const requestCookies = await getRequestCookiesInMiddleware(request);
   if (tokens === null) {
     requestCookies.token = null;
     requestCookies.refreshToken = null;

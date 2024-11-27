@@ -9,7 +9,7 @@ export default async function ProductPage() {
   const viewer = await fetchQuery(
     api.users.viewer,
     {},
-    { token: convexAuthNextjsToken() },
+    { token: await convexAuthNextjsToken() },
   );
   return (
     <main className="flex max-h-screen grow flex-col overflow-hidden">
