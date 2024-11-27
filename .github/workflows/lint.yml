@@ -20,7 +20,10 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci; cd test; npm ci; cd ../test-nextjs; npm i
+        run: |
+          npm ci cd test; npm ci
+          cd ../test-nextjs; npm i
+          cd ../test-router; npm ci
 
       - name: Run linting
         run: npm run lint
