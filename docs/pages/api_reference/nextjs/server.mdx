@@ -149,7 +149,7 @@ Convex backend from Server Components, Server Actions and Route Handlers.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`undefined` \| `string`
+`Promise<undefined | string>`
 
 The token if the the client is authenticated, otherwise `undefined`.
 
@@ -170,7 +170,7 @@ since they won't stop nested pages from rendering.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`boolean`
+`Promise<boolean>`
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
@@ -188,7 +188,7 @@ to get the token and check if the client is authenticated in place of
 ```ts
 export function convexAuthNextjsMiddleware(handler, options) {
   return async (request, event, convexAuth) => {
-    if (!convexAuth.isAuthenticated()) {
+    if (!(await convexAuth.isAuthenticated())) {
       return nextjsMiddlewareRedirect(request, "/login");
     }
   };
@@ -202,14 +202,14 @@ export function convexAuthNextjsMiddleware(handler, options) {
 
 <h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
-`string` \| `undefined`
+`Promise<string | undefined>`
 
 #### isAuthenticated()
 
 
 <h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
-`boolean`
+`Promise<boolean>`
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
