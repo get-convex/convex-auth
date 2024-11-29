@@ -25,7 +25,7 @@ import {
 const isSignInPage = createRouteMatcher(["/signin"]);
 const isProtectedRoute = createRouteMatcher(["/product(.*)"]);
 
-export default convexAuthNextjsMiddleware((request, { convexAuth }) => {
+export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   if (isSignInPage(request) && (await convexAuth.isAuthenticated())) {
     return nextjsMiddlewareRedirect(request, "/product");
   }
