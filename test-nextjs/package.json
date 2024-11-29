@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "testExistingBackend":"./run-e2e-tests.sh",
+    "testExistingBackend": "./run-e2e-tests.sh",
     "test": "node backendHarness.js 'npm run testExistingBackend'"
   },
   "dependencies": {
@@ -28,7 +28,8 @@
     "react": "file:../node_modules/react",
     "react-dom": "file:../node_modules/react-dom",
     "tailwind-merge": "^2.4.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.1",
