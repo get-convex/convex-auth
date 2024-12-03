@@ -77,5 +77,7 @@ export default defineConfig({
       : "npm run dev:frontend",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
+    stdout: "ignore", // Set to "pipe" if you're debugging a failing test.
+    stderr: "pipe",
   },
 });

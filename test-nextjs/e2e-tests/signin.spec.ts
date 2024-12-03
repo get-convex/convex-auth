@@ -5,6 +5,8 @@ test("signin fails correctly", async ({ page }) => {
 
   await page.getByRole("link").getByText("Get Started").first().click();
 
+  await page.waitForURL("/signin");
+
   await page
     .getByLabel("Secret")
     .fill(

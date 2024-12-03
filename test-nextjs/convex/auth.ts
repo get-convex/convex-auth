@@ -3,7 +3,7 @@ import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     GitHub,
     ConvexCredentials({

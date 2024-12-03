@@ -7,6 +7,7 @@ import {
   HttpRouter,
   WithoutSystemFields,
   actionGeneric,
+  queryGeneric,
   httpActionGeneric,
   internalMutationGeneric,
 } from "convex/server";
@@ -61,6 +62,12 @@ export type SignInAction = FunctionReferenceFromExport<
  */
 export type SignOutAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signOut"]
+>;
+/**
+ * @internal
+ */
+export type IsAuthenticatedQuery = FunctionReferenceFromExport<
+  ReturnType<typeof convexAuth>["isAuthenticated"]
 >;
 
 /**
@@ -411,6 +418,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
         return storeImpl(ctx, args, getProviderOrThrow, config);
       },
     }),
+    
+    /**
+     * Utility function for frameworks to use to get the current auth state
+     * based on credentials that they've supplied separately.
+     */
+    isAuthenticated: queryGeneric({args: {}, handler: async (ctx, _args): Promise<boolean> => {
+      const ident = await ctx.auth.getUserIdentity();
+      return ident !== null;
+    }}),
   };
 }
 

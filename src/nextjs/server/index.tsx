@@ -1,5 +1,6 @@
 import "server-only";
 
+import { fetchQuery } from "convex/nextjs";
 import { NextMiddlewareResult } from "next/dist/server/web/types";
 import {
   NextFetchEvent,
@@ -20,6 +21,7 @@ import {
   setAuthCookies,
   setAuthCookiesInMiddleware,
 } from "./utils.js";
+import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
 
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
@@ -111,7 +113,7 @@ export function isAuthenticatedNextjs() {
  */
 export type ConvexAuthNextjsMiddlewareContext = {
   getToken: () => string | undefined;
-  isAuthenticated: () => boolean;
+  isAuthenticated: () => Promise<boolean>;
 };
 
 /**
@@ -227,9 +229,13 @@ export function convexAuthNextjsMiddleware(
               const cookies = getRequestCookiesInMiddleware(request);
               return cookies.token ?? undefined;
             },
-            isAuthenticated: () => {
+            isAuthenticated: async () => {
               const cookies = getRequestCookiesInMiddleware(request);
-              return (cookies.token ?? undefined) !== undefined;
+              try {
+              return await fetchQuery("auth:isAuthenticated" as any as IsAuthenticatedQuery, {}, {token: cookies.token ?? undefined});
+              } catch {
+                return false;
+              }
             },
           },
         })) ??
