@@ -2,7 +2,8 @@
 
 ## The mostly automated way
 
-After an npm install, run `npm test`. This tests against the most recent binary.
+After an `npm install` at the root of this repo and an `npm install` in test-nextjs, run `npm test` in test-nextjs.
+This tests against the most recently published official binary.
 
 ## The more manual way
 
