@@ -7,11 +7,13 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: extractions/setup-just@v2
 
       - name: Use Node.js 20.x
         uses: actions/setup-node@v4
