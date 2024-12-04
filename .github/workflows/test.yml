@@ -15,6 +15,7 @@ jobs:
 
       - uses: extractions/setup-just@v2
 
+      # TODO this doesn't pass on Node.js 20 but it should, something with Next.js
       - name: Use Node.js 18.x
         uses: actions/setup-node@v4
         with:

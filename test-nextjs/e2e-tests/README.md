@@ -2,8 +2,12 @@
 
 ## The mostly automated way
 
+After an npm install, run `npm test`. This tests against the most recent binary.
+
+## The more manual way
+
 The following instructions require some pre-work, but once you've done the first couple steps once
-you can skip to running the test command at the end. 
+you can skip to running the test command at the end.
 
 1. Clone [convex-backend](https://github.com/get-convex/convex-backend)
 
@@ -15,7 +19,7 @@ you can skip to running the test command at the end.
 CONVEX_LOCAL_BACKEND_PATH=/path/to/your/convex-backend npm run test
 ```
 
-## The manual way
+## The most manual way
 
 You'll need manage your own Convex deployment to follow these instructions.
 
