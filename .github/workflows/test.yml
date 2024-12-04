@@ -31,6 +31,10 @@ jobs:
       - name: test
         run: npm run test:once
 
+      - name: Install Playwright Browsers
+        working-directory: test-nextjs
+        run: npx playwright install --with-deps
+
       - name: e2e test
         working-directory: test-nextjs
         run: npm run test
