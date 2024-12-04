@@ -184,6 +184,8 @@ export async function handleOAuth(
     if (provider.id === "apple") {
       try {
         profile.user = JSON.parse(params?.user)
+        // ConvexAuth: disabled lint for empty block
+        // eslint-disable-next-line no-empty
       } catch {}
     } 
     
