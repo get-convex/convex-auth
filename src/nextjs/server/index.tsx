@@ -232,7 +232,11 @@ export function convexAuthNextjsMiddleware(
             isAuthenticated: async () => {
               const cookies = getRequestCookiesInMiddleware(request);
               try {
-              return await fetchQuery("auth:isAuthenticated" as any as IsAuthenticatedQuery, {}, {token: cookies.token ?? undefined});
+                return await fetchQuery(
+                  "auth:isAuthenticated" as any as IsAuthenticatedQuery,
+                  {},
+                  { token: cookies.token ?? undefined },
+                );
               } catch {
                 return false;
               }
