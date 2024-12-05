@@ -1,34 +1,18 @@
+// This file is adapted from packages/core/src/lib/utils/custom-fetch.ts in the @auth/core package (commit 5af1f30a32e64591abc50ae4d2dba4682e525431).
+
 import * as o from "oauth4webapi";
-import type { InternalProvider } from "../../types.js";
+import type { InternalProvider } from "../../types";
+import { customFetch } from "@auth/core";
+import { OAuthConfig } from "@auth/core/providers/index.js";
+// ConvexAuth:re-export the symbol from @auth/core
+export { customFetch } from "@auth/core";
 
-/**
- * This advanced option allows you to override the default `fetch` function used by the provider
- * to make requests to the provider's OAuth endpoints.
- *
- * It can be used to support corporate proxies, custom fetch libraries, cache discovery endpoints,
- * add mocks for testing, logging, set custom headers/params for non-spec compliant providers, etc.
- *
- * @example
- * ```ts
- * import { Auth, customFetch } from "@auth/core"
- * import GitHub from "@auth/core/providers/github"
- *
- * const dispatcher = new ProxyAgent("my.proxy.server")
- * function proxy(...args: Parameters<typeof fetch>): ReturnType<typeof fetch> {
- *   return undici(args[0], { ...(args[1] ?? {}), dispatcher })
- * }
- *
- * const response = await Auth(request, {
- *   providers: [GitHub({ [customFetch]: proxy })]
- * })
- * ```
- *
- * @see https://undici.nodejs.org/#/docs/api/ProxyAgent?id=example-basic-proxy-request-with-local-agent-dispatcher
- * @see https://authjs.dev/guides/corporate-proxy
- */
-export const customFetch = Symbol("custom-fetch");
+type FetchOptResult = {
+  [o.customFetch]: typeof fetch;
+};
 
-/** @internal */
-export function fetchOpt(provider: InternalProvider<"oauth" | "oidc">) {
-  return { [o.customFetch]: provider[customFetch] ?? fetch };
+// ConvexAuth: Expose this internal function so we can use it.
+// ConvexAuth: Make a version that works on InternalProvider and OAuthConfig
+export function fetchOpt(providerOrConfig: InternalProvider<"oauth" | "oidc"> | OAuthConfig<any>): FetchOptResult {
+  return { [o.customFetch]: providerOrConfig[customFetch] ?? fetch };
 }

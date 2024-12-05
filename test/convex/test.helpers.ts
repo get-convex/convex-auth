@@ -62,7 +62,7 @@ export async function signInViaGitHub(
             access_token: issuedAccessToken,
             token_type: "bearer",
           }),
-          { status: 200 },
+          { status: 200, headers: { "Content-Type": "application/json" }  },
         );
       } else if (
         input === "https://api.github.com/user" ||
