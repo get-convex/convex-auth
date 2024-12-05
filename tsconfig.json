@@ -26,6 +26,8 @@
     "docs",
     "test",
     "test-router",
-    "test-nextjs"
+    "test-nextjs",
+    // TODO: remove when we merge in our updated forked Auth.js code.
+    "src/server/oauth"
   ]
 }

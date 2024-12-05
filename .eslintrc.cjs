@@ -6,11 +6,14 @@ module.exports = {
     "plugin:@typescript-eslint/recommended-type-checked",
   ],
   ignorePatterns: [
+    
     ".eslintrc.cjs",
     "test",
     "docs",
     "dist",
     "test-nextjs/backendHarness.js",
+    // TODO: remove when we merge in our updated forked Auth.js code.
+    "src/server/oauth",
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
