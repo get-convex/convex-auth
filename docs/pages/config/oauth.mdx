@@ -1,4 +1,4 @@
-import { Steps } from "nextra/components";
+import { Callout, Steps } from "nextra/components";
 import { Tabs } from "nextra-theme-docs";
 
 # OAuth
@@ -22,30 +22,28 @@ Convex Auth implements configuration via [Auth.js](https://authjs.dev)
 "provider" configs. These JS objects define how the library interfaces with an
 OAuth provider.
 
-We recommend using GitHub, Google, or Apple as an OAuth provider. You can also
-try any of the 80 OAuth providers preconfigured by Auth.js (see the list in the
-sidebar of [Auth.js docs](https://authjs.dev/getting-started/providers/github)).
+Convex supports using [GitHub](oauth/github), [Google](oauth/google) and
+[Apple](oauth/apple) as OAuth providers. You can also try any of the 80 OAuth
+providers bundled with Auth.js (see the list in the sidebar of
+[Auth.js docs](https://authjs.dev/getting-started/providers/github)), but note
+that **we don't provide support for using these other providers**.
 
-Choose an OAuth provider (for example _GitHub_) and follow the guide below.
+See the individual guides for the supported providers above or follow the
+general setup instructions below for the provider of your choice.
 
 _Ignore the "database provider" configuration in Auth.js docs. Your Convex
 backend is your database!_
 
-<details>
-<summary>
-Are you setting up OAuth for the first time? We recommend using
-_GitHub_.
-</summary>
+<Callout type="info">
+  Are you setting up OAuth for the first time? We recommend using
+  [GitHub](oauth/github).
+</Callout>
 
-Github has better-than-most configuration DX, even if it is not a very good
-choice for apps targeting the general population.
+## General OAuth Setup
 
-Google, which is very popular among users, unfortunately has a somewhat
-complicated OAuth setup and documentation. Apple is even worse.
-
-</details>
-
-## Setup
+The instructions below should apply to any OAuth provider. If you're using one
+of our supported providers, prefer following the dedicated setup guide for the
+provider you've chosen instead.
 
 <Steps>
 
