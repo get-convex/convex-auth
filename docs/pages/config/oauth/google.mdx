@@ -64,7 +64,8 @@ Select "Web Application" as the client type.
 Choose a name - this won't be shown to users, it's just for your organizational
 purposes.
 
-For **Authorized JavaScript origins** enter `http://localhost:5173`.
+For **Authorized JavaScript origins** enter `http://localhost:5173` (or whatever
+local address your development server uses)..
 
 For the **Authorized redirect URIs**, first find the HTTP Actions URL for your
 Convex deployment. You can find that in the
@@ -90,9 +91,16 @@ Click **CREATE**.
 
 Reopen the client configuration.
 
-Open a terminal to your Convex application directory. Copy the **Client ID**
-value from the configuration page and supply it as the last argument to the
-following command (run in your terminal):
+Open a terminal to your Convex application directory.
+
+<Callout type="info">
+  Environment variables can also be configured in the [Convex
+  dashboard](https://dashboard.convex.dev) under `Settings -> Environment
+  variables`.
+</Callout>
+
+Copy the **Client ID** value from the configuration page and supply it as the
+last argument to the following command (run in your terminal):
 
 ```
 npx convex env set AUTH_GOOGLE_ID <yourgoogleclientid>

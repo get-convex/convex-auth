@@ -16,15 +16,10 @@ development environment.
     form](https://github.com/settings/applications/new) or expand for detailed
     manual steps.
   </summary>
-    1. Sign in to github.com in your web browser
-    2. Click on your user avatar in the
-    top-right of the page
-    3. In the menu that opens, click **Settings**
-    4. Scroll down
-    and click **Developer settings** in the menu on the left
-    5. Click **OAuth Apps**
-    in the menu on the left
-    6. Click the **New OAuth App** button
+  1. Sign in to github.com in your web browser 2. Click on your user avatar in the
+  top-right of the page 3. In the menu that opens, click **Settings** 4. Scroll down
+  and click **Developer settings** in the menu on the left 5. Click **OAuth Apps**
+  in the menu on the left 6. Click the **New OAuth App** button
 </details>
 
 ### Fill out the form with your app details
@@ -33,7 +28,8 @@ You can name your app whatever you like, but note that the name and description
 will be presented to users when they attempt to login with GitHub for your
 application.
 
-For the **Homepage URL**, use `http://localhost:5173`.
+For the **Homepage URL**, use `http://localhost:5173` (or whatever local address
+your development server uses).
 
 For the **Authorization callback URL**, first find the HTTP Actions URL for your
 Convex deployment. You can find that in the
@@ -59,9 +55,16 @@ Once you've filled in that info, click the **Register application** button.
 
 Keep the GitHub page with your new application details open.
 
-Open a terminal to your Convex application directory. Copy the **Client ID**
-value from the GitHub page and supply it as the last argument to the following
-command (run in your terminal):
+Open a terminal to your Convex application directory.
+
+<Callout type="info">
+  Environment variables can also be configured in the [Convex
+  dashboard](https://dashboard.convex.dev) under `Settings -> Environment
+  variables`.
+</Callout>
+
+Copy the **Client ID** value from the GitHub page and supply it as the last
+argument to the following command (run in your terminal):
 
 ```
 npx convex env set AUTH_GITHUB_ID <yourgithubclientid>

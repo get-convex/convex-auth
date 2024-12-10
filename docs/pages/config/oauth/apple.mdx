@@ -121,9 +121,16 @@ Open the
 [Services ID](https://developer.apple.com/account/resources/identifiers/list/serviceId)
 page.
 
-Open a terminal to your Convex application directory. Copy the **IDENTIFIER**
-value for the Services ID you created earlier and supply it as the last argument
-to the following command (run in your terminal):
+Open a terminal to your Convex application directory.
+
+<Callout type="info">
+  Environment variables can also be configured in the [Convex
+  dashboard](https://dashboard.convex.dev) under `Settings -> Environment
+  variables`.
+</Callout>
+
+Copy the **IDENTIFIER** value for the Services ID you created earlier and supply
+it as the last argument to the following command (run in your terminal):
 
 ```
 npx convex env set AUTH_APPLE_ID <yourappleserviceidentifier>
