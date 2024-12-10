@@ -15,7 +15,7 @@ import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 import { FakePhone } from "./otp/FakePhone";
 import { DataModel } from "./_generated/dataModel.js";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     // !publish: remove
     FakePhone,
