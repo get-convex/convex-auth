@@ -133,7 +133,7 @@ and [useAuthActions](/api_reference/react#useauthactions).
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Element`
+`Promise`\<`Element`\>
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
@@ -149,13 +149,13 @@ Convex backend from Server Components, Server Actions and Route Handlers.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise<undefined | string>`
+`Promise`\<`undefined` \| `string`\>
 
 The token if the the client is authenticated, otherwise `undefined`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:82](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L82)
+[src/nextjs/server/index.tsx:83](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L83)
 
 ***
 
@@ -170,11 +170,11 @@ since they won't stop nested pages from rendering.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
-`Promise<boolean>`
+`Promise`\<`boolean`\>
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:93](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L93)
+[src/nextjs/server/index.tsx:94](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L94)
 
 ***
 
@@ -202,18 +202,18 @@ export function convexAuthNextjsMiddleware(handler, options) {
 
 <h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
-`Promise<string | undefined>`
+`Promise`\<`string` \| `undefined`\>
 
 #### isAuthenticated()
 
 
 <h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
 
-`Promise<boolean>`
+`Promise`\<`boolean`\>
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:112](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L112)
+[src/nextjs/server/index.tsx:113](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L113)
 
 ***
 
@@ -371,7 +371,7 @@ A Next.js middleware.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:123](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L123)
+[src/nextjs/server/index.tsx:124](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L124)
 
 ***
 
@@ -435,7 +435,7 @@ The route path to redirect to.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:267](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L267)
+[src/nextjs/server/index.tsx:272](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L272)
 
 ***
 

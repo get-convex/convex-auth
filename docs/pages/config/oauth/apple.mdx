@@ -1,0 +1,207 @@
+import { Callout, Steps } from "nextra/components";
+import { AppleSecretGenerator } from "../../../components/AppleSecretGenerator";
+
+# Apple
+
+## Instructions
+
+Follow these instructions to configure Convex Auth to use **Sign in with Apple**
+in a development environment.
+
+<Callout type="warning">
+  Unlike other providers, Apple doesn't allow you to test your **Sign in with
+  Apple** integration using an app running on `localhost`. You'll need to fully
+  deploy your application to a public site with a valid SSL certificate.
+</Callout>
+
+The instructions expect that you have an Apple developer account. If you don't
+have one yet, be sure to do that first. Visit
+[Apple's Developer site](https://developer.apple.com/) to ensure that your
+developer account is ready to go.
+
+Additionally, the instructions cover the full configuration of **Sign in with
+Apple** for a project. If you are working with an existing project, it's
+possible that some of the steps below won't apply.
+
+<Steps>
+### Create an App ID
+
+Open the Apple's
+[Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list)
+page.
+
+Select "App IDs" in the drop down on the right (if it's not already selected)
+and click on the `+` button next to **Identifiers**.
+
+On the next page, with "App IDs" selected, click **Continue**.
+
+On the next page, with "App" selected, click **Continue**.
+
+Fill in the **Description** and _Explicit_ **Bundle ID** fields.
+
+Scroll down until you see "Sign in with Apple" in the list and check the box
+next to it.
+
+Click **Continue** and then **Register**.
+
+### Create a Service ID
+
+Back on the
+[Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list)
+page, use the drop-down on the right and select "Services IDs".
+
+Click the `+` button next to **Identifiers**.
+
+On the next page, with "Services IDs" selected, click **Continue**.
+
+On the next page, fill in the **Description** and **Identifier** fields.
+
+Click **Continue** and then **Register**.
+
+### Create a Key
+
+Click on the [Keys](https://developer.apple.com/account/resources/authkeys/list)
+entry in the left menu.
+
+Click on the `+` button next to **Keys**.
+
+Enter a **Key Name**, scroll down and check the box next to **Sign in with
+Apple**, and then click the **Configure** button beside it.
+
+On the next page, select the **App ID** you just created as the **Primary App
+ID** and click the **Save** button.
+
+Back on the **Register a New Key** page, click the **Continue** button, and then
+click the **Register** button.
+
+Download the key on the next screen and store it somewhere safe, then click the
+**Done** button.
+
+### Configure your callback URL
+
+Back on the
+[Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/identifiers/list)
+page, use the drop-down on the right and select "Services IDs".
+
+Click the name of the Service ID you just created earlier.
+
+Ensure that "Sign In with Apple" is checked and click the **Configure** button.
+
+To populate the **Register Website URLs** form, first find the HTTP Actions URL
+for your Convex deployment. You can find that in the
+[Convex dashboard](https://dashboard.convex.dev/) under **Settings -> URL &
+Deploy Key -> Show development credentials**.
+
+<Callout type="info">
+  Your HTTP Actions URL will match your Deployment URL, except it will end in
+  `.site` instead of `.cloud`.
+</Callout>
+
+You'll need to copy and paste just the domain portion into **Domains and
+Subdomains**.
+
+The full **Return URLs** value will be your actions URL plus
+`api/auth/callback/apple`. So if your actions URL is
+`https://fast-horse-123.convex.site` then your return URL will be:
+
+```
+https://fast-horse-123.convex.site/api/auth/callback/apple
+```
+
+Click **Next**.
+
+Confirm that the values are correct and then click **Done**.
+
+Back on the Services ID configuration page, click **Continue** and then
+**Save**.
+
+### Set Convex environment variables for Sign in with Apple
+
+Open the
+[Services ID](https://developer.apple.com/account/resources/identifiers/list/serviceId)
+page.
+
+Open a terminal to your Convex application directory.
+
+<Callout type="info">
+  Environment variables can also be configured in the [Convex
+  dashboard](https://dashboard.convex.dev) under `Settings -> Environment
+  variables`.
+</Callout>
+
+Copy the **IDENTIFIER** value for the Services ID you created earlier and supply
+it as the last argument to the following command (run in your terminal):
+
+```
+npx convex env set AUTH_APPLE_ID <yourappleserviceidentifier>
+```
+
+Now it's time to configure the `AUTH_APPLE_SECRET`. This is the trickiest part
+of the process, and it will involve multiple pieces of information that you've
+worked with above. In the end, those various bits of information will be
+combined to create a signed [JWT](https://en.wikipedia.org/wiki/JSON_Web_Token)
+that Apple requires for the secret value.
+
+<div className="nx-my-4 nx-rounded nx-border nx-border-gray-200 nx-bg-white nx-p-2 nx-shadow-sm first:nx-mt-0 dark:nx-border-neutral-800 dark:nx-bg-neutral-900">
+Use this form (in Chrome or Firefox) to help generate the JWT that you'll use for your `AUTH_APPLE_SECRET`.
+
+<Callout type="info">
+  This form is processed entirely in your browser - no data is transmitted over
+  the network.
+</Callout>
+
+<AppleSecretGenerator/>
+</div>
+
+Use the **Secret Key** value that was generated above and set it as the
+`AUTH_APPLE_SECRET` environment var.
+
+```
+npx convex env set AUTH_APPLE_SECRET <yourapplesecret>
+```
+
+### Provider configuration in auth.ts
+
+Add the provider config to the `providers` array in `convex/auth.ts`. The
+`Apple` provider will read the client ID and secret that you supplied in the
+environment variables above.
+
+<Callout type="info">
+If an Apple user elects to share their name with your application, that only happens the first time that they
+authenticate via Sign in with Apple. Because of that, the provider configuration below is a little more complex
+than other supported providers.
+
+It ensures that if the user's name is shared, it gets added to the profile which
+is included in the `users` table. On future logins, the initial value that was
+written will be retained.
+
+</Callout>
+
+```ts filename="convex/auth.ts"
+import Apple from "@auth/core/providers/apple";
+import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [
+    Apple({
+      profile: (appleInfo) => {
+        const name = appleInfo.user
+          ? `${appleInfo.user.name.firstName} ${appleInfo.user.name.lastName}`
+          : undefined;
+        return {
+          id: appleInfo.sub,
+          name: name,
+          email: appleInfo.email,
+        };
+      },
+    }),
+  ],
+});
+```
+
+### App integration
+
+See the [general OAuth instructions](../oauth#add-sign-in-button) for how to add
+a sign-in button in your application.
+
+</Steps>

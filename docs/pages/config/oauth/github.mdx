@@ -1,0 +1,103 @@
+import { Callout, Steps } from "nextra/components";
+
+# GitHub
+
+## Instructions
+
+Follow these instructions to configure Convex Auth to use **GitHub OAuth** in a
+development environment.
+
+<Steps>
+### Open the Github OAuth app registration form
+
+<details>
+  <summary>
+    You can [navigate directly to the
+    form](https://github.com/settings/applications/new) or expand for detailed
+    manual steps.
+  </summary>
+  1. Sign in to github.com in your web browser 2. Click on your user avatar in the
+  top-right of the page 3. In the menu that opens, click **Settings** 4. Scroll down
+  and click **Developer settings** in the menu on the left 5. Click **OAuth Apps**
+  in the menu on the left 6. Click the **New OAuth App** button
+</details>
+
+### Fill out the form with your app details
+
+You can name your app whatever you like, but note that the name and description
+will be presented to users when they attempt to login with GitHub for your
+application.
+
+For the **Homepage URL**, use `http://localhost:5173` (or whatever local address
+your development server uses).
+
+For the **Authorization callback URL**, first find the HTTP Actions URL for your
+Convex deployment. You can find that in the
+[Convex dashboard](https://dashboard.convex.dev/) under **Settings -> URL &
+Deploy Key -> Show development credentials**.
+
+<Callout type="info">
+  Your HTTP Actions URL will match your Deployment URL, except it will end in
+  `.site` instead of `.cloud`.
+</Callout>
+
+The full **Authorization callback URL** will be your actions URL plus
+`api/auth/callback/github`. So if your actions URL is
+`https://fast-horse-123.convex.site` then your callback URL will be:
+
+```
+https://fast-horse-123.convex.site/api/auth/callback/github
+```
+
+Once you've filled in that info, click the **Register application** button.
+
+### Set Convex environment variables for GitHub OAuth
+
+Keep the GitHub page with your new application details open.
+
+Open a terminal to your Convex application directory.
+
+<Callout type="info">
+  Environment variables can also be configured in the [Convex
+  dashboard](https://dashboard.convex.dev) under `Settings -> Environment
+  variables`.
+</Callout>
+
+Copy the **Client ID** value from the GitHub page and supply it as the last
+argument to the following command (run in your terminal):
+
+```
+npx convex env set AUTH_GITHUB_ID <yourgithubclientid>
+```
+
+Then click the **Generate a new client secret** button back on the GitHub OAuth
+app settings page.
+
+Copy that value and use it as the last argument to the following command (run in
+your terminal):
+
+```
+npx convex env set AUTH_GITHUB_SECRET <yourgithubsecret>
+```
+
+### Provider configuration in auth.ts
+
+Add the provider config to the `providers` array in `convex/auth.ts`. The
+`GitHub` provider will read the client ID and secret that you supplied in the
+environment variables above.
+
+```ts filename="convex/auth.ts"
+import GitHub from "@auth/core/providers/github";
+import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store } = convexAuth({
+  providers: [GitHub],
+});
+```
+
+### App integration
+
+See the [general OAuth instructions](../oauth#add-sign-in-button) for how to add
+a sign-in button in your application.
+
+</Steps>
