@@ -52,8 +52,8 @@ export type RouteMatcherParam =
  * predefined routes that can be passed in as the first argument.
  *
  * You can use glob patterns to match multiple routes or a function to match against the request object.
- * Path patterns and regular expressions are supported, for example: `['/foo', '/bar(.*)'] or `[/^\/foo\/.*$/]`
- * For more information, see: https://github.com/pillarjs/path-to-regexp
+ * Path patterns and limited regular expressions are supported.
+ * For more information, see: https://www.npmjs.com/package/path-to-regexp/v/6.3.0
  */
 export const createRouteMatcher = (routes: RouteMatcherParam) => {
   if (typeof routes === "function") {
