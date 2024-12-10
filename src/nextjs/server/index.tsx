@@ -94,7 +94,8 @@ export async function convexAuthNextjsToken() {
  * since they won't stop nested pages from rendering.
  */
 export async function isAuthenticatedNextjs() {
-  return (await convexAuthNextjsToken()) !== undefined;
+  const cookies = await getRequestCookies();
+  return isAuthenticated(cookies.token);
 }
 
 /**
@@ -232,15 +233,7 @@ export function convexAuthNextjsMiddleware(
             },
             isAuthenticated: async () => {
               const cookies = await getRequestCookiesInMiddleware(request);
-              try {
-                return await fetchQuery(
-                  "auth:isAuthenticated" as any as IsAuthenticatedQuery,
-                  {},
-                  { token: cookies.token ?? undefined },
-                );
-              } catch {
-                return false;
-              }
+              return isAuthenticated(cookies.token);
             },
           },
         })) ??
@@ -303,4 +296,19 @@ async function convexAuthNextjsServerState(): Promise<ConvexAuthServerState> {
     _state: { token, refreshToken: "dummy" },
     _timeFetched: Date.now(),
   };
+}
+
+async function isAuthenticated(token: string | null): Promise<boolean> {
+  if (!token) {
+    return false;
+  }
+  try {
+    return await fetchQuery(
+      "auth:isAuthenticated" as any as IsAuthenticatedQuery,
+      {},
+      { token: token },
+    );
+  } catch {
+    return false;
+  }
 }
