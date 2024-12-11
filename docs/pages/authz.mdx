@@ -58,9 +58,9 @@ Sometimes your React frontend might need to call your Convex backend via HTTP,
 usually to stream data, such as when uploading files or when loading a slowly
 generated AI response.
 
-To authenticate HTTP actions you will need to access the JWT token the
-client uses for authenticating with the backend, which you get from the
-`useAuthToken` hook:
+To authenticate HTTP actions you will need to access the JWT token the client
+uses for authenticating with the backend, which you get from the `useAuthToken`
+hook:
 
 ```tsx
 import { useAuthToken } from "@convex-dev/auth/react";
@@ -71,7 +71,7 @@ function SomeComponent() {
     // You might need to set up `VITE_CONVEX_SITE_URL`
     const response = await fetch(
       `${process.env.VITE_CONVEX_SITE_URL!}/someEndpoint`,
-      { headers: { Authorization: `Bearer ${token}` } },
+      { headers: { Authorization: `Bearer ${token}` } }
     );
     // ...
   };
@@ -125,7 +125,7 @@ export const currentUser = query({
 });
 ```
 
-The function returns `Id<"users">` (or `null` when the client isn't
+The function returns `Doc<"users">` (or `null` when the client isn't
 authenticated).
 
 ### Get current session ID
@@ -149,7 +149,7 @@ export const currentSession = query({
 });
 ```
 
-The function returns `Id<"authSessions">` (or `null` when the client isn't
+The function returns `Doc<"authSessions">` (or `null` when the client isn't
 authenticated).
 
 ### Loading users and sessions
