@@ -2,7 +2,7 @@
 
 ## 0.0.76
 
-- Potentially BREAKING: For NextJS, switched to `path-to-regexp` 0.6.3 to
+- Potentially BREAKING: For NextJS, switched to `path-to-regexp` 6.3.0 to
   avoid ReDoS vulnerability. That version, while protected from the
   vulnerability, has less expressive RegEx pattern support. If you are using
   `createRouteMatcher` in middleware, It might not match some patterns
