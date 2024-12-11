@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.76
+
+- Potentially BREAKING: For NextJS, switched to `path-to-regexp` 0.6.3 to
+  avoid ReDoS vulnerability. That version, while protected from the
+  vulnerability, has less expressive RegEx pattern support. If you are using
+  `createRouteMatcher` in middleware, It might not match some patterns
+  that were previously available in the 0.7.x series. See the docs for
+  supported patterns: https://www.npmjs.com/package/path-to-regexp/v/6.3.0.
+- Upgraded to `@auth/core` 0.37.3.
+- Updated OAuth integration docs for supported providers (available at
+  https://labs.convex.dev/auth/config/oauth).
+
 ## 0.0.75
 
 - BREAKING: `convexAuthNextjsToken()` and `isAuthenticatedNextjs()` now return
