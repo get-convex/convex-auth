@@ -18,7 +18,7 @@ from `convex/auth.ts` to make them callable:
 ```ts filename="convex/auth.ts"
 import { convexAuth } from "@convex-dev/auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [],
 });
 ```
@@ -131,9 +131,15 @@ Action called by the client to invalidate the current session.
 Internal mutation used by the library to read and write
 to the database during signin and signout.
 
+#### isAuthenticated
+
+
+Utility function for frameworks to use to get the current auth state
+based on credentials that they've supplied separately.
+
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:82](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L82)
+[src/server/implementation/index.ts:91](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L91)
 
 ***
 
@@ -211,7 +217,7 @@ the user ID or `null` if the client isn't authenticated
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:440](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L440)
+[src/server/implementation/index.ts:479](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L479)
 
 ***
 
@@ -411,7 +417,7 @@ or throws an error.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:458](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L458)
+[src/server/implementation/index.ts:497](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L497)
 
 ***
 
@@ -554,7 +560,7 @@ secret does not match.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:518](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L518)
+[src/server/implementation/index.ts:557](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L557)
 
 ***
 
@@ -685,7 +691,7 @@ The new secret credential to store for this account.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:558](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L558)
+[src/server/implementation/index.ts:597](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L597)
 
 ***
 
@@ -757,7 +763,7 @@ Use this function to invalidate existing sessions.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:588](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L588)
+[src/server/implementation/index.ts:627](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L627)
 
 ***
 
@@ -847,7 +853,7 @@ or `null`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:610](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L610)
+[src/server/implementation/index.ts:649](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L649)
 
 ***
 
@@ -1125,7 +1131,7 @@ and for magic links:
 import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@convex-dev/auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [GitHub],
   callbacks: {
     async redirect({ redirectTo }) {

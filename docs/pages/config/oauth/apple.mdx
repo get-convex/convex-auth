@@ -181,7 +181,7 @@ written will be retained.
 import Apple from "@auth/core/providers/apple";
 import { convexAuth } from "@convex-dev/auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Apple({
       profile: (appleInfo) => {

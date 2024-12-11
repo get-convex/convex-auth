@@ -97,7 +97,7 @@ Import Auth.js providers from `@auth/core/providers`. For example for _GitHub_:
 import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@convex-dev/auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [GitHub],
 });
 ```
@@ -190,7 +190,7 @@ example:
 import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@convex-dev/auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [GitHub],
   callbacks: {
     async redirect({ redirectTo }) {
@@ -246,7 +246,7 @@ config:
 import GitHub from "@auth/core/providers/github";
 import { convexAuth } from "@convex-dev/auth/server";
 
-export const { auth, signIn, signOut, store } = convexAuth({
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     GitHub({
       profile(githubProfile, tokens) {
