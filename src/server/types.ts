@@ -161,9 +161,13 @@ export type ConvexAuthConfig = {
           phoneVerified?: boolean;
         };
         /**
-         * The `shouldLink` argument passed to `createAccount`.
+         * Whether to link the account via email.
          */
-        shouldLink?: boolean;
+        shouldLinkViaEmail?: boolean;
+        /**
+         * Whether to link the account via phone.
+         */
+        shouldLinkViaPhone?: boolean;
       },
     ) => Promise<GenericId<"users">>;
     /**
@@ -216,9 +220,13 @@ export type ConvexAuthConfig = {
           phoneVerified?: boolean;
         };
         /**
-         * The `shouldLink` argument passed to `createAccount`.
+         * Whether to link the account via email.
          */
-        shouldLink?: boolean;
+        shouldLinkViaEmail?: boolean;
+        /**
+         * Whether to link the account via phone.
+         */
+        shouldLinkViaPhone?: boolean;
       },
     ) => Promise<void>;
   };
