@@ -341,7 +341,9 @@ export type PhoneUserConfig<
 /**
  * Similar to Auth.js Credentials config.
  */
-export type ConvexCredentialsConfig = ConvexCredentialsUserConfig<any> & {
+export type ConvexCredentialsConfig<
+  DataModel extends GenericDataModel = GenericDataModel,
+> = ConvexCredentialsUserConfig<DataModel> & {
   type: "credentials";
   id: string;
 };

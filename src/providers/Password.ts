@@ -137,7 +137,6 @@ export function Password<DataModel extends GenericDataModel>(
       const { email } = profile;
       const secret = params.password as string;
       let account: GenericDoc<DataModel, "authAccounts">;
-      let user: GenericDoc<DataModel, "users">;
       if (flow === "signUp") {
         if (secret === undefined) {
           throw new Error("Missing `password` param for `signUp` flow");
@@ -149,7 +148,7 @@ export function Password<DataModel extends GenericDataModel>(
           shouldLinkViaEmail: config.verify !== undefined,
           shouldLinkViaPhone: false,
         });
-        ({ account, user } = created);
+        ({ account } = created);
       } else if (flow === "signIn") {
         if (secret === undefined) {
           throw new Error("Missing `password` param for `signIn` flow");
@@ -161,7 +160,7 @@ export function Password<DataModel extends GenericDataModel>(
         if (retrieved === null) {
           throw new Error("Invalid credentials");
         }
-        ({ account, user } = retrieved);
+        ({ account } = retrieved);
         // START: Optional, support password reset
       } else if (flow === "reset") {
         if (!config.reset) {
@@ -226,7 +225,7 @@ export function Password<DataModel extends GenericDataModel>(
         });
       }
       // END
-      return { userId: user._id };
+      return { userId: account.userId as string };
     },
     crypto: {
       async hashSecret(password: string) {
