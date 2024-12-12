@@ -40,6 +40,7 @@ import {
 import {
   DocumentByName,
   GenericDataModel,
+  TableNamesInDataModel,
   WithoutSystemFields,
 } from "convex/server";
 import { Value } from "convex/values";
@@ -48,7 +49,10 @@ import { Scrypt } from "lucia";
 /**
  * The available options to a {@link Password} provider for Convex Auth.
  */
-export interface PasswordConfig<DataModel extends GenericDataModel> {
+export interface PasswordConfig<
+  DataModel extends GenericDataModel,
+  UsersTable extends TableNamesInDataModel<DataModel> = "users",
+> {
   /**
    * Uniquely identifies the provider, allowing to use
    * multiple different {@link Password} providers.
@@ -71,7 +75,7 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
      * the database.
      */
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) => WithoutSystemFields<DocumentByName<DataModel, "users">> & {
+  ) => WithoutSystemFields<DocumentByName<DataModel, UsersTable>> & {
     email: string;
   };
   /**
@@ -112,9 +116,10 @@ export interface PasswordConfig<DataModel extends GenericDataModel> {
  * Email verification is not required unless you pass
  * an email provider to the `verify` option.
  */
-export function Password<DataModel extends GenericDataModel>(
-  config: PasswordConfig<DataModel> = {},
-) {
+export function Password<
+  DataModel extends GenericDataModel,
+  UsersTable extends TableNamesInDataModel<DataModel> = "users",
+>(config: PasswordConfig<DataModel, UsersTable> = {}) {
   const provider = config.id ?? "password";
   return ConvexCredentials<DataModel>({
     id: "password",
