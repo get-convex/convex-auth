@@ -19,7 +19,7 @@ import { GenericDoc } from "./convex_types.js";
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
  */
-export type ConvexAuthConfig = {
+export type ConvexAuthConfig<UserId extends string = GenericId<"users">> = {
   /**
    * A list of authentication provider configs.
    *
@@ -136,7 +136,7 @@ export type ConvexAuthConfig = {
          * If this is a sign-in to an existing account,
          * this is the existing user ID linked to that account.
          */
-        existingUserId: GenericId<"users"> | null;
+        existingUserId: UserId | null;
         /**
          * The provider type or "verification" if this callback is called
          * after an email or phone token verification.
@@ -165,7 +165,7 @@ export type ConvexAuthConfig = {
          */
         shouldLink?: boolean;
       },
-    ) => Promise<GenericId<"users">>;
+    ) => Promise<UserId>;
     /**
      * Perform additional writes after a user is created.
      *
@@ -186,12 +186,12 @@ export type ConvexAuthConfig = {
         /**
          * The ID of the user that is being signed in.
          */
-        userId: GenericId<"users">;
+        userId: UserId;
         /**
          * If this is a sign-in to an existing account,
          * this is the existing user ID linked to that account.
          */
-        existingUserId: GenericId<"users"> | null;
+        existingUserId: UserId | null;
         /**
          * The provider type or "verification" if this callback is called
          * after an email or phone token verification.

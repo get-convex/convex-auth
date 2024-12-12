@@ -101,7 +101,9 @@ export type IsAuthenticatedQuery = FunctionReferenceFromExport<
  * @returns An object with fields you should reexport from your
  *          `convex/auth.ts` file.
  */
-export function convexAuth(config_: ConvexAuthConfig) {
+export function convexAuth<UserId extends string = GenericId<"users">>(
+  config_: ConvexAuthConfig<UserId>,
+) {
   const config = configDefaults(config_ as any);
   const hasOAuth = config.providers.some(
     (provider) => provider.type === "oauth" || provider.type === "oidc",
