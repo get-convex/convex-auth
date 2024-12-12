@@ -62,6 +62,15 @@ async function defaultCreateOrUpdateUser(
       existingUserId,
       ...args,
     });
+  } else {
+    if (
+      existingUserId &&
+      ctx.db.normalizeId("users", existingUserId) === null
+    ) {
+      throw new Error(
+        `User ID \`${existingUserId}\` is not in the \`users\` table`,
+      );
+    }
   }
 
   const {
