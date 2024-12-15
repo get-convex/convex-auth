@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.77
+
+- Fix syntax of an import to work with convex-test.
+
 ## 0.0.76
 
 - Potentially BREAKING: For NextJS, switched to `path-to-regexp` 6.3.0 to avoid
@@ -11,6 +15,8 @@
 - Upgraded to `@auth/core` 0.37.3. You may need upgrade @auth/core to "~0.37.3".
 - Updated OAuth integration docs for supported providers (available at
   https://labs.convex.dev/auth/config/oauth).
+- Change in the logic for isAuthenticated for Next.js: it now involves a
+  server-side check.
 
 ## 0.0.75
 
