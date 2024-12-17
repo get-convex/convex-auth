@@ -10,7 +10,7 @@ import { OAuthConfig } from "@auth/core/providers/oauth.js";
 
 // ConvexAuth: The logic for the callback URL is different from Auth.js
 export function callbackUrl(providerId: string) {
-  return requireEnv("CONVEX_SITE_URL") + "/api/auth/callback/" + providerId;
+  return (process.env.CUSTOM_AUTH_SITE_URL ?? requireEnv("CONVEX_SITE_URL")) + "/api/auth/callback/" + providerId;
 }
 
 // ConvexAuth: This is a ConvexAuth specific function that produces a string that the

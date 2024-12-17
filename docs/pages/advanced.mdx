@@ -1,4 +1,5 @@
 import { Aside } from "../components/Aside";
+import { Callout } from "nextra/components";
 
 # Advanced: Details
 
@@ -34,12 +35,13 @@ Convex Auth follows this logic:
       import GitHub from "@auth/core/providers/github";
       import { convexAuth } from "@convex-dev/auth/server";
 
-      export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-        providers: [
-          Resend,
-          GitHub({ allowDangerousEmailAccountLinking: false }),
-        ],
-      });
+      export const { auth, signIn, signOut, store, isAuthenticated } =
+        convexAuth({
+          providers: [
+            Resend,
+            GitHub({ allowDangerousEmailAccountLinking: false }),
+          ],
+        });
       ```
 
       </details>
@@ -170,3 +172,28 @@ The session documents are created and deleted by Convex Auth.
 For this reason if you're tying other documents to sessions, and you don't want
 to lose information when the session expires, you should store both the session
 ID and the user ID in your other document.
+
+## Custom callback and sign-in URLs
+
+For ease of configuration, Convex Auth defaults to using the builtin
+`CONVEX_SITE_URL` value in callback and sign-in URLs. For some OAuth providers
+(Google, for example) this can lead to something like
+`happy-animal-123.convex.site` showing up to users on the OAuth consent screen.
+
+If you're using a
+[custom domain](https://docs.convex.dev/production/hosting/custom#custom-domains)
+for your production Convex deployment, you can configure Convex Auth to use that
+domain for the sign-in and callback URLs.
+
+With your **Production** deployment selected in the Convex dashboard, navigate
+to **Settings -> Environment Variables**. Add a `CUSTOM_AUTH_SITE_URL`
+environment variable pointing to the custom domain you configured for the
+deployment. For example, if your custom HTTP Actions domain is
+`convex.example.com` then you'd set `CUSTOM_AUTH_SITE_URL` to
+`https://convex.example.com` (no trailing slash).
+
+<Callout type="warning">
+  Make sure to update your OAuth provider config for your production deployment
+  with your new callback URL. Otherwise it will refuse to redirect users to your
+  application.
+</Callout>
