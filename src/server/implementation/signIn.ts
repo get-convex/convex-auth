@@ -235,7 +235,7 @@ async function handleOAuthProvider(
     };
   }
   const redirect = new URL(
-    requireEnv("CONVEX_SITE_URL") + `/api/auth/signin/${provider.id}`,
+    (process.env.CUSTOM_AUTH_SITE_URL ?? requireEnv("CONVEX_SITE_URL")) + `/api/auth/signin/${provider.id}`,
   );
   const verifier = await callVerifier(ctx);
   redirect.searchParams.set("code", verifier);
