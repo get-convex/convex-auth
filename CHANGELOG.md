@@ -2,7 +2,8 @@
 
 ## 0.0.78
 
-- Add support for [custom OAuth callback and sign-in URLs](https://labs.convex.dev/auth/advanced#custom-callback-and-sign-in-urls)
+- Add support for
+  [custom OAuth callback and sign-in URLs](https://labs.convex.dev/auth/advanced#custom-callback-and-sign-in-urls)
 
 ## 0.0.77
 
@@ -10,7 +11,19 @@
 
 ## 0.0.76
 
-- Potentially BREAKING: For NextJS, switched to `path-to-regexp` 6.3.0 to avoid
+- BREAKING: A change in the logic for isAuthenticated for Next.js: it now
+  involves a server-side check. Update your auth.ts file by adding a new
+  `isAuthenticated` endpoint to the list of exported Convex functions, like
+
+  ```
+  export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth(...
+  ```
+
+  If you're not using Next.js, you should still add this named export as it's
+  the new suggested set of publicly exposed endpoints, but nothing should break
+  if you don't.
+
+- Potentially breaking: For NextJS, switched to `path-to-regexp` 6.3.0 to avoid
   ReDoS vulnerability. That version, while protected from the vulnerability, has
   less expressive RegEx pattern support. If you are using `createRouteMatcher`
   in middleware, it might not match some patterns that were previously available
@@ -19,8 +32,6 @@
 - Upgraded to `@auth/core` 0.37.3. You may need upgrade @auth/core to "~0.37.3".
 - Updated OAuth integration docs for supported providers (available at
   https://labs.convex.dev/auth/config/oauth).
-- Change in the logic for isAuthenticated for Next.js: it now involves a
-  server-side check.
 
 ## 0.0.75
 
