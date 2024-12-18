@@ -10,6 +10,7 @@ import {
   queryGeneric,
   httpActionGeneric,
   internalMutationGeneric,
+  TableNamesInDataModel,
 } from "convex/server";
 import { ConvexError, GenericId, Value, v } from "convex/values";
 import { parse as parseCookies, serialize as serializeCookie } from "cookie";
@@ -49,7 +50,10 @@ import {
 import { signInImpl } from "./signIn.js";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { getAuthorizationUrl } from "../oauth/authorizationUrl.js";
-import { defaultCookiesOptions, oAuthConfigToInternalProvider } from "../oauth/convexAuth.js";
+import {
+  defaultCookiesOptions,
+  oAuthConfigToInternalProvider,
+} from "../oauth/convexAuth.js";
 import { handleOAuth } from "../oauth/callback.js";
 export { getAuthSessionId } from "./sessions.js";
 
@@ -88,7 +92,9 @@ export type IsAuthenticatedQuery = FunctionReferenceFromExport<
  * @returns An object with fields you should reexport from your
  *          `convex/auth.ts` file.
  */
-export function convexAuth(config_: ConvexAuthConfig) {
+export function convexAuth<UserId extends string = GenericId<"users">>(
+  config_: ConvexAuthConfig<UserId>,
+) {
   const config = configDefaults(config_ as any);
   const hasOAuth = config.providers.some(
     (provider) => provider.type === "oauth" || provider.type === "oidc",
@@ -135,7 +141,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         return null;
       }
       const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
-      return userId as GenericId<"users">;
+      return userId;
     },
     /**
      * @deprecated - Use `getAuthSessionId` from "@convex-dev/auth/server":
@@ -240,12 +246,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 providerId,
               ) as OAuthConfig<any>;
               const { redirect, cookies, signature } =
-                await getAuthorizationUrl(
-                  {
-                    provider: await oAuthConfigToInternalProvider(provider),
-                    cookies: defaultCookiesOptions(providerId),
-                  },
-                );
+                await getAuthorizationUrl({
+                  provider: await oAuthConfigToInternalProvider(provider),
+                  cookies: defaultCookiesOptions(providerId),
+                });
 
               await callVerifierSignature(ctx, {
                 verifier,
@@ -295,10 +299,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
             });
 
             const params = url.searchParams;
-            
+
             // Handle OAuth providers that use formData (such as Apple)
             if (
-              request.headers.get("Content-Type") === "application/x-www-form-urlencoded"
+              request.headers.get("Content-Type") ===
+              "application/x-www-form-urlencoded"
             ) {
               const formData = await request.formData();
               for (const [key, value] of formData.entries()) {
@@ -441,15 +446,18 @@ export function convexAuth(config_: ConvexAuthConfig) {
         return storeImpl(ctx, args, getProviderOrThrow, config);
       },
     }),
-    
+
     /**
      * Utility function for frameworks to use to get the current auth state
      * based on credentials that they've supplied separately.
      */
-    isAuthenticated: queryGeneric({args: {}, handler: async (ctx, _args): Promise<boolean> => {
-      const ident = await ctx.auth.getUserIdentity();
-      return ident !== null;
-    }}),
+    isAuthenticated: queryGeneric({
+      args: {},
+      handler: async (ctx, _args): Promise<boolean> => {
+        const ident = await ctx.auth.getUserIdentity();
+        return ident !== null;
+      },
+    }),
   };
 }
 
@@ -476,13 +484,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
  * @param ctx query, mutation or action `ctx`
  * @returns the user ID or `null` if the client isn't authenticated
  */
-export async function getAuthUserId(ctx: { auth: Auth }) {
+export async function getAuthUserId<
+  Id extends string = GenericId<"users">,
+>(ctx: { auth: Auth }) {
   const identity = await ctx.auth.getUserIdentity();
   if (identity === null) {
     return null;
   }
   const [userId] = identity.subject.split(TOKEN_SUB_CLAIM_DIVIDER);
-  return userId as GenericId<"users">;
+  return userId as Id;
 }
 
 /**
@@ -496,6 +506,7 @@ export async function getAuthUserId(ctx: { auth: Auth }) {
  */
 export async function createAccount<
   DataModel extends GenericDataModel = GenericDataModel,
+  UserTable extends TableNamesInDataModel<DataModel> = "users",
 >(
   ctx: GenericActionCtx<DataModel>,
   args: {
@@ -520,7 +531,7 @@ export async function createAccount<
      * The profile data to store for the user.
      * These must fit the `users` table schema.
      */
-    profile: WithoutSystemFields<DocumentByName<DataModel, "users">>;
+    profile: WithoutSystemFields<DocumentByName<DataModel, UserTable>>;
     /**
      * If `true`, the account will be linked to an existing user
      * with the same verified email address.
@@ -538,7 +549,6 @@ export async function createAccount<
   },
 ): Promise<{
   account: GenericDoc<DataModel, "authAccounts">;
-  user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as ActionCtx;
   return await callCreateAccountFromCredentials(actionCtx, args);
@@ -579,7 +589,6 @@ export async function retrieveAccount<
   },
 ): Promise<{
   account: GenericDoc<DataModel, "authAccounts">;
-  user: GenericDoc<DataModel, "users">;
 }> {
   const actionCtx = ctx as unknown as ActionCtx;
   const result = await callRetreiveAccountWithCredentials(actionCtx, args);
@@ -629,7 +638,7 @@ export async function invalidateSessions<
 >(
   ctx: GenericActionCtx<DataModel>,
   args: {
-    userId: GenericId<"users">;
+    userId: string;
     except?: GenericId<"authSessions">[];
   },
 ): Promise<void> {

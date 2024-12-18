@@ -14,7 +14,7 @@ export const createAccountFromCredentialsArgs = v.object({
   shouldLinkViaPhone: v.optional(v.boolean()),
 });
 
-type ReturnType = { account: Doc<"authAccounts">; user: Doc<"users"> };
+type ReturnType = { account: Doc<"authAccounts"> };
 
 export async function createAccountFromCredentialsImpl(
   ctx: MutationCtx,
@@ -56,8 +56,6 @@ export async function createAccountFromCredentialsImpl(
     }
     return {
       account: existingAccount,
-      // TODO: Ian removed this,
-      user: (await ctx.db.get(existingAccount.userId))!,
     };
   }
 
@@ -65,7 +63,7 @@ export async function createAccountFromCredentialsImpl(
     account.secret !== undefined
       ? await Provider.hash(provider, account.secret)
       : undefined;
-  const { userId, accountId } = await upsertUserAndAccount(
+  const { accountId } = await upsertUserAndAccount(
     ctx,
     await getAuthSessionId(ctx),
     { providerAccountId: account.id, secret },
@@ -81,7 +79,6 @@ export async function createAccountFromCredentialsImpl(
 
   return {
     account: (await ctx.db.get(accountId))!,
-    user: (await ctx.db.get(userId))!,
   };
 }
 
