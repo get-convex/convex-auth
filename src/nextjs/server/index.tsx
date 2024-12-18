@@ -308,7 +308,12 @@ async function isAuthenticated(token: string | null): Promise<boolean> {
       {},
       { token: token },
     );
-  } catch {
-    return false;
+  } catch (e: any) {
+    if (e.message.includes("Could not find public function")) {
+      throw new Error(
+        "Server Error: could not find api.auth.isAuthenticated. convex-auth 0.0.76 introduced a new export in convex/auth.ts. Add `isAuthenticated` to the list of functions returned from convexAuth(). See convex-auth changelog for more https://github.com/get-convex/convex-auth/blob/main/CHANGELOG.md",
+      );
+    }
+    throw e;
   }
 }
