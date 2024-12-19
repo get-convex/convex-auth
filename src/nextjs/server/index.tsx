@@ -313,7 +313,9 @@ async function isAuthenticated(token: string | null): Promise<boolean> {
       throw new Error(
         "Server Error: could not find api.auth.isAuthenticated. convex-auth 0.0.76 introduced a new export in convex/auth.ts. Add `isAuthenticated` to the list of functions returned from convexAuth(). See convex-auth changelog for more https://github.com/get-convex/convex-auth/blob/main/CHANGELOG.md",
       );
+    } else {
+      console.log("Returning false from isAuthenticated because", e);
     }
-    throw e;
+    return false;
   }
 }
