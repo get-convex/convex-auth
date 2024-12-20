@@ -173,7 +173,10 @@ export function AuthProvider({
       const { tokens } = await client.unauthenticatedCall(
         "auth:signIn" as unknown as SignInAction,
         "cvxAuthCode" in args
-          ? { params: { code: args.cvxAuthCode }, verifier: args.verifier }
+          ? {
+              params: { cvxAuthCode: args.cvxAuthCode },
+              verifier: args.verifier,
+            }
           : args,
       );
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
@@ -322,20 +325,20 @@ export function AuthProvider({
 
         return;
       }
-      const code =
+      const cvxAuthCode =
         typeof window?.location !== "undefined"
           ? new URLSearchParams(window.location.search).get("cvxAuthCode")
           : null;
       // code from URL is only consumed initially,
       // ref avoids racing in Strict mode
-      if (signingInWithCodeFromURL.current || code) {
-        if (code && !signingInWithCodeFromURL.current) {
+      if (signingInWithCodeFromURL.current || cvxAuthCode) {
+        if (cvxAuthCode && !signingInWithCodeFromURL.current) {
           signingInWithCodeFromURL.current = true;
           const url = new URL(window.location.href);
           url.searchParams.delete("cvxAuthCode");
           void (async () => {
             await replaceURL(url.pathname + url.search + url.hash);
-            await signIn(undefined, { code });
+            await signIn(undefined, { cvxAuthCode });
             signingInWithCodeFromURL.current = false;
           })();
         }

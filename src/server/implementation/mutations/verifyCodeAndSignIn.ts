@@ -116,7 +116,7 @@ async function verifyCodeOnly(
   sessionId: GenericId<"authSessions"> | null,
 ) {
   const { params, verifier } = args;
-  const codeHash = await sha256(params.code);
+  const codeHash = await sha256(params.cvxAuthCode);
   const verificationCode = await ctx.db
     .query("authVerificationCodes")
     .withIndex("code", (q) => q.eq("code", codeHash))

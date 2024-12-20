@@ -57,7 +57,7 @@ export async function signInImpl(
     }))!;
     return { kind: "refreshTokens", signedIn: { tokens } };
   }
-  if (provider === null && args.params?.code !== undefined) {
+  if (provider === null && args.params?.cvxAuthCode !== undefined) {
     const result = await callVerifyCodeAndSignIn(ctx, {
       params: args.params,
       verifier: args.verifier,
@@ -72,7 +72,7 @@ export async function signInImpl(
 
   if (provider === null) {
     throw new Error(
-      "Cannot sign in: Missing `provider`, `params.code` or `refreshToken`",
+      "Cannot sign in: Missing `provider`, `params.cvxAuthCode` or `refreshToken`",
     );
   }
   if (provider.type === "email" || provider.type === "phone") {
