@@ -10,8 +10,6 @@
   called `auth:isAuthenticated`, now it throws an error. This should help people
   with the migration required for 0.0.76.
 
-- Export `SignInAction` and `SignOutAction` types.
-
 ## 0.0.77
 
 - Fix syntax of an import to work with convex-test.
