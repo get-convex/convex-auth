@@ -102,6 +102,7 @@ export const authTables = {
    * - OTP tokens
    * - magic link tokens
    * - OAuth codes
+   * Let's call all of these "cvxAuthCodes" to distinguish them from oauth code= param.
    */
   authVerificationCodes: defineTable({
     accountId: v.id("authAccounts"),

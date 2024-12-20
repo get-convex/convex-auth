@@ -64,7 +64,7 @@ export async function proxyAuthActionToConvex(
     // Do not require auth when refreshing tokens or validating a code since they
     // are steps in the auth flow.
     const fetchActionAuthOptions =
-      args.refreshToken !== undefined || args.params?.code !== undefined
+      args.refreshToken !== undefined || args.params?.cvxAuthCode !== undefined
         ? {}
         : { token };
     try {

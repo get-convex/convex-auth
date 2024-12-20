@@ -26,9 +26,9 @@ export async function handleAuthenticationInRequest(
   const refreshTokens = await getRefreshedTokens(verbose);
 
   // Handle code exchange for OAuth and magic links via server-side redirect
-  const code = requestUrl.searchParams.get("cvxAuthCode");
+  const cvxAuthCode = requestUrl.searchParams.get("cvxAuthCode");
   if (
-    code &&
+    cvxAuthCode &&
     request.method === "GET" &&
     request.headers.get("accept")?.includes("text/html")
   ) {
@@ -39,7 +39,7 @@ export async function handleAuthenticationInRequest(
     try {
       const result = await fetchAction(
         "auth:signIn" as unknown as SignInAction,
-        { params: { code }, verifier },
+        { params: { cvxAuthCode }, verifier },
       );
       if (result.tokens === undefined) {
         throw new Error("Invalid `signIn` action result for code exchange");

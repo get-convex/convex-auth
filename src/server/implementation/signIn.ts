@@ -105,7 +105,8 @@ async function handleEmailAndPhoneProvider(
   | { kind: "started"; started: true }
   | { kind: "signedIn"; signedIn: SessionInfoWithTokens }
 > {
-  if (args.params?.code !== undefined) {
+  // TODO this this flow
+  if (args.params?.cvxAuthCode !== undefined) {
     const result = await callVerifyCodeAndSignIn(ctx, {
       params: args.params,
       provider: provider.id,
