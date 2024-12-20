@@ -166,12 +166,14 @@ export function AuthProvider({
 
   const verifyCodeAndSetToken = useCallback(
     async (
-      args: { code: string; verifier?: string } | { refreshToken: string },
+      args:
+        | { cvxAuthCode: string; verifier?: string }
+        | { refreshToken: string },
     ) => {
       const { tokens } = await client.unauthenticatedCall(
         "auth:signIn" as unknown as SignInAction,
-        "code" in args
-          ? { params: { code: args.code }, verifier: args.verifier }
+        "cvxAuthCode" in args
+          ? { params: { code: args.cvxAuthCode }, verifier: args.verifier }
           : args,
       );
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
@@ -322,7 +324,7 @@ export function AuthProvider({
       }
       const code =
         typeof window?.location !== "undefined"
-          ? new URLSearchParams(window.location.search).get("code")
+          ? new URLSearchParams(window.location.search).get("cvxAuthCode")
           : null;
       // code from URL is only consumed initially,
       // ref avoids racing in Strict mode
@@ -330,7 +332,7 @@ export function AuthProvider({
         if (code && !signingInWithCodeFromURL.current) {
           signingInWithCodeFromURL.current = true;
           const url = new URL(window.location.href);
-          url.searchParams.delete("code");
+          url.searchParams.delete("cvxAuthCode");
           void (async () => {
             await replaceURL(url.pathname + url.search + url.hash);
             await signIn(undefined, { code });

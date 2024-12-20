@@ -341,7 +341,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 headers: {
                   Location: setURLSearchParam(
                     destinationUrl,
-                    "code",
+                    "cvxAuthCode",
                     verificationCode,
                   ),
                   "Cache-Control": "must-revalidate",
