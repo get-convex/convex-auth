@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.78
 
 - Add support for
   [custom OAuth callback and sign-in URLs](https://labs.convex.dev/auth/advanced#custom-callback-and-sign-in-urls)
