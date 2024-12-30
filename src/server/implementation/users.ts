@@ -1,5 +1,5 @@
 import { GenericId } from "convex/values";
-import { AuthDataModel, Doc, MutationCtx, QueryCtx } from "./types.js";
+import { Doc, MutationCtx, QueryCtx } from "./types.js";
 import { AuthProviderMaterializedConfig, ConvexAuthConfig } from "../types.js";
 import { LOG_LEVELS, logWithLevel } from "./utils.js";
 import {
@@ -38,7 +38,7 @@ export async function upsertUserAndAccount(
   userId: GenericId<"users">;
   accountId: GenericId<"authAccounts">;
 }> {
-  const userId = await defaultCreateOrUpdateUser(
+  const userId = await callCreateOrUpdateUser(
     ctx,
     sessionId,
     "existingAccount" in account ? account.existingAccount : null,
@@ -49,14 +49,14 @@ export async function upsertUserAndAccount(
   return { userId, accountId };
 }
 
-async function defaultCreateOrUpdateUser(
+async function callCreateOrUpdateUser(
   ctx: MutationCtx,
   existingSessionId: GenericId<"authSessions"> | null,
   existingAccount: Doc<"authAccounts"> | null,
   args: CreateOrUpdateUserArgs,
   config: ConvexAuthConfig,
 ) {
-  logWithLevel(LOG_LEVELS.DEBUG, "defaultCreateOrUpdateUser args:", {
+  logWithLevel(LOG_LEVELS.DEBUG, "callCreateOrUpdateUser args:", {
     existingAccountId: existingAccount?._id,
     existingSessionId,
     args,
@@ -102,7 +102,7 @@ export async function basicCreateOrUpdateUser(
   return { userId, existingUserId: existingOrLinkedUserId };
 }
 
-async function callAfterUserCreatedOrUpdated(
+export async function callAfterUserCreatedOrUpdated(
   ctx: MutationCtx,
   userId: GenericId<"users">,
   existingUserId: GenericId<"users"> | null,

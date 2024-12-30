@@ -20,6 +20,8 @@ export {
   signInViaProvider,
   invalidateSessions,
   modifyAccountCredentials,
+  callAfterUserCreatedOrUpdated,
+  basicCreateOrUpdateUser,
   Tokens,
   Doc,
 } from "./implementation/index.js";

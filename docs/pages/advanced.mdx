@@ -77,6 +77,7 @@ providing the
 import GitHub from "@auth/core/providers/github";
 import Password from "@convex-dev/auth/providers/Password";
 import { MutationCtx } from "./_generated/server";
+import { basicCreateOrUpdateUser, callAfterUserCreatedOrUpdated } from "@convex-dev/auth/server";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = {
   providers: [GitHub, Password],
@@ -84,19 +85,25 @@ export const { auth, signIn, signOut, store, isAuthenticated } = {
     // `args.type` is one of "oauth" | "email" | "phone" | "credentials" | "verification"
     // `args.provider` is the currently used provider config
     async createOrUpdateUser(ctx: MutationCtx, args) {
-      if (args.existingUserId) {
-        // Optionally merge updated fields into the existing user object here
-        return args.existingUserId;
-      }
+      // This implementation matches the default, modify it to implement custom logic.
 
-      // Implement your own account linking logic:
-      const existingUser = await findUserByEmail(ctx, args.profile.email);
-      if (existingUser) return existingUser._id;
+      // Replace this logic with custom account linking and custom
+      // users table insert/update if desired.
+      const { userId, existingUserId: existingOrLinkedUserId } =
+        await basicCreateOrUpdateUser(ctx, {
+          existingUserId,
+          ...args,
+        });
 
-      // Implement your own user creation:
-      return ctx.db.insert("users", {
-        /* ... */
-      });
+      // Include this or else any passed
+      // `config.callbacks.afterUserCreatedOrUpdated` won't run.
+      await callAfterUserCreatedOrUpdated(
+        ctx,
+        userId,
+        existingOrLinkedUserId,
+        args,
+        config,
+      );
     },
   },
 };

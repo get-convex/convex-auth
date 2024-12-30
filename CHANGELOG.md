@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Expose `createOrupdateUsers` callback helper functions
+  `basicCreateOrUpdateUser` and `callAfterUserCreatedOrUpdated`. This makes
+  writing custom `createOrUpdateUsers` callbacks simpler.
+
 ## 0.0.78
 
 - Add support for

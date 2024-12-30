@@ -8,8 +8,10 @@ export default defineSchema({
     name: v.optional(v.string()),
     image: v.optional(v.string()),
     email: v.optional(v.string()),
+    emailVerified: v.optional(v.boolean()),
     emailVerificationTime: v.optional(v.number()),
     phone: v.optional(v.string()),
+    phoneVerified: v.optional(v.boolean()),
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
     // Custom field.
