@@ -42,7 +42,7 @@ instructions above.
 
 <Steps>
 ### Install the NPM library
- 
+
 ```sh
 npm install @convex-dev/auth @auth/core@0.37.0
 ```
@@ -297,7 +297,14 @@ const secureStorage = {
 
 export default function RootLayout() {
   return (
-    <ConvexAuthProvider client={convex} storage={secureStorage}>
+    <ConvexAuthProvider
+      client={convex}
+      storage={
+        Platform.OS === "android" || Platform.OS === "ios"
+          ? secureStorage
+          : undefined
+      }
+    >
       <Stack>
         <Stack.Screen name="index" />
       </Stack>
