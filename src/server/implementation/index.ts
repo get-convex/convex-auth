@@ -49,24 +49,36 @@ import {
 import { signInImpl } from "./signIn.js";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { getAuthorizationUrl } from "../oauth/authorizationUrl.js";
-import { defaultCookiesOptions, oAuthConfigToInternalProvider } from "../oauth/convexAuth.js";
+import {
+  defaultCookiesOptions,
+  oAuthConfigToInternalProvider,
+} from "../oauth/convexAuth.js";
 import { handleOAuth } from "../oauth/callback.js";
 export { getAuthSessionId } from "./sessions.js";
 
 /**
- * @internal
+ * The type of the signIn Convex Action returned from the auth() helper.
+ *
+ * This type is exported for implementors of other client integrations.
+ * However it is not stable, and may change until this library reaches 1.0.
  */
 export type SignInAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signIn"]
 >;
 /**
- * @internal
+ * The type of the signOut Convex Action returned from the auth() helper.
+ *
+ * This type is exported for implementors of other client integrations.
+ * However it is not stable, and may change until this library reaches 1.0.
  */
 export type SignOutAction = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["signOut"]
 >;
 /**
- * @internal
+ * The type of the isAuthenticated Convex Query returned from the auth() helper.
+ *
+ * This type is exported for implementors of other client integrations.
+ * However it is not stable, and may change until this library reaches 1.0.
  */
 export type IsAuthenticatedQuery = FunctionReferenceFromExport<
   ReturnType<typeof convexAuth>["isAuthenticated"]
@@ -240,12 +252,10 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 providerId,
               ) as OAuthConfig<any>;
               const { redirect, cookies, signature } =
-                await getAuthorizationUrl(
-                  {
-                    provider: await oAuthConfigToInternalProvider(provider),
-                    cookies: defaultCookiesOptions(providerId),
-                  },
-                );
+                await getAuthorizationUrl({
+                  provider: await oAuthConfigToInternalProvider(provider),
+                  cookies: defaultCookiesOptions(providerId),
+                });
 
               await callVerifierSignature(ctx, {
                 verifier,
@@ -295,10 +305,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
             });
 
             const params = url.searchParams;
-            
+
             // Handle OAuth providers that use formData (such as Apple)
             if (
-              request.headers.get("Content-Type") === "application/x-www-form-urlencoded"
+              request.headers.get("Content-Type") ===
+              "application/x-www-form-urlencoded"
             ) {
               const formData = await request.formData();
               for (const [key, value] of formData.entries()) {
@@ -441,15 +452,18 @@ export function convexAuth(config_: ConvexAuthConfig) {
         return storeImpl(ctx, args, getProviderOrThrow, config);
       },
     }),
-    
+
     /**
      * Utility function for frameworks to use to get the current auth state
      * based on credentials that they've supplied separately.
      */
-    isAuthenticated: queryGeneric({args: {}, handler: async (ctx, _args): Promise<boolean> => {
-      const ident = await ctx.auth.getUserIdentity();
-      return ident !== null;
-    }}),
+    isAuthenticated: queryGeneric({
+      args: {},
+      handler: async (ctx, _args): Promise<boolean> => {
+        const ident = await ctx.auth.getUserIdentity();
+        return ident !== null;
+      },
+    }),
   };
 }
 
