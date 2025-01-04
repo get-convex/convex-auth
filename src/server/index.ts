@@ -22,6 +22,9 @@ export {
   modifyAccountCredentials,
   Tokens,
   Doc,
+  SignInAction,
+  SignOutAction,
+  IsAuthenticatedQuery,
 } from "./implementation/index.js";
 export type {
   ConvexAuthConfig,
