@@ -2,6 +2,20 @@
 
 ## 0.0.78
 
+- Fix auth refresh silent failure for React Native. This has been a slippery
+  issue, if you use Convex Auth in a React Native app please let us know if this
+  fixes for you.
+
+- Expose function reference types `SignInAction` and `SignOutAction` for the
+  benefit of other client implementations (Svelte, Solid, etc.). As with all
+  APIs in the library these are not stable and may change until this library
+  reaches 1.0.
+
+- Add a platform check in the recommended `ConvexAuthProvider` use for React
+  Native in docs.
+
+## 0.0.78
+
 - Add support for
   [custom OAuth callback and sign-in URLs](https://labs.convex.dev/auth/advanced#custom-callback-and-sign-in-urls)
 
