@@ -471,6 +471,7 @@ async function enqueueCallbackForMutex(
     setMutexValue(key, {
       currentlyRunning: callback().finally(() => {
         const nextCb = getMutexValue(key).waiting.shift();
+        getMutexValue(key).currentlyRunning = null;
         setMutexValue(key, {
           ...getMutexValue(key),
           currentlyRunning:
