@@ -250,7 +250,6 @@ export function AuthProvider({
             (await storageGet(REFRESH_TOKEN_STORAGE_KEY)) ?? null;
           if (refreshToken !== null) {
             setIsRefreshingToken(true);
-            await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
             await verifyCodeAndSetToken({ refreshToken }).finally(() => {
               setIsRefreshingToken(false);
             });
