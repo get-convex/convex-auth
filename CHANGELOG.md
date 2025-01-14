@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.0.78
+## 0.0.80
 
-- Fix auth refresh silent failure for React Native. This has been a slippery
-  issue, if you use Convex Auth in a React Native app please let us know if this
-  fixes for you.
+- Fix a race when quickly refreshing a page or using redirects that refresh the
+  page.
+
+## 0.0.79
 
 - Expose function reference types `SignInAction` and `SignOutAction` for the
   benefit of other client implementations (Svelte, Solid, etc.). As with all
@@ -13,6 +14,10 @@
 
 - Add a platform check in the recommended `ConvexAuthProvider` use for React
   Native in docs.
+
+- Fix auth refresh silent failure for React Native. This has been a slippery
+  issue, if you use Convex Auth in a React Native app please let us know if this
+  fixes for you.
 
 ## 0.0.78
 
