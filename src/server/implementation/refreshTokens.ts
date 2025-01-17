@@ -5,6 +5,7 @@ import {
   LOG_LEVELS,
   REFRESH_TOKEN_DIVIDER,
   logWithLevel,
+  maybeRedact,
   stringToNumber,
 } from "./utils.js";
 
@@ -43,6 +44,9 @@ export const parseRefreshToken = (
   sessionId: GenericId<"authSessions">;
 } => {
   const [refreshTokenId, sessionId] = refreshToken.split(REFRESH_TOKEN_DIVIDER);
+  if (!refreshTokenId || !sessionId) {
+    throw new Error(`Can't parse refresh token: ${maybeRedact(refreshToken)}`);
+  }
   return {
     refreshTokenId: refreshTokenId as GenericId<"authRefreshTokens">,
     sessionId: sessionId as GenericId<"authSessions">,
