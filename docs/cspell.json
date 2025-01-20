@@ -1,0 +1,24 @@
+{
+  "words": [
+    "Authjs",
+    "PKCE",
+    "Parametrizing",
+    "Supabase",
+    "YubiKey",
+    "attemps",
+    "featureful",
+    "haveibeenpwned",
+    "reauthenticating",
+    "reauthentication",
+    "yourapplesecret",
+    "yourappleserviceidentifier",
+    "yourgithubclientid",
+    "yourgithubsecret",
+    "yourgoogleclientid",
+    "yourgooglesecret",
+    "yourresendkey",
+    "zxcvbn"
+  ],
+  "ignoreRegExpList": ["/#[\\w-]+/", "/\\w+.png/"],
+  "enableFiletypes": ["mdx"]
+}

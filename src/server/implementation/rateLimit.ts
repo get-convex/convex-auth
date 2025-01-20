@@ -1,7 +1,7 @@
 import { ConvexAuthConfig } from "../index.js";
 import { MutationCtx } from "./types.js";
 
-const DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR = 10;
+const DEFAULT_MAX_SIGN_IN_ATTEMPTS_PER_HOUR = 10;
 
 export async function isSignInRateLimited(
   ctx: MutationCtx,
@@ -75,6 +75,6 @@ async function getRateLimitState(
 function configuredMaxAttempsPerHour(config: ConvexAuthConfig) {
   return (
     config.signIn?.maxFailedAttempsPerHour ??
-    DEFAULT_MAX_SIGN_IN_ATTEMPS_PER_HOUR
+    DEFAULT_MAX_SIGN_IN_ATTEMPTS_PER_HOUR
   );
 }

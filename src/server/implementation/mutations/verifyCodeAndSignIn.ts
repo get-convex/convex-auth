@@ -44,7 +44,7 @@ export async function verifyCodeAndSignInImpl(
     if (await isSignInRateLimited(ctx, identifier, config)) {
       logWithLevel(
         LOG_LEVELS.ERROR,
-        "Too many failed attemps to verify code for this email",
+        "Too many failed attempts to verify code for this email",
       );
       return null;
     }
