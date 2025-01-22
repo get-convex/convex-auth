@@ -236,13 +236,18 @@ export function AuthProvider({
     async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
       if (forceRefreshToken) {
         const tokenBeforeLockAquisition = token.current;
+        const tempId = Math.random().toString(36).substring(2, 15);
+        logVerbose(`[${tempId}] added to mutex`);
         return await browserMutex(REFRESH_TOKEN_STORAGE_KEY, async () => {
+          logVerbose(`[${tempId}] acquired mutex`);
           const tokenAfterLockAquisition = token.current;
           // Another tab or frame just refreshed the token, we can use it
           // and skip another refresh.
           if (tokenAfterLockAquisition !== tokenBeforeLockAquisition) {
             logVerbose(
-              `returning synced token, is null: ${tokenAfterLockAquisition === null}`,
+              `[${tempId}] returning synced token, is null: ${
+                tokenAfterLockAquisition === null
+              }`
             );
             return tokenAfterLockAquisition;
           }
@@ -254,12 +259,14 @@ export function AuthProvider({
               setIsRefreshingToken(false);
             });
             logVerbose(
-              `returning retrieved token, is null: ${tokenAfterLockAquisition === null}`,
+              `[${tempId}] returning retrieved token, is null: ${
+                tokenAfterLockAquisition === null
+              }`
             );
             return token.current;
           } else {
             setIsRefreshingToken(false);
-            logVerbose(`returning null, there is no refresh token`);
+            logVerbose(`[${tempId}] returning null, there is no refresh token`);
             return null;
           }
         });
