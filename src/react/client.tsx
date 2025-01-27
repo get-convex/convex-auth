@@ -182,7 +182,7 @@ export function AuthProvider({
   );
 
   const signIn = useCallback(
-    async (provider?: string, args?: FormData | Record<string, Value>) => {
+    async (provider?: string, args?: FormData | Record<string, Value>, redirect: boolean = true) => {
       const params =
         args instanceof FormData
           ? Array.from(args.entries()).reduce(
@@ -204,7 +204,7 @@ export function AuthProvider({
         const url = new URL(result.redirect);
         await storageSet(VERIFIER_STORAGE_KEY, result.verifier!);
         // Do not redirect in React Native
-        if (window.location !== undefined) {
+        if (redirect && window.location !== undefined) {
           window.location.href = url.toString();
         }
         return { signingIn: false, redirect: url };
