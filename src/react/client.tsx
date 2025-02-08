@@ -18,6 +18,9 @@ import type {
   ConvexAuthActionsContext as ConvexAuthActionsContextType,
   TokenStorage,
 } from "./index.js";
+import { isNetworkError } from "./is_network_error.js";
+
+const FETCH_TOKEN_RETRIES = 2;
 
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);
@@ -164,16 +167,42 @@ export function AuthProvider({
     return () => browserRemoveEventListener("storage", listener);
   }, [setToken]);
 
+  const verifyCode = useCallback(
+    async (
+      args: { code: string; verifier?: string } | { refreshToken: string },
+    ) => {
+      let lastError;
+      // Retry the call if it fails due to a network error.
+      let retries = FETCH_TOKEN_RETRIES;
+      while (retries > 0) {
+        try {
+          return await client.unauthenticatedCall(
+            "auth:signIn" as unknown as SignInAction,
+            "code" in args
+              ? { params: { code: args.code }, verifier: args.verifier }
+              : args,
+          );
+        } catch (e) {
+          lastError = e;
+          if (!isNetworkError(e)) {
+            break;
+          }
+          retries--;
+          logVerbose(
+            `verifyCode failed with network error, retry ${FETCH_TOKEN_RETRIES - retries} of ${FETCH_TOKEN_RETRIES}`,
+          );
+        }
+      }
+      throw lastError;
+    },
+    [client],
+  );
+
   const verifyCodeAndSetToken = useCallback(
     async (
       args: { code: string; verifier?: string } | { refreshToken: string },
     ) => {
-      const { tokens } = await client.unauthenticatedCall(
-        "auth:signIn" as unknown as SignInAction,
-        "code" in args
-          ? { params: { code: args.code }, verifier: args.verifier }
-          : args,
-      );
+      const { tokens } = await verifyCode(args);
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
       await setToken({ shouldStore: true, tokens: tokens ?? null });
       return tokens !== null;
