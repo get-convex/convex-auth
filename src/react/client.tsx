@@ -20,7 +20,9 @@ import type {
 } from "./index.js";
 import { isNetworkError } from "./is_network_error.js";
 
-const FETCH_TOKEN_RETRIES = 2;
+// Retry after this much time, based on the retry number.
+const RETRY_BACKOFF = [100, 1000]; // In ms
+const RETRY_JITTER = 10; // In ms
 
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);
@@ -173,8 +175,8 @@ export function AuthProvider({
     ) => {
       let lastError;
       // Retry the call if it fails due to a network error.
-      let retries = FETCH_TOKEN_RETRIES;
-      while (retries > 0) {
+      let retry = 0;
+      while (retry < RETRY_BACKOFF.length) {
         try {
           return await client.unauthenticatedCall(
             "auth:signIn" as unknown as SignInAction,
@@ -187,13 +189,12 @@ export function AuthProvider({
           if (!isNetworkError(e)) {
             break;
           }
-          retries--;
+          const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
           logVerbose(
-            `verifyCode failed with network error, retry ${FETCH_TOKEN_RETRIES - retries} of ${FETCH_TOKEN_RETRIES}`,
+            `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`,
           );
-          // Adding a short wait here but not a full backoff since this only
-          // runs on network errors.
-          await new Promise((resolve) => setTimeout(resolve, 100));
+          retry++;
+          await new Promise((resolve) => setTimeout(resolve, wait));
         }
       }
       throw lastError;
