@@ -191,6 +191,9 @@ export function AuthProvider({
           logVerbose(
             `verifyCode failed with network error, retry ${FETCH_TOKEN_RETRIES - retries} of ${FETCH_TOKEN_RETRIES}`,
           );
+          // Adding a short wait here but not a full backoff since this only
+          // runs on network errors.
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
       throw lastError;
