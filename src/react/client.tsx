@@ -18,6 +18,11 @@ import type {
   ConvexAuthActionsContext as ConvexAuthActionsContextType,
   TokenStorage,
 } from "./index.js";
+import { isNetworkError } from "./is_network_error.js";
+
+// Retry after this much time, based on the retry number.
+const RETRY_BACKOFF = [100, 1000]; // In ms
+const RETRY_JITTER = 10; // In ms
 
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);
@@ -164,16 +169,44 @@ export function AuthProvider({
     return () => browserRemoveEventListener("storage", listener);
   }, [setToken]);
 
+  const verifyCode = useCallback(
+    async (
+      args: { code: string; verifier?: string } | { refreshToken: string },
+    ) => {
+      let lastError;
+      // Retry the call if it fails due to a network error.
+      let retry = 0;
+      while (retry < RETRY_BACKOFF.length) {
+        try {
+          return await client.unauthenticatedCall(
+            "auth:signIn" as unknown as SignInAction,
+            "code" in args
+              ? { params: { code: args.code }, verifier: args.verifier }
+              : args,
+          );
+        } catch (e) {
+          lastError = e;
+          if (!isNetworkError(e)) {
+            break;
+          }
+          const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
+          logVerbose(
+            `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`,
+          );
+          retry++;
+          await new Promise((resolve) => setTimeout(resolve, wait));
+        }
+      }
+      throw lastError;
+    },
+    [client],
+  );
+
   const verifyCodeAndSetToken = useCallback(
     async (
       args: { code: string; verifier?: string } | { refreshToken: string },
     ) => {
-      const { tokens } = await client.unauthenticatedCall(
-        "auth:signIn" as unknown as SignInAction,
-        "code" in args
-          ? { params: { code: args.code }, verifier: args.verifier }
-          : args,
-      );
+      const { tokens } = await verifyCode(args);
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
       await setToken({ shouldStore: true, tokens: tokens ?? null });
       return tokens !== null;
