@@ -21,8 +21,8 @@ import type {
 import { isNetworkError } from "./is_network_error.js";
 
 // Retry after this much time, based on the retry number.
-const RETRY_BACKOFF = [100, 1000]; // In ms
-const RETRY_JITTER = 10; // In ms
+const RETRY_BACKOFF = [500, 2000]; // In ms
+const RETRY_JITTER = 100; // In ms
 
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);
@@ -77,6 +77,7 @@ export function AuthProvider({
     (message: string) => {
       if (verbose) {
         console.debug(`${new Date().toISOString()} ${message}`);
+        client.logger?.logVerbose(message);
       }
     },
     [verbose],
@@ -190,10 +191,10 @@ export function AuthProvider({
             break;
           }
           const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
+          retry++;
           logVerbose(
             `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`,
           );
-          retry++;
           await new Promise((resolve) => setTimeout(resolve, wait));
         }
       }
