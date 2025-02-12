@@ -100,12 +100,12 @@ export function ConvexAuthProvider(props: {
           return client.action(action, args);
         },
         unauthenticatedCall(action, args) {
-          return new ConvexHttpClient((client as any).address).action(
-            action,
-            args,
-          );
+          return new ConvexHttpClient((client as any).address, {
+            logger: client.logger,
+          }).action(action, args);
         },
         verbose: (client as any).options?.verbose,
+        logger: client.logger,
       }) satisfies AuthClient,
     [client],
   );
