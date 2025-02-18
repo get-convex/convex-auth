@@ -18,7 +18,7 @@ import type {
   ConvexAuthActionsContext as ConvexAuthActionsContextType,
   TokenStorage,
 } from "./index.js";
-import { isNetworkError } from "./is_network_error.js";
+import isNetworkError from "is-network-error";
 
 // Retry after this much time, based on the retry number.
 const RETRY_BACKOFF = [500, 2000]; // In ms
@@ -176,6 +176,9 @@ export function AuthProvider({
     ) => {
       let lastError;
       // Retry the call if it fails due to a network error.
+      // This is especially common in mobile apps where an app is backgrounded
+      // while making a call and hits a network error, but will succeed with a
+      // retry once the app is brought to the foreground.
       let retry = 0;
       while (retry < RETRY_BACKOFF.length) {
         try {
