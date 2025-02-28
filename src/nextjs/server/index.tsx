@@ -80,7 +80,7 @@ export async function ConvexAuthNextjsServerProvider(props: {
 /**
  * Retrieve the token for authenticating calls to your
  * Convex backend from Server Components, Server Actions and Route Handlers.
- * @returns The token if the the client is authenticated, otherwise `undefined`.
+ * @returns The token if the client is authenticated, otherwise `undefined`.
  */
 export async function convexAuthNextjsToken() {
   return (await getRequestCookies()).token ?? undefined;
