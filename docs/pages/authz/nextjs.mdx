@@ -127,6 +127,7 @@ and `POST` or `PUT`
 [Route Handlers](https://nextjs.org/docs/app/building-your-application/routing/route-handlers).
 
 ```tsx filename="app/example/page.tsx"
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import { api } from "@/convex/_generated/api";
 import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { revalidatePath } from "next/cache";
