@@ -18,6 +18,11 @@ import type {
   ConvexAuthActionsContext as ConvexAuthActionsContextType,
   TokenStorage,
 } from "./index.js";
+import isNetworkError from "is-network-error";
+
+// Retry after this much time, based on the retry number.
+const RETRY_BACKOFF = [500, 2000]; // In ms
+const RETRY_JITTER = 100; // In ms
 
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);
@@ -72,6 +77,7 @@ export function AuthProvider({
     (message: string) => {
       if (verbose) {
         console.debug(`${new Date().toISOString()} ${message}`);
+        client.logger?.logVerbose(message);
       }
     },
     [verbose],
@@ -164,16 +170,47 @@ export function AuthProvider({
     return () => browserRemoveEventListener("storage", listener);
   }, [setToken]);
 
+  const verifyCode = useCallback(
+    async (
+      args: { code: string; verifier?: string } | { refreshToken: string },
+    ) => {
+      let lastError;
+      // Retry the call if it fails due to a network error.
+      // This is especially common in mobile apps where an app is backgrounded
+      // while making a call and hits a network error, but will succeed with a
+      // retry once the app is brought to the foreground.
+      let retry = 0;
+      while (retry < RETRY_BACKOFF.length) {
+        try {
+          return await client.unauthenticatedCall(
+            "auth:signIn" as unknown as SignInAction,
+            "code" in args
+              ? { params: { code: args.code }, verifier: args.verifier }
+              : args,
+          );
+        } catch (e) {
+          lastError = e;
+          if (!isNetworkError(e)) {
+            break;
+          }
+          const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
+          retry++;
+          logVerbose(
+            `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, wait));
+        }
+      }
+      throw lastError;
+    },
+    [client],
+  );
+
   const verifyCodeAndSetToken = useCallback(
     async (
       args: { code: string; verifier?: string } | { refreshToken: string },
     ) => {
-      const { tokens } = await client.unauthenticatedCall(
-        "auth:signIn" as unknown as SignInAction,
-        "code" in args
-          ? { params: { code: args.code }, verifier: args.verifier }
-          : args,
-      );
+      const { tokens } = await verifyCode(args);
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
       await setToken({ shouldStore: true, tokens: tokens ?? null });
       return tokens !== null;
