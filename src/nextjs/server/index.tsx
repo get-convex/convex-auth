@@ -22,6 +22,7 @@ import {
   setAuthCookiesInMiddleware,
 } from "./utils.js";
 import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
+import { jwtVerify, createLocalJWKSet } from "jose"
 
 /**
  * Wrap your app with this provider in your root `layout.tsx`.
@@ -302,6 +303,21 @@ async function isAuthenticated(token: string | null): Promise<boolean> {
   if (!token) {
     return false;
   }
+
+  // First, try using the JWKS from the environment variable to do token
+  // verification locally (networkless mode).
+  try {
+    const envJwks = process.env.CONVEX_AUTH_JWKS
+    if (envJwks) {
+      const jwkSet = createLocalJWKSet(JSON.parse(envJwks))
+      const verifiedToken = await jwtVerify(token, jwkSet);
+      return !!verifiedToken.payload.sub;
+    }
+  } catch (error: any) {
+    console.error("Error verifying token", error);
+  }
+
+  // Fallback to asking the server to do verification.
   try {
     return await fetchQuery(
       "auth:isAuthenticated" as any as IsAuthenticatedQuery,
