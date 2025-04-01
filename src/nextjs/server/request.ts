@@ -3,12 +3,17 @@ import { jwtDecode } from "jwt-decode";
 import { NextRequest, NextResponse } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getRequestCookiesInMiddleware } from "./cookies.js";
-import { isCorsRequest, logVerbose, setAuthCookies } from "./utils.js";
+import {
+  getConvexNextjsOptions,
+  isCorsRequest,
+  logVerbose,
+  setAuthCookies,
+} from "./utils.js";
+import type { ConvexAuthNextjsMiddlewareOptions } from "./index.js";
 
 export async function handleAuthenticationInRequest(
   request: NextRequest,
-  verbose: boolean,
-  cookieConfig: { maxAge: number | null },
+  options: ConvexAuthNextjsMiddlewareOptions,
 ): Promise<
   | { kind: "redirect"; response: NextResponse }
   | {
@@ -16,6 +21,8 @@ export async function handleAuthenticationInRequest(
       refreshTokens: { token: string; refreshToken: string } | null | undefined;
     }
 > {
+  const verbose = options.verbose ?? false;
+  const cookieConfig = options.cookieConfig ?? { maxAge: null };
   logVerbose(`Begin handleAuthenticationInRequest`, verbose);
   const requestUrl = new URL(request.url);
 
@@ -23,7 +30,7 @@ export async function handleAuthenticationInRequest(
   await validateCors(request);
 
   // Refresh tokens if necessary
-  const refreshTokens = await getRefreshedTokens(verbose);
+  const refreshTokens = await getRefreshedTokens(options);
 
   // Handle code exchange for OAuth and magic links via server-side redirect
   const code = requestUrl.searchParams.get("code");
@@ -40,6 +47,7 @@ export async function handleAuthenticationInRequest(
       const result = await fetchAction(
         "auth:signIn" as unknown as SignInAction,
         { params: { code }, verifier },
+        getConvexNextjsOptions(options),
       );
       if (result.tokens === undefined) {
         throw new Error("Invalid `signIn` action result for code exchange");
@@ -80,7 +88,8 @@ async function validateCors(request: NextRequest) {
 const REQUIRED_TOKEN_LIFETIME_MS = 60_000; // 1 minute
 const MINIMUM_REQUIRED_TOKEN_LIFETIME_MS = 10_000; // 10 seconds
 
-async function getRefreshedTokens(verbose: boolean) {
+async function getRefreshedTokens(options: ConvexAuthNextjsMiddlewareOptions) {
+  const verbose = options.verbose ?? false;
   const cookies = await getRequestCookies();
   const { token, refreshToken } = cookies;
   if (refreshToken === null && token === null) {
@@ -117,9 +126,13 @@ async function getRefreshedTokens(verbose: boolean) {
     return undefined;
   }
   try {
-    const result = await fetchAction("auth:signIn" as unknown as SignInAction, {
-      refreshToken,
-    });
+    const result = await fetchAction(
+      "auth:signIn" as unknown as SignInAction,
+      {
+        refreshToken,
+      },
+      getConvexNextjsOptions(options),
+    );
     if (result.tokens === undefined) {
       throw new Error("Invalid `signIn` action result for token refresh");
     }

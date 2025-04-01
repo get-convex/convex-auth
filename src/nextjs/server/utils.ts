@@ -3,6 +3,7 @@ import {
   getRequestCookiesInMiddleware,
   getResponseCookies,
 } from "./cookies.js";
+import { NextjsOptions } from "convex/nextjs";
 
 export function jsonResponse(body: any) {
   return new NextResponse(JSON.stringify(body), {
@@ -76,4 +77,21 @@ export function getRedactedMessage(value: string) {
     "<redacted>" +
     value.substring(value.length - length)
   );
+}
+/**
+ * @param options - a subset of ConvexAuthNextjsMiddlewareOptions
+ * @returns NextjsOptions
+ */
+export function getConvexNextjsOptions(options: {
+  convexUrl?: string;
+}): NextjsOptions {
+  // If `convexUrl` is provided (even if it's undefined), pass it as the `url` option.
+  // `convex/nextjs` has its own logic for falling back to `process.env.NEXT_PUBLIC_CONVEX_URL`
+  // and protecting against accidentally passing in `undefined` (e.g. { convexUrl: process.env.VAR_I_DIDNT_SET })
+  if (Object.hasOwn(options, "convexUrl")) {
+    return {
+      url: options.convexUrl,
+    };
+  }
+  return {};
 }
