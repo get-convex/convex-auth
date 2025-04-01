@@ -37,7 +37,8 @@ export async function handleAuthenticationInRequest(
   if (
     code &&
     request.method === "GET" &&
-    request.headers.get("accept")?.includes("text/html")
+    request.headers.get("accept")?.includes("text/html") &&
+    (!options.shouldHandleCode || options.shouldHandleCode(request))
   ) {
     logVerbose(`Handling code exchange for OAuth or magic link`, verbose);
     const verifier = (await getRequestCookies()).verifier ?? undefined;
