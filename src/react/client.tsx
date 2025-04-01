@@ -20,10 +20,6 @@ import type {
 } from "./index.js";
 import isNetworkError from "is-network-error";
 
-// Retry after this much time, based on the retry number.
-const RETRY_BACKOFF = [500, 2000]; // In ms
-const RETRY_JITTER = 100; // In ms
-
 export const ConvexAuthActionsContext =
   createContext<ConvexAuthActionsContextType>(undefined as any);
 
@@ -174,13 +170,19 @@ export function AuthProvider({
     async (
       args: { code: string; verifier?: string } | { refreshToken: string },
     ) => {
-      let lastError;
-      // Retry the call if it fails due to a network error.
-      // This is especially common in mobile apps where an app is backgrounded
-      // while making a call and hits a network error, but will succeed with a
-      // retry once the app is brought to the foreground.
-      let retry = 0;
-      while (retry < RETRY_BACKOFF.length) {
+      const initialBackoff = 100;
+      const maxBackoff = 16000;
+      let retries = 0;
+
+      const nextBackoff = () => {
+        const baseBackoff = initialBackoff * Math.pow(2, retries);
+        retries += 1;
+        const actualBackoff = Math.min(baseBackoff, maxBackoff);
+        const jitter = actualBackoff * (Math.random() - 0.5);
+        return actualBackoff + jitter;
+      };
+
+      const fetchTokens = async () => {
         try {
           return await client.unauthenticatedCall(
             "auth:signIn" as unknown as SignInAction,
@@ -189,19 +191,19 @@ export function AuthProvider({
               : args,
           );
         } catch (e) {
-          lastError = e;
           if (!isNetworkError(e)) {
-            break;
+            throw e;
           }
-          const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
-          retry++;
+          const backoff = nextBackoff();
           logVerbose(
-            `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`,
+            `verifyCode failed with network error, attempting retrying in ${backoff}ms`,
           );
-          await new Promise((resolve) => setTimeout(resolve, wait));
+          setTimeout(() => {}, backoff);
+          return fetchTokens();
         }
-      }
-      throw lastError;
+      };
+
+      return fetchTokens();
     },
     [client],
   );
