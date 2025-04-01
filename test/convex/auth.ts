@@ -1,4 +1,4 @@
-import { INVALID_PASSWORD } from "./errors.js"
+import { INVALID_PASSWORD } from "./errors.js";
 import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
