@@ -745,31 +745,45 @@ async function promptForConfirmation(
   message: string,
   options: { default?: boolean } = {},
 ) {
-  const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
-    {
-      type: "confirm",
-      name: "confirmed",
-      message,
-      default: options.default ?? true,
-    },
-  ]);
-  return confirmed;
+  if (process.stdout.isTTY) {
+    const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
+      {
+        type: "confirm",
+        name: "confirmed",
+        message,
+        default: options.default ?? true,
+      },
+    ]);
+    return confirmed;
+  } else {
+    return options.default ?? true;
+  }
 }
 
 async function promptForInput(
   message: string,
   options: { default?: string; validate?: (input: string) => true | string },
 ) {
-  const { input } = await inquirer.prompt<{ input: string }>([
-    {
-      type: "input",
-      name: "input",
-      message,
-      default: options.default,
-      validate: options.validate,
-    },
-  ]);
-  return input;
+  if (process.stdout.isTTY) {
+    const { input } = await inquirer.prompt<{ input: string }>([
+      {
+        type: "input",
+        name: "input",
+        message,
+        default: options.default,
+        validate: options.validate,
+      },
+    ]);
+    return input;
+  } else {
+    if (options.default !== undefined) {
+      return options.default;
+    } else {
+      logErrorAndExit(
+        "Run this command in an interactive terminal to provide input.",
+      );
+    }
+  }
 }
 
 function logErrorAndExit(message: string, error?: string): never {
