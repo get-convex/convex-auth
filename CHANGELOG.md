@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.81
+
+- Retry token fetch on network errors
+- Update the CLI script to work in non-interactive terminals
+
 ## 0.0.80
 
 - Fix a race when quickly refreshing a page or using redirects that refresh the
