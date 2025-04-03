@@ -221,6 +221,23 @@ export type ConvexAuthConfig = {
         shouldLink?: boolean;
       },
     ) => Promise<void>;
+    /**
+     * Add additional claims to the JWT.
+     *
+     * This callback is called before signing the JWT.
+     */
+    addClaimsToJWT?: (
+      ctx: GenericMutationCtx<AnyDataModel>,
+      args: {
+        /**
+         * The ID of the user to add custom JWT claims for.
+         */
+        userId: GenericId<"users">;
+        /**
+         * The ID of the current session to add custom JWT claims for.
+         */
+        sessionId: GenericId<"authSessions">;
+      }) => Promise<{ [name: string]: unknown }>;
   };
 };
 
@@ -231,9 +248,9 @@ export type ConvexAuthConfig = {
  */
 export type AuthProviderConfig =
   | Exclude<
-      AuthjsProviderConfig,
-      CredentialsConfig | ((...args: any) => CredentialsConfig)
-    >
+    AuthjsProviderConfig,
+    CredentialsConfig | ((...args: any) => CredentialsConfig)
+  >
   | ConvexCredentialsConfig
   | ((...args: any) => ConvexCredentialsConfig)
   | PhoneConfig
