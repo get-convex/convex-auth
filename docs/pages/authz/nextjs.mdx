@@ -94,38 +94,6 @@ If you don't set this option, the cookie will be considered a "session cookie"
 and be deleted when the browser session ends, which depends from browser to
 browser.
 
-## Handle custom OAuth flows
-
-If you have custom OAuth flows that use the `code` query parameter (like Figma
-OAuth), you can prevent Convex Auth from handling those codes by providing a
-`shouldHandleCode` callback:
-
-```ts filename="middleware.ts"
-export default convexAuthNextjsMiddleware(
-  (request, { convexAuth }) => {
-    // ...
-  },
-  {
-    shouldHandleCode: (request) => {
-      // Don't handle code parameter for Figma OAuth callback
-      if (
-        request.nextUrl.pathname.startsWith(
-          "/settings/profile/figma-auth-callback",
-        )
-      ) {
-        return false;
-      }
-      // Handle all other code parameters
-      return true;
-    },
-  },
-);
-```
-
-The callback receives the request object and should return `true` if Convex Auth
-should handle the code parameter, or `false` if it should be left alone for your
-custom OAuth flow to handle.
-
 ## Preloading and loading data
 
 To preload or load data on your Next.js server from your Convex backend, you can

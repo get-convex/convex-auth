@@ -197,3 +197,60 @@ deployment. For example, if your custom HTTP Actions domain is
   with your new callback URL. Otherwise it will refuse to redirect users to your
   application.
 </Callout>
+
+## Handle custom OAuth flows
+
+If you have custom OAuth flows that use the `code` query parameter, you can
+prevent Convex Auth from handling those codes by providing a `shouldHandleCode`
+callback.
+
+The callback should return `true` if Convex Auth should handle the code
+parameter, or `false` if it should be left alone for your custom OAuth flow to
+handle.
+
+### React and Next.js Client
+
+In React and Next.js client components, you can provide the function as a
+provider prop for either `ConvexAuthProvider` or `ConvexAuthNextjsProvider`.
+
+```tsx
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
+
+<ConvexAuthProvider
+  client={convex}
+  shouldHandleCode={() => {
+    // Skip handling code parameter on specific paths
+    return location.pathname.startsWith("/auth");
+  }}
+>
+  {children}
+</ConvexAuthProvider>;
+```
+
+### Next.js Middleware
+
+In Next.js middleware, `shouldHandleCode` is provided as an option to the
+middleware function. `shouldHandleCode` also receives the request object as it's
+only parameter.
+
+```ts filename="middleware.ts"
+export default convexAuthNextjsMiddleware(
+  (request, { convexAuth }) => {
+    // ... route protection logic
+  },
+  {
+    shouldHandleCode: (request) => {
+      // Skip handling code parameter for Figma OAuth callback
+      if (
+        request.nextUrl.pathname.startsWith(
+          "/settings/profile/figma-auth-callback",
+        )
+      ) {
+        return false;
+      }
+      // Handle all other code parameters
+      return true;
+    },
+  },
+);
+```
