@@ -198,7 +198,7 @@ export function AuthProvider({
           logVerbose(
             `verifyCode failed with network error, attempting retrying in ${backoff}ms`,
           );
-          setTimeout(() => {}, backoff);
+          await new Promise((resolve) => setTimeout(resolve, backoff));
           return fetchTokens();
         }
       };
