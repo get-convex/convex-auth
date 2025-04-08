@@ -10,6 +10,7 @@ export function ConvexAuthNextjsClientProvider({
   serverState,
   storage,
   storageNamespace,
+  shouldHandleCode,
   verbose,
   children,
 }: {
@@ -18,6 +19,7 @@ export function ConvexAuthNextjsClientProvider({
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
   verbose?: boolean;
+  shouldHandleCode?: () => boolean;
   children: ReactNode;
 }) {
   const call: AuthClient["authenticatedCall"] = useCallback(
@@ -64,6 +66,7 @@ export function ConvexAuthNextjsClientProvider({
           window.history.replaceState({}, "", url);
         }
       }
+      shouldHandleCode={shouldHandleCode}
     >
       {children}
     </AuthProvider>
