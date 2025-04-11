@@ -207,14 +207,14 @@ export function AuthProvider({
         if (window.location !== undefined) {
           window.location.href = url.toString();
         }
-        return { signingIn: false, redirect: url };
+        return { signingIn: false, redirect: url, error: result.error  };
       } else if (result.tokens !== undefined) {
         const { tokens } = result;
         logVerbose(`signed in and got tokens, is null: ${tokens === null}`);
         await setToken({ shouldStore: true, tokens });
-        return { signingIn: result.tokens !== null };
+        return { signingIn: result.tokens !== null, error: result.error };
       }
-      return { signingIn: false };
+      return { signingIn: false, error: result.error };
     },
     [client, setToken, storageGet],
   );

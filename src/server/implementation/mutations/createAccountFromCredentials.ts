@@ -1,4 +1,4 @@
-import { Infer, v } from "convex/values";
+import { ConvexError, Infer, v } from "convex/values";
 import { ActionCtx, Doc, MutationCtx } from "../types.js";
 import * as Provider from "../provider.js";
 import { ConvexCredentialsConfig } from "../../types.js";
@@ -44,21 +44,22 @@ export async function createAccountFromCredentialsImpl(
     )
     .unique();
   if (existingAccount !== null) {
-    if (
-      account.secret !== undefined &&
-      !(await Provider.verify(
-        provider,
-        account.secret,
-        existingAccount.secret ?? "",
-      ))
-    ) {
-      throw new Error(`Account ${account.id} already exists`);
-    }
-    return {
-      account: existingAccount,
-      // TODO: Ian removed this,
-      user: (await ctx.db.get(existingAccount.userId))!,
-    };
+    // if (
+    //   account.secret !== undefined &&
+    //   !(await Provider.verify(
+    //     provider,
+    //     account.secret,
+    //     existingAccount.secret ?? "",
+    //   ))
+    // ) {
+    //   throw new ConvexError(`Account ${account.id} already exists`);
+    // }
+    // return {
+    //   account: existingAccount,
+    //   // TODO: Ian removed this,
+    //   user: (await ctx.db.get(existingAccount.userId))!,
+    // };
+    throw new ConvexError(`Account ${account.id} already exists`);
   }
 
   const secret =

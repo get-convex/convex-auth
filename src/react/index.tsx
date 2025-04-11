@@ -199,17 +199,17 @@ export type ConvexAuthActionsContext = {
     params?:
       | FormData
       | (Record<string, Value> & {
-          /**
-           * If provided, customizes the destination the user is
-           * redirected to at the end of an OAuth flow or the magic link URL.
-           */
-          redirectTo?: string;
-          /**
-           * OTP code for email or phone verification, or
-           * (used only in RN) the code from an OAuth flow or magic link URL.
-           */
-          code?: string;
-        }),
+        /**
+         * If provided, customizes the destination the user is
+         * redirected to at the end of an OAuth flow or the magic link URL.
+         */
+        redirectTo?: string;
+        /**
+         * OTP code for email or phone verification, or
+         * (used only in RN) the code from an OAuth flow or magic link URL.
+         */
+        code?: string;
+      }),
   ): Promise<{
     /**
      * Whether the call led to an immediate successful sign-in.
@@ -227,6 +227,10 @@ export type ConvexAuthActionsContext = {
      * this URL.
      */
     redirect?: URL;
+    /**
+     * 
+     */
+    error?: string;
   }>;
 
   /**
@@ -264,3 +268,5 @@ export type ConvexAuthActionsContext = {
 export function useAuthToken() {
   return useContext(ConvexAuthTokenContext);
 }
+
+export { useAuth }

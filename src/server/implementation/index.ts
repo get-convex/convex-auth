@@ -405,6 +405,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier?: string;
         tokens?: Tokens | null;
         started?: boolean;
+        error?: string;
       }> => {
         if (args.calledBy !== undefined) {
           logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
@@ -598,7 +599,7 @@ export async function retrieveAccount<
   const actionCtx = ctx as unknown as ActionCtx;
   const result = await callRetreiveAccountWithCredentials(actionCtx, args);
   if (typeof result === "string") {
-    throw new Error(result);
+    throw new ConvexError(result);
   }
   return result;
 }
