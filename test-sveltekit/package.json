@@ -41,5 +41,9 @@
 		"typescript-eslint": "^8.20.0",
 		"vite": "^6.2.5",
 		"vitest": "^3.0.0"
+	},
+	"dependencies": {
+		"convex": "file:../node_modules/convex",
+		"convex-svelte": "file:../node_modules/convex-svelte"
 	}
 }
