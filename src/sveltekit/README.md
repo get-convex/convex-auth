@@ -220,7 +220,7 @@ export async function load(event) {
 
 ### Sign In
 
-```svelte
+```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
   
@@ -240,7 +240,7 @@ export async function load(event) {
 
 ### Sign Out
 
-```svelte
+```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
   
@@ -254,7 +254,7 @@ export async function load(event) {
 
 ### Check Auth State
 
-```svelte
+```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
   
@@ -312,7 +312,7 @@ createRouteMatcherGroup([
 
 ### Manual Token Handling
 
-```svelte
+```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
   
@@ -352,7 +352,7 @@ export const POST: RequestHandler = handleAuthAction;
 
 When using this approach, make sure to update your Auth Provider to use the same API route:
 
-```svelte
+```html
 <AuthProvider apiRoute="/api/auth" serverState={data.authState}>
   <slot />
 </AuthProvider>
