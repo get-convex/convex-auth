@@ -4,7 +4,6 @@
 import { invalidateAll } from "$app/navigation";
 import { createAuthClient } from "../svelte/client.svelte.js";
 import { AuthClient } from "../svelte/clientType.js";
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
 
 /**
  * Type definition for the server state from SvelteKit
@@ -65,7 +64,10 @@ export function createSvelteKitAuthClient({
           : window.localStorage,
     storageNamespace:
       storageNamespace ??
-      requireEnv(PUBLIC_CONVEX_URL, "PUBLIC_CONVEX_URL"),
+      requireEnv(
+        typeof process !== "undefined" ? process.env.PUBLIC_CONVEX_URL : undefined,
+        "PUBLIC_CONVEX_URL"
+      ),
     replaceURL: (url) => {
       if (typeof window !== "undefined") {
         window.history.replaceState({}, "", url);

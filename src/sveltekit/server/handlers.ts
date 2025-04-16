@@ -35,15 +35,35 @@ function logVerbose(message: string, ...args: any[]) {
 }
 
 /**
+ * Helper to get the Convex URL from environment variables
+ * This allows SvelteKit implementations to automatically use the URL
+ */
+function getConvexUrl(): string {
+  // Try to load from process.env.PUBLIC_CONVEX_URL first
+  const envUrl = process.env.PUBLIC_CONVEX_URL;
+  
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // If running in Node.js environment, could try to load from .env file
+  // but this is usually handled by SvelteKit's config
+  
+  throw new Error(
+    "Convex URL not provided. Either pass convexUrl parameter or set PUBLIC_CONVEX_URL environment variable."
+  );
+}
+
+/**
  * Create server-side handlers for SvelteKit
  */
 export function createConvexAuthHandlers({
-  convexUrl,
+  convexUrl = getConvexUrl(),
   cookieOptions = defaultCookieOptions,
 }: {
-  convexUrl: string;
+  convexUrl?: string;
   cookieOptions?: CookieOptions;
-}) {
+} = {}) {
   /**
    * Get the auth state from cookies
    */
@@ -240,14 +260,14 @@ interface HandleArgs {
  * Use this in your hooks.server.ts file
  */
 export function createConvexAuthHooks({
-  convexUrl,
+  convexUrl = getConvexUrl(),
   apiRoute = "/api/auth",
   cookieOptions,
 }: {
-  convexUrl: string;
+  convexUrl?: string;
   apiRoute?: string;
   cookieOptions?: CookieOptions;
-}) {
+} = {}) {
   const handlers = createConvexAuthHandlers({ convexUrl, cookieOptions });
 
   /**

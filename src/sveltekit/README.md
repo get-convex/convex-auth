@@ -26,29 +26,48 @@ For local development, you can also create a `.env.local` file.
 
 ### 2. Configure Auth Provider (Client-side)
 
-Set up the Convex client and auth provider in your root layout:
+Set up the auth provider in your root layout:
 
 ```html
 <!-- src/routes/+layout.svelte -->
 <script>
-  import { PUBLIC_CONVEX_URL } from '$env/static/public';
-  import { setupConvex } from 'convex-svelte';
   import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
-  
-  // Initialize the Convex client
-  setupConvex(PUBLIC_CONVEX_URL);
   
   // Import data from +layout.server.ts 
   export let data;
   
-  // Create auth provider component
+  // Create auth provider (automatically sets up Convex client)
   const AuthProvider = createSvelteKitAuthProvider();
+  
+  // Alternatively, you have these options:
+  
+  // Option 1: Provide a custom Convex URL
+  // const AuthProvider = createSvelteKitAuthProvider({
+  //   convexUrl: "https://your-convex-deployment.convex.cloud"
+  // });
+  
+  // Option 2: Provide your own ConvexClient instance
+  // import { ConvexClient } from "convex/browser";
+  // const client = new ConvexClient("https://your-deployment.convex.cloud");
+  // const AuthProvider = createSvelteKitAuthProvider({ client });
+  
+  // Option 3: Disable automatic client creation (will use client from context)
+  // import { setupConvex } from 'convex-svelte';
+  // setupConvex("https://your-deployment.convex.cloud");
+  // const AuthProvider = createSvelteKitAuthProvider({ setupClient: false });
 </script>
 
 <AuthProvider serverState={data.authState}>
   <slot />
 </AuthProvider>
 ```
+
+The auth provider will:
+1. Use a client you provide directly (if any)
+2. Look for a client in Svelte context (if available)
+3. Create a new client automatically (if needed and not disabled)
+
+This makes it work seamlessly with different setup patterns.
 
 ### 3. Add Auth State in Layout Server
 
@@ -57,13 +76,10 @@ Load the authentication state in your layout server:
 ```typescript
 // src/routes/+layout.server.ts
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
 import type { LayoutServerLoad } from './$types';
 
-// Create auth handlers
-const { loadAuthState } = createConvexAuthHandlers({
-  convexUrl: PUBLIC_CONVEX_URL
-});
+// Create auth handlers - convexUrl is automatically detected from environment 
+const { loadAuthState } = createConvexAuthHandlers();
 
 // Export load function to provide auth state to layout
 export const load: LayoutServerLoad = async (event) => {
@@ -78,12 +94,10 @@ Create hooks to handle authentication in `src/hooks.server.ts`:
 ```typescript
 // src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
 import { createConvexAuthHooks } from '@convex-dev/auth/sveltekit/server';
 
-// Create auth hooks with your Convex URL
+// Create auth hooks - convexUrl is automatically detected from environment
 const { handleAuth, protectRoutes } = createConvexAuthHooks({
-  convexUrl: PUBLIC_CONVEX_URL,
   // Optional: Custom API route (default: '/api/auth')
   apiRoute: '/api/auth', 
   // Optional: Custom cookie options
@@ -139,14 +153,11 @@ Use auth state in page server load functions:
 ```typescript
 // src/routes/profile/+page.server.ts
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 // Create auth handlers
-const { isAuthenticated } = createConvexAuthHandlers({
-  convexUrl: PUBLIC_CONVEX_URL
-});
+const { isAuthenticated } = createConvexAuthHandlers();
 
 // Protect routes at the page level
 export const load: PageServerLoad = async (event) => {
@@ -182,7 +193,6 @@ const protectedRoutes = createRouteMatcher((path) => {
 
 // Create auth hooks with route protection
 const { handleAuth, protectRoutes } = createConvexAuthHooks({
-  convexUrl: PUBLIC_CONVEX_URL,
   protectedRoutes,
   // Where to redirect unauthenticated users
   redirectUrl: '/login'
@@ -199,11 +209,8 @@ Protect individual pages in their `+page.server.ts`:
 // src/routes/protected/+page.server.ts
 import { redirect } from '@sveltejs/kit';
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
 
-const { isAuthenticated } = createConvexAuthHandlers({
-  convexUrl: PUBLIC_CONVEX_URL
-});
+const { isAuthenticated } = createConvexAuthHandlers();
 
 export async function load(event) {
   if (!(await isAuthenticated(event))) {
@@ -277,7 +284,6 @@ export async function load(event) {
 ```typescript
 // src/hooks.server.ts
 const { handleAuth, protectRoutes } = createConvexAuthHooks({
-  convexUrl: PUBLIC_CONVEX_URL,
   onUnauthenticated: (event) => {
     // Custom redirect logic
     const url = new URL('/login', event.url.origin);
@@ -338,13 +344,10 @@ If you prefer to handle auth requests with a dedicated endpoint (instead of usin
 ```typescript
 // src/routes/api/auth/+server.ts
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-import { PUBLIC_CONVEX_URL } from '$env/static/public';
 import type { RequestHandler } from '@sveltejs/kit';
 
 // Create auth handlers
-const { handleAuthAction } = createConvexAuthHandlers({
-  convexUrl: PUBLIC_CONVEX_URL
-});
+const { handleAuthAction } = createConvexAuthHandlers();
 
 // Export POST handler for auth requests
 export const POST: RequestHandler = handleAuthAction;
