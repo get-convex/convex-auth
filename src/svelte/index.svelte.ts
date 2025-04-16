@@ -102,26 +102,37 @@ export type ConvexAuthActionsContext = {
 };
 
 /**
- * Create the Convex auth context provider.
+ * Create a Convex Auth provider component for Svelte
  *
+ * @returns A Svelte component that provides auth context to children
  * ```svelte
  * <script>
- *   import { useQuery, setupConvex } from 'convex-svelte';
  *   import { createConvexAuthProvider } from '@convex-dev/auth/svelte';
- *
- *   // Set up Convex client
- *   setupConvex(import.meta.env.VITE_CONVEX_URL);
- *
+ * 
+ *   let { children } = $props();
+ * 
  *   // Create auth provider
  *   const AuthProvider = createConvexAuthProvider();
  * </script>
- *
+ * 
  * <AuthProvider>
- *   <App />
+ *   {@render children()}
  * </AuthProvider>
  * ```
  */
-export function createConvexAuthProvider() {
+export function createConvexAuthProvider(options?: {
+  /** 
+   * ConvexClient instance to use. If not provided, will try to get from context.
+   */
+  client?: ConvexClient;
+  
+  /** 
+   * Convex URL to use if no client is provided and setupConvex is available.
+   */
+  convexUrl?: string;
+}) {
+  const { client: providedClient, convexUrl } = options || {};
+  
   // Return a Svelte component (as a function)
   return function ConvexAuthProvider({
     client,
@@ -140,23 +151,59 @@ export function createConvexAuthProvider() {
     replaceURL?: (relativeUrl: string) => void | Promise<void>;
     children?: any;
   } = {}) {
-    // If client is not provided, try to get it from context
+    // Client resolution priority:
+    // 1. Client passed to component directly
+    // 2. Client passed to provider factory
+    // 3. Client from context
+    // 4. Try to create one if setupConvex is available
+    
+    // If client is not explicitly provided to component, use factory client
+    if (!client) {
+      client = providedClient;
+    }
+    
+    // If still no client, try to get from context
     if (!client) {
       try {
         client = getContext("$$_convexClient");
       } catch (e) {
-        throw new Error(
-          "No ConvexClient was provided. Either pass one to ConvexAuthProvider or call setupConvex() first.",
-        );
+        // Context not available or no client in context
       }
+    }
+    
+    // If still no client and convexUrl is provided, try to create one using setupConvex
+    if (!client && convexUrl && typeof window !== "undefined") {
+      try {
+        // Check if setupConvex is available (defined by convex-svelte)
+        const setupConvex = (window as any).setupConvex || 
+                           (typeof globalThis !== "undefined" && (globalThis as any).setupConvex);
+        
+        if (typeof setupConvex === 'function') {
+          setupConvex(convexUrl);
+          // After setting up, try to get the client from context
+          try {
+            client = getContext("$$_convexClient");
+          } catch (e) {
+            // Context not available after setup
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to create Convex client:", e);
+      }
+    }
+    
+    // If we still don't have a client, throw an error
+    if (!client) {
+      throw new Error(
+        "No ConvexClient was provided. Either pass one to ConvexAuthProvider or call setupConvex() first.",
+      );
     }
 
     // Create auth client with reactive memoization
     const authClient = $derived.by(
-      () =>
-        ({
+      () => ({
           authenticatedCall(action, args) {
-            return client!.action(action, args);
+            return client.action(action, args);
           },
           unauthenticatedCall(action, args) {
             return new ConvexClient((client as any).address, {
@@ -236,15 +283,20 @@ export function createConvexAuthProvider() {
  * ```
  */
 export function useAuthActions() {
-  const actions = getContext<ConvexAuthActionsContext>(
-    CONVEX_AUTH_ACTIONS_CONTEXT_KEY,
-  );
-  if (!actions) {
+  try {
+    return getContext<ConvexAuthActionsContext>(CONVEX_AUTH_ACTIONS_CONTEXT_KEY);
+  } catch (e) {
     throw new Error(
-      "No auth actions found in context. Did you forget to use ConvexAuthProvider?",
+      "useAuthActions must be used within a ConvexAuthProvider component",
     );
   }
-  return actions;
+}
+
+/**
+ * Get the authentication token from context (if available)
+ */
+export function getConvexAuthToken() {
+  return getContext<string | null>(CONVEX_AUTH_TOKEN_CONTEXT_KEY) ?? null;
 }
 
 /**

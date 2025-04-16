@@ -4,17 +4,17 @@
  * @module
  */
 
-export { 
+import { 
+  createConvexAuthProvider, 
   useAuthActions, 
+  getConvexAuthToken, 
   useAuthToken, 
   type TokenStorage, 
-  type ConvexAuthActionsContext
-} from "../svelte/index.svelte.js";
+  type ConvexAuthActionsContext 
+} from "../svelte/index.svelte";
 
-export { 
-  createSvelteKitAuthClient, 
-  type ConvexAuthServerState, 
-} from "./client.js";
+import { ConvexClient } from "convex/browser";
+import { createSvelteKitAuthClient, type ConvexAuthServerState } from "./client";
 
 /**
  * Create a SvelteKit auth provider component that can be used to provide
@@ -27,6 +27,8 @@ export {
  * <script>
  *   import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
  *   
+ *   let { children } = $props();
+ * 
  *   // Get server-side auth state (in +layout.server.ts)
  *   export let data;
  *   
@@ -35,16 +37,14 @@ export {
  * </script>
  * 
  * <AuthProvider serverState={data.authState}>
- *   <slot />
+ *   {@render children()}
  * </AuthProvider>
  * ```
  */
-import { createConvexAuthProvider } from "../svelte/index.svelte.js";
-import { createSvelteKitAuthClient, type ConvexAuthServerState } from "./client.js";
-import { setupConvex } from "convex-svelte";
-import { getContext } from "svelte";
-import { ConvexClient } from "convex/browser";
 
+/**
+ * Create a SvelteKit-specific auth provider component
+ */
 export function createSvelteKitAuthProvider(options?: {
   /** 
    * ConvexClient instance to use. If not provided, will:
@@ -54,12 +54,13 @@ export function createSvelteKitAuthProvider(options?: {
   client?: ConvexClient;
   
   /** 
-   * Convex URL to use if creating a new client. If not provided, will use 
+   * Convex URL to use. If not provided, will use 
    * PUBLIC_CONVEX_URL environment variable.
    */
   convexUrl?: string;
 }) {
-  const { client: providedClient, convexUrl } = options || {};
+  // Create the base provider with our options
+  const AuthProvider = createConvexAuthProvider(options);
   
   // Return a component factory function
   return function ConvexAuthSvelteKitProvider({
@@ -77,44 +78,6 @@ export function createSvelteKitAuthProvider(options?: {
     verbose?: boolean;
     children?: any;
   } = {}) {
-    // Create the base auth provider
-    const AuthProvider = createConvexAuthProvider();
-    
-    // Determine which client to use:
-    // 1. Use provided client if it exists
-    let client = providedClient;
-    
-    // 2. Try to get from context if not provided
-    if (!client) {
-      try {
-        client = getContext("$$_convexClient");
-      } catch (e) {
-        // Context not available or no client in context
-      }
-    }
-    
-    // 3. Create a new client if requested and not found
-    if (!client) {
-      // Get URL from options or environment variable
-      const url = convexUrl || 
-                  (typeof process !== "undefined" ? process.env.PUBLIC_CONVEX_URL : undefined) ||
-                  (typeof window !== "undefined" && (window as any).PUBLIC_CONVEX_URL);
-      
-      if (!url) {
-        console.warn("No Convex URL provided. Please pass client or convexUrl to createSvelteKitAuthProvider or set PUBLIC_CONVEX_URL environment variable.");
-      } else {
-        // This will set the client in context for future use
-        setupConvex(url);
-        
-        // Try to get the newly created client
-        try {
-          client = getContext("$$_convexClient");
-        } catch (e) {
-          // Context not available after setup
-        }
-      }
-    }
-    
     // Create the SvelteKit-specific auth client
     createSvelteKitAuthClient({
       apiRoute,
@@ -126,7 +89,6 @@ export function createSvelteKitAuthProvider(options?: {
     
     // Return the auth provider with SvelteKit-specific configuration
     return AuthProvider({
-      client, // Will pass through our client or undefined
       storage: typeof window === "undefined"
         ? null
         : storage === "inMemory"
@@ -137,6 +99,21 @@ export function createSvelteKitAuthProvider(options?: {
     });
   };
 }
+
+// Re-export core functionality
+export { 
+  createSvelteKitAuthClient,
+  useAuthActions, 
+  getConvexAuthToken, 
+  useAuthToken 
+};
+
+// Re-export types
+export type { 
+  TokenStorage, 
+  ConvexAuthActionsContext,
+  ConvexAuthServerState 
+};
 
 /**
  * Create server-side handlers for SvelteKit.

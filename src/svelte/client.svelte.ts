@@ -7,7 +7,7 @@ import type {
   SignOutAction,
 } from "../server/implementation/index.js";
 import { AuthClient } from "./clientType.js";
-import type { TokenStorage } from "./index.svelte.js";
+import type { TokenStorage } from "./index.svelte";
 import isNetworkError from "is-network-error";
 
 // Retry after this much time, based on the retry number.

@@ -33,6 +33,8 @@ Set up the auth provider in your root layout:
 <script>
   import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
   
+  let { children } = $props();
+  
   // Import data from +layout.server.ts 
   export let data;
   
@@ -51,14 +53,14 @@ Set up the auth provider in your root layout:
   // const client = new ConvexClient("https://your-deployment.convex.cloud");
   // const AuthProvider = createSvelteKitAuthProvider({ client });
   
-  // Option 3: Disable automatic client creation (will use client from context)
+  // Option 3: Use a pre-initialized Convex client from context
   // import { setupConvex } from 'convex-svelte';
   // setupConvex("https://your-deployment.convex.cloud");
-  // const AuthProvider = createSvelteKitAuthProvider({ setupClient: false });
+  // const AuthProvider = createSvelteKitAuthProvider();
 </script>
 
 <AuthProvider serverState={data.authState}>
-  <slot />
+  {@render children()}
 </AuthProvider>
 ```
 
@@ -357,7 +359,7 @@ When using this approach, make sure to update your Auth Provider to use the same
 
 ```html
 <AuthProvider apiRoute="/api/auth" serverState={data.authState}>
-  <slot />
+  {@render children()}
 </AuthProvider>
 ```
 
