@@ -189,30 +189,6 @@ export function createConvexAuthHandlers({
   }
 
   /**
-   * Middleware function to protect routes
-   * Use in hooks.server.ts in handle sequence
-   */
-  async function protect(
-    event: RequestEvent,
-    resolver: (event: RequestEvent) => Promise<Response>
-  ) {
-    const authState = await getAuthState(event);
-    const isAuthenticated = !!authState._state.token;
-
-    // Check if this is a protected route
-    // Customize this logic based on your app's route structure
-    const isProtectedRoute = event.url.pathname.startsWith("/protected");
-    
-    if (isProtectedRoute && !isAuthenticated) {
-      // Redirect to login
-      return new Response("Unauthorized", { status: 302, headers: { Location: "/login" } });
-    }
-
-    // Continue processing the request
-    return resolver(event);
-  }
-
-  /**
    * Determine if the current request is authenticated
    */
   async function isAuthenticated(event: RequestEvent): Promise<boolean> {
@@ -225,7 +201,6 @@ export function createConvexAuthHandlers({
     setAuthCookies,
     handleAuthAction,
     loadAuthState,
-    protect,
     proxyAuthActionToConvex,
     isAuthenticated,
   };
@@ -283,16 +258,8 @@ export function createConvexAuthHooks({
     return resolve(event);
   }
 
-  /**
-   * Protect routes from unauthenticated access
-   */
-  async function protectRoutes({ event, resolve }: HandleArgs) {
-    return handlers.protect(event, () => resolve(event));
-  }
-
   return {
     ...handlers,
-    handleAuth,
-    protectRoutes,
+    handleAuth
   };
 }
