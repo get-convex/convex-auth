@@ -227,7 +227,7 @@ export async function convexAuthSvelteKitServerState(
 // Type definitions for the handle function
 interface HandleArgs {
   event: RequestEvent;
-  resolve: (event: RequestEvent) => Promise<Response>;
+  resolve: (event: RequestEvent) => Response | Promise<Response>;
 }
 
 /**
