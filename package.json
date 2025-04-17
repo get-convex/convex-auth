@@ -30,7 +30,9 @@
     "build:server": "tsc --project tsconfig.server.json",
     "build:react": "tsc --project tsconfig.react.json && mkdir -p dist && rm -rf dist/react && mv distreact/react dist/react && rm -r distreact",
     "build:nextjs": "tsc --project tsconfig.nextjs.json && mkdir -p dist && rm -rf dist/nextjs && mv distnextjs/nextjs dist/nextjs && rm -r distnextjs",
-    "build": "rm -rf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs",
+    "build:svelte": "tsc --project tsconfig.svelte.json && mkdir -p dist && rm -rf dist/svelte && mv distsvelte/svelte dist/svelte && rm -r distsvelte",
+    "build:sveltekit": "tsc --project tsconfig.sveltekit.json && mkdir -p dist && rm -rf dist/sveltekit && mv distsveltekit/sveltekit dist/sveltekit && rm -r distsveltekit",
+    "build": "rm -rf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs && npm run build:svelte && npm run build:sveltekit",
     "docs": "cd docs && npm run dev",
     "lint": "tsc && eslint . && cd test && npm run lint",
     "spellcheck": "cspell \"docs/pages/**/*.md*\"",
@@ -60,6 +62,14 @@
     "./nextjs/server": {
       "import": "./dist/nextjs/server/index.js",
       "require": "./dist/nextjs/server/index.js"
+    },
+    "./svelte": {
+      "import": "./dist/svelte/index.js",
+      "require": "./dist/svelte/index.js"
+    },
+    "./sveltekit": {
+      "import": "./dist/sveltekit/index.js",
+      "require": "./dist/sveltekit/index.js"
     }
   },
   "dependencies": {
@@ -113,6 +123,7 @@
     "tsup": "^8.0.1",
     "typescript": "^5.5.2",
     "valibot": "^0.35.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "vite": "^6.3.1"
   }
 }
