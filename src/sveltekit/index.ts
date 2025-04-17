@@ -6,9 +6,7 @@
 
 import { 
   setupConvexAuth as setupSvelteConvexAuth, 
-  useAuthActions, 
-  getConvexAuthToken, 
-  useAuthToken, 
+  useAuth,
   type TokenStorage, 
   type ConvexAuthActionsContext 
 } from "../svelte/index.svelte";
@@ -87,9 +85,7 @@ export function setupConvexAuth({
 // Re-export core functionality
 export { 
   createSvelteKitAuthClient,
-  useAuthActions, 
-  getConvexAuthToken, 
-  useAuthToken 
+  useAuth
 };
 
 // Re-export types

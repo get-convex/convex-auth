@@ -13,6 +13,7 @@ import { AuthClient } from "./clientType.js";
 // Context key for Convex auth actions
 const CONVEX_AUTH_ACTIONS_CONTEXT_KEY = "$$_convexAuthActions";
 const CONVEX_AUTH_TOKEN_CONTEXT_KEY = "$$_convexAuthToken";
+const CONVEX_AUTH_CONTEXT_KEY = "$$_convexAuth";
 
 // Extended client type to access internal properties
 interface ExtendedConvexClient extends ConvexClient {
@@ -171,6 +172,7 @@ export function setupConvexAuth({
     signIn: auth.signIn,
     signOut: auth.signOut,
   });
+  setContext(CONVEX_AUTH_CONTEXT_KEY, auth);
 
   // Handle token updates reactively
   if (typeof window !== "undefined") {
@@ -266,60 +268,74 @@ export type ConvexAuthActionsContext = {
 };
 
 /**
- * Use this hook to access the `signIn` and `signOut` methods:
- *
+ * Use this function to access all authentication functionality including state, token, and actions.
+ * 
  * ```ts
- * import { useAuthActions } from "@convex-dev/auth/svelte";
- *
+ * import { useAuth } from "@convex-dev/auth/svelte";
+ * 
  * function SomeComponent() {
- *   const { signIn, signOut } = useAuthActions();
- *   // ...
+ *   const { isLoading, isAuthenticated, token, signIn, signOut } = useAuth();
+ *   
+ *   // Use authentication state
+ *   if (isLoading) {
+ *     return <p>Loading...</p>;
+ *   }
+ *   
+ *   if (isAuthenticated) {
+ *     return (
+ *       <div>
+ *         <p>You are signed in!</p>
+ *         <button onClick={() => signOut()}>Sign Out</button>
+ *       </div>
+ *     );
+ *   }
+ *   
+ *   return (
+ *     <div>
+ *       <p>You need to sign in</p>
+ *       <button onClick={() => signIn("google")}>Sign In with Google</button>
+ *     </div>
+ *   );
  * }
  * ```
  */
-export function useAuthActions() {
+export function useAuth(): {
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  token: string | null;
+  signIn: ConvexAuthActionsContext["signIn"];
+  signOut: ConvexAuthActionsContext["signOut"];
+} {
   try {
-    return getContext<ConvexAuthActionsContext>(CONVEX_AUTH_ACTIONS_CONTEXT_KEY);
+    // Get the auth client and actions from context
+    const auth = getContext<ReturnType<typeof createAuthClient>>(CONVEX_AUTH_CONTEXT_KEY);
+    const actions = getContext<ConvexAuthActionsContext>(CONVEX_AUTH_ACTIONS_CONTEXT_KEY);
+    const token = getContext<string | null>(CONVEX_AUTH_TOKEN_CONTEXT_KEY) ?? null;
+    
+    if (!auth || !actions) {
+      throw new Error(
+        "setupConvexAuth must be called before useAuth"
+      );
+    }
+    
+    // Return a unified object with all auth functionality
+    return {
+      // Auth state
+      get isLoading() { return auth.isLoading; },
+      get isAuthenticated() { return auth.isAuthenticated; },
+      
+      // Auth token
+      get token() { return token; },
+      
+      // Auth actions
+      signIn: (...args) => actions.signIn(...args),
+      signOut: () => actions.signOut(),
+    };
   } catch (e) {
     throw new Error(
-      "setupConvexAuth must be called before useAuthActions",
+      "setupConvexAuth must be called before useAuth"
     );
   }
-}
-
-/**
- * Get the authentication token from context (if available)
- */
-export function getConvexAuthToken() {
-  return getContext<string | null>(CONVEX_AUTH_TOKEN_CONTEXT_KEY) ?? null;
-}
-
-/**
- * Use this function to access the JWT token, for authenticating
- * your Convex HTTP actions.
- *
- * You should not pass this token to other servers (think of it
- * as an "ID token").
- *
- * ```ts
- * import { useAuthToken } from "@convex-dev/auth/svelte";
- *
- * function SomeComponent() {
- *   const token = useAuthToken();
- *
- *   async function handleClick() {
- *     await fetch(`${CONVEX_SITE_URL}/someEndpoint`, {
- *       headers: {
- *         Authorization: `Bearer ${token}`,
- *       },
- *     });
- *   }
- *   // ...
- * }
- * ```
- */
-export function useAuthToken(): string | null {
-  return getContext<string | null>(CONVEX_AUTH_TOKEN_CONTEXT_KEY) ?? null;
 }
 
 // Re-export types

@@ -1,14 +1,8 @@
 <script>
-    import { useAuthActions, useAuthToken } from '@convex-dev/auth/sveltekit';
+    import { useAuth } from '@convex-dev/auth/sveltekit';
     
     // Get auth actions (signIn, signOut)
-    const { signIn, signOut } = useAuthActions();
-    
-    // Auth token will be null when not authenticated
-    const authToken = useAuthToken();
-    
-    // Derive authenticated state from token
-    let isAuthenticated = $derived(authToken !== null);
+    const { signIn, signOut, isAuthenticated } = useAuth();
   </script>
 
 <h1>Welcome to SvelteKit</h1>
