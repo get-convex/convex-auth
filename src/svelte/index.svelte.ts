@@ -266,28 +266,6 @@ export type ConvexAuthActionsContext = {
 };
 
 /**
- * Create a Convex Auth provider for Svelte.
- * 
- * This function sets up authentication for your Svelte application.
- * It should be called in your root layout or App component.
- * 
- * @returns The auth client instance that can be used to access auth methods
- * 
- * Usage:
- * ```svelte
- * <script>
- *   import { createConvexAuthProvider } from '@convex-dev/auth/svelte';
- *   
- *   // Set up authentication
- *   createConvexAuthProvider();
- * </script>
- * 
- * <!-- Your app content here -->
- * ```
- */
-export const createConvexAuthProvider = setupConvexAuth;
-
-/**
  * Use this hook to access the `signIn` and `signOut` methods:
  *
  * ```ts
@@ -304,7 +282,7 @@ export function useAuthActions() {
     return getContext<ConvexAuthActionsContext>(CONVEX_AUTH_ACTIONS_CONTEXT_KEY);
   } catch (e) {
     throw new Error(
-      "useAuthActions must be used within a ConvexAuthProvider component",
+      "setupConvexAuth must be called before useAuthActions",
     );
   }
 }

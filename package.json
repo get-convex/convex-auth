@@ -65,7 +65,7 @@
     },
     "./svelte": {
       "import": "./dist/svelte/index.js",
-      "require": "./dist/svelte/index.js"
+      "types": "./dist/svelte/index.d.ts"
     },
     "./sveltekit": {
       "import": "./dist/sveltekit/index.js",
