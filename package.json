@@ -70,6 +70,10 @@
     "./sveltekit": {
       "import": "./dist/sveltekit/index.js",
       "require": "./dist/sveltekit/index.js"
+    },
+    "./sveltekit/server": {
+      "import": "./dist/sveltekit/server/index.js",
+      "require": "./dist/sveltekit/server/index.js"
     }
   },
   "dependencies": {

@@ -33,10 +33,8 @@ Set up the auth provider in your root layout:
 <script>
   import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
   
-  let { children } = $props();
-  
   // Import data from +layout.server.ts 
-  export let data;
+  let { children, data } = $props();
   
   // Create auth provider (automatically sets up Convex client)
   const AuthProvider = createSvelteKitAuthProvider();

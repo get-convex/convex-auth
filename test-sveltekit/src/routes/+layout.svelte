@@ -1,7 +1,12 @@
 <script lang="ts">
 	import '../app.css';
+	import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
 
-	let { children } = $props();
+	let { children, data } = $props();
+
+	const AuthProvider = createSvelteKitAuthProvider();
 </script>
 
-{@render children()}
+<AuthProvider serverState={data.authState}>
+	{@render children()}
+</AuthProvider>
