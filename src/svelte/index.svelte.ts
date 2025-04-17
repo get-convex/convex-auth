@@ -14,6 +14,15 @@ import { AuthClient } from "./clientType.js";
 const CONVEX_AUTH_ACTIONS_CONTEXT_KEY = "$$_convexAuthActions";
 const CONVEX_AUTH_TOKEN_CONTEXT_KEY = "$$_convexAuthToken";
 
+// Extended client type to access internal properties
+interface ExtendedConvexClient extends ConvexClient {
+  address: string;
+  logger: any;
+  options?: {
+    verbose?: boolean;
+  };
+}
+
 /**
  * A storage interface for storing and retrieving tokens and other secrets.
  *
@@ -43,6 +52,161 @@ export interface TokenStorage {
    * @param key Unique key.
    */
   removeItem: (key: string) => void | Promise<void>;
+}
+
+/**
+ * Initialize Convex Auth for Svelte.
+ * 
+ * This function sets up authentication for your Svelte application.
+ * It should be called in your root layout or App component.
+ * 
+ * @returns The auth client instance that can be used to access auth methods
+ * 
+ * Usage:
+ * ```svelte
+ * <script>
+ *   import { setupConvexAuth } from '@convex-dev/auth/svelte';
+ *   
+ *   // Set up authentication
+ *   setupConvexAuth();
+ * </script>
+ * 
+ * <!-- Your app content here -->
+ * ```
+ */
+export function setupConvexAuth({
+  client,
+  storage = typeof window !== "undefined" ? window.localStorage : null,
+  storageNamespace,
+  replaceURL = (url: string) => {
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", url);
+    }
+  },
+  convexUrl
+}: {
+  /** ConvexClient instance to use */
+  client?: ConvexClient;
+  /** Storage for auth tokens */
+  storage?: TokenStorage | null;
+  /** Namespace for storing tokens */
+  storageNamespace?: string;
+  /** Function to replace the current URL */
+  replaceURL?: (relativeUrl: string) => void | Promise<void>;
+  /** Convex URL if no client is provided */
+  convexUrl?: string;
+} = {}) {
+  // Client resolution priority:
+  // 1. Client passed directly
+  // 2. Client from context
+  // 3. Try to create one if setupConvex is available
+
+  // If no client provided, try to get from context
+  if (!client) {
+    try {
+      client = getContext("$$_convexClient");
+    } catch (e) {
+      // Context not available or no client in context
+    }
+  }
+  
+  // If still no client and convexUrl is provided, try to create one using setupConvex
+  if (!client && convexUrl && typeof window !== "undefined") {
+    try {
+      // Check if setupConvex is available (defined by convex-svelte)
+      const setupConvex = (window as any).setupConvex || 
+                         (typeof globalThis !== "undefined" && (globalThis as any).setupConvex);
+      
+      if (typeof setupConvex === 'function') {
+        setupConvex(convexUrl);
+        // After setting up, try to get the client from context
+        try {
+          client = getContext("$$_convexClient");
+        } catch (e) {
+          // Context not available after setup
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to create Convex client:", e);
+    }
+  }
+  
+  // If we still don't have a client, throw an error
+  if (!client) {
+    throw new Error(
+      "No ConvexClient was provided. Either pass one to setupConvexAuth or call setupConvex() first.",
+    );
+  }
+
+  // Create auth client
+  const extendedClient = client as ExtendedConvexClient;
+  const authClient: AuthClient = {
+    authenticatedCall(action, args) {
+      return client.action(action, args);
+    },
+    unauthenticatedCall(action, args) {
+      return new ConvexClient(extendedClient.address, {
+        logger: extendedClient.logger,
+      }).action(action, args);
+    },
+    verbose: extendedClient.options?.verbose,
+    logger: extendedClient.logger,
+  };
+
+  // Create the auth client and set up context
+  const auth = createAuthClient({
+    client: authClient,
+    storage,
+    storageNamespace: storageNamespace ?? extendedClient.address,
+    replaceURL,
+    onChange: async () => {
+      // Handle auth state changes
+      // This is a hook for implementations to use
+    },
+  });
+
+  // Set auth contexts
+  setConvexAuthContext(auth);
+  setContext(CONVEX_AUTH_ACTIONS_CONTEXT_KEY, {
+    signIn: auth.signIn,
+    signOut: auth.signOut,
+  });
+
+  // Handle token updates reactively
+  if (typeof window !== "undefined") {
+    // Set token context reactively with $effect
+    $effect(() => {
+      let isMounted = true;
+      
+      if (auth.isAuthenticated) {
+        // Use void to handle the promise without returning it
+        void (async () => {
+          try {
+            const token = await auth.fetchAccessToken({
+              forceRefreshToken: false,
+            });
+            if (isMounted) {
+              setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, token);
+            }
+          } catch (error) {
+            console.error("Failed to fetch auth token:", error);
+            if (isMounted) {
+              setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, null);
+            }
+          }
+        })();
+      } else {
+        setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, null);
+      }
+      
+      // Return a cleanup function
+      return () => {
+        isMounted = false;
+      };
+    });
+  }
+
+  return auth;
 }
 
 /**
@@ -102,173 +266,26 @@ export type ConvexAuthActionsContext = {
 };
 
 /**
- * Create a Convex Auth provider component for Svelte
- *
- * @returns A Svelte component that provides auth context to children
+ * Create a Convex Auth provider for Svelte.
+ * 
+ * This function sets up authentication for your Svelte application.
+ * It should be called in your root layout or App component.
+ * 
+ * @returns The auth client instance that can be used to access auth methods
+ * 
+ * Usage:
  * ```svelte
  * <script>
  *   import { createConvexAuthProvider } from '@convex-dev/auth/svelte';
- * 
- *   let { children } = $props();
- * 
- *   // Create auth provider
- *   const AuthProvider = createConvexAuthProvider();
+ *   
+ *   // Set up authentication
+ *   createConvexAuthProvider();
  * </script>
  * 
- * <AuthProvider>
- *   {@render children()}
- * </AuthProvider>
+ * <!-- Your app content here -->
  * ```
  */
-export function createConvexAuthProvider(options?: {
-  /** 
-   * ConvexClient instance to use. If not provided, will try to get from context.
-   */
-  client?: ConvexClient;
-  
-  /** 
-   * Convex URL to use if no client is provided and setupConvex is available.
-   */
-  convexUrl?: string;
-}) {
-  const { client: providedClient, convexUrl } = options || {};
-  
-  // Return a Svelte component (as a function)
-  return function ConvexAuthProvider({
-    client,
-    storage = typeof window !== "undefined" ? window.localStorage : null,
-    storageNamespace,
-    replaceURL = (url: string) => {
-      if (typeof window !== "undefined") {
-        window.history.replaceState({}, "", url);
-      }
-    },
-    children = undefined,
-  }: {
-    client?: ConvexClient;
-    storage?: TokenStorage | null;
-    storageNamespace?: string;
-    replaceURL?: (relativeUrl: string) => void | Promise<void>;
-    children?: any;
-  } = {}) {
-    // Client resolution priority:
-    // 1. Client passed to component directly
-    // 2. Client passed to provider factory
-    // 3. Client from context
-    // 4. Try to create one if setupConvex is available
-    
-    // If client is not explicitly provided to component, use factory client
-    if (!client) {
-      client = providedClient;
-    }
-    
-    // If still no client, try to get from context
-    if (!client) {
-      try {
-        client = getContext("$$_convexClient");
-      } catch (e) {
-        // Context not available or no client in context
-      }
-    }
-    
-    // If still no client and convexUrl is provided, try to create one using setupConvex
-    if (!client && convexUrl && typeof window !== "undefined") {
-      try {
-        // Check if setupConvex is available (defined by convex-svelte)
-        const setupConvex = (window as any).setupConvex || 
-                           (typeof globalThis !== "undefined" && (globalThis as any).setupConvex);
-        
-        if (typeof setupConvex === 'function') {
-          setupConvex(convexUrl);
-          // After setting up, try to get the client from context
-          try {
-            client = getContext("$$_convexClient");
-          } catch (e) {
-            // Context not available after setup
-          }
-        }
-      } catch (e) {
-        console.warn("Failed to create Convex client:", e);
-      }
-    }
-    
-    // If we still don't have a client, throw an error
-    if (!client) {
-      throw new Error(
-        "No ConvexClient was provided. Either pass one to ConvexAuthProvider or call setupConvex() first.",
-      );
-    }
-
-    // Create auth client with reactive memoization
-    const authClient = $derived.by(
-      () => ({
-          authenticatedCall(action, args) {
-            return client.action(action, args);
-          },
-          unauthenticatedCall(action, args) {
-            return new ConvexClient((client as any).address, {
-              logger: (client as any).logger,
-            }).action(action, args);
-          },
-          verbose: (client as any).options?.verbose,
-          logger: (client as any).logger,
-        }) satisfies AuthClient,
-    );
-
-    // Create the auth store and set in context
-    const auth = createAuthClient({
-      client: authClient,
-      storage,
-      storageNamespace: storageNamespace ?? (client as any).address,
-      replaceURL,
-      onChange: async () => {
-        // Handle auth state changes
-        // This is a hook for implementations to use
-      },
-    });
-
-    // Set auth contexts
-    setConvexAuthContext(auth);
-    setContext(CONVEX_AUTH_ACTIONS_CONTEXT_KEY, {
-      signIn: auth.signIn,
-      signOut: auth.signOut,
-    });
-
-    // Set token context (reactive)
-    $effect(() => {
-      let isMounted = true;
-
-      if (auth.isAuthenticated) {
-        // Use void to handle the promise without returning it
-        void (async () => {
-          try {
-            const token = await auth.fetchAccessToken({
-              forceRefreshToken: false,
-            });
-            if (isMounted) {
-              setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, token);
-            }
-          } catch (error) {
-            console.error("Failed to fetch auth token:", error);
-            if (isMounted) {
-              setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, null);
-            }
-          }
-        })();
-      } else {
-        setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, null);
-      }
-
-      // Return a cleanup function
-      return () => {
-        isMounted = false;
-      };
-    });
-
-    // Return children (in Svelte, using <slot></slot>)
-    return children;
-  };
-}
+export const createConvexAuthProvider = setupConvexAuth;
 
 /**
  * Use this hook to access the `signIn` and `signOut` methods:

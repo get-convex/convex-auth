@@ -5,7 +5,7 @@
  */
 
 import { 
-  createConvexAuthProvider, 
+  setupConvexAuth as setupSvelteConvexAuth, 
   useAuthActions, 
   getConvexAuthToken, 
   useAuthToken, 
@@ -17,88 +17,72 @@ import { ConvexClient } from "convex/browser";
 import { createSvelteKitAuthClient, type ConvexAuthServerState } from "./client";
 
 /**
- * Create a SvelteKit auth provider component that can be used to provide
- * authentication state to child components.
+ * Initialize Convex Auth for SvelteKit.
  * 
- * @returns A Svelte component that provides auth context to children
+ * This function sets up authentication for your SvelteKit application.
+ * It should be called in your root +layout.svelte file.
+ * 
+ * @returns The auth client instance that can be used to access auth methods
  * 
  * Usage:
  * ```svelte
  * <script>
- *   import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
+ *   import { setupConvexAuth } from '@convex-dev/auth/sveltekit';
  *   
- *   let { children } = $props();
- * 
  *   // Get server-side auth state (in +layout.server.ts)
  *   export let data;
  *   
- *   // Create auth provider (will set up Convex client automatically)
- *   const AuthProvider = createSvelteKitAuthProvider();
+ *   // Set up authentication (will initialize Convex client automatically)
+ *   setupConvexAuth({ serverState: data.authState });
  * </script>
  * 
- * <AuthProvider serverState={data.authState}>
- *   {@render children()}
- * </AuthProvider>
+ * {@render children()}
  * ```
  */
-
-/**
- * Create a SvelteKit-specific auth provider component
- */
-export function createSvelteKitAuthProvider(options?: {
+export function setupConvexAuth({
+  apiRoute = "/api/auth",
+  serverState,
+  storage = "localStorage",
+  storageNamespace,
+  verbose = false,
+  client,
+  convexUrl
+}: {
+  /** API route to use for auth requests */
+  apiRoute?: string;
+  /** Server-provided authentication state */
+  serverState?: ConvexAuthServerState;
+  /** Storage type to use */
+  storage?: "localStorage" | "inMemory";
+  /** Storage namespace for auth tokens */
+  storageNamespace?: string;
+  /** Enable verbose logging */
+  verbose?: boolean;
   /** 
    * ConvexClient instance to use. If not provided, will:
    * 1. Try to get it from Svelte context
    * 2. Initialize a new one using the Convex URL
    */
   client?: ConvexClient;
-  
   /** 
    * Convex URL to use. If not provided, will use 
    * PUBLIC_CONVEX_URL environment variable.
    */
   convexUrl?: string;
-}) {
-  // Create the base provider with our options
-  const AuthProvider = createConvexAuthProvider(options);
+} = {}) {
+  // Initialize the base Svelte auth
+  setupSvelteConvexAuth({ client, convexUrl });
   
-  // Return a component factory function
-  return function ConvexAuthSvelteKitProvider({
-    apiRoute = "/api/auth",
+  // Return the initialized auth client
+  return createSvelteKitAuthClient({
+    apiRoute,
     serverState,
-    storage = "localStorage",
+    storage,
     storageNamespace,
-    verbose = false,
-    children,
-  }: {
-    apiRoute?: string;
-    serverState?: ConvexAuthServerState;
-    storage?: "localStorage" | "inMemory";
-    storageNamespace?: string;
-    verbose?: boolean;
-    children?: any;
-  } = {}) {
-    // Create the SvelteKit-specific auth client
-    createSvelteKitAuthClient({
-      apiRoute,
-      serverState,
-      storage,
-      storageNamespace,
-      verbose,
-    });
-    
-    // Return the auth provider with SvelteKit-specific configuration
-    return AuthProvider({
-      storage: typeof window === "undefined"
-        ? null
-        : storage === "inMemory"
-          ? null
-          : window.localStorage,
-      storageNamespace,
-      children,
-    });
-  };
+    verbose,
+  });
 }
+
 
 // Re-export core functionality
 export { 

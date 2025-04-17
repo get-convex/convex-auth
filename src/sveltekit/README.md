@@ -18,51 +18,50 @@ yarn add @convex-dev/auth
 
 Create or update your `.env` file with the following variables:
 
-```
+```bash
 PUBLIC_CONVEX_URL=your_convex_deployment_url
 ```
 
 For local development, you can also create a `.env.local` file.
 
-### 2. Configure Auth Provider (Client-side)
+### 2. Initialize Auth (Client-side)
 
-Set up the auth provider in your root layout:
+Set up authentication in your root layout:
 
 ```html
 <!-- src/routes/+layout.svelte -->
 <script>
-  import { createSvelteKitAuthProvider } from '@convex-dev/auth/sveltekit';
+  import { setupConvexAuth } from '@convex-dev/auth/sveltekit';
   
   // Import data from +layout.server.ts 
   let { children, data } = $props();
   
-  // Create auth provider (automatically sets up Convex client)
-  const AuthProvider = createSvelteKitAuthProvider();
+  // Set up authentication (automatically initializes Convex client)
+  setupConvexAuth({ serverState: data.authState });
   
   // Alternatively, you have these options:
   
   // Option 1: Provide a custom Convex URL
-  // const AuthProvider = createSvelteKitAuthProvider({
+  // setupConvexAuth({
+  //   serverState: data.authState,
   //   convexUrl: "https://your-convex-deployment.convex.cloud"
   // });
   
   // Option 2: Provide your own ConvexClient instance
   // import { ConvexClient } from "convex/browser";
   // const client = new ConvexClient("https://your-deployment.convex.cloud");
-  // const AuthProvider = createSvelteKitAuthProvider({ client });
+  // setupConvexAuth({ serverState: data.authState, client });
   
   // Option 3: Use a pre-initialized Convex client from context
   // import { setupConvex } from 'convex-svelte';
   // setupConvex("https://your-deployment.convex.cloud");
-  // const AuthProvider = createSvelteKitAuthProvider();
+  // setupConvexAuth({ serverState: data.authState });
 </script>
 
-<AuthProvider serverState={data.authState}>
   {@render children()}
-</AuthProvider>
 ```
 
-The auth provider will:
+The `setupConvexAuth` function will:
 1. Use a client you provide directly (if any)
 2. Look for a client in Svelte context (if available)
 3. Create a new client automatically (if needed and not disabled)
@@ -73,7 +72,7 @@ This makes it work seamlessly with different setup patterns.
 
 Load the authentication state in your layout server:
 
-```typescript
+```ts
 // src/routes/+layout.server.ts
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
 import type { LayoutServerLoad } from './$types';
@@ -91,9 +90,7 @@ export const load: LayoutServerLoad = async (event) => {
 
 Create hooks to handle authentication in `src/hooks.server.ts`.
 
-#### Minimal Example:
-
-```typescript
+```ts
 // src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
 import { createConvexAuthHooks } from '@convex-dev/auth/sveltekit/server';
@@ -108,158 +105,6 @@ export const handle = sequence(
 );
 ```
 
-#### Advanced Example:
-
-```typescript
-// src/hooks.server.ts
-import { sequence } from '@sveltejs/kit/hooks';
-import { redirect } from '@sveltejs/kit';
-import { 
-  createConvexAuthHooks, 
-  createRouteMatcher 
-} from '@convex-dev/auth/sveltekit/server';
-
-// Example 1: Auth-first approach (whitelist pattern)
-// Most routes require authentication except for a few public ones
-
-const isPublicRoute = createRouteMatcher([
-  '/login',
-  '/register',
-  '/about',
-  // Note: No need to add '/api/auth' here as the handleAuth middleware
-  // will process those requests before this middleware runs
-]);
-
-// Create auth hooks
-const { handleAuth, convexAuth } = createConvexAuthHooks();
-
-// Custom handle function for auth-first pattern
-async function authFirstPattern(event) {
-  // Skip auth check for public routes
-  if (isPublicRoute(event.url.pathname)) {
-    return;
-  }
-  
-  // For all other routes, check authentication
-  const isAuthenticated = await convexAuth.isAuthenticated(event);
-  
-  if (!isAuthenticated) {
-    // Store the original URL for redirect after login
-    const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(302, `/login?redirectTo=${returnUrl}`);
-  }
-  
-  // User is authenticated, continue to next handler
-  return;
-}
-
-// Example 2: Public-first approach (blacklist pattern)
-// Most routes are public, only protect specific areas
-
-const isProtectedRoute = createRouteMatcher([
-  '/admin(.*)',
-  '/dashboard(.*)',
-  '/profile(.*)',
-]);
-
-// Custom handle function for public-first pattern
-async function publicFirstPattern(event) {
-  // Check auth only for protected routes
-  if (isProtectedRoute(event.url.pathname)) {
-    const isAuthenticated = await convexAuth.isAuthenticated(event);
-    
-    if (!isAuthenticated) {
-      // Store the original URL for redirect after login
-    const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(302, `/login?redirectTo=${returnUrl}`);
-    }
-  }
-  
-  // All other routes are public, or user is authenticated
-  return;
-}
-
-// Choose which pattern to use based on your app's needs
-// and apply hooks in sequence
-export const handle = sequence(
-  handleAuth,  // Handle auth API requests
-  // authFirstPattern, // Uncomment to use auth-first pattern
-  publicFirstPattern, // Comment out if using auth-first pattern
-  // Your other custom handlers...
-);
-```
-
-### Handling Special Routes
-
-For more complex cases like handling invitations:
-
-```typescript
-// src/hooks.server.ts
-import { sequence } from '@sveltejs/kit/hooks';
-import { redirect } from '@sveltejs/kit';
-import { 
-  createConvexAuthHooks, 
-  createRouteMatcher 
-} from '@convex-dev/auth/sveltekit/server';
-import { api } from '@/convex/_generated/api';
-import { fetchMutation } from 'convex/svelte';
-
-// Create auth hooks
-const { handleAuth, convexAuth } = createConvexAuthHooks();
-
-// Handle special route for invitation acceptance
-const isInvitationRoute = createRouteMatcher(['/api/invitations/accept']);
-
-async function handleSpecialRoutes(event) {
-  if (isInvitationRoute(event.url.pathname)) {
-    const isAuthenticated = await convexAuth.isAuthenticated(event);
-    
-    if (!isAuthenticated) {
-      // Redirect to login with return URL
-      return redirect(302, 
-        `/login?returnUrl=${encodeURIComponent(event.url.pathname + event.url.search)}`
-      );
-    }
-    
-    // Get invitation ID from query params
-    const invitationId = event.url.searchParams.get('invitationId');
-    
-    if (invitationId) {
-      try {
-        // Get auth token from server state
-        const authState = await convexAuth.getAuthState(event);
-        const token = authState._state.token;
-        
-        // Call the mutation with the auth token
-        await fetchMutation(
-          api.organizations.invitations.accept,
-          { invitationId },
-          { token }
-        );
-        
-        // Redirect to success page
-        return redirect(302, '/dashboard');
-      } catch (error) {
-        console.error('Error accepting invitation:', error);
-        return new Response(JSON.stringify({ error: 'Failed to accept invitation' }), { 
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-    }
-  }
-  
-  // Not a special route, continue to next handler
-  return;
-}
-
-export const handle = sequence(
-  handleAuth,  // Handle auth API requests
-  handleSpecialRoutes, // Handle special routes
-  // Add your auth pattern here...
-  // Your other custom handlers...
-);
-```
 
 ## Usage
 
@@ -294,7 +139,7 @@ Use authentication in your pages:
 
 Use auth state in page server load functions:
 
-```typescript
+```ts
 // src/routes/profile/+page.server.ts
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
 import { redirect } from '@sveltejs/kit';
@@ -320,36 +165,117 @@ export const load: PageServerLoad = async (event) => {
 
 ## Protecting Routes
 
-### Option 1: Using Hooks (App-wide Protection)
+### Option 1: Using Hooks (App-wide Protection) (Recommended)
 
-Configure route protection patterns in your `hooks.server.ts`:
+#### Example 1: Auth-first approach (whitelist pattern)
+Most routes require authentication except for a few public ones
+```ts
+const isPublicRoute = createRouteMatcher([
+  '/login',
+  '/register',
+  '/about',
+]);
+```
 
-```typescript
+```ts
 // src/hooks.server.ts
-import { createConvexAuthHooks, createRouteMatcher } from '@convex-dev/auth/sveltekit/server';
+import { sequence } from '@sveltejs/kit/hooks';
+import { redirect } from '@sveltejs/kit';
+import { 
+  createConvexAuthHooks, 
+  createRouteMatcher 
+} from '@convex-dev/auth/sveltekit/server';
 
-// Create a matcher for protected routes
-const protectedRoutes = createRouteMatcher((path) => {
-  return path.startsWith('/dashboard') || 
-         path.startsWith('/profile') ||
-         path.startsWith('/admin');
-});
+const isPublicRoute = createRouteMatcher([
+  '/login',
+  '/register',
+  '/about',
+  // Note: No need to add '/api/auth' here as the handleAuth middleware
+  // will process those requests before this middleware runs
+]);
 
-// Create auth hooks with route protection
-const { handleAuth, protectRoutes } = createConvexAuthHooks({
-  protectedRoutes,
-  // Where to redirect unauthenticated users
-  redirectUrl: '/login'
-});
+// Create auth hooks
+const { handleAuth, convexAuth } = createConvexAuthHooks();
 
-export const handle = sequence(handleAuth, protectRoutes);
+// Custom handle function for auth-first pattern
+async function authFirstPattern(event) {
+  // Skip auth check for public routes
+  if (isPublicRoute(event.url.pathname)) {
+    return;
+  }
+  
+  // For all other routes, check authentication
+  const isAuthenticated = await convexAuth.isAuthenticated(event);
+  
+  if (!isAuthenticated) {
+    // Store the original URL for redirect after login
+    const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
+    return redirect(302, `/login?redirectTo=${returnUrl}`);
+  }
+  
+  // User is authenticated, continue to next handler
+  return;
+}
+```
+
+#### Example 2: Public-first approach (blacklist pattern)
+ Most routes are public, only protect specific areas
+```ts
+const isProtectedRoute = createRouteMatcher([
+  '/admin(.*)',
+  '/dashboard(.*)',
+  '/profile(.*)',
+]);
+```
+
+
+```ts
+// src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import { redirect } from '@sveltejs/kit';
+import { 
+  createConvexAuthHooks, 
+  createRouteMatcher 
+} from '@convex-dev/auth/sveltekit/server';
+
+const isProtectedRoute = createRouteMatcher([
+  '/admin(.*)',
+  '/dashboard(.*)',
+  '/profile(.*)',
+]);
+
+// Custom handle function for public-first pattern
+async function publicFirstPattern(event) {
+  // Check auth only for protected routes
+  if (isProtectedRoute(event.url.pathname)) {
+    const isAuthenticated = await convexAuth.isAuthenticated(event);
+    
+    if (!isAuthenticated) {
+      // Store the original URL for redirect after login
+    const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
+    return redirect(302, `/login?redirectTo=${returnUrl}`);
+    }
+  }
+  
+  // All other routes are public, or user is authenticated
+  return;
+}
+
+// Choose which pattern to use based on your app's needs
+// and apply hooks in sequence
+export const handle = sequence(
+  handleAuth,  // Handle auth API requests
+  // authFirstPattern, // Uncomment to use auth-first pattern
+  publicFirstPattern, // Comment out if using auth-first pattern
+  // Your other custom handlers...
+);
 ```
 
 ### Option 2: Using Page Server Load (Page-level Protection)
 
 Protect individual pages in their `+page.server.ts`:
 
-```typescript
+```ts
 // src/routes/protected/+page.server.ts
 import { redirect } from '@sveltejs/kit';
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
@@ -423,43 +349,6 @@ export async function load(event) {
 
 ## Advanced Usage
 
-### Custom Redirect Handler
-
-```typescript
-// src/hooks.server.ts
-const { handleAuth, protectRoutes } = createConvexAuthHooks({
-  onUnauthenticated: (event) => {
-    // Custom redirect logic
-    const url = new URL('/login', event.url.origin);
-    url.searchParams.set('from', event.url.pathname);
-    return new Response(null, {
-      status: 302,
-      headers: { Location: url.toString() }
-    });
-  }
-});
-```
-
-### Route Matcher Patterns
-
-```typescript
-// Match single route
-createRouteMatcher('/dashboard');
-
-// Match with regex
-createRouteMatcher(/^\/api\/private\/.*$/);
-
-// Match with function
-createRouteMatcher((path) => path.includes('/admin/'));
-
-// Match multiple patterns (OR)
-createRouteMatcherGroup([
-  '/dashboard',
-  /^\/profile\/.*$/,
-  (path) => path.startsWith('/settings')
-]);
-```
-
 ### Manual Token Handling
 
 ```html
@@ -499,10 +388,8 @@ export const POST: RequestHandler = handleAuthAction;
 
 When using this approach, make sure to update your Auth Provider to use the same API route:
 
-```html
-<AuthProvider apiRoute="/api/auth" serverState={data.authState}>
-  {@render children()}
-</AuthProvider>
+```ts
+setupConvexAuth({ serverState: data.authState, apiRoute: "/api/auth" });
 ```
 
 ## Troubleshooting
@@ -524,7 +411,3 @@ CONVEX_AUTH_DEBUG=true
 ```
 
 This will output detailed logs about auth operations to help with troubleshooting.
-
-## License
-
-MIT
