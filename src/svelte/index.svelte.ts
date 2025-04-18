@@ -7,13 +7,16 @@
 import { ConvexClient } from "convex/browser";
 import { getContext, setContext } from "svelte";
 import { Value } from "convex/values";
-import { createAuthClient, setConvexAuthContext } from "./client.svelte.js";
+import {
+  createAuthClient,
+  getConvexAuthContext,
+  setConvexAuthContext,
+} from "./client.svelte.js";
 import { AuthClient } from "./clientType.js";
+import { setupConvex } from "convex-svelte";
 
 // Context key for Convex auth actions
-const CONVEX_AUTH_ACTIONS_CONTEXT_KEY = "$$_convexAuthActions";
-const CONVEX_AUTH_TOKEN_CONTEXT_KEY = "$$_convexAuthToken";
-const CONVEX_AUTH_CONTEXT_KEY = "$$_convexAuth";
+const AUTH_TOKEN_CONTEXT_KEY = "$$_convexAuthToken";
 
 // Extended client type to access internal properties
 interface ExtendedConvexClient extends ConvexClient {
@@ -57,21 +60,21 @@ export interface TokenStorage {
 
 /**
  * Initialize Convex Auth for Svelte.
- * 
+ *
  * This function sets up authentication for your Svelte application.
  * It should be called in your root layout or App component.
- * 
+ *
  * @returns The auth client instance that can be used to access auth methods
- * 
+ *
  * Usage:
  * ```svelte
  * <script>
  *   import { setupConvexAuth } from '@convex-dev/auth/svelte';
- *   
+ *
  *   // Set up authentication
  *   setupConvexAuth();
  * </script>
- * 
+ *
  * <!-- Your app content here -->
  * ```
  */
@@ -84,7 +87,7 @@ export function setupConvexAuth({
       window.history.replaceState({}, "", url);
     }
   },
-  convexUrl
+  convexUrl,
 }: {
   /** ConvexClient instance to use */
   client?: ConvexClient;
@@ -110,28 +113,22 @@ export function setupConvexAuth({
       // Context not available or no client in context
     }
   }
-  
+
   // If still no client and convexUrl is provided, try to create one using setupConvex
-  if (!client && convexUrl && typeof window !== "undefined") {
+  if (!client && convexUrl) {
     try {
-      // Check if setupConvex is available (defined by convex-svelte)
-      const setupConvex = (window as any).setupConvex || 
-                         (typeof globalThis !== "undefined" && (globalThis as any).setupConvex);
-      
-      if (typeof setupConvex === 'function') {
-        setupConvex(convexUrl);
-        // After setting up, try to get the client from context
-        try {
-          client = getContext("$$_convexClient");
-        } catch (e) {
-          // Context not available after setup
-        }
+      setupConvex(convexUrl);
+      // After setting up, try to get the client from context
+      try {
+        client = getContext("$$_convexClient");
+      } catch (e) {
+        // Context not available after setup
       }
     } catch (e) {
       console.warn("Failed to create Convex client:", e);
     }
   }
-  
+
   // If we still don't have a client, throw an error
   if (!client) {
     throw new Error(
@@ -166,20 +163,15 @@ export function setupConvexAuth({
     },
   });
 
-  // Set auth contexts
+  // Set auth context
   setConvexAuthContext(auth);
-  setContext(CONVEX_AUTH_ACTIONS_CONTEXT_KEY, {
-    signIn: auth.signIn,
-    signOut: auth.signOut,
-  });
-  setContext(CONVEX_AUTH_CONTEXT_KEY, auth);
 
   // Handle token updates reactively
   if (typeof window !== "undefined") {
     // Set token context reactively with $effect
     $effect(() => {
       let isMounted = true;
-      
+
       if (auth.isAuthenticated) {
         // Use void to handle the promise without returning it
         void (async () => {
@@ -188,19 +180,19 @@ export function setupConvexAuth({
               forceRefreshToken: false,
             });
             if (isMounted) {
-              setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, token);
+              setContext(AUTH_TOKEN_CONTEXT_KEY, token);
             }
           } catch (error) {
             console.error("Failed to fetch auth token:", error);
             if (isMounted) {
-              setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, null);
+              setContext(AUTH_TOKEN_CONTEXT_KEY, null);
             }
           }
         })();
       } else {
-        setContext(CONVEX_AUTH_TOKEN_CONTEXT_KEY, null);
+        setContext(AUTH_TOKEN_CONTEXT_KEY, null);
       }
-      
+
       // Return a cleanup function
       return () => {
         isMounted = false;
@@ -269,18 +261,18 @@ export type ConvexAuthActionsContext = {
 
 /**
  * Use this function to access all authentication functionality including state, token, and actions.
- * 
+ *
  * ```ts
  * import { useAuth } from "@convex-dev/auth/svelte";
- * 
+ *
  * function SomeComponent() {
  *   const { isLoading, isAuthenticated, token, signIn, signOut } = useAuth();
- *   
+ *
  *   // Use authentication state
  *   if (isLoading) {
  *     return <p>Loading...</p>;
  *   }
- *   
+ *
  *   if (isAuthenticated) {
  *     return (
  *       <div>
@@ -289,7 +281,7 @@ export type ConvexAuthActionsContext = {
  *       </div>
  *     );
  *   }
- *   
+ *
  *   return (
  *     <div>
  *       <p>You need to sign in</p>
@@ -299,42 +291,42 @@ export type ConvexAuthActionsContext = {
  * }
  * ```
  */
-export function useAuth(): {
-  isLoading: boolean;
-  isAuthenticated: boolean;
+export function useAuth(): Omit<
+  ReturnType<typeof createAuthClient>,
+  "fetchAccessToken"
+> & {
   token: string | null;
-  signIn: ConvexAuthActionsContext["signIn"];
-  signOut: ConvexAuthActionsContext["signOut"];
 } {
   try {
     // Get the auth client and actions from context
-    const auth = getContext<ReturnType<typeof createAuthClient>>(CONVEX_AUTH_CONTEXT_KEY);
-    const actions = getContext<ConvexAuthActionsContext>(CONVEX_AUTH_ACTIONS_CONTEXT_KEY);
-    const token = getContext<string | null>(CONVEX_AUTH_TOKEN_CONTEXT_KEY) ?? null;
-    
-    if (!auth || !actions) {
-      throw new Error(
-        "setupConvexAuth must be called before useAuth"
-      );
+    const auth = getConvexAuthContext();
+    const token = getContext<string | null>(AUTH_TOKEN_CONTEXT_KEY) ?? null;
+
+    if (!auth) {
+      throw new Error("setupConvexAuth must be called before useAuth");
     }
-    
+
     // Return a unified object with all auth functionality
     return {
       // Auth state
-      get isLoading() { return auth.isLoading; },
-      get isAuthenticated() { return auth.isAuthenticated; },
-      
+      get isLoading() {
+        return auth.isLoading;
+      },
+      get isAuthenticated() {
+        return auth.isAuthenticated;
+      },
+
       // Auth token
-      get token() { return token; },
-      
+      get token() {
+        return token;
+      },
+
       // Auth actions
-      signIn: (...args) => actions.signIn(...args),
-      signOut: () => actions.signOut(),
+      signIn: (...args) => auth.signIn(...args),
+      signOut: () => auth.signOut(),
     };
   } catch (e) {
-    throw new Error(
-      "setupConvexAuth must be called before useAuth"
-    );
+    throw new Error("setupConvexAuth must be called before useAuth");
   }
 }
 

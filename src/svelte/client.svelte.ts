@@ -442,6 +442,13 @@ export function setConvexAuthContext(authClient: ReturnType<typeof createAuthCli
 }
 
 /**
+ * Get the Convex Auth client from the context
+ */
+export function getConvexAuthContext() {
+  return getContext<ReturnType<typeof createAuthClient>>(AUTH_CONTEXT_KEY);
+}
+
+/**
  * Create a fully namespaced key for storage
  */
 function storageKey(key: string, namespace: string): string {
