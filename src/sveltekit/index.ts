@@ -11,7 +11,7 @@ import {
   type ConvexAuthActionsContext 
 } from "../svelte/index.svelte";
 
-import { ConvexClient } from "convex/browser";
+import { ConvexClient, ConvexClientOptions } from "convex/browser";
 import { createSvelteKitAuthClient, type ConvexAuthServerState } from "./client";
 
 /**
@@ -38,14 +38,20 @@ import { createSvelteKitAuthClient, type ConvexAuthServerState } from "./client"
  * ```
  */
 export function setupConvexAuth({
+  client,
   apiRoute = "/api/auth",
   serverState,
   storage = "localStorage",
   storageNamespace,
-  verbose = false,
-  client,
-  convexUrl
+  convexUrl,
+  options
 }: {
+  /** 
+   * ConvexClient instance to use. If not provided, will:
+   * 1. Try to get it from Svelte context
+   * 2. Initialize a new one using the Convex URL
+   */
+  client?: ConvexClient;
   /** API route to use for auth requests */
   apiRoute?: string;
   /** Server-provided authentication state */
@@ -54,30 +60,23 @@ export function setupConvexAuth({
   storage?: "localStorage" | "inMemory";
   /** Storage namespace for auth tokens */
   storageNamespace?: string;
-  /** Enable verbose logging */
-  verbose?: boolean;
-  /** 
-   * ConvexClient instance to use. If not provided, will:
-   * 1. Try to get it from Svelte context
-   * 2. Initialize a new one using the Convex URL
+  /**
+   * The url of your Convex deployment, often provided
+   * by an environment variable. E.g. `https://small-mouse-123.convex.cloud`.
    */
-  client?: ConvexClient;
-  /** 
-   * Convex URL to use. If not provided, will use 
-   * PUBLIC_CONVEX_URL environment variable.
-   */
-  convexUrl?: string;
-} = {}) {
+  convexUrl: string;
+  options?: ConvexClientOptions
+}) {
   // Initialize the base Svelte auth
-  setupSvelteConvexAuth({ client, convexUrl });
+  setupSvelteConvexAuth({ client, convexUrl, options });
   
   // Return the initialized auth client
   return createSvelteKitAuthClient({
     apiRoute,
     serverState,
     storage,
-    storageNamespace,
-    verbose,
+    storageNamespace: storageNamespace ?? convexUrl,
+    verbose: options?.verbose,
   });
 }
 

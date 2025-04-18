@@ -4,7 +4,7 @@
  * @module
  */
 
-import { ConvexClient } from "convex/browser";
+import { ConvexClient, ConvexClientOptions } from "convex/browser";
 import { getContext, setContext } from "svelte";
 import { Value } from "convex/values";
 import {
@@ -17,15 +17,6 @@ import { setupConvex } from "convex-svelte";
 
 // Context key for Convex auth actions
 const AUTH_TOKEN_CONTEXT_KEY = "$$_convexAuthToken";
-
-// Extended client type to access internal properties
-interface ExtendedConvexClient extends ConvexClient {
-  address: string;
-  logger: any;
-  options?: {
-    verbose?: boolean;
-  };
-}
 
 /**
  * A storage interface for storing and retrieving tokens and other secrets.
@@ -88,18 +79,50 @@ export function setupConvexAuth({
     }
   },
   convexUrl,
+  options,
 }: {
   /** ConvexClient instance to use */
   client?: ConvexClient;
-  /** Storage for auth tokens */
+  /**
+   * Optional custom storage object that implements
+   * the {@link TokenStorage} interface, otherwise
+   * [`localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
+   * is used.
+   *
+   * You must set this for Svelte Native.
+   */
   storage?: TokenStorage | null;
-  /** Namespace for storing tokens */
+  /**
+   * Optional namespace for keys used to store tokens. The keys
+   * determine whether the tokens are shared or not.
+   *
+   * Any non-alphanumeric characters will be ignored (for RN compatibility).
+   *
+   * Defaults to the deployment URL, as configured in the given `client`.
+   */
   storageNamespace?: string;
-  /** Function to replace the current URL */
-  replaceURL?: (relativeUrl: string) => void | Promise<void>;
-  /** Convex URL if no client is provided */
-  convexUrl?: string;
-} = {}) {
+  /**
+   * Provide this function if you're using a JS router (Expo router etc.)
+   * and after OAuth or magic link sign-in the `code` param is not being
+   * erased from the URL.
+   *
+   * The implementation will depend on your chosen router.
+   */
+  replaceURL?: (
+    /**
+     * The URL, always starting with '/' and include the path, query and
+     * fragment components, that the window location should be set to.
+     */
+    relativeUrl: string,
+  ) => void | Promise<void>;
+  /**
+   * The url of your Convex deployment, often provided
+   * by an environment variable. E.g. `https://small-mouse-123.convex.cloud`.
+   */
+  convexUrl: string;
+
+  options?: ConvexClientOptions
+}) {
   // Client resolution priority:
   // 1. Client passed directly
   // 2. Client from context
@@ -117,7 +140,7 @@ export function setupConvexAuth({
   // If still no client and convexUrl is provided, try to create one using setupConvex
   if (!client && convexUrl) {
     try {
-      setupConvex(convexUrl);
+      setupConvex(convexUrl, options);
       // After setting up, try to get the client from context
       try {
         client = getContext("$$_convexClient");
@@ -136,26 +159,26 @@ export function setupConvexAuth({
     );
   }
 
+  
   // Create auth client
-  const extendedClient = client as ExtendedConvexClient;
   const authClient: AuthClient = {
     authenticatedCall(action, args) {
       return client.action(action, args);
     },
     unauthenticatedCall(action, args) {
-      return new ConvexClient(extendedClient.address, {
-        logger: extendedClient.logger,
+      return new ConvexClient(convexUrl, {
+        logger: options?.logger,
       }).action(action, args);
     },
-    verbose: extendedClient.options?.verbose,
-    logger: extendedClient.logger,
+    verbose: options?.verbose,
+    logger: options?.logger,
   };
 
   // Create the auth client and set up context
   const auth = createAuthClient({
     client: authClient,
     storage,
-    storageNamespace: storageNamespace ?? extendedClient.address,
+    storageNamespace: storageNamespace ?? convexUrl,
     replaceURL,
     onChange: async () => {
       // Handle auth state changes
