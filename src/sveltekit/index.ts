@@ -101,9 +101,10 @@ export type {
  * Usage in hooks.server.ts:
  * ```ts
  * import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
+ * import { PUBLIC_CONVEX_URL } from '$env/static/public';
  * 
  * const { getAuthState } = createConvexAuthHandlers({
- *   convexUrl: process.env.CONVEX_URL!,
+ *   convexUrl: PUBLIC_CONVEX_URL,
  * });
  * 
  * export async function handle({ event, resolve }) {
