@@ -180,7 +180,7 @@ const isPublicRoute = createRouteMatcher([
 ```ts
 // src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
-import { redirect } from '@sveltejs/kit';
+import { redirect, type Handle } from '@sveltejs/kit';
 import { 
   createConvexAuthHooks, 
   createRouteMatcher 
@@ -198,7 +198,7 @@ const isPublicRoute = createRouteMatcher([
 const { handleAuth, convexAuth } = createConvexAuthHooks();
 
 // Custom handle function for auth-first pattern
-async function authFirstPattern(event) {
+const authFirstPattern: Handle = async ({ event, resolve }) => {
   // Skip auth check for public routes
   if (isPublicRoute(event.url.pathname)) {
     return;
@@ -210,11 +210,11 @@ async function authFirstPattern(event) {
   if (!isAuthenticated) {
     // Store the original URL for redirect after login
     const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(302, `/login?redirectTo=${returnUrl}`);
+    return redirect(307, `/login?redirectTo=${returnUrl}`);
   }
   
   // User is authenticated, continue to next handler
-  return;
+  return resolve(event);
 }
 ```
 
@@ -232,7 +232,7 @@ const isProtectedRoute = createRouteMatcher([
 ```ts
 // src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
-import { redirect } from '@sveltejs/kit';
+import { redirect, type Handle } from '@sveltejs/kit';
 import { 
   createConvexAuthHooks, 
   createRouteMatcher 
@@ -245,7 +245,7 @@ const isProtectedRoute = createRouteMatcher([
 ]);
 
 // Custom handle function for public-first pattern
-async function publicFirstPattern(event) {
+const publicFirstPattern: Handle = async ({ event, resolve }) => {
   // Check auth only for protected routes
   if (isProtectedRoute(event.url.pathname)) {
     const isAuthenticated = await convexAuth.isAuthenticated(event);
@@ -253,12 +253,12 @@ async function publicFirstPattern(event) {
     if (!isAuthenticated) {
       // Store the original URL for redirect after login
     const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(302, `/login?redirectTo=${returnUrl}`);
+    return redirect(307, `/login?redirectTo=${returnUrl}`);
     }
   }
   
   // All other routes are public, or user is authenticated
-  return;
+  return resolve(event);
 }
 
 // Choose which pattern to use based on your app's needs

@@ -1,13 +1,24 @@
 import { sequence } from '@sveltejs/kit/hooks';
-import { createConvexAuthHooks } from '@convex-dev/auth/sveltekit/server';
+import { createConvexAuthHooks, createRouteMatcher } from '@convex-dev/auth/sveltekit/server';
 import { PUBLIC_CONVEX_URL } from '$env/static/public';
+import { redirect, type Handle } from '@sveltejs/kit';
 
-// Create auth hooks - explicitly pass the convexUrl from environment variables
-const { handleAuth } = createConvexAuthHooks({
-  convexUrl: PUBLIC_CONVEX_URL
+const isSignInPage = createRouteMatcher(['/signin']);
+const isProtectedRoute = createRouteMatcher(['/product/*']);
+
+const { handleAuth, isAuthenticated } = createConvexAuthHooks({
+	convexUrl: PUBLIC_CONVEX_URL
 });
 
-// Apply hooks in sequence
-export const handle = sequence(
-  handleAuth
-);
+const authFirstPattern: Handle = async ({ event, resolve }) => {
+	if (isSignInPage(event.url.pathname) && (await isAuthenticated(event))) {
+		redirect(307, '/product');
+	}
+	if (isProtectedRoute(event.url.pathname) && !(await isAuthenticated(event))) {
+		redirect(307, `/signin?redirectTo=${encodeURIComponent(event.url.pathname + event.url.search)}`);
+	}
+
+	return resolve(event);
+}
+
+export const handle = sequence(handleAuth, authFirstPattern);
