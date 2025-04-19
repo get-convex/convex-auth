@@ -1,4 +1,4 @@
-import { createAccount } from "../../dist/server/index";
+import { createAccount } from "../../../../dist/server/index";
 import { internal } from "./_generated/api";
 import { internalAction, internalQuery } from "./_generated/server";
 
