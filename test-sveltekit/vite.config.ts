@@ -3,8 +3,16 @@ import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
+// Allowing Vite to serve files from outside the project directory
+// This addresses the error: The request url is outside of Vite serving allow list
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	server: {
+		fs: {
+			// Allow serving files from one level up from the project root (includes node_modules)
+			allow: ['..']
+		}
+	},
 	test: {
 		workspace: [
 			{
