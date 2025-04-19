@@ -222,9 +222,9 @@ const authFirstPattern: Handle = async ({ event, resolve }) => {
  Most routes are public, only protect specific areas
 ```ts
 const isProtectedRoute = createRouteMatcher([
-  '/admin(.*)',
-  '/dashboard(.*)',
-  '/profile(.*)',
+  '/admin/*path',
+  '/dashboard/*path',
+  '/profile/*path',
 ]);
 ```
 
@@ -239,9 +239,9 @@ import {
 } from '@convex-dev/auth/sveltekit/server';
 
 const isProtectedRoute = createRouteMatcher([
-  '/admin(.*)',
-  '/dashboard(.*)',
-  '/profile(.*)',
+  '/admin/*path',
+  '/dashboard/*path',
+  '/profile/*path',
 ]);
 
 // Custom handle function for public-first pattern

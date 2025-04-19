@@ -74,7 +74,7 @@ export type RouteMatcherParam =
  * const isOrgDashboard = createRouteMatcher('/:org/dashboard');
  *
  * // Match with Wildcard
- * const isApi = createRouteMatcher('/api/*');
+ * const isApi = createRouteMatcher('/api/*path');
  *
  * // Match with Optional
  * const isUsersDelete = createRouteMatcher('/users{/:id}/delete');
