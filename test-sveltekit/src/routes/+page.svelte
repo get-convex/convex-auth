@@ -1,18 +1,16 @@
 <script>
 	import { useAuth } from '@convex-dev/auth/sveltekit';
 
-	const { signIn, signOut, isAuthenticated } = useAuth();
+	const { signOut, isAuthenticated } = useAuth();
 </script>
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
-
-<div>
+<div class="flex flex-col items-center justify-center min-h-[50vh] gap-4">
 	{#if isAuthenticated}
 		<p>You are authenticated!</p>
-		<button onclick={() => signOut()}>Sign Out</button>
+		<a href="/product" class="btn preset-filled-primary-500">Product</a>
+		<button onclick={() => signOut()} class="btn preset-tonal">Sign Out</button>
 	{:else}
 		<p>You are not authenticated.</p>
-		<button class="btn preset-filled" onclick={() => signIn('google')}>Sign In with Google</button>
+		<a href="/signin" class="btn preset-filled-primary-500">Sign In</a>
 	{/if}
 </div>
