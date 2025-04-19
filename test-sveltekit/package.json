@@ -17,6 +17,7 @@
 		"test:unit": "vitest"
 	},
 	"dependencies": {
+		"@auth/core": "file:../node_modules/@auth/core",
 		"@convex-dev/auth": "file:..",
 		"convex": "file:../node_modules/convex",
 		"convex-svelte": "file:../node_modules/convex-svelte"

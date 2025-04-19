@@ -5,11 +5,11 @@ This package provides authentication functionality for SvelteKit applications us
 ## Installation
 
 ```bash
-npm install @convex-dev/auth
+npm install @convex-dev/auth @auth/core
 # or
-pnpm add @convex-dev/auth
+pnpm add @convex-dev/auth @auth/core
 # or
-yarn add @convex-dev/auth
+yarn add @convex-dev/auth @auth/core
 ```
 
 ## Setup
@@ -24,7 +24,15 @@ PUBLIC_CONVEX_URL=your_convex_deployment_url
 
 For local development, you can also create a `.env.local` file.
 
-### 2. Initialize Auth (Client-side)
+### 2. Run the initialization command
+
+```bash
+npx @convex-dev/auth
+```
+
+This sets up your project for authenticating via the library.
+
+### 3. Initialize Auth (Client-side)
 
 Set up authentication in your root layout:
 
@@ -68,7 +76,7 @@ The `setupConvexAuth` function will:
 
 This makes it work seamlessly with different setup patterns.
 
-### 3. Add Auth State in Layout Server
+### 4. Add Auth State in Layout Server
 
 Load the authentication state in your layout server:
 
@@ -86,7 +94,7 @@ export const load: LayoutServerLoad = async (event) => {
 };
 ```
 
-### 4. Configure Auth Hooks (Server-side)
+### 5. Configure Auth Hooks (Server-side)
 
 Create hooks to handle authentication in `src/hooks.server.ts`.
 
