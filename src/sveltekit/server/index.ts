@@ -8,7 +8,6 @@ import {
 } from './handlers.js';
 import { 
   createRouteMatcher, 
-  createRouteMatcherGroup,
   type RouteMatcherParam, 
   type RouteMatcherFn 
 } from './routeMatcher.js';
@@ -22,8 +21,7 @@ export {
 
 // Export route matchers (equivalent to NextJS implementation)
 export { 
-  createRouteMatcher, 
-  createRouteMatcherGroup,
+  createRouteMatcher,
   type RouteMatcherParam,
   type RouteMatcherFn
 };
