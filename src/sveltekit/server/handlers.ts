@@ -4,6 +4,15 @@
 import type { RequestEvent, RequestHandler } from "@sveltejs/kit";
 import type { ConvexAuthServerState } from "../client.js";
 import { json, error } from "@sveltejs/kit";
+// import { env } from "$env/dynamic/public";
+
+// We can declare this as a variable that will be undefined by default
+// Consumers of the library can configure it via the convexUrl parameter
+// SvelteKit apps will have this variable replaced at build time
+declare const env: {
+  [key: `PUBLIC_${string}`]: string | undefined;
+  PUBLIC_CONVEX_URL: string;
+};
 
 // Interface for cookie options
 interface CookieOptions {
@@ -16,8 +25,8 @@ interface CookieOptions {
 }
 
 // Cookie names
-const AUTH_TOKEN_COOKIE = "__convex_auth_token";
-const AUTH_REFRESH_TOKEN_COOKIE = "__convex_auth_refresh_token";
+const AUTH_TOKEN_COOKIE = "__convexAuthJWT";
+const AUTH_REFRESH_TOKEN_COOKIE = "__convexAuthRefreshToken";
 
 // Default cookie options
 const defaultCookieOptions: CookieOptions = {
@@ -39,18 +48,22 @@ function logVerbose(message: string, ...args: any[]) {
  * This allows SvelteKit implementations to automatically use the URL
  */
 function getConvexUrl(): string {
-  // Try to load from process.env.PUBLIC_CONVEX_URL first
-  const envUrl = process.env.PUBLIC_CONVEX_URL;
-  
-  if (envUrl) {
-    return envUrl;
+  // Check for the SvelteKit environment variable (available in SvelteKit apps)
+  if (typeof env.PUBLIC_CONVEX_URL !== "undefined") {
+    return env.PUBLIC_CONVEX_URL;
   }
-  
-  // If running in Node.js environment, could try to load from .env file
-  // but this is usually handled by SvelteKit's config
-  
+
+  // Try to load from process.env if available in the environment
+  if (
+    typeof process !== "undefined" &&
+    process.env &&
+    process.env.PUBLIC_CONVEX_URL
+  ) {
+    return process.env.PUBLIC_CONVEX_URL;
+  }
+
   throw new Error(
-    "Convex URL not provided. Either pass convexUrl parameter or set PUBLIC_CONVEX_URL environment variable."
+    "Convex URL not provided. Either pass convexUrl parameter or set PUBLIC_CONVEX_URL environment variable.",
   );
 }
 
@@ -67,7 +80,9 @@ export function createConvexAuthHandlers({
   /**
    * Get the auth state from cookies
    */
-  async function getAuthState(event: RequestEvent): Promise<ConvexAuthServerState> {
+  async function getAuthState(
+    event: RequestEvent,
+  ): Promise<ConvexAuthServerState> {
     // Get tokens from cookies
     const token = event.cookies.get(AUTH_TOKEN_COOKIE) || null;
     const refreshToken = event.cookies.get(AUTH_REFRESH_TOKEN_COOKIE) || null;
@@ -84,16 +99,19 @@ export function createConvexAuthHandlers({
   function setAuthCookies(
     event: RequestEvent,
     token: string | null,
-    refreshToken: string | null
+    refreshToken: string | null,
   ) {
-    logVerbose("Setting auth cookies", { token: !!token, refreshToken: !!refreshToken });
-    
+    logVerbose("Setting auth cookies", {
+      token: !!token,
+      refreshToken: !!refreshToken,
+    });
+
     if (token === null) {
       event.cookies.delete(AUTH_TOKEN_COOKIE, cookieOptions);
     } else {
-      event.cookies.set(AUTH_TOKEN_COOKIE, token, { 
+      event.cookies.set(AUTH_TOKEN_COOKIE, token, {
         ...cookieOptions,
-        maxAge: 60 * 60 // 1 hour for the main token
+        maxAge: 60 * 60, // 1 hour for the main token
       });
     }
 
@@ -102,7 +120,7 @@ export function createConvexAuthHandlers({
     } else {
       event.cookies.set(AUTH_REFRESH_TOKEN_COOKIE, refreshToken, {
         ...cookieOptions,
-        maxAge: 60 * 60 * 24 * 30 // 30 days for refresh token
+        maxAge: 60 * 60 * 24 * 30, // 30 days for refresh token
       });
     }
   }
@@ -114,7 +132,7 @@ export function createConvexAuthHandlers({
   async function proxyAuthActionToConvex(
     event: RequestEvent,
     action: string,
-    args: any
+    args: any,
   ) {
     logVerbose("Proxying auth action to Convex", { action, args });
 
@@ -140,11 +158,7 @@ export function createConvexAuthHandlers({
 
       // Handle authentication results
       if (result.tokens) {
-        setAuthCookies(
-          event,
-          result.tokens.token,
-          result.tokens.refreshToken
-        );
+        setAuthCookies(event, result.tokens.token, result.tokens.refreshToken);
       } else if (result.clearTokens) {
         setAuthCookies(event, null, null);
       }
@@ -211,10 +225,10 @@ export function createConvexAuthHandlers({
  * This is similar to the Next.js convexAuthNextjsServerState function
  */
 export async function convexAuthSvelteKitServerState(
-  event: RequestEvent
+  event: RequestEvent,
 ): Promise<ConvexAuthServerState> {
   const token = event.cookies.get(AUTH_TOKEN_COOKIE) || null;
-  
+
   // The server doesn't share the refresh token with the client
   // for added security - the client has to use the server
   // endpoint to refresh the token
@@ -260,6 +274,6 @@ export function createConvexAuthHooks({
 
   return {
     ...handlers,
-    handleAuth
+    handleAuth,
   };
 }
