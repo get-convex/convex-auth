@@ -6,17 +6,17 @@
 
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
 import { getContext, setContext } from "svelte";
-import { Value } from "convex/values";
-import {
-  createAuthClient,
-  getConvexAuthContext,
-  setConvexAuthContext,
-} from "./client.svelte.js";
+import { createAuthClient, setConvexAuthContext, getConvexAuthContext } from "./client.svelte.js";
 import { AuthClient } from "./clientType.js";
 import { setupConvex } from "convex-svelte";
 
-// Context key for Convex auth actions
-const AUTH_TOKEN_CONTEXT_KEY = "$$_convexAuthToken";
+/**
+ * Parameters for sign-in methods
+ */
+type SignInParams = FormData | Record<string, any> & {
+  redirectTo?: string;
+  code?: string;
+};
 
 /**
  * A storage interface for storing and retrieving tokens and other secrets.
@@ -121,7 +121,7 @@ export function setupConvexAuth({
    */
   convexUrl: string;
 
-  options?: ConvexClientOptions
+  options?: ConvexClientOptions;
 }) {
   // Client resolution priority:
   // 1. Client passed directly
@@ -159,7 +159,6 @@ export function setupConvexAuth({
     );
   }
 
-  
   // Create auth client
   const authClient: AuthClient = {
     authenticatedCall(action, args) {
@@ -188,40 +187,6 @@ export function setupConvexAuth({
 
   // Set auth context
   setConvexAuthContext(auth);
-
-  // Handle token updates reactively
-  if (typeof window !== "undefined") {
-    // Set token context reactively with $effect
-    $effect(() => {
-      let isMounted = true;
-
-      if (auth.isAuthenticated) {
-        // Use void to handle the promise without returning it
-        void (async () => {
-          try {
-            const token = await auth.fetchAccessToken({
-              forceRefreshToken: false,
-            });
-            if (isMounted) {
-              setContext(AUTH_TOKEN_CONTEXT_KEY, token);
-            }
-          } catch (error) {
-            console.error("Failed to fetch auth token:", error);
-            if (isMounted) {
-              setContext(AUTH_TOKEN_CONTEXT_KEY, null);
-            }
-          }
-        })();
-      } else {
-        setContext(AUTH_TOKEN_CONTEXT_KEY, null);
-      }
-
-      // Return a cleanup function
-      return () => {
-        isMounted = false;
-      };
-    });
-  }
 
   return auth;
 }
@@ -256,20 +221,7 @@ export type ConvexAuthActionsContext = {
      *  - `code`: OTP code for email or phone verification, or
      *     (used only in RN) the code from an OAuth flow or magic link URL.
      */
-    params?:
-      | FormData
-      | (Record<string, Value> & {
-          /**
-           * If provided, customizes the destination the user is
-           * redirected to at the end of an OAuth flow or the magic link URL.
-           */
-          redirectTo?: string;
-          /**
-           * OTP code for email or phone verification, or
-           * (used only in RN) the code from an OAuth flow or magic link URL.
-           */
-          code?: string;
-        }),
+    params?: SignInParams,
   ): Promise<boolean>;
   /**
    * Sign out the current user, deleting the token from storage.
@@ -284,18 +236,18 @@ export type ConvexAuthActionsContext = {
 
 /**
  * Use this function to access all authentication functionality including state, token, and actions.
- *
+ * 
  * ```ts
  * import { useAuth } from "@convex-dev/auth/svelte";
- *
+ * 
  * function SomeComponent() {
  *   const { isLoading, isAuthenticated, token, signIn, signOut } = useAuth();
- *
+ *   
  *   // Use authentication state
  *   if (isLoading) {
  *     return <p>Loading...</p>;
  *   }
- *
+ *   
  *   if (isAuthenticated) {
  *     return (
  *       <div>
@@ -304,7 +256,7 @@ export type ConvexAuthActionsContext = {
  *       </div>
  *     );
  *   }
- *
+ *   
  *   return (
  *     <div>
  *       <p>You need to sign in</p>
@@ -314,16 +266,16 @@ export type ConvexAuthActionsContext = {
  * }
  * ```
  */
-export function useAuth(): Omit<
-  ReturnType<typeof createAuthClient>,
-  "fetchAccessToken"
-> & {
+export function useAuth(): {
+  isLoading: boolean;
+  isAuthenticated: boolean;
   token: string | null;
+  signIn: (provider: string, params?: SignInParams) => Promise<boolean>;
+  signOut: () => Promise<void>;
 } {
   try {
-    // Get the auth client and actions from context
+    // Get the auth client from context
     const auth = getConvexAuthContext();
-    const token = getContext<string | null>(AUTH_TOKEN_CONTEXT_KEY) ?? null;
 
     if (!auth) {
       throw new Error("setupConvexAuth must be called before useAuth");
@@ -341,11 +293,11 @@ export function useAuth(): Omit<
 
       // Auth token
       get token() {
-        return token;
+        return auth.token;
       },
 
       // Auth actions
-      signIn: (...args) => auth.signIn(...args),
+      signIn: (provider: string, params?: SignInParams) => auth.signIn(provider, params),
       signOut: () => auth.signOut(),
     };
   } catch (e) {

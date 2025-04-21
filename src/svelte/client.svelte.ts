@@ -424,6 +424,7 @@ export function createAuthClient({
   const authApi = {
     get isLoading() { return state.isLoading; },
     get isAuthenticated() { return isAuthenticated; },
+    get token() { return state.token; },  
     fetchAccessToken,
     signIn,
     signOut,
