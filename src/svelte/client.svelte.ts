@@ -1,7 +1,7 @@
 /**
  * Svelte implementation of Convex Auth client.
  */
-import { getContext, setContext } from "svelte";
+import { getContext, onMount, setContext } from "svelte";
 import type {
   SignInAction,
   SignOutAction,
@@ -108,11 +108,7 @@ export function createAuthClient({
   };
 
   // Load tokens from storage on initialization
-  $effect(() => {
-    if (typeof window === "undefined") {
-      // Skip on server
-      return;
-    }
+  onMount(() => {
 
     const loadTokens = async () => {
       if (serverState?._state) {
@@ -234,7 +230,7 @@ export function createAuthClient({
     return () => window.removeEventListener("storage", storageListener);
   });
 
-  // Warning before leaving page during token refresh
+  // Prevent accidental navigation away from the page during token refresh. 
   $effect(() => {
     if (typeof window === "undefined") {
       return;

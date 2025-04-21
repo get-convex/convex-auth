@@ -2,8 +2,9 @@
  * SvelteKit implementation of Convex Auth client.
  */
 import { invalidateAll } from "$app/navigation";
-import { createAuthClient } from "../svelte/client.svelte.js";
+import { createAuthClient, setConvexAuthContext } from "../svelte/client.svelte.js";
 import { AuthClient } from "../svelte/clientType.js";
+import { ConvexClient, ConvexClientOptions } from "convex/browser";
 
 /**
  * Type definition for the server state from SvelteKit
@@ -21,13 +22,17 @@ export function createSvelteKitAuthClient({
   serverState,
   storage = "localStorage",
   storageNamespace,
-  verbose,
+  client,
+  convexUrl,
+  options,
 }: {
   apiRoute?: string;
   serverState?: ConvexAuthServerState;
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
-  verbose?: boolean;
+  client?: ConvexClient;
+  convexUrl: string;
+  options?: ConvexClientOptions;
 }) {
   // Create SvelteKit-specific auth client
   const authenticatedCall: AuthClient["authenticatedCall"] = async (action, args) => {
@@ -42,11 +47,16 @@ export function createSvelteKitAuthClient({
   const authClient: AuthClient = {
     authenticatedCall,
     unauthenticatedCall: authenticatedCall,
-    verbose,
+    verbose: options?.verbose,
   };
 
+  // Initialize the Convex client if not provided
+  if (!client && convexUrl) {
+    client = new ConvexClient(convexUrl, options);
+  }
+
   // Create the auth client with SvelteKit-specific config
-  return createAuthClient({
+  const auth = createAuthClient({
     client: authClient,
     serverState,
     onChange: async () => {
@@ -74,6 +84,11 @@ export function createSvelteKitAuthClient({
       }
     },
   });
+
+  // Set the auth context to ensure it's available immediately
+  setConvexAuthContext(auth);
+  
+  return auth;
 }
 
 /**

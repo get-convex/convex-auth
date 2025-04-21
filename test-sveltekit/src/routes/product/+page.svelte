@@ -8,10 +8,13 @@
 	const viewer = useQuery(api.users.viewer, {});
 </script>
 
+{#if viewer.data}
 <main class="flex max-h-screen grow flex-col overflow-hidden">
 	<div class="flex items-start justify-between border-b p-4">
 		<ChatIntro />
-		<UserMenu>{viewer.data!.name}</UserMenu>
+		<UserMenu>{viewer.data.name}</UserMenu>
 	</div>
-	<Chat viewer={viewer.data!._id} />
+	<Chat viewer={viewer.data._id} />
 </main>
+{/if}
+

@@ -5,7 +5,6 @@
  */
 
 import { 
-  setupConvexAuth as setupSvelteConvexAuth, 
   useAuth,
   type TokenStorage, 
   type ConvexAuthActionsContext 
@@ -67,16 +66,15 @@ export function setupConvexAuth({
   convexUrl: string;
   options?: ConvexClientOptions
 }) {
-  // Initialize the base Svelte auth
-  setupSvelteConvexAuth({ client, convexUrl, options });
-  
-  // Return the initialized auth client
+  // Initialize the auth client with SvelteKit-specific configuration
   return createSvelteKitAuthClient({
     apiRoute,
     serverState,
     storage,
+    client, // Pass the client to avoid re-initialization
+    convexUrl, // Pass the URL for client initialization
     storageNamespace: storageNamespace ?? convexUrl,
-    verbose: options?.verbose,
+    options, // Pass options to configure the client
   });
 }
 
