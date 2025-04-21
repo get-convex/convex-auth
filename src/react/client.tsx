@@ -237,7 +237,10 @@ export function AuthProvider({
         "auth:signIn" as unknown as SignInAction,
         { provider, params, verifier },
       );
-      if (result.redirect !== undefined) {
+
+      if ("error" in result) throw result.error;
+
+      if (result?.redirect !== undefined) {
         const url = new URL(result.redirect);
         await storageSet(VERIFIER_STORAGE_KEY, result.verifier!);
         // Do not redirect in React Native
@@ -245,7 +248,8 @@ export function AuthProvider({
           window.location.href = url.toString();
         }
         return { signingIn: false, redirect: url };
-      } else if (result.tokens !== undefined) {
+      }
+      if (result?.tokens !== undefined) {
         const { tokens } = result;
         logVerbose(`signed in and got tokens, is null: ${tokens === null}`);
         await setToken({ shouldStore: true, tokens });

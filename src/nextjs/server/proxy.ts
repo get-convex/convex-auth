@@ -76,19 +76,32 @@ export async function proxyAuthActionToConvex(
     } catch (error) {
       console.error(`Hit error while running \`auth:signIn\`:`);
       console.error(error);
+      let response;
+      if (error instanceof Error && error.message) {
+        response = jsonResponse({
+          error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            cause: error.cause,
+          },
+        });
+      } else {
+        response = jsonResponse({ error });
+      }
       logVerbose(`Clearing auth cookies`, verbose);
-      const response = jsonResponse(null);
       await setAuthCookies(response, null, cookieConfig);
       return response;
     }
-    if (result.redirect !== undefined) {
+    if (result?.redirect !== undefined) {
       const { redirect } = result;
       const response = jsonResponse({ redirect });
       (await getResponseCookies(response, cookieConfig)).verifier =
         result.verifier!;
       logVerbose(`Redirecting to ${redirect}`, verbose);
       return response;
-    } else if (result.tokens !== undefined) {
+    }
+    if (result?.tokens !== undefined) {
       // The server doesn't share the refresh token with the client
       // for added security - the client has to use the server
       // to refresh the access token via cookies.
