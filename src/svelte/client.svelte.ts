@@ -288,11 +288,23 @@ export function createAuthClient({
     throw lastError;
   };
 
-  const fetchAccessToken = async ({
-    forceRefreshToken = false,
-  }: {
-    forceRefreshToken: boolean;
+  /**
+   * Get an access token from the server using the stored refresh token.
+   * If the refresh token is invalid, it will be cleared.
+   *
+   * If `options.forceRefreshToken` is true, a new access token will always be obtained
+   * from the server. Otherwise, if an access token is cached, it will be used
+   * without revalidating it with the server.
+   *
+   * @param {object} [options]
+   *
+   * @return {Promise<string | null>} The access token, or null if none is
+   *   available.
+   */
+  const fetchAccessToken = async (options?: {
+    forceRefreshToken?: boolean;
   }): Promise<string | null> => {
+    const { forceRefreshToken = false } = options ?? {};
     logVerbose(`fetchAccessToken forceRefreshToken=${forceRefreshToken}`);
     
     // Return the existing token if we have one and aren't forcing a refresh
