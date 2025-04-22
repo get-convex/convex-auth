@@ -1,5 +1,5 @@
 import { PhoneConfig, PhoneUserConfig } from "@convex-dev/auth/server";
-import { alphabet, generateRandomString } from "oslo/crypto";
+import { RandomReader, generateRandomString } from "@oslojs/crypto/random";
 
 export function FakePhone(config: PhoneUserConfig): PhoneConfig {
   return {
@@ -7,7 +7,15 @@ export function FakePhone(config: PhoneUserConfig): PhoneConfig {
     type: "phone",
     maxAge: 60 * 20, // 20 minutes
     async generateVerificationToken() {
-      return generateRandomString(6, alphabet("0-9"));
+      const random: RandomReader = {
+        read(bytes) {
+          crypto.getRandomValues(bytes);
+        },
+      };
+
+      const alphabet = "0123456789";
+      const length = 6;
+      return generateRandomString(random, alphabet, length);
     },
     async sendVerificationRequest({ identifier: phone, provider, token }) {
       const response = await fetch("https://api.sms.com", {
