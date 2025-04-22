@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.82
+
+- Add `shouldHandleCode` prop to React/Next.js clients and Next.js middleware to
+  allow for custom code handling.
+
 ## 0.0.81
 
 - Retry token fetch on network errors
