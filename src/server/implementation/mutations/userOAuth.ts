@@ -48,7 +48,7 @@ export async function userOAuthImpl(
     config,
   );
 
-  const code = generateRandomString("0123456789", 8);
+  const code = generateRandomString(8, "0123456789");
   await ctx.db.delete(verifier._id);
   const existingVerificationCode = await ctx.db
     .query("authVerificationCodes")

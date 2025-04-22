@@ -16,7 +16,7 @@ export async function sha256(input: string) {
   return encodeHexLowerCase(rawSha256(new TextEncoder().encode(input)));
 }
 
-export function generateRandomString(alphabet: string, length: number) {
+export function generateRandomString(length: number, alphabet: string) {
   const random: RandomReader = {
     read(bytes) {
       crypto.getRandomValues(bytes);

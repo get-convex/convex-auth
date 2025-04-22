@@ -125,7 +125,7 @@ async function handleEmailAndPhoneProvider(
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   const code = provider.generateVerificationToken
     ? await provider.generateVerificationToken()
-    : generateRandomString(alphabet, 32);
+    : generateRandomString(32, alphabet);
   const expirationTime =
     Date.now() +
     (provider.maxAge ?? DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S) * 1000;
