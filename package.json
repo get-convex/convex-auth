@@ -63,6 +63,7 @@
     }
   },
   "dependencies": {
+    "@oslojs/crypto": "^1.0.1",
     "arctic": "^1.2.0",
     "cookie": "^1.0.1",
     "cspell": "^8.17.2",
