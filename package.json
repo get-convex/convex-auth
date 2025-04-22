@@ -63,7 +63,6 @@
     }
   },
   "dependencies": {
-    "arctic": "^1.2.0",
     "cookie": "^1.0.1",
     "is-network-error": "^1.1.0",
     "jose": "^5.2.2",
