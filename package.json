@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@oslojs/crypto": "^1.0.1",
+    "@oslojs/encoding": "^1.1.0",
     "arctic": "^1.2.0",
     "cookie": "^1.0.1",
     "cspell": "^8.17.2",
@@ -72,7 +73,6 @@
     "jwt-decode": "^4.0.0",
     "lucia": "^3.2.0",
     "oauth4webapi": "^3.1.2",
-    "oslo": "^1.1.2",
     "path-to-regexp": "^6.3.0",
     "server-only": "^0.0.1"
   },

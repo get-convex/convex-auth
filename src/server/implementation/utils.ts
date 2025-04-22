@@ -1,5 +1,5 @@
-import { sha256 as rawSha256 } from "oslo/crypto";
-import { encodeHex } from "oslo/encoding";
+import { sha256 as rawSha256 } from "@oslojs/crypto/sha2";
+import { encodeHexLowerCase } from "@oslojs/encoding";
 import {
   RandomReader,
   generateRandomString as osloGenerateRandomString,
@@ -13,7 +13,7 @@ export function stringToNumber(value: string | undefined) {
 }
 
 export async function sha256(input: string) {
-  return encodeHex(await rawSha256(new TextEncoder().encode(input)));
+  return encodeHexLowerCase(rawSha256(new TextEncoder().encode(input)));
 }
 
 export function generateRandomString(alphabet: string, length: number) {
