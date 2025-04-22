@@ -58,9 +58,9 @@ Create a custom provider config for sending an OTP.
 <Aside title="This example uses additional dependencies">
 
 1. The Resend SDK (`resend` on NPM)
-2. `oslo`, a handy library which is part of the Lucia project
+2. `@oslojs/crypto`, a handy library with cryptographic primitives used for auth
 
-You can install these with `npm i resend@3.2.0 oslo`.
+You can install these with `npm i resend@3.2.0 @oslojs/crypto`.
 
 _Note: `resend` v3.3 and v3.4 is broken in Convex runtime, fix is coming in
 v3.5_
@@ -70,15 +70,21 @@ v3.5_
 ```ts filename="convex/ResendOTP.ts"
 import { Email } from "@convex-dev/auth/providers/Email";
 import { Resend as ResendAPI } from "resend";
-import { alphabet, generateRandomString } from "oslo/crypto";
+import { RandomReader, generateRandomString } from "@oslojs/crypto/random";
 
 export const ResendOTP = Email({
   id: "resend-otp",
   apiKey: process.env.AUTH_RESEND_KEY,
   maxAge: 60 * 15, // 15 minutes
-  // This function can be asynchronous
-  generateVerificationToken() {
-    return generateRandomString(8, alphabet("0-9"));
+  async generateVerificationToken() {
+    const random: RandomReader = {
+      read(bytes) {
+        crypto.getRandomValues(bytes);
+      },
+    };
+
+    const alphabet = "0123456789";
+    return generateRandomString(random, alphabet, 8);
   },
   async sendVerificationRequest({ identifier: email, provider, token }) {
     const resend = new ResendAPI(provider.apiKey);
