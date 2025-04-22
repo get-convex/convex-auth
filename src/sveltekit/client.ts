@@ -34,8 +34,7 @@ export function createSvelteKitAuthClient({
   convexUrl: string;
   options?: ConvexClientOptions;
 }) {
-  // Create SvelteKit-specific auth client
-  const authenticatedCall: AuthClient["authenticatedCall"] = async (action, args) => {
+  const call: AuthClient["authenticatedCall"] = async (action, args) => {
     const params = { action, args };
     const response = await fetch(apiRoute, {
       body: JSON.stringify(params),
@@ -45,9 +44,10 @@ export function createSvelteKitAuthClient({
   };
 
   const authClient: AuthClient = {
-    authenticatedCall,
-    unauthenticatedCall: authenticatedCall,
+    authenticatedCall: call,
+    unauthenticatedCall: call,
     verbose: options?.verbose,
+    logger: options?.logger,
   };
 
   // Initialize the Convex client if not provided

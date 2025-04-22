@@ -137,6 +137,9 @@ export function createConvexAuthHandlers({
     logVerbose("Proxying auth action to Convex", { action, args });
 
     try {
+      // Ensure args is always an object (needed for signOut which doesn't provide args)
+      const finalArgs = args === undefined ? {} : args;
+
       // Forward the request to Convex
       const response = await fetch(`${convexUrl}/api/action`, {
         method: "POST",
@@ -145,7 +148,7 @@ export function createConvexAuthHandlers({
         },
         body: JSON.stringify({
           path: action,
-          args,
+          args: finalArgs,
         }),
       });
 
