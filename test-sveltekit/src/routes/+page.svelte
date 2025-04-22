@@ -4,7 +4,7 @@
 	const { signOut, isAuthenticated } = useAuth();
 </script>
 
-<div class="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+<div class="flex min-h-[50vh] flex-col items-center justify-center gap-4">
 	{#if isAuthenticated}
 		<p>You are authenticated!</p>
 		<a href="/product" class="btn preset-filled-primary-500">Product</a>
