@@ -36,7 +36,7 @@
     "react": "file:../node_modules/react",
     "react-colorful": "^5.6.1",
     "react-dom": "file:../node_modules/react-dom",
-    "resend": "^4.3.0",
+    "resend": "3.2.0",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
     "twilio": "^5.2.0"
