@@ -1,18 +1,19 @@
 /**
  * Server-side handlers for Convex Auth in SvelteKit
  */
+import cookie from "cookie";
 import type { RequestEvent, RequestHandler } from "@sveltejs/kit";
 import type { ConvexAuthServerState } from "../client.js";
 import { json, error } from "@sveltejs/kit";
-// import { env } from "$env/dynamic/public";
-
-// We can declare this as a variable that will be undefined by default
-// Consumers of the library can configure it via the convexUrl parameter
-// SvelteKit apps will have this variable replaced at build time
-declare const env: {
-  [key: `PUBLIC_${string}`]: string | undefined;
-  PUBLIC_CONVEX_URL: string;
-};
+import { ConvexAuthHooksOptions } from "./index";
+import { shouldProxyAuthAction } from "./proxy.js";
+import {
+  getConvexUrl,
+  isCorsRequest,
+  logVerbose,
+  setupClient,
+} from "./utilts.js";
+import { SignInAction } from "@convex-dev/auth/server";
 
 // Interface for cookie options
 interface CookieOptions {
@@ -36,47 +37,14 @@ const defaultCookieOptions: CookieOptions = {
   sameSite: "lax",
 };
 
-// For debug logging
-function logVerbose(message: string, ...args: any[]) {
-  if (process.env.CONVEX_AUTH_DEBUG === "true") {
-    console.log(`[ConvexAuth] ${message}`, ...args);
-  }
-}
-
-/**
- * Helper to get the Convex URL from environment variables
- * This allows SvelteKit implementations to automatically use the URL
- */
-function getConvexUrl(): string {
-  // Check for the SvelteKit environment variable (available in SvelteKit apps)
-  if (typeof env.PUBLIC_CONVEX_URL !== "undefined") {
-    return env.PUBLIC_CONVEX_URL;
-  }
-
-  // Try to load from process.env if available in the environment
-  if (
-    typeof process !== "undefined" &&
-    process.env &&
-    process.env.PUBLIC_CONVEX_URL
-  ) {
-    return process.env.PUBLIC_CONVEX_URL;
-  }
-
-  throw new Error(
-    "Convex URL not provided. Either pass convexUrl parameter or set PUBLIC_CONVEX_URL environment variable.",
-  );
-}
-
 /**
  * Create server-side handlers for SvelteKit
  */
 export function createConvexAuthHandlers({
   convexUrl = getConvexUrl(),
-  cookieOptions = defaultCookieOptions,
-}: {
-  convexUrl?: string;
-  cookieOptions?: CookieOptions;
-} = {}) {
+  cookieConfig = defaultCookieOptions,
+  verbose = false,
+}: ConvexAuthHooksOptions = {}) {
   /**
    * Get the auth state from cookies
    */
@@ -97,31 +65,59 @@ export function createConvexAuthHandlers({
    * Set auth cookies
    */
   function setAuthCookies(
-    event: RequestEvent,
+    response: Response,
     token: string | null,
     refreshToken: string | null,
   ) {
-    logVerbose("Setting auth cookies", {
-      token: !!token,
-      refreshToken: !!refreshToken,
-    });
+    logVerbose(
+      `Setting auth cookies { token: ${!!token}, refreshToken: ${!!refreshToken} }`,
+      verbose,
+    );
 
     if (token === null) {
-      event.cookies.delete(AUTH_TOKEN_COOKIE, cookieOptions);
+      // To delete a cookie, we need to set it with an expired date/max-age
+      response.headers.append(
+        "set-cookie",
+        cookie.serialize(AUTH_TOKEN_COOKIE, "", {
+          ...cookieConfig,
+          maxAge: 0, // Setting max-age to 0 tells the browser to delete it immediately
+          expires: new Date(0), // Setting an expired date as backup
+        })
+      );
     } else {
-      event.cookies.set(AUTH_TOKEN_COOKIE, token, {
-        ...cookieOptions,
-        maxAge: 60 * 60, // 1 hour for the main token
-      });
+      response.headers.append(
+        "set-cookie",
+        cookie.serialize(AUTH_TOKEN_COOKIE, token, {
+          ...cookieConfig,
+          maxAge:
+            cookieConfig.maxAge === undefined
+              ? 60 * 60 // 1 hour for the main token
+              : cookieConfig.maxAge,
+        }),
+      );
     }
 
     if (refreshToken === null) {
-      event.cookies.delete(AUTH_REFRESH_TOKEN_COOKIE, cookieOptions);
+      // To delete a cookie, we need to set it with an expired date/max-age
+      response.headers.append(
+        "set-cookie",
+        cookie.serialize(AUTH_REFRESH_TOKEN_COOKIE, "", {
+          ...cookieConfig,
+          maxAge: 0, // Setting max-age to 0 tells the browser to delete it immediately
+          expires: new Date(0), // Setting an expired date as backup
+        })
+      );
     } else {
-      event.cookies.set(AUTH_REFRESH_TOKEN_COOKIE, refreshToken, {
-        ...cookieOptions,
-        maxAge: 60 * 60 * 24 * 30, // 30 days for refresh token
-      });
+      response.headers.append(
+        "set-cookie",
+        cookie.serialize(AUTH_REFRESH_TOKEN_COOKIE, refreshToken, {
+          ...cookieConfig,
+          maxAge:
+            cookieConfig.maxAge === undefined
+              ? 60 * 60 * 24 * 30 // 30 days for refresh token
+              : cookieConfig.maxAge,
+        }),
+      );
     }
   }
 
@@ -131,45 +127,145 @@ export function createConvexAuthHandlers({
    */
   async function proxyAuthActionToConvex(
     event: RequestEvent,
-    action: string,
+    action: any,
     args: any,
   ) {
-    logVerbose("Proxying auth action to Convex", { action, args });
+    logVerbose(
+      `Proxying auth action to Convex { action: ${action}, args: ${JSON.stringify({
+        ...args,
+        refreshToken: args?.refreshToken ? '[redacted]' : undefined,
+      })} }`,
+      verbose,
+    );
 
-    try {
-      // Ensure args is always an object (needed for signOut which doesn't provide args)
-      const finalArgs = args === undefined ? {} : args;
+    if (isCorsRequest(event)) {
+      return new Response("Invalid origin", { status: 403 });
+    }
 
-      // Forward the request to Convex
-      const response = await fetch(`${convexUrl}/api/action`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          path: action,
-          args: finalArgs,
-        }),
-      });
+    if (action !== "auth:signIn" && action !== "auth:signOut") {
+      logVerbose(`Invalid action ${action}, returning 400`, verbose);
+      return new Response("Invalid action", { status: 400 });
+    }
 
-      if (!response.ok) {
-        throw new Error(`Failed to proxy auth action: ${response.statusText}`);
+    let token: string | undefined;
+    
+    if (action === "auth:signIn" && args.refreshToken !== undefined) {
+      // The client has a dummy refreshToken, the real one is only stored in cookies
+      const refreshToken = event.cookies.get(AUTH_REFRESH_TOKEN_COOKIE);
+      if (refreshToken === null) {
+        console.error(
+          "Convex Auth: Unexpected missing refreshToken cookie during client refresh",
+        );
+        return json({ tokens: null });
+      }
+      args.refreshToken = refreshToken;
+    } else {
+      // Make sure the proxy is authenticated if the client is,
+      // important for signOut and any other logic working with existing sessions
+      token = event.cookies.get(AUTH_TOKEN_COOKIE) ?? undefined;
+    }
+
+    // Add verifier from cookie if we're processing a code verification and verifier wasn't already provided
+    if (action === "auth:signIn" && 
+        args.params?.code !== undefined && 
+        !args.verifier) {
+      const verifier = event.cookies.get("verifier");
+      if (verifier) {
+        args.verifier = verifier;
+      }
+    }
+
+    logVerbose(
+        `Fetching action ${action} with args ${JSON.stringify({
+          ...args,
+          refreshToken: args?.refreshToken ? "[redacted]" : undefined,
+        })}`,
+        verbose,
+      );
+
+    if (action === "auth:signIn") {
+      let result: SignInAction["_returnType"];
+      // Do not require auth when refreshing tokens or validating a code since they
+      // are steps in the auth flow
+      const clientOptions: { url: string; token?: string } = { url: convexUrl };
+      if (!(args.refreshToken !== undefined || args.params?.code !== undefined)) {
+        clientOptions.token = token;
       }
 
-      const result = await response.json();
-      logVerbose("Proxy result", result);
-
-      // Handle authentication results
-      if (result.tokens) {
-        setAuthCookies(event, result.tokens.token, result.tokens.refreshToken);
-      } else if (result.clearTokens) {
-        setAuthCookies(event, null, null);
+      try {
+        const client = setupClient(clientOptions);
+        result = await client.action(action, args);
+      } catch (error) {
+        console.error(`Hit error while running \`auth:signIn\`:`);
+        console.error(error);
+        logVerbose(`Clearing auth cookies`, verbose);
+        const response = json(null);
+        setAuthCookies(response, null, null);
+        return response;
       }
 
-      return result;
-    } catch (e) {
-      console.error("Error proxying auth action:", e);
-      throw error(500, "Error proxying auth action to Convex");
+      if (result.redirect !== undefined) {
+        const { redirect } = result;
+        const response = json({ redirect });
+        if (result.verifier) {
+          response.headers.append(
+            "set-cookie",
+            cookie.serialize("verifier", result.verifier, {
+              ...cookieConfig,
+              maxAge: cookieConfig?.maxAge,
+            })
+          );
+        }
+        logVerbose(`Redirecting to ${redirect}`, verbose);
+        return response;
+      } else if (result.tokens !== undefined) {
+        // The server doesn't share the refresh token with the client
+        // for added security - the client has to use the server
+        // endpoint to refresh the token
+        logVerbose(
+          result.tokens === null
+            ? `No tokens returned, clearing auth cookies`
+            : `Setting auth cookies with returned tokens`,
+          verbose,
+        );
+        
+        const response = json({
+          tokens:
+            result.tokens !== null
+              ? { token: result.tokens.token, refreshToken: "dummy" }
+              : null,
+        });
+        
+        if (result.tokens !== null) {
+          setAuthCookies(
+            response,
+            result.tokens.token,
+            result.tokens.refreshToken,
+          );
+        } else {
+          setAuthCookies(response, null, null);
+        }
+        
+        return response;
+      }
+      return json(result);
+    } else {
+      // Handle signOut
+      try {
+        const client = setupClient({ 
+          url: convexUrl,
+          token 
+        });
+        await client.action(action, args);
+      } catch (error) {
+        console.error(`Hit error while running \`auth:signOut\`:`);
+        console.error(error);
+      }
+      
+      logVerbose(`Clearing auth cookies`, verbose);
+      const response = json(null);
+      setAuthCookies(response, null, null);
+      return response;
     }
   }
 
@@ -179,8 +275,7 @@ export function createConvexAuthHandlers({
    */
   const handleAuthAction: RequestHandler = async (event) => {
     try {
-      const body = await event.request.json();
-      const { action, args } = body;
+      const { action, args } = await event.request.json();
 
       // Only allow auth-related actions to be proxied
       if (!action.startsWith("auth:")) {
@@ -188,7 +283,7 @@ export function createConvexAuthHandlers({
       }
 
       const result = await proxyAuthActionToConvex(event, action, args);
-      return json(result);
+      return result;
     } catch (e) {
       console.error("Error in auth action handler:", e);
       throw error(500, "Error processing auth action");
@@ -254,21 +349,27 @@ interface HandleArgs {
 export function createConvexAuthHooks({
   convexUrl = getConvexUrl(),
   apiRoute = "/api/auth",
-  cookieOptions,
-}: {
-  convexUrl?: string;
-  apiRoute?: string;
-  cookieOptions?: CookieOptions;
-} = {}) {
-  const handlers = createConvexAuthHandlers({ convexUrl, cookieOptions });
+  cookieConfig,
+  verbose = false,
+}: ConvexAuthHooksOptions = {}) {
+  const handlers = createConvexAuthHandlers({ convexUrl, cookieConfig, verbose });
 
   /**
    * Request handler for the hooks.server.ts handle function
    */
   async function handleAuth({ event, resolve }: HandleArgs) {
+    logVerbose(
+      `Begin middleware for request with URL ${event.url.toString()}`,
+      verbose,
+    );
     // If this is the auth API route, handle the auth action
-    if (event.url.pathname === apiRoute && event.request.method === "POST") {
-      return handlers.handleAuthAction(event);
+    if (shouldProxyAuthAction(event, apiRoute)) {
+      logVerbose(
+        `Proxying auth action to Convex, path matches ${apiRoute} with or without trailing slash`,
+        verbose,
+      );
+      const result = await handlers.handleAuthAction(event);
+      return result;
     }
 
     // For other routes, just continue

@@ -9,6 +9,7 @@ import type {
 import { AuthClient } from "./clientType.js";
 import type { TokenStorage } from "./index.svelte";
 import isNetworkError from "is-network-error";
+import { Value } from "convex/values";
 
 // Retry after this much time, based on the retry number.
 const RETRY_BACKOFF = [500, 2000]; // In ms
@@ -341,56 +342,48 @@ export function createAuthClient({
 
   const signIn = async (
     provider: string,
-    params?: FormData | Record<string, any>
-  ): Promise<boolean> => {
+    params?: FormData | Record<string, Value>
+  ) => {
     logVerbose(`signIn provider=${provider}`);
     
     try {
       // Get verifier if it exists
       const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
+      await storageRemove(VERIFIER_STORAGE_KEY);
       
-
       const finalParams = params instanceof FormData
         ? Object.fromEntries(params.entries())
         : params ?? {};
       
-      const response = await client.authenticatedCall(
+      const result = await client.authenticatedCall(
         "auth:signIn" as unknown as SignInAction,
         { provider, params: finalParams, verifier }
       );
-      
-      if (response.started === true) {
-        // Redirect flow, need to store verifier
-        if (response.verifier) {
-          await storageSet(VERIFIER_STORAGE_KEY, response.verifier);
-        }
-        
-        if (typeof window !== "undefined" && response.redirect) {
-          window.location.href = response.redirect;
-        }
-        
-        return false;
-      } else if (!response.redirect) {
-        // Auth completed silently
-        if (response.tokens) {
-          await setToken({ shouldStore: true, tokens: response.tokens });
-          return true;
-        } else {
-          console.error("No tokens in silent auth response");
-          return false;
-        }
-      } else {
-        // Redirect flow
-        if (response.verifier) {
-          await storageSet(VERIFIER_STORAGE_KEY, response.verifier);
+
+      if (result.redirect !== undefined) {
+        const url = new URL(result.redirect);
+        // For redirect flows (OAuth or magic links)
+        // Store the verifier for the redirect flow
+        if (result.verifier) {
+          await storageSet(VERIFIER_STORAGE_KEY, result.verifier);
         }
         
         if (typeof window !== "undefined") {
-          window.location.href = response.redirect;
+          window.location.href = url.toString();
         }
         
-        return false;
+        return { signingIn: false, redirect: url }; // User will need to complete the flow
+      } else if (result.tokens !== undefined) {
+        // For direct sign-in flows or token refresh
+        logVerbose(`signed in and got tokens, is null: ${result.tokens === null}`);
+        await setToken({ shouldStore: true, tokens: result.tokens });
+        
+        // Return success based on whether we got valid tokens
+        return { signingIn: result.tokens !== null };
       }
+      
+      // Default case - not signed in
+      return { signingIn: false };
     } catch (e) {
       console.error("Failed to sign in:", e);
       throw e;
@@ -406,14 +399,18 @@ export function createAuthClient({
       await client.authenticatedCall(
         "auth:signOut" as unknown as SignOutAction
       );
+      
     } catch (e) {
       // Ignore any errors, they are usually caused by being
       // already signed out, which is ok.
+      if (e instanceof Error) {
+        logVerbose(`signOut error (ignored): ${e.message}`);
+      }
     }
     
     // Always clear tokens locally, even if server call failed
+    logVerbose(`signed out, erasing tokens`);
     await setToken({ shouldStore: true, tokens: null });
-    logVerbose(`signed out, tokens erased`);
   };
 
   // Expose the auth API

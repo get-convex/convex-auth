@@ -5,18 +5,24 @@
  */
 
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
-import { getContext, setContext } from "svelte";
-import { createAuthClient, setConvexAuthContext, getConvexAuthContext } from "./client.svelte.js";
+import { getContext } from "svelte";
+import {
+  createAuthClient,
+  setConvexAuthContext,
+  getConvexAuthContext,
+} from "./client.svelte.js";
 import { AuthClient } from "./clientType.js";
 import { setupConvex } from "convex-svelte";
 
 /**
  * Parameters for sign-in methods
  */
-type SignInParams = FormData | Record<string, any> & {
-  redirectTo?: string;
-  code?: string;
-};
+type SignInParams =
+  | FormData
+  | (Record<string, any> & {
+      redirectTo?: string;
+      code?: string;
+    });
 
 /**
  * A storage interface for storing and retrieving tokens and other secrets.
@@ -222,7 +228,24 @@ export type ConvexAuthActionsContext = {
      *     (used only in RN) the code from an OAuth flow or magic link URL.
      */
     params?: SignInParams,
-  ): Promise<boolean>;
+  ): Promise<{
+    /**
+     * Whether the call led to an immediate successful sign-in.
+     *
+     * Note that there's a delay between the `signIn` function
+     * returning and the client performing the handshake with
+     * the server to confirm the sign-in.
+     */
+    signingIn: boolean;
+    /**
+     * If the sign-in started an OAuth flow, this is the URL
+     * the browser should be redirected to.
+     *
+     * Useful in RN for opening the in-app browser to
+     * this URL.
+     */
+    redirect?: URL;
+  }>;
   /**
    * Sign out the current user, deleting the token from storage.
    *
@@ -236,18 +259,18 @@ export type ConvexAuthActionsContext = {
 
 /**
  * Use this function to access all authentication functionality including state, token, and actions.
- * 
+ *
  * ```ts
  * import { useAuth } from "@convex-dev/auth/svelte";
- * 
+ *
  * function SomeComponent() {
  *   const { isLoading, isAuthenticated, token, signIn, signOut } = useAuth();
- *   
+ *
  *   // Use authentication state
  *   if (isLoading) {
  *     return <p>Loading...</p>;
  *   }
- *   
+ *
  *   if (isAuthenticated) {
  *     return (
  *       <div>
@@ -256,7 +279,7 @@ export type ConvexAuthActionsContext = {
  *       </div>
  *     );
  *   }
- *   
+ *
  *   return (
  *     <div>
  *       <p>You need to sign in</p>
@@ -270,7 +293,10 @@ export function useAuth(): {
   isLoading: boolean;
   isAuthenticated: boolean;
   token: string | null;
-  signIn: (provider: string, params?: SignInParams) => Promise<boolean>;
+  signIn: (provider: string, params?: SignInParams) => Promise<{
+    signingIn: boolean;
+    redirect?: URL;
+  }>;
   signOut: () => Promise<void>;
 } {
   try {
@@ -297,7 +323,8 @@ export function useAuth(): {
       },
 
       // Auth actions
-      signIn: (provider: string, params?: SignInParams) => auth.signIn(provider, params),
+      signIn: (provider: string, params?: SignInParams) =>
+        auth.signIn(provider, params),
       signOut: () => auth.signOut(),
     };
   } catch (e) {

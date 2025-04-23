@@ -1,7 +1,7 @@
 /**
  * SvelteKit implementation of Convex Auth client.
  */
-import { invalidateAll } from "$app/navigation";
+import { invalidateAll, replaceState } from "$app/navigation";
 import { createAuthClient, setConvexAuthContext } from "../svelte/client.svelte.js";
 import { AuthClient } from "../svelte/clientType.js";
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
@@ -51,7 +51,7 @@ export function createSvelteKitAuthClient({
   };
 
   // Initialize the Convex client if not provided
-  if (!client && convexUrl) {
+  if (!client) {
     client = new ConvexClient(convexUrl, options);
   }
 
@@ -80,7 +80,13 @@ export function createSvelteKitAuthClient({
       ),
     replaceURL: (url) => {
       if (typeof window !== "undefined") {
-        window.history.replaceState({}, "", url);
+        try {
+          // Try using SvelteKit's navigation function first
+          replaceState(url, {});
+        } catch (error) {
+          // Fall back to standard history API if SvelteKit router isn't ready
+          window.history.replaceState({}, "", url);
+        }
       }
     },
   });
