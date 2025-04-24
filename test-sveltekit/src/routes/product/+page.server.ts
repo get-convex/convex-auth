@@ -1,6 +1,5 @@
-import { api } from '../../../convex/_generated/api';
 import { createConvexAuthHooks } from '@convex-dev/auth/sveltekit/server';
-import { redirect, error } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { PUBLIC_CONVEX_URL } from '$env/static/public';
 
