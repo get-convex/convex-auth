@@ -7,7 +7,8 @@ const isSignInPage = createRouteMatcher('/signin');
 const isProtectedRoute = createRouteMatcher('/product/*path');
 
 const { handleAuth, isAuthenticated } = createConvexAuthHooks({
-	convexUrl: PUBLIC_CONVEX_URL
+	convexUrl: PUBLIC_CONVEX_URL,
+	verbose: true
 });
 
 const authFirstPattern: Handle = async ({ event, resolve }) => {

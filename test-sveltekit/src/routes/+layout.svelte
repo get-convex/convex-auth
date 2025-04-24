@@ -8,7 +8,10 @@
 
 	setupConvexAuth({
 		serverState: data.authState,
-		convexUrl: PUBLIC_CONVEX_URL
+		convexUrl: PUBLIC_CONVEX_URL,
+		options: {
+			verbose: true
+		}
 	});
 </script>
 

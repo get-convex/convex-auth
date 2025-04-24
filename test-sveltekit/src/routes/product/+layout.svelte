@@ -1,5 +1,12 @@
 <script>
 	import { page } from '$app/state';
+	/**
+	 * @typedef {Object} Props
+	 * @property {import('svelte').Snippet} [children]
+	 */
+
+	/** @type {Props} */
+	let { children } = $props();
 </script>
 
 <div class="flex min-h-screen w-full">
@@ -31,5 +38,5 @@
 		</nav>
 	</aside>
 	
-	<slot />
+	{@render children?.()}
 </div>
