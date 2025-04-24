@@ -1,5 +1,5 @@
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 </script>
 
 <div class="flex min-h-screen w-full">
@@ -7,7 +7,7 @@
 		<nav class="flex h-full max-h-screen flex-col gap-2">
 			<a 
 				href="/product" 
-				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary-500 {$page.url.pathname === '/product' ? 'bg-surface-200-700-token' : ''}"
+				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary-500 {page.url.pathname === '/product' ? 'bg-surface-200-700-token' : ''}"
 			>
 				<span class="h-4 w-4">💬</span>
 				Chat
