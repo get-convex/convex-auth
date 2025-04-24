@@ -10,6 +10,8 @@ import { AuthClient } from "./clientType.js";
 import type { TokenStorage } from "./index.svelte";
 import isNetworkError from "is-network-error";
 import { Value } from "convex/values";
+import { setupConvex } from "convex-svelte";
+import { ConvexClient, ConvexClientOptions } from "convex/browser";
 
 // Retry after this much time, based on the retry number.
 const RETRY_BACKOFF = [500, 2000]; // In ms
@@ -49,7 +51,7 @@ export function createAuthClient({
   const state = $state({
     token: serverState?._state.token ?? null,
     isLoading: serverState?._state.token === null,
-    isRefreshingToken: false
+    isRefreshingToken: false,
   });
   const isAuthenticated = $derived(state.token !== null);
 
@@ -64,8 +66,8 @@ export function createAuthClient({
 
   // Create storage helpers with namespace
   const { storageSet, storageGet, storageRemove } = useNamespacedStorage(
-    storage, 
-    storageNamespace
+    storage,
+    storageNamespace,
   );
 
   // Token management
@@ -73,11 +75,11 @@ export function createAuthClient({
     args:
       | { shouldStore: true; tokens: { token: string; refreshToken: string } }
       | { shouldStore: false; tokens: { token: string } }
-      | { shouldStore: boolean; tokens: null }
+      | { shouldStore: boolean; tokens: null },
   ) => {
     const wasAuthenticated = state.token !== null;
     let newToken: string | null;
-    
+
     if (args.tokens === null) {
       state.token = null;
       if (args.shouldStore) {
@@ -92,25 +94,27 @@ export function createAuthClient({
         const { refreshToken } = args.tokens;
         await storageSet(JWT_STORAGE_KEY, value);
         await storageSet(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
-        
+
         // Store server state fetch time
         if (serverState && !state.isRefreshingToken) {
-          await storageSet(SERVER_STATE_FETCH_TIME_STORAGE_KEY, `${serverState._timeFetched}`);
+          await storageSet(
+            SERVER_STATE_FETCH_TIME_STORAGE_KEY,
+            `${serverState._timeFetched}`,
+          );
         }
       }
       newToken = value;
     }
-    
+
     if (wasAuthenticated !== (newToken !== null)) {
       await onChange?.();
     }
-    
+
     state.isLoading = false;
   };
 
   // Load tokens from storage on initialization
   onMount(() => {
-
     const loadTokens = async () => {
       if (serverState?._state) {
         // Use server state
@@ -153,34 +157,34 @@ export function createAuthClient({
       if (typeof window === "undefined") {
         return;
       }
-      
+
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
-      
+
       if (code) {
         logVerbose("found code in URL, removing");
         url.searchParams.delete("code");
         await replaceURL(
-          url.pathname + url.search + (url.hash ? url.hash : "")
+          url.pathname + url.search + (url.hash ? url.hash : ""),
         );
-        
+
         // Get verifier from storage
         const verifier = await storageGet(VERIFIER_STORAGE_KEY);
         await storageRemove(VERIFIER_STORAGE_KEY);
-        
+
         logVerbose(`verifying code, have verifier: ${!!verifier}`);
         try {
           const response = await verifyCode({
             code,
             verifier: verifier ?? undefined,
           });
-          
+
           // Extract tokens from the response
           if (response.tokens) {
             // If tokens is available in the response
-            await setToken({ 
-              shouldStore: true, 
-              tokens: response.tokens
+            await setToken({
+              shouldStore: true,
+              tokens: response.tokens,
             });
             logVerbose("signed in with code from URL using tokens object");
           } else {
@@ -189,7 +193,7 @@ export function createAuthClient({
             state.isLoading = false;
             return;
           }
-          
+
           logVerbose("signed in with code from URL");
         } catch (e) {
           console.error("Failed to verify code from URL:", e);
@@ -218,7 +222,7 @@ export function createAuthClient({
       if (event.key === storageKey(JWT_STORAGE_KEY, storageNamespace)) {
         const value = event.newValue;
         logVerbose(`synced access token, is null: ${value === null}`);
-        
+
         // Update our state without writing back to storage
         void setToken({
           shouldStore: false,
@@ -231,7 +235,7 @@ export function createAuthClient({
     return () => window.removeEventListener("storage", storageListener);
   });
 
-  // Prevent accidental navigation away from the page during token refresh. 
+  // Prevent accidental navigation away from the page during token refresh.
   $effect(() => {
     if (typeof window === "undefined") {
       return;
@@ -240,7 +244,7 @@ export function createAuthClient({
     const beforeUnloadListener = (e: BeforeUnloadEvent) => {
       if (state.isRefreshingToken) {
         e.preventDefault();
-        const confirmationMessage = 
+        const confirmationMessage =
           "Are you sure you want to leave? Your changes may not be saved.";
         e.returnValue = confirmationMessage;
         return confirmationMessage;
@@ -248,18 +252,19 @@ export function createAuthClient({
     };
 
     window.addEventListener("beforeunload", beforeUnloadListener);
-    return () => window.removeEventListener("beforeunload", beforeUnloadListener);
+    return () =>
+      window.removeEventListener("beforeunload", beforeUnloadListener);
   });
 
   // Auth methods
   const verifyCode = async (
-    args: { code: string; verifier?: string } | { refreshToken: string }
+    args: { code: string; verifier?: string } | { refreshToken: string },
   ) => {
     let lastError;
     // Retry the call if it fails due to a network error.
-      // This is especially common in mobile apps where an app is backgrounded
-      // while making a call and hits a network error, but will succeed with a
-      // retry once the app is brought to the foreground.
+    // This is especially common in mobile apps where an app is backgrounded
+    // while making a call and hits a network error, but will succeed with a
+    // retry once the app is brought to the foreground.
     let retry = 0;
     while (retry < RETRY_BACKOFF.length) {
       try {
@@ -267,7 +272,7 @@ export function createAuthClient({
           "auth:signIn" as unknown as SignInAction,
           "code" in args
             ? { params: { code: args.code }, verifier: args.verifier }
-            : args
+            : args,
         );
       } catch (e) {
         lastError = e;
@@ -277,7 +282,7 @@ export function createAuthClient({
         const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
         retry++;
         logVerbose(
-          `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`
+          `verifyCode failed with network error, retry ${retry} of ${RETRY_BACKOFF.length} in ${wait}ms`,
         );
         await new Promise((resolve) => setTimeout(resolve, wait));
       }
@@ -303,7 +308,7 @@ export function createAuthClient({
   }): Promise<string | null> => {
     const { forceRefreshToken = false } = options ?? {};
     logVerbose(`fetchAccessToken forceRefreshToken=${forceRefreshToken}`);
-    
+
     // Return the existing token if we have one and aren't forcing a refresh
     if (state.token !== null && !forceRefreshToken) {
       return state.token;
@@ -311,7 +316,7 @@ export function createAuthClient({
 
     try {
       state.isRefreshingToken = true;
-      
+
       // Get the refresh token from storage
       const refreshToken = await storageGet(REFRESH_TOKEN_STORAGE_KEY);
       if (!refreshToken) {
@@ -320,9 +325,11 @@ export function createAuthClient({
 
       logVerbose("using refresh token to get new access token");
       const response = await verifyCode({ refreshToken });
-      
+
       if (response.tokens) {
-        logVerbose(`got new access token, is null: ${response.tokens.token === null}`);
+        logVerbose(
+          `got new access token, is null: ${response.tokens.token === null}`,
+        );
         await setToken({ shouldStore: true, tokens: response.tokens });
         return response.tokens.token;
       } else {
@@ -331,7 +338,7 @@ export function createAuthClient({
       }
     } catch (e) {
       console.error("Failed to refresh token:", e);
-      
+
       // Clear tokens on failure
       await setToken({ shouldStore: true, tokens: null });
       return null;
@@ -342,22 +349,23 @@ export function createAuthClient({
 
   const signIn = async (
     provider: string,
-    params?: FormData | Record<string, Value>
+    params?: FormData | Record<string, Value>,
   ) => {
     logVerbose(`signIn provider=${provider}`);
-    
+
     try {
       // Get verifier if it exists
       const verifier = (await storageGet(VERIFIER_STORAGE_KEY)) ?? undefined;
       await storageRemove(VERIFIER_STORAGE_KEY);
-      
-      const finalParams = params instanceof FormData
-        ? Object.fromEntries(params.entries())
-        : params ?? {};
-      
+
+      const finalParams =
+        params instanceof FormData
+          ? Object.fromEntries(params.entries())
+          : (params ?? {});
+
       const result = await client.authenticatedCall(
         "auth:signIn" as unknown as SignInAction,
-        { provider, params: finalParams, verifier }
+        { provider, params: finalParams, verifier },
       );
 
       if (result.redirect !== undefined) {
@@ -367,21 +375,23 @@ export function createAuthClient({
         if (result.verifier) {
           await storageSet(VERIFIER_STORAGE_KEY, result.verifier);
         }
-        
+
         if (typeof window !== "undefined") {
           window.location.href = url.toString();
         }
-        
+
         return { signingIn: false, redirect: url }; // User will need to complete the flow
       } else if (result.tokens !== undefined) {
         // For direct sign-in flows or token refresh
-        logVerbose(`signed in and got tokens, is null: ${result.tokens === null}`);
+        logVerbose(
+          `signed in and got tokens, is null: ${result.tokens === null}`,
+        );
         await setToken({ shouldStore: true, tokens: result.tokens });
-        
+
         // Return success based on whether we got valid tokens
         return { signingIn: result.tokens !== null };
       }
-      
+
       // Default case - not signed in
       return { signingIn: false };
     } catch (e) {
@@ -392,14 +402,13 @@ export function createAuthClient({
 
   const signOut = async (): Promise<void> => {
     logVerbose("signOut");
-    
+
     try {
       // This can fail if the backend is unavailable, that's ok we will
       // still sign out on the client.
       await client.authenticatedCall(
-        "auth:signOut" as unknown as SignOutAction
+        "auth:signOut" as unknown as SignOutAction,
       );
-      
     } catch (e) {
       // Ignore any errors, they are usually caused by being
       // already signed out, which is ok.
@@ -407,7 +416,7 @@ export function createAuthClient({
         logVerbose(`signOut error (ignored): ${e.message}`);
       }
     }
-    
+
     // Always clear tokens locally, even if server call failed
     logVerbose(`signed out, erasing tokens`);
     await setToken({ shouldStore: true, tokens: null });
@@ -415,9 +424,15 @@ export function createAuthClient({
 
   // Expose the auth API
   const authApi = {
-    get isLoading() { return state.isLoading; },
-    get isAuthenticated() { return isAuthenticated; },
-    get token() { return state.token; },  
+    get isLoading() {
+      return state.isLoading;
+    },
+    get isAuthenticated() {
+      return isAuthenticated;
+    },
+    get token() {
+      return state.token;
+    },
     fetchAccessToken,
     signIn,
     signOut,
@@ -433,7 +448,7 @@ export function useAuth() {
   const authClient = getContext(AUTH_CONTEXT_KEY);
   if (!authClient) {
     throw new Error(
-      "No ConvexAuth client found in context. Did you forget to use createAuthProvider?"
+      "No ConvexAuth client found in context. Did you forget to use createAuthProvider?",
     );
   }
   return authClient;
@@ -442,7 +457,9 @@ export function useAuth() {
 /**
  * Set the Convex Auth client in the context
  */
-export function setConvexAuthContext(authClient: ReturnType<typeof createAuthClient>) {
+export function setConvexAuthContext(
+  authClient: ReturnType<typeof createAuthClient>,
+) {
   setContext(AUTH_CONTEXT_KEY, authClient);
   return authClient;
 }
@@ -467,7 +484,7 @@ function storageKey(key: string, namespace: string): string {
 function createInMemoryStorage(): TokenStorage {
   // Create a closure around the map to maintain state
   const map = new Map<string, string>();
-  
+
   return {
     getItem: (key) => map.get(key) ?? null,
     setItem: (key, value) => {
@@ -482,13 +499,16 @@ function createInMemoryStorage(): TokenStorage {
 /**
  * Helper to create namespaced storage functions
  */
-function useNamespacedStorage(persistentStorage: TokenStorage | null, namespace: string) {
+function useNamespacedStorage(
+  persistentStorage: TokenStorage | null,
+  namespace: string,
+) {
   // Use either provided storage or create in-memory storage
   const storage = persistentStorage ?? createInMemoryStorage();
-  
+
   // Normalize namespace to alphanumeric only (for compatibility with RN)
   const normalizedNamespace = namespace.replace(/[^a-zA-Z0-9]/g, "");
-  
+
   const storageGet = async (key: string): Promise<string | null> => {
     try {
       const value = await storage.getItem(storageKey(key, normalizedNamespace));
@@ -521,7 +541,7 @@ function useNamespacedStorage(persistentStorage: TokenStorage | null, namespace:
 // In the browser, executes the callback as the only tab / frame at a time.
 export async function browserMutex<T>(
   key: string,
-  callback: () => Promise<T>
+  callback: () => Promise<T>,
 ): Promise<T> {
   if (typeof window === "undefined") {
     return callback();
@@ -606,3 +626,45 @@ async function manualMutex<T>(
   });
   return outerPromise;
 }
+
+export const setupConvexClient = (
+  convexUrl: string,
+  options?: ConvexClientOptions,
+) => {
+  // Client resolution priority:
+  // 1. Client from context
+  // 2. Try to create one if setupConvex is available
+
+  let client: ConvexClient | null = null;
+
+  // Try to get client from context
+  try {
+    client = getContext("$$_convexClient");
+  } catch (e) {
+    // Context not available or no client in context
+  }
+
+  // If no client and convexUrl is provided, try to create one using setupConvex
+  if (!client && convexUrl) {
+    try {
+      setupConvex(convexUrl, options);
+      // After setting up, try to get the client from context
+      try {
+        client = getContext("$$_convexClient");
+      } catch (e) {
+        // Context not available after setup
+      }
+    } catch (e) {
+      console.warn("Failed to create Convex client:", e);
+    }
+  }
+
+  // If we still don't have a client, throw an error
+  if (!client) {
+    throw new Error(
+      "No ConvexClient was provided. Either pass one to setupConvexAuth or call setupConvex() first.",
+    );
+  }
+
+  return client;
+};

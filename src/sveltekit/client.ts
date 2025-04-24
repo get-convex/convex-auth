@@ -2,7 +2,11 @@
  * SvelteKit implementation of Convex Auth client.
  */
 import { invalidateAll, replaceState } from "$app/navigation";
-import { createAuthClient, setConvexAuthContext } from "../svelte/client.svelte.js";
+import {
+  createAuthClient,
+  setConvexAuthContext,
+  setupConvexClient,
+} from "../svelte/client.svelte.js";
 import { AuthClient } from "../svelte/clientType.js";
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
 
@@ -52,7 +56,7 @@ export function createSvelteKitAuthClient({
 
   // Initialize the Convex client if not provided
   if (!client) {
-    client = new ConvexClient(convexUrl, options);
+    setupConvexClient(convexUrl, options);
   }
 
   // Create the auth client with SvelteKit-specific config
@@ -75,8 +79,10 @@ export function createSvelteKitAuthClient({
     storageNamespace:
       storageNamespace ??
       requireEnv(
-        typeof process !== "undefined" ? process.env.PUBLIC_CONVEX_URL : undefined,
-        "PUBLIC_CONVEX_URL"
+        typeof process !== "undefined"
+          ? process.env.PUBLIC_CONVEX_URL
+          : undefined,
+        "PUBLIC_CONVEX_URL",
       ),
     replaceURL: (url) => {
       if (typeof window !== "undefined") {
@@ -93,7 +99,7 @@ export function createSvelteKitAuthClient({
 
   // Set the auth context to ensure it's available immediately
   setConvexAuthContext(auth);
-  
+
   return auth;
 }
 

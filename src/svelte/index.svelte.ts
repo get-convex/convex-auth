@@ -5,14 +5,13 @@
  */
 
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
-import { getContext } from "svelte";
 import {
   createAuthClient,
   setConvexAuthContext,
   getConvexAuthContext,
+  setupConvexClient,
 } from "./client.svelte.js";
 import { AuthClient } from "./clientType.js";
-import { setupConvex } from "convex-svelte";
 
 /**
  * Parameters for sign-in methods
@@ -129,40 +128,9 @@ export function setupConvexAuth({
 
   options?: ConvexClientOptions;
 }) {
-  // Client resolution priority:
-  // 1. Client passed directly
-  // 2. Client from context
-  // 3. Try to create one if setupConvex is available
-
-  // If no client provided, try to get from context
+  
   if (!client) {
-    try {
-      client = getContext("$$_convexClient");
-    } catch (e) {
-      // Context not available or no client in context
-    }
-  }
-
-  // If still no client and convexUrl is provided, try to create one using setupConvex
-  if (!client && convexUrl) {
-    try {
-      setupConvex(convexUrl, options);
-      // After setting up, try to get the client from context
-      try {
-        client = getContext("$$_convexClient");
-      } catch (e) {
-        // Context not available after setup
-      }
-    } catch (e) {
-      console.warn("Failed to create Convex client:", e);
-    }
-  }
-
-  // If we still don't have a client, throw an error
-  if (!client) {
-    throw new Error(
-      "No ConvexClient was provided. Either pass one to setupConvexAuth or call setupConvex() first.",
-    );
+    client = setupConvexClient(convexUrl, options);
   }
 
   // Create auth client
