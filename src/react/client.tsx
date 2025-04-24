@@ -1,4 +1,4 @@
-import { Value } from "convex/values";
+import { ConvexError, Value } from "convex/values";
 import {
   ReactNode,
   createContext,
@@ -240,7 +240,7 @@ export function AuthProvider({
         { provider, params, verifier },
       );
 
-      if ("error" in result) throw result.error;
+      if ("error" in result) throw new ConvexError(result.error);
 
       if (result?.redirect !== undefined) {
         const url = new URL(result.redirect);
