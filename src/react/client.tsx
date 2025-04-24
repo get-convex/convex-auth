@@ -52,6 +52,7 @@ export function AuthProvider({
   client,
   serverState,
   onChange,
+  shouldHandleCode,
   storage,
   storageNamespace,
   replaceURL,
@@ -63,6 +64,7 @@ export function AuthProvider({
     _timeFetched: number;
   };
   onChange?: () => Promise<unknown>;
+  shouldHandleCode?: () => boolean;
   storage: TokenStorage | null;
   storageNamespace: string;
   replaceURL: (relativeUrl: string) => void | Promise<void>;
@@ -367,7 +369,11 @@ export function AuthProvider({
       // code from URL is only consumed initially,
       // ref avoids racing in Strict mode
       if (signingInWithCodeFromURL.current || code) {
-        if (code && !signingInWithCodeFromURL.current) {
+        if (
+          code &&
+          !signingInWithCodeFromURL.current &&
+          (!shouldHandleCode || shouldHandleCode())
+        ) {
           signingInWithCodeFromURL.current = true;
           const url = new URL(window.location.href);
           url.searchParams.delete("code");

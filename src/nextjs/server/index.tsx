@@ -153,6 +153,12 @@ export type ConvexAuthNextjsMiddlewareOptions = {
    * Turn on debugging logs.
    */
   verbose?: boolean;
+  /**
+   * Callback to determine whether Convex Auth should handle the code parameter for a given request.
+   * If not provided, Convex Auth will handle all code parameters.
+   * If provided, Convex Auth will only handle code parameters when the callback returns true.
+   */
+  shouldHandleCode?: (request: NextRequest) => boolean;
 };
 
 /**
