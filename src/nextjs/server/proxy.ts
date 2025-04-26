@@ -12,6 +12,7 @@ import {
   logVerbose,
   setAuthCookies,
 } from "./utils.js";
+import { ConvexError } from "convex/values";
 
 export async function proxyAuthActionToConvex(
   request: NextRequest,
@@ -77,7 +78,10 @@ export async function proxyAuthActionToConvex(
       console.error(`Hit error while running \`auth:signIn\`:`);
       console.error(error);
       let response;
-      if (error instanceof Error && error.message) {
+
+      if (error instanceof ConvexError) {
+        response = jsonResponse({ error });
+      } else if (error instanceof Error && error.message) {
         response = jsonResponse({
           error: {
             name: error.name,
@@ -114,7 +118,7 @@ export async function proxyAuthActionToConvex(
       const response = jsonResponse({
         tokens:
           result.tokens !== null
-            ? { token: result.tokens.token, refreshToken: "dummy" }
+            ? { token: result.tokens?.token, refreshToken: "dummy" }
             : null,
       });
       await setAuthCookies(response, result.tokens, cookieConfig);

@@ -240,7 +240,11 @@ export function AuthProvider({
         { provider, params, verifier },
       );
 
-      if ("error" in result) throw new ConvexError(result.error);
+      if ("error" in result) {
+        throw wasResponseErrorConvexError(result.error)
+          ? new ConvexError(result.error.data)
+          : new ConvexError(result.error as Value);
+      }
 
       if (result?.redirect !== undefined) {
         const url = new URL(result.redirect);
@@ -563,4 +567,23 @@ function browserRemoveEventListener<K extends keyof WindowEventMap>(
   options?: boolean | EventListenerOptions,
 ): void {
   window.removeEventListener?.(type, listener, options);
+}
+
+// This function is meant to determine
+// if the error returned within the response
+// was originally an instance of ConvexError on the nextjs server
+// for the sake of the patch, I left it here,
+// but it may need to be moved to more appropriate place
+function wasResponseErrorConvexError(
+  error: unknown,
+): error is ConvexError<Value> {
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    error.name === "ConvexError"
+  )
+    return true;
+
+  return false;
 }
