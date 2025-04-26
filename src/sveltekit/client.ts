@@ -56,7 +56,7 @@ export function createSvelteKitAuthClient({
 
   // Initialize the Convex client if not provided
   if (!client) {
-    setupConvexClient(convexUrl, options);
+    client = setupConvexClient(convexUrl, { disabled: false, ...options });
   }
 
   // Create the auth client with SvelteKit-specific config
@@ -96,6 +96,8 @@ export function createSvelteKitAuthClient({
       }
     },
   });
+
+  client.setAuth(auth.fetchAccessToken);
 
   // Set the auth context to ensure it's available immediately
   setConvexAuthContext(auth);

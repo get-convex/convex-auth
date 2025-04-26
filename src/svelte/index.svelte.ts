@@ -159,6 +159,8 @@ export function setupConvexAuth({
     },
   });
 
+  client.setAuth(auth.fetchAccessToken)
+
   // Set auth context
   setConvexAuthContext(auth);
 
