@@ -88,15 +88,26 @@ export function createSvelteKitAuthClient({
           : window.localStorage,
     storageNamespace: storageNamespace ?? url,
     replaceURL: (url) => {
-      if (typeof window !== "undefined") {
+      // Function to attempt SvelteKit navigation with retries as fallback if the sveltekit replaceState is not yet ready as part of the client-side navigation
+      const attemptSvelteKitNavigation = (retryCount = 0, maxRetries = 3) => {
         try {
-          // Try using SvelteKit's navigation function first
           replaceState(url, {});
+          // Success - no need for further retries
         } catch (error) {
-          // Fall back to standard history API if SvelteKit router isn't ready
-          window.history.replaceState({}, "", url);
+          if (retryCount < maxRetries) {
+            // Exponential backoff for retries (100ms, 200ms, 400ms)
+            setTimeout(
+              () => {
+                attemptSvelteKitNavigation(retryCount + 1, maxRetries);
+              },
+              100 * Math.pow(2, retryCount),
+            );
+          }
         }
-      }
+      };
+
+      // Start retry attempts after a short delay
+      setTimeout(() => attemptSvelteKitNavigation(), 50);
     },
   });
 
