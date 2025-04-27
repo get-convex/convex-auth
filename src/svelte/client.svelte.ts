@@ -645,7 +645,7 @@ export const setupConvexClient = (
   }
 
   // If no client and convexUrl is provided, try to create one using setupConvex
-  if (!client && convexUrl) {
+  if (!client) {
     try {
       setupConvex(convexUrl, options);
       // After setting up, try to get the client from context

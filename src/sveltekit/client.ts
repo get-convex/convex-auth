@@ -2,6 +2,7 @@
  * SvelteKit implementation of Convex Auth client.
  */
 import { invalidateAll, replaceState } from "$app/navigation";
+import { env } from "$env/dynamic/public";
 import {
   createAuthClient,
   setConvexAuthContext,
@@ -35,9 +36,18 @@ export function createSvelteKitAuthClient({
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
   client?: ConvexClient;
-  convexUrl: string;
+  convexUrl?: string;
   options?: ConvexClientOptions;
 }) {
+  const url =
+    convexUrl ??
+    env.PUBLIC_CONVEX_URL ??
+    (() => {
+      throw new Error(
+        "No Convex URL provided. Either pass convexUrl parameter or set PUBLIC_CONVEX_URL environment variable.",
+      );
+    })();
+
   const call: AuthClient["authenticatedCall"] = async (action, args) => {
     const params = { action, args };
     const response = await fetch(apiRoute, {
@@ -56,7 +66,7 @@ export function createSvelteKitAuthClient({
 
   // Initialize the Convex client if not provided
   if (!client) {
-    client = setupConvexClient(convexUrl, { disabled: false, ...options });
+    client = setupConvexClient(url, { disabled: false, ...options });
   }
 
   // Create the auth client with SvelteKit-specific config
@@ -76,14 +86,7 @@ export function createSvelteKitAuthClient({
         : storage === "inMemory"
           ? null
           : window.localStorage,
-    storageNamespace:
-      storageNamespace ??
-      requireEnv(
-        typeof process !== "undefined"
-          ? process.env.PUBLIC_CONVEX_URL
-          : undefined,
-        "PUBLIC_CONVEX_URL",
-      ),
+    storageNamespace: storageNamespace ?? url,
     replaceURL: (url) => {
       if (typeof window !== "undefined") {
         try {
@@ -103,14 +106,4 @@ export function createSvelteKitAuthClient({
   setConvexAuthContext(auth);
 
   return auth;
-}
-
-/**
- * Validate that required environment variables are present
- */
-function requireEnv(value: string | undefined, name: string): string {
-  if (value === undefined) {
-    throw new Error(`Missing environment variable \`${name}\``);
-  }
-  return value;
 }

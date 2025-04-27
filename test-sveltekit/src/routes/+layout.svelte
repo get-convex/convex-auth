@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { setupConvexAuth } from '@convex-dev/auth/sveltekit';
-	import { PUBLIC_CONVEX_URL } from '$env/static/public';
 
 	import '../app.css';
 
@@ -8,7 +7,6 @@
 
 	setupConvexAuth({
 		serverState: data.authState,
-		convexUrl: PUBLIC_CONVEX_URL,
 		options: {
 			verbose: true
 		}

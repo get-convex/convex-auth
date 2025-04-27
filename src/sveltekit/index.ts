@@ -63,7 +63,7 @@ export function setupConvexAuth({
    * The url of your Convex deployment, often provided
    * by an environment variable. E.g. `https://small-mouse-123.convex.cloud`.
    */
-  convexUrl: string;
+  convexUrl?: string;
   options?: ConvexClientOptions
 }) {
   // Initialize the auth client with SvelteKit-specific configuration
