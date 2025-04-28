@@ -22,6 +22,7 @@ import {
   defaultCookieOptions,
 } from "./cookies";
 import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
+import { handleAuthenticationInRequest } from "./request.js";
 
 /**
  * Create server-side handlers for SvelteKit
@@ -299,8 +300,40 @@ export function createConvexAuthHooks({
       verbose,
     );
 
-    // For other routes, just continue
-    return resolve(event);
+    // Refresh tokens, handle code query param
+    const authResult = await handleAuthenticationInRequest(event, { convexUrl, apiRoute, cookieConfig, verbose });
+
+    // If redirecting, proceed, the middleware will run again on next request
+    if (authResult.kind === "redirect") {
+      logVerbose(
+        `Redirecting to ${authResult.response.headers.get("Location")}`,
+        verbose,
+      );
+      return authResult.response;
+    }
+
+    // Create a response using the resolver
+    const response = await resolve(event);
+
+    // Add auth cookies to the response if tokens were refreshed
+    if (
+      authResult.kind === "refreshTokens" &&
+      authResult.refreshTokens !== undefined
+    ) {
+      if (authResult.refreshTokens !== null) {
+        setAuthCookies(
+          response,
+          authResult.refreshTokens.token,
+          authResult.refreshTokens.refreshToken,
+          cookieConfig,
+          verbose
+        );
+      } else {
+        setAuthCookies(response, null, null, cookieConfig, verbose);
+      }
+    }
+
+    return response;
   }
 
   return {
