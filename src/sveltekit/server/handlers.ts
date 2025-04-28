@@ -229,16 +229,8 @@ export function createConvexAuthHandlers({
     }
   }
 
-  /**
-   * Load auth state from cookies
-   */
-  async function loadAuthState(event: RequestEvent) {
-    return getAuthState(event);
-  }
-
   return {
     getAuthState,
-    loadAuthState,
     proxyAuthActionToConvex,
     isAuthenticated,
   };

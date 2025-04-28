@@ -88,7 +88,7 @@ export function createSvelteKitAuthClient({
           : window.localStorage,
     storageNamespace: storageNamespace ?? url,
     replaceURL: (url) => {
-      // Function to attempt SvelteKit navigation with retries as fallback if the sveltekit replaceState is not yet ready as part of the client-side navigation
+      // Not used, since the redirect is handled by the SvelteKit server.
       const attemptSvelteKitNavigation = (retryCount = 0, maxRetries = 3) => {
         try {
           replaceState(url, {});

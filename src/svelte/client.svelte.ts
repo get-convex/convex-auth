@@ -1,7 +1,7 @@
 /**
  * Svelte implementation of Convex Auth client.
  */
-import { getContext, onMount, setContext } from "svelte";
+import { getContext, setContext } from "svelte";
 import type {
   SignInAction,
   SignOutAction,
@@ -114,7 +114,7 @@ export function createAuthClient({
   };
 
   // Load tokens from storage on initialization
-  onMount(() => {
+  $effect(() => {
     const loadTokens = async () => {
       if (serverState?._state) {
         // Use server state
@@ -147,12 +147,17 @@ export function createAuthClient({
           state.isLoading = false;
         }
       } catch (e) {
-        console.error("Failed to load auth tokens", e);
+        console.error("Error loading tokens from storage:", e);
         state.isLoading = false;
       }
     };
 
-    // Check URL for auth code
+    // Initialize tokens
+    void loadTokens();
+  });
+
+  // Check URL for authentication code (separated into its own effect)
+  $effect(() => {
     const checkUrlForCode = async () => {
       if (typeof window === "undefined") {
         return;
@@ -202,8 +207,7 @@ export function createAuthClient({
       }
     };
 
-    // Kick off loading tokens and checking for code
-    void loadTokens();
+    // Check for code in URL
     void checkUrlForCode();
   });
 
