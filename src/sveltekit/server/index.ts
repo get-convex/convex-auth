@@ -4,59 +4,65 @@
 import {
   createConvexAuthHandlers,
   createConvexAuthHooks,
-  convexAuthSvelteKitServerState,
 } from "./handlers.js";
 import {
   createRouteMatcher,
   type RouteMatcherParam,
   type RouteMatcherFn,
 } from "./routeMatcher.js";
+import type { ConvexAuthServerState } from "../client.js";
+import type { CookieOptions } from "./cookies.js";
 
 /**
- * Options for the `createConvexAuthHooks` function.
+ * Options for the createConvexAuthHandlers and createConvexAuthHooks functions
  */
-export type ConvexAuthHooksOptions = {
+export interface ConvexAuthHooksOptions {
   /**
    * The URL of the Convex deployment to use for authentication.
-   *
-   * Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
+   * Defaults to process.env.CONVEX_URL or process.env.PUBLIC_CONVEX_URL.
    */
   convexUrl?: string;
+
   /**
-   * You can customize the route path that handles authentication
-   * actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`.
-   *
-   * Defaults to `/api/auth`.
+   * The route path that handles authentication actions.
+   * Defaults to "/api/auth".
    */
   apiRoute?: string;
+
   /**
    * The cookie config to use for the auth cookies.
-   *
-   * `maxAge` is the number of seconds the cookie will be valid for. If this is not set, the cookie will be a session cookie.
-   *
-   * See [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#defining_the_lifetime_of_a_cookie)
-   * for more information.
+   * Defaults to { path: "/", httpOnly: true, secure: true in production, sameSite: "lax" }
    */
-  cookieConfig?: {
-    path?: string;
-    httpOnly?: boolean;
-    secure?: boolean;
-    maxAge?: number;
-    sameSite?: "strict" | "lax" | "none";
-    domain?: string;
-  };
+  cookieConfig?: CookieOptions;
+
   /**
    * Turn on debugging logs.
+   * Defaults to false.
    */
   verbose?: boolean;
-};
+}
+
+/**
+ * Result of an auth token refresh operation
+ */
+export interface RefreshResult {
+  /**
+   * Updated auth state if refresh succeeded
+   */
+  authState?: ConvexAuthServerState;
+  
+  /**
+   * Whether the refresh failed and user needs to sign in again
+   */
+  signInRequired?: boolean;
+}
 
 // Export server handlers
 export {
   createConvexAuthHandlers,
   createConvexAuthHooks,
-  convexAuthSvelteKitServerState,
+  createRouteMatcher,
 };
 
-// Export route matchers (equivalent to NextJS implementation)
-export { createRouteMatcher, type RouteMatcherParam, type RouteMatcherFn };
+// Export types
+export type { RouteMatcherParam, RouteMatcherFn };

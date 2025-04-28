@@ -1,7 +1,6 @@
 /**
  * Server-side handlers for Convex Auth in SvelteKit
  */
-import cookie from "cookie";
 import type { RequestEvent } from "@sveltejs/kit";
 import type { ConvexAuthServerState } from "../client.js";
 import { json } from "@sveltejs/kit";
@@ -14,37 +13,26 @@ import {
   setupClient,
 } from "./utils.js";
 import { SignInAction } from "@convex-dev/auth/server";
-
-// Interface for cookie options
-interface CookieOptions {
-  path?: string;
-  httpOnly?: boolean;
-  secure?: boolean;
-  maxAge?: number;
-  sameSite?: "strict" | "lax" | "none";
-  domain?: string;
-}
-
-// Cookie names
-const AUTH_TOKEN_COOKIE = "__convexAuthJWT";
-const AUTH_REFRESH_TOKEN_COOKIE = "__convexAuthRefreshToken";
-
-// Default cookie options
-const defaultCookieOptions: CookieOptions = {
-  path: "/",
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax",
-};
+import {
+  AUTH_TOKEN_COOKIE,
+  AUTH_REFRESH_TOKEN_COOKIE,
+  AUTH_VERIFIER_COOKIE,
+  setAuthCookies,
+  setVerifierCookie,
+  defaultCookieOptions,
+} from "./cookies";
+import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
 
 /**
  * Create server-side handlers for SvelteKit
  */
 export function createConvexAuthHandlers({
   convexUrl = getConvexUrl(),
-  cookieConfig = defaultCookieOptions,
+  cookieConfig: cookieConfigOverride,
   verbose = false,
 }: ConvexAuthHooksOptions = {}) {
+  const cookieConfig = cookieConfigOverride ?? defaultCookieOptions;
+
   /**
    * Get the auth state from cookies
    */
@@ -59,66 +47,6 @@ export function createConvexAuthHandlers({
       _state: { token, refreshToken },
       _timeFetched: Date.now(),
     };
-  }
-
-  /**
-   * Set auth cookies
-   */
-  function setAuthCookies(
-    response: Response,
-    token: string | null,
-    refreshToken: string | null,
-  ) {
-    logVerbose(
-      `Setting auth cookies { token: ${!!token}, refreshToken: ${!!refreshToken} }`,
-      verbose,
-    );
-
-    if (token === null) {
-      // To delete a cookie, we need to set it with an expired date/max-age
-      response.headers.append(
-        "set-cookie",
-        cookie.serialize(AUTH_TOKEN_COOKIE, "", {
-          ...cookieConfig,
-          maxAge: 0, // Setting max-age to 0 tells the browser to delete it immediately
-          expires: new Date(0), // Setting an expired date as backup
-        }),
-      );
-    } else {
-      response.headers.append(
-        "set-cookie",
-        cookie.serialize(AUTH_TOKEN_COOKIE, token, {
-          ...cookieConfig,
-          maxAge:
-            cookieConfig.maxAge === undefined
-              ? 60 * 60 // 1 hour for the main token
-              : cookieConfig.maxAge,
-        }),
-      );
-    }
-
-    if (refreshToken === null) {
-      // To delete a cookie, we need to set it with an expired date/max-age
-      response.headers.append(
-        "set-cookie",
-        cookie.serialize(AUTH_REFRESH_TOKEN_COOKIE, "", {
-          ...cookieConfig,
-          maxAge: 0, // Setting max-age to 0 tells the browser to delete it immediately
-          expires: new Date(0), // Setting an expired date as backup
-        }),
-      );
-    } else {
-      response.headers.append(
-        "set-cookie",
-        cookie.serialize(AUTH_REFRESH_TOKEN_COOKIE, refreshToken, {
-          ...cookieConfig,
-          maxAge:
-            cookieConfig.maxAge === undefined
-              ? 60 * 60 * 24 * 30 // 30 days for refresh token
-              : cookieConfig.maxAge,
-        }),
-      );
-    }
   }
 
   /**
@@ -170,7 +98,7 @@ export function createConvexAuthHandlers({
       args.params?.code !== undefined &&
       !args.verifier
     ) {
-      const verifier = event.cookies.get("verifier");
+      const verifier = event.cookies.get(AUTH_VERIFIER_COOKIE);
       if (verifier) {
         args.verifier = verifier;
       }
@@ -203,7 +131,7 @@ export function createConvexAuthHandlers({
         console.error(error);
         logVerbose(`Clearing auth cookies`, verbose);
         const response = json(null);
-        setAuthCookies(response, null, null);
+        setAuthCookies(response, null, null, cookieConfig, verbose);
         return response;
       }
 
@@ -211,13 +139,8 @@ export function createConvexAuthHandlers({
         const { redirect } = result;
         const response = json({ redirect });
         if (result.verifier) {
-          response.headers.append(
-            "set-cookie",
-            cookie.serialize("verifier", result.verifier, {
-              ...cookieConfig,
-              maxAge: cookieConfig?.maxAge,
-            }),
-          );
+          // Set the verifier cookie for OAuth PKCE flow
+          setVerifierCookie(response, result.verifier, cookieConfig, verbose);
         }
         logVerbose(`Redirecting to ${redirect}`, verbose);
         return response;
@@ -244,9 +167,11 @@ export function createConvexAuthHandlers({
             response,
             result.tokens.token,
             result.tokens.refreshToken,
+            cookieConfig,
+            verbose,
           );
         } else {
-          setAuthCookies(response, null, null);
+          setAuthCookies(response, null, null, cookieConfig, verbose);
         }
 
         return response;
@@ -267,53 +192,54 @@ export function createConvexAuthHandlers({
 
       logVerbose(`Clearing auth cookies`, verbose);
       const response = json(null);
-      setAuthCookies(response, null, null);
+      setAuthCookies(response, null, null, cookieConfig, verbose);
       return response;
     }
   }
 
   /**
-   * Load function for layout/page to get auth state
-   * Use in +layout.server.ts or +page.server.ts
+   * Check if the client is authenticated with Convex
    */
-  async function loadAuthState(event: RequestEvent) {
-    return {
-      authState: await getAuthState(event),
-    };
+  async function isAuthenticated(event: RequestEvent): Promise<boolean> {
+    const token = event.cookies.get(AUTH_TOKEN_COOKIE);
+    if (!token) {
+      return false;
+    }
+
+    // Validate the token with Convex
+    try {
+      const client = setupClient({
+        url: convexUrl,
+        token,
+      });
+      const result = await client.query(
+        "auth:isAuthenticated" as any as IsAuthenticatedQuery,
+      );
+      return !!result;
+    } catch (e: any) {
+      if (e.message.includes("Could not find public function")) {
+        throw new Error(
+          "Server Error: could not find api.auth.isAuthenticated. convex-auth 0.0.76 introduced a new export in convex/auth.ts. Add `isAuthenticated` to the list of functions returned from convexAuth(). See convex-auth changelog for more https://github.com/get-convex/convex-auth/blob/main/CHANGELOG.md",
+        );
+      } else {
+        console.log("Returning false from isAuthenticated because", e);
+      }
+      return false;
+    }
   }
 
   /**
-   * Determine if the current request is authenticated
+   * Load auth state from cookies
    */
-  async function isAuthenticated(event: RequestEvent): Promise<boolean> {
-    const authState = await getAuthState(event);
-    return !!authState._state.token;
+  async function loadAuthState(event: RequestEvent) {
+    return getAuthState(event);
   }
 
   return {
     getAuthState,
-    setAuthCookies,
     loadAuthState,
     proxyAuthActionToConvex,
     isAuthenticated,
-  };
-}
-
-/**
- * Get the server-side auth state
- * This is similar to the Next.js convexAuthNextjsServerState function
- */
-export async function convexAuthSvelteKitServerState(
-  event: RequestEvent,
-): Promise<ConvexAuthServerState> {
-  const token = event.cookies.get(AUTH_TOKEN_COOKIE) || null;
-
-  // The server doesn't share the refresh token with the client
-  // for added security - the client has to use the server
-  // endpoint to refresh the token
-  return {
-    _state: { token, refreshToken: null },
-    _timeFetched: Date.now(),
   };
 }
 
@@ -330,9 +256,11 @@ interface HandleArgs {
 export function createConvexAuthHooks({
   convexUrl = getConvexUrl(),
   apiRoute = "/api/auth",
-  cookieConfig,
+  cookieConfig: cookieConfigOverride,
   verbose = false,
 }: ConvexAuthHooksOptions = {}) {
+  const cookieConfig = cookieConfigOverride ?? defaultCookieOptions;
+
   const handlers = createConvexAuthHandlers({
     convexUrl,
     cookieConfig,
