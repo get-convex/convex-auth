@@ -127,9 +127,8 @@ export function createConvexAuthHandlers({
    */
   async function proxyAuthActionToConvex(
     event: RequestEvent,
-    action: any,
-    args: any,
   ) {
+    const { action, args } = await event.request.json();
     logVerbose(
       `Proxying auth action to Convex { action: ${action}, args: ${JSON.stringify({
         ...args,
@@ -138,7 +137,7 @@ export function createConvexAuthHandlers({
       verbose,
     );
 
-    if (isCorsRequest(event)) {
+    if (isCorsRequest(event.request)) {
       return new Response("Invalid origin", { status: 403 });
     }
 
@@ -270,27 +269,6 @@ export function createConvexAuthHandlers({
   }
 
   /**
-   * Create a SvelteKit API handler for auth actions
-   * This should be used in a +server.ts file at your desired API route (default: /api/auth)
-   */
-  const handleAuthAction: RequestHandler = async (event) => {
-    try {
-      const { action, args } = await event.request.json();
-
-      // Only allow auth-related actions to be proxied
-      if (!action.startsWith("auth:")) {
-        throw error(403, "Only auth actions are allowed");
-      }
-
-      const result = await proxyAuthActionToConvex(event, action, args);
-      return result;
-    } catch (e) {
-      console.error("Error in auth action handler:", e);
-      throw error(500, "Error processing auth action");
-    }
-  };
-
-  /**
    * Load function for layout/page to get auth state
    * Use in +layout.server.ts or +page.server.ts
    */
@@ -311,7 +289,6 @@ export function createConvexAuthHandlers({
   return {
     getAuthState,
     setAuthCookies,
-    handleAuthAction,
     loadAuthState,
     proxyAuthActionToConvex,
     isAuthenticated,
@@ -368,7 +345,7 @@ export function createConvexAuthHooks({
         `Proxying auth action to Convex, path matches ${apiRoute} with or without trailing slash`,
         verbose,
       );
-      const result = await handlers.handleAuthAction(event);
+      const result = await handlers.proxyAuthActionToConvex(event);
       return result;
     }
 

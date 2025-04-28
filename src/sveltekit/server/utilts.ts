@@ -49,11 +49,11 @@ export function setupClient(options?: SveltekitOptions) {
   if (options?.token !== undefined) {
     client.setAuth(options.token);
   }
-// TODO: Somehow .adminToken and .setFetchOptions are not available in ConvexHttpClient although it is in the nextjs version   
-// if (options.adminToken !== undefined) {
-//     client.setAdminAuth(options.adminToken);
-//   }
-//   client.setFetchOptions({ cache: "no-store" });
+  // TODO: Somehow .adminToken and .setFetchOptions are not available in ConvexHttpClient although it is in the nextjs version
+  // if (options.adminToken !== undefined) {
+  //     client.setAdminAuth(options.adminToken);
+  //   }
+  //   client.setFetchOptions({ cache: "no-store" });
   return client;
 }
 
@@ -134,12 +134,12 @@ export function validateDeploymentUrl(deploymentUrl: string) {
   }
 }
 
-export function isCorsRequest(event: RequestEvent) {
-  const origin = event.request.headers.get("Origin");
+export function isCorsRequest(request: Request) {
+  const origin = request.headers.get("Origin");
   const originURL = origin ? new URL(origin) : null;
   return (
     originURL !== null &&
-    (originURL.host !== event.request.headers.get("Host") ||
-      originURL.protocol !== new URL(event.request.url).protocol)
+    (originURL.host !== request.headers.get("Host") ||
+      originURL.protocol !== new URL(request.url).protocol)
   );
 }
