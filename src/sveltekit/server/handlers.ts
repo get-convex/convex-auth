@@ -12,7 +12,7 @@ import {
   isCorsRequest,
   logVerbose,
   setupClient,
-} from "./utilts.js";
+} from "./utils.js";
 import { SignInAction } from "@convex-dev/auth/server";
 
 // Interface for cookie options
@@ -82,7 +82,7 @@ export function createConvexAuthHandlers({
           ...cookieConfig,
           maxAge: 0, // Setting max-age to 0 tells the browser to delete it immediately
           expires: new Date(0), // Setting an expired date as backup
-        })
+        }),
       );
     } else {
       response.headers.append(
@@ -105,7 +105,7 @@ export function createConvexAuthHandlers({
           ...cookieConfig,
           maxAge: 0, // Setting max-age to 0 tells the browser to delete it immediately
           expires: new Date(0), // Setting an expired date as backup
-        })
+        }),
       );
     } else {
       response.headers.append(
@@ -125,15 +125,15 @@ export function createConvexAuthHandlers({
    * Proxy an auth action to Convex
    * Used to forward authentication requests to Convex
    */
-  async function proxyAuthActionToConvex(
-    event: RequestEvent,
-  ) {
+  async function proxyAuthActionToConvex(event: RequestEvent) {
     const { action, args } = await event.request.json();
     logVerbose(
-      `Proxying auth action to Convex { action: ${action}, args: ${JSON.stringify({
-        ...args,
-        refreshToken: args?.refreshToken ? '[redacted]' : undefined,
-      })} }`,
+      `Proxying auth action to Convex { action: ${action}, args: ${JSON.stringify(
+        {
+          ...args,
+          refreshToken: args?.refreshToken ? "[redacted]" : undefined,
+        },
+      )} }`,
       verbose,
     );
 
@@ -147,7 +147,7 @@ export function createConvexAuthHandlers({
     }
 
     let token: string | undefined;
-    
+
     if (action === "auth:signIn" && args.refreshToken !== undefined) {
       // The client has a dummy refreshToken, the real one is only stored in cookies
       const refreshToken = event.cookies.get(AUTH_REFRESH_TOKEN_COOKIE);
@@ -165,9 +165,11 @@ export function createConvexAuthHandlers({
     }
 
     // Add verifier from cookie if we're processing a code verification and verifier wasn't already provided
-    if (action === "auth:signIn" && 
-        args.params?.code !== undefined && 
-        !args.verifier) {
+    if (
+      action === "auth:signIn" &&
+      args.params?.code !== undefined &&
+      !args.verifier
+    ) {
       const verifier = event.cookies.get("verifier");
       if (verifier) {
         args.verifier = verifier;
@@ -175,19 +177,21 @@ export function createConvexAuthHandlers({
     }
 
     logVerbose(
-        `Fetching action ${action} with args ${JSON.stringify({
-          ...args,
-          refreshToken: args?.refreshToken ? "[redacted]" : undefined,
-        })}`,
-        verbose,
-      );
+      `Fetching action ${action} with args ${JSON.stringify({
+        ...args,
+        refreshToken: args?.refreshToken ? "[redacted]" : undefined,
+      })}`,
+      verbose,
+    );
 
     if (action === "auth:signIn") {
       let result: SignInAction["_returnType"];
       // Do not require auth when refreshing tokens or validating a code since they
       // are steps in the auth flow
       const clientOptions: { url: string; token?: string } = { url: convexUrl };
-      if (!(args.refreshToken !== undefined || args.params?.code !== undefined)) {
+      if (
+        !(args.refreshToken !== undefined || args.params?.code !== undefined)
+      ) {
         clientOptions.token = token;
       }
 
@@ -212,7 +216,7 @@ export function createConvexAuthHandlers({
             cookie.serialize("verifier", result.verifier, {
               ...cookieConfig,
               maxAge: cookieConfig?.maxAge,
-            })
+            }),
           );
         }
         logVerbose(`Redirecting to ${redirect}`, verbose);
@@ -227,14 +231,14 @@ export function createConvexAuthHandlers({
             : `Setting auth cookies with returned tokens`,
           verbose,
         );
-        
+
         const response = json({
           tokens:
             result.tokens !== null
               ? { token: result.tokens.token, refreshToken: "dummy" }
               : null,
         });
-        
+
         if (result.tokens !== null) {
           setAuthCookies(
             response,
@@ -244,23 +248,23 @@ export function createConvexAuthHandlers({
         } else {
           setAuthCookies(response, null, null);
         }
-        
+
         return response;
       }
       return json(result);
     } else {
       // Handle signOut
       try {
-        const client = setupClient({ 
+        const client = setupClient({
           url: convexUrl,
-          token 
+          token,
         });
         await client.action(action, args);
       } catch (error) {
         console.error(`Hit error while running \`auth:signOut\`:`);
         console.error(error);
       }
-      
+
       logVerbose(`Clearing auth cookies`, verbose);
       const response = json(null);
       setAuthCookies(response, null, null);
@@ -329,17 +333,31 @@ export function createConvexAuthHooks({
   cookieConfig,
   verbose = false,
 }: ConvexAuthHooksOptions = {}) {
-  const handlers = createConvexAuthHandlers({ convexUrl, cookieConfig, verbose });
+  const handlers = createConvexAuthHandlers({
+    convexUrl,
+    cookieConfig,
+    verbose,
+  });
 
   /**
    * Request handler for the hooks.server.ts handle function
    */
   async function handleAuth({ event, resolve }: HandleArgs) {
+    if (
+      cookieConfig &&
+      cookieConfig.maxAge != null &&
+      cookieConfig.maxAge <= 0
+    ) {
+      throw new Error(
+        "cookieConfig.maxAge must be a positive number of seconds if specified (not 0 or negative)",
+      );
+    }
+
     logVerbose(
       `Begin middleware for request with URL ${event.url.toString()}`,
       verbose,
     );
-    // If this is the auth API route, handle the auth action
+    // Proxy signIn and signOut actions to Convex backend
     if (shouldProxyAuthAction(event, apiRoute)) {
       logVerbose(
         `Proxying auth action to Convex, path matches ${apiRoute} with or without trailing slash`,
@@ -348,6 +366,10 @@ export function createConvexAuthHooks({
       const result = await handlers.proxyAuthActionToConvex(event);
       return result;
     }
+    logVerbose(
+      `Not proxying auth action to Convex, path ${event.url.pathname} does not match ${apiRoute}`,
+      verbose,
+    );
 
     // For other routes, just continue
     return resolve(event);

@@ -1,5 +1,4 @@
 import { env } from "$env/dynamic/public";
-import { RequestEvent } from "@sveltejs/kit";
 import { ConvexHttpClient } from "convex/browser";
 
 // For debug logging
