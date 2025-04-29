@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getResponseCookies } from "./cookies.js";
 import {
+  getConvexNextjsOptions,
   getRedactedMessage,
   isCorsRequest,
   jsonResponse,
@@ -69,7 +70,7 @@ export async function proxyAuthActionToConvex(
         : { token };
     try {
       result = await fetchAction(action, args, {
-        url: options?.convexUrl,
+        ...getConvexNextjsOptions(options),
         ...fetchActionAuthOptions,
       });
     } catch (error) {
@@ -110,7 +111,7 @@ export async function proxyAuthActionToConvex(
   } else {
     try {
       await fetchAction(action, args, {
-        url: options?.convexUrl,
+        ...getConvexNextjsOptions(options),
         token,
       });
     } catch (error) {

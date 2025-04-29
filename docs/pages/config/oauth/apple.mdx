@@ -160,6 +160,12 @@ Use the **Secret Key** value that was generated above and set it as the
 npx convex env set AUTH_APPLE_SECRET <yourapplesecret>
 ```
 
+<Callout type="warning">
+The client secret generated above is only valid for 6 months, which is the
+maximum time that Apple allows. After that, you'll need to generate a new secret
+and update your environment variables again.
+</Callout>
+
 ### Provider configuration in auth.ts
 
 Add the provider config to the `providers` array in `convex/auth.ts`. The
