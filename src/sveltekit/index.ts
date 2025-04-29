@@ -54,7 +54,7 @@ export function setupConvexAuth({
   /** API route to use for auth requests */
   apiRoute?: string;
   /** Server-provided authentication state */
-  serverState?: ConvexAuthServerState;
+  serverState: ConvexAuthServerState;
   /** Storage type to use */
   storage?: "localStorage" | "inMemory";
   /** Storage namespace for auth tokens */

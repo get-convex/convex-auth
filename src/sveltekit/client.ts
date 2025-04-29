@@ -32,7 +32,7 @@ export function createSvelteKitAuthClient({
   options,
 }: {
   apiRoute?: string;
-  serverState?: ConvexAuthServerState;
+  serverState: ConvexAuthServerState;
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
   client?: ConvexClient;

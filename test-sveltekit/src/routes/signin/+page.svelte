@@ -10,7 +10,7 @@
 <div class="flex min-h-screen w-full">
 	<main class="mx-auto my-auto flex flex-col">
 		<h2 class="mb-4 text-2xl font-semibold tracking-tight">Sign in or create an account</h2>
-		<button class="btn preset-filled" onclick={() => signIn('github', { redirectTo: '/' })}
+		<button class="btn preset-filled" onclick={() => signIn('github', { redirectTo: '/product' })}
 			>Sign In with GitHub</button
 		>
 		{#if env.PUBLIC_E2E_TEST}

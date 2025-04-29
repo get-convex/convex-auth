@@ -47,9 +47,12 @@ export function createAuthClient({
   storageNamespace: string;
   replaceURL: (relativeUrl: string) => void | Promise<void>;
 }) {
+  
+
   // Initialize state with reactive variables
   const state = $state({
     token: serverState?._state.token ?? null,
+    refreshToken: serverState?._state.refreshToken ?? null,
     isLoading: serverState?._state.token === null,
     isRefreshingToken: false,
   });
@@ -82,6 +85,7 @@ export function createAuthClient({
 
     if (args.tokens === null) {
       state.token = null;
+      state.refreshToken = null;
       if (args.shouldStore) {
         await storageRemove(JWT_STORAGE_KEY);
         await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
@@ -89,9 +93,10 @@ export function createAuthClient({
       newToken = null;
     } else {
       const { token: value } = args.tokens;
-      state.token = value;
       if (args.shouldStore) {
         const { refreshToken } = args.tokens;
+        state.token = value;
+        state.refreshToken = refreshToken;
         await storageSet(JWT_STORAGE_KEY, value);
         await storageSet(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
 
@@ -117,15 +122,16 @@ export function createAuthClient({
   $effect(() => {
     const loadTokens = async () => {
       if (serverState?._state) {
-        // Use server state
-        const { token: accessToken, refreshToken } = serverState._state;
-        if (accessToken !== null && refreshToken !== null) {
-          await setToken({
-            shouldStore: true,
-            tokens: { token: accessToken, refreshToken },
-          });
-          return;
-        }
+        const accessToken = state.token;
+        const refreshToken = state.refreshToken;
+
+        await setToken({
+          shouldStore: true,
+          tokens: accessToken !== null && refreshToken !== null 
+            ? { token: accessToken, refreshToken }
+            : null,
+        });
+        return;
       }
 
       // Try to load from storage
@@ -156,7 +162,7 @@ export function createAuthClient({
     void loadTokens();
   });
 
-  // Check URL for authentication code (separated into its own effect)
+  // Check URL for authentication code
   $effect(() => {
     const checkUrlForCode = async () => {
       if (typeof window === "undefined") {
@@ -423,6 +429,9 @@ export function createAuthClient({
 
     // Always clear tokens locally, even if server call failed
     logVerbose(`signed out, erasing tokens`);
+
+    state.token = null;
+    state.refreshToken = null;
     await setToken({ shouldStore: true, tokens: null });
   };
 
