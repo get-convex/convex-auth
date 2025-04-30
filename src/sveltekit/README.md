@@ -64,10 +64,10 @@ Set up authentication in your root layout:
 {@render children()}
 ```
 
-The `setupConvexAuth` function will:
+The `setupConvexAuth` function will try to create a Convex client in the following order:
 1. Use a client you provide directly (if any)
 2. Look for a client in Svelte context (if available)
-3. Create a new client automatically (if needed and not disabled)
+3. Create a new client automatically 
 
 This makes it work seamlessly with different setup patterns.
 
