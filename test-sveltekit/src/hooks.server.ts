@@ -6,16 +6,18 @@ import { redirect, type Handle } from '@sveltejs/kit';
 const isSignInPage = createRouteMatcher('/signin');
 const isProtectedRoute = createRouteMatcher('/product/*path');
 
-const { handleAuth, isAuthenticated } = createConvexAuthHooks({
+const { handleAuth, isAuthenticated: isAuthenticatedPromise } = createConvexAuthHooks({
 	convexUrl: PUBLIC_CONVEX_URL,
 	verbose: true
 });
 
 const authFirstPattern: Handle = async ({ event, resolve }) => {
-	if (isSignInPage(event.url.pathname) && (await isAuthenticated(event))) {
+	const isAuthenticated = await isAuthenticatedPromise(event);
+	
+	if (isSignInPage(event.url.pathname) && isAuthenticated) {
 		redirect(307, '/product');
 	}
-	if (isProtectedRoute(event.url.pathname) && !(await isAuthenticated(event))) {
+	if (isProtectedRoute(event.url.pathname) && !isAuthenticated) {
 		redirect(307, `/signin?redirectTo=${encodeURIComponent(event.url.pathname + event.url.search)}`);
 	}
 
