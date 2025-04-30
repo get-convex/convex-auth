@@ -12,7 +12,7 @@
 <main class="flex max-h-screen grow flex-col overflow-hidden">
 	<div class="flex items-start justify-between border-b p-4">
 		<ChatIntro />
-		<UserMenu>{viewer.data.name}</UserMenu>
+		<UserMenu data={viewer.data} />
 	</div>
 	<Chat viewer={viewer.data._id} />
 </main>
