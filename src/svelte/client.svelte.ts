@@ -122,19 +122,43 @@ export function createAuthClient({
   $effect(() => {
     const loadTokens = async () => {
       if (serverState?._state) {
-        const accessToken = state.token;
-        const refreshToken = state.refreshToken;
-
-        await setToken({
-          shouldStore: true,
-          tokens: accessToken !== null && refreshToken !== null 
-            ? { token: accessToken, refreshToken }
-            : null,
-        });
+        // Check if the server state is newer than what we have in localStorage
+        const storedTimeFetched = await storageGet(SERVER_STATE_FETCH_TIME_STORAGE_KEY);
+        const serverIsNewer = !storedTimeFetched || serverState._timeFetched > +storedTimeFetched;
+        
+        if (serverIsNewer) {
+          // Server state is newer, use it
+          const { token, refreshToken } = serverState._state;
+          
+          // Save the server fetch time
+          await storageSet(
+            SERVER_STATE_FETCH_TIME_STORAGE_KEY,
+            serverState._timeFetched.toString()
+          );
+          
+          logVerbose(`Using server state tokens (newer than storage), null? ${token === null || refreshToken === null}`);
+          
+          // Apply the tokens
+          await setToken({
+            shouldStore: true,
+            tokens: token === null || refreshToken === null 
+              ? null 
+              : { token, refreshToken }
+          });
+        } else {
+          // localStorage has newer data, load from there
+          logVerbose(`Using localStorage tokens (newer than server state)`);
+          await loadFromStorage();
+        }
         return;
       }
-
-      // Try to load from storage
+      
+      // No server state, try localStorage
+      await loadFromStorage();
+    };
+    
+    // Helper to load from storage
+    const loadFromStorage = async () => {
       try {
         const [storedToken, storedRefreshToken] = await Promise.all([
           storageGet(JWT_STORAGE_KEY),
@@ -142,14 +166,14 @@ export function createAuthClient({
         ]);
 
         if (storedToken && storedRefreshToken) {
-          logVerbose("loaded from storage");
+          logVerbose("Loaded tokens from storage");
           await setToken({
             shouldStore: false,
             tokens: { token: storedToken },
           });
         } else {
           // No tokens in storage
-          logVerbose("no tokens in storage");
+          logVerbose("No tokens in storage");
           state.isLoading = false;
         }
       } catch (e) {
@@ -430,8 +454,6 @@ export function createAuthClient({
     // Always clear tokens locally, even if server call failed
     logVerbose(`signed out, erasing tokens`);
 
-    state.token = null;
-    state.refreshToken = null;
     await setToken({ shouldStore: true, tokens: null });
   };
 
