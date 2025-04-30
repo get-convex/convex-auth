@@ -5,11 +5,7 @@ import type { RequestEvent } from "@sveltejs/kit";
 import type { ConvexAuthServerState } from "../client.js";
 import { ConvexAuthHooksOptions } from "./index";
 import { shouldProxyAuthAction, proxyAuthActionToConvex } from "./proxy.js";
-import {
-  getConvexUrl,
-  logVerbose,
-  setupClient,
-} from "./utils.js";
+import { getConvexUrl, logVerbose, setupClient } from "./utils.js";
 import {
   AUTH_TOKEN_COOKIE,
   AUTH_REFRESH_TOKEN_COOKIE,
@@ -24,11 +20,7 @@ import { handleAuthenticationInRequest } from "./request.js";
  */
 export function createConvexAuthHandlers({
   convexUrl = getConvexUrl(),
-  cookieConfig: cookieConfigOverride,
-  verbose = false,
 }: ConvexAuthHooksOptions = {}) {
-  const cookieConfig = cookieConfigOverride ?? defaultCookieOptions;
-
   /**
    * Get the auth state from cookies
    */
@@ -100,11 +92,7 @@ export function createConvexAuthHooks({
 }: ConvexAuthHooksOptions = {}) {
   const cookieConfig = cookieConfigOverride ?? defaultCookieOptions;
 
-  const handlers = createConvexAuthHandlers({
-    convexUrl,
-    cookieConfig,
-    verbose,
-  });
+  const handlers = createConvexAuthHandlers({ convexUrl });
 
   /**
    * Request handler for the hooks.server.ts handle function
@@ -130,7 +118,12 @@ export function createConvexAuthHooks({
         `Proxying auth action to Convex, path matches ${apiRoute} with or without trailing slash`,
         verbose,
       );
-      const result = await proxyAuthActionToConvex(event, convexUrl, cookieConfig, verbose);
+      const result = await proxyAuthActionToConvex(
+        event,
+        convexUrl,
+        cookieConfig,
+        verbose,
+      );
       return result;
     }
     logVerbose(
@@ -139,7 +132,12 @@ export function createConvexAuthHooks({
     );
 
     // Refresh tokens, handle code query param
-    const authResult = await handleAuthenticationInRequest(event, { convexUrl, apiRoute, cookieConfig, verbose });
+    const authResult = await handleAuthenticationInRequest(event, {
+      convexUrl,
+      apiRoute,
+      cookieConfig,
+      verbose,
+    });
 
     // If redirecting, proceed, the middleware will run again on next request
     if (authResult.kind === "redirect") {
@@ -164,7 +162,7 @@ export function createConvexAuthHooks({
           authResult.refreshTokens.token,
           authResult.refreshTokens.refreshToken,
           cookieConfig,
-          verbose
+          verbose,
         );
       } else {
         setAuthCookies(response, null, null, cookieConfig, verbose);
