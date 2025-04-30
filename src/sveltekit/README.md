@@ -43,9 +43,11 @@ Set up authentication in your root layout:
   
   // Import data from +layout.server.ts 
   let { children, data } = $props();
+
+  let authState = $state(data.authState);
   
   // Set up authentication (automatically initializes Convex client)
-  setupConvexAuth({ serverState: data.authState });
+  setupConvexAuth({ serverState: authState });
   
   // Alternatively, you have these options:
   
