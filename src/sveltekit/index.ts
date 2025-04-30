@@ -91,25 +91,3 @@ export type {
   ConvexAuthActionsContext,
   ConvexAuthServerState 
 };
-
-/**
- * Create server-side handlers for SvelteKit.
- * This provides utilities to work with Convex Auth in SvelteKit.
- * 
- * Usage in hooks.server.ts:
- * ```ts
- * import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
- * import { PUBLIC_CONVEX_URL } from '$env/static/public';
- * 
- * const { getAuthState } = createConvexAuthHandlers({
- *   convexUrl: PUBLIC_CONVEX_URL,
- * });
- * 
- * export async function handle({ event, resolve }) {
- *   // Add auth state to event.locals
- *   event.locals.authState = await getAuthState(event);
- *   return resolve(event);
- * }
- * ```
- */
-export { createConvexAuthHandlers } from "./server/handlers.js";

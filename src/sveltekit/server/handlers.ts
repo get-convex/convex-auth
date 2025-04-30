@@ -17,6 +17,7 @@ import { handleAuthenticationInRequest } from "./request.js";
 
 /**
  * Create server-side handlers for SvelteKit
+ * Use this in your server hooks files (+layout.server.ts, +page.server.ts, server.ts, etc.)
  */
 export function createConvexAuthHandlers({
   convexUrl = getConvexUrl(),
