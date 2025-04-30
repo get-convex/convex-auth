@@ -30,10 +30,6 @@
 	}
 
 	let openState = $state(false);
-
-	function popoverClose() {
-		openState = false;
-	}
 </script>
 
 <div class="flex items-center gap-2 text-sm font-medium">

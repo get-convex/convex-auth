@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { api } from '$lib/convex/_generated/api';
-	import Chat from './Chat/Chat.svelte';
-	import ChatIntro from './Chat/ChatIntro.svelte';
-	import UserMenu from '../../components/UserMenu.svelte';
+	import Chat from '$lib/Chat/Chat.svelte';
+	import ChatIntro from '$lib/Chat/ChatIntro.svelte';
+	import UserMenu from '$lib/UserMenu.svelte';
 	import { useQuery } from 'convex-svelte';
 
 	const viewer = useQuery(api.users.viewer, {});
