@@ -14,7 +14,7 @@
 		<nav class="flex h-full max-h-screen flex-col gap-2">
 			<a 
 				href="/product" 
-				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary-500 {page.url.pathname === '/product' ? 'bg-surface-200-700-token' : ''}"
+				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-primary-700-300 {page.url.pathname === '/product' ? 'bg-surface-200-700-token' : ''}"
 			>
 				<span class="h-4 w-4">💬</span>
 				Chat
@@ -22,7 +22,7 @@
 			
 			<a 
 				href="https://docs.convex.dev" 
-				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary-500"
+				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary-700-300"
 			>
 				<span class="h-4 w-4">📚</span>
 				Docs
@@ -30,7 +30,7 @@
 			
 			<a 
 				href="/" 
-				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary-500"
+				class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary-700-300"
 			>
 				<span class="h-4 w-4">🏠</span>
 				Home
