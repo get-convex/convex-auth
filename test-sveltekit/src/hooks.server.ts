@@ -13,7 +13,7 @@ const { handleAuth, isAuthenticated: isAuthenticatedPromise } = createConvexAuth
 
 const authFirstPattern: Handle = async ({ event, resolve }) => {
 	const isAuthenticated = await isAuthenticatedPromise(event);
-	
+
 	if (isSignInPage(event.url.pathname) && isAuthenticated) {
 		redirect(307, '/product');
 	}

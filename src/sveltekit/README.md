@@ -59,14 +59,9 @@ Set up authentication in your root layout:
   // import { ConvexClient } from "convex/browser";
   // const client = new ConvexClient("https://your-deployment.convex.cloud");
   // setupConvexAuth({ serverState: data.authState, client });
-  
-  // Option 3: Use a pre-initialized Convex client from context
-  // import { setupConvex } from 'convex-svelte';
-  // setupConvex("https://your-deployment.convex.cloud");
-  // setupConvexAuth({ serverState: data.authState });
 </script>
 
-  {@render children()}
+{@render children()}
 ```
 
 The `setupConvexAuth` function will:
@@ -86,11 +81,11 @@ import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
 import type { LayoutServerLoad } from './$types';
 
 // Create auth handlers - convexUrl is automatically detected from environment 
-const { loadAuthState } = createConvexAuthHandlers();
+const { getAuthState } = createConvexAuthHandlers();
 
 // Export load function to provide auth state to layout
 export const load: LayoutServerLoad = async (event) => {
-  return loadAuthState(event);
+  return { authState: await getAuthState(event) };
 };
 ```
 
@@ -124,9 +119,10 @@ Use authentication in your pages:
 <!-- src/routes/+page.svelte -->
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
-  
-  // Get auth state and actions
-  const { isAuthenticated, isLoading, signIn, signOut } = useAuth();
+
+  const isAuthenticated = $derived(useAuth().isAuthenticated);
+  const isLoading = $derived(useAuth().isLoading);
+  const { signIn, signOut } = useAuth();
 </script>
 
 {#if isLoading}
@@ -203,7 +199,7 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 // Create auth hooks
-const { handleAuth, convexAuth } = createConvexAuthHooks();
+const { handleAuth, isAuthenticated: isAuthenticatedPromise } = createConvexAuthHooks();
 
 // Custom handle function for auth-first pattern
 const authFirstPattern: Handle = async ({ event, resolve }) => {
@@ -213,8 +209,7 @@ const authFirstPattern: Handle = async ({ event, resolve }) => {
   }
   
   // For all other routes, check authentication
-  const isAuthenticated = await convexAuth.isAuthenticated(event);
-  
+  const isAuthenticated = await isAuthenticatedPromise(event);
   if (!isAuthenticated) {
     // Store the original URL for redirect after login
     const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
@@ -252,11 +247,14 @@ const isProtectedRoute = createRouteMatcher([
   '/profile/*path',
 ]);
 
+// Create auth hooks
+const { handleAuth, isAuthenticated: isAuthenticatedPromise } = createConvexAuthHooks();
+
 // Custom handle function for public-first pattern
 const publicFirstPattern: Handle = async ({ event, resolve }) => {
   // Check auth only for protected routes
   if (isProtectedRoute(event.url.pathname)) {
-    const isAuthenticated = await convexAuth.isAuthenticated(event);
+    const isAuthenticated = await isAuthenticatedPromise(event);
     
     if (!isAuthenticated) {
       // Store the original URL for redirect after login
@@ -288,7 +286,7 @@ Protect individual pages in their `+page.server.ts`:
 import { redirect } from '@sveltejs/kit';
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
 
-const { isAuthenticated } = createConvexAuthHandlers();
+const { isAuthenticated: isAuthenticatedPromise } = createConvexAuthHandlers();
 
 export async function load(event) {
   if (!(await isAuthenticated(event))) {
@@ -308,7 +306,7 @@ export async function load(event) {
 ```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
-  
+
   const { signIn } = useAuth();
   
   // Available auth providers: 'google', 'github', etc.
@@ -328,7 +326,7 @@ export async function load(event) {
 ```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
-  
+
   const { signOut } = useAuth();
   
   function handleSignOut() {
@@ -343,7 +341,8 @@ export async function load(event) {
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
   
-  const { isAuthenticated, isLoading } = useAuth();
+  const isAuthenticated = $derived(useAuth().isAuthenticated);
+  const isLoading = $derived(useAuth().isLoading);
 </script>
 
 {#if isLoading}
@@ -354,61 +353,6 @@ export async function load(event) {
   <p>Not signed in.</p>
 {/if}
 ```
-
-## Advanced Usage
-
-### Manual Token Handling
-
-```html
-<script>
-  import { useAuth } from '@convex-dev/auth/svelte';
-  
-  const { fetchAccessToken } = useAuth();
-  
-  async function makeAuthenticatedRequest() {
-    const token = await fetchAccessToken({ forceRefreshToken: false });
-    
-    // Use token for custom fetch requests
-    const response = await fetch('/api/protected', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-  }
-</script>
-```
-
-### Alternative: Custom API Endpoint
-
-If you prefer to handle auth requests with a dedicated endpoint (instead of using the hooks approach), create a file at `src/routes/api/auth/+server.ts`:
-
-```typescript
-// src/routes/api/auth/+server.ts
-import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-import type { RequestHandler } from '@sveltejs/kit';
-
-// Create auth handlers
-const { handleAuthAction } = createConvexAuthHandlers();
-
-// Export POST handler for auth requests
-export const POST: RequestHandler = handleAuthAction;
-```
-
-When using this approach, make sure to update your Auth Provider to use the same API route:
-
-```ts
-setupConvexAuth({ serverState: data.authState, apiRoute: "/api/auth" });
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Auth Tokens Not Persisting**: Ensure cookie options are configured correctly, especially `secure` and `sameSite`.
-
-2. **CORS Errors**: If your Convex backend is on a different domain, you may need to configure CORS.
-
-3. **TypeScript Errors with `$env/static/public`**: Make sure you have run your SvelteKit app at least once to generate the proper type definitions.
 
 ### Debug Mode
 
