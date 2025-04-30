@@ -171,7 +171,7 @@ export function AuthProvider({
       args: { code: string; verifier?: string } | { refreshToken: string },
     ) => {
       const initialBackoff = 100;
-      const maxBackoff = 16000;
+      const maxBackoff = 1000;
       let retries = 0;
 
       const nextBackoff = () => {
@@ -191,7 +191,7 @@ export function AuthProvider({
               : args,
           );
         } catch (e) {
-          if (!isNetworkError(e)) {
+          if (!isNetworkError(e) || retries > 10) {
             throw e;
           }
           const backoff = nextBackoff();
