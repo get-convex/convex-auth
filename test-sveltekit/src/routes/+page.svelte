@@ -12,6 +12,6 @@
 		<button onclick={() => signOut()} class="btn preset-tonal">Sign Out</button>
 	{:else}
 		<p>You are not authenticated.</p>
-		<a href="/signin" class="btn preset-filled-primary-500">Sign In</a>
+		<a href="/signin" class="btn preset-filled-primary-500">Get Started</a>
 	{/if}
 </div>

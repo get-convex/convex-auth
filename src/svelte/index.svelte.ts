@@ -263,6 +263,7 @@ export function useAuth(): {
   isLoading: boolean;
   isAuthenticated: boolean;
   token: string | null;
+  fetchAccessToken: () => Promise<string | null>;
   signIn: (provider: string, params?: SignInParams) => Promise<{
     signingIn: boolean;
     redirect?: URL;
@@ -291,6 +292,7 @@ export function useAuth(): {
       get token() {
         return auth.token;
       },
+      fetchAccessToken: () => auth.fetchAccessToken(),
 
       // Auth actions
       signIn: (provider: string, params?: SignInParams) =>
