@@ -165,6 +165,7 @@ export function setupConvexAuth({
       // Handle auth state changes
       // This is a hook for implementations to use
     },
+    options,
   });
 
   client.setAuth(auth.fetchAccessToken)

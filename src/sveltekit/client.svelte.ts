@@ -104,6 +104,7 @@ export function createSvelteKitAuthClient({
       // Start retry attempts after a short delay
       setTimeout(() => attemptSvelteKitNavigation(), 50);
     },
+    options,
   });
 
   $effect(() => {

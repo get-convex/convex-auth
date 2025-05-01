@@ -36,6 +36,7 @@ export function createAuthClient({
   storage,
   storageNamespace,
   replaceURL,
+  options,
 }: {
   client: AuthClient;
   getServerState?: () => ConvexAuthServerState;
@@ -43,6 +44,7 @@ export function createAuthClient({
   storage: TokenStorage | null;
   storageNamespace: string;
   replaceURL: (relativeUrl: string) => void | Promise<void>;
+  options?: ConvexClientOptions;
 }) {
   
 
@@ -56,10 +58,9 @@ export function createAuthClient({
   const isAuthenticated = $derived(state.token !== null);
 
   // Debug logging
-  const verbose: boolean = client.verbose ?? false;
   const logVerbose = (message: string) => {
-    if (verbose) {
-      console.debug(`${new Date().toISOString()} ${message}`);
+    if (options?.verbose) {
+      console.log(`${new Date().toISOString()} ${message}`);
       client.logger?.logVerbose(message);
     }
   };
@@ -84,8 +85,8 @@ export function createAuthClient({
       state.token = null;
       state.refreshToken = null;
       if (args.shouldStore) {
-        await storageRemove(JWT_STORAGE_KEY);
         await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
+        await storageRemove(JWT_STORAGE_KEY);
       }
       newToken = null;
     } else {
