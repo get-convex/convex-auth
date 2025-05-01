@@ -28,6 +28,6 @@ async function signIn(page: Page) {
 
 async function signOut(page: Page) {
     await page.goto("/product");
-    await page.getByRole("button", { name: "user menu" }).click();
-    await page.getByRole("menuitem").getByText("Sign out").click();
+    await page.locator("#user-menu-trigger").click();
+    await page.getByRole("button").getByText("Sign out").click();
 }

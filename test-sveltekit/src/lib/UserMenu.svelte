@@ -41,6 +41,7 @@
 		contentBase="card bg-surface-200-800 p-4 space-y-4 max-w-[320px]"
 		arrow
 		arrowBackground="!bg-surface-200 dark:!bg-surface-800"
+		ids={{trigger: "user-menu-trigger"}}
 	>
 		{#snippet trigger()}
 			<Avatar src={data.image} name={data.name ?? 'User'} size="size-10" />
