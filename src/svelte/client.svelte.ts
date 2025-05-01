@@ -46,8 +46,6 @@ export function createAuthClient({
   replaceURL: (relativeUrl: string) => void | Promise<void>;
   options?: ConvexClientOptions;
 }) {
-  
-
   // Initialize state with reactive variables
   const state = $state({
     token: getServerState?.()._state.token ?? null,
@@ -121,27 +119,34 @@ export function createAuthClient({
     const loadTokens = async () => {
       if (getServerState?.()._state) {
         // Check if the server state is newer than what we have in localStorage
-        const storedTimeFetched = await storageGet(SERVER_STATE_FETCH_TIME_STORAGE_KEY);
-        const serverIsNewer = !storedTimeFetched || getServerState()._timeFetched > +storedTimeFetched;
-        
+        const storedTimeFetched = await storageGet(
+          SERVER_STATE_FETCH_TIME_STORAGE_KEY,
+        );
+        const serverIsNewer =
+          !storedTimeFetched ||
+          getServerState()._timeFetched > +storedTimeFetched;
+
         if (serverIsNewer) {
           // Server state is newer, use it
           const { token, refreshToken } = getServerState()._state;
-          
+
           // Save the server fetch time
           await storageSet(
             SERVER_STATE_FETCH_TIME_STORAGE_KEY,
-            getServerState()._timeFetched.toString()
+            getServerState()._timeFetched.toString(),
           );
-          
-          logVerbose(`Using server state tokens (newer than storage), null? ${token === null || refreshToken === null}`);
-          
+
+          logVerbose(
+            `Using server state tokens (newer than storage), null? ${token === null || refreshToken === null}`,
+          );
+
           // Apply the tokens
           await setToken({
             shouldStore: true,
-            tokens: token === null || refreshToken === null 
-              ? null 
-              : { token, refreshToken }
+            tokens:
+              token === null || refreshToken === null
+                ? null
+                : { token, refreshToken },
           });
         } else {
           // localStorage has newer data, load from there
@@ -150,11 +155,11 @@ export function createAuthClient({
         }
         return;
       }
-      
+
       // No server state, try localStorage
       await loadFromStorage();
     };
-    
+
     // Helper to load from storage
     const loadFromStorage = async () => {
       try {
@@ -343,40 +348,67 @@ export function createAuthClient({
 
     // Return the existing token if we have one and aren't forcing a refresh
     if (state.token !== null && !forceRefreshToken) {
+      logVerbose(`returning existing token, is null: ${state.token === null}`);
       return state.token;
     }
 
-    try {
-      state.isRefreshingToken = true;
+    // From here on, we need to potentially refresh the token.
+    // We use a mutex to ensure only one tab/window attempts the refresh.
 
-      // Get the refresh token from storage
-      const refreshToken = await storageGet(REFRESH_TOKEN_STORAGE_KEY);
-      if (!refreshToken) {
-        return null;
-      }
+    const tokenBeforeLockAquisition = state.token;
 
-      logVerbose("using refresh token to get new access token");
-      const response = await verifyCode({ refreshToken });
-
-      if (response.tokens) {
+    return await browserMutex(REFRESH_TOKEN_STORAGE_KEY, async () => {
+      const tokenAfterLockAquisition = state.token;
+      // Another tab or frame might have refreshed the token while we waited for the lock.
+      if (tokenAfterLockAquisition !== tokenBeforeLockAquisition) {
         logVerbose(
-          `got new access token, is null: ${response.tokens.token === null}`,
+          `returning synced token, is null: ${tokenAfterLockAquisition === null}`,
         );
-        await setToken({ shouldStore: true, tokens: response.tokens });
-        return response.tokens.token;
-      } else {
-        logVerbose("no tokens in refresh token response");
-        return null;
+        return tokenAfterLockAquisition;
       }
-    } catch (e) {
-      console.error("Failed to refresh token:", e);
 
-      // Clear tokens on failure
-      await setToken({ shouldStore: true, tokens: null });
-      return null;
-    } finally {
-      state.isRefreshingToken = false;
-    }
+      // We hold the lock, proceed with refreshing the token.
+      try {
+        state.isRefreshingToken = true;
+
+        // Get the refresh token from storage
+        const refreshToken = await storageGet(REFRESH_TOKEN_STORAGE_KEY);
+        if (!refreshToken) {
+          logVerbose("no refresh token found in storage");
+          // Ensure token state is null if no refresh token exists
+          if (state.token !== null) {
+            await setToken({ shouldStore: true, tokens: null });
+          }
+          return null;
+        }
+
+        logVerbose("using refresh token to get new access token");
+        const response = await verifyCode({ refreshToken });
+
+        if (response.tokens) {
+          logVerbose(
+            `retrieved tokens, is null: ${response.tokens.token === null}`,
+          );
+          await setToken({ shouldStore: true, tokens: response.tokens });
+          return response.tokens.token;
+        } else {
+          logVerbose(
+            "no tokens in refresh token response, clearing stored tokens",
+          );
+          // Clear tokens if refresh failed but didn't throw
+          await setToken({ shouldStore: true, tokens: null });
+          return null;
+        }
+      } catch (e) {
+        console.error("Failed to refresh token:", e);
+
+        // Clear tokens on failure
+        await setToken({ shouldStore: true, tokens: null });
+        return null;
+      } finally {
+        state.isRefreshingToken = false;
+      }
+    });
   };
 
   const signIn = async (
