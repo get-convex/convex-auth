@@ -43,24 +43,22 @@ Set up authentication in your root layout:
   
   // Import data from +layout.server.ts 
   let { children, data } = $props();
-
-  let authState = $state(data.authState);
   
   // Set up authentication (automatically initializes Convex client)
-  setupConvexAuth({ serverState: authState });
+  setupConvexAuth({ serverState: () => data.authState });
   
   // Alternatively, you have these options:
   
   // Option 1: Provide a custom Convex URL
   // setupConvexAuth({
-  //   serverState: data.authState,
+  //   serverState: () => data.authState,
   //   convexUrl: "https://your-convex-deployment.convex.cloud"
   // });
   
   // Option 2: Provide your own ConvexClient instance
   // import { ConvexClient } from "convex/browser";
   // const client = new ConvexClient("https://your-deployment.convex.cloud");
-  // setupConvexAuth({ serverState: data.authState, client });
+  // setupConvexAuth({ serverState: () => data.authState, client });
 </script>
 
 {@render children()}
