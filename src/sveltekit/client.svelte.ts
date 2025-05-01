@@ -10,21 +10,15 @@ import {
 } from "../svelte/client.svelte.js";
 import { AuthClient } from "../svelte/clientType.js";
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
-
-/**
- * Type definition for the server state from SvelteKit
- */
-export type ConvexAuthServerState = {
-  _state: { token: string | null; refreshToken: string | null };
-  _timeFetched: number;
-};
+import { ConvexAuthServerState } from "../svelte/index.svelte";
+import { logVerbose } from "./server/utils.js";
 
 /**
  * Create a Convex Auth client for SvelteKit
  */
 export function createSvelteKitAuthClient({
   apiRoute = "/api/auth",
-  serverState,
+  getServerState: getServerState,
   storage = "localStorage",
   storageNamespace,
   client,
@@ -32,7 +26,7 @@ export function createSvelteKitAuthClient({
   options,
 }: {
   apiRoute?: string;
-  serverState: ConvexAuthServerState;
+  getServerState: () => ConvexAuthServerState;
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
   client?: ConvexClient;
@@ -72,8 +66,9 @@ export function createSvelteKitAuthClient({
   // Create the auth client with SvelteKit-specific config
   const auth = createAuthClient({
     client: authClient,
-    serverState,
+    getServerState,
     onChange: async () => {
+      console.log("\n**onChange invalidateAll**\n");
       // Invalidate SvelteKit data on auth changes
       await invalidateAll();
     },
@@ -111,7 +106,17 @@ export function createSvelteKitAuthClient({
     },
   });
 
-  client.setAuth(auth.fetchAccessToken);
+  $effect(() => {
+    const s = getServerState(); // fresh each invalidation
+    logVerbose(
+      `Update convex client setAuth to ${s._state.token ? "Authenticated" : "Unauthenticated"}`,
+      options?.verbose,
+    );
+
+    if (s._state.token) {
+      client.setAuth(auth.fetchAccessToken);
+    }
+  });
 
   // Set the auth context to ensure it's available immediately
   setConvexAuthContext(auth);

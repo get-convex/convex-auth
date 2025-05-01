@@ -55,6 +55,14 @@ export interface TokenStorage {
 }
 
 /**
+ * Type definition for the server state
+ */
+export type ConvexAuthServerState = {
+  _state: { token: string | null; refreshToken: string | null };
+  _timeFetched: number;
+};
+
+/**
  * Initialize Convex Auth for Svelte.
  *
  * This function sets up authentication for your Svelte application.

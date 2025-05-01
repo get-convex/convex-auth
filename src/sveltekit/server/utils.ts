@@ -2,7 +2,7 @@ import { env } from "$env/dynamic/public";
 import { ConvexHttpClient } from "convex/browser";
 
 // For debug logging
-export function logVerbose(message: string, verbose: boolean) {
+export function logVerbose(message: string, verbose: boolean = false) {
   if (verbose) {
     console.debug(
       `[verbose] ${new Date().toISOString()} [ConvexAuthSvelteKit] ${message}`,

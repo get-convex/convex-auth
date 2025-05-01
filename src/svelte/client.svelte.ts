@@ -7,7 +7,7 @@ import type {
   SignOutAction,
 } from "../server/implementation/index.js";
 import { AuthClient } from "./clientType.js";
-import type { TokenStorage } from "./index.svelte";
+import type { ConvexAuthServerState, TokenStorage } from "./index.svelte";
 import isNetworkError from "is-network-error";
 import { Value } from "convex/values";
 import { setupConvex } from "convex-svelte";
@@ -31,17 +31,14 @@ const AUTH_CONTEXT_KEY = "$$_convexAuth";
  */
 export function createAuthClient({
   client,
-  serverState,
+  getServerState,
   onChange,
   storage,
   storageNamespace,
   replaceURL,
 }: {
   client: AuthClient;
-  serverState?: {
-    _state: { token: string | null; refreshToken: string | null };
-    _timeFetched: number;
-  };
+  getServerState?: () => ConvexAuthServerState;
   onChange?: () => Promise<unknown>;
   storage: TokenStorage | null;
   storageNamespace: string;
@@ -51,9 +48,9 @@ export function createAuthClient({
 
   // Initialize state with reactive variables
   const state = $state({
-    token: serverState?._state.token ?? null,
-    refreshToken: serverState?._state.refreshToken ?? null,
-    isLoading: serverState?._state.token === null,
+    token: getServerState?.()._state.token ?? null,
+    refreshToken: getServerState?.()._state.refreshToken ?? null,
+    isLoading: getServerState?.()._state.token === null,
     isRefreshingToken: false,
   });
   const isAuthenticated = $derived(state.token !== null);
@@ -101,10 +98,10 @@ export function createAuthClient({
         await storageSet(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
 
         // Store server state fetch time
-        if (serverState && !state.isRefreshingToken) {
+        if (getServerState && !state.isRefreshingToken) {
           await storageSet(
             SERVER_STATE_FETCH_TIME_STORAGE_KEY,
-            `${serverState._timeFetched}`,
+            `${getServerState()._timeFetched}`,
           );
         }
       }
@@ -121,19 +118,19 @@ export function createAuthClient({
   // Load tokens from storage on initialization
   $effect(() => {
     const loadTokens = async () => {
-      if (serverState?._state) {
+      if (getServerState?.()._state) {
         // Check if the server state is newer than what we have in localStorage
         const storedTimeFetched = await storageGet(SERVER_STATE_FETCH_TIME_STORAGE_KEY);
-        const serverIsNewer = !storedTimeFetched || serverState._timeFetched > +storedTimeFetched;
+        const serverIsNewer = !storedTimeFetched || getServerState()._timeFetched > +storedTimeFetched;
         
         if (serverIsNewer) {
           // Server state is newer, use it
-          const { token, refreshToken } = serverState._state;
+          const { token, refreshToken } = getServerState()._state;
           
           // Save the server fetch time
           await storageSet(
             SERVER_STATE_FETCH_TIME_STORAGE_KEY,
-            serverState._timeFetched.toString()
+            getServerState()._timeFetched.toString()
           );
           
           logVerbose(`Using server state tokens (newer than storage), null? ${token === null || refreshToken === null}`);
