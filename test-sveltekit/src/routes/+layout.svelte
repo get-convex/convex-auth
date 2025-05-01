@@ -6,7 +6,7 @@
 	let { children, data } = $props();
 
 	setupConvexAuth({
-		serverState: () => data.authState,
+		getServerState: () => data.authState,
 		options: {
 			verbose: true
 		}
