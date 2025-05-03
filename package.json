@@ -30,7 +30,9 @@
     "build:server": "tsc --project tsconfig.server.json",
     "build:react": "tsc --project tsconfig.react.json && mkdir -p dist && rm -rf dist/react && mv distreact/react dist/react && rm -r distreact",
     "build:nextjs": "tsc --project tsconfig.nextjs.json && mkdir -p dist && rm -rf dist/nextjs && mv distnextjs/nextjs dist/nextjs && rm -r distnextjs",
-    "build": "rm -rf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs",
+    "build:svelte": "tsc --project tsconfig.svelte.json && mkdir -p dist && rm -rf dist/svelte && mv distsvelte/svelte dist/svelte && rm -r distsvelte",
+    "build:sveltekit": "tsc --project tsconfig.sveltekit.json && mkdir -p dist && rm -rf dist/sveltekit && mv distsveltekit/sveltekit dist/sveltekit && rm -r distsveltekit",
+    "build": "rm -rf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs && npm run build:svelte && npm run build:sveltekit",
     "docs": "cd docs && npm run dev",
     "lint": "tsc && eslint . && cd test && npm run lint",
     "spellcheck": "cspell \"docs/pages/**/*.md*\"",
@@ -60,6 +62,18 @@
     "./nextjs/server": {
       "import": "./dist/nextjs/server/index.js",
       "require": "./dist/nextjs/server/index.js"
+    },
+    "./svelte": {
+      "import": "./dist/svelte/index.js",
+      "types": "./dist/svelte/index.d.ts"
+    },
+    "./sveltekit": {
+      "import": "./dist/sveltekit/index.js",
+      "require": "./dist/sveltekit/index.js"
+    },
+    "./sveltekit/server": {
+      "import": "./dist/sveltekit/server/index.js",
+      "require": "./dist/sveltekit/server/index.js"
     }
   },
   "dependencies": {
@@ -70,12 +84,13 @@
     "lucia": "^3.2.0",
     "oauth4webapi": "^3.1.2",
     "oslo": "^1.1.2",
-    "path-to-regexp": "^6.3.0",
+    "path-to-regexp": "^8.2.0",
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
     "@auth/core": "^0.37.0",
     "convex": "^1.17.0",
+    "convex-svelte": "^0.0.11",
     "react": "^18.2.0 || ^19.0.0-0"
   },
   "peerDependenciesMeta": {
@@ -101,12 +116,17 @@
     "eslint": "8.49.0",
     "inquirer": "^9.2.22",
     "next": "^15.0.3",
+    "@sveltejs/kit": "^2.16.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.0.0",
     "npm-run-all": "^4.1.5",
     "react-dom": "^18.3.1",
     "shelljs": "^0.8.5",
     "tsup": "^8.0.1",
     "typescript": "^5.5.2",
     "valibot": "^0.35.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "vite": "^6.3.1"
   }
 }

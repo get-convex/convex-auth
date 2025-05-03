@@ -16,7 +16,8 @@
     "paths": {
       "@convex-dev/auth/server": ["./src/server/index"],
       "@convex-dev/auth/providers/*": ["./src/providers/*"],
-      "@convex-dev/auth/react": ["./src/react/index"]
+      "@convex-dev/auth/react": ["./src/react/index"],
+      "@convex-dev/auth/svelte": ["./src/svelte/index"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "*.mjs"],
@@ -26,6 +27,7 @@
     "docs",
     "test",
     "test-router",
-    "test-nextjs"
+    "test-nextjs",
+    "test-svelte"
   ]
 }
