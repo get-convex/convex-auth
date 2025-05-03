@@ -38,7 +38,7 @@ const config: DocsThemeConfig = {
     return <></>;
   },
   footer: {
-    text: "Copyright © 2024 Convex, Inc.",
+    text: `Copyright © ${new Date().getFullYear()} Convex, Inc.`,
   },
   components: {
     details: Details,
