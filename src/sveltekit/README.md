@@ -156,8 +156,8 @@ const { isAuthenticated } = createConvexAuthHandlers();
 export const load: PageServerLoad = async (event) => {
   // Check if user is authenticated
   if (!(await isAuthenticated(event))) {
-    // Redirect to login if not authenticated
-    throw redirect(302, '/login');
+    // Redirect to signin if not authenticated
+    throw redirect(302, '/signin');
   }
   
   // Return data for authenticated users
@@ -175,7 +175,7 @@ export const load: PageServerLoad = async (event) => {
 Most routes require authentication except for a few public ones
 ```ts
 const isPublicRoute = createRouteMatcher([
-  '/login',
+  '/signin',
   '/register',
   '/about',
 ]);
@@ -191,7 +191,7 @@ import {
 } from '@convex-dev/auth/sveltekit/server';
 
 const isPublicRoute = createRouteMatcher([
-  '/login',
+  '/signin',
   '/register',
   '/about',
   // Note: No need to add '/api/auth' here as the handleAuth middleware
@@ -211,9 +211,9 @@ const authFirstPattern: Handle = async ({ event, resolve }) => {
   // For all other routes, check authentication
   const isAuthenticated = await isAuthenticatedPromise(event);
   if (!isAuthenticated) {
-    // Store the original URL for redirect after login
+    // Store the original URL for redirect after signin
     const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(307, `/login?redirectTo=${returnUrl}`);
+    return redirect(307, `/signin?redirectTo=${returnUrl}`);
   }
   
   // User is authenticated, continue to next handler
@@ -257,9 +257,9 @@ const publicFirstPattern: Handle = async ({ event, resolve }) => {
     const isAuthenticated = await isAuthenticatedPromise(event);
     
     if (!isAuthenticated) {
-      // Store the original URL for redirect after login
+      // Store the original URL for redirect after signin
     const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(307, `/login?redirectTo=${returnUrl}`);
+    return redirect(307, `/signin?redirectTo=${returnUrl}`);
     }
   }
   
@@ -290,7 +290,7 @@ const { isAuthenticated: isAuthenticatedPromise } = createConvexAuthHandlers();
 
 export async function load(event) {
   if (!(await isAuthenticated(event))) {
-    throw redirect(302, '/login?redirectTo=' + event.url.pathname);
+    throw redirect(302, '/signin?redirectTo=' + event.url.pathname);
   }
   
   return {
