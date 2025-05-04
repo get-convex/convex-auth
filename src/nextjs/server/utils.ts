@@ -5,9 +5,10 @@ import {
 } from "./cookies.js";
 import { NextjsOptions } from "convex/nextjs";
 
-export function jsonResponse(body: any) {
+export function jsonResponse(body: any, status = 200) {
   return new NextResponse(JSON.stringify(body), {
     headers: { "Content-Type": "application/json" },
+    status,
   });
 }
 
