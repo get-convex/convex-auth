@@ -2,6 +2,30 @@
 
 This package provides authentication functionality for SvelteKit applications using Convex as a backend. It includes both client-side components and server-side utilities for a complete authentication solution.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Setup](#setup)
+  - [1. Environment Variables](#1-environment-variables)
+  - [2. Run the initialization command](#2-run-the-initialization-command)
+  - [3. Initialize Auth (Client-side)](#3-initialize-auth-client-side)
+  - [4. Add Auth State in Layout Server](#4-add-auth-state-in-layout-server)
+  - [5. Configure Auth Hooks (Server-side)](#5-configure-auth-hooks-server-side)
+- [Usage](#usage)
+  - [Pages (`+page.svelte`)](#pages-pagesvelte)
+  - [Page Server (`+page.server.ts`)](#page-server-pageserverts)
+- [Protecting Routes](#protecting-routes)
+  - [Option 1: Using Hooks (App-wide Protection) (Recommended)](#option-1-using-hooks-app-wide-protection-recommended)
+  - [Option 2: Using Page Server Load (Page-level Protection)](#option-2-using-page-server-load-page-level-protection)
+- [Authentication Actions](#authentication-actions)
+  - [Sign In](#sign-in)
+  - [Sign Out](#sign-out)
+  - [Check Auth State](#check-auth-state)
+- [Debug Mode](#debug-mode)
+- [Making Authenticated Requests](#making-authenticated-requests)
+  - [Server-side Requests](#server-side-requests)
+  - [Client-side Requests](#client-side-requests)
+
 ## Installation
 
 ```bash
@@ -363,3 +387,102 @@ CONVEX_AUTH_DEBUG=true
 ```
 
 This will output detailed logs about auth operations to help with troubleshooting.
+
+## Making Authenticated Requests
+
+One of the key benefits of Convex Auth is the ability to make authenticated requests to your Convex backend. This section explains how to perform authenticated requests both on the server and client sides.
+
+### Server-side Requests
+
+The `createConvexHttpClient` function provided by the server handlers allows you to create an authenticated HTTP client for making server-side requests to your Convex backend.
+
+```ts
+// src/routes/some-page/+page.server.ts
+import type { PageServerLoad } from './$types';
+import { api } from '$lib/convex/_generated/api.js';
+import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
+
+export const load = (async (event) => {
+  const { createConvexHttpClient } = createConvexAuthHandlers();
+  
+  // Create an authenticated HTTP client
+  // If the user is authenticated, this client will have the auth token
+  // If not, it will be an unauthenticated client
+  const client = await createConvexHttpClient(event);
+
+  // Make authenticated queries to your Convex backend
+  const viewer = await client.query(api.users.viewer, {});
+  
+  return { viewer };
+}) satisfies PageServerLoad;
+```
+
+The `createConvexHttpClient` function automatically:
+- Creates a Convex HTTP client using the Convex URL (automatically detected from environment variables)
+- Sets the authentication token if the user is signed in
+- Returns an unauthenticated client if the user is not signed in
+
+You can then use this client to make authenticated queries and mutations to your Convex backend.
+
+### Client-side Requests
+
+On the client side, you can use the Convex Svelte integration to make authenticated requests. The authentication is handled automatically when you set up Convex Auth as described in the setup section.
+
+```html
+<!-- src/routes/some-page/+page.svelte -->
+<script lang="ts">
+  import { api } from '$lib/convex/_generated/api';
+  import { useQuery, useConvexClient } from 'convex-svelte';
+
+  // Get data from +page.server.ts (initial loading)
+  let { data } = $props();
+
+  // Make an authenticated query
+  // The initial data comes from the server for faster rendering
+  const viewer = useQuery(api.users.viewer, {}, () => ({
+    initialData: data.viewer
+  }));
+
+  // Get Convex client for mutations
+  const client = useConvexClient();
+  
+  // Example message state
+  let messageText = $state('');
+
+  // Function to handle sending a message using mutation
+  async function handleSend(event) {
+    event.preventDefault();
+    if (messageText.trim() === '') return;
+    
+    try {
+      // Execute the mutation directly using the client
+      await client.mutation(api.messages.send, { body: messageText });
+      messageText = '';
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+  }
+</script>
+
+{#if viewer.data}
+  <div>
+    <h1>Welcome, {viewer.data.name}!</h1>
+    
+    <!-- Message form example -->
+    <form on:submit={handleSend} class="flex gap-2 p-4">
+      <input type="text" bind:value={messageText} placeholder="Write a message..." class="input" />
+      <button type="submit" disabled={messageText === ''} class="btn">
+        Send
+      </button>
+    </form>
+  </div>
+{/if}
+```
+
+This approach:
+- Uses `useQuery` from Convex Svelte to make authenticated queries
+- Leverages server-side data as initial data for a smoother user experience
+- Uses `useConvexClient()` to get the Convex client for making mutations
+- Calls `client.mutation()` directly to execute mutations
+
+By combining server-side and client-side authenticated requests, you can create a seamless authentication experience while optimizing for performance and user experience.
