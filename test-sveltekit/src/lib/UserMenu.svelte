@@ -7,20 +7,20 @@
 	import type { Id } from '$lib/convex/_generated/dataModel.js';
 
 	interface Props {
-		data: {
+		viewer: {
 			_id: Id<'users'>;
 			_creationTime: number;
-			name?: string | undefined | undefined;
-			email?: string | undefined | undefined;
-			phone?: string | undefined | undefined;
-			image?: string | undefined | undefined;
-			emailVerificationTime?: number | undefined | undefined;
-			phoneVerificationTime?: number | undefined | undefined;
-			isAnonymous?: boolean | undefined | undefined;
+			name?: string;
+			email?: string;
+			phone?: string;
+			image?: string;
+			emailVerificationTime?: number;
+			phoneVerificationTime?: number;
+			isAnonymous?: boolean;
 		};
 	}
 
-	let { data }: Props = $props();
+	let { viewer }: Props = $props();
 
 	const { signOut } = useAuth();
 
@@ -44,10 +44,10 @@
 		ids={{trigger: "user-menu-trigger"}}
 	>
 		{#snippet trigger()}
-			<Avatar src={data.image} name={data.name ?? 'User'} size="size-10" />
+			<Avatar src={viewer.image} name={viewer.name ?? 'User'} size="size-10" />
 		{/snippet}
 		{#snippet content()}
-			<div class="px-2 py-1.5 text-sm font-semibold">{data.name}</div>
+			<div class="px-2 py-1.5 text-sm font-semibold">{viewer.name}</div>
 			<hr class="hr" />
 			<button class="btn preset-tonal w-full" onclick={handleSignOut}>Sign out</button>
 		{/snippet}
