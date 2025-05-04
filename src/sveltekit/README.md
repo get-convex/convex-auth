@@ -358,8 +358,7 @@ const isProtectedRoute = createRouteMatcher([
   '/dashboard',
   '/profile',
   '/settings',
-  '/admin',
-  '/admin/*rest'  // Protect all routes under /admin
+  '/admin{/*rest}'  // Protect all routes under /admin
 ]);
 
 // Create auth hooks
