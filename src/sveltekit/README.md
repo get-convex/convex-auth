@@ -12,19 +12,15 @@ This package provides authentication functionality for SvelteKit applications us
   - [4. Add Auth State in Layout Server](#4-add-auth-state-in-layout-server)
   - [5. Configure Auth Hooks (Server-side)](#5-configure-auth-hooks-server-side)
 - [Usage](#usage)
-  - [Pages (`+page.svelte`)](#pages-pagesvelte)
-  - [Page Server (`+page.server.ts`)](#page-server-pageserverts)
-- [Protecting Routes](#protecting-routes)
-  - [Option 1: Using Hooks (App-wide Protection) (Recommended)](#option-1-using-hooks-app-wide-protection-recommended)
-  - [Option 2: Using Page Server Load (Page-level Protection)](#option-2-using-page-server-load-page-level-protection)
-- [Authentication Actions](#authentication-actions)
-  - [Sign In](#sign-in)
-  - [Sign Out](#sign-out)
-  - [Check Auth State](#check-auth-state)
-- [Debug Mode](#debug-mode)
-- [Making Authenticated Requests](#making-authenticated-requests)
-  - [Server-side Requests](#server-side-requests)
-  - [Client-side Requests](#client-side-requests)
+  - [Authentication UI](#authentication-ui)
+    - [User Login/Logout Components](#user-loginlogout-components)
+    - [Checking Auth State](#checking-auth-state)
+  - [Data Operations](#data-operations)
+    - [Making Authenticated Requests (Client-side)](#making-authenticated-requests-client-side)
+    - [Making Authenticated Requests (Server-side)](#making-authenticated-requests-server-side)
+- [Route Protection](#route-protection)
+  - [Option 1: App-wide Protection (Using Hooks) *Recommended*](#option-1-app-wide-protection-using-hooks)
+  - [Option 2: Page-level Protection (Using Page Server Load)](#option-2-page-level-protection-using-page-server-load)
 
 ## Installation
 
@@ -132,12 +128,13 @@ export const handle = sequence(
 );
 ```
 
-
 ## Usage
 
-### Pages (`+page.svelte`)
+### Authentication UI
 
-Use authentication in your pages:
+#### User Login/Logout Components
+
+The following example shows how to create a simple login/logout component:
 
 ```html
 <!-- src/routes/+page.svelte -->
@@ -153,190 +150,23 @@ Use authentication in your pages:
   <p>Loading authentication state...</p>
 {:else if isAuthenticated}
   <h1>Welcome, authenticated user!</h1>
-  <button on:click={() => signOut()}>Sign Out</button>
+  <button onclick={() => signOut()}>Sign Out</button>
 {:else}
   <h1>Please sign in</h1>
-  <button on:click={() => signIn('google')}>
+  <button onclick={() => signIn('google')}>
     Sign in with Google
   </button>
 </div>
 {/if}
 ```
 
-### Page Server (`+page.server.ts`)
-
-Use auth state in page server load functions:
-
-```ts
-// src/routes/profile/+page.server.ts
-import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-import { redirect } from '@sveltejs/kit';
-import type { PageServerLoad } from './$types';
-
-// Create auth handlers
-const { isAuthenticated } = createConvexAuthHandlers();
-
-// Protect routes at the page level
-export const load: PageServerLoad = async (event) => {
-  // Check if user is authenticated
-  if (!(await isAuthenticated(event))) {
-    // Redirect to signin if not authenticated
-    throw redirect(302, '/signin');
-  }
-  
-  // Return data for authenticated users
-  return {
-    user: { /* user data */ }
-  };
-};
-```
-
-## Protecting Routes
-
-### Option 1: Using Hooks (App-wide Protection) (Recommended)
-
-#### Example 1: Auth-first approach (whitelist pattern)
-Most routes require authentication except for a few public ones
-```ts
-const isPublicRoute = createRouteMatcher([
-  '/signin',
-  '/register',
-  '/about',
-]);
-```
-
-```ts
-// src/hooks.server.ts
-import { sequence } from '@sveltejs/kit/hooks';
-import { redirect, type Handle } from '@sveltejs/kit';
-import { 
-  createConvexAuthHooks, 
-  createRouteMatcher 
-} from '@convex-dev/auth/sveltekit/server';
-
-const isPublicRoute = createRouteMatcher([
-  '/signin',
-  '/register',
-  '/about',
-  // Note: No need to add '/api/auth' here as the handleAuth middleware
-  // will process those requests before this middleware runs
-]);
-
-// Create auth hooks
-const { handleAuth, isAuthenticated: isAuthenticatedPromise } = createConvexAuthHooks();
-
-// Custom handle function for auth-first pattern
-const authFirstPattern: Handle = async ({ event, resolve }) => {
-  // Skip auth check for public routes
-  if (isPublicRoute(event.url.pathname)) {
-    return;
-  }
-  
-  // For all other routes, check authentication
-  const isAuthenticated = await isAuthenticatedPromise(event);
-  if (!isAuthenticated) {
-    // Store the original URL for redirect after signin
-    const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(307, `/signin?redirectTo=${returnUrl}`);
-  }
-  
-  // User is authenticated, continue to next handler
-  return resolve(event);
-}
-```
-
-#### Example 2: Public-first approach (blacklist pattern)
- Most routes are public, only protect specific areas
-```ts
-const isProtectedRoute = createRouteMatcher([
-  '/admin/*path',
-  '/dashboard/*path',
-  '/profile/*path',
-]);
-```
-
-
-```ts
-// src/hooks.server.ts
-import { sequence } from '@sveltejs/kit/hooks';
-import { redirect, type Handle } from '@sveltejs/kit';
-import { 
-  createConvexAuthHooks, 
-  createRouteMatcher 
-} from '@convex-dev/auth/sveltekit/server';
-
-const isProtectedRoute = createRouteMatcher([
-  '/admin/*path',
-  '/dashboard/*path',
-  '/profile/*path',
-]);
-
-// Create auth hooks
-const { handleAuth, isAuthenticated: isAuthenticatedPromise } = createConvexAuthHooks();
-
-// Custom handle function for public-first pattern
-const publicFirstPattern: Handle = async ({ event, resolve }) => {
-  // Check auth only for protected routes
-  if (isProtectedRoute(event.url.pathname)) {
-    const isAuthenticated = await isAuthenticatedPromise(event);
-    
-    if (!isAuthenticated) {
-      // Store the original URL for redirect after signin
-    const returnUrl = encodeURIComponent(event.url.pathname + event.url.search);
-    return redirect(307, `/signin?redirectTo=${returnUrl}`);
-    }
-  }
-  
-  // All other routes are public, or user is authenticated
-  return resolve(event);
-}
-
-// Choose which pattern to use based on your app's needs
-// and apply hooks in sequence
-export const handle = sequence(
-  handleAuth,  // Handle auth API requests
-  // authFirstPattern, // Uncomment to use auth-first pattern
-  publicFirstPattern, // Comment out if using auth-first pattern
-  // Your other custom handlers...
-);
-```
-
-### Option 2: Using Page Server Load (Page-level Protection)
-
-Protect individual pages in their `+page.server.ts`:
-
-```ts
-// src/routes/protected/+page.server.ts
-import { redirect } from '@sveltejs/kit';
-import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-
-const { isAuthenticated: isAuthenticatedPromise } = createConvexAuthHandlers();
-
-export async function load(event) {
-  if (!(await isAuthenticated(event))) {
-    throw redirect(302, '/signin?redirectTo=' + event.url.pathname);
-  }
-  
-  return {
-    // Page data here
-  };
-}
-```
-
-## Authentication Actions
-
-### Sign In
+For email/password authentication:
 
 ```html
 <script>
   import { useAuth } from '@convex-dev/auth/svelte';
 
   const { signIn } = useAuth();
-  
-  // Available auth providers: 'google', 'github', etc.
-  function handleSignIn() {
-    signIn('google');
-  }
   
   // With params (e.g., for email+password)
   function handleEmailSignIn(email, password) {
@@ -345,21 +175,9 @@ export async function load(event) {
 </script>
 ```
 
-### Sign Out
+#### Checking Auth State
 
-```html
-<script>
-  import { useAuth } from '@convex-dev/auth/svelte';
-
-  const { signOut } = useAuth();
-  
-  function handleSignOut() {
-    signOut();
-  }
-</script>
-```
-
-### Check Auth State
+You can check the authentication state to conditionally render components:
 
 ```html
 <script>
@@ -378,43 +196,9 @@ export async function load(event) {
 {/if}
 ```
 
-## Making Authenticated Requests
+### Data Operations
 
-One of the key benefits of Convex Auth is the ability to make authenticated requests to your Convex backend. This section explains how to perform authenticated requests both on the server and client sides.
-
-### Server-side Requests
-
-The `createConvexHttpClient` function provided by the server handlers allows you to create an authenticated HTTP client for making server-side requests to your Convex backend.
-
-```ts
-// src/routes/some-page/+page.server.ts
-import type { PageServerLoad } from './$types';
-import { api } from '$lib/convex/_generated/api.js';
-import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
-
-export const load = (async (event) => {
-  const { createConvexHttpClient } = createConvexAuthHandlers();
-  
-  // Create an authenticated HTTP client
-  // If the user is authenticated, this client will have the auth token
-  // If not, it will be an unauthenticated client
-  const client = await createConvexHttpClient(event);
-
-  // Make authenticated queries to your Convex backend
-  const viewer = await client.query(api.users.viewer, {});
-  
-  return { viewer };
-}) satisfies PageServerLoad;
-```
-
-The `createConvexHttpClient` function automatically:
-- Creates a Convex HTTP client using the Convex URL (automatically detected from environment variables)
-- Sets the authentication token if the user is signed in
-- Returns an unauthenticated client if the user is not signed in
-
-You can then use this client to make authenticated queries and mutations to your Convex backend.
-
-### Client-side Requests
+#### Making Authenticated Requests (Client-side)
 
 On the client side, you can use the Convex Svelte integration to make authenticated requests. The authentication is handled automatically when you set up Convex Auth as described in the setup section.
 
@@ -459,7 +243,7 @@ On the client side, you can use the Convex Svelte integration to make authentica
     <h1>Welcome, {viewer.data.name}!</h1>
     
     <!-- Message form example -->
-    <form on:submit={handleSend} class="flex gap-2 p-4">
+    <form onsubmit={handleSend} class="flex gap-2 p-4">
       <input type="text" bind:value={messageText} placeholder="Write a message..." class="input" />
       <button type="submit" disabled={messageText === ''} class="btn">
         Send
@@ -475,4 +259,157 @@ This approach:
 - Uses `useConvexClient()` to get the Convex client for making mutations
 - Calls `client.mutation()` directly to execute mutations
 
-By combining server-side and client-side authenticated requests, you can create a seamless authentication experience while optimizing for performance and user experience.
+#### Making Authenticated Requests (Server-side)
+
+The `createConvexHttpClient` function provided by the server handlers allows you to create an authenticated HTTP client for making server-side requests to your Convex backend.
+
+```ts
+// src/routes/some-page/+page.server.ts
+import type { PageServerLoad } from './$types';
+import { api } from '$lib/convex/_generated/api.js';
+import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
+
+export const load = (async (event) => {
+  const { createConvexHttpClient } = createConvexAuthHandlers();
+  
+  // Create an authenticated HTTP client
+  // If the user is authenticated, this client will have the auth token
+  // If not, it will be an unauthenticated client
+  const client = await createConvexHttpClient(event);
+
+  // Make authenticated queries to your Convex backend
+  const viewer = await client.query(api.users.viewer, {});
+  
+  return { viewer };
+}) satisfies PageServerLoad;
+```
+
+The `createConvexHttpClient` function automatically:
+- Creates a Convex HTTP client using the Convex URL (automatically detected from environment variables)
+- Sets the authentication token if the user is signed in
+- Returns an unauthenticated client if the user is not signed in
+
+You can then use this client to make authenticated queries and mutations to your Convex backend.
+
+## Route Protection
+
+### Option 1: App-wide Protection (Using Hooks) >*Recommended*<
+
+#### Example 1: Auth-first approach (whitelist pattern)
+Most routes require authentication except for a few public ones
+
+```ts
+// src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import { redirect, type Handle } from '@sveltejs/kit';
+import { 
+  createConvexAuthHooks, 
+  createRouteMatcher 
+} from '@convex-dev/auth/sveltekit/server';
+
+const isPublicRoute = createRouteMatcher([
+  '/signin',
+  '/register',
+  '/about',
+  // Note: No need to add '/api/auth' here as the handleAuth middleware
+  // will process those requests before this middleware runs
+]);
+
+// Create auth hooks
+const { handleAuth, isAuthenticated } = createConvexAuthHooks();
+
+// Create custom auth handler
+const requireAuth: Handle = async ({ event, resolve }) => {
+  // Allow public routes
+  if (isPublicRoute(event.url.pathname)) {
+    return resolve(event);
+  }
+
+  // Check if user is authenticated
+  if (!(await isAuthenticated(event))) {
+    // Redirect to signin if not authenticated
+    throw redirect(302, '/signin');
+  }
+
+  // User is authenticated, proceed
+  return resolve(event);
+};
+
+// Apply hooks in sequence
+export const handle = sequence(
+  handleAuth,  // This MUST come first to handle auth requests
+  requireAuth  // Then enforce authentication
+);
+```
+
+#### Example 2: Public-first approach (blacklist pattern)
+Most routes are public except for a few protected ones
+
+```ts
+// src/hooks.server.ts
+import { sequence } from '@sveltejs/kit/hooks';
+import { redirect, type Handle } from '@sveltejs/kit';
+import { 
+  createConvexAuthHooks, 
+  createRouteMatcher 
+} from '@convex-dev/auth/sveltekit/server';
+
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard',
+  '/profile',
+  '/settings',
+  '/admin',
+  '/admin/*rest'  // Protect all routes under /admin
+]);
+
+// Create auth hooks
+const { handleAuth, isAuthenticated } = createConvexAuthHooks();
+
+// Create custom auth handler
+const protectRoutes: Handle = async ({ event, resolve }) => {
+  // Only check auth for protected routes
+  if (isProtectedRoute(event.url.pathname)) {
+    // Check if user is authenticated
+    if (!(await isAuthenticated(event))) {
+      // Redirect to signin if not authenticated
+      throw redirect(302, '/signin');
+    }
+  }
+
+  // Allow access to all other routes
+  return resolve(event);
+};
+
+// Apply hooks in sequence
+export const handle = sequence(
+  handleAuth,
+  protectRoutes
+);
+```
+
+### Option 2: Page-level Protection (Using Page Server Load)
+
+Use auth state in page server load functions:
+
+```ts
+// src/routes/profile/+page.server.ts
+import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
+import { redirect } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
+
+// Create auth handlers
+const { isAuthenticated } = createConvexAuthHandlers();
+
+// Protect routes at the page level
+export const load: PageServerLoad = async (event) => {
+  // Check if user is authenticated
+  if (!(await isAuthenticated(event))) {
+    // Redirect to signin if not authenticated
+    throw redirect(302, '/signin');
+  }
+  
+  // Return data for authenticated users
+  return {
+    user: { /* user data */ }
+  };
+};
