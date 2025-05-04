@@ -14,6 +14,7 @@ import {
 import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
 import { handleAuthenticationInRequest } from "./request.js";
 import { ConvexAuthServerState } from "../../svelte/index.svelte.js";
+import { ConvexHttpClient, ConvexClientOptions } from "convex/browser";
 
 /**
  * Create server-side handlers for SvelteKit
@@ -69,9 +70,31 @@ export function createConvexAuthHandlers({
     }
   }
 
+  /**
+   * Create a Convex HTTP client.
+   *
+   * Returns an authenticated HTTP client if the user is signed in,
+   * otherwise returns an unauthenticated HTTP client.
+   */
+  async function createConvexHttpClient(
+    event: RequestEvent,
+    options?: {
+      skipConvexDeploymentUrlCheck?: boolean;
+      logger?: ConvexClientOptions["logger"];
+    },
+  ) {
+    const token = event.cookies.get(AUTH_TOKEN_COOKIE);
+    const client = new ConvexHttpClient(convexUrl, options);
+    if (token) {
+      client.setAuth(token);
+    }
+    return client;
+  }
+
   return {
     getAuthState,
     isAuthenticated,
+    createConvexHttpClient,
   };
 }
 
