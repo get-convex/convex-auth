@@ -378,16 +378,6 @@ export async function load(event) {
 {/if}
 ```
 
-### Debug Mode
-
-Enable debug logging by setting an environment variable:
-
-```
-CONVEX_AUTH_DEBUG=true
-```
-
-This will output detailed logs about auth operations to help with troubleshooting.
-
 ## Making Authenticated Requests
 
 One of the key benefits of Convex Auth is the ability to make authenticated requests to your Convex backend. This section explains how to perform authenticated requests both on the server and client sides.
