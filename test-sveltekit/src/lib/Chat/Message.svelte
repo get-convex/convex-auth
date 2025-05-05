@@ -18,7 +18,7 @@
 
 <li class="flex flex-col text-sm {authorId === viewerId ? 'items-end self-end' : 'items-start self-start'}">
 	<div class="mb-1 text-sm font-medium">{authorName}</div>
-	<p class="rounded-xl bg-surface-200-700-token px-3 py-2 {authorId === viewerId ? 'rounded-tr-none' : 'rounded-tl-none'}">
+	<p class="rounded-xl bg-surface-200-800 px-3 py-2 {authorId === viewerId ? 'rounded-tr-none' : 'rounded-tl-none'}">
 		{@render children()}
 	</p>
 </li>

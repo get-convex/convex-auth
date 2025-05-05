@@ -40,7 +40,6 @@
 		triggerBase="btn"
 		contentBase="card bg-surface-200-800 p-4 space-y-4 max-w-[320px]"
 		arrow
-		arrowBackground="!bg-surface-200 dark:!bg-surface-800"
 		ids={{trigger: "user-menu-trigger"}}
 	>
 		{#snippet trigger()}
@@ -48,8 +47,8 @@
 		{/snippet}
 		{#snippet content()}
 			<div class="px-2 py-1.5 text-sm font-semibold">{viewer.name}</div>
-			<hr class="hr" />
-			<button class="btn preset-tonal w-full" onclick={handleSignOut}>Sign out</button>
+			<hr class="hr border-surface-300-700" />
+			<button class="btn hover:preset-tonal w-full" onclick={handleSignOut}>Sign out</button>
 		{/snippet}
 	</Popover>
 </div>

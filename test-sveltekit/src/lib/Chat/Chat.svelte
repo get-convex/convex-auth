@@ -47,10 +47,10 @@
 	{/if}
 </MessageList>
 
-<div class="border-t">
+<div class="border-t border-surface-200-800">
 	<form onsubmit={handleSubmit} class="flex gap-2 p-4">
 		<input type="text" bind:value={newMessageText} placeholder="Write a message…" class="input" />
-		<button type="submit" disabled={newMessageText === ''} class="btn preset-filled-pri">
+		<button type="submit" disabled={newMessageText === ''} class="btn preset-filled-primary-500">
 			Send
 		</button>
 	</form>
