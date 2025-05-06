@@ -29,6 +29,10 @@ export function ConvexAuthNextjsClientProvider({
         body: JSON.stringify(params),
         method: "POST",
       });
+      // Match error handling of Convex Actions
+      if (response.status >= 400) {
+        throw new Error((await response.json()).error);
+      }
       return await response.json();
     },
     [apiRoute],
