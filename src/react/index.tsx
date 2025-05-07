@@ -210,6 +210,12 @@ export type ConvexAuthActionsContext = {
            */
           code?: string;
         }),
+    /**
+     * Whether to automatically redirect the user to the redirect URL.
+     *
+     * Defaults to `true`.
+     */
+    shouldRedirect?: boolean,
   ): Promise<{
     /**
      * Whether the call led to an immediate successful sign-in.
