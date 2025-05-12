@@ -8,7 +8,7 @@ import {
   setAuthCookies,
   setVerifierCookie,
   defaultCookieOptions
-} from "./cookies";
+} from "./cookies.js";
 import { 
   getConvexUrl,
   isCorsRequest, 

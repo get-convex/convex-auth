@@ -1,6 +1,6 @@
 import { jwtDecode } from "jwt-decode";
 import { SignInAction } from "../../server/implementation/index.js";
-import type { ConvexAuthHooksOptions } from "./index";
+import type { ConvexAuthHooksOptions } from "./index.js";
 import { isCorsRequest, logVerbose, setupClient } from "./utils.js";
 import { RequestEvent } from "@sveltejs/kit";
 import { 

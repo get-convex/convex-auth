@@ -7,7 +7,7 @@ import type {
   SignOutAction,
 } from "../server/implementation/index.js";
 import { AuthClient } from "./clientType.js";
-import type { ConvexAuthServerState, TokenStorage } from "./index.svelte";
+import type { ConvexAuthServerState, TokenStorage } from "./index.svelte.js";
 import isNetworkError from "is-network-error";
 import { Value } from "convex/values";
 import { setupConvex } from "convex-svelte";

@@ -2,7 +2,7 @@
  * Server-side handlers for Convex Auth in SvelteKit
  */
 import type { RequestEvent } from "@sveltejs/kit";
-import { ConvexAuthHooksOptions } from "./index";
+import { ConvexAuthHooksOptions } from "./index.js";
 import { shouldProxyAuthAction, proxyAuthActionToConvex } from "./proxy.js";
 import { getConvexUrl, logVerbose, setupClient } from "./utils.js";
 import {
@@ -10,7 +10,7 @@ import {
   AUTH_REFRESH_TOKEN_COOKIE,
   setAuthCookies,
   defaultCookieOptions,
-} from "./cookies";
+} from "./cookies.js";
 import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
 import { handleAuthenticationInRequest } from "./request.js";
 import { ConvexAuthServerState } from "../../svelte/index.svelte.js";

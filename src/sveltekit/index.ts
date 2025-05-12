@@ -9,10 +9,10 @@ import {
   type TokenStorage, 
   type ConvexAuthActionsContext,
   type ConvexAuthServerState 
-} from "../svelte/index.svelte";
+} from "../svelte/index.svelte.js";
 
 import { ConvexClient, ConvexClientOptions } from "convex/browser";
-import { createSvelteKitAuthClient } from "./client.svelte";
+import { createSvelteKitAuthClient } from "./client.svelte.js";
 
 /**
  * Initialize Convex Auth for SvelteKit.

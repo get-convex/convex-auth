@@ -1,5 +1,5 @@
-import { env } from "$env/dynamic/public";
 import { ConvexHttpClient } from "convex/browser";
+import { env } from "$env/dynamic/public";
 
 // For debug logging
 export function logVerbose(message: string, verbose: boolean = false) {
@@ -10,7 +10,7 @@ export function logVerbose(message: string, verbose: boolean = false) {
   }
 }
 
-// TODO: Move this to convex-auth
+// TODO: Ideally this should be moved to convex-auth similar to the react version
 /**
  * Options to {@link preloadQuery}, {@link fetchQuery}, {@link fetchMutation} and {@link fetchAction}.
  */
