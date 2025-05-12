@@ -139,7 +139,7 @@ The following example shows how to create a simple login/logout component:
 ```html
 <!-- src/routes/+page.svelte -->
 <script>
-  import { useAuth } from '@convex-dev/auth/svelte';
+  import { useAuth } from '@convex-dev/auth/sveltekit';
 
   const isAuthenticated = $derived(useAuth().isAuthenticated);
   const isLoading = $derived(useAuth().isLoading);
@@ -164,7 +164,7 @@ For email/password authentication:
 
 ```html
 <script>
-  import { useAuth } from '@convex-dev/auth/svelte';
+  import { useAuth } from '@convex-dev/auth/sveltekit';
 
   const { signIn } = useAuth();
   
@@ -181,7 +181,7 @@ You can check the authentication state to conditionally render components:
 
 ```html
 <script>
-  import { useAuth } from '@convex-dev/auth/svelte';
+  import { useAuth } from '@convex-dev/auth/sveltekit';
   
   const isAuthenticated = $derived(useAuth().isAuthenticated);
   const isLoading = $derived(useAuth().isLoading);
@@ -205,7 +205,7 @@ On the client side, you can use the Convex Svelte integration to make authentica
 ```html
 <!-- src/routes/some-page/+page.svelte -->
 <script lang="ts">
-  import { api } from '$lib/convex/_generated/api';
+  import { api } from '$convex/_generated/api';
   import { useQuery, useConvexClient } from 'convex-svelte';
 
   // Get data from +page.server.ts (initial loading)
@@ -266,7 +266,7 @@ The `createConvexHttpClient` function provided by the server handlers allows you
 ```ts
 // src/routes/some-page/+page.server.ts
 import type { PageServerLoad } from './$types';
-import { api } from '$lib/convex/_generated/api.js';
+import { api } from '$convex/_generated/api.js';
 import { createConvexAuthHandlers } from '@convex-dev/auth/sveltekit/server';
 
 export const load = (async (event) => {
