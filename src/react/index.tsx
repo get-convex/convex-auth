@@ -222,6 +222,12 @@ export type ConvexAuthActionsContext = {
            */
           code?: string;
         }),
+    /** 
+     * Whether to automatically perform the redirect in OAuth flows.
+     * If false, the redirect URL will be returned to the client to handle.
+     * Defaults to true.
+     */
+    redirect?: boolean,
   ): Promise<{
     /**
      * Whether the call led to an immediate successful sign-in.
