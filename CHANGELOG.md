@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.85
+
+- Fix RN enviornment checks for Expo 53+
+
 ## 0.0.84
 
 - Accept `shouldHandleCode` in ConvexAuthProvider
