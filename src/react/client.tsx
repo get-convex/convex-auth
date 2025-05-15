@@ -243,7 +243,7 @@ export function AuthProvider({
         const url = new URL(result.redirect);
         await storageSet(VERIFIER_STORAGE_KEY, result.verifier!);
         // Do not redirect in React Native
-        if (window.location !== undefined) {
+        if (window.location?.href !== undefined) {
           window.location.href = url.toString();
         }
         return { signingIn: false, redirect: url };
@@ -359,7 +359,7 @@ export function AuthProvider({
         return;
       }
       const code =
-        typeof window?.location !== "undefined"
+        typeof window?.location?.search !== "undefined"
           ? new URLSearchParams(window.location.search).get("code")
           : null;
       // code from URL is only consumed initially,
