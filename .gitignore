@@ -3,6 +3,8 @@
 /dist
 /distreact
 /distnextjs
+/distsvelte
+/distsveltekit
 /publish-example
 
 # dependencies

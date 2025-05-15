@@ -1,6 +1,6 @@
 /**
- * Adapted from Clerk's createRouteMatcher (MIT, 2022 Clerk, Inc.)
- * Additional modifications 2025 Convex.
+ * Adapted from Clerk’s createRouteMatcher (MIT, ©2022 Clerk, Inc.)
+ * Additional modifications ©2025 Convex.
  * 
  * The original licence follows:
  * -----------------------------------------------------------
@@ -30,8 +30,6 @@
  */
 
 import { match } from "path-to-regexp";
-import type Link from "next/link";
-import type { NextRequest } from "next/server";
 
 /**
  * Type for route matching paths using path-to-regexp v8.2 syntax.
@@ -44,11 +42,10 @@ import type { NextRequest } from "next/server";
 export type PathPattern = string;
 
 /**
- * Base type for Next.js routes - extracts types from the Link component
+ * Function type for route matching.
+ * Takes a pathname string and returns a boolean indicating if it matches.
  */
-export type NextTypedRoute<T = Parameters<typeof Link>["0"]["href"]> = T extends string
-  ? T
-  : never;
+export type RouteMatcherFn = (pathname: string) => boolean;
 
 /**
  * Parameters that can be passed to createRouteMatcher.
@@ -58,13 +55,13 @@ export type RouteMatcherParam =
   | PathPattern
   | PathPattern[]
   | RegExp
-  | ((req: NextRequest) => boolean);
+  | ((pathname: string) => boolean);
 
 /**
- * Returns a function that accepts a `NextRequest` object and returns whether the request matches the list of
+ * Returns a function that accepts a pathname string and returns whether the request matches the list of
  * predefined routes that can be passed in as the first argument.
  *
- * You can use glob patterns to match multiple routes or a function to match against the request object.
+ * You can use glob patterns to match multiple routes or a function to match against the pathname.
  * Path patterns and limited regular expressions are supported.
  * For more information, see: https://www.npmjs.com/package/path-to-regexp/v/8.2.0
  *
@@ -77,7 +74,7 @@ export type RouteMatcherParam =
  * const isOrgDashboard = createRouteMatcher('/:org/dashboard');
  *
  * // Match with Wildcard
- * const isApi = createRouteMatcher('/api/*');
+ * const isApi = createRouteMatcher('/api/*path');
  *
  * // Match with Optional
  * const isUsersDelete = createRouteMatcher('/users{/:id}/delete');
@@ -86,25 +83,25 @@ export type RouteMatcherParam =
  * const matcher = createRouteMatcher(['/dashboard', '/account', '/api/*']);
  * ```
  */
-export const createRouteMatcher = (routes: RouteMatcherParam) => {
+export function createRouteMatcher(routes: RouteMatcherParam): RouteMatcherFn {
   // If routes is a function, use it directly
   if (typeof routes === "function") {
-    return (req: NextRequest) => routes(req);
+    return (pathname: string) => routes(pathname);
   }
 
   // If routes is a RegExp, use it directly
   if (routes instanceof RegExp) {
-    return (req: NextRequest) => routes.test(req.nextUrl.pathname);
+    return (pathname: string) => routes.test(pathname);
   }
 
   // Convert routes to an array if it's not already
   const routePatterns = Array.isArray(routes) ? routes : [routes];
-  
+
   // Filter out empty patterns
   const filteredPatterns = routePatterns.filter(Boolean) as Array<
     string | RegExp
   >;
-  
+
   // Create matcher functions for each pattern
   const matchers = filteredPatterns.map((pattern) => {
     if (pattern instanceof RegExp) {
@@ -123,6 +120,5 @@ export const createRouteMatcher = (routes: RouteMatcherParam) => {
   });
 
   // Return a function that returns true if any of the matchers return true
-  return (req: NextRequest) => 
-    matchers.some((matcher) => matcher(req.nextUrl.pathname));
-};
+  return (pathname: string) => matchers.some((matcher) => matcher(pathname));
+}
