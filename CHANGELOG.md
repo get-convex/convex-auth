@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.86
+
+- Fix RN enviornment checks for Expo 53+ for real
+
 ## 0.0.85
 
 - Fix RN enviornment checks for Expo 53+
