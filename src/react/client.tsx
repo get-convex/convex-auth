@@ -243,7 +243,10 @@ export function AuthProvider({
         const url = new URL(result.redirect);
         await storageSet(VERIFIER_STORAGE_KEY, result.verifier!);
         // Do not redirect in React Native
-        if (window.location?.href !== undefined) {
+        // Using a deprecated property because it's the only explicit check
+        // available, and they set it explicitly and intentionally for this
+        // purpose.
+        if (navigator.product !== "ReactNative") {
           window.location.href = url.toString();
         }
         return { signingIn: false, redirect: url };
