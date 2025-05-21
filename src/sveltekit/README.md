@@ -328,7 +328,7 @@ const requireAuth: Handle = async ({ event, resolve }) => {
   // Check if user is authenticated
   if (!(await isAuthenticated(event))) {
     // Redirect to signin if not authenticated
-    throw redirect(302, '/signin');
+    throw redirect(302, `/signin?redirectTo=${encodeURIComponent(event.url.pathname + event.url.search)}`);
   }
 
   // User is authenticated, proceed
@@ -371,7 +371,7 @@ const protectRoutes: Handle = async ({ event, resolve }) => {
     // Check if user is authenticated
     if (!(await isAuthenticated(event))) {
       // Redirect to signin if not authenticated
-      throw redirect(302, '/signin');
+      throw redirect(302, `/signin?redirectTo=${encodeURIComponent(event.url.pathname + event.url.search)}`);
     }
   }
 
@@ -404,7 +404,7 @@ export const load: PageServerLoad = async (event) => {
   // Check if user is authenticated
   if (!(await isAuthenticated(event))) {
     // Redirect to signin if not authenticated
-    throw redirect(302, '/signin');
+    throw redirect(302, `/signin?redirectTo=${encodeURIComponent(event.url.pathname + event.url.search)}`);
   }
   
   // Return data for authenticated users
