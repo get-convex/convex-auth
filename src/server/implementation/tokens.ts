@@ -1,6 +1,6 @@
 import { GenericId } from "convex/values";
 import { ConvexAuthConfig } from "../index.js";
-import { SignJWT, importPKCS8 } from "jose";
+import { SignJWT, importPKCS8, type JWK } from "jose";
 import { requireEnv } from "../utils.js";
 import { TOKEN_SUB_CLAIM_DIVIDER } from "./utils.js";
 
@@ -17,13 +17,29 @@ export async function generateToken(
   const expirationTime = new Date(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
+  const latestJwk = getLatestJwk();
   return await new SignJWT({
     sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
   })
-    .setProtectedHeader({ alg: "RS256" })
+    .setProtectedHeader({ alg: "RS256", kid: latestJwk.kid, typ: "JWT" })
     .setIssuedAt()
     .setIssuer(requireEnv("CONVEX_SITE_URL"))
     .setAudience("convex")
     .setExpirationTime(expirationTime)
     .sign(privateKey);
+}
+
+function getLatestJwk() {
+  try {
+    const jwksString = requireEnv("JWKS");
+    const jwks = JSON.parse(jwksString);
+    // assume the latest JWK is the first one
+    const latestJwk = jwks["keys"][0];
+    if (!latestJwk) {
+      throw new Error("No JWK found");
+    }
+    return latestJwk as JWK;
+  } catch (error) {
+    throw new Error("Error getting latest JWK", { cause: error });
+  }
 }
