@@ -54,6 +54,12 @@ export async function ConvexAuthNextjsServerProvider(props: {
    */
   storageNamespace?: string;
   /**
+   * Callback to determine whether Convex Auth should handle the code parameter for a given request.
+   * If not provided, Convex Auth will handle all code parameters.
+   * If provided, Convex Auth will only handle code parameters when the callback returns true.
+   */
+  shouldHandleCode?: () => boolean;
+  /**
    * Turn on debugging logs.
    */
   verbose?: boolean;
@@ -63,7 +69,14 @@ export async function ConvexAuthNextjsServerProvider(props: {
    */
   children: ReactNode;
 }) {
-  const { apiRoute, storage, storageNamespace, verbose, children } = props;
+  const {
+    apiRoute,
+    storage,
+    storageNamespace,
+    shouldHandleCode,
+    verbose,
+    children,
+  } = props;
   const serverState = await convexAuthNextjsServerState();
   return (
     <ConvexAuthNextjsClientProvider
@@ -71,6 +84,7 @@ export async function ConvexAuthNextjsServerProvider(props: {
       apiRoute={apiRoute}
       storage={storage}
       storageNamespace={storageNamespace}
+      shouldHandleCode={shouldHandleCode}
       verbose={verbose}
     >
       {children}
