@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.87
+
+- Add missing `shouldHandleCode` prop to Next.js server provider
+
 ## 0.0.86
 
 - Fix RN enviornment checks for Expo 53+ for real
