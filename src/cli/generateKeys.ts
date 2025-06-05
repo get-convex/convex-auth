@@ -5,7 +5,8 @@ export async function generateKeys() {
     const keys = await generateKeyPair("RS256");
     const privateKey = await exportPKCS8(keys.privateKey);
     const publicKey = await exportJWK(keys.publicKey);
-    const jwks = JSON.stringify({ keys: [{ use: "sig", ...publicKey }] });
+    const kid = crypto.randomUUID();
+    const jwks = JSON.stringify({ keys: [{ use: "sig", kid, ...publicKey }] });
     return {
       JWT_PRIVATE_KEY: `${privateKey.trimEnd().replace(/\n/g, " ")}`,
       JWKS: jwks,
