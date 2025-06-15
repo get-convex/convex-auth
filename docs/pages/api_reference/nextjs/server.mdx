@@ -97,6 +97,25 @@ Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
 <tr>
 <td>
 
+`props.shouldHandleCode`?
+
+</td>
+<td>
+
+() => `boolean`
+
+</td>
+<td>
+
+Callback to determine whether Convex Auth should handle the code parameter for a given request.
+If not provided, Convex Auth will handle all code parameters.
+If provided, Convex Auth will only handle code parameters when the callback returns true.
+
+</td>
+</tr>
+<tr>
+<td>
+
 `props.verbose`?
 
 </td>
@@ -155,7 +174,7 @@ The token if the client is authenticated, otherwise `undefined`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:86](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L86)
+[src/nextjs/server/index.tsx:100](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L100)
 
 ***
 
@@ -207,7 +226,7 @@ since they won't stop nested pages from rendering.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:97](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L97)
+[src/nextjs/server/index.tsx:111](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L111)
 
 ***
 
@@ -246,7 +265,7 @@ export function convexAuthNextjsMiddleware(handler, options) {
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:121](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L121)
+[src/nextjs/server/index.tsx:135](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L135)
 
 ***
 
@@ -293,9 +312,41 @@ for more information.
 
 Turn on debugging logs.
 
+#### shouldHandleCode()?
+
+
+Callback to determine whether Convex Auth should handle the code parameter for a given request.
+If not provided, Convex Auth will handle all code parameters.
+If provided, Convex Auth will only handle code parameters when the callback returns true.
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+</tr>
+<tr>
+<td>
+
+`request`
+
+</td>
+<td>
+
+`NextRequest`
+
+</td>
+</tr>
+</tbody></table>
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`boolean`
+
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:129](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L129)
+[src/nextjs/server/index.tsx:143](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L143)
 
 ***
 
@@ -358,7 +409,7 @@ A Next.js middleware.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:164](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L164)
+[src/nextjs/server/index.tsx:184](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L184)
 
 ***
 
@@ -422,7 +473,7 @@ The route path to redirect to.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:281](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L281)
+[src/nextjs/server/index.tsx:301](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L301)
 
 ***
 
