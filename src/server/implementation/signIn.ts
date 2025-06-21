@@ -19,10 +19,10 @@ import {
   callVerifier,
   callVerifyCodeAndSignIn,
 } from "./mutations/index.js";
-import { alphabet, generateRandomString } from "oslo/crypto";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { requireEnv } from "../utils.js";
 import { OAuth2Config, OIDCConfig } from "@auth/core/providers/oauth.js";
+import { generateRandomString } from "./utils.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 
@@ -121,9 +121,11 @@ async function handleEmailAndPhoneProvider(
     };
   }
 
+  const alphabet =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   const code = provider.generateVerificationToken
     ? await provider.generateVerificationToken()
-    : generateRandomString(32, alphabet("0-9", "A-Z", "a-z"));
+    : generateRandomString(32, alphabet);
   const expirationTime =
     Date.now() +
     (provider.maxAge ?? DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S) * 1000;
