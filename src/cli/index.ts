@@ -22,6 +22,7 @@ new Command()
     "Configure additional variables for interactive configuration.",
   )
   .option("--skip-git-check", "Don't warn when running outside a Git checkout.")
+  .option("--non-interactive", "Automatically answer 'yes' to all prompts and use defaults for input.")
   .addDeploymentSelectionOptions(
     actionDescription("Set environment variables on"),
   )
@@ -52,6 +53,7 @@ new Command()
       convexFolderPath,
       deployment,
       step: 1,
+      nonInteractive: options.nonInteractive,
     };
 
     // Step 1: Configure SITE_URL
@@ -743,8 +745,11 @@ async function promptForConfirmationOrExit(
 
 async function promptForConfirmation(
   message: string,
-  options: { default?: boolean } = {},
+  options: { default?: boolean, nonInteractive?: boolean } = {},
 ) {
+  if (options.nonInteractive) {
+    return true;
+  }
   if (process.stdout.isTTY) {
     const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
       {
@@ -762,8 +767,11 @@ async function promptForConfirmation(
 
 async function promptForInput(
   message: string,
-  options: { default?: string; validate?: (input: string) => true | string },
+  options: { default?: string; validate?: (input: string) => true | string, nonInteractive?: boolean },
 ) {
+  if (options.nonInteractive) {
+    return options.default;
+  }
   if (process.stdout.isTTY) {
     const { input } = await inquirer.prompt<{ input: string }>([
       {
