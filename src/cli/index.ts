@@ -22,7 +22,11 @@ new Command()
     "Configure additional variables for interactive configuration.",
   )
   .option("--skip-git-check", "Don't warn when running outside a Git checkout.")
-  .option("--non-interactive", "Automatically answer 'yes' to all prompts and use defaults for input.")
+  .option("--allow-dirty-git-state", "Don't warn when Git state is not clean.")
+  .option(
+    "--web-server-url <url>",
+    "URL of web server, e.g. 'http://localhost:5173' if local",
+  )
   .addDeploymentSelectionOptions(
     actionDescription("Set environment variables on"),
   )
@@ -53,13 +57,12 @@ new Command()
       convexFolderPath,
       deployment,
       step: 1,
-      nonInteractive: options.nonInteractive,
     };
 
     // Step 1: Configure SITE_URL
     // We check for existing config.
     // We default to localhost and port depending on framework
-    await configureSiteUrl(config);
+    await configureSiteUrl(config, options.webServerUrl);
 
     // Step 2: Configure private and public key
     // We ask if we would overwrite existing keys
@@ -117,7 +120,7 @@ type ProjectConfig = {
   step: number;
 };
 
-async function configureSiteUrl(config: ProjectConfig) {
+async function configureSiteUrl(config: ProjectConfig, forcedValue?: string) {
   logStep(config, "Configure SITE_URL");
   if (config.isExpo) {
     logInfo("React Native projects don't require a SITE_URL.");
@@ -149,6 +152,7 @@ async function configureSiteUrl(config: ProjectConfig) {
         return "The URL must start with http:// or https://";
       }
     },
+    forcedValue,
   });
 }
 
@@ -159,8 +163,16 @@ async function configureEnvVar(
     default?: string;
     description: string;
     validate?: (input: string) => true | string;
+    forcedValue?: string;
   },
 ) {
+  if (
+    variable.forcedValue &&
+    (variable.validate ? variable.validate(variable.forcedValue) : true)
+  ) {
+    await setEnvVar(config, variable.name, variable.forcedValue);
+    return;
+  }
   const existing = await backendEnvVar(config, variable.name);
   if (existing !== "") {
     if (
@@ -569,7 +581,13 @@ function logStep(config: ProjectConfig, message: string) {
   logInfo(chalk.bold(`Step ${config.step++}: ${message}`));
 }
 
-async function checkSourceControl(options: { skipGitCheck?: boolean }) {
+async function checkSourceControl(options: {
+  skipGitCheck?: boolean;
+  allowDirtyGitState?: boolean;
+}) {
+  if (options.allowDirtyGitState) {
+    return;
+  }
   const isGit = existsSync(".git");
   if (isGit) {
     const gitStatus = execSync("git status --porcelain").toString();
@@ -745,11 +763,8 @@ async function promptForConfirmationOrExit(
 
 async function promptForConfirmation(
   message: string,
-  options: { default?: boolean, nonInteractive?: boolean } = {},
+  options: { default?: boolean } = {},
 ) {
-  if (options.nonInteractive) {
-    return true;
-  }
   if (process.stdout.isTTY) {
     const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
       {
@@ -767,11 +782,8 @@ async function promptForConfirmation(
 
 async function promptForInput(
   message: string,
-  options: { default?: string; validate?: (input: string) => true | string, nonInteractive?: boolean },
+  options: { default?: string; validate?: (input: string) => true | string },
 ) {
-  if (options.nonInteractive) {
-    return options.default;
-  }
   if (process.stdout.isTTY) {
     const { input } = await inquirer.prompt<{ input: string }>([
       {
