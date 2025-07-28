@@ -77,7 +77,8 @@ export async function proxyAuthActionToConvex(
       console.error(`Hit error while running \`auth:signIn\`:`);
       console.error(error);
       logVerbose(`Clearing auth cookies`, verbose);
-      const response = jsonResponse(null);
+      // Send raw error message to client, just like Convex Action would
+      const response = jsonResponse({ error: (error as Error).message }, 400);
       await setAuthCookies(response, null, cookieConfig);
       return response;
     }

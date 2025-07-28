@@ -53,8 +53,13 @@ function SignInWithSecret() {
           .then(() => {
             router.push("/product");
           })
-          .catch(() => {
-            window.alert("Invalid secret");
+          .catch((e) => {
+            // Ensure error message comes back from the backend
+            if (e.message.includes("Uncaught Error: Invalid secret")) {
+              window.alert("Invalid secret");
+            } else {
+              window.alert(e.message);
+            }
           });
       }}
     >
