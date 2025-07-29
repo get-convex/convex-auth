@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.0.87
+
+- Add missing `shouldHandleCode` prop to Next.js server provider
+
+## 0.0.86
+
+- Fix RN enviornment checks for Expo 53+ for real
+
+## 0.0.85
+
+- Fix RN enviornment checks for Expo 53+
+
+## 0.0.84
+
+- Accept `shouldHandleCode` in ConvexAuthProvider
+
+## 0.0.83
+
+- Fix auth error messages not propagating from backend to client for Next.js
+
+## 0.0.82
+
+- Add `shouldHandleCode` prop to React/Next.js clients and Next.js middleware to
+  allow for custom code handling.
+
+## 0.0.81
+
+- Retry token fetch on network errors
+- Update the CLI script to work in non-interactive terminals
+
 ## 0.0.80
 
 - Fix a race when quickly refreshing a page or using redirects that refresh the

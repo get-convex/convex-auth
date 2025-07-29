@@ -1,3 +1,4 @@
+import { ConvexReactClient } from "convex/react";
 import { FunctionReference, OptionalRestArgs } from "convex/server";
 
 export type AuthClient = {
@@ -12,4 +13,5 @@ export type AuthClient = {
     ...args: OptionalRestArgs<Action>
   ): Promise<Action["_returnType"]>;
   verbose: boolean | undefined;
+  logger?: ConvexReactClient["logger"];
 };

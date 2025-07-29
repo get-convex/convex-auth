@@ -97,6 +97,25 @@ Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
 <tr>
 <td>
 
+`props.shouldHandleCode`?
+
+</td>
+<td>
+
+() => `boolean`
+
+</td>
+<td>
+
+Callback to determine whether Convex Auth should handle the code parameter for a given request.
+If not provided, Convex Auth will handle all code parameters.
+If provided, Convex Auth will only handle code parameters when the callback returns true.
+
+</td>
+</tr>
+<tr>
+<td>
+
 `props.verbose`?
 
 </td>
@@ -137,7 +156,7 @@ and [useAuthActions](/api_reference/react#useauthactions).
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:29](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L29)
+[src/nextjs/server/index.tsx:30](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L30)
 
 ***
 
@@ -155,7 +174,7 @@ The token if the client is authenticated, otherwise `undefined`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:85](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L85)
+[src/nextjs/server/index.tsx:100](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L100)
 
 ***
 
@@ -168,13 +187,46 @@ in Server Actions, Route Handlers and Middleware.
 Avoid the pitfall of checking authentication state in layouts,
 since they won't stop nested pages from rendering.
 
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+</tr>
+<tr>
+<td>
+
+`options`
+
+</td>
+<td>
+
+`object`
+
+</td>
+</tr>
+<tr>
+<td>
+
+`options.convexUrl`?
+
+</td>
+<td>
+
+`string`
+
+</td>
+</tr>
+</tbody></table>
+
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Returns</h3>
 
 `Promise`\<`boolean`\>
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:96](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L96)
+[src/nextjs/server/index.tsx:111](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L111)
 
 ***
 
@@ -213,7 +265,88 @@ export function convexAuthNextjsMiddleware(handler, options) {
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:116](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L116)
+[src/nextjs/server/index.tsx:135](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L135)
+
+***
+
+## ConvexAuthNextjsMiddlewareOptions
+
+
+Options for the `convexAuthNextjsMiddleware` function.
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### convexUrl?
+
+> `optional` **convexUrl**: `string`
+
+The URL of the Convex deployment to use for authentication.
+
+Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
+
+#### apiRoute?
+
+> `optional` **apiRoute**: `string`
+
+You can customize the route path that handles authentication
+actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`.
+
+Defaults to `/api/auth`.
+
+#### cookieConfig?
+
+
+The cookie config to use for the auth cookies.
+
+`maxAge` is the number of seconds the cookie will be valid for. If this is not set, the cookie will be a session cookie.
+
+See [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#defining_the_lifetime_of_a_cookie)
+for more information.
+
+#### cookieConfig.maxAge
+
+
+#### verbose?
+
+> `optional` **verbose**: `boolean`
+
+Turn on debugging logs.
+
+#### shouldHandleCode()?
+
+
+Callback to determine whether Convex Auth should handle the code parameter for a given request.
+If not provided, Convex Auth will handle all code parameters.
+If provided, Convex Auth will only handle code parameters when the callback returns true.
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+</tr>
+<tr>
+<td>
+
+`request`
+
+</td>
+<td>
+
+`NextRequest`
+
+</td>
+</tr>
+</tbody></table>
+
+<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
+
+`boolean`
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/nextjs/server/index.tsx:143](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L143)
 
 ***
 
@@ -257,107 +390,12 @@ which routes should be accessible based on the client's authentication.
 </td>
 <td>
 
-`object`
+[`ConvexAuthNextjsMiddlewareOptions`](server.mdx#convexauthnextjsmiddlewareoptions)
 
 </td>
 <td>
 
 &hyphen;
-
-</td>
-</tr>
-<tr>
-<td>
-
-`options.convexUrl`?
-
-</td>
-<td>
-
-`string`
-
-</td>
-<td>
-
-The URL of the Convex deployment to use for authentication.
-
-Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
-
-</td>
-</tr>
-<tr>
-<td>
-
-`options.apiRoute`?
-
-</td>
-<td>
-
-`string`
-
-</td>
-<td>
-
-You can customize the route path that handles authentication
-actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`.
-
-Defaults to `/api/auth`.
-
-</td>
-</tr>
-<tr>
-<td>
-
-`options.cookieConfig`?
-
-</td>
-<td>
-
-`object`
-
-</td>
-<td>
-
-The cookie config to use for the auth cookies.
-
-`maxAge` is the number of seconds the cookie will be valid for. If this is not set, the cookie will be a session cookie.
-
-See [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#defining_the_lifetime_of_a_cookie)
-for more information.
-
-</td>
-</tr>
-<tr>
-<td>
-
-`options.cookieConfig.maxAge`?
-
-</td>
-<td>
-
-`null` \| `number`
-
-</td>
-<td>
-
-&hyphen;
-
-</td>
-</tr>
-<tr>
-<td>
-
-`options.verbose`?
-
-</td>
-<td>
-
-`boolean`
-
-</td>
-<td>
-
-Turn on debugging logs.
 
 </td>
 </tr>
@@ -371,7 +409,7 @@ A Next.js middleware.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:127](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L127)
+[src/nextjs/server/index.tsx:184](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L184)
 
 ***
 
@@ -435,7 +473,7 @@ The route path to redirect to.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:275](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L275)
+[src/nextjs/server/index.tsx:301](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L301)
 
 ***
 
@@ -457,8 +495,8 @@ Returns a function that accepts a `Request` object and returns whether the reque
 predefined routes that can be passed in as the first argument.
 
 You can use glob patterns to match multiple routes or a function to match against the request object.
-Path patterns and regular expressions are supported, for example: `['/foo', '/bar(.*)'] or `[/^/foo/.*$/]`
-For more information, see: https://github.com/pillarjs/path-to-regexp
+Path patterns and limited regular expressions are supported.
+For more information, see: https://www.npmjs.com/package/path-to-regexp/v/6.3.0
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Parameters</h3>
 

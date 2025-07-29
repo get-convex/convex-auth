@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getResponseCookies } from "./cookies.js";
 import {
+  getConvexNextjsOptions,
   getRedactedMessage,
   isCorsRequest,
   jsonResponse,
@@ -69,14 +70,15 @@ export async function proxyAuthActionToConvex(
         : { token };
     try {
       result = await fetchAction(action, args, {
-        url: options?.convexUrl,
+        ...getConvexNextjsOptions(options),
         ...fetchActionAuthOptions,
       });
     } catch (error) {
       console.error(`Hit error while running \`auth:signIn\`:`);
       console.error(error);
       logVerbose(`Clearing auth cookies`, verbose);
-      const response = jsonResponse(null);
+      // Send raw error message to client, just like Convex Action would
+      const response = jsonResponse({ error: (error as Error).message }, 400);
       await setAuthCookies(response, null, cookieConfig);
       return response;
     }
@@ -110,7 +112,7 @@ export async function proxyAuthActionToConvex(
   } else {
     try {
       await fetchAction(action, args, {
-        url: options?.convexUrl,
+        ...getConvexNextjsOptions(options),
         token,
       });
     } catch (error) {

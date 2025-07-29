@@ -279,7 +279,8 @@ Then replace `ConvexProvider` from `convex/react` with `ConvexAuthProvider` from
 
 Provide a `storage` implementation using `expo-secure-store` as shown:
 
-```tsx filename="app/_layout.tsx" {1,2,4,10-14,18,22}
+```tsx filename="app/_layout.tsx" {1-3,5,11-15,19,23}
+import { Platform } from 'react-native'
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { Stack } from "expo-router";

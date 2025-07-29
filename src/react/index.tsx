@@ -87,12 +87,23 @@ export function ConvexAuthProvider(props: {
     relativeUrl: string,
   ) => void | Promise<void>;
   /**
+   * If this function returns false, the auth provider will not attempt to handle the
+   * code param from the URL.
+   */
+  shouldHandleCode?: () => boolean;
+  /**
    * Children components can call Convex hooks
-   * and {@link useAuthActions}.
    */
   children: ReactNode;
 }) {
-  const { client, storage, storageNamespace, replaceURL, children } = props;
+  const {
+    client,
+    storage,
+    storageNamespace,
+    replaceURL,
+    shouldHandleCode,
+    children,
+  } = props;
   const authClient = useMemo(
     () =>
       ({
@@ -100,12 +111,12 @@ export function ConvexAuthProvider(props: {
           return client.action(action, args);
         },
         unauthenticatedCall(action, args) {
-          return new ConvexHttpClient((client as any).address).action(
-            action,
-            args,
-          );
+          return new ConvexHttpClient((client as any).address, {
+            logger: client.logger,
+          }).action(action, args);
         },
         verbose: (client as any).options?.verbose,
+        logger: client.logger,
       }) satisfies AuthClient,
     [client],
   );
@@ -126,6 +137,7 @@ export function ConvexAuthProvider(props: {
           window.history.replaceState({}, "", url);
         })
       }
+      shouldHandleCode={shouldHandleCode}
     >
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}

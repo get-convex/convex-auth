@@ -10,6 +10,7 @@ export function ConvexAuthNextjsClientProvider({
   serverState,
   storage,
   storageNamespace,
+  shouldHandleCode,
   verbose,
   children,
 }: {
@@ -18,6 +19,7 @@ export function ConvexAuthNextjsClientProvider({
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
   verbose?: boolean;
+  shouldHandleCode?: () => boolean;
   children: ReactNode;
 }) {
   const call: AuthClient["authenticatedCall"] = useCallback(
@@ -27,6 +29,10 @@ export function ConvexAuthNextjsClientProvider({
         body: JSON.stringify(params),
         method: "POST",
       });
+      // Match error handling of Convex Actions
+      if (response.status >= 400) {
+        throw new Error((await response.json()).error);
+      }
       return await response.json();
     },
     [apiRoute],
@@ -64,6 +70,7 @@ export function ConvexAuthNextjsClientProvider({
           window.history.replaceState({}, "", url);
         }
       }
+      shouldHandleCode={shouldHandleCode}
     >
       {children}
     </AuthProvider>

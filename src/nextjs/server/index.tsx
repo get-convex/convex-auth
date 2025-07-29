@@ -20,6 +20,7 @@ import {
   logVerbose,
   setAuthCookies,
   setAuthCookiesInMiddleware,
+  getConvexNextjsOptions,
 } from "./utils.js";
 import { IsAuthenticatedQuery } from "../../server/implementation/index.js";
 
@@ -53,6 +54,12 @@ export async function ConvexAuthNextjsServerProvider(props: {
    */
   storageNamespace?: string;
   /**
+   * Callback to determine whether Convex Auth should handle the code parameter for a given request.
+   * If not provided, Convex Auth will handle all code parameters.
+   * If provided, Convex Auth will only handle code parameters when the callback returns true.
+   */
+  shouldHandleCode?: () => boolean;
+  /**
    * Turn on debugging logs.
    */
   verbose?: boolean;
@@ -62,7 +69,14 @@ export async function ConvexAuthNextjsServerProvider(props: {
    */
   children: ReactNode;
 }) {
-  const { apiRoute, storage, storageNamespace, verbose, children } = props;
+  const {
+    apiRoute,
+    storage,
+    storageNamespace,
+    shouldHandleCode,
+    verbose,
+    children,
+  } = props;
   const serverState = await convexAuthNextjsServerState();
   return (
     <ConvexAuthNextjsClientProvider
@@ -70,6 +84,7 @@ export async function ConvexAuthNextjsServerProvider(props: {
       apiRoute={apiRoute}
       storage={storage}
       storageNamespace={storageNamespace}
+      shouldHandleCode={shouldHandleCode}
       verbose={verbose}
     >
       {children}
@@ -93,9 +108,13 @@ export async function convexAuthNextjsToken() {
  * Avoid the pitfall of checking authentication state in layouts,
  * since they won't stop nested pages from rendering.
  */
-export async function isAuthenticatedNextjs() {
+export async function isAuthenticatedNextjs(
+  options: {
+    convexUrl?: string;
+  } = {},
+) {
   const cookies = await getRequestCookies();
-  return isAuthenticated(cookies.token);
+  return isAuthenticated(cookies.token, options);
 }
 
 /**
@@ -119,6 +138,44 @@ export type ConvexAuthNextjsMiddlewareContext = {
 };
 
 /**
+ * Options for the `convexAuthNextjsMiddleware` function.
+ */
+export type ConvexAuthNextjsMiddlewareOptions = {
+  /**
+   * The URL of the Convex deployment to use for authentication.
+   *
+   * Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
+   */
+  convexUrl?: string;
+  /**
+   * You can customize the route path that handles authentication
+   * actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`.
+   *
+   * Defaults to `/api/auth`.
+   */
+  apiRoute?: string;
+  /**
+   * The cookie config to use for the auth cookies.
+   *
+   * `maxAge` is the number of seconds the cookie will be valid for. If this is not set, the cookie will be a session cookie.
+   *
+   * See [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#defining_the_lifetime_of_a_cookie)
+   * for more information.
+   */
+  cookieConfig?: { maxAge: number | null };
+  /**
+   * Turn on debugging logs.
+   */
+  verbose?: boolean;
+  /**
+   * Callback to determine whether Convex Auth should handle the code parameter for a given request.
+   * If not provided, Convex Auth will handle all code parameters.
+   * If provided, Convex Auth will only handle code parameters when the callback returns true.
+   */
+  shouldHandleCode?: (request: NextRequest) => boolean;
+};
+
+/**
  * Use in your `middleware.ts` to enable your Next.js app to use
  * Convex Auth for authentication on the server.
  *
@@ -136,34 +193,7 @@ export function convexAuthNextjsMiddleware(
       convexAuth: ConvexAuthNextjsMiddlewareContext;
     },
   ) => NextMiddlewareResult | Promise<NextMiddlewareResult>,
-  options: {
-    /**
-     * The URL of the Convex deployment to use for authentication.
-     *
-     * Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
-     */
-    convexUrl?: string;
-    /**
-     * You can customize the route path that handles authentication
-     * actions via this option and the `apiRoute` prop of `ConvexAuthNextjsProvider`.
-     *
-     * Defaults to `/api/auth`.
-     */
-    apiRoute?: string;
-    /**
-     * The cookie config to use for the auth cookies.
-     *
-     * `maxAge` is the number of seconds the cookie will be valid for. If this is not set, the cookie will be a session cookie.
-     *
-     * See [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#defining_the_lifetime_of_a_cookie)
-     * for more information.
-     */
-    cookieConfig?: { maxAge: number | null };
-    /**
-     * Turn on debugging logs.
-     */
-    verbose?: boolean;
-  } = {},
+  options: ConvexAuthNextjsMiddlewareOptions = {},
 ): NextMiddleware {
   return async (request, event) => {
     const verbose = options.verbose ?? false;
@@ -189,11 +219,7 @@ export function convexAuthNextjsMiddleware(
       verbose,
     );
     // Refresh tokens, handle code query param
-    const authResult = await handleAuthenticationInRequest(
-      request,
-      verbose,
-      cookieConfig,
-    );
+    const authResult = await handleAuthenticationInRequest(request, options);
 
     // If redirecting, proceed, the middleware will run again on next request
     if (authResult.kind === "redirect") {
@@ -233,7 +259,7 @@ export function convexAuthNextjsMiddleware(
             },
             isAuthenticated: async () => {
               const cookies = await getRequestCookiesInMiddleware(request);
-              return isAuthenticated(cookies.token);
+              return isAuthenticated(cookies.token, options);
             },
           },
         })) ??
@@ -298,7 +324,10 @@ async function convexAuthNextjsServerState(): Promise<ConvexAuthServerState> {
   };
 }
 
-async function isAuthenticated(token: string | null): Promise<boolean> {
+async function isAuthenticated(
+  token: string | null,
+  options: { convexUrl?: string },
+): Promise<boolean> {
   if (!token) {
     return false;
   }
@@ -306,7 +335,10 @@ async function isAuthenticated(token: string | null): Promise<boolean> {
     return await fetchQuery(
       "auth:isAuthenticated" as any as IsAuthenticatedQuery,
       {},
-      { token: token },
+      {
+        ...getConvexNextjsOptions(options),
+        token: token,
+      },
     );
   } catch (e: any) {
     if (e.message.includes("Could not find public function")) {
