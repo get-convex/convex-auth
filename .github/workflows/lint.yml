@@ -22,9 +22,9 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          cd test; npm i
-          cd ../test-nextjs; npm i
-          cd ../test-router; npm i
+          cd test; npm ci
+          cd ../test-nextjs; npm ci
+          cd ../test-router; npm ci
 
       - name: Run linting
         run: npm run lint
