@@ -61,7 +61,8 @@ const keys = await generateKeyPair("RS256", {
 });
 const privateKey = await exportPKCS8(keys.privateKey);
 const publicKey = await exportJWK(keys.publicKey);
-const jwks = JSON.stringify({ keys: [{ use: "sig", ...publicKey }] });
+const kid = crypto.randomUUID();
+const jwks = JSON.stringify({ keys: [{ use: "sig", kid, ...publicKey }] });
 
 process.stdout.write(
   `JWT_PRIVATE_KEY="${privateKey.trimEnd().replace(/\n/g, " ")}"`,
@@ -127,5 +128,5 @@ export default http;
 
 </Steps>
 
-Continue to [Step 3](/setup#add-authentication-tables-to-your-schema) in
-the Setup guide.
+Continue to [Step 3](/setup#add-authentication-tables-to-your-schema) in the
+Setup guide.
