@@ -3,8 +3,7 @@ import { ActionCtx, MutationCtx } from "../types.js";
 import * as Provider from "../provider.js";
 import { OAuthConfig } from "@auth/core/providers/oauth.js";
 import { upsertUserAndAccount } from "../users.js";
-import { logWithLevel, sha256 } from "../utils.js";
-import { alphabet, generateRandomString } from "oslo/crypto";
+import { generateRandomString, logWithLevel, sha256 } from "../utils.js";
 
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 
@@ -49,7 +48,7 @@ export async function userOAuthImpl(
     config,
   );
 
-  const code = generateRandomString(8, alphabet("0-9"));
+  const code = generateRandomString(8, "0123456789");
   await ctx.db.delete(verifier._id);
   const existingVerificationCode = await ctx.db
     .query("authVerificationCodes")

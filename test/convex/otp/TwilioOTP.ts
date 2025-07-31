@@ -1,6 +1,6 @@
 import { Phone } from "@convex-dev/auth/providers/Phone";
 import { internal } from "../_generated/api";
-import { alphabet, generateRandomString } from "oslo/crypto";
+import { RandomReader, generateRandomString } from "@oslojs/crypto/random";
 
 /**
  * Uses Twilio messaging to send an OTP code.
@@ -18,7 +18,15 @@ export const TwilioOTP = Phone({
   id: "twilio-otp",
   maxAge: 60 * 20, // 20 minutes
   async generateVerificationToken() {
-    return generateRandomString(6, alphabet("0-9"));
+    const random: RandomReader = {
+      read(bytes) {
+        crypto.getRandomValues(bytes);
+      },
+    };
+
+    const alphabet = "0123456789";
+    const length = 6;
+    return generateRandomString(random, alphabet, length);
   },
   async sendVerificationRequest({ identifier: phone, token }, ctx) {
     if (process.env.AUTH_TWILIO_FROM_NUMBER === undefined) {
