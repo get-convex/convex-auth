@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.88
+
+- Add new cli options `--allow-dirty-git-state` and `--web-server-url <url>` to
+  enable running non-interactively.
+
 ## 0.0.87
 
 - Add missing `shouldHandleCode` prop to Next.js server provider
