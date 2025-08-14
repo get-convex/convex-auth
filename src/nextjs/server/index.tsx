@@ -295,7 +295,11 @@ export { createRouteMatcher, RouteMatcherParam } from "./routeMatcher.js";
  * a Next.js middleware.
  *
  * ```ts
+ * // Plain redirect
  * return nextjsMiddlewareRedirect(request, "/login");
+ *
+ * // Redirect with query params
+ * return nextjsMiddlewareRedirect(request, "/login?next=/app/dashboard");
  * ```
  */
 export function nextjsMiddlewareRedirect(
@@ -304,12 +308,27 @@ export function nextjsMiddlewareRedirect(
    */
   request: NextRequest,
   /**
-   * The route path to redirect to.
+   * The route to redirect to.
    */
-  pathname: string,
+  route: string,
 ) {
   const url = request.nextUrl.clone();
-  url.pathname = pathname;
+
+  // Parse the incoming route so we can split path & query correctly
+  // Prepend a dummy origin because URL() requires absolute URLs
+  const parsed = new URL(route, "http://dummy");
+
+  // Assign the path
+  url.pathname = parsed.pathname;
+
+  // Clear any existing search params
+  url.search = "";
+
+  // Copy search params from the provided route
+  parsed.searchParams.forEach((value, key) => {
+    url.searchParams.set(key, value);
+  });
+
   return NextResponse.redirect(url);
 }
 
