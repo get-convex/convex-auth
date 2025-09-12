@@ -125,13 +125,13 @@ async function verifyCodeOnly(
     logWithLevel(LOG_LEVELS.ERROR, "Invalid verification code");
     return null;
   }
-  await ctx.db.delete(verificationCode._id);
   if (verificationCode.verifier !== verifier) {
     logWithLevel(LOG_LEVELS.ERROR, "Invalid verifier");
     return null;
   }
   if (verificationCode.expirationTime < Date.now()) {
     logWithLevel(LOG_LEVELS.ERROR, "Expired verification code");
+    await ctx.db.delete(verificationCode._id);
     return null;
   }
   const { accountId, emailVerified, phoneVerified } = verificationCode;
@@ -167,6 +167,9 @@ async function verifyCodeOnly(
   ) {
     await methodProvider.authorize(args.params, account);
   }
+  
+  // All validations passed, now delete the verification code
+  await ctx.db.delete(verificationCode._id);
   let userId = account.userId;
   const provider = getProviderOrThrow(account.provider);
   if (!(provider.type === "oauth" || provider.type === "oidc")) {
