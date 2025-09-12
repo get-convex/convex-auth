@@ -58,7 +58,7 @@ export async function ConvexAuthNextjsServerProvider(props: {
    * If not provided, Convex Auth will handle all code parameters.
    * If provided, Convex Auth will only handle code parameters when the callback returns true.
    */
-  shouldHandleCode?: () => boolean;
+  shouldHandleCode?: (() => boolean) | boolean;
   /**
    * Turn on debugging logs.
    */
@@ -172,7 +172,9 @@ export type ConvexAuthNextjsMiddlewareOptions = {
    * If not provided, Convex Auth will handle all code parameters.
    * If provided, Convex Auth will only handle code parameters when the callback returns true.
    */
-  shouldHandleCode?: (request: NextRequest) => boolean;
+  shouldHandleCode?:
+    | ((request: NextRequest) => boolean | Promise<boolean>)
+    | boolean;
 };
 
 /**

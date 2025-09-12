@@ -19,7 +19,7 @@ export function ConvexAuthNextjsClientProvider({
   storage?: "localStorage" | "inMemory";
   storageNamespace?: string;
   verbose?: boolean;
-  shouldHandleCode?: () => boolean;
+  shouldHandleCode?: (() => boolean) | boolean;
   children: ReactNode;
 }) {
   const call: AuthClient["authenticatedCall"] = useCallback(

@@ -201,17 +201,14 @@ deployment. For example, if your custom HTTP Actions domain is
 ## Handle custom OAuth flows
 
 If you have custom OAuth flows that use the `code` query parameter, you can
-prevent Convex Auth from handling those codes by providing a `shouldHandleCode`
-callback.
-
-The callback should return `true` if Convex Auth should handle the code
-parameter, or `false` if it should be left alone for your custom OAuth flow to
-handle.
+prevent Convex Auth from handling those codes by implementing `shouldHandleCode`
+as a boolean or a function returning a boolean. A `false` value will prevent
+Convex Auth from handling the code parameter.
 
 ### React and Next.js Client
 
-In React and Next.js client components, you can provide the function as a
-provider prop for either `ConvexAuthProvider` or `ConvexAuthNextjsProvider`.
+In React and Next.js client components, you can provide the value as a provider
+prop for either `ConvexAuthProvider` or `ConvexAuthNextjsProvider`.
 
 ```tsx
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
@@ -231,7 +228,7 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 
 In Next.js middleware, `shouldHandleCode` is provided as an option to the
 middleware function. `shouldHandleCode` also receives the request object as it's
-only parameter.
+only parameter. In middleware, the function can be async.
 
 ```ts filename="middleware.ts"
 export default convexAuthNextjsMiddleware(

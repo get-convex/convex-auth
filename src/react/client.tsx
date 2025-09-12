@@ -64,7 +64,7 @@ export function AuthProvider({
     _timeFetched: number;
   };
   onChange?: () => Promise<unknown>;
-  shouldHandleCode?: () => boolean;
+  shouldHandleCode?: (() => boolean) | boolean;
   storage: TokenStorage | null;
   storageNamespace: string;
   replaceURL: (relativeUrl: string) => void | Promise<void>;
@@ -371,7 +371,10 @@ export function AuthProvider({
         if (
           code &&
           !signingInWithCodeFromURL.current &&
-          (!shouldHandleCode || shouldHandleCode())
+          (shouldHandleCode === undefined ||
+            (typeof shouldHandleCode === "function"
+              ? shouldHandleCode()
+              : shouldHandleCode))
         ) {
           signingInWithCodeFromURL.current = true;
           const url = new URL(window.location.href);

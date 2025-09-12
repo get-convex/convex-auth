@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.89
+
+- Accept `shouldHandleCode` as a boolean or function, and support async function
+  in middleware.
+
 ## 0.0.88
 
 - Add new cli options `--allow-dirty-git-state` and `--web-server-url <url>` to

@@ -90,7 +90,7 @@ export function ConvexAuthProvider(props: {
    * If this function returns false, the auth provider will not attempt to handle the
    * code param from the URL.
    */
-  shouldHandleCode?: () => boolean;
+  shouldHandleCode?: (() => boolean) | boolean;
   /**
    * Children components can call Convex hooks
    */
