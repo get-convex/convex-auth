@@ -139,16 +139,8 @@ export async function handleOAuth(
       // TODO: move away from allowing insecure HTTP requests
       [o.allowInsecureRequests]: true,
       [o.customFetch]: (...args) => {
-        const [url, init] = args;
-        // Drop code_verifier if PKCE not used (existing behavior)
         if (!provider.checks.includes("pkce")) {
-          init?.body?.delete?.("code_verifier");
-        }
-        // Lichess public client: add client_id to token request body
-        if (String(url) === as.token_endpoint && client.token_endpoint_auth_method === "none") {
-          const body = init?.body;
-          // oauth4webapi uses URLSearchParams here, so we can safely set()
-          body?.set?.("client_id", String(client.client_id));
+          args[1].body.delete("code_verifier");
         }
         return fetchOpt(provider)[o.customFetch](...args);
       },
