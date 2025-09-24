@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.90
+
+- fix negative `shouldHandleCode` logic for client
+
 ## 0.0.89
 
 - Accept `shouldHandleCode` as a boolean or function, and support async function
