@@ -8,6 +8,13 @@ export type AuthRuntimeEnv = {
 export function collectRuntimeEnv(): AuthRuntimeEnv | undefined {
   const siteUrl = process.env.CONVEX_SITE_URL;
   const customAuthSiteUrl = process.env.CUSTOM_AUTH_SITE_URL;
+  if (process.env.AUTH_LOG_LEVEL === "DEBUG") {
+    console.debug("collectRuntimeEnv", {
+      pid: process.pid,
+      siteUrl,
+      customAuthSiteUrl,
+    });
+  }
   if (siteUrl === undefined && customAuthSiteUrl === undefined) {
     return undefined;
   }
@@ -40,6 +47,15 @@ export function requireSiteUrl(
     config.siteUrl ??
     process.env.CONVEX_SITE_URL ??
     process.env.CUSTOM_AUTH_SITE_URL;
+  if (siteUrl === undefined && process.env.AUTH_LOG_LEVEL === "DEBUG") {
+    console.debug("requireSiteUrl missing", {
+      pid: process.pid,
+      runtime,
+      configSiteUrl: config.siteUrl,
+      envSiteUrl: process.env.CONVEX_SITE_URL,
+      envCustomAuthSiteUrl: process.env.CUSTOM_AUTH_SITE_URL,
+    });
+  }
   if (siteUrl === undefined) {
     throw new Error(
       "Missing environment variable `CONVEX_SITE_URL`. Set it in Convex or pass `siteUrl` to `convexAuth`.",

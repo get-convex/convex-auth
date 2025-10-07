@@ -117,6 +117,13 @@ export const storeImpl = async (
     config as any,
     fnArgs.env,
   );
+  if (process.env.AUTH_LOG_LEVEL === "DEBUG") {
+    console.debug("storeImpl runtimeEnv", {
+      pid: process.pid,
+      type: args.type,
+      runtimeEnv,
+    });
+  }
   logWithLevel(LOG_LEVELS.INFO, `\`auth:store\` type: ${args.type}`);
   switch (args.type) {
     case "signIn": {
