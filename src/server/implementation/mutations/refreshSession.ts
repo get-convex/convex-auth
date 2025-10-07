@@ -11,6 +11,10 @@ import {
   refreshTokenIfValid,
 } from "../refreshTokens.js";
 import { generateTokensForSession } from "../sessions.js";
+import {
+  AuthRuntimeEnv,
+  collectRuntimeEnv,
+} from "../runtimeEnv.js";
 
 export const refreshSessionArgs = v.object({
   refreshToken: v.string(),
@@ -26,6 +30,7 @@ export async function refreshSessionImpl(
   args: Infer<typeof refreshSessionArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
+  runtimeEnv: AuthRuntimeEnv,
 ): Promise<ReturnType> {
   const { refreshToken } = args;
   const { refreshTokenId, sessionId: tokenSessionId } =
@@ -63,7 +68,7 @@ export async function refreshSessionImpl(
     await ctx.db.patch(refreshTokenId, {
       firstUsedTime: Date.now(),
     });
-    const result = await generateTokensForSession(ctx, config, {
+    const result = await generateTokensForSession(ctx, config, runtimeEnv, {
       userId,
       sessionId,
       issuedRefreshTokenId: null,
@@ -95,7 +100,7 @@ export async function refreshSessionImpl(
       `Token ${maybeRedact(validationResult.refreshTokenDoc._id)} is parent of active refresh token ${maybeRedact(activeRefreshToken._id)}, so returning that token`,
     );
 
-    const result = await generateTokensForSession(ctx, config, {
+    const result = await generateTokensForSession(ctx, config, runtimeEnv, {
       userId,
       sessionId,
       issuedRefreshTokenId: activeRefreshToken._id,
@@ -106,7 +111,7 @@ export async function refreshSessionImpl(
 
   // Check if within reuse window
   if (tokenFirstUsed + REFRESH_TOKEN_REUSE_WINDOW_MS > Date.now()) {
-    const result = await generateTokensForSession(ctx, config, {
+    const result = await generateTokensForSession(ctx, config, runtimeEnv, {
       userId,
       sessionId,
       issuedRefreshTokenId: null,
@@ -150,5 +155,6 @@ export const callRefreshSession = async (
       type: "refreshSession",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };

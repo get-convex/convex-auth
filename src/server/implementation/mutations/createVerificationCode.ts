@@ -5,6 +5,7 @@ import { EmailConfig, PhoneConfig } from "../../types.js";
 import { getAccountOrThrow, upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
 import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 export const createVerificationCodeArgs = v.object({
   accountId: v.optional(v.id("authAccounts")),
@@ -80,6 +81,7 @@ export const callCreateVerificationCode = async (
       type: "createVerificationCode",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };
 

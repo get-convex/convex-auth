@@ -18,6 +18,7 @@ export {
   createAccount,
   retrieveAccount,
   signInViaProvider,
+  issueTokens,
   invalidateSessions,
   modifyAccountCredentials,
   Tokens,

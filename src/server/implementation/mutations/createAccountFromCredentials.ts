@@ -5,6 +5,7 @@ import { ConvexCredentialsConfig } from "../../types.js";
 import { upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 export const createAccountFromCredentialsArgs = v.object({
   provider: v.string(),
@@ -94,5 +95,6 @@ export const callCreateAccountFromCredentials = async (
       type: "createAccountFromCredentials",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };

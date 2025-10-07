@@ -43,6 +43,11 @@ export function configDefaults(config_: ConvexAuthConfig) {
     .map((p) => p.extraProviders)
     .flat()
     .filter((p) => p !== undefined);
+  const siteUrl = config_.siteUrl ?? process.env.CONVEX_SITE_URL ?? undefined;
+  const customAuthSiteUrl =
+    config_.customAuthSiteUrl ??
+    process.env.CUSTOM_AUTH_SITE_URL ??
+    siteUrl;
   return {
     ...config,
     extraProviders: materializeProviders(extraProviders),
@@ -52,6 +57,8 @@ export function configDefaults(config_: ConvexAuthConfig) {
       brandColor: "",
       buttonText: "",
     },
+    siteUrl,
+    customAuthSiteUrl,
   };
 }
 

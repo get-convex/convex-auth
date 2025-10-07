@@ -5,8 +5,9 @@ import Resend from "@auth/core/providers/resend";
 import Apple from "@auth/core/providers/apple";
 import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
 import { Password } from "@convex-dev/auth/providers/Password";
-import { ConvexError } from "convex/values";
-import { convexAuth } from "@convex-dev/auth/server";
+import { ConvexError, v } from "convex/values";
+import { convexAuth, issueTokens as issueTokensHelper } from "@convex-dev/auth/server";
+import { action } from "./_generated/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import { TwilioOTP } from "./otp/TwilioOTP";
 import { TwilioVerify } from "./otp/TwilioVerify";
@@ -70,4 +71,14 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     Password({ id: "password-link", verify: Resend }),
     Anonymous,
   ],
+});
+
+export const issueTokens = action({
+  args: {
+    userId: v.id("users"),
+    sessionId: v.optional(v.id("authSessions")),
+  },
+  handler: async (ctx, args) => {
+    return await issueTokensHelper(ctx, args);
+  },
 });

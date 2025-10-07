@@ -7,6 +7,7 @@ import {
 } from "../rateLimit.js";
 import * as Provider from "../provider.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 export const retrieveAccountWithCredentialsArgs = v.object({
   provider: v.string(),
@@ -74,5 +75,6 @@ export const callRetreiveAccountWithCredentials = async (
       type: "retrieveAccountWithCredentials",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };

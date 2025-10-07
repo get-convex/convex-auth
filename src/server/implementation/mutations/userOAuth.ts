@@ -4,6 +4,7 @@ import * as Provider from "../provider.js";
 import { OAuthConfig } from "@auth/core/providers/oauth.js";
 import { upsertUserAndAccount } from "../users.js";
 import { generateRandomString, logWithLevel, sha256 } from "../utils.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 
@@ -78,5 +79,6 @@ export const callUserOAuth = async (
       type: "userOAuth",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };

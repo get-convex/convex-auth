@@ -29,6 +29,17 @@ export type ConvexAuthConfig = {
    */
   providers: AuthProviderConfig[];
   /**
+   * Override the Convex site URL used when generating JWTs and exposing
+   * OpenID configuration. If not provided, the library falls back to the
+   * `CONVEX_SITE_URL` environment variable.
+   */
+  siteUrl?: string;
+  /**
+   * Override the URL used for OAuth callbacks and sign-in redirects.
+   * Defaults to `CUSTOM_AUTH_SITE_URL` (when set) or `siteUrl`.
+   */
+  customAuthSiteUrl?: string;
+  /**
    * Theme used for emails.
    * See [Auth.js theme docs](https://authjs.dev/reference/core/types#theme).
    */
@@ -364,7 +375,12 @@ export type GenericActionCtxWithAuthConfig<DataModel extends GenericDataModel> =
 export type ConvexAuthMaterializedConfig = {
   providers: AuthProviderMaterializedConfig[];
   theme: Theme;
-} & Pick<ConvexAuthConfig, "session" | "jwt" | "signIn" | "callbacks">;
+  siteUrl?: string;
+  customAuthSiteUrl?: string;
+} & Pick<
+  ConvexAuthConfig,
+  "session" | "jwt" | "signIn" | "callbacks"
+>;
 
 /**
  * Materialized Auth.js provider config.

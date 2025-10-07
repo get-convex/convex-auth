@@ -26,7 +26,7 @@ import {
   GenericActionCtxWithAuthConfig,
 } from "../types.js";
 import { requireEnv } from "../utils.js";
-import { ActionCtx, MutationCtx, Tokens } from "./types.js";
+import { ActionCtx, MutationCtx, Tokens, SessionInfoWithTokens } from "./types.js";
 export { authTables, Doc, Tokens } from "./types.js";
 import {
   LOG_LEVELS,
@@ -40,6 +40,7 @@ import {
   callInvalidateSessions,
   callModifyAccount,
   callRetreiveAccountWithCredentials,
+  callSignIn,
   callSignOut,
   callUserOAuth,
   callVerifierSignature,
@@ -54,6 +55,7 @@ import {
   oAuthConfigToInternalProvider,
 } from "../oauth/convexAuth.js";
 import { handleOAuth } from "../oauth/callback.js";
+import { requireSiteUrl } from "./runtimeEnv.js";
 export { getAuthSessionId } from "./sessions.js";
 
 /**
@@ -197,13 +199,12 @@ export function convexAuth(config_: ConvexAuthConfig) {
         path: "/.well-known/openid-configuration",
         method: "GET",
         handler: httpActionGeneric(async () => {
+          const siteUrl = requireSiteUrl(config);
           return new Response(
             JSON.stringify({
-              issuer: requireEnv("CONVEX_SITE_URL"),
-              jwks_uri:
-                requireEnv("CONVEX_SITE_URL") + "/.well-known/jwks.json",
-              authorization_endpoint:
-                requireEnv("CONVEX_SITE_URL") + "/oauth/authorize",
+              issuer: siteUrl,
+              jwks_uri: siteUrl + "/.well-known/jwks.json",
+              authorization_endpoint: siteUrl + "/oauth/authorize",
             }),
             {
               status: 200,
@@ -251,10 +252,11 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const provider = getProviderOrThrow(
                 providerId,
               ) as OAuthConfig<any>;
+              const siteUrl = requireSiteUrl(config);
               const { redirect, cookies, signature } =
                 await getAuthorizationUrl({
                   provider: await oAuthConfigToInternalProvider(provider),
-                  cookies: defaultCookiesOptions(providerId),
+                  cookies: defaultCookiesOptions(providerId, siteUrl),
                 });
 
               await callVerifierSignature(ctx, {
@@ -319,13 +321,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
               }
             }
 
+            const siteUrl = requireSiteUrl(config);
+
             try {
               const { profile, tokens, signature } = await handleOAuth(
                 Object.fromEntries(params.entries()),
                 cookies,
                 {
                   provider: await oAuthConfigToInternalProvider(provider),
-                  cookies: defaultCookiesOptions(provider.id),
+                  cookies: defaultCookiesOptions(provider.id, siteUrl),
                 },
               );
 
@@ -601,6 +605,35 @@ export async function retrieveAccount<
     throw new Error(result);
   }
   return result;
+}
+
+/**
+ * Issue an access token and refresh token for a user by creating
+ * or reusing a session.
+ */
+export async function issueTokens<
+  DataModel extends GenericDataModel = GenericDataModel,
+>(
+  ctx: GenericActionCtx<DataModel>,
+  args: {
+    userId: GenericId<"users">;
+    sessionId?: GenericId<"authSessions">;
+  },
+): Promise<SessionInfoWithTokens> {
+  const actionCtx = ctx as unknown as ActionCtx;
+  const result = await callSignIn(actionCtx, {
+    userId: args.userId,
+    sessionId: args.sessionId,
+    generateTokens: true,
+  });
+  if (result.tokens === null) {
+    throw new Error("Failed to generate tokens for session");
+  }
+  return {
+    userId: result.userId,
+    sessionId: result.sessionId,
+    tokens: result.tokens,
+  };
 }
 
 /**

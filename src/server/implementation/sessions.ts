@@ -15,12 +15,14 @@ import {
   formatRefreshToken,
   deleteAllRefreshTokens,
 } from "./refreshTokens.js";
+import { AuthRuntimeEnv } from "./runtimeEnv.js";
 
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
 export async function maybeGenerateTokensForSession(
   ctx: MutationCtx,
   config: ConvexAuthConfig,
+  runtimeEnv: AuthRuntimeEnv,
   userId: GenericId<"users">,
   sessionId: GenericId<"authSessions">,
   generateTokens: boolean,
@@ -29,7 +31,7 @@ export async function maybeGenerateTokensForSession(
     userId,
     sessionId,
     tokens: generateTokens
-      ? await generateTokensForSession(ctx, config, {
+      ? await generateTokensForSession(ctx, config, runtimeEnv, {
           userId,
           sessionId,
           issuedRefreshTokenId: null,
@@ -57,6 +59,7 @@ export async function createNewAndDeleteExistingSession(
 export async function generateTokensForSession(
   ctx: MutationCtx,
   config: ConvexAuthConfig,
+  runtimeEnv: AuthRuntimeEnv,
   args: {
     userId: GenericId<"users">;
     sessionId: GenericId<"authSessions">;
@@ -74,7 +77,7 @@ export async function generateTokensForSession(
       args.parentRefreshTokenId,
     ));
   const result = {
-    token: await generateToken(ids, config),
+    token: await generateToken(ids, config, runtimeEnv),
     refreshToken: formatRefreshToken(refreshTokenId, args.sessionId),
   };
   logWithLevel(

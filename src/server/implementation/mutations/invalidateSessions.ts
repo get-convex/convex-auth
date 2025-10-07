@@ -2,6 +2,7 @@ import { Infer, v } from "convex/values";
 import { deleteSession } from "../sessions.js";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { LOG_LEVELS, logWithLevel } from "../utils.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 export const invalidateSessionsArgs = v.object({
   userId: v.id("users"),
@@ -17,6 +18,7 @@ export const callInvalidateSessions = async (
       type: "invalidateSessions",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };
 

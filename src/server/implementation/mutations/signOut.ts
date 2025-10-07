@@ -1,6 +1,7 @@
 import { GenericId } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { deleteSession, getAuthSessionId } from "../sessions.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 type ReturnType = {
   userId: GenericId<"users">;
@@ -24,5 +25,6 @@ export const callSignOut = async (ctx: ActionCtx): Promise<void> => {
     args: {
       type: "signOut",
     },
+    env: collectRuntimeEnv(),
   });
 };

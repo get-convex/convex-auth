@@ -1,4 +1,5 @@
 import { convexTest, TestConvex } from "convex-test";
+import { decodeJwt } from "jose";
 import { expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
@@ -228,3 +229,44 @@ function setupEnv() {
   process.env.JWKS = JWKS;
   process.env.AUTH_LOG_LEVEL = "ERROR";
 }
+
+test("issueTokens helper mints tokens with issuer set", async () => {
+  setupEnv();
+  const siteUrl = process.env.CONVEX_SITE_URL!;
+  const t = convexTest(schema);
+
+  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
+  });
+  expect(initialTokens).not.toBeNull();
+
+  const { userId, sessionId } = await t.run(async (ctx) => {
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", "sarah@gmail.com"),
+      )
+      .unique();
+    if (account === null) {
+      throw new Error("Account not created");
+    }
+    const [session] = await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", account.userId))
+      .collect();
+    if (session === undefined) {
+      throw new Error("Session not found");
+    }
+    return { userId: account.userId, sessionId: session._id };
+  });
+
+  const minted = await t.action(api.auth.issueTokens, {
+    userId,
+    sessionId,
+  });
+
+  expect(minted.tokens.token).not.toBe(initialTokens!.token);
+  const claims = decodeJwt(minted.tokens.token);
+  expect(claims.iss).toBe(siteUrl);
+});

@@ -2,6 +2,7 @@ import { Infer, v } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { GetProviderOrThrowFunc, hash } from "../provider.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 export const modifyAccountArgs = v.object({
   provider: v.string(),
@@ -47,5 +48,6 @@ export const callModifyAccount = async (
       type: "modifyAccount",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };
