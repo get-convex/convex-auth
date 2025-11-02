@@ -11,6 +11,19 @@ import { GenericId, v } from "convex/values";
 import { GenericDoc } from "../convex_types.js";
 
 /**
+ * Users.
+ */
+export usersTable {
+  name: v.optional(v.string()),
+  image: v.optional(v.string()),
+  email: v.optional(v.string()),
+  emailVerificationTime: v.optional(v.number()),
+  phone: v.optional(v.string()),
+  phoneVerificationTime: v.optional(v.number()),
+  isAnonymous: v.optional(v.boolean()),
+}
+
+/**
  * The table definitions required by the library.
  *
  * Your schema must include these so that the indexes
@@ -37,15 +50,7 @@ export const authTables = {
   /**
    * Users.
    */
-  users: defineTable({
-    name: v.optional(v.string()),
-    image: v.optional(v.string()),
-    email: v.optional(v.string()),
-    emailVerificationTime: v.optional(v.number()),
-    phone: v.optional(v.string()),
-    phoneVerificationTime: v.optional(v.number()),
-    isAnonymous: v.optional(v.boolean()),
-  })
+  users: defineTable(usersTable)
     .index("email", ["email"])
     .index("phone", ["phone"]),
   /**
