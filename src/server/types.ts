@@ -250,16 +250,38 @@ export interface EmailConfig<
    * Before the token is verified, check other
    * provided parameters.
    *
-   * Used to make sure tha OTPs are accompanied
+   * Used to make sure that OTPs are accompanied
    * with the correct email address.
+   *
+   * Can be undefined for "magic link" behavior, but ensure that the token has high enough entropy to be secure.
+   *
+   * For all cases other than magic link, be sure to check the provided email
+   * address against the email address used during the initial `signIn` call during token verification:
+   * ```ts
+    authorize: async (params, account) => {
+      if (typeof params.email !== "string") {
+        throw new Error(
+          "Token verification requires an `email` in params of `signIn`.",
+        );
+      }
+      if (account.providerAccountId !== params.email) {
+        throw new Error(
+          "Short verification code requires a matching `email` " +
+            "in params of `signIn`.",
+        );
+      }
+    }
+    ```
    */
-  authorize?: (
-    /**
-     * The values passed to the `signIn` function.
-     */
-    params: Record<string, Value | undefined>,
-    account: GenericDoc<DataModel, "authAccounts">,
-  ) => Promise<void>;
+  authorize:
+    | ((
+        /**
+         * The values passed to the `signIn` function.
+         */
+        params: Record<string, Value | undefined>,
+        account: GenericDoc<DataModel, "authAccounts">,
+      ) => Promise<void>)
+    | undefined;
 }
 
 /**
