@@ -15,6 +15,9 @@
   "repository": "https://github.com/get-convex/convex-auth",
   "license": "Apache-2.0",
   "author": "xixixao",
+  "engines": {
+    "node": ">=20.12.0"
+  },
   "files": [
     "dist",
     "providers",
