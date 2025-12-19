@@ -21,7 +21,7 @@ npm run dev
 If you're reading this README on GitHub and want to use this template, run:
 
 ```
-npx create-convex@latest  -t nextjs-shadcn
+npx create-convex@latest -t nextjs-shadcn
 ```
 
 ## Learn more
