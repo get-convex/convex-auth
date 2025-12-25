@@ -5,7 +5,6 @@ import { EmailConfig, PhoneConfig } from "../../types.js";
 import { getAccountOrThrow, upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
 import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
-import { createTriggeredCtx } from "../triggeredDb.js";
 
 export const createVerificationCodeArgs = v.object({
   accountId: v.optional(v.id("authAccounts")),
@@ -20,12 +19,11 @@ export const createVerificationCodeArgs = v.object({
 type ReturnType = string;
 
 export async function createVerificationCodeImpl(
-  _rawCtx: MutationCtx,
+  ctx: MutationCtx,
   args: Infer<typeof createVerificationCodeArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  const ctx = createTriggeredCtx(_rawCtx, config);
   logWithLevel(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", args);
   const {
     email,

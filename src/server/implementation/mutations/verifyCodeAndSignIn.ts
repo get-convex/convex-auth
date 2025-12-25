@@ -14,7 +14,6 @@ import {
 import { ConvexAuthConfig } from "../../types.js";
 import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
 import { upsertUserAndAccount } from "../users.js";
-import { createTriggeredCtx } from "../triggeredDb.js";
 
 export const verifyCodeAndSignInArgs = v.object({
   params: v.any(),
@@ -27,12 +26,11 @@ export const verifyCodeAndSignInArgs = v.object({
 type ReturnType = null | SessionInfo;
 
 export async function verifyCodeAndSignInImpl(
-  _rawCtx: MutationCtx,
+  ctx: MutationCtx,
   args: Infer<typeof verifyCodeAndSignInArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  const ctx = createTriggeredCtx(_rawCtx, config);
   logWithLevel(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
     params: { email: args.params.email, phone: args.params.phone },
     provider: args.provider,

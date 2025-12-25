@@ -15,7 +15,6 @@ import {
   formatRefreshToken,
   deleteAllRefreshTokens,
 } from "./refreshTokens.js";
-import { createTriggeredCtx } from "./triggeredDb.js";
 
 const DEFAULT_SESSION_TOTAL_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
@@ -99,11 +98,10 @@ async function createSession(
 }
 
 export async function deleteSession(
-  originalCtx: MutationCtx,
+  ctx: MutationCtx,
   config: ConvexAuthConfig,
   session: Doc<"authSessions">,
 ) {
-  const ctx = createTriggeredCtx(originalCtx, config);
   await ctx.db.delete(session._id);
   await deleteAllRefreshTokens(ctx, config, session._id);
 }
