@@ -207,9 +207,9 @@ types:
 
 ```ts
 import type {
-  AuthTableName,      // "users" | "authAccounts" | "authSessions" | ...
-  AuthTriggers,       // Full trigger configuration type
-  TableTriggers,      // Triggers for a specific table
+  AuthTableName,
+  AuthTriggers,
+  TableTriggers,
   OnCreateTrigger,    // (ctx, doc?) => Promise<void>
   OnUpdateTrigger,    // (ctx, newDoc?, oldDoc?) => Promise<void>
   OnDeleteTrigger,    // (ctx, id, doc?) => Promise<void>
