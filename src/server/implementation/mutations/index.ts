@@ -88,6 +88,9 @@ function createTriggeredCtx(
     return null;
   }
 
+  // Triggers receive the original ctx (not triggeredDb) intentionally.
+  // This prevents infinite loops: if a trigger writes to an auth table,
+  // it won't fire another trigger. See docs: "No nested triggers".
   const triggeredDb: MutationCtx["db"] = {
     insert: async (table: any, data: any) => {
       const id = await rawDb.insert(table, data);
