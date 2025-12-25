@@ -43,7 +43,7 @@ export async function verifyCodeAndSignInImpl(
   const { generateTokens, provider, allowExtraProviders } = args;
   const identifier = args.params.email ?? args.params.phone;
   if (identifier !== undefined) {
-    if (await isSignInRateLimited(originalCtx, identifier, config)) {
+    if (await isSignInRateLimited(ctx, identifier, config)) {
       logWithLevel(
         LOG_LEVELS.ERROR,
         "Too many failed attempts to verify code for this email",
@@ -58,25 +58,25 @@ export async function verifyCodeAndSignInImpl(
     getProviderOrThrow,
     allowExtraProviders,
     config,
-    await getAuthSessionId(originalCtx),
+    await getAuthSessionId(ctx),
   );
   if (verifyResult === null) {
     if (identifier !== undefined) {
-      await recordFailedSignIn(originalCtx, identifier, config);
+      await recordFailedSignIn(ctx, identifier, config);
     }
     return null;
   }
   if (identifier !== undefined) {
-    await resetSignInRateLimit(originalCtx, identifier);
+    await resetSignInRateLimit(ctx, identifier);
   }
   const { userId } = verifyResult;
   const sessionId = await createNewAndDeleteExistingSession(
-    originalCtx,
+    ctx,
     config,
     userId,
   );
   return await maybeGenerateTokensForSession(
-    originalCtx,
+    ctx,
     config,
     userId,
     sessionId,

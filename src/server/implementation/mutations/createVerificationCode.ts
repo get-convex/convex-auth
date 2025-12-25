@@ -38,7 +38,7 @@ export async function createVerificationCodeImpl(
   } = args;
   const existingAccount =
     existingAccountId !== undefined
-      ? await getAccountOrThrow(originalCtx, existingAccountId)
+      ? await getAccountOrThrow(ctx, existingAccountId)
       : await ctx.db
           .query("authAccounts")
           .withIndex("providerAndAccountId", (q) =>
@@ -52,8 +52,8 @@ export async function createVerificationCodeImpl(
     | EmailConfig
     | PhoneConfig;
   const { accountId } = await upsertUserAndAccount(
-    originalCtx,
-    await getAuthSessionId(originalCtx),
+    ctx,
+    await getAuthSessionId(ctx),
     existingAccount !== null
       ? { existingAccount }
       : { providerAccountId: email ?? phone! },

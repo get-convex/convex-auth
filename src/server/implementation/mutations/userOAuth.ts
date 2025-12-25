@@ -43,7 +43,7 @@ export async function userOAuthImpl(
   }
 
   const { accountId } = await upsertUserAndAccount(
-    originalCtx,
+    ctx,
     verifier.sessionId ?? null,
     existingAccount !== null ? { existingAccount } : { providerAccountId },
     { type: "oauth", provider: providerConfig, profile },
