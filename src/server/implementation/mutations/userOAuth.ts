@@ -4,6 +4,7 @@ import * as Provider from "../provider.js";
 import { OAuthConfig } from "@auth/core/providers/oauth.js";
 import { upsertUserAndAccount } from "../users.js";
 import { generateRandomString, logWithLevel, sha256 } from "../utils.js";
+import { createTriggeredCtx } from "../triggeredDb.js";
 
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 
@@ -17,11 +18,12 @@ export const userOAuthArgs = v.object({
 type ReturnType = string;
 
 export async function userOAuthImpl(
-  ctx: MutationCtx,
+  originalCtx: MutationCtx,
   args: Infer<typeof userOAuthArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  const ctx = createTriggeredCtx(originalCtx, config);
   logWithLevel("DEBUG", "userOAuthImpl args:", args);
   const { profile, provider, providerAccountId, signature } = args;
   const providerConfig = getProviderOrThrow(provider) as OAuthConfig<any>;
@@ -41,7 +43,7 @@ export async function userOAuthImpl(
   }
 
   const { accountId } = await upsertUserAndAccount(
-    ctx,
+    originalCtx,
     verifier.sessionId ?? null,
     existingAccount !== null ? { existingAccount } : { providerAccountId },
     { type: "oauth", provider: providerConfig, profile },

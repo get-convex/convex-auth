@@ -13,40 +13,87 @@ import { TwilioVerify } from "./otp/TwilioVerify";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 // !publish: remove
 import { FakePhone } from "./otp/FakePhone";
+import type { AuthTriggers } from "@convex-dev/auth/server";
 import { DataModel } from "./_generated/dataModel.js";
-import type { AuthTableName } from "@convex-dev/auth/server";
-import { GenericMutationCtx } from "convex/server";
 
-// Helper to create logged triggers with auto-derived names
-function loggedTriggers<T extends AuthTableName>(table: T) {
-  return {
-    onCreate: async (ctx: GenericMutationCtx<DataModel>, doc: { _id: string }) => {
+// Trigger configuration for testing - logs all auth table operations
+const triggers: AuthTriggers = {
+  users: {
+    onCreate: async (ctx, doc) => {
       await ctx.db.insert("triggerLog", {
-        trigger: `${table}:onCreate` as const,
+        trigger: "users:onCreate",
         docId: doc._id,
         timestamp: Date.now(),
       });
     },
-    onUpdate: async (
-      ctx: GenericMutationCtx<DataModel>,
-      newDoc: { _id: string },
-      oldDoc: { _id: string },
-    ) => {
+    onUpdate: async (ctx, newDoc, oldDoc) => {
       await ctx.db.insert("triggerLog", {
-        trigger: `${table}:onUpdate` as const,
+        trigger: "users:onUpdate",
         docId: newDoc._id,
         timestamp: Date.now(),
         oldDocId: oldDoc._id,
       });
     },
-  };
-}
+    onDelete: async (ctx, id, _doc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "users:onDelete",
+        docId: id,
+        timestamp: Date.now(),
+      });
+    },
+  },
+  authAccounts: {
+    onCreate: async (ctx, doc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "authAccounts:onCreate",
+        docId: doc._id,
+        timestamp: Date.now(),
+      });
+    },
+    onUpdate: async (ctx, newDoc, oldDoc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "authAccounts:onUpdate",
+        docId: newDoc._id,
+        timestamp: Date.now(),
+        oldDocId: oldDoc._id,
+      });
+    },
+    onDelete: async (ctx, id, _doc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "authAccounts:onDelete",
+        docId: id,
+        timestamp: Date.now(),
+      });
+    },
+  },
+  authSessions: {
+    onCreate: async (ctx, doc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "authSessions:onCreate",
+        docId: doc._id,
+        timestamp: Date.now(),
+      });
+    },
+    onUpdate: async (ctx, newDoc, oldDoc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "authSessions:onUpdate",
+        docId: newDoc._id,
+        timestamp: Date.now(),
+        oldDocId: oldDoc._id,
+      });
+    },
+    onDelete: async (ctx, id, _doc) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: "authSessions:onDelete",
+        docId: id,
+        timestamp: Date.now(),
+      });
+    },
+  },
+};
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  triggers: {
-    users: loggedTriggers("users"),
-    authAccounts: loggedTriggers("authAccounts"),
-  },
+  triggers,
   providers: [
     // !publish: remove
     FakePhone,

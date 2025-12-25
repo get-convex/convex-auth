@@ -210,9 +210,9 @@ import type {
   AuthTableName,      // "users" | "authAccounts" | "authSessions" | ...
   AuthTriggers,       // Full trigger configuration type
   TableTriggers,      // Triggers for a specific table
-  OnCreateTrigger,    // (ctx, doc) => Promise<void>
-  OnUpdateTrigger,    // (ctx, newDoc, oldDoc) => Promise<void>
-  OnDeleteTrigger,    // (ctx, doc) => Promise<void>
+  OnCreateTrigger,    // (ctx, doc?) => Promise<void>
+  OnUpdateTrigger,    // (ctx, newDoc?, oldDoc?) => Promise<void>
+  OnDeleteTrigger,    // (ctx, id, doc?) => Promise<void>
 } from "@convex-dev/auth/server";
 ```
 

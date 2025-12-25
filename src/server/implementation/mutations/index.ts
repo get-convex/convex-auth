@@ -109,7 +109,7 @@ export const storeImpl = async (
       return signInImpl(ctx, args, config);
     }
     case "signOut": {
-      return signOutImpl(ctx);
+      return signOutImpl(ctx, config);
     }
     case "refreshSession": {
       return refreshSessionImpl(ctx, args, getProviderOrThrow, config);
@@ -149,7 +149,7 @@ export const storeImpl = async (
       return modifyAccountImpl(ctx, args, getProviderOrThrow, config);
     }
     case "invalidateSessions": {
-      return invalidateSessionsImpl(ctx, args);
+      return invalidateSessionsImpl(ctx, args, config);
     }
     default:
       args satisfies never;

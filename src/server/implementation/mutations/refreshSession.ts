@@ -11,6 +11,7 @@ import {
   refreshTokenIfValid,
 } from "../refreshTokens.js";
 import { generateTokensForSession } from "../sessions.js";
+import { createTriggeredCtx } from "../triggeredDb.js";
 
 export const refreshSessionArgs = v.object({
   refreshToken: v.string(),
@@ -45,11 +46,12 @@ export async function refreshSessionImpl(
   if (validationResult === null) {
     // Replicating `deleteSession` but ensuring that we delete both the session
     // and the refresh token, even if one of them is missing.
+    const tctx = createTriggeredCtx(ctx, config);
     const session = await ctx.db.get(tokenSessionId);
     if (session !== null) {
-      await ctx.db.delete(session._id);
+      await tctx.db.delete(session._id);
     }
-    await deleteAllRefreshTokens(ctx, tokenSessionId);
+    await deleteAllRefreshTokens(tctx, config, tokenSessionId);
     return null;
   }
   const { session } = validationResult;

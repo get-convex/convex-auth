@@ -147,6 +147,49 @@ test("triggers fire on password change", async () => {
   });
 });
 
+test("triggers fire on session deletion (sign out)", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Sign up creates a user, account, and session
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "signout-test@example.com", password: "testpass123", flow: "signUp" },
+  });
+
+  expect(tokens).not.toBeNull();
+
+  // Verify session was created and onCreate trigger fired
+  await t.run(async (ctx) => {
+    const sessions = await ctx.db.query("authSessions").collect();
+    expect(sessions).toHaveLength(1);
+
+    const sessionCreateLogs = await ctx.db
+      .query("triggerLog")
+      .filter((q) => q.eq(q.field("trigger"), "authSessions:onCreate"))
+      .collect();
+    expect(sessionCreateLogs).toHaveLength(1);
+    expect(sessionCreateLogs[0].docId).toBe(sessions[0]._id);
+  });
+
+  // Sign out (deletes the session)
+  await t.action(api.auth.signOut, {});
+
+  // Verify onDelete trigger fired for session
+  await t.run(async (ctx) => {
+    // Session should be deleted
+    const sessions = await ctx.db.query("authSessions").collect();
+    expect(sessions).toHaveLength(0);
+
+    // onDelete trigger should have fired
+    const sessionDeleteLogs = await ctx.db
+      .query("triggerLog")
+      .filter((q) => q.eq(q.field("trigger"), "authSessions:onDelete"))
+      .collect();
+    expect(sessionDeleteLogs).toHaveLength(1);
+  });
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;

@@ -5,6 +5,7 @@ import { EmailConfig, PhoneConfig } from "../../types.js";
 import { getAccountOrThrow, upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
 import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
+import { createTriggeredCtx } from "../triggeredDb.js";
 
 export const createVerificationCodeArgs = v.object({
   accountId: v.optional(v.id("authAccounts")),
@@ -19,11 +20,12 @@ export const createVerificationCodeArgs = v.object({
 type ReturnType = string;
 
 export async function createVerificationCodeImpl(
-  ctx: MutationCtx,
+  originalCtx: MutationCtx,
   args: Infer<typeof createVerificationCodeArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  const ctx = createTriggeredCtx(originalCtx, config);
   logWithLevel(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", args);
   const {
     email,
@@ -36,7 +38,7 @@ export async function createVerificationCodeImpl(
   } = args;
   const existingAccount =
     existingAccountId !== undefined
-      ? await getAccountOrThrow(ctx, existingAccountId)
+      ? await getAccountOrThrow(originalCtx, existingAccountId)
       : await ctx.db
           .query("authAccounts")
           .withIndex("providerAndAccountId", (q) =>
@@ -50,8 +52,8 @@ export async function createVerificationCodeImpl(
     | EmailConfig
     | PhoneConfig;
   const { accountId } = await upsertUserAndAccount(
-    ctx,
-    await getAuthSessionId(ctx),
+    originalCtx,
+    await getAuthSessionId(originalCtx),
     existingAccount !== null
       ? { existingAccount }
       : { providerAccountId: email ?? phone! },

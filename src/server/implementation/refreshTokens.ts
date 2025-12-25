@@ -99,6 +99,7 @@ export async function invalidateRefreshTokensInSubtree(
 
 export async function deleteAllRefreshTokens(
   ctx: MutationCtx,
+  config: ConvexAuthConfig,
   sessionId: GenericId<"authSessions">,
 ) {
   const existingRefreshTokens = await ctx.db

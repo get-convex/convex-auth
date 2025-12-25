@@ -14,6 +14,7 @@ import {
 import { ConvexAuthConfig } from "../../types.js";
 import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
 import { upsertUserAndAccount } from "../users.js";
+import { createTriggeredCtx } from "../triggeredDb.js";
 
 export const verifyCodeAndSignInArgs = v.object({
   params: v.any(),
@@ -26,11 +27,12 @@ export const verifyCodeAndSignInArgs = v.object({
 type ReturnType = null | SessionInfo;
 
 export async function verifyCodeAndSignInImpl(
-  ctx: MutationCtx,
+  originalCtx: MutationCtx,
   args: Infer<typeof verifyCodeAndSignInArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
+  const ctx = createTriggeredCtx(originalCtx, config);
   logWithLevel(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
     params: { email: args.params.email, phone: args.params.phone },
     provider: args.provider,
@@ -41,7 +43,7 @@ export async function verifyCodeAndSignInImpl(
   const { generateTokens, provider, allowExtraProviders } = args;
   const identifier = args.params.email ?? args.params.phone;
   if (identifier !== undefined) {
-    if (await isSignInRateLimited(ctx, identifier, config)) {
+    if (await isSignInRateLimited(originalCtx, identifier, config)) {
       logWithLevel(
         LOG_LEVELS.ERROR,
         "Too many failed attempts to verify code for this email",
@@ -56,25 +58,25 @@ export async function verifyCodeAndSignInImpl(
     getProviderOrThrow,
     allowExtraProviders,
     config,
-    await getAuthSessionId(ctx),
+    await getAuthSessionId(originalCtx),
   );
   if (verifyResult === null) {
     if (identifier !== undefined) {
-      await recordFailedSignIn(ctx, identifier, config);
+      await recordFailedSignIn(originalCtx, identifier, config);
     }
     return null;
   }
   if (identifier !== undefined) {
-    await resetSignInRateLimit(ctx, identifier);
+    await resetSignInRateLimit(originalCtx, identifier);
   }
   const { userId } = verifyResult;
   const sessionId = await createNewAndDeleteExistingSession(
-    ctx,
+    originalCtx,
     config,
     userId,
   );
   return await maybeGenerateTokensForSession(
-    ctx,
+    originalCtx,
     config,
     userId,
     sessionId,

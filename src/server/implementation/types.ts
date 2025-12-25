@@ -164,31 +164,34 @@ export type SessionInfoWithTokens = {
  */
 export type AuthTableName = keyof typeof authTables;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyCtx = any;
+
 /**
  * Trigger handler called when a document is created.
+ * Omit the doc parameter to skip the read.
  */
-export type OnCreateTrigger<TableName extends AuthTableName> = (
-  ctx: MutationCtx,
-  doc: Doc<TableName>,
-) => Promise<void>;
+export type OnCreateTrigger<TableName extends AuthTableName> =
+  | ((ctx: AnyCtx) => Promise<void>)
+  | ((ctx: AnyCtx, doc: Doc<TableName>) => Promise<void>);
 
 /**
  * Trigger handler called when a document is updated.
- * Receives both the new document and the old document for comparison.
+ * Omit oldDoc to skip reading the old document.
+ * Omit both to skip all reads.
  */
-export type OnUpdateTrigger<TableName extends AuthTableName> = (
-  ctx: MutationCtx,
-  newDoc: Doc<TableName>,
-  oldDoc: Doc<TableName>,
-) => Promise<void>;
+export type OnUpdateTrigger<TableName extends AuthTableName> =
+  | ((ctx: AnyCtx) => Promise<void>)
+  | ((ctx: AnyCtx, newDoc: Doc<TableName>) => Promise<void>)
+  | ((ctx: AnyCtx, newDoc: Doc<TableName>, oldDoc: Doc<TableName>) => Promise<void>);
 
 /**
  * Trigger handler called when a document is deleted.
+ * Omit doc to skip reading the document before deletion.
  */
-export type OnDeleteTrigger<TableName extends AuthTableName> = (
-  ctx: MutationCtx,
-  doc: Doc<TableName>,
-) => Promise<void>;
+export type OnDeleteTrigger<TableName extends AuthTableName> =
+  | ((ctx: AnyCtx, id: GenericId<TableName>) => Promise<void>)
+  | ((ctx: AnyCtx, id: GenericId<TableName>, doc: Doc<TableName> | null) => Promise<void>);
 
 /**
  * Trigger configuration for a single table.

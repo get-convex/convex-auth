@@ -2425,12 +2425,12 @@ Called after a record is deleted.
 
 
 Trigger handler called when a document is created.
+Omit the doc parameter to skip the read.
 
 ```ts
-type OnCreateTrigger<TableName> = (
-  ctx: MutationCtx,
-  doc: Doc<TableName>,
-) => Promise<void>
+type OnCreateTrigger<TableName> =
+  | ((ctx: MutationCtx) => Promise<void>)
+  | ((ctx: MutationCtx, doc: Doc<TableName>) => Promise<void>)
 ```
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
@@ -2458,14 +2458,14 @@ type OnCreateTrigger<TableName> = (
 
 
 Trigger handler called when a document is updated.
-Receives both the new document and the old document for comparison.
+Omit oldDoc to skip reading the old document.
+Omit both to skip all reads.
 
 ```ts
-type OnUpdateTrigger<TableName> = (
-  ctx: MutationCtx,
-  newDoc: Doc<TableName>,
-  oldDoc: Doc<TableName>,
-) => Promise<void>
+type OnUpdateTrigger<TableName> =
+  | ((ctx: MutationCtx) => Promise<void>)
+  | ((ctx: MutationCtx, newDoc: Doc<TableName>) => Promise<void>)
+  | ((ctx: MutationCtx, newDoc: Doc<TableName>, oldDoc: Doc<TableName>) => Promise<void>)
 ```
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
@@ -2493,12 +2493,12 @@ type OnUpdateTrigger<TableName> = (
 
 
 Trigger handler called when a document is deleted.
+Omit doc to skip reading the document before deletion.
 
 ```ts
-type OnDeleteTrigger<TableName> = (
-  ctx: MutationCtx,
-  doc: Doc<TableName>,
-) => Promise<void>
+type OnDeleteTrigger<TableName> =
+  | ((ctx: MutationCtx, id: GenericId<TableName>) => Promise<void>)
+  | ((ctx: MutationCtx, id: GenericId<TableName>, doc: Doc<TableName> | null) => Promise<void>)
 ```
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
