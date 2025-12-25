@@ -126,17 +126,17 @@ export function createTriggeredCtx(
 
     /**
      * Delete a document, firing onDelete trigger if it's an auth table.
-     * Reads doc before delete if fn.length >= 3, otherwise just passes ID.
+     * Reads doc before delete if fn.length >= 3, then deletes, then fires trigger.
      */
     delete: async (id: any) => {
       const table = detectAuthTable(id);
       const trigger = table ? (triggers as any)[table]?.onDelete : null;
+      const needsDoc = trigger && trigger.length >= 3;
+      const doc = needsDoc ? await rawDb.get(id) : null;
+      await rawDb.delete(id);
       if (trigger) {
-        const needsDoc = trigger.length >= 3;
-        const doc = needsDoc ? await rawDb.get(id) : null;
         await trigger(ctx, id, doc);
       }
-      await rawDb.delete(id);
     },
 
     // Pass-through methods that don't need triggers

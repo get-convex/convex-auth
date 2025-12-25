@@ -151,7 +151,7 @@ Each table supports three trigger types:
 
 - `onCreate` - Called after a new record is inserted
 - `onUpdate` - Called after a record is updated (receives both old and new doc)
-- `onDelete` - Called before a record is deleted (receives doc for archiving)
+- `onDelete` - Called after a record is deleted (receives doc snapshot from before deletion)
 
 ### Usage
 
