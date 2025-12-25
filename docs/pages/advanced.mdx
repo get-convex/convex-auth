@@ -191,6 +191,17 @@ const triggers: AuthTriggers = {
       console.log(`Auth account updated: ${newDoc._id}`);
     },
   },
+  authSessions: {
+    onDelete: async (ctx, sessionId, doc) => {
+      // Log session termination with user info from pre-deletion snapshot
+      await ctx.db.insert("auditLog", {
+        action: "session_ended",
+        sessionId,
+        userId: doc?.userId,
+        timestamp: Date.now(),
+      });
+    },
+  },
 };
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
