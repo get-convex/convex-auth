@@ -14,8 +14,39 @@ import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
 // !publish: remove
 import { FakePhone } from "./otp/FakePhone";
 import { DataModel } from "./_generated/dataModel.js";
+import type { AuthTableName } from "@convex-dev/auth/server";
+import { GenericMutationCtx } from "convex/server";
+
+// Helper to create logged triggers with auto-derived names
+function loggedTriggers<T extends AuthTableName>(table: T) {
+  return {
+    onCreate: async (ctx: GenericMutationCtx<DataModel>, doc: { _id: string }) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: `${table}:onCreate` as const,
+        docId: doc._id,
+        timestamp: Date.now(),
+      });
+    },
+    onUpdate: async (
+      ctx: GenericMutationCtx<DataModel>,
+      newDoc: { _id: string },
+      oldDoc: { _id: string },
+    ) => {
+      await ctx.db.insert("triggerLog", {
+        trigger: `${table}:onUpdate` as const,
+        docId: newDoc._id,
+        timestamp: Date.now(),
+        oldDocId: oldDoc._id,
+      });
+    },
+  };
+}
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  triggers: {
+    users: loggedTriggers("users"),
+    authAccounts: loggedTriggers("authAccounts"),
+  },
   providers: [
     // !publish: remove
     FakePhone,

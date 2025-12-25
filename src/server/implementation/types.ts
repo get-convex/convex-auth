@@ -153,3 +153,81 @@ export type SessionInfoWithTokens = {
   sessionId: GenericId<"authSessions">;
   tokens: Tokens;
 };
+
+// =============================================================================
+// Trigger Types
+// =============================================================================
+
+/**
+ * Table names managed by the auth library, derived from authTables.
+ * Use these for type-safe trigger configurations.
+ */
+export type AuthTableName = keyof typeof authTables;
+
+/**
+ * Trigger handler called when a document is created.
+ */
+export type OnCreateTrigger<TableName extends AuthTableName> = (
+  ctx: MutationCtx,
+  doc: Doc<TableName>,
+) => Promise<void>;
+
+/**
+ * Trigger handler called when a document is updated.
+ * Receives both the new document and the old document for comparison.
+ */
+export type OnUpdateTrigger<TableName extends AuthTableName> = (
+  ctx: MutationCtx,
+  newDoc: Doc<TableName>,
+  oldDoc: Doc<TableName>,
+) => Promise<void>;
+
+/**
+ * Trigger handler called when a document is deleted.
+ */
+export type OnDeleteTrigger<TableName extends AuthTableName> = (
+  ctx: MutationCtx,
+  doc: Doc<TableName>,
+) => Promise<void>;
+
+/**
+ * Trigger configuration for a single table.
+ */
+export type TableTriggers<TableName extends AuthTableName> = {
+  onCreate?: OnCreateTrigger<TableName>;
+  onUpdate?: OnUpdateTrigger<TableName>;
+  onDelete?: OnDeleteTrigger<TableName>;
+};
+
+/**
+ * Configuration for auth table triggers.
+ * Triggers run in the same transaction as the auth operation,
+ * allowing for atomic audit logging, history tracking, etc.
+ *
+ * @example
+ * ```ts
+ * import { convexAuth } from "@convex-dev/auth/server";
+ *
+ * export const { auth, signIn, signOut, store } = convexAuth({
+ *   providers: [Password],
+ *   triggers: {
+ *     users: {
+ *       onCreate: async (ctx, doc) => {
+ *         console.log("User created:", doc._id);
+ *       },
+ *       onUpdate: async (ctx, newDoc, oldDoc) => {
+ *         console.log("User updated:", newDoc._id);
+ *       },
+ *     },
+ *     authAccounts: {
+ *       onCreate: async (ctx, doc) => {
+ *         console.log("Account created:", doc._id);
+ *       },
+ *     },
+ *   },
+ * });
+ * ```
+ */
+export type AuthTriggers = {
+  [K in AuthTableName]?: TableTriggers<K>;
+};

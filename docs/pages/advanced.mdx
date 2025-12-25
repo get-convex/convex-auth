@@ -134,6 +134,96 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 This is helpful when the default user creation implementation in the library
 satisfies your app's needs.
 
+## Triggers
+
+Triggers allow you to run custom code when auth-related tables are modified.
+This is useful for audit logging, history tracking, or other side effects that
+need to run atomically with auth operations.
+
+### Supported Tables
+
+Triggers can be configured for any table defined in
+[`authTables`](/api_reference/server#authtables).
+
+### Trigger Types
+
+Each table supports three trigger types:
+
+- `onCreate` - Called after a new record is inserted
+- `onUpdate` - Called after a record is updated (receives both old and new doc)
+- `onDelete` - Called after a record is deleted
+
+### Usage
+
+Configure triggers in your `convexAuth` setup:
+
+```ts filename="convex/auth.ts"
+import { convexAuth } from "@convex-dev/auth/server";
+import type { AuthTriggers } from "@convex-dev/auth/server";
+import Password from "@convex-dev/auth/providers/Password";
+
+const triggers: AuthTriggers = {
+  users: {
+    onCreate: async (ctx, doc) => {
+      // Log new user creation
+      await ctx.db.insert("auditLog", {
+        action: "user_created",
+        userId: doc._id,
+        timestamp: Date.now(),
+      });
+    },
+    onUpdate: async (ctx, newDoc, oldDoc) => {
+      // Track user profile changes
+      await ctx.db.insert("userHistory", {
+        userId: newDoc._id,
+        before: oldDoc,
+        after: newDoc,
+        timestamp: Date.now(),
+      });
+    },
+  },
+  authAccounts: {
+    onCreate: async (ctx, doc) => {
+      console.log(`New auth account created: ${doc.provider}`);
+    },
+    onUpdate: async (ctx, newDoc, oldDoc) => {
+      // Audit password changes, etc.
+      console.log(`Auth account updated: ${newDoc._id}`);
+    },
+  },
+};
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [Password],
+  triggers,
+});
+```
+
+### Type Safety
+
+The trigger configuration is fully type-safe. The `AuthTriggers` type is derived
+from `authTables`, so TypeScript will enforce correct table names and document
+types:
+
+```ts
+import type {
+  AuthTableName,      // "users" | "authAccounts" | "authSessions" | ...
+  AuthTriggers,       // Full trigger configuration type
+  TableTriggers,      // Triggers for a specific table
+  OnCreateTrigger,    // (ctx, doc) => Promise<void>
+  OnUpdateTrigger,    // (ctx, newDoc, oldDoc) => Promise<void>
+  OnDeleteTrigger,    // (ctx, doc) => Promise<void>
+} from "@convex-dev/auth/server";
+```
+
+### Important Notes
+
+- Triggers run within the same transaction as the auth operation
+- If a trigger throws an error, the entire operation will be rolled back
+- Triggers receive a full `MutationCtx` so you can perform any database operations
+- Not all operations fire all triggers - only the triggers for operations that
+  actually occur will be called
+
 ## Session validity
 
 Convex Auth issues JWTs which allow your client to authenticate.

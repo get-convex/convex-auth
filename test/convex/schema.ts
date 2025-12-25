@@ -21,4 +21,11 @@ export default defineSchema({
     userId: v.id("users"),
     body: v.string(),
   }),
+  // For testing triggers
+  triggerLog: defineTable({
+    trigger: v.string(), // "users:onCreate", "users:onUpdate", etc.
+    docId: v.string(),
+    timestamp: v.number(),
+    oldDocId: v.optional(v.string()), // For onUpdate triggers
+  }),
 });

@@ -15,6 +15,7 @@ import {
 import { GenericId, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
 import { GenericDoc } from "./convex_types.js";
+import type { AuthTriggers } from "./implementation/types.js";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
@@ -222,6 +223,36 @@ export type ConvexAuthConfig = {
       },
     ) => Promise<void>;
   };
+  /**
+   * Database triggers for auth tables.
+   * Triggers run in the same transaction as the auth operation,
+   * allowing for atomic audit logging, history tracking, etc.
+   *
+   * @example
+   * ```ts
+   * import { convexAuth } from "@convex-dev/auth/server";
+   *
+   * export const { auth, signIn, signOut, store } = convexAuth({
+   *   providers: [Password],
+   *   triggers: {
+   *     users: {
+   *       onCreate: async (ctx, doc) => {
+   *         // Log user creation
+   *       },
+   *       onUpdate: async (ctx, newDoc, oldDoc) => {
+   *         // Track user changes
+   *       },
+   *     },
+   *     authAccounts: {
+   *       onUpdate: async (ctx, newDoc, oldDoc) => {
+   *         // Audit password changes
+   *       },
+   *     },
+   *   },
+   * });
+   * ```
+   */
+  triggers?: AuthTriggers;
 };
 
 /**
@@ -364,7 +395,7 @@ export type GenericActionCtxWithAuthConfig<DataModel extends GenericDataModel> =
 export type ConvexAuthMaterializedConfig = {
   providers: AuthProviderMaterializedConfig[];
   theme: Theme;
-} & Pick<ConvexAuthConfig, "session" | "jwt" | "signIn" | "callbacks">;
+} & Pick<ConvexAuthConfig, "session" | "jwt" | "signIn" | "callbacks" | "triggers">;
 
 /**
  * Materialized Auth.js provider config.

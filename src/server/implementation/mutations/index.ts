@@ -146,7 +146,7 @@ export const storeImpl = async (
       );
     }
     case "modifyAccount": {
-      return modifyAccountImpl(ctx, args, getProviderOrThrow);
+      return modifyAccountImpl(ctx, args, getProviderOrThrow, config);
     }
     case "invalidateSessions": {
       return invalidateSessionsImpl(ctx, args);

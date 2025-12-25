@@ -39,3 +39,11 @@ export type {
   ConvexAuthMaterializedConfig,
 } from "./types.js";
 export type { GenericDoc } from "./convex_types.js";
+export type {
+  AuthTableName,
+  AuthTriggers,
+  TableTriggers,
+  OnCreateTrigger,
+  OnUpdateTrigger,
+  OnDeleteTrigger,
+} from "./implementation/types.js";
