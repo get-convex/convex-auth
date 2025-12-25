@@ -27,12 +27,12 @@ export const verifyCodeAndSignInArgs = v.object({
 type ReturnType = null | SessionInfo;
 
 export async function verifyCodeAndSignInImpl(
-  originalCtx: MutationCtx,
+  _rawCtx: MutationCtx,
   args: Infer<typeof verifyCodeAndSignInArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  const ctx = createTriggeredCtx(originalCtx, config);
+  const ctx = createTriggeredCtx(_rawCtx, config);
   logWithLevel(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
     params: { email: args.params.email, phone: args.params.phone },
     provider: args.provider,

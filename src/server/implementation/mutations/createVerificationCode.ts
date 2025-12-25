@@ -20,12 +20,12 @@ export const createVerificationCodeArgs = v.object({
 type ReturnType = string;
 
 export async function createVerificationCodeImpl(
-  originalCtx: MutationCtx,
+  _rawCtx: MutationCtx,
   args: Infer<typeof createVerificationCodeArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  const ctx = createTriggeredCtx(originalCtx, config);
+  const ctx = createTriggeredCtx(_rawCtx, config);
   logWithLevel(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", args);
   const {
     email,

@@ -18,12 +18,12 @@ export const userOAuthArgs = v.object({
 type ReturnType = string;
 
 export async function userOAuthImpl(
-  originalCtx: MutationCtx,
+  _rawCtx: MutationCtx,
   args: Infer<typeof userOAuthArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  const ctx = createTriggeredCtx(originalCtx, config);
+  const ctx = createTriggeredCtx(_rawCtx, config);
   logWithLevel("DEBUG", "userOAuthImpl args:", args);
   const { profile, provider, providerAccountId, signature } = args;
   const providerConfig = getProviderOrThrow(provider) as OAuthConfig<any>;
