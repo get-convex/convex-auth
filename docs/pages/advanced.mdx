@@ -224,6 +224,15 @@ import type {
 - Not all operations fire all triggers - only the triggers for operations that
   actually occur will be called
 
+**Parameter optimization:** The implementation uses `function.length` to skip
+unnecessary database reads. Triggers must explicitly declare parameters to
+receive them—default parameters (`doc = null`) and destructuring
+(`{ _id }`) break this detection and may result in `undefined` values.
+
+**No nested triggers:** Database operations within a trigger use the original
+mutation context, so they won't fire additional triggers. This prevents infinite
+loops but means trigger-initiated writes to auth tables are not tracked.
+
 ## Session validity
 
 Convex Auth issues JWTs which allow your client to authenticate.
