@@ -292,13 +292,28 @@ export function AuthProvider({
             (await storageGet(REFRESH_TOKEN_STORAGE_KEY)) ?? null;
           if (refreshToken !== null) {
             setIsRefreshingToken(true);
-            await verifyCodeAndSetToken({ refreshToken }).finally(() => {
+            try {
+              await verifyCodeAndSetToken({ refreshToken });
+              logVerbose(
+                `returning retrieved token, is null: ${token.current === null}`,
+              );
+              return token.current;
+            } catch (error) {
+              // Token refresh failed (e.g., expired or invalid refresh token).
+              // Clear invalid tokens and transition to unauthenticated state
+              // to prevent the app from being stuck in a loading state.
+              if (!isNetworkError(error)) {
+                logVerbose(
+                  `token refresh failed with auth error, clearing tokens`,
+                );
+                await setToken({ shouldStore: true, tokens: null });
+                return null;
+              }
+              // Re-throw network errors so they can be retried
+              throw error;
+            } finally {
               setIsRefreshingToken(false);
-            });
-            logVerbose(
-              `returning retrieved token, is null: ${tokenAfterLockAquisition === null}`,
-            );
-            return token.current;
+            }
           } else {
             setIsRefreshingToken(false);
             logVerbose(`returning null, there is no refresh token`);
@@ -308,7 +323,7 @@ export function AuthProvider({
       }
       return token.current;
     },
-    [verifyCodeAndSetToken, signOut, storageGet],
+    [verifyCodeAndSetToken, setToken, storageGet],
   );
   const signingInWithCodeFromURL = useRef<boolean>(false);
   useEffect(
