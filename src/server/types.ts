@@ -167,6 +167,36 @@ export type ConvexAuthConfig = {
       },
     ) => Promise<GenericId<"users">>;
     /**
+     * Called before a new session is created for a user.
+     *
+     * This callback runs during every sign-in flow
+     * (credentials, OAuth, email, phone) right before the session
+     * is persisted. Throw an error to reject the sign-in.
+     *
+     * This is useful for checking whether a user is banned or
+     * otherwise disallowed from signing in:
+     *
+     * ```ts
+     * callbacks: {
+     *   async beforeSessionCreation(ctx, { userId }) {
+     *     const user = await ctx.db.get(userId);
+     *     if (user?.banned) {
+     *       throw new Error("Account is banned");
+     *     }
+     *   },
+     * }
+     * ```
+     */
+    beforeSessionCreation?: (
+      ctx: GenericMutationCtx<AnyDataModel>,
+      args: {
+        /**
+         * The ID of the user about to be signed in.
+         */
+        userId: GenericId<"users">;
+      },
+    ) => Promise<void>;
+    /**
      * Perform additional writes after a user is created.
      *
      * This callback is called during the sign-in process,
