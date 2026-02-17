@@ -23,6 +23,7 @@ import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { requireEnv } from "../utils.js";
 import { OAuth2Config, OIDCConfig } from "@auth/core/providers/oauth.js";
 import { generateRandomString } from "./utils.js";
+import { AuthErrorCode, isAuthError } from "./errorCodes.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 
@@ -43,19 +44,26 @@ export async function signInImpl(
     allowExtraProviders: boolean;
   },
 ): Promise<
-  | { kind: "signedIn"; signedIn: SessionInfo | null }
+  | { kind: "signedIn"; signedIn: SessionInfo | null; error?: AuthErrorCode }
   // refresh tokens
-  | { kind: "refreshTokens"; signedIn: { tokens: Tokens } }
+  | { kind: "refreshTokens"; signedIn: { tokens: Tokens } | null; error?: AuthErrorCode }
   // Multi-step flows like magic link + OTP
   | { kind: "started"; started: true }
   // OAuth2 and OIDC flows
   | { kind: "redirect"; redirect: string; verifier: string }
 > {
   if (provider === null && args.refreshToken) {
-    const tokens: Tokens = (await callRefreshSession(ctx, {
+    const result = await callRefreshSession(ctx, {
       refreshToken: args.refreshToken,
-    }))!;
-    return { kind: "refreshTokens", signedIn: { tokens } };
+    });
+    if (result === null || isAuthError(result)) {
+      return {
+        kind: "refreshTokens",
+        signedIn: null,
+        error: isAuthError(result) ? result.error : AuthErrorCode.INVALID_REFRESH_TOKEN,
+      };
+    }
+    return { kind: "refreshTokens", signedIn: { tokens: result } };
   }
   if (provider === null && args.params?.code !== undefined) {
     const result = await callVerifyCodeAndSignIn(ctx, {
@@ -64,6 +72,9 @@ export async function signInImpl(
       generateTokens: true,
       allowExtraProviders: options.allowExtraProviders,
     });
+    if (isAuthError(result)) {
+      return { kind: "signedIn", signedIn: null, error: result.error };
+    }
     return {
       kind: "signedIn",
       signedIn: result,
@@ -103,7 +114,7 @@ async function handleEmailAndPhoneProvider(
   },
 ): Promise<
   | { kind: "started"; started: true }
-  | { kind: "signedIn"; signedIn: SessionInfoWithTokens }
+  | { kind: "signedIn"; signedIn: SessionInfoWithTokens | null; error?: AuthErrorCode }
 > {
   if (args.params?.code !== undefined) {
     const result = await callVerifyCodeAndSignIn(ctx, {
@@ -112,8 +123,8 @@ async function handleEmailAndPhoneProvider(
       generateTokens: options.generateTokens,
       allowExtraProviders: options.allowExtraProviders,
     });
-    if (result === null) {
-      throw new Error("Could not verify code");
+    if (isAuthError(result)) {
+      return { kind: "signedIn", signedIn: null, error: result.error };
     }
     return {
       kind: "signedIn",
@@ -214,7 +225,7 @@ async function handleOAuthProvider(
     allowExtraProviders: boolean;
   },
 ): Promise<
-  | { kind: "signedIn"; signedIn: SessionInfoWithTokens | null }
+  | { kind: "signedIn"; signedIn: SessionInfoWithTokens | null; error?: AuthErrorCode }
   | { kind: "redirect"; redirect: string; verifier: string }
 > {
   // We have this action because:
@@ -231,6 +242,9 @@ async function handleOAuthProvider(
       generateTokens: true,
       allowExtraProviders: options.allowExtraProviders,
     });
+    if (isAuthError(result)) {
+      return { kind: "signedIn", signedIn: null, error: result.error };
+    }
     return {
       kind: "signedIn",
       signedIn: result as SessionInfoWithTokens | null,

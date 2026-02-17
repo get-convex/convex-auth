@@ -7,6 +7,7 @@ import {
 } from "../rateLimit.js";
 import * as Provider from "../provider.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { AuthErrorCode } from "../errorCodes.js";
 
 export const retrieveAccountWithCredentialsArgs = v.object({
   provider: v.string(),
@@ -14,9 +15,7 @@ export const retrieveAccountWithCredentialsArgs = v.object({
 });
 
 type ReturnType =
-  | "InvalidAccountId"
-  | "TooManyFailedAttempts"
-  | "InvalidSecret"
+  | { error: AuthErrorCode }
   | { account: Doc<"authAccounts">; user: Doc<"users"> };
 
 export async function retrieveAccountWithCredentialsImpl(
@@ -40,11 +39,11 @@ export async function retrieveAccountWithCredentialsImpl(
     )
     .unique();
   if (existingAccount === null) {
-    return "InvalidAccountId";
+    return { error: AuthErrorCode.ACCOUNT_NOT_FOUND };
   }
   if (account.secret !== undefined) {
     if (await isSignInRateLimited(ctx, existingAccount._id, config)) {
-      return "TooManyFailedAttempts";
+      return { error: AuthErrorCode.RATE_LIMITED };
     }
     if (
       !(await Provider.verify(
@@ -54,7 +53,7 @@ export async function retrieveAccountWithCredentialsImpl(
       ))
     ) {
       await recordFailedSignIn(ctx, existingAccount._id, config);
-      return "InvalidSecret";
+      return { error: AuthErrorCode.INVALID_CREDENTIALS };
     }
     await resetSignInRateLimit(ctx, existingAccount._id);
   }

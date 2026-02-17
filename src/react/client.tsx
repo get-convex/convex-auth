@@ -30,6 +30,7 @@ export const ConvexAuthActionsContext =
 const ConvexAuthInternalContext = createContext<{
   isLoading: boolean;
   isAuthenticated: boolean;
+  error: string | undefined;
   fetchAccessToken: ({
     forceRefreshToken,
   }: {
@@ -88,6 +89,7 @@ export function AuthProvider({
     useNamespacedStorage(storage, storageNamespace);
 
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
   const setToken = useCallback(
     async (
       args:
@@ -212,9 +214,12 @@ export function AuthProvider({
     async (
       args: { code: string; verifier?: string } | { refreshToken: string },
     ) => {
-      const { tokens } = await verifyCode(args);
+      const { tokens, error: verifyError } = await verifyCode(args);
       logVerbose(`retrieved tokens, is null: ${tokens === null}`);
       await setToken({ shouldStore: true, tokens: tokens ?? null });
+      if (verifyError) {
+        setError(verifyError);
+      }
       return tokens !== null;
     },
     [client, setToken],
@@ -222,6 +227,7 @@ export function AuthProvider({
 
   const signIn = useCallback(
     async (provider?: string, args?: FormData | Record<string, Value>) => {
+      setError(undefined);
       const params =
         args instanceof FormData
           ? Array.from(args.entries()).reduce(
@@ -254,9 +260,15 @@ export function AuthProvider({
         const { tokens } = result;
         logVerbose(`signed in and got tokens, is null: ${tokens === null}`);
         await setToken({ shouldStore: true, tokens });
-        return { signingIn: result.tokens !== null };
+        if (result.error) {
+          setError(result.error);
+        }
+        return { signingIn: result.tokens !== null, error: result.error };
       }
-      return { signingIn: false };
+      if (result.error) {
+        setError(result.error);
+      }
+      return { signingIn: false, error: result.error };
     },
     [client, setToken, storageGet],
   );
@@ -361,10 +373,25 @@ export function AuthProvider({
 
         return;
       }
-      const code =
+      const searchParams =
         typeof window?.location?.search !== "undefined"
-          ? new URLSearchParams(window.location.search).get("code")
+          ? new URLSearchParams(window.location.search)
           : null;
+      const code = searchParams?.get("code") ?? null;
+      const urlError = searchParams?.get("error") ?? null;
+
+      // Handle error from OAuth redirect
+      if (urlError) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("error");
+        void (async () => {
+          await replaceURL(url.pathname + url.search + url.hash);
+          setError(urlError);
+          setIsLoading(false);
+        })();
+        return;
+      }
+
       // code from URL is only consumed initially,
       // ref avoids racing in Strict mode
       if (
@@ -399,9 +426,10 @@ export function AuthProvider({
     () => ({
       isLoading,
       isAuthenticated,
+      error,
       fetchAccessToken,
     }),
-    [fetchAccessToken, isLoading, isAuthenticated],
+    [fetchAccessToken, isLoading, isAuthenticated, error],
   );
 
   return (

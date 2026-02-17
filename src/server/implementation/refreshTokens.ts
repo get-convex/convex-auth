@@ -8,6 +8,7 @@ import {
   maybeRedact,
   stringToNumber,
 } from "./utils.js";
+import { AuthErrorCode } from "./errorCodes.js";
 
 const DEFAULT_SESSION_INACTIVE_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 export const REFRESH_TOKEN_REUSE_WINDOW_MS = 10 * 1000; // 10 seconds
@@ -123,24 +124,24 @@ export async function refreshTokenIfValid(
 
   if (refreshTokenDoc === null) {
     logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token");
-    return null;
+    return { error: AuthErrorCode.INVALID_REFRESH_TOKEN };
   }
   if (refreshTokenDoc.expirationTime < Date.now()) {
     logWithLevel(LOG_LEVELS.ERROR, "Expired refresh token");
-    return null;
+    return { error: AuthErrorCode.INVALID_REFRESH_TOKEN };
   }
   if (refreshTokenDoc.sessionId !== tokenSessionId) {
     logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token session ID");
-    return null;
+    return { error: AuthErrorCode.INVALID_REFRESH_TOKEN };
   }
   const session = await ctx.db.get(refreshTokenDoc.sessionId);
   if (session === null) {
     logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token session");
-    return null;
+    return { error: AuthErrorCode.EXPIRED_SESSION };
   }
   if (session.expirationTime < Date.now()) {
     logWithLevel(LOG_LEVELS.ERROR, "Expired refresh token session");
-    return null;
+    return { error: AuthErrorCode.EXPIRED_SESSION };
   }
   return { session, refreshTokenDoc };
 }

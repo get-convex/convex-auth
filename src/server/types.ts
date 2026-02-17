@@ -15,6 +15,7 @@ import {
 import { GenericId, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
 import { GenericDoc } from "./convex_types.js";
+import type { AuthErrorCode } from "./implementation/errorCodes.js";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
@@ -221,6 +222,39 @@ export type ConvexAuthConfig = {
         shouldLink?: boolean;
       },
     ) => Promise<void>;
+    /**
+     * Called when an authentication error occurs during sign-in,
+     * token refresh, or OAuth callback.
+     *
+     * Use this callback for server-side error observation, logging,
+     * or alerting. The error code is also returned to the client.
+     *
+     * ```ts
+     * import { convexAuth } from "@convex-dev/auth/server";
+     *
+     * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+     *   providers: [...],
+     *   callbacks: {
+     *     async onError(ctx, { error, providerId }) {
+     *       console.error(`Auth error: ${error} for provider ${providerId}`);
+     *     },
+     *   },
+     * });
+     * ```
+     */
+    onError?: (
+      ctx: GenericActionCtx<AnyDataModel>,
+      args: {
+        /**
+         * The structured error code describing what went wrong.
+         */
+        error: AuthErrorCode;
+        /**
+         * The provider ID that was used, if applicable.
+         */
+        providerId?: string;
+      },
+    ) => void | Promise<void>;
   };
 };
 

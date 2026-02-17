@@ -239,6 +239,12 @@ export type ConvexAuthActionsContext = {
      * this URL.
      */
     redirect?: URL;
+    /**
+     * If the sign-in failed, this is a structured error code
+     * describing what went wrong (e.g. "INVALID_CREDENTIALS",
+     * "INVALID_CODE", "RATE_LIMITED").
+     */
+    error?: string;
   }>;
 
   /**

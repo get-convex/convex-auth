@@ -20,6 +20,7 @@ export {
   signInViaProvider,
   invalidateSessions,
   modifyAccountCredentials,
+  AuthErrorCode,
   Tokens,
   Doc,
   SignInAction,

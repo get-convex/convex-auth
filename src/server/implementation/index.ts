@@ -34,6 +34,8 @@ import {
   logError,
   logWithLevel,
 } from "./utils.js";
+import { AuthErrorCode, isAuthError } from "./errorCodes.js";
+export { AuthErrorCode } from "./errorCodes.js";
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
   callCreateAccountFromCredentials,
@@ -359,8 +361,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 },
               });
             } catch (error) {
+              const code = AuthErrorCode.OAUTH_FAILED;
               logError(error);
-              return Response.redirect(destinationUrl);
+              await config.callbacks?.onError?.(ctx as any, {
+                error: code,
+                providerId,
+              });
+              return Response.redirect(
+                setURLSearchParam(destinationUrl, "error", code),
+              );
             }
           },
         );
@@ -405,6 +414,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier?: string;
         tokens?: Tokens | null;
         started?: boolean;
+        error?: AuthErrorCode;
       }> => {
         if (args.calledBy !== undefined) {
           logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
@@ -421,8 +431,15 @@ export function convexAuth(config_: ConvexAuthConfig) {
           case "redirect":
             return { redirect: result.redirect, verifier: result.verifier };
           case "signedIn":
-          case "refreshTokens":
-            return { tokens: result.signedIn?.tokens ?? null };
+          case "refreshTokens": {
+            if (result.error) {
+              await config.callbacks?.onError?.(ctx as any, {
+                error: result.error,
+                providerId: args.provider,
+              });
+            }
+            return { tokens: result.signedIn?.tokens ?? null, error: result.error };
+          }
           case "started":
             return { started: true };
           default: {
@@ -597,8 +614,8 @@ export async function retrieveAccount<
 }> {
   const actionCtx = ctx as unknown as ActionCtx;
   const result = await callRetreiveAccountWithCredentials(actionCtx, args);
-  if (typeof result === "string") {
-    throw new Error(result);
+  if (isAuthError(result)) {
+    throw new Error(result.error);
   }
   return result;
 }

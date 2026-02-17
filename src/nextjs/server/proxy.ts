@@ -104,6 +104,7 @@ export async function proxyAuthActionToConvex(
           result.tokens !== null
             ? { token: result.tokens.token, refreshToken: "dummy" }
             : null,
+        ...(result.error !== undefined ? { error: result.error } : {}),
       });
       await setAuthCookies(response, result.tokens, cookieConfig);
       return response;

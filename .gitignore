@@ -41,3 +41,7 @@ next-env.d.ts
 
 playwright-report/
 test-results/
+
+CLAUDE.md
+.claude/
+*.tgz
