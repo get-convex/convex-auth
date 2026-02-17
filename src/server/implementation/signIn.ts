@@ -23,7 +23,7 @@ import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
 import { requireEnv } from "../utils.js";
 import { OAuth2Config, OIDCConfig } from "@auth/core/providers/oauth.js";
 import { generateRandomString } from "./utils.js";
-import { AuthErrorCode, isAuthError } from "./errorCodes.js";
+import { AuthError, AuthErrorCode, isAuthError } from "./errorCodes.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 
@@ -124,7 +124,7 @@ async function handleEmailAndPhoneProvider(
       allowExtraProviders: options.allowExtraProviders,
     });
     if (isAuthError(result)) {
-      throw new Error(result.error);
+      throw new AuthError(result.error, "Could not verify code");
     }
     return {
       kind: "signedIn",

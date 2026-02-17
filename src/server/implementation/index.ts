@@ -34,7 +34,7 @@ import {
   logError,
   logWithLevel,
 } from "./utils.js";
-import { AuthErrorCode, extractAuthErrorCode, isAuthError } from "./errorCodes.js";
+import { AuthError, AuthErrorCode, extractAuthError, isAuthError } from "./errorCodes.js";
 export { AuthErrorCode } from "./errorCodes.js";
 
 /**
@@ -58,9 +58,9 @@ export { AuthErrorCode } from "./errorCodes.js";
  */
 export function legacyOnAuthError(
   _ctx: unknown,
-  { error, thrown }: { error: AuthErrorCode; thrown: boolean },
+  { legacyMessage }: { legacyMessage: string | null },
 ): void {
-  if (thrown) throw new Error(error);
+  if (legacyMessage !== null) throw new Error(legacyMessage);
 }
 
 /**
@@ -91,7 +91,7 @@ export function legacyOnAuthError(
  */
 export function defaultOnAuthError(
   _ctx: unknown,
-  { error, providerId }: { error: AuthErrorCode; providerId?: string },
+  { error, providerId }: { error: AuthErrorCode; providerId?: string; legacyMessage: string | null },
 ): void {
   if (
     error === AuthErrorCode.INVALID_REFRESH_TOKEN ||
@@ -433,7 +433,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                   await config.callbacks.onError(ctx as any, {
                     error: code,
                     providerId,
-                    thrown: false,
+                    legacyMessage: null,
                   });
                 } catch (onErrorError) {
                   logError(onErrorError);
@@ -509,7 +509,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 await onError(ctx as any, {
                   error: result.error,
                   providerId: args.provider,
-                  thrown: false,
+                  legacyMessage: null,
                 });
               }
               return { tokens: result.signedIn?.tokens ?? null };
@@ -522,12 +522,12 @@ export function convexAuth(config_: ConvexAuthConfig) {
             }
           }
         } catch (error) {
-          const code = extractAuthErrorCode(error);
-          if (code !== null) {
+          const authError = extractAuthError(error);
+          if (authError !== null) {
             await onError(ctx as any, {
-              error: code,
+              error: authError.code,
               providerId: args.provider,
-              thrown: true,
+              legacyMessage: authError.legacyMessage,
             });
             return { tokens: null };
           }
@@ -701,7 +701,12 @@ export async function retrieveAccount<
   const actionCtx = ctx as unknown as ActionCtx;
   const result = await callRetreiveAccountWithCredentials(actionCtx, args);
   if (isAuthError(result)) {
-    throw new Error(result.error);
+    const legacyMessages: Partial<Record<AuthErrorCode, string>> = {
+      [AuthErrorCode.ACCOUNT_NOT_FOUND]: "InvalidAccountId",
+      [AuthErrorCode.RATE_LIMITED]: "TooManyFailedAttempts",
+      [AuthErrorCode.INVALID_CREDENTIALS]: "InvalidSecret",
+    };
+    throw new AuthError(result.error, legacyMessages[result.error] ?? null);
   }
   return result;
 }

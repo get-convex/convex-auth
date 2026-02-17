@@ -263,12 +263,13 @@ export type ConvexAuthConfig = {
          */
         providerId?: string;
         /**
-         * Whether this error was originally thrown (vs returned silently).
-         * The legacy default handler re-throws when `true` and stays
-         * silent when `false`. Custom handlers can use this to decide
-         * how to surface errors.
+         * @deprecated For use by `legacyOnAuthError` only.
+         * When non-null, contains the original error message string from
+         * before structured error codes were introduced. `legacyOnAuthError`
+         * throws this message to preserve backwards-compatible behavior.
+         * Do not use in new code.
          */
-        thrown: boolean;
+        legacyMessage: string | null;
       },
     ) => void | Promise<void>;
   };

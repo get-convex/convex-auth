@@ -32,11 +32,34 @@ export function isAuthError(
   return result !== null && typeof result === "object" && "error" in result;
 }
 
+/**
+ * Thrown internally when an auth operation fails.
+ * Carries both the structured error code and the legacy message string
+ * for backwards-compatible error handling.
+ */
+export class AuthError extends Error {
+  constructor(
+    public readonly code: AuthErrorCode,
+    /**
+     * @deprecated Legacy message for use by `legacyOnAuthError` only.
+     * Do not use in new code.
+     */
+    public readonly legacyMessage: string | null,
+  ) {
+    super(code);
+  }
+}
+
 const AUTH_ERROR_CODES = new Set<string>(Object.values(AuthErrorCode));
 
-export function extractAuthErrorCode(error: unknown): AuthErrorCode | null {
+export function extractAuthError(
+  error: unknown,
+): { code: AuthErrorCode; legacyMessage: string | null } | null {
+  if (error instanceof AuthError) {
+    return { code: error.code, legacyMessage: error.legacyMessage };
+  }
   if (error instanceof Error && AUTH_ERROR_CODES.has(error.message)) {
-    return error.message as AuthErrorCode;
+    return { code: error.message as AuthErrorCode, legacyMessage: null };
   }
   return null;
 }
