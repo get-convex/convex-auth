@@ -21,6 +21,8 @@ export {
   invalidateSessions,
   modifyAccountCredentials,
   AuthErrorCode,
+  defaultOnAuthError,
+  legacyOnAuthError,
   Tokens,
   Doc,
   SignInAction,

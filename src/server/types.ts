@@ -262,6 +262,13 @@ export type ConvexAuthConfig = {
          * The provider ID that was used, if applicable.
          */
         providerId?: string;
+        /**
+         * Whether this error was originally thrown (vs returned silently).
+         * The legacy default handler re-throws when `true` and stays
+         * silent when `false`. Custom handlers can use this to decide
+         * how to surface errors.
+         */
+        thrown: boolean;
       },
     ) => void | Promise<void>;
   };

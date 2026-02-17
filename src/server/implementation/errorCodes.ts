@@ -40,3 +40,4 @@ export function extractAuthErrorCode(error: unknown): AuthErrorCode | null {
   }
   return null;
 }
+
