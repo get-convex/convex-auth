@@ -31,3 +31,12 @@ export function isAuthError(
 ): result is { error: AuthErrorCode } {
   return result !== null && typeof result === "object" && "error" in result;
 }
+
+const AUTH_ERROR_CODES = new Set<string>(Object.values(AuthErrorCode));
+
+export function extractAuthErrorCode(error: unknown): AuthErrorCode | null {
+  if (error instanceof Error && AUTH_ERROR_CODES.has(error.message)) {
+    return error.message as AuthErrorCode;
+  }
+  return null;
+}

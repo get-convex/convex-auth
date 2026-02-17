@@ -34,7 +34,7 @@ import {
   logError,
   logWithLevel,
 } from "./utils.js";
-import { AuthErrorCode, isAuthError } from "./errorCodes.js";
+import { AuthErrorCode, extractAuthErrorCode, isAuthError } from "./errorCodes.js";
 export { AuthErrorCode } from "./errorCodes.js";
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
@@ -414,7 +414,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier?: string;
         tokens?: Tokens | null;
         started?: boolean;
-        error?: AuthErrorCode;
       }> => {
         if (args.calledBy !== undefined) {
           logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
@@ -423,29 +422,41 @@ export function convexAuth(config_: ConvexAuthConfig) {
           args.provider !== undefined
             ? getProviderOrThrow(args.provider)
             : null;
-        const result = await signInImpl(enrichCtx(ctx), provider, args, {
-          generateTokens: true,
-          allowExtraProviders: false,
-        });
-        switch (result.kind) {
-          case "redirect":
-            return { redirect: result.redirect, verifier: result.verifier };
-          case "signedIn":
-          case "refreshTokens": {
-            if (result.error) {
-              await config.callbacks?.onError?.(ctx as any, {
-                error: result.error,
-                providerId: args.provider,
-              });
+        try {
+          const result = await signInImpl(enrichCtx(ctx), provider, args, {
+            generateTokens: true,
+            allowExtraProviders: false,
+          });
+          switch (result.kind) {
+            case "redirect":
+              return { redirect: result.redirect, verifier: result.verifier };
+            case "signedIn":
+            case "refreshTokens": {
+              if (result.error && config.callbacks?.onError) {
+                await config.callbacks.onError(ctx as any, {
+                  error: result.error,
+                  providerId: args.provider,
+                });
+              }
+              return { tokens: result.signedIn?.tokens ?? null };
             }
-            return { tokens: result.signedIn?.tokens ?? null, error: result.error };
+            case "started":
+              return { started: true };
+            default: {
+              const _typecheck: never = result;
+              throw new Error(`Unexpected result from signIn, ${result as any}`);
+            }
           }
-          case "started":
-            return { started: true };
-          default: {
-            const _typecheck: never = result;
-            throw new Error(`Unexpected result from signIn, ${result as any}`);
+        } catch (error) {
+          const code = extractAuthErrorCode(error);
+          if (code !== null && config.callbacks?.onError) {
+            await config.callbacks.onError(ctx as any, {
+              error: code,
+              providerId: args.provider,
+            });
+            return { tokens: null };
           }
+          throw error;
         }
       },
     }),

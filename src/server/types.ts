@@ -226,17 +226,26 @@ export type ConvexAuthConfig = {
      * Called when an authentication error occurs during sign-in,
      * token refresh, or OAuth callback.
      *
-     * Use this callback for server-side error observation, logging,
-     * or alerting. The error code is also returned to the client.
+     * When this callback is provided, thrown auth errors from the
+     * sign-in action are caught and the action returns
+     * `{ tokens: null }` instead of throwing. This allows you to
+     * handle errors server-side (e.g. logging, throwing a
+     * `ConvexError` with structured data for the client).
+     *
+     * When this callback is **not** provided, errors are thrown
+     * as before (fully backwards compatible).
      *
      * ```ts
+     * import { ConvexError } from "convex/values";
      * import { convexAuth } from "@convex-dev/auth/server";
      *
      * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
      *   providers: [...],
      *   callbacks: {
      *     async onError(ctx, { error, providerId }) {
-     *       console.error(`Auth error: ${error} for provider ${providerId}`);
+     *       // Throw a ConvexError so the client receives structured data
+     *       // (plain Error messages are stripped in production)
+     *       throw new ConvexError({ code: error, providerId });
      *     },
      *   },
      * });

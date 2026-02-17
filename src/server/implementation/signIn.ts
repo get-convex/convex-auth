@@ -114,7 +114,7 @@ async function handleEmailAndPhoneProvider(
   },
 ): Promise<
   | { kind: "started"; started: true }
-  | { kind: "signedIn"; signedIn: SessionInfoWithTokens | null; error?: AuthErrorCode }
+  | { kind: "signedIn"; signedIn: SessionInfoWithTokens }
 > {
   if (args.params?.code !== undefined) {
     const result = await callVerifyCodeAndSignIn(ctx, {
@@ -124,7 +124,7 @@ async function handleEmailAndPhoneProvider(
       allowExtraProviders: options.allowExtraProviders,
     });
     if (isAuthError(result)) {
-      return { kind: "signedIn", signedIn: null, error: result.error };
+      throw new Error(result.error);
     }
     return {
       kind: "signedIn",
