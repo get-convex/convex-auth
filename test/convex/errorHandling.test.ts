@@ -260,24 +260,121 @@ test("credentials authorize returning null returns tokens null silently", async 
 
 // --- OAuth callback: silent redirect on failure ---
 
-test("OAuth callback failure redirects without code param", async () => {
+test("OAuth callback with failed token exchange redirects without code param", async () => {
   setupEnv();
   process.env.AUTH_GITHUB_ID = "githubClientId";
   process.env.AUTH_GITHUB_SECRET = "githubClientSecret";
   const t = convexTest(schema);
 
-  // Hit the OAuth callback directly with no valid state/cookies
-  // This simulates a failed OAuth callback (e.g., invalid token exchange)
-  const response = await t.fetch(
-    "/api/auth/callback/github?code=invalid-oauth-code",
+  // Start the OAuth flow to get a proper redirect URL and cookies
+  const { redirect } = await t.action(api.auth.signIn, {
+    provider: "github",
+    params: {},
+  });
+
+  const url = new URL(redirect!);
+  const response = await t.fetch(`${url.pathname}${url.search}`);
+  const redirectedTo = response.headers.get("Location");
+  const cookies = response.headers.get("Set-Cookie");
+
+  const redirectedToParams = new URL(redirectedTo!).searchParams;
+  const callbackUrlStr = redirectedToParams.get("redirect_uri");
+  const codeChallenge = redirectedToParams.get("code_challenge");
+
+  // Mock GitHub's token exchange to return an error (e.g., expired OAuth code)
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ error: "bad_verification_code" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }),
   );
 
+  // Hit the callback with valid cookies but a failing token exchange
+  const callbackResponse = await t.fetch(
+    `${new URL(callbackUrlStr!).pathname}?code=any-oauth-code&code_challenge=${codeChallenge}`,
+    {
+      headers: {
+        Cookie: cookies!
+          .split(",")
+          .map((cookie) => {
+            const [name, value] = cookie.split(";")[0].split("=");
+            return `${name}=${value};`;
+          })
+          .join(" "),
+      },
+    },
+  );
+
+  vi.unstubAllGlobals();
+
   // Should redirect (302) back to SITE_URL without ?code= param
-  expect(response.status).toBe(302);
-  const location = response.headers.get("Location");
+  expect(callbackResponse.status).toBe(302);
+  const location = callbackResponse.headers.get("Location");
   expect(location).not.toBeNull();
   const redirectUrl = new URL(location!);
   expect(redirectUrl.searchParams.has("code")).toBe(false);
+});
+
+// --- Duplicate sign-up: thrown errors ---
+
+test("duplicate sign-up with different password throws Account already exists", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
+  });
+
+  await expect(
+    t.action(api.auth.signIn, {
+      provider: "password",
+      params: { email: "sarah@gmail.com", password: "different1", flow: "signUp" },
+    }),
+  ).rejects.toThrow("Account sarah@gmail.com already exists");
+});
+
+// --- Missing required params: thrown errors ---
+
+test("missing password on signUp throws Invalid password", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  await expect(
+    t.action(api.auth.signIn, {
+      provider: "password",
+      params: { email: "sarah@gmail.com", flow: "signUp" },
+    }),
+  ).rejects.toThrow("Invalid password");
+});
+
+test("missing password on signIn throws", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  await expect(
+    t.action(api.auth.signIn, {
+      provider: "password",
+      params: { email: "sarah@gmail.com", flow: "signIn" },
+    }),
+  ).rejects.toThrow("Missing `password` param for `signIn` flow");
+});
+
+// --- Provider configuration: thrown errors ---
+
+test("invalid provider name throws", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  await expect(
+    t.action(api.auth.signIn, {
+      provider: "nonexistent",
+      params: {},
+    }),
+  ).rejects.toThrow("Provider `nonexistent` is not configured");
 });
 
 // --- Password validation errors ---
