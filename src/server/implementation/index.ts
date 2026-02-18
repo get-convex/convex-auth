@@ -64,25 +64,24 @@ export function legacyOnAuthError(
 }
 
 /**
- * The recommended error handler. Throws a `ConvexError` with structured
- * data for all errors except refresh token failures (which are silent
- * since they happen automatically in the background).
+ * The recommended error handler. Throws for all errors except refresh
+ * token / session failures (which are silent since they happen
+ * automatically in the background).
  *
- * Use this to make auth errors visible to clients in production
- * (plain `Error` messages are stripped by Convex in production,
- * but `ConvexError` data is always delivered).
+ * Errors are thrown as plain `Error`, which Convex strips in production.
+ * To expose structured error data to clients, throw a `ConvexError`
+ * in your own `onError` callback for the specific errors you want
+ * clients to see.
  *
  * ```ts
+ * import { ConvexError } from "convex/values";
  * import { defaultOnAuthError } from "@convex-dev/auth/server";
  *
  * callbacks: {
- *   // Use directly
- *   onError: defaultOnAuthError,
- *
- *   // Or compose with custom handling
  *   async onError(ctx, args) {
- *     if (args.error === "RATE_LIMITED") {
- *       return; // suppress rate limit errors
+ *     // Opt in to exposing specific errors to the client
+ *     if (args.error === "INVALID_CREDENTIALS") {
+ *       throw new ConvexError({ code: args.error, providerId: args.providerId });
  *     }
  *     defaultOnAuthError(ctx, args);
  *   },
@@ -91,7 +90,7 @@ export function legacyOnAuthError(
  */
 export function defaultOnAuthError(
   _ctx: unknown,
-  { error, providerId }: { error: AuthErrorCode; providerId?: string; legacyMessage: string | null },
+  { error }: { error: AuthErrorCode; legacyMessage: string | null },
 ): void {
   if (
     error === AuthErrorCode.INVALID_REFRESH_TOKEN ||
@@ -99,7 +98,7 @@ export function defaultOnAuthError(
   ) {
     return;
   }
-  throw new ConvexError({ code: error, providerId });
+  throw new Error(error);
 }
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
