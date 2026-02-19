@@ -196,6 +196,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
   const enrichCtx = <DataModel extends GenericDataModel>(
     ctx: GenericActionCtx<DataModel>,
   ) => ({ ...ctx, auth: { ...ctx.auth, config } });
+  const onError = config.callbacks?.onError ?? legacyOnAuthError;
 
   const auth = {
     /**
@@ -427,16 +428,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
             } catch (error) {
               const code = AuthErrorCode.OAUTH_FAILED;
               logError(error);
-              if (config.callbacks?.onError) {
-                try {
-                  await config.callbacks.onError(ctx as any, {
-                    error: code,
-                    providerId,
-                    legacyMessage: null,
-                  });
-                } catch (onErrorError) {
-                  logError(onErrorError);
-                }
+              try {
+                await onError(ctx as any, {
+                  error: code,
+                  providerId,
+                  legacyMessage: null,
+                });
+              } catch (onErrorError) {
+                logError(onErrorError);
               }
               return Response.redirect(
                 setURLSearchParam(destinationUrl, "error", code),
@@ -493,7 +492,6 @@ export function convexAuth(config_: ConvexAuthConfig) {
           args.provider !== undefined
             ? getProviderOrThrow(args.provider)
             : null;
-        const onError = config.callbacks?.onError ?? legacyOnAuthError;
         try {
           const result = await signInImpl(enrichCtx(ctx), provider, args, {
             generateTokens: true,
