@@ -224,34 +224,33 @@ export type ConvexAuthConfig = {
     ) => Promise<void>;
     /**
      * Called when an authentication error occurs during sign-in,
-     * token refresh, or OAuth callback.
+     * token refresh, or OAuth callback. Controls what error
+     * information reaches the client.
      *
-     * When this callback is provided, thrown auth errors from the
-     * sign-in action are caught and the action returns
-     * `{ tokens: null }` instead of throwing. This allows you to
-     * handle errors server-side (e.g. logging, throwing a
-     * `ConvexError` with structured data for the client).
+     * The return value determines the behavior:
+     * - **Return an `AuthErrorCode`** — the code is included in
+     *   the action response as `{ tokens: null, error: code }`.
+     * - **Return `void`/`undefined`** — silent failure, the action
+     *   returns `{ tokens: null }` with no error info.
+     * - **Throw** — the error propagates to the client. Use
+     *   `ConvexError` for structured client-visible data, or
+     *   plain `Error` (stripped in production).
      *
-     * When this callback is **not** provided, errors are thrown
-     * as before (fully backwards compatible).
+     * When not provided, defaults to `legacyOnAuthError` which
+     * preserves backwards-compatible throw behavior.
      *
      * ```ts
-     * import { ConvexError } from "convex/values";
-     * import { convexAuth } from "@convex-dev/auth/server";
+     * import { convexAuth, defaultOnAuthError } from "@convex-dev/auth/server";
      *
      * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
      *   providers: [...],
      *   callbacks: {
-     *     async onError(ctx, { error, providerId }) {
-     *       // Throw a ConvexError so the client receives structured data
-     *       // (plain Error messages are stripped in production)
-     *       throw new ConvexError({ code: error, providerId });
-     *     },
+     *     handleAuthError: defaultOnAuthError,
      *   },
      * });
      * ```
      */
-    onError?: (
+    handleAuthError?: (
       ctx: GenericActionCtx<AnyDataModel>,
       args: {
         /**
@@ -271,7 +270,7 @@ export type ConvexAuthConfig = {
          */
         legacyMessage: string | null;
       },
-    ) => void | Promise<void>;
+    ) => void | AuthErrorCode | Promise<void | AuthErrorCode>;
   };
 };
 

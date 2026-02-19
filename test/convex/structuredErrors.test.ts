@@ -46,71 +46,71 @@ test("legacyOnAuthError stays silent when legacyMessage is null", () => {
 
 // --- defaultOnAuthError ---
 
-test("defaultOnAuthError throws opaque Error for auth failures", () => {
-  const authErrors: AuthErrorCode[] = [
+test("defaultOnAuthError returns error codes for client consumption", () => {
+  const passThrough: AuthErrorCode[] = [
     AuthErrorCode.INVALID_CREDENTIALS,
-    AuthErrorCode.ACCOUNT_NOT_FOUND,
     AuthErrorCode.INVALID_CODE,
     AuthErrorCode.EXPIRED_CODE,
     AuthErrorCode.INVALID_VERIFIER,
-    AuthErrorCode.ACCOUNT_DELETED,
     AuthErrorCode.PROVIDER_MISMATCH,
     AuthErrorCode.RATE_LIMITED,
     AuthErrorCode.OAUTH_FAILED,
     AuthErrorCode.INTERNAL_ERROR,
   ];
 
-  for (const code of authErrors) {
-    expect(() =>
+  for (const code of passThrough) {
+    expect(
       defaultOnAuthError({}, { error: code, legacyMessage: null }),
-    ).toThrow(code);
+    ).toBe(code);
   }
 });
 
-test("defaultOnAuthError throws plain Error, not ConvexError", () => {
-  try {
+test("defaultOnAuthError maps ACCOUNT_NOT_FOUND to INVALID_CREDENTIALS", () => {
+  expect(
     defaultOnAuthError(
       {},
-      { error: AuthErrorCode.INVALID_CREDENTIALS, legacyMessage: null },
-    );
-    expect.unreachable("should have thrown");
-  } catch (e) {
-    // Should be a plain Error, not a ConvexError
-    expect(e).toBeInstanceOf(Error);
-    expect((e as Error).message).toBe("INVALID_CREDENTIALS");
-    expect(e).not.toHaveProperty("data");
-  }
+      { error: AuthErrorCode.ACCOUNT_NOT_FOUND, legacyMessage: null },
+    ),
+  ).toBe(AuthErrorCode.INVALID_CREDENTIALS);
 });
 
-test("defaultOnAuthError is silent for refresh token failures", () => {
-  expect(() =>
+test("defaultOnAuthError maps ACCOUNT_DELETED to INVALID_CREDENTIALS", () => {
+  expect(
+    defaultOnAuthError(
+      {},
+      { error: AuthErrorCode.ACCOUNT_DELETED, legacyMessage: null },
+    ),
+  ).toBe(AuthErrorCode.INVALID_CREDENTIALS);
+});
+
+test("defaultOnAuthError returns void for refresh token failures", () => {
+  expect(
     defaultOnAuthError(
       {},
       { error: AuthErrorCode.INVALID_REFRESH_TOKEN, legacyMessage: null },
     ),
-  ).not.toThrow();
+  ).toBeUndefined();
 
-  expect(() =>
+  expect(
     defaultOnAuthError(
       {},
       { error: AuthErrorCode.EXPIRED_SESSION, legacyMessage: null },
     ),
-  ).not.toThrow();
+  ).toBeUndefined();
 });
 
 test("defaultOnAuthError ignores legacyMessage", () => {
-  // Should throw based on error code, regardless of legacyMessage value
-  expect(() =>
+  expect(
     defaultOnAuthError(
       {},
       { error: AuthErrorCode.INVALID_CREDENTIALS, legacyMessage: "InvalidSecret" },
     ),
-  ).toThrow("INVALID_CREDENTIALS");
+  ).toBe(AuthErrorCode.INVALID_CREDENTIALS);
 
-  expect(() =>
+  expect(
     defaultOnAuthError(
       {},
       { error: AuthErrorCode.RATE_LIMITED, legacyMessage: "TooManyFailedAttempts" },
     ),
-  ).toThrow("RATE_LIMITED");
+  ).toBe(AuthErrorCode.RATE_LIMITED);
 });

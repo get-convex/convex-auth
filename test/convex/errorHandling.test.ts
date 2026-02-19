@@ -310,12 +310,14 @@ test("OAuth callback with failed token exchange redirects without code param", a
 
   vi.unstubAllGlobals();
 
-  // Should redirect (302) back to SITE_URL without ?code= param
+  // Should redirect (302) back to SITE_URL without ?code= or ?error= param
+  // (legacy handler returns void for OAuth failures, so no error param)
   expect(callbackResponse.status).toBe(302);
   const location = callbackResponse.headers.get("Location");
   expect(location).not.toBeNull();
   const redirectUrl = new URL(location!);
   expect(redirectUrl.searchParams.has("code")).toBe(false);
+  expect(redirectUrl.searchParams.has("error")).toBe(false);
 });
 
 // --- Duplicate sign-up: thrown errors ---

@@ -38,16 +38,16 @@ import { AuthError, AuthErrorCode, extractAuthError, isAuthError } from "./error
 export { AuthErrorCode } from "./errorCodes.js";
 
 /**
- * The legacy error handler, used by default when no `onError` callback is
- * configured. Preserves exact backwards-compatible behavior: throws for
- * errors that originally threw, stays silent for errors that were
- * originally silent.
+ * The legacy error handler, used by default when no `handleAuthError`
+ * callback is configured. Preserves exact backwards-compatible behavior:
+ * throws for errors that originally threw, stays silent for errors that
+ * were originally silent.
  *
  * ```ts
  * import { legacyOnAuthError } from "@convex-dev/auth/server";
  *
  * callbacks: {
- *   async onError(ctx, args) {
+ *   handleAuthError(ctx, args) {
  *     if (args.error === "INVALID_CREDENTIALS") {
  *       throw new ConvexError({ code: args.error });
  *     }
@@ -64,41 +64,41 @@ export function legacyOnAuthError(
 }
 
 /**
- * The recommended error handler. Throws for all errors except refresh
- * token / session failures (which are silent since they happen
- * automatically in the background).
+ * The recommended error handler. Returns the error code so it's
+ * included in the action response as `{ tokens: null, error: code }`,
+ * giving clients structured error information.
  *
- * Errors are thrown as plain `Error`, which Convex strips in production.
- * To expose structured error data to clients, throw a `ConvexError`
- * in your own `onError` callback for the specific errors you want
- * clients to see.
+ * - `ACCOUNT_NOT_FOUND` and `ACCOUNT_DELETED` are mapped to
+ *   `INVALID_CREDENTIALS` to prevent user enumeration.
+ * - `INVALID_REFRESH_TOKEN` and `EXPIRED_SESSION` return void
+ *   (silent, since these happen automatically in the background).
+ * - All other codes are returned as-is.
  *
  * ```ts
- * import { ConvexError } from "convex/values";
  * import { defaultOnAuthError } from "@convex-dev/auth/server";
  *
  * callbacks: {
- *   async onError(ctx, args) {
- *     // Opt in to exposing specific errors to the client
- *     if (args.error === "INVALID_CREDENTIALS") {
- *       throw new ConvexError({ code: args.error, providerId: args.providerId });
- *     }
- *     defaultOnAuthError(ctx, args);
- *   },
+ *   handleAuthError: defaultOnAuthError,
  * }
  * ```
  */
 export function defaultOnAuthError(
   _ctx: unknown,
   { error }: { error: AuthErrorCode; legacyMessage: string | null },
-): void {
+): AuthErrorCode | void {
+  if (
+    error === AuthErrorCode.ACCOUNT_NOT_FOUND ||
+    error === AuthErrorCode.ACCOUNT_DELETED
+  ) {
+    return AuthErrorCode.INVALID_CREDENTIALS;
+  }
   if (
     error === AuthErrorCode.INVALID_REFRESH_TOKEN ||
     error === AuthErrorCode.EXPIRED_SESSION
   ) {
     return;
   }
-  throw new Error(error);
+  return error;
 }
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
@@ -196,7 +196,19 @@ export function convexAuth(config_: ConvexAuthConfig) {
   const enrichCtx = <DataModel extends GenericDataModel>(
     ctx: GenericActionCtx<DataModel>,
   ) => ({ ...ctx, auth: { ...ctx.auth, config } });
-  const onError = config.callbacks?.onError ?? legacyOnAuthError;
+  if (
+    config.callbacks &&
+    "onError" in config.callbacks &&
+    !("handleAuthError" in config.callbacks)
+  ) {
+    logWithLevel(
+      LOG_LEVELS.ERROR,
+      "convexAuth `callbacks.onError` has been renamed to `callbacks.handleAuthError`. " +
+        "Please update your configuration.",
+    );
+  }
+  const handleAuthError =
+    config.callbacks?.handleAuthError ?? legacyOnAuthError;
 
   const auth = {
     /**
@@ -428,17 +440,20 @@ export function convexAuth(config_: ConvexAuthConfig) {
             } catch (error) {
               const code = AuthErrorCode.OAUTH_FAILED;
               logError(error);
+              let redirectErrorCode: string | void = undefined;
               try {
-                await onError(ctx as any, {
+                redirectErrorCode = await handleAuthError(ctx as any, {
                   error: code,
                   providerId,
                   legacyMessage: null,
                 });
-              } catch (onErrorError) {
-                logError(onErrorError);
+              } catch (handleAuthErrorError) {
+                logError(handleAuthErrorError);
               }
               return Response.redirect(
-                setURLSearchParam(destinationUrl, "error", code),
+                redirectErrorCode
+                  ? setURLSearchParam(destinationUrl, "error", redirectErrorCode)
+                  : destinationUrl,
               );
             }
           },
@@ -484,6 +499,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier?: string;
         tokens?: Tokens | null;
         started?: boolean;
+        error?: string;
       }> => {
         if (args.calledBy !== undefined) {
           logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
@@ -502,14 +518,18 @@ export function convexAuth(config_: ConvexAuthConfig) {
               return { redirect: result.redirect, verifier: result.verifier };
             case "signedIn":
             case "refreshTokens": {
+              const tokens = result.signedIn?.tokens ?? null;
               if (result.error) {
-                await onError(ctx as any, {
+                const returnedCode = await handleAuthError(ctx as any, {
                   error: result.error,
                   providerId: args.provider,
                   legacyMessage: null,
                 });
+                return returnedCode
+                  ? { tokens, error: returnedCode }
+                  : { tokens };
               }
-              return { tokens: result.signedIn?.tokens ?? null };
+              return { tokens };
             }
             case "started":
               return { started: true };
@@ -521,12 +541,14 @@ export function convexAuth(config_: ConvexAuthConfig) {
         } catch (error) {
           const authError = extractAuthError(error);
           if (authError !== null) {
-            await onError(ctx as any, {
+            const returnedCode = await handleAuthError(ctx as any, {
               error: authError.code,
               providerId: args.provider,
               legacyMessage: authError.legacyMessage,
             });
-            return { tokens: null };
+            return returnedCode
+              ? { tokens: null, error: returnedCode }
+              : { tokens: null };
           }
           throw error;
         }

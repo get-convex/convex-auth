@@ -239,6 +239,22 @@ export type ConvexAuthActionsContext = {
      * this URL.
      */
     redirect?: URL;
+    /**
+     * If the sign-in failed, contains the structured error code
+     * (e.g. `"INVALID_CREDENTIALS"`). Only present when the
+     * server's `handleAuthError` callback returns a code.
+     *
+     * Compare against `AuthErrorCode` values:
+     * ```ts
+     * import { useAuthActions, AuthErrorCode } from "@convex-dev/auth/react";
+     *
+     * const { error } = await signIn("password", { email, password, flow: "signIn" });
+     * if (error === AuthErrorCode.INVALID_CREDENTIALS) {
+     *   // Show "invalid credentials" message
+     * }
+     * ```
+     */
+    error?: string;
   }>;
 
   /**
@@ -276,3 +292,5 @@ export type ConvexAuthActionsContext = {
 export function useAuthToken() {
   return useContext(ConvexAuthTokenContext);
 }
+
+export { AuthErrorCode } from "../server/implementation/errorCodes.js";
