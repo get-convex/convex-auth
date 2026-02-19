@@ -38,7 +38,7 @@ import { AuthError, AuthErrorCode, extractAuthError, isAuthError } from "./error
 export { AuthErrorCode } from "./errorCodes.js";
 
 /**
- * The legacy error handler, used by default when no `handleAuthError`
+ * The legacy error handler, used by default when no `handleError`
  * callback is configured. Preserves exact backwards-compatible behavior:
  * throws for errors that originally threw, stays silent for errors that
  * were originally silent.
@@ -47,7 +47,7 @@ export { AuthErrorCode } from "./errorCodes.js";
  * import { legacyOnAuthError } from "@convex-dev/auth/server";
  *
  * callbacks: {
- *   handleAuthError(ctx, args) {
+ *   handleError(ctx, args) {
  *     if (args.error === "INVALID_CREDENTIALS") {
  *       throw new ConvexError({ code: args.error });
  *     }
@@ -78,7 +78,7 @@ export function legacyOnAuthError(
  * import { defaultOnAuthError } from "@convex-dev/auth/server";
  *
  * callbacks: {
- *   handleAuthError: defaultOnAuthError,
+ *   handleError: defaultOnAuthError,
  * }
  * ```
  */
@@ -196,19 +196,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
   const enrichCtx = <DataModel extends GenericDataModel>(
     ctx: GenericActionCtx<DataModel>,
   ) => ({ ...ctx, auth: { ...ctx.auth, config } });
-  if (
-    config.callbacks &&
-    "onError" in config.callbacks &&
-    !("handleAuthError" in config.callbacks)
-  ) {
-    logWithLevel(
-      LOG_LEVELS.ERROR,
-      "convexAuth `callbacks.onError` has been renamed to `callbacks.handleAuthError`. " +
-        "Please update your configuration.",
-    );
-  }
-  const handleAuthError =
-    config.callbacks?.handleAuthError ?? legacyOnAuthError;
+  const handleError =
+    config.callbacks?.handleError ?? legacyOnAuthError;
 
   const auth = {
     /**
@@ -442,13 +431,13 @@ export function convexAuth(config_: ConvexAuthConfig) {
               logError(error);
               let redirectErrorCode: string | void = undefined;
               try {
-                redirectErrorCode = await handleAuthError(ctx as any, {
+                redirectErrorCode = await handleError(ctx as any, {
                   error: code,
                   providerId,
                   legacyMessage: null,
                 });
-              } catch (handleAuthErrorError) {
-                logError(handleAuthErrorError);
+              } catch (handleErrorError) {
+                logError(handleErrorError);
               }
               return Response.redirect(
                 redirectErrorCode
@@ -520,7 +509,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
             case "refreshTokens": {
               const tokens = result.signedIn?.tokens ?? null;
               if (result.error) {
-                const returnedCode = await handleAuthError(ctx as any, {
+                const returnedCode = await handleError(ctx as any, {
                   error: result.error,
                   providerId: args.provider,
                   legacyMessage: null,
@@ -541,7 +530,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         } catch (error) {
           const authError = extractAuthError(error);
           if (authError !== null) {
-            const returnedCode = await handleAuthError(ctx as any, {
+            const returnedCode = await handleError(ctx as any, {
               error: authError.code,
               providerId: args.provider,
               legacyMessage: authError.legacyMessage,

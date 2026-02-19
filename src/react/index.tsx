@@ -242,7 +242,7 @@ export type ConvexAuthActionsContext = {
     /**
      * If the sign-in failed, contains the structured error code
      * (e.g. `"INVALID_CREDENTIALS"`). Only present when the
-     * server's `handleAuthError` callback returns a code.
+     * server's `handleError` callback returns a code.
      *
      * Compare against `AuthErrorCode` values:
      * ```ts

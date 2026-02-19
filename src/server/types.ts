@@ -245,12 +245,12 @@ export type ConvexAuthConfig = {
      * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
      *   providers: [...],
      *   callbacks: {
-     *     handleAuthError: defaultOnAuthError,
+     *     handleError: defaultOnAuthError,
      *   },
      * });
      * ```
      */
-    handleAuthError?: (
+    handleError?: (
       ctx: GenericActionCtx<AnyDataModel>,
       args: {
         /**
