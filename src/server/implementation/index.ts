@@ -55,11 +55,17 @@ export { AuthErrorCode } from "./errorCodes.js";
  *   },
  * }
  * ```
+ *
+ * @param ctx - The action context (unused).
+ * @param args - The error details.
+ * @param args.legacyMessage - When non-null, this message is thrown as
+ *   an `Error` to preserve the pre-structured-errors behavior.
  */
 export function legacyOnAuthError(
-  _ctx: unknown,
+  ctx: unknown,
   { legacyMessage }: { legacyMessage: string | null },
 ): void {
+  void ctx;
   if (legacyMessage !== null) throw new Error(legacyMessage);
 }
 
@@ -81,11 +87,17 @@ export function legacyOnAuthError(
  *   handleError: defaultOnAuthError,
  * }
  * ```
+ *
+ * @param ctx - The action context (unused).
+ * @param args - The error details.
+ * @param args.error - The structured error code.
+ * @param args.legacyMessage - Legacy message string (unused by this handler).
  */
 export function defaultOnAuthError(
-  _ctx: unknown,
+  ctx: unknown,
   { error }: { error: AuthErrorCode; legacyMessage: string | null },
 ): AuthErrorCode | void {
+  void ctx;
   if (
     error === AuthErrorCode.ACCOUNT_NOT_FOUND ||
     error === AuthErrorCode.ACCOUNT_DELETED

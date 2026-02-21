@@ -1,26 +1,43 @@
+/**
+ * Structured error codes returned by auth operations.
+ * Use these to identify specific failure reasons and display
+ * appropriate messages to users.
+ *
+ * ```ts
+ * import { AuthErrorCode } from "@convex-dev/auth/server";
+ * // or
+ * import { AuthErrorCode } from "@convex-dev/auth/react";
+ * ```
+ */
 export const AuthErrorCode = {
-  // Credential verification
+  /** Wrong password or credential. */
   INVALID_CREDENTIALS: "INVALID_CREDENTIALS",
+  /** No account exists for the given identifier. */
   ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND",
 
-  // Verification codes
+  /** Wrong OTP or verification code. */
   INVALID_CODE: "INVALID_CODE",
+  /** OTP or verification code has expired. */
   EXPIRED_CODE: "EXPIRED_CODE",
+  /** PKCE verifier mismatch during OAuth. */
   INVALID_VERIFIER: "INVALID_VERIFIER",
+  /** Account was deleted. */
   ACCOUNT_DELETED: "ACCOUNT_DELETED",
+  /** Verification code was issued by a different provider. */
   PROVIDER_MISMATCH: "PROVIDER_MISMATCH",
 
-  // Rate limiting
+  /** Too many failed attempts. */
   RATE_LIMITED: "RATE_LIMITED",
 
-  // Session/refresh
+  /** Refresh token is invalid or was already used. */
   INVALID_REFRESH_TOKEN: "INVALID_REFRESH_TOKEN",
+  /** Session has expired. */
   EXPIRED_SESSION: "EXPIRED_SESSION",
 
-  // OAuth
+  /** OAuth callback failed. */
   OAUTH_FAILED: "OAUTH_FAILED",
 
-  // Catch-all
+  /** Unexpected internal error. */
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
 

@@ -11,56 +11,81 @@ Include [authTables](server.mdx#authtables) in your schema.
 ## AuthErrorCode
 
 
+Structured error codes returned by auth operations.
+Use these to identify specific failure reasons and display
+appropriate messages to users.
+
+```ts
+import { AuthErrorCode } from "@convex-dev/auth/server";
+// or
+import { AuthErrorCode } from "@convex-dev/auth/react";
+```
+
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
 
 #### INVALID\_CREDENTIALS
 
 
+Wrong password or credential.
+
 #### ACCOUNT\_NOT\_FOUND
 
+
+No account exists for the given identifier.
 
 #### INVALID\_CODE
 
 
+Wrong OTP or verification code.
+
 #### EXPIRED\_CODE
 
+
+OTP or verification code has expired.
 
 #### INVALID\_VERIFIER
 
 
+PKCE verifier mismatch during OAuth.
+
 #### ACCOUNT\_DELETED
 
+
+Account was deleted.
 
 #### PROVIDER\_MISMATCH
 
 
+Verification code was issued by a different provider.
+
 #### RATE\_LIMITED
 
+
+Too many failed attempts.
 
 #### INVALID\_REFRESH\_TOKEN
 
 
+Refresh token is invalid or was already used.
+
 #### EXPIRED\_SESSION
 
+
+Session has expired.
 
 #### OAUTH\_FAILED
 
 
+OAuth callback failed.
+
 #### INTERNAL\_ERROR
 
 
-<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
-
-[src/server/implementation/errorCodes.ts:1](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/errorCodes.ts#L1)
-
-***
-
-## AuthErrorCode
-
+Unexpected internal error.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/errorCodes.ts:1](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/errorCodes.ts#L1)
+[src/server/implementation/errorCodes.ts:12](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/errorCodes.ts#L12)
 
 ***
 
@@ -91,11 +116,12 @@ callbacks: {
 <tr>
 <th>Parameter</th>
 <th>Type</th>
+<th>Description</th>
 </tr>
 <tr>
 <td>
 
-`_ctx`
+`ctx`
 
 </td>
 <td>
@@ -103,11 +129,16 @@ callbacks: {
 `unknown`
 
 </td>
+<td>
+
+The action context (unused).
+
+</td>
 </tr>
 <tr>
 <td>
 
-`__namedParameters`
+`args`
 
 </td>
 <td>
@@ -115,16 +146,27 @@ callbacks: {
 `object`
 
 </td>
+<td>
+
+The error details.
+
+</td>
 </tr>
 <tr>
 <td>
 
-`__namedParameters.legacyMessage`
+`args.legacyMessage`
 
 </td>
 <td>
 
 `null` \| `string`
+
+</td>
+<td>
+
+When non-null, this message is thrown as
+  an `Error` to preserve the pre-structured-errors behavior.
 
 </td>
 </tr>
@@ -136,7 +178,7 @@ callbacks: {
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:59](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L59)
+[src/server/implementation/index.ts:64](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L64)
 
 ***
 
@@ -167,11 +209,12 @@ callbacks: {
 <tr>
 <th>Parameter</th>
 <th>Type</th>
+<th>Description</th>
 </tr>
 <tr>
 <td>
 
-`_ctx`
+`ctx`
 
 </td>
 <td>
@@ -179,11 +222,16 @@ callbacks: {
 `unknown`
 
 </td>
+<td>
+
+The action context (unused).
+
+</td>
 </tr>
 <tr>
 <td>
 
-`__namedParameters`
+`args`
 
 </td>
 <td>
@@ -191,11 +239,16 @@ callbacks: {
 `object`
 
 </td>
+<td>
+
+The error details.
+
+</td>
 </tr>
 <tr>
 <td>
 
-`__namedParameters.error`
+`args.error`
 
 </td>
 <td>
@@ -203,16 +256,26 @@ callbacks: {
 [`AuthErrorCode`](server.mdx#autherrorcode)
 
 </td>
+<td>
+
+The structured error code.
+
+</td>
 </tr>
 <tr>
 <td>
 
-`__namedParameters.legacyMessage`
+`args.legacyMessage`
 
 </td>
 <td>
 
 `null` \| `string`
+
+</td>
+<td>
+
+Legacy message string (unused by this handler).
 
 </td>
 </tr>
@@ -224,7 +287,7 @@ callbacks: {
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:85](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L85)
+[src/server/implementation/index.ts:96](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L96)
 
 ***
 
@@ -238,7 +301,7 @@ However it is not stable, and may change until this library reaches 1.0.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:131](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L131)
+[src/server/implementation/index.ts:143](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L143)
 
 ***
 
@@ -252,7 +315,7 @@ However it is not stable, and may change until this library reaches 1.0.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:140](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L140)
+[src/server/implementation/index.ts:152](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L152)
 
 ***
 
@@ -266,7 +329,7 @@ However it is not stable, and may change until this library reaches 1.0.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:149](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L149)
+[src/server/implementation/index.ts:161](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L161)
 
 ***
 
@@ -401,7 +464,7 @@ based on credentials that they've supplied separately.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:169](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L169)
+[src/server/implementation/index.ts:181](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L181)
 
 ***
 
@@ -479,7 +542,7 @@ the user ID or `null` if the client isn't authenticated
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:604](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L604)
+[src/server/implementation/index.ts:616](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L616)
 
 ***
 
@@ -679,7 +742,7 @@ or throws an error.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:622](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L622)
+[src/server/implementation/index.ts:634](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L634)
 
 ***
 
@@ -822,7 +885,7 @@ secret does not match.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:682](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L682)
+[src/server/implementation/index.ts:694](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L694)
 
 ***
 
@@ -953,7 +1016,7 @@ The new secret credential to store for this account.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:727](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L727)
+[src/server/implementation/index.ts:739](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L739)
 
 ***
 
@@ -1025,7 +1088,7 @@ Use this function to invalidate existing sessions.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:757](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L757)
+[src/server/implementation/index.ts:769](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L769)
 
 ***
 
@@ -1115,7 +1178,7 @@ or `null`.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/server/implementation/index.ts:779](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L779)
+[src/server/implementation/index.ts:791](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/index.ts#L791)
 
 ***
 
