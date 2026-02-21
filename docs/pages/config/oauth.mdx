@@ -132,6 +132,11 @@ You can control which page the user will be redirected to after the sign-in by
 passing a `redirectTo` param to the `signIn` function. See
 [`redirect` callback](/api_reference/server#callbacksredirect).
 
+<Callout type="info">
+  OAuth errors are communicated via a `?error=` query parameter on the redirect
+  URL. See [Error Handling](/error-handling#oauth-error-handling) for details.
+</Callout>
+
 </Tabs.Tab>
 <Tabs.Tab>
 

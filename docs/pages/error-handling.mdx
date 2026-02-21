@@ -1,0 +1,167 @@
+import { Callout } from "nextra/components";
+
+# Error Handling
+
+Convex Auth provides structured error codes for authentication failures,
+allowing you to display specific feedback to users when sign-in attempts fail.
+
+## Enabling structured errors
+
+Add the `handleError` callback to your `convexAuth()` configuration. The
+recommended handler is `defaultOnAuthError`:
+
+```ts filename="convex/auth.ts"
+import { convexAuth, defaultOnAuthError } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [/* ... */],
+  callbacks: {
+    handleError: defaultOnAuthError,
+  },
+});
+```
+
+Without this configuration, the default behavior is `legacyOnAuthError`, which
+throws errors for backwards compatibility and does not return structured error
+codes to the client.
+
+## Handling errors on the client
+
+When `handleError` returns an error code, `signIn()` includes it in the
+returned object:
+
+```tsx
+import { useAuthActions, AuthErrorCode } from "@convex-dev/auth/react";
+
+function SignIn() {
+  const { signIn } = useAuthActions();
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const { error } = await signIn("password", formData);
+    if (error === AuthErrorCode.INVALID_CREDENTIALS) {
+      // Show "invalid email or password" message
+    } else if (error === AuthErrorCode.RATE_LIMITED) {
+      // Show "too many attempts, try again later" message
+    } else if (error) {
+      // Handle other errors
+    }
+  }
+
+  return <form onSubmit={handleSubmit}>{/* ... */}</form>;
+}
+```
+
+This works the same way in Next.js applications.
+
+## Error codes
+
+| Code | When it occurs |
+|------|---------------|
+| `INVALID_CREDENTIALS` | Wrong password or credential |
+| `ACCOUNT_NOT_FOUND` | No account for given identifier |
+| `INVALID_CODE` | Wrong OTP / verification code |
+| `EXPIRED_CODE` | Expired OTP / verification code |
+| `INVALID_VERIFIER` | PKCE verifier mismatch |
+| `ACCOUNT_DELETED` | Account was deleted |
+| `PROVIDER_MISMATCH` | Code was issued by a different provider |
+| `RATE_LIMITED` | Too many failed attempts |
+| `INVALID_REFRESH_TOKEN` | Invalid or reused refresh token |
+| `EXPIRED_SESSION` | Session expired |
+| `OAUTH_FAILED` | OAuth callback failed |
+| `INTERNAL_ERROR` | Unexpected internal error |
+
+## The `handleError` callback
+
+The `handleError` callback receives the error code, the provider ID, and a
+legacy message string. It controls what information reaches the client through
+its return value:
+
+- **Return an `AuthErrorCode` string** — the code is included in the response
+  as `{ tokens: null, error: code }`, allowing the client to handle it.
+- **Return `void`** — silent failure, the response is `{ tokens: null }` with
+  no error information.
+- **Throw** — the error propagates to the client. Use
+  [`ConvexError`](https://docs.convex.dev/functions/error-handling/application-errors)
+  for structured data.
+
+### `defaultOnAuthError` (recommended)
+
+The recommended handler for production use. It applies two security-conscious
+transformations:
+
+- Maps `ACCOUNT_NOT_FOUND` and `ACCOUNT_DELETED` to `INVALID_CREDENTIALS`,
+  preventing user enumeration (attackers cannot discover which email addresses
+  have accounts).
+- Silences `INVALID_REFRESH_TOKEN` and `EXPIRED_SESSION` (returns `void`),
+  since these occur during automatic background token refresh and don't
+  represent user-facing errors.
+
+All other error codes are returned as-is.
+
+### `legacyOnAuthError` (default)
+
+The default handler when no `handleError` callback is configured. It throws
+errors that the library previously threw, preserving backwards-compatible
+behavior. It does not return structured error codes.
+
+### Custom handler
+
+You can write a custom handler for full control:
+
+```ts filename="convex/auth.ts"
+import { convexAuth, AuthErrorCode } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [/* ... */],
+  callbacks: {
+    handleError(ctx, { error, providerId, legacyMessage }) {
+      // Log all errors for monitoring
+      console.error(`Auth error [${providerId}]: ${error}`);
+
+      // Silence background refresh errors
+      if (
+        error === AuthErrorCode.INVALID_REFRESH_TOKEN ||
+        error === AuthErrorCode.EXPIRED_SESSION
+      ) {
+        return;
+      }
+
+      // Prevent user enumeration
+      if (
+        error === AuthErrorCode.ACCOUNT_NOT_FOUND ||
+        error === AuthErrorCode.ACCOUNT_DELETED
+      ) {
+        return AuthErrorCode.INVALID_CREDENTIALS;
+      }
+
+      // Return all other codes to the client
+      return error;
+    },
+  },
+});
+```
+
+## OAuth error handling
+
+OAuth errors work differently from other authentication methods. Because OAuth
+involves a redirect flow, errors are communicated via a `?error=` query
+parameter on the redirect URL rather than through the `signIn()` return value.
+
+To handle OAuth errors, check the URL query parameters after the redirect:
+
+```tsx
+function OAuthCallback() {
+  const error = new URLSearchParams(window.location.search).get("error");
+  if (error) {
+    // Display error to user
+  }
+}
+```
+
+<Callout type="warning">
+  Throwing from `handleError` during OAuth callbacks is silently caught — the
+  error will not reach the client. Always return an error code string instead of
+  throwing when handling OAuth errors.
+</Callout>

@@ -6,6 +6,7 @@
   "production": "Production",
   "security": "Security",
   "advanced": "Advanced",
+  "error-handling": "Error Handling",
   "debugging": "Debugging",
   "---": {
     "type": "separator"

@@ -134,6 +134,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 This is helpful when the default user creation implementation in the library
 satisfies your app's needs.
 
+## Error handling
+
+You can configure how authentication errors are handled via the `handleError`
+callback, including returning structured error codes to the client. See the
+dedicated [Error Handling](/error-handling) page for details.
+
 ## Session validity
 
 Convex Auth issues JWTs which allow your client to authenticate.
