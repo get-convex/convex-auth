@@ -45,15 +45,6 @@ export { AuthErrorCode } from "./errorCodes.js";
  *
  * ```ts
  * import { legacyOnAuthError } from "@convex-dev/auth/server";
- *
- * callbacks: {
- *   handleError(ctx, args) {
- *     if (args.error === "INVALID_CREDENTIALS") {
- *       throw new ConvexError({ code: args.error });
- *     }
- *     legacyOnAuthError(ctx, args);
- *   },
- * }
  * ```
  *
  * @param ctx - The action context (unused).
@@ -72,20 +63,12 @@ export function legacyOnAuthError(
 /**
  * The recommended error handler. Returns the error code so it's
  * included in the action response as `{ tokens: null, error: code }`,
- * giving clients structured error information.
- *
- * - `ACCOUNT_NOT_FOUND` and `ACCOUNT_DELETED` are mapped to
- *   `INVALID_CREDENTIALS` to prevent user enumeration.
- * - `INVALID_REFRESH_TOKEN` and `EXPIRED_SESSION` return void
- *   (silent, since these happen automatically in the background).
- * - All other codes are returned as-is.
+ * giving clients structured error information. Maps account-existence
+ * errors to `INVALID_CREDENTIALS` to prevent user enumeration, and
+ * silences background refresh errors.
  *
  * ```ts
  * import { defaultOnAuthError } from "@convex-dev/auth/server";
- *
- * callbacks: {
- *   handleError: defaultOnAuthError,
- * }
  * ```
  *
  * @param ctx - The action context (unused).

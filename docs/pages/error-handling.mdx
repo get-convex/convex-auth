@@ -1,11 +1,17 @@
-import { Callout } from "nextra/components";
+import { Callout, Steps } from "nextra/components";
 
 # Error Handling
 
-Convex Auth provides structured error codes for authentication failures,
-allowing you to display specific feedback to users when sign-in attempts fail.
+> Make sure you're done with [setup](/setup) before configuring error handling
 
-## Enabling structured errors
+When a sign-in attempt fails, you'll usually want to show the user what went
+wrong rather than a generic error message. Convex Auth supports structured error
+codes for authentication failures, so your client can identify the reason and
+display specific feedback.
+
+<Steps>
+
+## Enable structured errors
 
 Add the `handleError` callback to your `convexAuth()` configuration. The
 recommended handler is `defaultOnAuthError`:
@@ -25,7 +31,7 @@ Without this configuration, the default behavior is `legacyOnAuthError`, which
 throws errors for backwards compatibility and does not return structured error
 codes to the client.
 
-## Handling errors on the client
+## Handle errors on the client
 
 When `handleError` returns an error code, `signIn()` includes it in the
 returned object:
@@ -55,22 +61,24 @@ function SignIn() {
 
 This works the same way in Next.js applications.
 
+</Steps>
+
 ## Error codes
 
 | Code | When it occurs |
 |------|---------------|
-| `INVALID_CREDENTIALS` | Wrong password or credential |
-| `ACCOUNT_NOT_FOUND` | No account for given identifier |
-| `INVALID_CODE` | Wrong OTP / verification code |
-| `EXPIRED_CODE` | Expired OTP / verification code |
-| `INVALID_VERIFIER` | PKCE verifier mismatch |
-| `ACCOUNT_DELETED` | Account was deleted |
-| `PROVIDER_MISMATCH` | Code was issued by a different provider |
-| `RATE_LIMITED` | Too many failed attempts |
-| `INVALID_REFRESH_TOKEN` | Invalid or reused refresh token |
-| `EXPIRED_SESSION` | Session expired |
-| `OAUTH_FAILED` | OAuth callback failed |
-| `INTERNAL_ERROR` | Unexpected internal error |
+| `INVALID_CREDENTIALS` | Wrong password or credential. |
+| `ACCOUNT_NOT_FOUND` | No account for given identifier. |
+| `INVALID_CODE` | Wrong OTP or verification code. |
+| `EXPIRED_CODE` | Expired OTP or verification code. |
+| `INVALID_VERIFIER` | PKCE verifier mismatch. |
+| `ACCOUNT_DELETED` | Account was deleted. |
+| `PROVIDER_MISMATCH` | Code was issued by a different provider. |
+| `RATE_LIMITED` | Too many failed attempts. |
+| `INVALID_REFRESH_TOKEN` | Invalid or reused refresh token. |
+| `EXPIRED_SESSION` | Session expired. |
+| `OAUTH_FAILED` | OAuth callback failed. |
+| `INTERNAL_ERROR` | Unexpected internal error. |
 
 ## The `handleError` callback
 
