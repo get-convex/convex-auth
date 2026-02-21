@@ -4,6 +4,7 @@ import { GitHubLogo } from "@/components/GitHubLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { ConvexError } from "convex/values";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -50,10 +51,18 @@ function SignInWithSecret() {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         signIn("secret", formData)
-          .then(() => {
+          .then((result) => {
+            if (result.error) {
+              window.alert(result.error);
+              return;
+            }
             router.push("/product");
           })
           .catch((e) => {
+            if (e instanceof ConvexError) {
+              window.alert(e.data.code);
+              return;
+            }
             // Ensure error message comes back from the backend
             if (e.message.includes("Uncaught Error: Invalid secret")) {
               window.alert("Invalid secret");
