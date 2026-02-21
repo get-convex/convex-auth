@@ -102,7 +102,7 @@ Defaults to `process.env.NEXT_PUBLIC_CONVEX_URL`.
 </td>
 <td>
 
-() => `boolean`
+`boolean` \| () => `boolean`
 
 </td>
 <td>
@@ -312,37 +312,12 @@ for more information.
 
 Turn on debugging logs.
 
-#### shouldHandleCode()?
+#### shouldHandleCode?
 
 
 Callback to determine whether Convex Auth should handle the code parameter for a given request.
 If not provided, Convex Auth will handle all code parameters.
 If provided, Convex Auth will only handle code parameters when the callback returns true.
-
-<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Parameters</h5>
-
-<table className="api_reference_table"><tbody>
-<tr>
-<th>Parameter</th>
-<th>Type</th>
-</tr>
-<tr>
-<td>
-
-`request`
-
-</td>
-<td>
-
-`NextRequest`
-
-</td>
-</tr>
-</tbody></table>
-
-<h5 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-lg">Returns</h5>
-
-`boolean`
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
@@ -409,7 +384,7 @@ A Next.js middleware.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:184](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L184)
+[src/nextjs/server/index.tsx:186](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L186)
 
 ***
 
@@ -473,7 +448,7 @@ The route path to redirect to.
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/nextjs/server/index.tsx:301](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L301)
+[src/nextjs/server/index.tsx:303](https://github.com/get-convex/convex-auth/blob/main/src/nextjs/server/index.tsx#L303)
 
 ***
 
