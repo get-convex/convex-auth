@@ -158,7 +158,7 @@ The implementation will depend on your chosen router.
 </td>
 <td>
 
-() => `boolean`
+`boolean` \| () => `boolean`
 
 </td>
 <td>
@@ -460,6 +460,24 @@ the browser should be redirected to.
 Useful in RN for opening the in-app browser to
 this URL.
 
+###### error?
+
+> `optional` **error**: `string`
+
+If the sign-in failed, contains the structured error code
+(e.g. `"INVALID_CREDENTIALS"`). Only present when the
+server's `handleError` callback returns a code.
+
+Compare against `AuthErrorCode` values:
+```ts
+import { useAuthActions, AuthErrorCode } from "@convex-dev/auth/react";
+
+const { error } = await signIn("password", { email, password, flow: "signIn" });
+if (error === AuthErrorCode.INVALID_CREDENTIALS) {
+  // Show "invalid credentials" message
+}
+```
+
 #### signOut()
 
 Sign out the current user.
@@ -529,4 +547,10 @@ function SomeComponent() {
 
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
-[src/react/index.tsx:276](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L276)
+[src/react/index.tsx:292](https://github.com/get-convex/convex-auth/blob/main/src/react/index.tsx#L292)
+
+***
+
+## AuthErrorCode
+
+Re-exports [AuthErrorCode](server.mdx#autherrorcode)

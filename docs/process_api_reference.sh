@@ -6,7 +6,7 @@ perl -i -pe 's/\(docs\//(api_reference\//' pages/api_reference.mdx
 # Delete the GenericDoc docs, because they cannot
 # be reordered but show up first in server.
 perl -i -0777 -pe 's/\n## GenericDoc.*?\*\*\*\n//gs' pages/api_reference/server.mdx
-  
+
 # h5 Type Declaration is only used for schema fields, replace
 # it with a table header.
 perl -i -pe 's/^##### (Type declaration)/|Field|TS Type\n|---|---/g' pages/api_reference/server.mdx
@@ -22,6 +22,14 @@ find pages/api_reference -type f -exec perl -i -0777 -pe 's/\n(#+) Type Paramete
 # Also by rewriting the markdown headings to HTML we prevent Nextra from
 # including them in the RHS TOC sidebar.
 find pages/api_reference -type f -exec perl -i -pe 's/^> (?!(`optional` )?\*\*\w+\*\*: `(?!object)\w+`(\[\])?\n).*\n//; s/^(#+) (Returns|Defined in|Parameters|Properties|Type declaration|Extends|Overrides)/"<h" . length($1) . " className=\"nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-" . (length($1) > 3 ? "lg" : "2xl") . "\">" . $2 . "<\/h" . length($1) . ">"/eg' {} +
+
+# Delete the duplicate AuthErrorCode section (type alias).
+# TypeDoc generates two sections for the const + type export;
+# keep the first (with member descriptions), remove the second.
+perl -i -0777 -pe 's/\n## AuthErrorCode\n\n\n<h3[^>]*>Defined in<\/h3>\n\n[^\n]+\n\n\*\*\*\n//s' pages/api_reference/server.mdx
+
+# Fix AuthErrorCode anchor references (duplicate removal shifts anchors)
+find pages/api_reference -type f -exec perl -i -pe 's/#autherrorcode-1/#autherrorcode/g' {} +
 
 # Fix tables missing tbody, see https://github.com/typedoc2md/typedoc-plugin-markdown/issues/671
 # Apply table styles.

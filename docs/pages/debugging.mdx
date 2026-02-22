@@ -57,6 +57,13 @@ export default convexAuthNextjsMiddleware(optionalHandler, {
 Logs will appear in your `next dev` terminal, or wherever you're running
 Next.js.
 
+## Error codes
+
+You can enable structured error codes to see exactly what's failing during
+authentication. Instead of generic errors, the library returns specific codes
+like `INVALID_CREDENTIALS` or `RATE_LIMITED`. See
+[Error Handling](/error-handling) for the full list and configuration details.
+
 ## Related debugging guides
 
 See [this guide](https://docs.convex.dev/auth/debug) for debugging auth

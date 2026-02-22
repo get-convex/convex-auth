@@ -1,5 +1,6 @@
 "use client";
 
+import { ConvexError } from "convex/values";
 import { ReactNode, useCallback, useMemo } from "react";
 import { AuthProvider } from "../react/client.js";
 import { AuthClient } from "../react/clientType.js";
@@ -31,7 +32,11 @@ export function ConvexAuthNextjsClientProvider({
       });
       // Match error handling of Convex Actions
       if (response.status >= 400) {
-        throw new Error((await response.json()).error);
+        const body = await response.json();
+        if (body.isConvexError) {
+          throw new ConvexError(body.error);
+        }
+        throw new Error(body.error);
       }
       return await response.json();
     },

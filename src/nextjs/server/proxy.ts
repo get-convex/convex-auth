@@ -1,6 +1,7 @@
 import "server-only";
 
 import { fetchAction } from "convex/nextjs";
+import { ConvexError } from "convex/values";
 import { NextRequest } from "next/server";
 import { SignInAction } from "../../server/implementation/index.js";
 import { getRequestCookies, getResponseCookies } from "./cookies.js";
@@ -77,8 +78,13 @@ export async function proxyAuthActionToConvex(
       console.error(`Hit error while running \`auth:signIn\`:`);
       console.error(error);
       logVerbose(`Clearing auth cookies`, verbose);
-      // Send raw error message to client, just like Convex Action would
-      const response = jsonResponse({ error: (error as Error).message }, 400);
+      // Preserve ConvexError data through the proxy so the client
+      // can reconstruct the ConvexError with its structured `.data`.
+      const responseBody =
+        error instanceof ConvexError
+          ? { error: error.data, isConvexError: true }
+          : { error: (error as Error).message };
+      const response = jsonResponse(responseBody, 400);
       await setAuthCookies(response, null, cookieConfig);
       return response;
     }
@@ -104,6 +110,7 @@ export async function proxyAuthActionToConvex(
           result.tokens !== null
             ? { token: result.tokens.token, refreshToken: "dummy" }
             : null,
+        ...(result.error ? { error: result.error } : {}),
       });
       await setAuthCookies(response, result.tokens, cookieConfig);
       return response;

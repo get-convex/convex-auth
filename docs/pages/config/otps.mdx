@@ -1,4 +1,4 @@
-import { Steps } from "nextra/components";
+import { Callout, Steps } from "nextra/components";
 import { Aside } from "../../components/Aside";
 
 # OTPs
@@ -171,6 +171,11 @@ export function SignIn() {
 The second call to `signIn` will include the user-provided `code`. Because this
 is a short code, we must also provide the `email` that matches the account used
 for the sign-in. The library automatically rate-limits failed attempts.
+
+<Callout type="info">
+  You can handle errors like invalid or expired codes using structured error
+  codes. See [Error Handling](/error-handling) for details.
+</Callout>
 
 Check out the
 [example repo](https://github.com/get-convex/convex-auth-example/blob/main/src/auth/SignInFormEmailCode.tsx)

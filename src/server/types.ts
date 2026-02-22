@@ -15,6 +15,7 @@ import {
 import { GenericId, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
 import { GenericDoc } from "./convex_types.js";
+import type { AuthErrorCode } from "./implementation/errorCodes.js";
 
 /**
  * The config for the Convex Auth library, passed to `convexAuth`.
@@ -221,6 +222,55 @@ export type ConvexAuthConfig = {
         shouldLink?: boolean;
       },
     ) => Promise<void>;
+    /**
+     * Called when an authentication error occurs during sign-in,
+     * token refresh, or OAuth callback. Controls what error
+     * information reaches the client.
+     *
+     * The return value determines the behavior:
+     * - **Return an `AuthErrorCode`** — the code is included in
+     *   the action response as `{ tokens: null, error: code }`.
+     * - **Return `void`/`undefined`** — silent failure, the action
+     *   returns `{ tokens: null }` with no error info.
+     * - **Throw** — the error propagates to the client. Use
+     *   `ConvexError` for structured client-visible data, or
+     *   plain `Error` (stripped in production).
+     *
+     * When not provided, defaults to `legacyOnAuthError` which
+     * preserves backwards-compatible throw behavior.
+     *
+     * ```ts
+     * import { convexAuth, defaultOnAuthError } from "@convex-dev/auth/server";
+     *
+     * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+     *   providers: [...],
+     *   callbacks: {
+     *     handleError: defaultOnAuthError,
+     *   },
+     * });
+     * ```
+     */
+    handleError?: (
+      ctx: GenericActionCtx<AnyDataModel>,
+      args: {
+        /**
+         * The structured error code describing what went wrong.
+         */
+        error: AuthErrorCode;
+        /**
+         * The provider ID that was used, if applicable.
+         */
+        providerId?: string;
+        /**
+         * @deprecated For use by `legacyOnAuthError` only.
+         * When non-null, contains the original error message string from
+         * before structured error codes were introduced. `legacyOnAuthError`
+         * throws this message to preserve backwards-compatible behavior.
+         * Do not use in new code.
+         */
+        legacyMessage: string | null;
+      },
+    ) => void | AuthErrorCode | Promise<void | AuthErrorCode>;
   };
 };
 

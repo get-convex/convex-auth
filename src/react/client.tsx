@@ -254,7 +254,10 @@ export function AuthProvider({
         const { tokens } = result;
         logVerbose(`signed in and got tokens, is null: ${tokens === null}`);
         await setToken({ shouldStore: true, tokens });
-        return { signingIn: result.tokens !== null };
+        return {
+          signingIn: result.tokens !== null,
+          ...(result.error ? { error: result.error } : {}),
+        };
       }
       return { signingIn: false };
     },

@@ -4,9 +4,10 @@ import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
 import Apple from "@auth/core/providers/apple";
 import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
+import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { ConvexError } from "convex/values";
-import { convexAuth } from "@convex-dev/auth/server";
+import { convexAuth, defaultOnAuthError } from "@convex-dev/auth/server";
 import { ResendOTP } from "./otp/ResendOTP";
 import { TwilioOTP } from "./otp/TwilioOTP";
 import { TwilioVerify } from "./otp/TwilioVerify";
@@ -69,5 +70,18 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     // This one only makes sense with routing, ignore for now:
     Password({ id: "password-link", verify: Resend }),
     Anonymous,
+    ConvexCredentials({
+      id: "test-null-authorize",
+      authorize: async () => null,
+    }),
   ],
 });
+
+// Second instance for testing defaultOnAuthError through the signIn pipeline.
+// Error handling runs in the signIn action closure using its own handleError;
+// internal mutations resolve to the shared "auth:store" export above.
+const defaultErrorAuth = convexAuth({
+  providers: [Password],
+  callbacks: { handleError: defaultOnAuthError },
+});
+export const signInDefault = defaultErrorAuth.signIn;

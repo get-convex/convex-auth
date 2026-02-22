@@ -11,12 +11,13 @@ import {
   refreshTokenIfValid,
 } from "../refreshTokens.js";
 import { generateTokensForSession } from "../sessions.js";
+import { AuthErrorCode, isAuthError } from "../errorCodes.js";
 
 export const refreshSessionArgs = v.object({
   refreshToken: v.string(),
 });
 
-type ReturnType = null | {
+type ReturnType = { error: AuthErrorCode } | {
   token: string;
   refreshToken: string;
 };
@@ -42,7 +43,7 @@ export async function refreshSessionImpl(
     tokenSessionId,
   );
 
-  if (validationResult === null) {
+  if (isAuthError(validationResult)) {
     // Replicating `deleteSession` but ensuring that we delete both the session
     // and the refresh token, even if one of them is missing.
     const session = await ctx.db.get(tokenSessionId);
@@ -50,7 +51,7 @@ export async function refreshSessionImpl(
       await ctx.db.delete(session._id);
     }
     await deleteAllRefreshTokens(ctx, tokenSessionId);
-    return null;
+    return validationResult;
   }
   const { session } = validationResult;
   const sessionId = session._id;
@@ -137,7 +138,7 @@ export async function refreshSessionImpl(
         .map((token) => maybeRedact(token._id))
         .join(", ")}`,
     );
-    return null;
+    return { error: AuthErrorCode.INVALID_REFRESH_TOKEN };
   }
 }
 

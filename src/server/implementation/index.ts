@@ -34,6 +34,67 @@ import {
   logError,
   logWithLevel,
 } from "./utils.js";
+import { AuthError, AuthErrorCode, extractAuthError, isAuthError } from "./errorCodes.js";
+export { AuthErrorCode } from "./errorCodes.js";
+
+/**
+ * The legacy error handler, used by default when no `handleError`
+ * callback is configured. Preserves exact backwards-compatible behavior:
+ * throws for errors that originally threw, stays silent for errors that
+ * were originally silent.
+ *
+ * ```ts
+ * import { legacyOnAuthError } from "@convex-dev/auth/server";
+ * ```
+ *
+ * @param ctx - The action context (unused).
+ * @param args - The error details.
+ * @param args.legacyMessage - When non-null, this message is thrown as
+ *   an `Error` to preserve the pre-structured-errors behavior.
+ */
+export function legacyOnAuthError(
+  ctx: unknown,
+  { legacyMessage }: { legacyMessage: string | null },
+): void {
+  void ctx;
+  if (legacyMessage !== null) throw new Error(legacyMessage);
+}
+
+/**
+ * The recommended error handler. Returns the error code so it's
+ * included in the action response as `{ tokens: null, error: code }`,
+ * giving clients structured error information. Maps account-existence
+ * errors to `INVALID_CREDENTIALS` to prevent user enumeration, and
+ * silences background refresh errors.
+ *
+ * ```ts
+ * import { defaultOnAuthError } from "@convex-dev/auth/server";
+ * ```
+ *
+ * @param ctx - The action context (unused).
+ * @param args - The error details.
+ * @param args.error - The structured error code.
+ * @param args.legacyMessage - Legacy message string (unused by this handler).
+ */
+export function defaultOnAuthError(
+  ctx: unknown,
+  { error }: { error: AuthErrorCode; legacyMessage: string | null },
+): AuthErrorCode | void {
+  void ctx;
+  if (
+    error === AuthErrorCode.ACCOUNT_NOT_FOUND ||
+    error === AuthErrorCode.ACCOUNT_DELETED
+  ) {
+    return AuthErrorCode.INVALID_CREDENTIALS;
+  }
+  if (
+    error === AuthErrorCode.INVALID_REFRESH_TOKEN ||
+    error === AuthErrorCode.EXPIRED_SESSION
+  ) {
+    return;
+  }
+  return error;
+}
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
   callCreateAccountFromCredentials,
@@ -130,6 +191,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
   const enrichCtx = <DataModel extends GenericDataModel>(
     ctx: GenericActionCtx<DataModel>,
   ) => ({ ...ctx, auth: { ...ctx.auth, config } });
+  const handleError =
+    config.callbacks?.handleError ?? legacyOnAuthError;
 
   const auth = {
     /**
@@ -359,8 +422,23 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 },
               });
             } catch (error) {
+              const code = AuthErrorCode.OAUTH_FAILED;
               logError(error);
-              return Response.redirect(destinationUrl);
+              let redirectErrorCode: string | void = undefined;
+              try {
+                redirectErrorCode = await handleError(ctx as any, {
+                  error: code,
+                  providerId,
+                  legacyMessage: null,
+                });
+              } catch (handleErrorError) {
+                logError(handleErrorError);
+              }
+              return Response.redirect(
+                redirectErrorCode
+                  ? setURLSearchParam(destinationUrl, "error", redirectErrorCode)
+                  : destinationUrl,
+              );
             }
           },
         );
@@ -405,6 +483,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier?: string;
         tokens?: Tokens | null;
         started?: boolean;
+        error?: string;
       }> => {
         if (args.calledBy !== undefined) {
           logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
@@ -413,22 +492,49 @@ export function convexAuth(config_: ConvexAuthConfig) {
           args.provider !== undefined
             ? getProviderOrThrow(args.provider)
             : null;
-        const result = await signInImpl(enrichCtx(ctx), provider, args, {
-          generateTokens: true,
-          allowExtraProviders: false,
-        });
-        switch (result.kind) {
-          case "redirect":
-            return { redirect: result.redirect, verifier: result.verifier };
-          case "signedIn":
-          case "refreshTokens":
-            return { tokens: result.signedIn?.tokens ?? null };
-          case "started":
-            return { started: true };
-          default: {
-            const _typecheck: never = result;
-            throw new Error(`Unexpected result from signIn, ${result as any}`);
+        try {
+          const result = await signInImpl(enrichCtx(ctx), provider, args, {
+            generateTokens: true,
+            allowExtraProviders: false,
+          });
+          switch (result.kind) {
+            case "redirect":
+              return { redirect: result.redirect, verifier: result.verifier };
+            case "signedIn":
+            case "refreshTokens": {
+              const tokens = result.signedIn?.tokens ?? null;
+              if (result.error) {
+                const returnedCode = await handleError(ctx as any, {
+                  error: result.error,
+                  providerId: args.provider,
+                  legacyMessage: null,
+                });
+                return returnedCode
+                  ? { tokens, error: returnedCode }
+                  : { tokens };
+              }
+              return { tokens };
+            }
+            case "started":
+              return { started: true };
+            default: {
+              const _typecheck: never = result;
+              throw new Error(`Unexpected result from signIn, ${result as any}`);
+            }
           }
+        } catch (error) {
+          const authError = extractAuthError(error);
+          if (authError !== null) {
+            const returnedCode = await handleError(ctx as any, {
+              error: authError.code,
+              providerId: args.provider,
+              legacyMessage: authError.legacyMessage,
+            });
+            return returnedCode
+              ? { tokens: null, error: returnedCode }
+              : { tokens: null };
+          }
+          throw error;
         }
       },
     }),
@@ -597,8 +703,13 @@ export async function retrieveAccount<
 }> {
   const actionCtx = ctx as unknown as ActionCtx;
   const result = await callRetreiveAccountWithCredentials(actionCtx, args);
-  if (typeof result === "string") {
-    throw new Error(result);
+  if (isAuthError(result)) {
+    const legacyMessages: Partial<Record<AuthErrorCode, string>> = {
+      [AuthErrorCode.ACCOUNT_NOT_FOUND]: "InvalidAccountId",
+      [AuthErrorCode.RATE_LIMITED]: "TooManyFailedAttempts",
+      [AuthErrorCode.INVALID_CREDENTIALS]: "InvalidSecret",
+    };
+    throw new AuthError(result.error, legacyMessages[result.error] ?? null);
   }
   return result;
 }
