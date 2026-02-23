@@ -26,6 +26,10 @@ export function generateRandomString(length: number, alphabet: string) {
   return osloGenerateRandomString(random, alphabet, length);
 }
 
+export function normalizeEmail(email: string): string {
+  return email.toLowerCase().trim();
+}
+
 export function logError(error: unknown) {
   logWithLevel(
     LOG_LEVELS.ERROR,

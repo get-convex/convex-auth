@@ -1,7 +1,7 @@
 import { GenericId } from "convex/values";
 import { Doc, MutationCtx, QueryCtx } from "./types.js";
 import { AuthProviderMaterializedConfig, ConvexAuthConfig } from "../types.js";
-import { LOG_LEVELS, logWithLevel } from "./utils.js";
+import { LOG_LEVELS, logWithLevel, normalizeEmail } from "./utils.js";
 
 type CreateOrUpdateUserArgs = {
   type: "oauth" | "credentials" | "email" | "phone" | "verification";
@@ -127,6 +127,9 @@ async function defaultCreateOrUpdateUser(
     ...(emailVerified ? { emailVerificationTime: Date.now() } : null),
     ...(phoneVerified ? { phoneVerificationTime: Date.now() } : null),
     ...profile,
+    ...(typeof profile.email === "string"
+      ? { email: normalizeEmail(profile.email) }
+      : null),
   };
   const existingOrLinkedUserId = userId;
   if (userId !== null) {
@@ -169,7 +172,17 @@ async function uniqueUserWithVerifiedEmail(ctx: QueryCtx, email: string) {
     .withIndex("email", (q) => q.eq("email", email))
     .filter((q) => q.neq(q.field("emailVerificationTime"), undefined))
     .take(2);
-  return users.length === 1 ? users[0] : null;
+  if (users.length === 1) return users[0];
+
+  const normalized = normalizeEmail(email);
+  if (normalized === email) return null;
+
+  const normalizedUsers = await ctx.db
+    .query("users")
+    .withIndex("email", (q) => q.eq("email", normalized))
+    .filter((q) => q.neq(q.field("emailVerificationTime"), undefined))
+    .take(2);
+  return normalizedUsers.length === 1 ? normalizedUsers[0] : null;
 }
 
 async function uniqueUserWithVerifiedPhone(ctx: QueryCtx, phone: string) {
@@ -198,7 +211,7 @@ async function createOrUpdateAccount(
       : await ctx.db.insert("authAccounts", {
           userId,
           provider: args.provider.id,
-          providerAccountId: account.providerAccountId,
+          providerAccountId: normalizeEmail(account.providerAccountId),
           secret: account.secret,
         });
   // This is never used with the default `createOrUpdateUser` implementation,
@@ -210,7 +223,12 @@ async function createOrUpdateAccount(
     await ctx.db.patch(accountId, { userId });
   }
   if (args.profile.emailVerified) {
-    await ctx.db.patch(accountId, { emailVerified: args.profile.email });
+    await ctx.db.patch(accountId, {
+      emailVerified:
+        typeof args.profile.email === "string"
+          ? normalizeEmail(args.profile.email)
+          : args.profile.email,
+    });
   }
   if (args.profile.phoneVerified) {
     await ctx.db.patch(accountId, { phoneVerified: args.profile.phone });

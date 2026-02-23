@@ -4,7 +4,8 @@ import * as Provider from "../provider.js";
 import { EmailConfig, PhoneConfig } from "../../types.js";
 import { getAccountOrThrow, upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
-import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
+import { LOG_LEVELS, logWithLevel, normalizeEmail, sha256 } from "../utils.js";
+import { findAccountByProviderAndId } from "./accountLookup.js";
 
 export const createVerificationCodeArgs = v.object({
   accountId: v.optional(v.id("authAccounts")),
@@ -37,14 +38,7 @@ export async function createVerificationCodeImpl(
   const existingAccount =
     existingAccountId !== undefined
       ? await getAccountOrThrow(ctx, existingAccountId)
-      : await ctx.db
-          .query("authAccounts")
-          .withIndex("providerAndAccountId", (q) =>
-            q
-              .eq("provider", providerId)
-              .eq("providerAccountId", email ?? phone!),
-          )
-          .unique();
+      : await findAccountByProviderAndId(ctx, providerId, email ?? phone!);
 
   const provider = getProviderOrThrow(providerId, allowExtraProviders) as
     | EmailConfig
@@ -103,7 +97,7 @@ async function generateUniqueVerificationCode(
     provider,
     code: await sha256(code),
     expirationTime,
-    emailVerified: email,
+    emailVerified: email !== undefined ? normalizeEmail(email) : undefined,
     phoneVerified: phone,
   });
 }
