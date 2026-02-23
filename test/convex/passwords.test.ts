@@ -325,7 +325,7 @@ test("sign in with different email casing", async () => {
   });
 });
 
-test("duplicate sign up with different email casing is rejected", async () => {
+test("duplicate sign up with different email casing reuses existing account", async () => {
   setupEnv();
   const t = convexTest(schema);
 

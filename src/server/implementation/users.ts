@@ -216,7 +216,7 @@ async function createOrUpdateAccount(
       : await ctx.db.insert("authAccounts", {
           userId,
           provider: args.provider.id,
-          providerAccountId: normalizeEmail(account.providerAccountId),
+          providerAccountId: account.providerAccountId,
           secret: account.secret,
         });
   // This is never used with the default `createOrUpdateUser` implementation,

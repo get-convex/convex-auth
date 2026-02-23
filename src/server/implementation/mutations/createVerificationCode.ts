@@ -48,7 +48,10 @@ export async function createVerificationCodeImpl(
     await getAuthSessionId(ctx),
     existingAccount !== null
       ? { existingAccount }
-      : { providerAccountId: email ?? phone! },
+      : {
+          providerAccountId:
+            email !== undefined ? normalizeEmail(email) : phone!,
+        },
     provider.type === "email"
       ? { type: "email", provider, profile: { email: email! } }
       : { type: "phone", provider, profile: { phone: phone! } },
