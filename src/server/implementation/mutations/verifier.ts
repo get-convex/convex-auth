@@ -1,6 +1,7 @@
 import { GenericId } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { getAuthSessionId } from "../sessions.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 type ReturnType = GenericId<"authVerifiers">;
 
@@ -15,5 +16,6 @@ export const callVerifier = async (ctx: ActionCtx): Promise<ReturnType> => {
     args: {
       type: "verifier",
     },
+    env: collectRuntimeEnv(),
   });
 };

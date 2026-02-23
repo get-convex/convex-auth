@@ -32,6 +32,10 @@ import {
 import * as Provider from "../provider.js";
 import { verifierImpl } from "./verifier.js";
 import { LOG_LEVELS, logWithLevel } from "../utils.js";
+import {
+  AuthRuntimeEnv,
+  mergeRuntimeEnv,
+} from "../runtimeEnv.js";
 export { callInvalidateSessions } from "./invalidateSessions.js";
 export { callModifyAccount } from "./modifyAccount.js";
 export { callRetreiveAccountWithCredentials } from "./retrieveAccountWithCredentials.js";
@@ -44,6 +48,11 @@ export { callVerifier } from "./verifier.js";
 export { callRefreshSession } from "./refreshSession.js";
 export { callSignOut } from "./signOut.js";
 export { callSignIn } from "./signIn.js";
+
+const runtimeEnvArgs = v.object({
+  siteUrl: v.optional(v.string()),
+  customAuthSiteUrl: v.optional(v.string()),
+});
 
 export const storeArgs = v.object({
   args: v.union(
@@ -94,6 +103,7 @@ export const storeArgs = v.object({
       ...invalidateSessionsArgs.fields,
     }),
   ),
+  env: v.optional(runtimeEnvArgs),
 });
 
 export const storeImpl = async (
@@ -103,19 +113,42 @@ export const storeImpl = async (
   config: Provider.Config,
 ) => {
   const args = fnArgs.args;
+  const runtimeEnv: AuthRuntimeEnv = mergeRuntimeEnv(
+    config as any,
+    fnArgs.env,
+  );
+  if (process.env.AUTH_LOG_LEVEL === "DEBUG") {
+    console.debug("storeImpl runtimeEnv", {
+      pid: process.pid,
+      type: args.type,
+      runtimeEnv,
+    });
+  }
   logWithLevel(LOG_LEVELS.INFO, `\`auth:store\` type: ${args.type}`);
   switch (args.type) {
     case "signIn": {
-      return signInImpl(ctx, args, config);
+      return signInImpl(ctx, args, config, runtimeEnv);
     }
     case "signOut": {
       return signOutImpl(ctx);
     }
     case "refreshSession": {
-      return refreshSessionImpl(ctx, args, getProviderOrThrow, config);
+      return refreshSessionImpl(
+        ctx,
+        args,
+        getProviderOrThrow,
+        config,
+        runtimeEnv,
+      );
     }
     case "verifyCodeAndSignIn": {
-      return verifyCodeAndSignInImpl(ctx, args, getProviderOrThrow, config);
+      return verifyCodeAndSignInImpl(
+        ctx,
+        args,
+        getProviderOrThrow,
+        config,
+        runtimeEnv,
+      );
     }
     case "verifier": {
       return verifierImpl(ctx);

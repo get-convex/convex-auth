@@ -1,5 +1,6 @@
 import { GenericId, Infer, v } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
+import { collectRuntimeEnv } from "../runtimeEnv.js";
 
 export const verifierSignatureArgs = v.object({
   verifier: v.string(),
@@ -29,5 +30,6 @@ export const callVerifierSignature = async (
       type: "verifierSignature",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };

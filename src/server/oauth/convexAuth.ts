@@ -32,28 +32,31 @@ export function getAuthorizationSignature({
 function oauthStateCookieName(
   type: "state" | "pkce" | "nonce",
   providerId: string,
+  siteUrl?: string,
 ) {
-  return (!isLocalHost(process.env.CONVEX_SITE_URL) ? "__Host-" : "") + providerId + "OAuth" + type;
+  const host = siteUrl ?? process.env.CONVEX_SITE_URL;
+  return (!isLocalHost(host) ? "__Host-" : "") + providerId + "OAuth" + type;
 }
 
 export const defaultCookiesOptions: (
   providerId: string,
-) => Record<keyof CookiesOptions, CookieOption> = (providerId) => {
+  siteUrl?: string,
+) => Record<keyof CookiesOptions, CookieOption> = (providerId, siteUrl) => {
   return {
     pkceCodeVerifier: {
-      name: oauthStateCookieName("pkce", providerId),
+      name: oauthStateCookieName("pkce", providerId, siteUrl),
       options: {
         ...SHARED_COOKIE_OPTIONS,
       },
     },
     state: {
-      name: oauthStateCookieName("state", providerId),
+      name: oauthStateCookieName("state", providerId, siteUrl),
       options: {
         ...SHARED_COOKIE_OPTIONS,
       },
     },
     nonce: {
-      name: oauthStateCookieName("nonce", providerId),
+      name: oauthStateCookieName("nonce", providerId, siteUrl),
       options: {
         ...SHARED_COOKIE_OPTIONS,
       },

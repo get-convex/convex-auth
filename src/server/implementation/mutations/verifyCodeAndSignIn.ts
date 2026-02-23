@@ -14,6 +14,10 @@ import {
 import { ConvexAuthConfig } from "../../types.js";
 import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
 import { upsertUserAndAccount } from "../users.js";
+import {
+  AuthRuntimeEnv,
+  collectRuntimeEnv,
+} from "../runtimeEnv.js";
 
 export const verifyCodeAndSignInArgs = v.object({
   params: v.any(),
@@ -30,6 +34,7 @@ export async function verifyCodeAndSignInImpl(
   args: Infer<typeof verifyCodeAndSignInArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
+  runtimeEnv: AuthRuntimeEnv,
 ): Promise<ReturnType> {
   logWithLevel(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
     params: { email: args.params.email, phone: args.params.phone },
@@ -76,6 +81,7 @@ export async function verifyCodeAndSignInImpl(
   return await maybeGenerateTokensForSession(
     ctx,
     config,
+    runtimeEnv,
     userId,
     sessionId,
     generateTokens,
@@ -91,6 +97,7 @@ export const callVerifyCodeAndSignIn = async (
       type: "verifyCodeAndSignIn",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };
 

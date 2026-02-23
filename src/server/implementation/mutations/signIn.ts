@@ -6,6 +6,10 @@ import {
   maybeGenerateTokensForSession,
 } from "../sessions.js";
 import { LOG_LEVELS, logWithLevel } from "../utils.js";
+import {
+  AuthRuntimeEnv,
+  collectRuntimeEnv,
+} from "../runtimeEnv.js";
 
 export const signInArgs = v.object({
   userId: v.id("users"),
@@ -19,6 +23,7 @@ export async function signInImpl(
   ctx: MutationCtx,
   args: Infer<typeof signInArgs>,
   config: Provider.Config,
+  runtimeEnv: AuthRuntimeEnv,
 ): Promise<ReturnType> {
   logWithLevel(LOG_LEVELS.DEBUG, "signInImpl args:", args);
   const { userId, sessionId: existingSessionId, generateTokens } = args;
@@ -28,6 +33,7 @@ export async function signInImpl(
   return await maybeGenerateTokensForSession(
     ctx,
     config,
+    runtimeEnv,
     userId,
     sessionId,
     generateTokens,
@@ -43,5 +49,6 @@ export const callSignIn = async (
       type: "signIn",
       ...args,
     },
+    env: collectRuntimeEnv(),
   });
 };

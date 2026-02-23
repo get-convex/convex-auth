@@ -20,9 +20,9 @@ import {
   callVerifyCodeAndSignIn,
 } from "./mutations/index.js";
 import { redirectAbsoluteUrl, setURLSearchParam } from "./redirects.js";
-import { requireEnv } from "../utils.js";
 import { OAuth2Config, OIDCConfig } from "@auth/core/providers/oauth.js";
 import { generateRandomString } from "./utils.js";
+import { resolveAuthBaseUrl } from "./runtimeEnv.js";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24; // 24 hours
 
@@ -237,7 +237,7 @@ async function handleOAuthProvider(
     };
   }
   const redirect = new URL(
-    (process.env.CUSTOM_AUTH_SITE_URL ?? requireEnv("CONVEX_SITE_URL")) + `/api/auth/signin/${provider.id}`,
+    resolveAuthBaseUrl(ctx.auth.config) + `/api/auth/signin/${provider.id}`,
   );
   const verifier = await callVerifier(ctx);
   redirect.searchParams.set("code", verifier);
