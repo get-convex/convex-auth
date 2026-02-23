@@ -2,7 +2,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { afterEach, expect, test, vi } from "vitest";
-import { AuthProvider, useAuth } from "../../src/react/client";
+import { AuthProvider, useAuth } from "../src/react/client";
 
 afterEach(cleanup);
 
