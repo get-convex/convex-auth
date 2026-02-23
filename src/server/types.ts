@@ -11,6 +11,7 @@ import {
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
+  GenericQueryCtx,
 } from "convex/server";
 import { GenericId, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
@@ -83,7 +84,7 @@ export type ConvexAuthConfig = {
      * ```
      */
     customClaims?: (
-      ctx: GenericMutationCtx<AnyDataModel>,
+      ctx: GenericQueryCtx<AnyDataModel>,
       args: {
         userId: GenericId<"users">;
         sessionId: GenericId<"authSessions">;
