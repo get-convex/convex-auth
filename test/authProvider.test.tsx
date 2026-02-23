@@ -51,89 +51,93 @@ test("isLoading stays true while URL code sign-in is in flight (StrictMode)", as
     "http://localhost:3000/?code=test-oauth-code",
   );
 
-  let resolveSignIn!: (value: any) => void;
-  const signInPromise = new Promise((resolve) => {
-    resolveSignIn = resolve;
-  });
+  try {
+    let resolveSignIn!: (value: any) => void;
+    const signInPromise = new Promise((resolve) => {
+      resolveSignIn = resolve;
+    });
 
-  const mockClient = {
-    authenticatedCall: vi.fn(() => signInPromise),
-    unauthenticatedCall: vi.fn(),
-    verbose: undefined,
-  };
+    const mockClient = {
+      authenticatedCall: vi.fn(() => signInPromise),
+      unauthenticatedCall: vi.fn(),
+      verbose: undefined,
+    };
 
-  render(
-    <React.StrictMode>
-      <AuthProvider
-        client={mockClient as any}
-        storage={createMockStorage()}
-        storageNamespace="test"
-        replaceURL={vi.fn()}
-      >
-        <AuthStateDisplay />
-      </AuthProvider>
-    </React.StrictMode>,
-  );
+    render(
+      <React.StrictMode>
+        <AuthProvider
+          client={mockClient as any}
+          storage={createMockStorage()}
+          storageNamespace="test"
+          replaceURL={vi.fn()}
+        >
+          <AuthStateDisplay />
+        </AuthProvider>
+      </React.StrictMode>,
+    );
 
-  // Sign-in is in flight — isLoading must remain true.
-  // The 0.0.90 regression caused isLoading to flip false here because
-  // StrictMode re-ran the effect and readStateFromStorage() was called.
-  //
-  // readStateFromStorage is async (uses await), so we verify isLoading
-  // does NOT become false. waitFor polls for up to 200ms — if the bug
-  // is present the inner assertion succeeds and the test fails.
-  const isLoadingBecameFalse = await waitFor(
-    () => {
+    // Sign-in is in flight — isLoading must remain true.
+    // The 0.0.90 regression caused isLoading to flip false here because
+    // StrictMode re-ran the effect and readStateFromStorage() was called.
+    //
+    // readStateFromStorage is async (uses await), so we verify isLoading
+    // does NOT become false. waitFor polls for up to 200ms — if the bug
+    // is present the inner assertion succeeds and the test fails.
+    const isLoadingBecameFalse = await waitFor(
+      () => {
+        expect(screen.getByTestId("loading").textContent).toBe("false");
+        return true;
+      },
+      { timeout: 200 },
+    ).catch(() => false);
+    expect(isLoadingBecameFalse).toBe(false);
+    expect(screen.getByTestId("authenticated").textContent).toBe("false");
+
+    // Complete the sign-in
+    resolveSignIn({
+      tokens: { token: "fake-jwt", refreshToken: "fake-refresh" },
+    });
+
+    await waitFor(() => {
       expect(screen.getByTestId("loading").textContent).toBe("false");
-      return true;
-    },
-    { timeout: 200 },
-  ).catch(() => false);
-  expect(isLoadingBecameFalse).toBe(false);
-  expect(screen.getByTestId("authenticated").textContent).toBe("false");
-
-  // Complete the sign-in
-  resolveSignIn({
-    tokens: { token: "fake-jwt", refreshToken: "fake-refresh" },
-  });
-
-  await waitFor(() => {
-    expect(screen.getByTestId("loading").textContent).toBe("false");
-    expect(screen.getByTestId("authenticated").textContent).toBe("true");
-  });
-
-  restore();
+      expect(screen.getByTestId("authenticated").textContent).toBe("true");
+    });
+  } finally {
+    restore();
+  }
 });
 
 test("isLoading resolves when shouldHandleCode is false", async () => {
   const restore = setWindowLocation("http://localhost:3000/?code=some-code");
 
-  const mockClient = {
-    authenticatedCall: vi.fn(),
-    unauthenticatedCall: vi.fn(),
-    verbose: undefined,
-  };
+  try {
+    const mockClient = {
+      authenticatedCall: vi.fn(),
+      unauthenticatedCall: vi.fn(),
+      verbose: undefined,
+    };
 
-  render(
-    <AuthProvider
-      client={mockClient as any}
-      storage={createMockStorage()}
-      storageNamespace="test"
-      replaceURL={vi.fn()}
-      shouldHandleCode={false}
-    >
-      <AuthStateDisplay />
-    </AuthProvider>,
-  );
+    render(
+      <AuthProvider
+        client={mockClient as any}
+        storage={createMockStorage()}
+        storageNamespace="test"
+        replaceURL={vi.fn()}
+        shouldHandleCode={false}
+      >
+        <AuthStateDisplay />
+      </AuthProvider>,
+    );
 
-  // Should fall through to readStateFromStorage, not hang
-  await waitFor(() => {
-    expect(screen.getByTestId("loading").textContent).toBe("false");
-  });
+    // Should fall through to readStateFromStorage, not hang
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
 
-  // Should NOT have attempted sign-in
-  expect(mockClient.authenticatedCall).not.toHaveBeenCalled();
-  expect(screen.getByTestId("authenticated").textContent).toBe("false");
-
-  restore();
+    // Should NOT have attempted sign-in
+    expect(mockClient.authenticatedCall).not.toHaveBeenCalled();
+    expect(screen.getByTestId("authenticated").textContent).toBe("false");
+  } finally {
+    restore();
+  }
 });
