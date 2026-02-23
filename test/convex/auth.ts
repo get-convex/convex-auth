@@ -11,6 +11,7 @@ import { ResendOTP } from "./otp/ResendOTP";
 import { TwilioOTP } from "./otp/TwilioOTP";
 import { TwilioVerify } from "./otp/TwilioVerify";
 import { ResendOTPPasswordReset } from "./passwordReset/ResendOTPPasswordReset";
+import { RawResendOTPPasswordReset } from "./passwordReset/RawResendOTPPasswordReset";
 // !publish: remove
 import { FakePhone } from "./otp/FakePhone";
 import { DataModel } from "./_generated/dataModel.js";
@@ -61,6 +62,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       },
     }),
     Password({ id: "password-with-reset", reset: ResendOTPPasswordReset }),
+    Password({ id: "password-raw-reset", reset: RawResendOTPPasswordReset }),
     Password({
       id: "password-code",
       reset: ResendOTPPasswordReset,

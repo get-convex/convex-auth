@@ -112,6 +112,182 @@ test("sign up with password and verify email", async () => {
   expect(validTokens2).not.toBeNull();
 });
 
+test("password reset flow", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Sign up
+  await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "sarah@gmail.com",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+
+  // Request password reset
+  const { code } = await mockResendOTP(async () =>
+    await t.action(api.auth.signIn, {
+      provider: "password-with-reset",
+      params: { email: "sarah@gmail.com", flow: "reset" },
+    }),
+  );
+
+  // Complete reset with new password
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "sarah@gmail.com",
+      code,
+      newPassword: "99991111",
+      flow: "reset-verification",
+    },
+  });
+
+  expect(tokens).not.toBeNull();
+
+  // Old password no longer works
+  await expect(async () => {
+    await t.action(api.auth.signIn, {
+      provider: "password-with-reset",
+      params: {
+        email: "sarah@gmail.com",
+        password: "44448888",
+        flow: "signIn",
+      },
+    });
+  }).rejects.toThrow("InvalidSecret");
+
+  // New password works
+  const { tokens: tokens2 } = await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "sarah@gmail.com",
+      password: "99991111",
+      flow: "signIn",
+    },
+  });
+
+  expect(tokens2).not.toBeNull();
+});
+
+test("password reset code cannot be used for a different account", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Sign up two users
+  await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "attacker@gmail.com",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+
+  await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "victim@gmail.com",
+      password: "secretpass1",
+      flow: "signUp",
+    },
+  });
+
+  // Attacker requests reset code for their own account
+  const { code } = await mockResendOTP(async () =>
+    await t.action(api.auth.signIn, {
+      provider: "password-with-reset",
+      params: { email: "attacker@gmail.com", flow: "reset" },
+    }),
+  );
+
+  // Attacker tries to use their code with victim's email
+  await expect(async () => {
+    await t.action(api.auth.signIn, {
+      provider: "password-with-reset",
+      params: {
+        email: "victim@gmail.com",
+        code,
+        newPassword: "hacked1234",
+        flow: "reset-verification",
+      },
+    });
+  }).rejects.toThrow();
+
+  // Victim's password is unchanged
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "victim@gmail.com",
+      password: "secretpass1",
+      flow: "signIn",
+    },
+  });
+
+  expect(tokens).not.toBeNull();
+});
+
+test("password reset code cannot be used for a different account (raw EmailConfig)", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Sign up two users
+  await t.action(api.auth.signIn, {
+    provider: "password-raw-reset",
+    params: {
+      email: "attacker@gmail.com",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+
+  await t.action(api.auth.signIn, {
+    provider: "password-raw-reset",
+    params: {
+      email: "victim@gmail.com",
+      password: "secretpass1",
+      flow: "signUp",
+    },
+  });
+
+  // Attacker requests reset code for their own account
+  const { code } = await mockResendOTP(async () =>
+    await t.action(api.auth.signIn, {
+      provider: "password-raw-reset",
+      params: { email: "attacker@gmail.com", flow: "reset" },
+    }),
+  );
+
+  // Attacker tries to use their code with victim's email.
+  // Without the fix, this succeeds because the raw EmailConfig
+  // has no authorize function to check the email mismatch.
+  await expect(async () => {
+    await t.action(api.auth.signIn, {
+      provider: "password-raw-reset",
+      params: {
+        email: "victim@gmail.com",
+        code,
+        newPassword: "hacked1234",
+        flow: "reset-verification",
+      },
+    });
+  }).rejects.toThrow();
+
+  // Victim's password is unchanged
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password-raw-reset",
+    params: {
+      email: "victim@gmail.com",
+      password: "secretpass1",
+      flow: "signIn",
+    },
+  });
+
+  expect(tokens).not.toBeNull();
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;

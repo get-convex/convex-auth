@@ -41,3 +41,10 @@ next-env.d.ts
 
 playwright-report/
 test-results/
+
+# claude
+.claude/
+CLAUDE.md
+
+# pack artifacts
+*.tgz

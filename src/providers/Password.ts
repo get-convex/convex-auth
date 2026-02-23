@@ -184,11 +184,18 @@ export function Password<DataModel extends GenericDataModel>(
             "Missing `newPassword` param for `reset-verification` flow",
           );
         }
+        const { account: resetAccount } = await retrieveAccount(ctx, {
+          provider,
+          account: { id: email },
+        });
         const result = await signInViaProvider(ctx, config.reset, { params });
         if (result === null) {
           throw new Error("Invalid code");
         }
         const { userId, sessionId } = result;
+        if (resetAccount.userId !== userId) {
+          throw new Error("Invalid code");
+        }
         const secret = params.newPassword as string;
         await modifyAccountCredentials(ctx, {
           provider,
