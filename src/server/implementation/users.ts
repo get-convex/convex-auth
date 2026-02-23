@@ -166,6 +166,11 @@ async function defaultCreateOrUpdateUser(
   return userId;
 }
 
+/**
+ * Find a unique user with a verified email, using the same "try exact then
+ * normalized" strategy as {@link findAccountByProviderAndId} so that
+ * pre-normalization user records are still discoverable for account linking.
+ */
 async function uniqueUserWithVerifiedEmail(ctx: QueryCtx, email: string) {
   const users = await ctx.db
     .query("users")

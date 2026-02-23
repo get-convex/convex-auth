@@ -1,6 +1,14 @@
 import { Doc, MutationCtx } from "../types.js";
 import { normalizeEmail } from "../utils.js";
 
+/**
+ * Look up an auth account by provider and account ID.
+ *
+ * Tries an exact match first, then falls back to a normalized (lowercased)
+ * lookup. This makes reads backward-compatible: accounts created before
+ * email normalization was introduced are still reachable by their original
+ * casing, while new (normalized) accounts are found on the fallback query.
+ */
 export async function findAccountByProviderAndId(
   ctx: MutationCtx,
   provider: string,
