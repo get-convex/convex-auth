@@ -556,6 +556,7 @@ function browserAddEventListener<K extends keyof WindowEventMap>(
   listener: (this: Window, ev: WindowEventMap[K]) => any,
   options?: boolean | AddEventListenerOptions,
 ): void {
+  if (typeof window === "undefined") return;
   window.addEventListener?.(type, listener, options);
 }
 
@@ -564,5 +565,6 @@ function browserRemoveEventListener<K extends keyof WindowEventMap>(
   listener: (this: Window, ev: WindowEventMap[K]) => any,
   options?: boolean | EventListenerOptions,
 ): void {
+  if (typeof window === "undefined") return;
   window.removeEventListener?.(type, listener, options);
 }
