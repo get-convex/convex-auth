@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.91
+
+- Add triggers support to `convexAuth` config for auth table modifications. You
+  can now configure `onCreate`, `onUpdate`, and `onDelete` handlers for any
+  table defined in `authTables`.
+
 ## 0.0.90
 
 - fix negative `shouldHandleCode` logic for client

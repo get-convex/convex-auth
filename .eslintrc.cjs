@@ -45,5 +45,14 @@ module.exports = {
     // Allow async functions without await
     // for consistency (esp. Convex `handler`s)
     "@typescript-eslint/require-await": "off",
+
+    // Prevent accidental use of raw context (bypasses triggers)
+    "no-restricted-syntax": [
+      "error",
+      {
+        selector: "MemberExpression[object.name='_rawCtx']",
+        message: "Use 'ctx' (triggered context) instead of '_rawCtx' to ensure triggers fire.",
+      },
+    ],
   },
 };

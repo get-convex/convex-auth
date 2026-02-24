@@ -38,7 +38,7 @@ export async function upsertUserAndAccount(
     args,
     config,
   );
-  const accountId = await createOrUpdateAccount(ctx, userId, account, args);
+  const accountId = await createOrUpdateAccount(ctx, userId, account, args, config);
   return { userId, accountId };
 }
 
@@ -130,6 +130,10 @@ async function defaultCreateOrUpdateUser(
   };
   const existingOrLinkedUserId = userId;
   if (userId !== null) {
+    // Get old doc for onUpdate trigger
+    const oldDoc = config.triggers?.users?.onUpdate
+      ? await ctx.db.get(userId)
+      : null;
     try {
       await ctx.db.patch(userId, userData);
     } catch (error) {
@@ -140,8 +144,18 @@ async function defaultCreateOrUpdateUser(
           `${(error as Error).message}`,
       );
     }
+    // Call onUpdate trigger
+    if (config.triggers?.users?.onUpdate && oldDoc) {
+      const newDoc = (await ctx.db.get(userId))!;
+      await config.triggers.users.onUpdate(ctx, newDoc, oldDoc);
+    }
   } else {
     userId = await ctx.db.insert("users", userData);
+    // Call onCreate trigger
+    if (config.triggers?.users?.onCreate) {
+      const doc = (await ctx.db.get(userId))!;
+      await config.triggers.users.onCreate(ctx, doc);
+    }
   }
   const afterUserCreatedOrUpdated = config.callbacks?.afterUserCreatedOrUpdated;
   if (afterUserCreatedOrUpdated !== undefined) {
@@ -191,16 +205,40 @@ async function createOrUpdateAccount(
         secret?: string;
       },
   args: CreateOrUpdateUserArgs,
+  config: ConvexAuthConfig,
 ) {
-  const accountId =
-    "existingAccount" in account
-      ? account.existingAccount._id
-      : await ctx.db.insert("authAccounts", {
-          userId,
-          provider: args.provider.id,
-          providerAccountId: account.providerAccountId,
-          secret: account.secret,
-        });
+  let accountId: GenericId<"authAccounts">;
+  let isNewAccount = false;
+
+  if ("existingAccount" in account) {
+    accountId = account.existingAccount._id;
+  } else {
+    accountId = await ctx.db.insert("authAccounts", {
+      userId,
+      provider: args.provider.id,
+      providerAccountId: account.providerAccountId,
+      secret: account.secret,
+    });
+    isNewAccount = true;
+    // Call onCreate trigger
+    if (config.triggers?.authAccounts?.onCreate) {
+      const doc = (await ctx.db.get(accountId))!;
+      await config.triggers.authAccounts.onCreate(ctx, doc);
+    }
+  }
+
+  // Track if we need to call onUpdate trigger
+  const needsUpdate =
+    ("existingAccount" in account && account.existingAccount.userId !== userId) ||
+    args.profile.emailVerified ||
+    args.profile.phoneVerified;
+
+  // Get old doc for onUpdate trigger (only if we have updates and it's not a new account)
+  const oldDoc =
+    !isNewAccount && needsUpdate && config.triggers?.authAccounts?.onUpdate
+      ? await ctx.db.get(accountId)
+      : null;
+
   // This is never used with the default `createOrUpdateUser` implementation,
   // but it is used for manual linking via custom `createOrUpdateUser`:
   if (
@@ -215,6 +253,13 @@ async function createOrUpdateAccount(
   if (args.profile.phoneVerified) {
     await ctx.db.patch(accountId, { phoneVerified: args.profile.phone });
   }
+
+  // Call onUpdate trigger if we made updates to an existing account
+  if (oldDoc && config.triggers?.authAccounts?.onUpdate) {
+    const newDoc = (await ctx.db.get(accountId))!;
+    await config.triggers.authAccounts.onUpdate(ctx, newDoc, oldDoc);
+  }
+
   return accountId;
 }
 

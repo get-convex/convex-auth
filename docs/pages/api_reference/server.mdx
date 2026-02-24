@@ -1575,6 +1575,16 @@ The `shouldLink` argument passed to `createAccount`.
 
 `Promise`\<`void`\>
 
+#### triggers?
+
+> `optional` **triggers**: [`AuthTriggers`](server.mdx#authtriggers)
+
+Database triggers for auth tables.
+Triggers run in the same transaction as the auth operation,
+allowing for atomic audit logging, history tracking, etc.
+
+See [Triggers](/advanced#triggers) for usage examples.
+
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:22](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L22)
@@ -2323,3 +2333,188 @@ Materialized Auth.js provider config.
 <h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
 
 [src/server/types.ts:372](https://github.com/get-convex/convex-auth/blob/main/src/server/types.ts#L372)
+
+***
+
+## AuthTableName
+
+
+Table names managed by the auth library, derived from [authTables](server.mdx#authtables).
+Use these for type-safe trigger configurations.
+
+```ts
+type AuthTableName = "users" | "authAccounts" | "authSessions" |
+  "authRefreshTokens" | "authVerificationCodes" | "authVerifiers" | "authRateLimits"
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:165](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L165)
+
+***
+
+## AuthTriggers
+
+
+Configuration for auth table triggers.
+Triggers run in the same transaction as the auth operation,
+allowing for atomic audit logging, history tracking, etc.
+
+```ts
+type AuthTriggers = {
+  [K in AuthTableName]?: TableTriggers<K>;
+}
+```
+
+See [Triggers](/advanced#triggers) for usage examples.
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:231](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L231)
+
+***
+
+## TableTriggers\<TableName\>
+
+
+Trigger configuration for a single table.
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Type Parameter</th>
+</tr>
+<tr>
+<td>
+
+`TableName` *extends* [`AuthTableName`](server.mdx#authtablename)
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type declaration</h3>
+
+#### onCreate?
+
+> `optional` **onCreate**: [`OnCreateTrigger`](server.mdx#oncreatetriggertablename)\<`TableName`\>
+
+Called after a new record is inserted.
+
+#### onUpdate?
+
+> `optional` **onUpdate**: [`OnUpdateTrigger`](server.mdx#onupdatetriggertablename)\<`TableName`\>
+
+Called after a record is updated. Receives both the new and old document.
+
+#### onDelete?
+
+> `optional` **onDelete**: [`OnDeleteTrigger`](server.mdx#ondeletetriggertablename)\<`TableName`\>
+
+Called after a record is deleted.
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:196](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L196)
+
+***
+
+## OnCreateTrigger\<TableName\>
+
+
+Trigger handler called when a document is created.
+Omit the doc parameter to skip the read.
+
+```ts
+type OnCreateTrigger<TableName> =
+  | ((ctx: MutationCtx) => Promise<void>)
+  | ((ctx: MutationCtx, doc: Doc<TableName>) => Promise<void>)
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Type Parameter</th>
+</tr>
+<tr>
+<td>
+
+`TableName` *extends* [`AuthTableName`](server.mdx#authtablename)
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:170](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L170)
+
+***
+
+## OnUpdateTrigger\<TableName\>
+
+
+Trigger handler called when a document is updated.
+Omit oldDoc to skip reading the old document.
+Omit both to skip all reads.
+
+```ts
+type OnUpdateTrigger<TableName> =
+  | ((ctx: MutationCtx) => Promise<void>)
+  | ((ctx: MutationCtx, newDoc: Doc<TableName>) => Promise<void>)
+  | ((ctx: MutationCtx, newDoc: Doc<TableName>, oldDoc: Doc<TableName>) => Promise<void>)
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Type Parameter</th>
+</tr>
+<tr>
+<td>
+
+`TableName` *extends* [`AuthTableName`](server.mdx#authtablename)
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:179](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L179)
+
+***
+
+## OnDeleteTrigger\<TableName\>
+
+
+Trigger handler called when a document is deleted.
+Omit doc to skip reading the document before deletion.
+
+```ts
+type OnDeleteTrigger<TableName> =
+  | ((ctx: MutationCtx, id: GenericId<TableName>) => Promise<void>)
+  | ((ctx: MutationCtx, id: GenericId<TableName>, doc: Doc<TableName> | null) => Promise<void>)
+```
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Type Parameters</h3>
+
+<table className="api_reference_table"><tbody>
+<tr>
+<th>Type Parameter</th>
+</tr>
+<tr>
+<td>
+
+`TableName` *extends* [`AuthTableName`](server.mdx#authtablename)
+
+</td>
+</tr>
+</tbody></table>
+
+<h3 className="nx-font-semibold nx-tracking-tight nx-text-slate-900 dark:nx-text-slate-100 nx-mt-8 nx-text-2xl">Defined in</h3>
+
+[src/server/implementation/types.ts:188](https://github.com/get-convex/convex-auth/blob/main/src/server/implementation/types.ts#L188)

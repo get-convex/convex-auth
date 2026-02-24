@@ -49,7 +49,7 @@ export async function refreshSessionImpl(
     if (session !== null) {
       await ctx.db.delete(session._id);
     }
-    await deleteAllRefreshTokens(ctx, tokenSessionId);
+    await deleteAllRefreshTokens(ctx, config, tokenSessionId);
     return null;
   }
   const { session } = validationResult;

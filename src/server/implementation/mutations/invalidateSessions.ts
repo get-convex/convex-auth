@@ -1,4 +1,5 @@
 import { Infer, v } from "convex/values";
+import { ConvexAuthConfig } from "../../index.js";
 import { deleteSession } from "../sessions.js";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { LOG_LEVELS, logWithLevel } from "../utils.js";
@@ -23,6 +24,7 @@ export const callInvalidateSessions = async (
 export const invalidateSessionsImpl = async (
   ctx: MutationCtx,
   args: Infer<typeof invalidateSessionsArgs>,
+  config: ConvexAuthConfig,
 ): Promise<void> => {
   logWithLevel(LOG_LEVELS.DEBUG, "invalidateSessionsImpl args:", args);
   const { userId, except } = args;
@@ -33,7 +35,7 @@ export const invalidateSessionsImpl = async (
     .collect();
   for (const session of sessions) {
     if (!exceptSet.has(session._id)) {
-      await deleteSession(ctx, session);
+      await deleteSession(ctx, config, session);
     }
   }
   return;

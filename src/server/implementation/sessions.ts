@@ -48,7 +48,7 @@ export async function createNewAndDeleteExistingSession(
   if (existingSessionId !== null) {
     const existingSession = await ctx.db.get(existingSessionId);
     if (existingSession !== null) {
-      await deleteSession(ctx, existingSession);
+      await deleteSession(ctx, config, existingSession);
     }
   }
   return await createSession(ctx, userId, config);
@@ -99,10 +99,11 @@ async function createSession(
 
 export async function deleteSession(
   ctx: MutationCtx,
+  config: ConvexAuthConfig,
   session: Doc<"authSessions">,
 ) {
   await ctx.db.delete(session._id);
-  await deleteAllRefreshTokens(ctx, session._id);
+  await deleteAllRefreshTokens(ctx, config, session._id);
 }
 
 /**

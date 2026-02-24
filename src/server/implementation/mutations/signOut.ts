@@ -1,4 +1,5 @@
 import { GenericId } from "convex/values";
+import { ConvexAuthConfig } from "../../index.js";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { deleteSession, getAuthSessionId } from "../sessions.js";
 
@@ -7,12 +8,15 @@ type ReturnType = {
   sessionId: GenericId<"authSessions">;
 } | null;
 
-export async function signOutImpl(ctx: MutationCtx): Promise<ReturnType> {
+export async function signOutImpl(
+  ctx: MutationCtx,
+  config: ConvexAuthConfig,
+): Promise<ReturnType> {
   const sessionId = await getAuthSessionId(ctx);
   if (sessionId !== null) {
     const session = await ctx.db.get(sessionId);
     if (session !== null) {
-      await deleteSession(ctx, session);
+      await deleteSession(ctx, config, session);
       return { userId: session.userId, sessionId: session._id };
     }
   }

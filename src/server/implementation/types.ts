@@ -153,3 +153,84 @@ export type SessionInfoWithTokens = {
   sessionId: GenericId<"authSessions">;
   tokens: Tokens;
 };
+
+// =============================================================================
+// Trigger Types
+// =============================================================================
+
+/**
+ * Table names managed by the auth library, derived from authTables.
+ * Use these for type-safe trigger configurations.
+ */
+export type AuthTableName = keyof typeof authTables;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyCtx = any;
+
+/**
+ * Trigger handler called when a document is created.
+ * Omit the doc parameter to skip the read.
+ */
+export type OnCreateTrigger<TableName extends AuthTableName> =
+  | ((ctx: AnyCtx) => Promise<void>)
+  | ((ctx: AnyCtx, doc: Doc<TableName>) => Promise<void>);
+
+/**
+ * Trigger handler called when a document is updated.
+ * Omit oldDoc to skip reading the old document.
+ * Omit both to skip all reads.
+ */
+export type OnUpdateTrigger<TableName extends AuthTableName> =
+  | ((ctx: AnyCtx) => Promise<void>)
+  | ((ctx: AnyCtx, newDoc: Doc<TableName>) => Promise<void>)
+  | ((ctx: AnyCtx, newDoc: Doc<TableName>, oldDoc: Doc<TableName>) => Promise<void>);
+
+/**
+ * Trigger handler called when a document is deleted.
+ * Omit doc to skip reading the document before deletion.
+ */
+export type OnDeleteTrigger<TableName extends AuthTableName> =
+  | ((ctx: AnyCtx, id: GenericId<TableName>) => Promise<void>)
+  | ((ctx: AnyCtx, id: GenericId<TableName>, doc: Doc<TableName> | null) => Promise<void>);
+
+/**
+ * Trigger configuration for a single table.
+ */
+export type TableTriggers<TableName extends AuthTableName> = {
+  onCreate?: OnCreateTrigger<TableName>;
+  onUpdate?: OnUpdateTrigger<TableName>;
+  onDelete?: OnDeleteTrigger<TableName>;
+};
+
+/**
+ * Configuration for auth table triggers.
+ * Triggers run in the same transaction as the auth operation,
+ * allowing for atomic audit logging, history tracking, etc.
+ *
+ * @example
+ * ```ts
+ * import { convexAuth } from "@convex-dev/auth/server";
+ *
+ * export const { auth, signIn, signOut, store } = convexAuth({
+ *   providers: [Password],
+ *   triggers: {
+ *     users: {
+ *       onCreate: async (ctx, doc) => {
+ *         console.log("User created:", doc._id);
+ *       },
+ *       onUpdate: async (ctx, newDoc, oldDoc) => {
+ *         console.log("User updated:", newDoc._id);
+ *       },
+ *     },
+ *     authAccounts: {
+ *       onCreate: async (ctx, doc) => {
+ *         console.log("Account created:", doc._id);
+ *       },
+ *     },
+ *   },
+ * });
+ * ```
+ */
+export type AuthTriggers = {
+  [K in AuthTableName]?: TableTriggers<K>;
+};
