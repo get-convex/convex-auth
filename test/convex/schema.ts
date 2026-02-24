@@ -12,8 +12,9 @@ export default defineSchema({
     phone: v.optional(v.string()),
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
-    // Custom field.
+    // Custom fields.
     favoriteColor: v.optional(v.string()),
+    banned: v.optional(v.boolean()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"]),
