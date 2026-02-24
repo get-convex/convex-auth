@@ -89,6 +89,7 @@ async function createSession(
   userId: GenericId<"users">,
   config: ConvexAuthConfig,
 ) {
+  await config.callbacks?.beforeSessionCreation?.(ctx, { userId });
   const expirationTime =
     Date.now() +
     (config.session?.totalDurationMs ??

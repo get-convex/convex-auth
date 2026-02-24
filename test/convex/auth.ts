@@ -17,6 +17,14 @@ import { FakePhone } from "./otp/FakePhone";
 import { DataModel } from "./_generated/dataModel.js";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  callbacks: {
+    async beforeSessionCreation(ctx, { userId }) {
+      const user = await ctx.db.get(userId);
+      if (user?.banned) {
+        throw new Error("Account is banned");
+      }
+    },
+  },
   providers: [
     // !publish: remove
     FakePhone,
