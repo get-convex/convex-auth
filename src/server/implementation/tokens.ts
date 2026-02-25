@@ -3,14 +3,14 @@ import { ConvexAuthConfig } from "../index.js";
 import { SignJWT, importPKCS8 } from "jose";
 import { requireEnv } from "../utils.js";
 import { TOKEN_SUB_CLAIM_DIVIDER } from "./utils.js";
-import { MutationCtx } from "./types.js";
+import { QueryCtx } from "./types.js";
 
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 
 const RESERVED_CLAIMS = new Set(["sub", "iss", "aud", "iat", "exp"]);
 
 export async function generateToken(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   args: {
     userId: GenericId<"users">;
     sessionId: GenericId<"authSessions">;
