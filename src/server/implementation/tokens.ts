@@ -4,7 +4,6 @@ import { SignJWT, importPKCS8 } from "jose";
 import { requireEnv } from "../utils.js";
 import { TOKEN_SUB_CLAIM_DIVIDER } from "./utils.js";
 import { MutationCtx } from "./types.js";
-import { LOG_LEVELS, logWithLevel } from "./utils.js";
 
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 

@@ -68,8 +68,8 @@ export type ConvexAuthConfig = {
      * standard `sub` claim. The claims will be available on the
      * `UserIdentity` returned by `ctx.auth.getUserIdentity()`.
      *
-     * Reserved claim names (`sub`, `iss`, `aud`, `iat`, `exp`) should not
-     * be returned, and will be stripped if returned.
+     * Reserved claim names (`sub`, `iss`, `aud`, `iat`, `exp`) must not
+     * be returned — an error will be thrown if they are.
      *
      * ```ts
      * export const { auth, signIn, signOut, store } = convexAuth({
