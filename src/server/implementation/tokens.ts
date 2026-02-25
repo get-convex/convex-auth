@@ -31,10 +31,9 @@ export async function generateToken(
     });
     for (const [key, value] of Object.entries(raw)) {
       if (RESERVED_CLAIMS.has(key)) {
-        logWithLevel(LOG_LEVELS.WARN, "Reserved claim", key, "in custom claims - will be ignored");
-      } else {
-        extraClaims[key] = value;
+        throw new Error(`Reserved claim "${key}" in custom claims`);
       }
+      extraClaims[key] = value;
     }
   }
 
