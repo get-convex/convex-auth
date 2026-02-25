@@ -22,7 +22,6 @@ new Command()
     "Configure additional variables for interactive configuration.",
   )
   .option("--skip-git-check", "Don't warn when running outside a Git checkout.")
-  .option("--allow-dirty-git-state", "Don't warn when Git state is not clean.")
   .option(
     "--web-server-url <url>",
     "URL of web server, e.g. 'http://localhost:5173' if local",
@@ -581,32 +580,12 @@ function logStep(config: ProjectConfig, message: string) {
   logInfo(chalk.bold(`Step ${config.step++}: ${message}`));
 }
 
-async function checkSourceControl(options: {
-  skipGitCheck?: boolean;
-  allowDirtyGitState?: boolean;
-}) {
-  if (options.allowDirtyGitState) {
+async function checkSourceControl(options: { skipGitCheck?: boolean }) {
+  if (options.skipGitCheck) {
     return;
   }
   const isGit = existsSync(".git");
-  if (isGit) {
-    const gitStatus = execSync("git status --porcelain").toString();
-    const changedFiles = gitStatus
-      .split("\n")
-      .filter(
-        (line) => !/\bpackage(-lock)?.json/.test(line) && line.length > 0,
-      );
-    if (changedFiles.length > 0) {
-      logError(
-        "There are unstaged or uncommitted changes in the working directory. " +
-          "Please commit or stash them before proceeding.",
-      );
-      await promptForConfirmationOrExit("Continue anyway?", { default: false });
-    }
-  } else {
-    if (options.skipGitCheck) {
-      return;
-    }
+  if (!isGit) {
     logWarning(
       "No source control detected. We strongly recommend committing the current state of your code before proceeding.",
     );
