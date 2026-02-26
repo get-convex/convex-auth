@@ -1,4 +1,5 @@
 import { GenericId } from "convex/values";
+import { AnyDataModel, GenericQueryCtx } from "convex/server";
 import { ConvexAuthConfig } from "../index.js";
 import { SignJWT, importPKCS8 } from "jose";
 import { requireEnv } from "../utils.js";
@@ -24,10 +25,13 @@ export async function generateToken(
 
   const extraClaims: Record<string, unknown> = {};
   if (config.jwt?.customClaims) {
-    const raw = await config.jwt.customClaims(ctx, {
-      userId: args.userId,
-      sessionId: args.sessionId,
-    });
+    const raw = await config.jwt.customClaims(
+      ctx as unknown as GenericQueryCtx<AnyDataModel>,
+      {
+        userId: args.userId,
+        sessionId: args.sessionId,
+      },
+    );
     for (const [key, value] of Object.entries(raw)) {
       if (RESERVED_CLAIMS.has(key)) {
         throw new Error(`Reserved claim "${key}" in custom claims`);
