@@ -87,6 +87,10 @@ export async function handleOAuth(
         },
       });
       break;
+    case "none":
+      // Public client: no client authentication on the token endpoint.
+      clientAuth = (_as, _client, _body, _headers) => {};
+      break;
     default:
       throw new Error("unsupported client authentication method");
   }
