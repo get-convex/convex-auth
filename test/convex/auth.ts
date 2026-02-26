@@ -17,6 +17,12 @@ import { FakePhone } from "./otp/FakePhone";
 import { DataModel } from "./_generated/dataModel.js";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  jwt: {
+    customClaims: async (ctx, { userId }) => {
+      const user = await ctx.db.get(userId);
+      return { email: user?.email };
+    },
+  },
   callbacks: {
     async beforeSessionCreation(ctx, { userId }) {
       const user = await ctx.db.get(userId);

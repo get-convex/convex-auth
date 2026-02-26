@@ -74,7 +74,7 @@ export async function generateTokensForSession(
       args.parentRefreshTokenId,
     ));
   const result = {
-    token: await generateToken(ids, config),
+    token: await generateToken(ctx, ids, config),
     refreshToken: formatRefreshToken(refreshTokenId, args.sessionId),
   };
   logWithLevel(

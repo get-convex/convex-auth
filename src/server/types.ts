@@ -11,8 +11,9 @@ import {
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
+  GenericQueryCtx,
 } from "convex/server";
-import { GenericId, Value } from "convex/values";
+import { GenericId, JSONValue, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
 import { GenericDoc } from "./convex_types.js";
 
@@ -60,6 +61,35 @@ export type ConvexAuthConfig = {
      * Defaults to 1 hour.
      */
     durationMs?: number;
+    /**
+     * Add custom claims to the JWT token.
+     *
+     * The returned record is spread into the JWT payload alongside the
+     * standard `sub` claim. The claims will be available on the
+     * `UserIdentity` returned by `ctx.auth.getUserIdentity()`.
+     *
+     * Reserved claim names (`sub`, `iss`, `aud`, `iat`, `exp`, `nbf`, `jti`)
+     * must not be returned — an error will be thrown if they are.
+     *
+     * ```ts
+     * export const { auth, signIn, signOut, store } = convexAuth({
+     *   providers: [Google],
+     *   jwt: {
+     *     customClaims: async (ctx, { userId }) => {
+     *       const user = await ctx.db.get(userId);
+     *       return { app_user_id: user?.app_user_id };
+     *     },
+     *   },
+     * });
+     * ```
+     */
+    customClaims?: (
+      ctx: GenericQueryCtx<AnyDataModel>,
+      args: {
+        userId: GenericId<"users">;
+        sessionId: GenericId<"authSessions">;
+      },
+    ) => Promise<Record<string, JSONValue | undefined>>;
   };
   /**
    * Sign-in configuration.
