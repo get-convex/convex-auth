@@ -19,9 +19,6 @@ import { DataModel } from "./_generated/dataModel.js";
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   jwt: {
     customClaims: async (ctx, { userId }) => {
-      if (process.env.TEST_CUSTOM_CLAIMS_RESERVED) {
-        return { sub: "should-fail" };
-      }
       const user = await ctx.db.get(userId);
       return { email: user?.email };
     },

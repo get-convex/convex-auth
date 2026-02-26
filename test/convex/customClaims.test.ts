@@ -20,8 +20,12 @@ test("custom claims are included in JWT", async () => {
 
 test("reserved claims in customClaims throw an error", async () => {
   setupEnv();
-  process.env.TEST_CUSTOM_CLAIMS_RESERVED = "true";
-  const t = convexTest(schema);
+  const modules = import.meta.glob("./**/*.*s");
+  const overriddenModules = {
+    ...modules,
+    "./auth.ts": () => import("./authReservedClaims"),
+  };
+  const t = convexTest(schema, overriddenModules);
   await expect(
     t.action(api.auth.signIn, {
       provider: "password",
@@ -32,11 +36,64 @@ test("reserved claims in customClaims throw an error", async () => {
       },
     }),
   ).rejects.toThrow('Reserved claim "sub" in custom claims');
-  delete process.env.TEST_CUSTOM_CLAIMS_RESERVED;
+});
+
+test("token refresh picks up updated claims", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
+  });
+  expect(tokens).not.toBeNull();
+
+  const initialClaims = decodeJwt(tokens!.token);
+  expect(initialClaims.email).toBe("sarah@gmail.com");
+
+  // Update the user's email directly in the database
+  await t.run(async (ctx) => {
+    const user = (await ctx.db.query("users").collect())[0];
+    await ctx.db.patch(user._id, { email: "newemail@gmail.com" });
+  });
+
+  // Refresh the token
+  const { tokens: refreshedTokens } = await t.action(api.auth.signIn, {
+    refreshToken: tokens!.refreshToken,
+    params: {},
+  });
+  expect(refreshedTokens).not.toBeNull();
+
+  const refreshedClaims = decodeJwt(refreshedTokens!.token);
+  expect(refreshedClaims.email).toBe("newemail@gmail.com");
+});
+
+test("undefined claim values are silently dropped", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
+  });
+  expect(tokens).not.toBeNull();
+
+  // Clear the user's email so customClaims returns { email: undefined }
+  await t.run(async (ctx) => {
+    const user = (await ctx.db.query("users").collect())[0];
+    await ctx.db.patch(user._id, { email: undefined });
+  });
+
+  // Refresh the token to get new claims
+  const { tokens: refreshedTokens } = await t.action(api.auth.signIn, {
+    refreshToken: tokens!.refreshToken,
+    params: {},
+  });
+  expect(refreshedTokens).not.toBeNull();
+
+  const refreshedClaims = decodeJwt(refreshedTokens!.token);
+  expect(refreshedClaims).not.toHaveProperty("email");
 });
 
 function setupEnv() {
-  delete process.env.TEST_CUSTOM_CLAIMS_RESERVED;
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;
   process.env.JWT_PRIVATE_KEY = JWT_PRIVATE_KEY;

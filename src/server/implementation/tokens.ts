@@ -7,7 +7,7 @@ import { QueryCtx } from "./types.js";
 
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60; // 1 hour
 
-const RESERVED_CLAIMS = new Set(["sub", "iss", "aud", "iat", "exp"]);
+const RESERVED_CLAIMS = new Set(["sub", "iss", "aud", "iat", "exp", "nbf", "jti"]);
 
 export async function generateToken(
   ctx: QueryCtx,
@@ -37,8 +37,8 @@ export async function generateToken(
   }
 
   return await new SignJWT({
-    sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
     ...extraClaims,
+    sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
   })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()

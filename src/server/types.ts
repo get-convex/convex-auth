@@ -13,7 +13,7 @@ import {
   GenericMutationCtx,
   GenericQueryCtx,
 } from "convex/server";
-import { GenericId, Value } from "convex/values";
+import { GenericId, JSONValue, Value } from "convex/values";
 import { ConvexCredentialsUserConfig } from "../providers/ConvexCredentials.js";
 import { GenericDoc } from "./convex_types.js";
 
@@ -68,8 +68,8 @@ export type ConvexAuthConfig = {
      * standard `sub` claim. The claims will be available on the
      * `UserIdentity` returned by `ctx.auth.getUserIdentity()`.
      *
-     * Reserved claim names (`sub`, `iss`, `aud`, `iat`, `exp`) must not
-     * be returned — an error will be thrown if they are.
+     * Reserved claim names (`sub`, `iss`, `aud`, `iat`, `exp`, `nbf`, `jti`)
+     * must not be returned — an error will be thrown if they are.
      *
      * ```ts
      * export const { auth, signIn, signOut, store } = convexAuth({
@@ -89,7 +89,7 @@ export type ConvexAuthConfig = {
         userId: GenericId<"users">;
         sessionId: GenericId<"authSessions">;
       },
-    ) => Promise<Record<string, unknown>>;
+    ) => Promise<Record<string, JSONValue | undefined>>;
   };
   /**
    * Sign-in configuration.
