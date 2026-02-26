@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.91
+
+- feat: add `jwt.customClaims` hook for custom JWT claims (#298) @Hades32
+- feat: add `beforeSessionCreation` callback hook (#296) @focus-stefano
+- fix: password reset code not validated against email (#285)
+- fix: restore isLoading guard during URL code sign-in (#288)
+- fix: window is undefined bug (#277) @nyoung697
+- fix: use shx for cross-platform build scripts (#290)
+- fix: remove clean git tree requirement from setup CLI (#297)
+- docs: update nextjsMiddlewareRedirect (#244) @johncmunson
+- docs: update server.mdx createAccount() (#247) @CodeZeno
+
 ## 0.0.90
 
 - fix negative `shouldHandleCode` logic for client
