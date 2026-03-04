@@ -6,7 +6,7 @@
     "api": "typedoc",
     "api-watch": "typedoc --watch",
     "dev": "npm run api && next dev --port 3333",
-    "build": "next build",
+    "build": "cd .. && npm ci --ignore-scripts --include=dev && cd docs && npm run api && next build",
     "start": "next start"
   },
   "repository": {
