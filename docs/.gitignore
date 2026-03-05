@@ -1,3 +1,6 @@
 .next
 node_modules
 .vercel
+
+# Generated API reference (typedoc)
+pages/api_reference

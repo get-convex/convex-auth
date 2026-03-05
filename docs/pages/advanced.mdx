@@ -134,6 +134,50 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 This is helpful when the default user creation implementation in the library
 satisfies your app's needs.
 
+## Custom JWT claims
+
+You can enrich JWT tokens with app-specific data using the
+[`jwt.customClaims`](/api_reference/server#jwtcustomclaims) callback. The
+claims you return are spread into the JWT payload and become available via
+`ctx.auth.getUserIdentity()` in your backend functions.
+
+```ts filename="convex/auth.ts"
+import GitHub from "@auth/core/providers/github";
+import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [GitHub],
+  jwt: {
+    customClaims: async (ctx, { userId }) => {
+      const user = await ctx.db.get(userId);
+      return { email: user?.email, role: user?.role };
+    },
+  },
+});
+```
+
+You can then read these claims in any query, mutation, or action:
+
+```ts filename="convex/myFunctions.ts"
+import { query } from "./_generated/server";
+
+export const currentUserRole = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return identity?.role;
+  },
+});
+```
+
+The callback is called every time a token is generated, including on token
+refresh.
+
+<Callout type="warning">
+  Returning a reserved claim name (`sub`, `iss`, `aud`, `iat`, `exp`, `nbf`,
+  `jti`) will throw an error.
+</Callout>
+
 ## Session validity
 
 Convex Auth issues JWTs which allow your client to authenticate.
