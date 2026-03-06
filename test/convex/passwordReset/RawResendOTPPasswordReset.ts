@@ -6,7 +6,7 @@ import { PasswordResetEmail } from "./PasswordResetEmail";
 // Raw EmailConfig without the Email() wrapper — no authorize function.
 // This mirrors what real users do when building custom email providers.
 export const RawResendOTPPasswordReset: EmailConfig = {
-  id: "raw-resend-otp-password-reset",
+  id: "raw-resend-otp-pw-reset",
   type: "email",
   name: "Email",
   from: "My App <onboarding@resend.dev>",
