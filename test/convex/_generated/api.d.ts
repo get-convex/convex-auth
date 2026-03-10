@@ -14,6 +14,7 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as auth from "../auth.js";
+import type * as authReservedClaims from "../authReservedClaims.js";
 import type * as errors from "../errors.js";
 import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
@@ -25,6 +26,7 @@ import type * as otp_TwilioSDK from "../otp/TwilioSDK.js";
 import type * as otp_TwilioVerify from "../otp/TwilioVerify.js";
 import type * as otp_VerificationCodeEmail from "../otp/VerificationCodeEmail.js";
 import type * as passwordReset_PasswordResetEmail from "../passwordReset/PasswordResetEmail.js";
+import type * as passwordReset_RawResendOTPPasswordReset from "../passwordReset/RawResendOTPPasswordReset.js";
 import type * as passwordReset_ResendOTPPasswordReset from "../passwordReset/ResendOTPPasswordReset.js";
 import type * as users from "../users.js";
 
@@ -38,6 +40,7 @@ import type * as users from "../users.js";
  */
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  authReservedClaims: typeof authReservedClaims;
   errors: typeof errors;
   helpers: typeof helpers;
   http: typeof http;
@@ -49,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   "otp/TwilioVerify": typeof otp_TwilioVerify;
   "otp/VerificationCodeEmail": typeof otp_VerificationCodeEmail;
   "passwordReset/PasswordResetEmail": typeof passwordReset_PasswordResetEmail;
+  "passwordReset/RawResendOTPPasswordReset": typeof passwordReset_RawResendOTPPasswordReset;
   "passwordReset/ResendOTPPasswordReset": typeof passwordReset_ResendOTPPasswordReset;
   users: typeof users;
 }>;
