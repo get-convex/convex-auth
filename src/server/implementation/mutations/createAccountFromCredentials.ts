@@ -5,6 +5,7 @@ import { ConvexCredentialsConfig } from "../../types.js";
 import { upsertUserAndAccount } from "../users.js";
 import { getAuthSessionId } from "../sessions.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { findAccountByProviderAndId } from "./accountLookup.js";
 
 export const createAccountFromCredentialsArgs = v.object({
   provider: v.string(),
@@ -37,12 +38,11 @@ export async function createAccountFromCredentialsImpl(
     shouldLinkViaPhone,
   } = args;
   const provider = getProviderOrThrow(providerId) as ConvexCredentialsConfig;
-  const existingAccount = await ctx.db
-    .query("authAccounts")
-    .withIndex("providerAndAccountId", (q) =>
-      q.eq("provider", provider.id).eq("providerAccountId", account.id),
-    )
-    .unique();
+  const existingAccount = await findAccountByProviderAndId(
+    ctx,
+    provider.id,
+    account.id,
+  );
   if (existingAccount !== null) {
     if (
       account.secret !== undefined &&
