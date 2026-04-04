@@ -113,6 +113,17 @@ export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): P
         "TODO: Authorization server did not provide a token endpoint.",
       );
 
+    // Microsoft multi-tenant: the "common" endpoint discovers issuer .../common/v2.0
+    // but tokens carry tenant-specific iss claims (.../{tenantId}/v2.0).
+    // Use oauth4webapi's _expectedIssuer extension to accept the token's own iss,
+    // matching the approach used by @auth/core for Microsoft providers.
+    if (config.type === "oidc" && config.id === "microsoft-entra-id") {
+      // _expectedIssuer is a runtime-exported Symbol from oauth4webapi,
+      // not yet in the type declarations.
+      const expectedIssuer = (o as any)._expectedIssuer as symbol;
+      (discoveredAs as any)[expectedIssuer] = (result: any) => result.claims.iss;
+    }
+
     const as: o.AuthorizationServer = discoveredAs;
     return {
       ...config,
