@@ -87,6 +87,30 @@ export const defaultCookiesOptions: (
   };
 };
 
+// Microsoft multi-tenant: aliases like "common", "organizations", "consumers"
+// discover issuer .../{alias}/v2.0 but tokens carry tenant-specific
+// iss claims (.../{tenantId}/v2.0). Use oauth4webapi's
+// _expectedIssuer extension to accept the token's own iss,
+// matching the approach used by @auth/core for Microsoft providers.
+// Only needed for multi-tenant aliases; tenant-specific endpoints
+// return exact issuer matches.
+function applyMultiTenantEntraFix(
+  as: o.AuthorizationServer,
+  config: OAuthConfig<any>,
+) {
+  const issuer = (as as any).issuer ?? as.issuer ?? "";
+  const isMultiTenantEntra =
+    config.type === "oidc" &&
+    config.id === "microsoft-entra-id" &&
+    /\/(common|organizations|consumers)\/v2\.0\/?$/.test(issuer);
+  if (isMultiTenantEntra) {
+    // _expectedIssuer is a runtime-exported Symbol from oauth4webapi,
+    // not yet in the type declarations.
+    const expectedIssuer = (o as any)._expectedIssuer as symbol;
+    (as as any)[expectedIssuer] = (result: any) => result.claims.iss;
+  }
+}
+
 export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): Promise<InternalProvider<"oauth" | "oidc">> {
   // Only do service discovery if the provider does not have the required configuration
   if (!config.authorization || !config.token || !config.userinfo) {
@@ -113,25 +137,7 @@ export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): P
         "TODO: Authorization server did not provide a token endpoint.",
       );
 
-    // Microsoft multi-tenant: aliases like "common", "organizations", "consumers"
-    // discover issuer .../{alias}/v2.0 but tokens carry tenant-specific
-    // iss claims (.../{tenantId}/v2.0). Use oauth4webapi's
-    // _expectedIssuer extension to accept the token's own iss,
-    // matching the approach used by @auth/core for Microsoft providers.
-    // Only needed for multi-tenant aliases; tenant-specific endpoints
-    // return exact issuer matches.
-    const discoveredIssuer = discoveredAs.issuer ?? "";
-    const isMultiTenantEntra =
-      config.type === "oidc" &&
-      config.id === "microsoft-entra-id" &&
-      /\/(common|organizations|consumers)\/v2\.0\/?$/.test(discoveredIssuer);
-
-    if (isMultiTenantEntra) {
-      // _expectedIssuer is a runtime-exported Symbol from oauth4webapi,
-      // not yet in the type declarations.
-      const expectedIssuer = (o as any)._expectedIssuer as symbol;
-      (discoveredAs as any)[expectedIssuer] = (result: any) => result.claims.iss;
-    }
+    applyMultiTenantEntraFix(discoveredAs, config);
 
     const as: o.AuthorizationServer = discoveredAs;
     return {
@@ -167,6 +173,13 @@ export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): P
   const userinfo = config.userinfo
     ? normalizeEndpoint(config.userinfo)
     : undefined;
+  const as: o.AuthorizationServer = {
+    issuer: config.issuer ?? "theremustbeastringhere.dev",
+    authorization_endpoint: authorization?.url.toString(),
+    token_endpoint: token?.url.toString(),
+    userinfo_endpoint: userinfo?.url.toString(),
+  };
+  applyMultiTenantEntraFix(as, config);
   return {
     ...config,
     checks: config.checks!,
@@ -177,12 +190,7 @@ export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): P
     authorization,
     token,
     userinfo,
-    as: {
-      issuer: config.issuer ?? "theremustbeastringhere.dev",
-      authorization_endpoint: authorization?.url.toString(),
-      token_endpoint: token?.url.toString(),
-      userinfo_endpoint: userinfo?.url.toString(),
-    },
+    as,
     configSource: "provided",
   };
 }
