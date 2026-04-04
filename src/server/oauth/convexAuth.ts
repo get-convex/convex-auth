@@ -120,11 +120,11 @@ export async function oAuthConfigToInternalProvider(config: OAuthConfig<any>): P
     // matching the approach used by @auth/core for Microsoft providers.
     // Only needed for multi-tenant aliases; tenant-specific endpoints
     // return exact issuer matches.
-    const issuer = discoveredAs.issuer ?? "";
+    const discoveredIssuer = discoveredAs.issuer ?? "";
     const isMultiTenantEntra =
       config.type === "oidc" &&
       config.id === "microsoft-entra-id" &&
-      /\/(common|organizations|consumers)\/v2\.0\/?$/.test(issuer);
+      /\/(common|organizations|consumers)\/v2\.0\/?$/.test(discoveredIssuer);
 
     if (isMultiTenantEntra) {
       // _expectedIssuer is a runtime-exported Symbol from oauth4webapi,
