@@ -70,6 +70,21 @@ export function logWithLevel(level: LogLevel, ...args: unknown[]) {
   }
 }
 
+/**
+ * Convert null values to undefined. Convex's `v.optional()` accepts
+ * `undefined` (field absence) but rejects `null`, and many `@auth/core`
+ * providers return `null` for unavailable profile fields like `image`.
+ */
+export function nullsToUndefined<T extends object>(
+  o: T,
+): { [K in keyof T]: Exclude<T[K], null> | undefined } {
+  const result = {} as any;
+  for (const [k, v] of Object.entries(o)) {
+    result[k] = v === null ? undefined : v;
+  }
+  return result;
+}
+
 const UNREDACTED_LENGTH = 5;
 export function maybeRedact(value: string) {
   if (value === "") {

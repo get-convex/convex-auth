@@ -33,6 +33,7 @@ import {
   TOKEN_SUB_CLAIM_DIVIDER,
   logError,
   logWithLevel,
+  nullsToUndefined,
 } from "./utils.js";
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
@@ -329,9 +330,8 @@ export function convexAuth(config_: ConvexAuthConfig) {
                 },
               );
 
-              const { id, ...profileFromCallback } = await provider.profile!(
-                profile,
-                tokens,
+              const { id, ...profileFromCallback } = nullsToUndefined(
+                await provider.profile!(profile, tokens),
               );
 
               if (typeof id !== "string") {

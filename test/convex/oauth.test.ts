@@ -63,6 +63,27 @@ test("sign in with oauth", async () => {
   });
 });
 
+test("sign up with oauth when profile contains null values", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { tokens } = await signInViaGitHub(t, "github", {
+    email: "apple-user@icloud.com",
+    name: "Apple User",
+    id: "someAppleId",
+    image: null,
+  });
+
+  expect(tokens).not.toBeNull();
+
+  await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    expect(users).toMatchObject([
+      { email: "apple-user@icloud.com", name: "Apple User" },
+    ]);
+    expect(users[0].image).toBeUndefined();
+  });
+});
+
 test("redirectTo with oauth", async () => {
   setupEnv();
   const t = convexTest(schema);
