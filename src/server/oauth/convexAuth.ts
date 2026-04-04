@@ -89,9 +89,17 @@ export const defaultCookiesOptions: (
 
 // Microsoft multi-tenant: aliases like "common", "organizations", "consumers"
 // discover issuer .../{alias}/v2.0 but tokens carry tenant-specific
-// iss claims (.../{tenantId}/v2.0). Use oauth4webapi's
-// _expectedIssuer extension to accept the token's own iss,
-// matching the approach used by @auth/core for Microsoft providers.
+// iss claims (.../{tenantId}/v2.0).
+//
+// oauth4webapi's processDiscoveryResponse validates that the ID token's
+// iss matches the discovered issuer, which fails for these aliases.
+// The library exports a _expectedIssuer Symbol as an extension point
+// specifically for this case — setting it to a function replaces the
+// default strict-equal check with custom validation. This is the same
+// approach used by @auth/core internally for Microsoft providers:
+//   https://github.com/nextauthjs/next-auth/blob/main/packages/core/src/lib/actions/callback/oauth/callback.ts
+//
+// The symbol is exported at runtime but not in the type declarations.
 // Only needed for multi-tenant aliases; tenant-specific endpoints
 // return exact issuer matches.
 function applyMultiTenantEntraFix(
@@ -104,8 +112,6 @@ function applyMultiTenantEntraFix(
     config.id === "microsoft-entra-id" &&
     /\/(common|organizations|consumers)\/v2\.0\/?$/.test(issuer);
   if (isMultiTenantEntra) {
-    // _expectedIssuer is a runtime-exported Symbol from oauth4webapi,
-    // not yet in the type declarations.
     const expectedIssuer = (o as any)._expectedIssuer as symbol;
     (as as any)[expectedIssuer] = (result: any) => result.claims.iss;
   }
