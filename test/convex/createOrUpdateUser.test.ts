@@ -92,6 +92,37 @@ test("createOrUpdateUser links a new OAuth account to the signed-in user via aut
   });
 });
 
+test("createOrUpdateUser creates a new user for unauthenticated OAuth sign-in", async () => {
+  setupEnv();
+  const modules = import.meta.glob("./**/*.*s");
+  const overriddenModules = {
+    ...modules,
+    "./auth.ts": async () => createOrUpdateUserAuth,
+  };
+  const t = convexTest(schema, overriddenModules);
+
+  const { tokens: oauthTokens } = await signInViaGitHub(t, "github", {
+    email: "unauthenticated@example.com",
+    name: "Unauthenticated User",
+    id: "anotherGitHubId",
+  });
+  expect(oauthTokens).not.toBeNull();
+
+  await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    expect(users).toHaveLength(1);
+
+    const accounts = await ctx.db.query("authAccounts").collect();
+    expect(accounts).toHaveLength(1);
+    expect(accounts.find((account) => account.provider === "github")).toMatchObject({
+      userId: users[0]._id,
+    });
+
+    const messages = await ctx.db.query("messages").collect();
+    expect(messages).toEqual([]);
+  });
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;
