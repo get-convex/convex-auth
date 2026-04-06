@@ -168,11 +168,8 @@ export type ConvexAuthConfig = {
          */
         existingUserId: GenericId<"users"> | null;
         /**
-         * If this OAuth flow was started while another user was already signed in,
+         * If this OAuth flow was started while a user was already signed in,
          * this is that authenticated user ID recovered from the saved session.
-         *
-         * This is distinct from `existingUserId`, which refers to the user already
-         * linked to the OAuth account being processed, if any.
          */
         authUserId: GenericId<"users"> | null;
         /**
