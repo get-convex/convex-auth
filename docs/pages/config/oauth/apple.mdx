@@ -194,6 +194,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         const name = appleInfo.user
           ? `${appleInfo.user.name.firstName} ${appleInfo.user.name.lastName}`
           : undefined;
+        // Apple's built-in profile callback returns `image: null`, so omit it here.
         return {
           id: appleInfo.sub,
           name: name,
