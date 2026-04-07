@@ -94,7 +94,7 @@
   ],
   "devDependencies": {
     "@commander-js/extra-typings": "^14.0.0",
-    "@edge-runtime/vm": "^3.2.0",
+    "@edge-runtime/vm": "^5.0.0",
     "@types/inquirer": "^9.0.7",
     "@types/node": "20.6.0",
     "@types/react": "^18.3.12",
