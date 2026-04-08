@@ -44,6 +44,7 @@ import {
 } from "convex/server";
 import { Value } from "convex/values";
 import { Scrypt } from "lucia";
+import { normalizeEmail } from "../server/implementation/utils.js";
 
 /**
  * The available options to a {@link Password} provider for Convex Auth.
@@ -256,6 +257,6 @@ function validateDefaultPasswordRequirements(password: string) {
 
 function defaultProfile(params: Record<string, unknown>) {
   return {
-    email: params.email as string,
+    email: normalizeEmail(params.email as string),
   };
 }

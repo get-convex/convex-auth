@@ -7,6 +7,7 @@ import {
 } from "../rateLimit.js";
 import * as Provider from "../provider.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { findAccountByProviderAndId } from "./accountLookup.js";
 
 export const retrieveAccountWithCredentialsArgs = v.object({
   provider: v.string(),
@@ -33,12 +34,11 @@ export async function retrieveAccountWithCredentialsImpl(
       secret: maybeRedact(account.secret ?? ""),
     },
   });
-  const existingAccount = await ctx.db
-    .query("authAccounts")
-    .withIndex("providerAndAccountId", (q) =>
-      q.eq("provider", providerId).eq("providerAccountId", account.id),
-    )
-    .unique();
+  const existingAccount = await findAccountByProviderAndId(
+    ctx,
+    providerId,
+    account.id,
+  );
   if (existingAccount === null) {
     return "InvalidAccountId";
   }
