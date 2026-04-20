@@ -17,7 +17,7 @@ jobs:
 
       # TODO this doesn't pass on Node.js 20 but it should, something with Next.js
       - name: Use Node.js 18.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 18.x
           cache: "npm"
