@@ -103,7 +103,7 @@
     "convex-test": "^0.0.20",
     "cspell": "^9.0.0",
     "dotenv": "^17.0.0",
-    "eslint": "8.49.0",
+    "eslint": "10.2.1",
     "inquirer": "^13.0.0",
     "next": "^15.2.5",
     "npm-run-all": "^4.1.5",
