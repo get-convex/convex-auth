@@ -39,7 +39,7 @@
     "next-mdx-remote": "^6.0.0"
   },
   "devDependencies": {
-    "@types/node": "18.11.10",
+    "@types/node": "24.12.2",
     "autoprefixer": "^10.4.15",
     "postcss": "^8.4.29",
     "tailwindcss": "^3.3.3",
