@@ -79,7 +79,7 @@
     "server-only": "^0.0.1"
   },
   "peerDependencies": {
-    "@auth/core": "^0.37.0",
+    "@auth/core": "^0.37.0 || ^0.41.0",
     "convex": "^1.17.0",
     "react": "^18.2.0 || ^19.0.0-0"
   },
@@ -93,27 +93,27 @@
     "a bundle."
   ],
   "devDependencies": {
-    "@commander-js/extra-typings": "^14.0.0",
-    "@edge-runtime/vm": "^5.0.0",
-    "@types/inquirer": "^9.0.7",
-    "@types/node": "20.6.0",
-    "@types/react": "^18.3.12",
-    "@typescript-eslint/eslint-plugin": "^6.18.1",
-    "chalk": "^5.3.0",
-    "convex-test": "^0.0.20",
-    "cspell": "^9.0.0",
-    "dotenv": "^17.0.0",
-    "eslint": "8.49.0",
-    "inquirer": "^13.0.0",
+    "@commander-js/extra-typings": "14.0.0",
+    "@edge-runtime/vm": "5.0.0",
+    "@types/inquirer": "9.0.7",
+    "@types/node": "20.19.39",
+    "@types/react": "18.3.12",
+    "@typescript-eslint/eslint-plugin": "6.21.0",
+    "chalk": "5.6.2",
+    "convex-test": "0.0.20",
+    "cspell": "9.8.0",
+    "dotenv": "17.4.1",
+    "eslint": "8.57.1",
+    "inquirer": "13.4.1",
     "next": "^15.2.5",
-    "npm-run-all": "^4.1.5",
-    "prettier": "^3.2.5",
-    "react-dom": "^18.3.1",
-    "shelljs": "^0.8.5",
-    "shx": "^0.4.0",
-    "tsup": "^8.0.1",
-    "typescript": "^5.5.2",
-    "valibot": "^0.35.0",
-    "vitest": "^1.6.0"
+    "npm-run-all": "4.1.5",
+    "prettier": "3.2.5",
+    "react-dom": "18.3.1",
+    "shelljs": "0.8.5",
+    "shx": "0.4.0",
+    "tsup": "8.0.2",
+    "typescript": "5.5.3",
+    "valibot": "0.35.0",
+    "vitest": "1.6.1"
   }
 }
