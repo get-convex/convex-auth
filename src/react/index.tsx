@@ -18,6 +18,8 @@ import {
 } from "./client.js";
 import { AuthClient } from "./clientType.js";
 
+export { useAuth as useConvexAuth } from "./client.js";
+
 /**
  * Use this hook to access the `signIn` and `signOut` methods:
  *
