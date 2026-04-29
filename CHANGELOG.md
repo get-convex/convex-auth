@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.92
+
+- feat: expose useAuth (#326) @Hades32
+- fix: shorten test provider id to fix deploy-blocking env var name (#300)
+
 ## 0.0.91
 
 - feat: add `jwt.customClaims` hook for custom JWT claims (#298) @Hades32
