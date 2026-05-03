@@ -1,0 +1,10 @@
+
+[
+  {
+    "label": "install dependencies",
+    "command": "npm install",
+    "hooks": ["create_worktree"],
+    "reveal": "no_focus",
+    "hide": "on_success"
+  },
+]
