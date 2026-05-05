@@ -24,7 +24,7 @@
     "@radix-ui/react-slot": "^1.1.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^0.577.0",
     "next": "^14.0.0",
     "nextra": "^2.13.2",
     "nextra-theme-docs": "latest",
@@ -39,13 +39,13 @@
     "next-mdx-remote": "^6.0.0"
   },
   "devDependencies": {
-    "@types/node": "18.11.10",
-    "autoprefixer": "^10.4.15",
-    "postcss": "^8.4.29",
-    "tailwindcss": "^3.3.3",
-    "typedoc": "^0.26.5",
-    "typedoc-plugin-markdown": "^4.2.4",
-    "typedoc-plugin-rename-defaults": "^0.7.1",
-    "typescript": "^5.5.4"
+    "@types/node": "18.19.130",
+    "autoprefixer": "10.4.15",
+    "postcss": "8.4.31",
+    "tailwindcss": "3.3.3",
+    "typedoc": "0.26.5",
+    "typedoc-plugin-markdown": "4.2.4",
+    "typedoc-plugin-rename-defaults": "0.7.1",
+    "typescript": "5.5.4"
   }
 }
