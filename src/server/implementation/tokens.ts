@@ -18,6 +18,13 @@ export async function generateToken(
   config: ConvexAuthConfig,
 ) {
   const privateKey = await importPKCS8(requireEnv("JWT_PRIVATE_KEY"), "RS256");
+  let kid: string | undefined;
+  try {
+    const jwks = JSON.parse(requireEnv("JWKS"));
+    kid = jwks?.keys?.[0]?.kid;
+  } catch {
+    // ignore if JWKS is missing or invalid
+  }
   const expirationTime = new Date(
     Date.now() + (config.jwt?.durationMs ?? DEFAULT_JWT_DURATION_MS),
   );
@@ -40,7 +47,7 @@ export async function generateToken(
     ...extraClaims,
     sub: args.userId + TOKEN_SUB_CLAIM_DIVIDER + args.sessionId,
   })
-    .setProtectedHeader({ alg: "RS256" })
+    .setProtectedHeader(kid ? { alg: "RS256", kid } : { alg: "RS256" })
     .setIssuedAt()
     .setIssuer(requireEnv("CONVEX_SITE_URL"))
     .setAudience("convex")
