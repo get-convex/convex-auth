@@ -12,7 +12,7 @@ import {
   maybeGenerateTokensForSession,
 } from "../sessions.js";
 import { ConvexAuthConfig } from "../../types.js";
-import { LOG_LEVELS, logWithLevel, sha256 } from "../utils.js";
+import { LOG_LEVELS, logWithLevel, normalizeEmail, sha256 } from "../utils.js";
 import { upsertUserAndAccount } from "../users.js";
 
 export const verifyCodeAndSignInArgs = v.object({
@@ -39,7 +39,10 @@ export async function verifyCodeAndSignInImpl(
     allowExtraProviders: args.allowExtraProviders,
   });
   const { generateTokens, provider, allowExtraProviders } = args;
-  const identifier = args.params.email ?? args.params.phone;
+  const identifier =
+    args.params.email !== undefined
+      ? normalizeEmail(args.params.email)
+      : args.params.phone;
   if (identifier !== undefined) {
     if (await isSignInRateLimited(ctx, identifier, config)) {
       logWithLevel(
