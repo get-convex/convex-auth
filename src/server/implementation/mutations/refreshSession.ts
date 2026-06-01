@@ -121,8 +121,10 @@ export async function refreshSessionImpl(
     );
     return result;
   } else {
-    // Outside of reuse window -- invalidate all refresh tokens in subtree
-    logWithLevel("ERROR", "Refresh token used outside of reuse window");
+    // Outside of reuse window -- invalidate all refresh tokens in subtree.
+    // This can indicate token theft/replay, but also fires for benign delayed retries,
+    // so surface it as a warning rather than a server error.
+    logWithLevel("WARN", "Refresh token used outside of reuse window");
     logWithLevel(
       "DEBUG",
       `Token ${maybeRedact(validationResult.refreshTokenDoc._id)} being used outside of reuse window, so invalidating all refresh tokens in subtree`,

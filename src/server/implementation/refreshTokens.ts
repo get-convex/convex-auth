@@ -122,24 +122,32 @@ export async function refreshTokenIfValid(
   );
 
   if (refreshTokenDoc === null) {
-    logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token");
+    // Expected: the token was already deleted (e.g. after sign out or session cleanup)
+    // and a stale client is still presenting it. Not a server error.
+    logWithLevel(LOG_LEVELS.INFO, "Invalid refresh token");
     return null;
   }
   if (refreshTokenDoc.expirationTime < Date.now()) {
-    logWithLevel(LOG_LEVELS.ERROR, "Expired refresh token");
+    // Expected: the refresh token aged out (inactive session duration). Normal sign-out path.
+    logWithLevel(LOG_LEVELS.INFO, "Expired refresh token");
     return null;
   }
   if (refreshTokenDoc.sessionId !== tokenSessionId) {
-    logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token session ID");
+    // The two halves of the presented token disagree, which should never happen for a
+    // token we issued. Worth surfacing as a potential tampering/corruption signal.
+    logWithLevel(LOG_LEVELS.WARN, "Invalid refresh token session ID");
     return null;
   }
   const session = await ctx.db.get(refreshTokenDoc.sessionId);
   if (session === null) {
-    logWithLevel(LOG_LEVELS.ERROR, "Invalid refresh token session");
+    // Expected: the session was already deleted and a stale client is still presenting it.
+    logWithLevel(LOG_LEVELS.INFO, "Invalid refresh token session");
     return null;
   }
   if (session.expirationTime < Date.now()) {
-    logWithLevel(LOG_LEVELS.ERROR, "Expired refresh token session");
+    // Expected: the session reached its total duration and a stale client tried to refresh.
+    // Normal sign-out path, not a server error.
+    logWithLevel(LOG_LEVELS.INFO, "Expired refresh token session");
     return null;
   }
   return { session, refreshTokenDoc };
