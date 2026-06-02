@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.93
+
+- fix: downgrade log levels for expected auth flows (#336) @Hades32
+
 ## 0.0.92
 
 - feat: expose useAuth (#326) @Hades32
