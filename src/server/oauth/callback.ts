@@ -220,9 +220,17 @@ export async function handleOAuth(
         }
         const { tid } = decodeJwt(responseJson.id_token);
         if (typeof tid === "string") {
-          const tenantRe = /microsoftonline\.com\/(\w+)\/v2\.0/;
-          const tenantId = as.issuer?.match(tenantRe)?.[1] ?? "common";
-          const issuer = new URL(as.issuer.replace(tenantId, tid));
+          // Match any URL path segment so we cover both authority names like
+          // `common`/`organizations`/`consumers` and hyphenated tenant GUIDs.
+          // Rewrite via the segment-anchored regex (not a substring replace)
+          // so we can't accidentally clobber an unrelated part of the URL.
+          const tenantSegmentRe = /microsoftonline\.com\/[^/]+\/v2\.0/;
+          const issuer = new URL(
+            as.issuer.replace(
+              tenantSegmentRe,
+              `microsoftonline.com/${tid}/v2.0`,
+            ),
+          );
           // ConvexAuth: Rewrite the `{tenantid}` placeholder Microsoft returns
           // in the discovery document's `issuer` field using the real `tid`
           // from the ID token. The provider's own `customFetch` hook (in
