@@ -2,6 +2,7 @@ import { Infer, v } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 import { GetProviderOrThrowFunc, hash } from "../provider.js";
 import { LOG_LEVELS, logWithLevel, maybeRedact } from "../utils.js";
+import { findAccountByProviderAndId } from "./accountLookup.js";
 
 export const modifyAccountArgs = v.object({
   provider: v.string(),
@@ -21,12 +22,11 @@ export async function modifyAccountImpl(
       secret: maybeRedact(account.secret ?? ""),
     },
   });
-  const existingAccount = await ctx.db
-    .query("authAccounts")
-    .withIndex("providerAndAccountId", (q) =>
-      q.eq("provider", provider).eq("providerAccountId", account.id),
-    )
-    .unique();
+  const existingAccount = await findAccountByProviderAndId(
+    ctx,
+    provider,
+    account.id,
+  );
   if (existingAccount === null) {
     throw new Error(
       `Cannot modify account with ID ${account.id} because it does not exist`,

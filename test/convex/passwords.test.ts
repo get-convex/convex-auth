@@ -288,6 +288,77 @@ test("password reset code cannot be used for a different account (raw EmailConfi
   expect(tokens).not.toBeNull();
 });
 
+test("sign in with different email casing", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Sign up with mixed case
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: {
+      email: "Sarah@Gmail.COM",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+  expect(tokens).not.toBeNull();
+
+  // Sign in with lowercase should succeed
+  const { tokens: tokens2 } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: {
+      email: "sarah@gmail.com",
+      password: "44448888",
+      flow: "signIn",
+    },
+  });
+  expect(tokens2).not.toBeNull();
+
+  // Verify only one user and one account exist, both normalized
+  await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    expect(users).toMatchObject([{ email: "sarah@gmail.com" }]);
+    const accounts = await ctx.db.query("authAccounts").collect();
+    expect(accounts).toMatchObject([
+      { provider: "password", providerAccountId: "sarah@gmail.com" },
+    ]);
+  });
+});
+
+test("duplicate sign up with different email casing reuses existing account", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Sign up with mixed case
+  await t.action(api.auth.signIn, {
+    provider: "password",
+    params: {
+      email: "Sarah@Gmail.COM",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+
+  // Sign up again with lowercase — should not create a second account
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: {
+      email: "sarah@gmail.com",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+  expect(tokens).not.toBeNull();
+
+  // Verify still only one user and one account
+  await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    expect(users).toHaveLength(1);
+    const accounts = await ctx.db.query("authAccounts").collect();
+    expect(accounts).toHaveLength(1);
+  });
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;
