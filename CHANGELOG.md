@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.94
+
+- chore: bump `@auth/core` peer dependency (#320) @eden881
+
 ## 0.0.93
 
 - fix: downgrade log levels for expected auth flows (#336) @Hades32
