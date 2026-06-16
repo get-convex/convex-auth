@@ -31,6 +31,22 @@ import { GenericDataModel } from "convex/server";
 import { GenericId, Value } from "convex/values";
 
 /**
+ * The result of a {@link ConvexCredentials} provider's `authorize` function.
+ *
+ * - `{ userId, sessionId? }` signs the user in.
+ * - `{ data }` returns a JSON-serializable payload to the client without
+ *   signing in (used for multi-step flows such as passkeys).
+ * - `null` fails the sign-in.
+ */
+export type ConvexCredentialsAuthorizeResult =
+  | {
+      userId: GenericId<"users">;
+      sessionId?: GenericId<"authSessions">;
+    }
+  | { data: Record<string, Value> }
+  | null;
+
+/**
  * The available options to a {@link ConvexCredentials} provider for Convex Auth.
  */
 export interface ConvexCredentialsUserConfig<
@@ -47,6 +63,13 @@ export interface ConvexCredentialsUserConfig<
    *
    * @returns This method expects a user ID to be returned for a successful login.
    * A session ID can be also returned and that session will be used.
+   *
+   * Alternatively, return `{ data }` to send a JSON-serializable payload back
+   * to the client via the `signIn` function _without_ signing the user in.
+   * This is used to implement multi-step credential flows (such as passkeys),
+   * where the server must hand the client a challenge before it can complete
+   * the sign-in.
+   *
    * If an error is thrown or `null` is returned, the sign-in will fail.
    */
   authorize: (
@@ -59,10 +82,7 @@ export interface ConvexCredentialsUserConfig<
      */
     credentials: Partial<Record<string, Value | undefined>>,
     ctx: GenericActionCtxWithAuthConfig<DataModel>,
-  ) => Promise<{
-    userId: GenericId<"users">;
-    sessionId?: GenericId<"authSessions">;
-  } | null>;
+  ) => Promise<ConvexCredentialsAuthorizeResult>;
   /**
    * Provide hashing and verification functions if you're
    * storing account secrets and want to control

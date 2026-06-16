@@ -36,7 +36,9 @@ import {
 } from "./utils.js";
 import { GetProviderOrThrowFunc } from "./provider.js";
 import {
+  callConsumePasskeyChallenge,
   callCreateAccountFromCredentials,
+  callCreatePasskeyChallenge,
   callInvalidateSessions,
   callModifyAccount,
   callRetreiveAccountWithCredentials,
@@ -405,6 +407,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
         verifier?: string;
         tokens?: Tokens | null;
         started?: boolean;
+        data?: Record<string, any>;
       }> => {
         if (args.calledBy !== undefined) {
           logWithLevel("INFO", `\`auth:signIn\` called by ${args.calledBy}`);
@@ -424,7 +427,7 @@ export function convexAuth(config_: ConvexAuthConfig) {
           case "refreshTokens":
             return { tokens: result.signedIn?.tokens ?? null };
           case "started":
-            return { started: true };
+            return { started: true, data: result.data };
           default: {
             const _typecheck: never = result;
             throw new Error(`Unexpected result from signIn, ${result as any}`);
@@ -549,6 +552,13 @@ export async function createAccount<
      * before the user is allowed to sign in with it.
      */
     shouldLinkViaPhone?: boolean;
+    /**
+     * If provided, the account is linked directly to this existing user,
+     * skipping the profile-based user creation and linking. Use this to add
+     * an additional credential (such as a passkey) to a user who is already
+     * signed in.
+     */
+    userId?: GenericId<"users">;
   },
 ): Promise<{
   account: GenericDoc<DataModel, "authAccounts">;
@@ -679,6 +689,59 @@ export async function signInViaProvider<
       ? { userId: result.signedIn.userId, sessionId: result.signedIn.sessionId }
       : null
     : null;
+}
+
+/**
+ * Use this function from a `Passkey` (or custom `ConvexCredentials`) provider
+ * to store a single-use WebAuthn challenge before returning the registration
+ * or authentication options to the client.
+ *
+ * @hidden
+ */
+export async function createPasskeyChallenge<
+  DataModel extends GenericDataModel = GenericDataModel,
+>(
+  ctx: GenericActionCtx<DataModel>,
+  args: {
+    challenge: string;
+    type: "registration" | "authentication";
+    provider: string;
+    expirationTime: number;
+  },
+): Promise<void> {
+  const actionCtx = ctx as unknown as ActionCtx;
+  const { type, ...rest } = args;
+  return await callCreatePasskeyChallenge(actionCtx, {
+    ...rest,
+    challengeType: type,
+  });
+}
+
+/**
+ * Use this function from a `Passkey` (or custom `ConvexCredentials`) provider
+ * to atomically validate and delete a previously stored WebAuthn challenge.
+ *
+ * Returns `null` if the challenge is unknown, of the wrong type, or expired.
+ * Otherwise returns the (optional) user the challenge was issued for.
+ *
+ * @hidden
+ */
+export async function consumePasskeyChallenge<
+  DataModel extends GenericDataModel = GenericDataModel,
+>(
+  ctx: GenericActionCtx<DataModel>,
+  args: {
+    challenge: string;
+    type: "registration" | "authentication";
+    provider: string;
+  },
+): Promise<{ userId?: GenericId<"users"> } | null> {
+  const actionCtx = ctx as unknown as ActionCtx;
+  const { type, ...rest } = args;
+  return await callConsumePasskeyChallenge(actionCtx, {
+    ...rest,
+    challengeType: type,
+  });
 }
 
 function convertErrorsToResponse(

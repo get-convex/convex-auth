@@ -20,6 +20,8 @@ export {
   signInViaProvider,
   invalidateSessions,
   modifyAccountCredentials,
+  createPasskeyChallenge,
+  consumePasskeyChallenge,
   Tokens,
   Doc,
   SignInAction,

@@ -129,6 +129,25 @@ export const authTables = {
     lastAttemptTime: v.number(),
     attemptsLeft: v.number(),
   }).index("identifier", ["identifier"]),
+  /**
+   * Single-use WebAuthn (passkey) challenges.
+   *
+   * A challenge is issued when the client requests registration or
+   * authentication options, and consumed (deleted) when the client returns
+   * the signed credential. Storing it server-side prevents replay attacks.
+   */
+  authPasskeyChallenges: defineTable({
+    // The base64url-encoded challenge, also used as the lookup key.
+    challenge: v.string(),
+    // "registration" or "authentication".
+    challengeType: v.string(),
+    // The provider id, so multiple passkey providers don't collide.
+    provider: v.string(),
+    // The user the registration is for, when adding a passkey to an existing
+    // (signed-in) user.
+    userId: v.optional(v.id("users")),
+    expirationTime: v.number(),
+  }).index("challenge", ["challenge"]),
 };
 
 const defaultSchema = defineSchema(authTables);

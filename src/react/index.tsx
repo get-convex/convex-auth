@@ -19,6 +19,8 @@ import {
 import { AuthClient } from "./clientType.js";
 
 export { useAuth as useConvexAuth } from "./client.js";
+export { usePasskeyAuth } from "./passkey.js";
+export type { PasskeyAuthActions } from "./passkey.js";
 
 /**
  * Use this hook to access the `signIn` and `signOut` methods:
@@ -241,6 +243,13 @@ export type ConvexAuthActionsContext = {
      * this URL.
      */
     redirect?: URL;
+    /**
+     * A JSON-serializable payload returned by a multi-step credentials
+     * provider (such as passkeys) without signing the user in. For example,
+     * a passkey challenge that the client must answer before completing the
+     * sign-in.
+     */
+    data?: Record<string, unknown>;
   }>;
 
   /**

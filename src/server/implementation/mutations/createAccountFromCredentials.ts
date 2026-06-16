@@ -12,6 +12,10 @@ export const createAccountFromCredentialsArgs = v.object({
   profile: v.any(),
   shouldLinkViaEmail: v.optional(v.boolean()),
   shouldLinkViaPhone: v.optional(v.boolean()),
+  // When provided, the account is linked directly to this existing user
+  // instead of upserting/linking a user from the profile. Used for adding
+  // an additional credential (such as a passkey) to the signed-in user.
+  userId: v.optional(v.id("users")),
 });
 
 type ReturnType = { account: Doc<"authAccounts">; user: Doc<"users"> };
@@ -35,6 +39,7 @@ export async function createAccountFromCredentialsImpl(
     profile,
     shouldLinkViaEmail,
     shouldLinkViaPhone,
+    userId: linkToUserId,
   } = args;
   const provider = getProviderOrThrow(providerId) as ConvexCredentialsConfig;
   const existingAccount = await ctx.db
@@ -65,6 +70,25 @@ export async function createAccountFromCredentialsImpl(
     account.secret !== undefined
       ? await Provider.hash(provider, account.secret)
       : undefined;
+
+  // Link the new account directly to an existing user, skipping the
+  // profile-based user upsert/linking entirely.
+  if (linkToUserId !== undefined) {
+    const user = await ctx.db.get(linkToUserId);
+    if (user === null) {
+      throw new Error(
+        `Cannot link account to nonexistent user \`${linkToUserId}\``,
+      );
+    }
+    const accountId = await ctx.db.insert("authAccounts", {
+      userId: linkToUserId,
+      provider: provider.id,
+      providerAccountId: account.id,
+      secret,
+    });
+    return { account: (await ctx.db.get(accountId))!, user };
+  }
+
   const { userId, accountId } = await upsertUserAndAccount(
     ctx,
     await getAuthSessionId(ctx),

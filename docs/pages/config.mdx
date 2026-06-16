@@ -25,6 +25,8 @@ follow the method specific guide:
 2. [OAuth](/config/oauth) (sign in with Github / Google / Apple etc.)
 3. [Passwords](/config/passwords) (including password reset flow and optional
    email verification)
+4. [Passkeys](/config/passkeys) (sign in with Face ID, Touch ID, Windows Hello,
+   a security key, or a password manager)
 
 ## Understand the tradeoffs
 
@@ -107,3 +109,26 @@ the tradeoffs.
   password stolen from an insecure application or from a phishing attack.
 - ❗️ Your application must not leak passwords in any way (such as through
   inadvertent logging during the authentication flow).
+
+### Passkeys
+
+**DX considerations:**
+
+- 👍 Passkeys work out of the box with no email provider or external service to
+  configure.
+- 😐 Passkeys are bound to a domain, so a passkey registered on one domain can't
+  be used on another.
+
+**UX considerations:**
+
+- 👍 There's nothing for the user to remember — they sign in with the same
+  biometric or PIN they unlock their device with.
+- 👍 Synced passkeys (iCloud Keychain, Google Password Manager, 1Password, etc.)
+  follow the user across their devices.
+- ❗️ Users on older devices or browsers may not have passkey support.
+
+**Security considerations:**
+
+- 👍 Passkeys are phishing-resistant: the credential is cryptographically bound
+  to your domain and can't be replayed against another site.
+- 👍 There's no shared secret to steal — your database only stores public keys.

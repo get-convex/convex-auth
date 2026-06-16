@@ -1,0 +1,169 @@
+import { Steps } from "nextra/components";
+import { Callout } from "nextra/components";
+
+# Passkeys
+
+> Make sure you're done with [setup](/setup) before configuring authentication
+> methods
+
+[Passkeys](https://passkeys.dev/) (WebAuthn) let your users sign up and sign in
+with a device-bound or synced credential — Face ID, Touch ID, Windows Hello, a
+security key, or a password manager — instead of a password. There's nothing for
+the user to remember and nothing for you to store that can be phished or leaked.
+
+Convex Auth ships passkey support out of the box: a `Passkey` provider for your
+backend and a `usePasskeyAuth` hook for your frontend that drives the whole
+WebAuthn ceremony for you.
+
+<Callout type="info">
+  Passkeys are bound to a domain (the "Relying Party ID"). They work on
+  `localhost` during development and on your production domain once deployed. A
+  passkey created on one domain cannot be used on another.
+</Callout>
+
+## Passkeys setup
+
+<Steps>
+
+### Provider configuration
+
+Add the provider to the `providers` array in `convex/auth.ts`. Import `Passkey`
+from `@convex-dev/auth/providers/Passkey`:
+
+```ts filename="convex/auth.ts"
+import { Passkey } from "@convex-dev/auth/providers/Passkey";
+import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [Passkey],
+});
+```
+
+By default the Relying Party is derived from your `SITE_URL` environment
+variable: the origin is `SITE_URL` and the RP ID is its hostname. You can
+override any of these:
+
+```ts filename="convex/auth.ts"
+Passkey({
+  rp: {
+    id: "example.com",
+    name: "My App",
+    origin: "https://example.com",
+    // or multiple: origin: ["https://example.com", "https://www.example.com"],
+  },
+});
+```
+
+These can also be set via the `AUTH_PASSKEY_RP_ID`, `AUTH_PASSKEY_RP_NAME` and
+`AUTH_PASSKEY_ORIGIN` environment variables.
+
+### Schema
+
+The `Passkey` provider stores each credential in the `authAccounts` table and
+keeps single-use challenges in the `authPasskeyChallenges` table. Both come from
+`authTables`, so as long as you spread `authTables` into your schema there's
+nothing extra to do:
+
+```ts filename="convex/schema.ts"
+import { defineSchema } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
+
+const schema = defineSchema({
+  ...authTables,
+});
+
+export default schema;
+```
+
+### Register and sign in on the client
+
+Use the `usePasskeyAuth` hook. It fetches the WebAuthn options from your
+backend, prompts the authenticator, and verifies the result — each helper
+resolves once the user is signed in.
+
+```tsx filename="src/PasskeySignIn.tsx"
+import { usePasskeyAuth } from "@convex-dev/auth/react";
+import { useState } from "react";
+
+export function PasskeySignIn() {
+  const { registerPasskey, signInWithPasskey } = usePasskeyAuth();
+  const [email, setEmail] = useState("");
+  return (
+    <>
+      {/* Sign in with an existing passkey (no username needed) */}
+      <button onClick={() => void signInWithPasskey()}>
+        Sign in with a passkey
+      </button>
+
+      {/* Sign up: pass an email (or name) so a new user can be created */}
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+      />
+      <button onClick={() => void registerPasskey({ email })}>
+        Create an account with a passkey
+      </button>
+    </>
+  );
+}
+```
+
+`signInWithPasskey` relies on discoverable credentials, so the browser shows the
+user a list of passkeys for your site — no email or username required.
+
+### Add a passkey to an existing user
+
+Call `registerPasskey` while the user is already signed in (for example via
+password or OAuth). The new passkey is linked to the current user instead of
+creating a new one:
+
+```tsx filename="src/AddPasskey.tsx"
+import { usePasskeyAuth } from "@convex-dev/auth/react";
+
+export function AddPasskey() {
+  const { registerPasskey } = usePasskeyAuth();
+  return (
+    <button onClick={() => void registerPasskey()}>Add a passkey</button>
+  );
+}
+```
+
+</Steps>
+
+## Customizing the new user
+
+When a brand new user signs up with a passkey, you can control what's stored in
+the `users` table with the `profile` callback. It receives the params you pass
+to `registerPasskey`:
+
+```ts filename="convex/auth.ts"
+Passkey({
+  profile(params) {
+    return {
+      email: params.email as string,
+      name: params.name as string,
+    };
+  },
+});
+```
+
+## How it works
+
+WebAuthn is a two-step ceremony, and `usePasskeyAuth` performs both steps for
+you by calling `signIn` twice:
+
+1. **Options** — the client asks the server for a challenge
+   (`flow: "registrationOptions"` / `"authenticationOptions"`). The server
+   stores the single-use challenge and returns the options as `data`.
+2. **Verification** — the browser produces a signed credential with
+   `@simplewebauthn/browser` and the client sends it back
+   (`flow: "registration"` / `"authentication"`). The server verifies it,
+   stores (or looks up) the public key, and signs the user in.
+
+If you're building a non-React client you can drive these flows directly through
+`signIn`, reading the returned `data` and submitting the signed response
+yourself.
+
+When you're done configuring your chosen authentication methods, learn how to
+use authentication in your frontend and backend in [Authorization](/authz).

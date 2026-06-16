@@ -29,6 +29,12 @@ import {
   invalidateSessionsArgs,
   invalidateSessionsImpl,
 } from "./invalidateSessions.js";
+import {
+  consumePasskeyChallengeArgs,
+  consumePasskeyChallengeImpl,
+  createPasskeyChallengeArgs,
+  createPasskeyChallengeImpl,
+} from "./passkeyChallenge.js";
 import * as Provider from "../provider.js";
 import { verifierImpl } from "./verifier.js";
 import { LOG_LEVELS, logWithLevel } from "../utils.js";
@@ -44,6 +50,10 @@ export { callVerifier } from "./verifier.js";
 export { callRefreshSession } from "./refreshSession.js";
 export { callSignOut } from "./signOut.js";
 export { callSignIn } from "./signIn.js";
+export {
+  callCreatePasskeyChallenge,
+  callConsumePasskeyChallenge,
+} from "./passkeyChallenge.js";
 
 export const storeArgs = v.object({
   args: v.union(
@@ -92,6 +102,14 @@ export const storeArgs = v.object({
     v.object({
       type: v.literal("invalidateSessions"),
       ...invalidateSessionsArgs.fields,
+    }),
+    v.object({
+      type: v.literal("createPasskeyChallenge"),
+      ...createPasskeyChallengeArgs.fields,
+    }),
+    v.object({
+      type: v.literal("consumePasskeyChallenge"),
+      ...consumePasskeyChallengeArgs.fields,
     }),
   ),
 });
@@ -150,6 +168,12 @@ export const storeImpl = async (
     }
     case "invalidateSessions": {
       return invalidateSessionsImpl(ctx, args);
+    }
+    case "createPasskeyChallenge": {
+      return createPasskeyChallengeImpl(ctx, args);
+    }
+    case "consumePasskeyChallenge": {
+      return consumePasskeyChallengeImpl(ctx, args);
     }
     default:
       args satisfies never;
