@@ -19,7 +19,7 @@ import { EmailConfig, EmailUserConfig } from "../server/types.js";
  * you can override the `authorize` method to skip the check:
  *
  * ```ts
- * import Email from "@convex-dev/auth/providers/Email";
+ * import { Email } from "@convex-dev/auth/providers/Email";
  * import { convexAuth } from "@convex-dev/auth/server";
  *
  * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({

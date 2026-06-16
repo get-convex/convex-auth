@@ -5,7 +5,7 @@
  * use the [`Password`](https://labs.convex.dev/auth/api_reference/providers/Password) provider instead.
  *
  * ```ts
- * import ConvexCredentials from "@convex-dev/auth/providers/ConvexCredentials";
+ * import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
  * import { convexAuth } from "@convex-dev/auth/server";
  *
  * export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({

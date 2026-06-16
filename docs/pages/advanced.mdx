@@ -75,7 +75,7 @@ providing the
 
 ```ts
 import GitHub from "@auth/core/providers/github";
-import Password from "@convex-dev/auth/providers/Password";
+import { Password } from "@convex-dev/auth/providers/Password";
 import { MutationCtx } from "./_generated/server";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = {
@@ -117,7 +117,7 @@ you can still perform additional writes to the database with the
 
 ```ts
 import GitHub from "@auth/core/providers/github";
-import Password from "@convex-dev/auth/providers/Password";
+import { Password } from "@convex-dev/auth/providers/Password";
 import { MutationCtx } from "./_generated/server";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
