@@ -111,7 +111,7 @@
     "shelljs": "^0.8.5",
     "shx": "^0.4.0",
     "tsup": "^8.0.1",
-    "typescript": "^5.5.2",
+    "typescript": "^6.0.0",
     "valibot": "^1.0.0",
     "vitest": "^4.1.0"
   }
