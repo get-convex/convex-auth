@@ -23,8 +23,11 @@ import { signJwt, generateRefreshToken, hashToken } from "./crypto.js";
 
 // `aud` claim; must match `applicationID` in the app's auth.config.ts.
 const AUDIENCE = "convex";
-const ACCESS_TOKEN_TTL_SECONDS = 60; // 1 minute
-const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// Defaults for the configurable token lifetimes. The app overrides them per
+// deployment via `setupCore`, which threads the chosen values in as call args;
+// when it passes nothing, these apply.
+const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60; // 1 minute
+const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 // How long a just-rotated refresh token stays usable so concurrent refreshes
 // presenting it (parallel SSR loaders, two tabs sharing a cookie) don't race
 // each other into a forced sign-out.
@@ -64,7 +67,40 @@ function sessionByHash(
     .unique();
 }
 
-async function mintAccessToken(userId: string, issuer: string) {
+/**
+ * The token lifetimes for a call, with the app's overrides applied over the
+ * defaults. Validated so a misconfiguration fails loudly rather than minting
+ * nonsensical sessions.
+ */
+type TtlConfig = {
+  accessTokenTtlSeconds: number;
+  refreshTokenTtlSeconds: number;
+};
+
+function resolveTtlConfig(args: {
+  accessTokenTtlSeconds?: number;
+  refreshTokenTtlSeconds?: number;
+}): TtlConfig {
+  const accessTokenTtlSeconds =
+    args.accessTokenTtlSeconds ?? DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
+  const refreshTokenTtlSeconds =
+    args.refreshTokenTtlSeconds ?? DEFAULT_REFRESH_TOKEN_TTL_SECONDS;
+  if (accessTokenTtlSeconds <= 0 || refreshTokenTtlSeconds <= 0) {
+    throw new Error("Token TTLs must be positive.");
+  }
+  if (accessTokenTtlSeconds >= refreshTokenTtlSeconds) {
+    throw new Error(
+      "Access-token TTL must be shorter than the refresh-token TTL.",
+    );
+  }
+  return { accessTokenTtlSeconds, refreshTokenTtlSeconds };
+}
+
+async function mintAccessToken(
+  userId: string,
+  issuer: string,
+  ttlSeconds: number,
+) {
   const privateKeyPkcs8 = atob(env.AUTH_PRIVATE_KEY);
   const { keys } = JSON.parse(env.AUTH_JWKS) as { keys: { kid: string }[] };
   const kid = keys[0].kid;
@@ -74,7 +110,7 @@ async function mintAccessToken(userId: string, issuer: string) {
     subject: userId,
     issuer,
     audience: AUDIENCE,
-    expiresInSeconds: ACCESS_TOKEN_TTL_SECONDS,
+    expiresInSeconds: ttlSeconds,
   });
 }
 
@@ -83,10 +119,11 @@ async function issueSession(
   accountId: Id<"accounts">,
   userId: string,
   issuer: string,
+  ttl: TtlConfig,
 ): Promise<TokenBundle> {
   const refreshToken = generateRefreshToken();
   const refreshTokenHash = await hashToken(refreshToken);
-  const refreshTokenExpiresAt = Date.now() + REFRESH_TOKEN_TTL_MS;
+  const refreshTokenExpiresAt = Date.now() + ttl.refreshTokenTtlSeconds * 1000;
   await ctx.db.insert("sessions", {
     userId,
     accountId,
@@ -94,7 +131,11 @@ async function issueSession(
     refreshTokenExpiresAt,
     lastRefreshedAt: Date.now(),
   });
-  const access = await mintAccessToken(userId, issuer);
+  const access = await mintAccessToken(
+    userId,
+    issuer,
+    ttl.accessTokenTtlSeconds,
+  );
   return {
     accessToken: access.token,
     accessTokenExpiresAt: access.expiresAt,
@@ -159,22 +200,27 @@ async function resolveAccount(
  * calls it (via the app's `completeSignIn`) once it has authenticated the user
  * and produced claims. `createUserHandle` is a handle to the app's
  * user-creation mutation, used only the first time an identity is seen; the JWT
- * is issued with `issuer` as its `iss`.
+ * is issued with `issuer` as its `iss`. Token lifetimes default to 1m (access)
+ * and 30d (refresh) unless `accessTokenTtlSeconds` / `refreshTokenTtlSeconds` are
+ * supplied (the app sets these once via `setupCore`).
  */
 export const signIn = mutation({
   args: {
     claims: vAuthClaims,
     createUserHandle: v.string(),
     issuer: v.string(),
+    accessTokenTtlSeconds: v.optional(v.number()),
+    refreshTokenTtlSeconds: v.optional(v.number()),
   },
   returns: vTokenBundle,
   handler: async (ctx, args): Promise<TokenBundle> => {
+    const ttl = resolveTtlConfig(args);
     const { accountId, userId } = await resolveAccount(
       ctx,
       args.claims,
       args.createUserHandle,
     );
-    return await issueSession(ctx, accountId, userId, args.issuer);
+    return await issueSession(ctx, accountId, userId, args.issuer, ttl);
   },
 });
 
@@ -238,9 +284,15 @@ export const linkAccount = mutation({
  * caller should handle by updating its authenticated state.
  */
 export const refresh = mutation({
-  args: { refreshToken: v.string(), issuer: v.string() },
+  args: {
+    refreshToken: v.string(),
+    issuer: v.string(),
+    accessTokenTtlSeconds: v.optional(v.number()),
+    refreshTokenTtlSeconds: v.optional(v.number()),
+  },
   returns: v.union(vTokenBundle, v.null()),
   handler: async (ctx, args): Promise<TokenBundle | null> => {
+    const ttl = resolveTtlConfig(args);
     const now = Date.now();
     const hash = await hashToken(args.refreshToken);
 
@@ -273,7 +325,7 @@ export const refresh = mutation({
 
     const newRefreshToken = generateRefreshToken();
     const newRefreshTokenHash = await hashToken(newRefreshToken);
-    const refreshTokenExpiresAt = now + REFRESH_TOKEN_TTL_MS;
+    const refreshTokenExpiresAt = now + ttl.refreshTokenTtlSeconds * 1000;
     // Retain the hash we're replacing as the previous one, valid for the grace
     // window, then swap in the freshly-minted token as current.
     await ctx.db.patch(session._id, {
@@ -284,7 +336,11 @@ export const refresh = mutation({
       lastRefreshedAt: now,
     });
 
-    const access = await mintAccessToken(session.userId, args.issuer);
+    const access = await mintAccessToken(
+      session.userId,
+      args.issuer,
+      ttl.accessTokenTtlSeconds,
+    );
     return {
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt,

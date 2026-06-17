@@ -50,12 +50,26 @@ export type CreateUserFn = FunctionReference<
  * responsibility*: a provider verifies the user its own way (checking a
  * password, say), produces the standard claims, and then calls `completeSignIn`
  * to exchange them for a session. The core only supplies that exchange.
+ *
+ * Token lifetimes are configurable here and default to 1m (access) and 30d
+ * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
+ * and (since the client refreshes shortly before expiry) comfortably longer
+ * than a few seconds.
  */
 export function setupCore(opts: {
   component: ComponentApi;
   createUser: CreateUserFn;
+  /** Access-token lifetime in seconds. Defaults to 60 (1 minute). */
+  accessTokenTtlSeconds?: number;
+  /** Refresh-token lifetime in seconds. Defaults to 30 days. */
+  refreshTokenTtlSeconds?: number;
 }) {
-  const { component, createUser } = opts;
+  const {
+    component,
+    createUser,
+    accessTokenTtlSeconds,
+    refreshTokenTtlSeconds,
+  } = opts;
 
   const issuer = (): string => {
     const url = process.env.CONVEX_SITE_URL;
@@ -95,6 +109,8 @@ export function setupCore(opts: {
       claims,
       createUserHandle,
       issuer: issuer(),
+      accessTokenTtlSeconds,
+      refreshTokenTtlSeconds,
     });
   };
 
@@ -185,6 +201,8 @@ export function setupCore(opts: {
       return await ctx.runMutation(component.public.refresh, {
         refreshToken: args.refreshToken,
         issuer: issuer(),
+        accessTokenTtlSeconds,
+        refreshTokenTtlSeconds,
       });
     },
   });

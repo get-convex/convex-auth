@@ -51,7 +51,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       refresh: FunctionReference<
         "mutation",
         "internal",
-        { issuer: string; refreshToken: string },
+        {
+          accessTokenTtlSeconds?: number;
+          issuer: string;
+          refreshToken: string;
+          refreshTokenTtlSeconds?: number;
+        },
         {
           accessToken: string;
           accessTokenExpiresAt: number;
@@ -65,9 +70,11 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
+          accessTokenTtlSeconds?: number;
           claims: { profile: any; provider: string; providerAccountId: string };
           createUserHandle: string;
           issuer: string;
+          refreshTokenTtlSeconds?: number;
         },
         {
           accessToken: string;

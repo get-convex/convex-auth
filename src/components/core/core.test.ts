@@ -272,3 +272,68 @@ describe("authenticate", () => {
     expect(known.existingUserId).toBe("g-known");
   });
 });
+
+describe("token lifetime configuration", () => {
+  test("honors a custom access-token TTL on sign-in", async () => {
+    const t = setup();
+    const before = Date.now();
+    const bundle = await t.mutation(api.public.signIn, {
+      claims: claims(),
+      createUserHandle: CREATE_USER_HANDLE,
+      issuer: ISSUER,
+      accessTokenTtlSeconds: 300, // 5 minutes
+    });
+    // The JWT `exp` is floored to the second, so allow a small window.
+    expect(bundle.accessTokenExpiresAt).toBeGreaterThanOrEqual(
+      before + 300_000 - 1000,
+    );
+    expect(bundle.accessTokenExpiresAt).toBeLessThanOrEqual(
+      Date.now() + 300_000,
+    );
+  });
+
+  test("honors a custom refresh-token TTL on sign-in and on rotation", async () => {
+    const t = setup();
+    const oneHourSeconds = 60 * 60;
+    const oneHourMs = oneHourSeconds * 1000;
+
+    const before = Date.now();
+    const bundle = await t.mutation(api.public.signIn, {
+      claims: claims(),
+      createUserHandle: CREATE_USER_HANDLE,
+      issuer: ISSUER,
+      refreshTokenTtlSeconds: oneHourSeconds,
+    });
+    expect(bundle.refreshTokenExpiresAt).toBeGreaterThanOrEqual(
+      before + oneHourMs,
+    );
+    expect(bundle.refreshTokenExpiresAt).toBeLessThanOrEqual(
+      Date.now() + oneHourMs,
+    );
+
+    // The rotated token gets the configured lifetime too.
+    const rotated = expectBundle(
+      await t.mutation(api.public.refresh, {
+        refreshToken: bundle.refreshToken,
+        issuer: ISSUER,
+        refreshTokenTtlSeconds: oneHourSeconds,
+      }),
+    );
+    expect(rotated.refreshTokenExpiresAt).toBeLessThanOrEqual(
+      Date.now() + oneHourMs,
+    );
+  });
+
+  test("rejects a configuration where the access TTL is not shorter than the refresh TTL", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.public.signIn, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        issuer: ISSUER,
+        accessTokenTtlSeconds: 100,
+        refreshTokenTtlSeconds: 1, // 1s — shorter than the 100s access token
+      }),
+    ).rejects.toThrow(/shorter than the refresh-token TTL/i);
+  });
+});
