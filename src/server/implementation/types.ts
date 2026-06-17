@@ -147,7 +147,10 @@ export const authTables = {
     // (signed-in) user.
     userId: v.optional(v.id("users")),
     expirationTime: v.number(),
-  }).index("challenge", ["challenge"]),
+  })
+    .index("challenge", ["challenge"])
+    // Lets the provider cheaply reap abandoned (expired) challenges.
+    .index("expirationTime", ["expirationTime"]),
 };
 
 const defaultSchema = defineSchema(authTables);

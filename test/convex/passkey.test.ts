@@ -107,6 +107,38 @@ test("adds a passkey to a signed-in user", async () => {
   });
 });
 
+test("purges expired passkey challenges on new options requests", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  // Abandon a few ceremonies (request options but never complete them).
+  for (let i = 0; i < 3; i++) {
+    await t.action(api.auth.signIn, {
+      provider: "passkey",
+      params: { flow: "authenticationOptions" },
+    });
+  }
+  // Force them to be expired.
+  await t.run(async (ctx) => {
+    const rows = await ctx.db.query("authPasskeyChallenges").collect();
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      await ctx.db.patch(row._id, { expirationTime: Date.now() - 1000 });
+    }
+  });
+
+  // A fresh options request should reap the expired rows, leaving only itself.
+  await t.action(api.auth.signIn, {
+    provider: "passkey",
+    params: { flow: "authenticationOptions" },
+  });
+  await t.run(async (ctx) => {
+    const rows = await ctx.db.query("authPasskeyChallenges").collect();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].expirationTime).toBeGreaterThan(Date.now());
+  });
+});
+
 // --- Soft authenticator -----------------------------------------------------
 //
 // A minimal in-memory WebAuthn authenticator built on Web Crypto, used to

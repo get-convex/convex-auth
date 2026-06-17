@@ -172,15 +172,14 @@ export function Passkey<DataModel extends GenericDataModel>(
 
       switch (flow) {
         case "registrationOptions": {
-          const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
-          // A user-visible label for the credential. When a brand new user is
-          // signing up this is typically their email; when an existing user is
-          // adding a passkey it's just a display hint.
+          // A user-visible label for the credential. We intentionally do NOT
+          // run the app's `profile` callback here: it's meant for brand-new
+          // user creation (which happens at verification time) and apps often
+          // validate required sign-up fields in it — that must not block an
+          // already-signed-in user adding a passkey.
           const userName =
             (params.email as string | undefined) ??
             (params.name as string | undefined) ??
-            (profile as { email?: string; name?: string }).email ??
-            (profile as { name?: string }).name ??
             "passkey";
           const options = await generateRegistrationOptions({
             rpName,
@@ -189,7 +188,7 @@ export function Passkey<DataModel extends GenericDataModel>(
             userID: crypto.randomUUID(),
             userName,
             userDisplayName:
-              (profile as { name?: string }).name ?? userName,
+              (params.name as string | undefined) ?? userName,
             attestationType: "none",
             authenticatorSelection: config.authenticatorSelection ?? {
               residentKey: "preferred",
@@ -244,7 +243,14 @@ export function Passkey<DataModel extends GenericDataModel>(
           // The user captured when the challenge was issued, if the passkey is
           // being added to an already signed-in user.
           const linkUserId = consumed.userId;
-          const profile = config.profile?.(params, ctx) ?? defaultProfile(params);
+          // Only build a profile for a brand-new user. When linking to an
+          // existing user, `createAccount` ignores the profile, so we avoid
+          // invoking the app's `profile` callback (and its sign-up validation)
+          // for the add-passkey flow.
+          const profile =
+            linkUserId === undefined
+              ? (config.profile?.(params, ctx) ?? defaultProfile(params))
+              : {};
           const { user } = await createAccount<DataModel>(ctx, {
             provider,
             account: { id: credentialId, secret },

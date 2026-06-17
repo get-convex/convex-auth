@@ -11,6 +11,10 @@ export const createPasskeyChallengeArgs = v.object({
   expirationTime: v.number(),
 });
 
+// How many expired challenges to reap per options request. Keeps the cleanup
+// bounded (and cheap) while ensuring the table stays small under steady churn.
+const EXPIRED_CHALLENGE_CLEANUP_BATCH = 50;
+
 export async function createPasskeyChallengeImpl(
   ctx: MutationCtx,
   args: Infer<typeof createPasskeyChallengeArgs>,
@@ -19,6 +23,18 @@ export async function createPasskeyChallengeImpl(
     challengeType: args.challengeType,
     provider: args.provider,
   });
+  // Challenges are only deleted when consumed, so abandoned ceremonies (the
+  // user dismisses the prompt, or an unauthenticated client spams options)
+  // would otherwise accumulate forever on this public path. Opportunistically
+  // reap a bounded batch of expired rows before inserting the new one.
+  const now = Date.now();
+  const expired = await ctx.db
+    .query("authPasskeyChallenges")
+    .withIndex("expirationTime", (q) => q.lt("expirationTime", now))
+    .take(EXPIRED_CHALLENGE_CLEANUP_BATCH);
+  for (const row of expired) {
+    await ctx.db.delete(row._id);
+  }
   // Capture the currently signed-in user (if any) so a registration can be
   // linked to them rather than creating a new user. Read here, in the
   // mutation, where `ctx.auth` is reliably available.
