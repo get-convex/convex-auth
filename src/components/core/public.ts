@@ -1,4 +1,10 @@
-import { mutation, query, MutationCtx, env } from "./_generated/server";
+import {
+  mutation,
+  query,
+  MutationCtx,
+  QueryCtx,
+  env,
+} from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { FunctionHandle } from "convex/server";
@@ -12,7 +18,6 @@ import {
   type AccountLink,
 } from "../../lib/tokens.js";
 import { signJwt, generateRefreshToken, hashToken } from "./crypto.js";
-import * as model from "./model.js";
 
 // --- Configuration ---------------------------------------------------------
 
@@ -31,6 +36,33 @@ const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
 // secret, so threading it through as an argument is clean and explicit.
 
 // --- Internal helpers ------------------------------------------------------
+
+/** Look up an account by its provider identity. */
+function accountByIdentity(
+  ctx: QueryCtx,
+  provider: string,
+  providerAccountId: string,
+): Promise<Doc<"accounts"> | null> {
+  return ctx.db
+    .query("accounts")
+    .withIndex("by_provider_account", (q) =>
+      q.eq("provider", provider).eq("providerAccountId", providerAccountId),
+    )
+    .unique();
+}
+
+/** Look up a session by the (current) hash of its refresh token. */
+function sessionByHash(
+  ctx: QueryCtx,
+  refreshTokenHash: string,
+): Promise<Doc<"sessions"> | null> {
+  return ctx.db
+    .query("sessions")
+    .withIndex("by_refresh_hash", (q) =>
+      q.eq("refreshTokenHash", refreshTokenHash),
+    )
+    .unique();
+}
 
 async function mintAccessToken(userId: string, issuer: string) {
   const privateKeyPkcs8 = atob(env.AUTH_PRIVATE_KEY);
@@ -55,11 +87,12 @@ async function issueSession(
   const refreshToken = generateRefreshToken();
   const refreshTokenHash = await hashToken(refreshToken);
   const refreshTokenExpiresAt = Date.now() + REFRESH_TOKEN_TTL_MS;
-  await model.createSession(ctx, {
+  await ctx.db.insert("sessions", {
     userId,
     accountId,
     refreshTokenHash,
     refreshTokenExpiresAt,
+    lastRefreshedAt: Date.now(),
   });
   const access = await mintAccessToken(userId, issuer);
   return {
@@ -71,26 +104,25 @@ async function issueSession(
   };
 }
 
-// --- Account resolution (sign-in: find the identity, or create its user) -----
-
 /**
- * Resolve a provider identity to its `accounts` row, creating one (and the
- * app user behind it) the first time the identity is seen. On a returning
- * identity the stored profile is refreshed from the latest claims.
+ * Resolve a provider identity to its account, creating one (and the app user
+ * behind it) the first time the identity is seen. On a returning identity the
+ * stored profile is refreshed from the latest claims. Returns just what minting
+ * a session needs: the account id and its app user id.
  */
 async function resolveAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
   createUserHandle: string,
-): Promise<Doc<"accounts">> {
-  const account = await model.getAccount(
+): Promise<{ accountId: Id<"accounts">; userId: string }> {
+  const account = await accountByIdentity(
     ctx,
     claims.provider,
     claims.providerAccountId,
   );
   if (account) {
-    await model.updateAccountProfile(ctx, account._id, claims.profile);
-    return account;
+    await ctx.db.patch(account._id, { profile: claims.profile });
+    return { accountId: account._id, userId: account.userId };
   }
 
   // First sign-in for this identity: ask the app to mint/return its user id,
@@ -109,12 +141,13 @@ async function resolveAccount(
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
   });
-  return await model.createAccount(ctx, {
+  const accountId = await ctx.db.insert("accounts", {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     userId,
     profile: claims.profile,
   });
+  return { accountId, userId };
 }
 
 // --- Public API ------------------------------------------------------------
@@ -136,12 +169,12 @@ export const signIn = mutation({
   },
   returns: vTokenBundle,
   handler: async (ctx, args): Promise<TokenBundle> => {
-    const account = await resolveAccount(
+    const { accountId, userId } = await resolveAccount(
       ctx,
       args.claims,
       args.createUserHandle,
     );
-    return await issueSession(ctx, account._id, account.userId, args.issuer);
+    return await issueSession(ctx, accountId, userId, args.issuer);
   },
 });
 
@@ -154,7 +187,7 @@ export const authenticate = query({
   args: { claims: vAuthClaims },
   returns: vAccountResolution,
   handler: async (ctx, args): Promise<AccountResolution> => {
-    const account = await model.getAccount(
+    const account = await accountByIdentity(
       ctx,
       args.claims.provider,
       args.claims.providerAccountId,
@@ -170,17 +203,31 @@ export const authenticate = query({
 
 /**
  * Link a provider identity to an already-existing user (no session is minted).
+ *
+ * Idempotent: if the identity is already linked to `userId`, the profile is
+ * refreshed and `linked: false` is returned. Linking an identity that already
+ * belongs to a *different* user is rejected.
  */
 export const linkAccount = mutation({
   args: { claims: vAuthClaims, userId: v.string() },
   returns: vAccountLink,
   handler: async (ctx, args): Promise<AccountLink> => {
-    return await model.linkAccount(ctx, {
-      provider: args.claims.provider,
-      providerAccountId: args.claims.providerAccountId,
+    const { provider, providerAccountId, profile } = args.claims;
+    const existing = await accountByIdentity(ctx, provider, providerAccountId);
+    if (existing) {
+      if (existing.userId !== args.userId) {
+        throw new Error("This identity is already linked to a different user.");
+      }
+      await ctx.db.patch(existing._id, { profile });
+      return { linked: false, userId: existing.userId };
+    }
+    await ctx.db.insert("accounts", {
+      provider,
+      providerAccountId,
       userId: args.userId,
-      profile: args.claims.profile,
+      profile,
     });
+    return { linked: true, userId: args.userId };
   },
 });
 
@@ -199,9 +246,14 @@ export const refresh = mutation({
 
     // Accept either the current hash or a recently-rotated one still inside its
     // grace window (the concurrent-refresh case).
-    let session = await model.getSessionByHash(ctx, hash);
+    let session = await sessionByHash(ctx, hash);
     if (!session) {
-      const prior = await model.getSessionByPreviousHash(ctx, hash);
+      const prior = await ctx.db
+        .query("sessions")
+        .withIndex("by_previous_refresh_hash", (q) =>
+          q.eq("previousRefreshTokenHash", hash),
+        )
+        .unique();
       if (
         prior &&
         prior.previousRefreshTokenExpiresAt !== undefined &&
@@ -215,7 +267,7 @@ export const refresh = mutation({
     if (session.refreshTokenExpiresAt < now) {
       // Past its refresh-token lifetime: delete the dead row and report no
       // session.
-      await model.deleteSessionByHash(ctx, session.refreshTokenHash);
+      await ctx.db.delete(session._id);
       return null;
     }
 
@@ -224,12 +276,12 @@ export const refresh = mutation({
     const refreshTokenExpiresAt = now + REFRESH_TOKEN_TTL_MS;
     // Retain the hash we're replacing as the previous one, valid for the grace
     // window, then swap in the freshly-minted token as current.
-    await model.rotateSession(ctx, {
-      sessionId: session._id,
+    await ctx.db.patch(session._id, {
       refreshTokenHash: newRefreshTokenHash,
       refreshTokenExpiresAt,
       previousRefreshTokenHash: session.refreshTokenHash,
       previousRefreshTokenExpiresAt: now + REFRESH_GRACE_MS,
+      lastRefreshedAt: now,
     });
 
     const access = await mintAccessToken(session.userId, args.issuer);
@@ -248,8 +300,11 @@ export const signOut = mutation({
   args: { refreshToken: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const hash = await hashToken(args.refreshToken);
-    await model.deleteSessionByHash(ctx, hash);
+    const session = await sessionByHash(
+      ctx,
+      await hashToken(args.refreshToken),
+    );
+    if (session) await ctx.db.delete(session._id);
     return null;
   },
 });
