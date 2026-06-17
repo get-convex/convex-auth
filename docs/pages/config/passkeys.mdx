@@ -112,6 +112,44 @@ export function PasskeySignIn() {
 `signInWithPasskey` relies on discoverable credentials, so the browser shows the
 user a list of passkeys for your site — no email or username required.
 
+### Smoothest sign-in: passkey autofill (conditional mediation)
+
+A "Sign in with a passkey" button is confusing for users who don't know what a
+passkey is. Instead, let the browser surface passkeys directly in your normal
+email field via _conditional mediation_ (autofill). The user just clicks the
+field and picks their account — the password manager even remembers which email
+goes with which passkey, so there's nothing to type or recall.
+
+Call `startConditionalPasskeySignIn` when the form mounts and add the
+`webauthn` token to your field's `autoComplete`:
+
+```tsx filename="src/SignInForm.tsx"
+import { usePasskeyAuth } from "@convex-dev/auth/react";
+import { useEffect } from "react";
+
+export function SignInForm() {
+  const { startConditionalPasskeySignIn } = usePasskeyAuth();
+
+  useEffect(() => {
+    // No-op on browsers without autofill support; resolves once the user
+    // picks a passkey from the field's dropdown.
+    void startConditionalPasskeySignIn();
+  }, [startConditionalPasskeySignIn]);
+
+  return (
+    <form>
+      <input name="email" autoComplete="username webauthn" />
+      {/* ...rest of your form (password, magic link, etc.) */}
+    </form>
+  );
+}
+```
+
+This degrades gracefully: on browsers that don't support autofill it does
+nothing, and your other sign-in methods (and the explicit `signInWithPasskey` /
+`registerPasskey` buttons) keep working. Use `isConditionalPasskeySupported()`
+if you want to branch your UI.
+
 ### Add a passkey to an existing user
 
 Call `registerPasskey` while the user is already signed in (for example via

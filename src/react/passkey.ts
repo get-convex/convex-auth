@@ -1,7 +1,7 @@
 "use client";
 
 import { Value } from "convex/values";
-import { useCallback, useContext } from "react";
+import { useCallback, useContext, useRef } from "react";
 import { ConvexAuthActionsContext } from "./client.js";
 
 /**
@@ -32,6 +32,30 @@ export type PasskeyAuthActions = {
   signInWithPasskey: (
     params?: Record<string, Value>,
   ) => Promise<{ signingIn: boolean }>;
+  /**
+   * Whether this browser supports passkey autofill (conditional mediation).
+   *
+   * Use it to decide whether to render an autofill-enabled sign-in field and
+   * call {@link startConditionalPasskeySignIn}.
+   */
+  isConditionalPasskeySupported: () => Promise<boolean>;
+  /**
+   * Start a passkey autofill (conditional mediation) request.
+   *
+   * Call this once when your sign-in form mounts, and render an input with
+   * `autoComplete="username webauthn"`. The browser/password manager then
+   * surfaces the passkeys that exist on the device in that field's autofill
+   * dropdown; selecting one signs the user in — no "what's a passkey?" button
+   * and no need to remember which email was used.
+   *
+   * The returned promise resolves once the user picks a passkey (or rejects on
+   * error). It is a no-op (resolving with `{ supported: false }`) on browsers
+   * without autofill support, and is safe to call repeatedly — a single
+   * conditional request is kept in flight at a time.
+   */
+  startConditionalPasskeySignIn: (
+    params?: Record<string, Value>,
+  ) => Promise<{ supported: boolean; signingIn?: boolean }>;
 };
 
 /**
@@ -54,10 +78,26 @@ export type PasskeyAuthActions = {
  * }
  * ```
  *
+ * For the smoothest experience, drive sign-in via autofill (conditional
+ * mediation) instead of a button:
+ *
+ * ```tsx
+ * function SignIn() {
+ *   const { startConditionalPasskeySignIn } = usePasskeyAuth();
+ *   useEffect(() => {
+ *     void startConditionalPasskeySignIn();
+ *   }, [startConditionalPasskeySignIn]);
+ *   return <input name="email" autoComplete="username webauthn" />;
+ * }
+ * ```
+ *
  * @param provider The id of your Passkey provider. Defaults to `"passkey"`.
  */
 export function usePasskeyAuth(provider: string = "passkey"): PasskeyAuthActions {
   const { signIn } = useContext(ConvexAuthActionsContext);
+  // Keeps a single conditional-mediation request in flight (React Strict Mode
+  // mounts effects twice, and the browser allows only one at a time).
+  const conditionalInFlight = useRef(false);
 
   const registerPasskey = useCallback(
     async (params?: Record<string, Value>) => {
@@ -105,5 +145,57 @@ export function usePasskeyAuth(provider: string = "passkey"): PasskeyAuthActions
     [signIn, provider],
   );
 
-  return { registerPasskey, signInWithPasskey };
+  const isConditionalPasskeySupported = useCallback(async () => {
+    const { browserSupportsWebAuthnAutofill } = await import(
+      "@simplewebauthn/browser"
+    );
+    return browserSupportsWebAuthnAutofill();
+  }, []);
+
+  const startConditionalPasskeySignIn = useCallback(
+    async (params?: Record<string, Value>) => {
+      if (conditionalInFlight.current) {
+        return { supported: true };
+      }
+      conditionalInFlight.current = true;
+      try {
+        const { browserSupportsWebAuthnAutofill, startAuthentication } =
+          await import("@simplewebauthn/browser");
+        if (!(await browserSupportsWebAuthnAutofill())) {
+          conditionalInFlight.current = false;
+          return { supported: false };
+        }
+        const { data: options } = await signIn(provider, {
+          ...params,
+          flow: "authenticationOptions",
+        });
+        if (options === undefined) {
+          throw new Error(
+            "The Passkey provider did not return authentication options. " +
+              "Is it configured on the server?",
+          );
+        }
+        // The second argument enables conditional mediation (autofill UI).
+        const response = await startAuthentication(options as any, true);
+        const result = await signIn(provider, {
+          ...params,
+          flow: "authentication",
+          response: JSON.stringify(response),
+        });
+        return { supported: true, signingIn: result.signingIn };
+      } catch (error) {
+        // Allow a later retry (e.g. the user dismissed the autofill prompt).
+        conditionalInFlight.current = false;
+        throw error;
+      }
+    },
+    [signIn, provider],
+  );
+
+  return {
+    registerPasskey,
+    signInWithPasskey,
+    isConditionalPasskeySupported,
+    startConditionalPasskeySignIn,
+  };
 }
