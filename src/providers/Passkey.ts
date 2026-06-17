@@ -127,8 +127,12 @@ export interface PasskeyConfig<DataModel extends GenericDataModel> {
    * control what kind of authenticators are allowed and whether a discoverable
    * (resident) credential is created.
    *
-   * Defaults to `{ residentKey: "preferred", userVerification: "preferred" }`,
-   * which enables usernameless sign-in where supported.
+   * Defaults to `{ residentKey: "required", userVerification: "preferred" }`.
+   * `residentKey: "required"` guarantees every passkey is discoverable, so it
+   * can be found at sign-in (where we don't pass `allowCredentials`) and powers
+   * usernameless sign-in and autofill. Override this only if you knowingly need
+   * to support authenticators that can't store resident keys — passkeys they
+   * create will not be usable for sign-in through this provider.
    */
   authenticatorSelection?: AuthenticatorSelectionCriteria;
   /**
@@ -190,8 +194,14 @@ export function Passkey<DataModel extends GenericDataModel>(
             userDisplayName:
               (params.name as string | undefined) ?? userName,
             attestationType: "none",
+            // Require a discoverable (resident) credential by default so every
+            // passkey we create can actually be found at sign-in time, when we
+            // don't send `allowCredentials`. A non-discoverable credential
+            // would be silently unusable. Override via `authenticatorSelection`
+            // if you knowingly want to support authenticators that can't store
+            // resident keys.
             authenticatorSelection: config.authenticatorSelection ?? {
-              residentKey: "preferred",
+              residentKey: "required",
               userVerification: "preferred",
             },
           });
