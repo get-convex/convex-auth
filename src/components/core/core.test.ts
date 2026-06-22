@@ -11,6 +11,10 @@ import {
 } from "jose";
 import { api } from "./_generated/api.js";
 import schema from "./schema.js";
+import {
+  getCreateOrUpdateUserCalls,
+  resetCreateOrUpdateUserCalls,
+} from "./testApp.js";
 import type { AuthClaims } from "../../lib/claims.js";
 import type { TokenBundle } from "../../lib/tokens.js";
 
@@ -21,7 +25,7 @@ const modules = import.meta.glob("./**/*.ts");
 // vars so the suite exercises genuine JWT signing/verification.
 const ISSUER = "https://example.convex.site";
 const AUDIENCE = "convex";
-const CREATE_USER_HANDLE = "testApp:createUser";
+const CREATE_OR_UPDATE_USER_HANDLE = "testApp:createOrUpdateUser";
 let publicJwk: JWK;
 
 beforeAll(async () => {
@@ -53,7 +57,7 @@ function setup() {
 async function signIn(t: ReturnType<typeof setup>, c: AuthClaims) {
   return await t.mutation(api.public.signIn, {
     claims: c,
-    createUserHandle: CREATE_USER_HANDLE,
+    createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
     issuer: ISSUER,
   });
 }
@@ -69,7 +73,7 @@ describe("signIn", () => {
     const t = setup();
     const bundle = await signIn(t, claims());
 
-    // The app's createUser echoes the providerAccountId as the user id.
+    // The app's createOrUpdateUser echoes the providerAccountId as the user id.
     expect(bundle.userId).toBe("alice");
     expect(bundle.refreshToken).toBeTruthy();
     expect(bundle.accessTokenExpiresAt).toBeGreaterThan(Date.now());
@@ -113,6 +117,23 @@ describe("signIn", () => {
     expect(accounts).toBe(1);
     expect(sessions).toBe(2);
     expect(profile).toEqual({ name: "Alice 2.0" });
+  });
+
+  test("invokes the app's user callback on every sign-in", async () => {
+    const t = setup();
+    resetCreateOrUpdateUserCalls();
+
+    await signIn(t, claims({ profile: { name: "Alice" } }));
+    await signIn(t, claims({ profile: { name: "Alice 2.0" } }));
+
+    const calls = getCreateOrUpdateUserCalls();
+    // Called both times. First sign-in mints the user (no `userId`); the return
+    // carries the known `userId` so the app can update its own user record.
+    expect(calls).toHaveLength(2);
+    expect(calls[0].userId).toBeUndefined();
+    expect(calls[0].profile).toEqual({ name: "Alice" });
+    expect(calls[1].userId).toBe("alice");
+    expect(calls[1].profile).toEqual({ name: "Alice 2.0" });
   });
 });
 
@@ -279,7 +300,7 @@ describe("token lifetime configuration", () => {
     const before = Date.now();
     const bundle = await t.mutation(api.public.signIn, {
       claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
+      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
       issuer: ISSUER,
       accessTokenTtlSeconds: 300, // 5 minutes
     });
@@ -300,7 +321,7 @@ describe("token lifetime configuration", () => {
     const before = Date.now();
     const bundle = await t.mutation(api.public.signIn, {
       claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
+      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
       issuer: ISSUER,
       refreshTokenTtlSeconds: oneHourSeconds,
     });
@@ -329,7 +350,7 @@ describe("token lifetime configuration", () => {
     await expect(
       t.mutation(api.public.signIn, {
         claims: claims(),
-        createUserHandle: CREATE_USER_HANDLE,
+        createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
         issuer: ISSUER,
         accessTokenTtlSeconds: 100,
         refreshTokenTtlSeconds: 1, // 1s — shorter than the 100s access token

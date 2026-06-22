@@ -2,8 +2,9 @@ import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
- * The app's user-creation callback. The core invokes it (via a function handle)
- * the first time a new account signs in.
+ * The app's user create-or-update callback. The core invokes it (via a function
+ * handle) on every sign-in — without a `userId` the first time an identity is
+ * seen, and with the resolved `userId` thereafter.
  *
  * This minimal example owns no users table. Instead of storing a row, it simply
  * echoes the provider-scoped account id back as the app's user id. The core
@@ -12,9 +13,9 @@ import { v } from "convex/values";
  * ends up being the provider account id. The (provider, providerAccountId) pair
  * is stable, so the subject stays the same across logins.
  *
- * The `userId` arg is part of the core's callback contract (it's set when an
- * existing user links another identity). With no users table there's nothing to
- * link, so we just honor it when present.
+ * The `userId` arg is part of the core's callback contract (it's set on a
+ * returning sign-in, and when an existing user links another identity). With no
+ * users table there's nothing to update, so we just honor it when present.
  */
 export const upsertFromAuth = internalMutation({
   args: {

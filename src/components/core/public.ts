@@ -147,37 +147,50 @@ async function issueSession(
 
 /**
  * Resolve a provider identity to its account, creating one (and the app user
- * behind it) the first time the identity is seen. On a returning identity the
- * stored profile is refreshed from the latest claims. Returns just what minting
- * a session needs: the account id and its app user id.
+ * behind it) the first time the identity is seen. The app's user callback runs
+ * on *every* sign-in: with no `userId` the first time (it mints/returns the
+ * user id), and with the known `userId` on every return (so it can sync the
+ * user record from the latest claims). The profile the core holds for the
+ * account is refreshed to match. Returns just what minting a session needs: the
+ * account id and its app user id.
  */
 async function resolveAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
-  createUserHandle: string,
+  createOrUpdateUserHandle: string,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
+  const createOrUpdateUser = createOrUpdateUserHandle as FunctionHandle<
+    "mutation",
+    {
+      provider: string;
+      providerAccountId: string;
+      profile: Record<string, unknown>;
+      userId?: string;
+    },
+    string
+  >;
+
   const account = await accountByIdentity(
     ctx,
     claims.provider,
     claims.providerAccountId,
   );
   if (account) {
+    // Returning identity: hand the app the latest claims with the known user id
+    // so it can update its own user record, then refresh the profile we hold.
+    await ctx.runMutation(createOrUpdateUser, {
+      provider: claims.provider,
+      providerAccountId: claims.providerAccountId,
+      profile: claims.profile,
+      userId: account.userId,
+    });
     await ctx.db.patch(account._id, { profile: claims.profile });
     return { accountId: account._id, userId: account.userId };
   }
 
   // First sign-in for this identity: ask the app to mint/return its user id,
   // then record the provider-identity -> user mapping.
-  const createUser = createUserHandle as FunctionHandle<
-    "mutation",
-    {
-      provider: string;
-      providerAccountId: string;
-      profile: Record<string, unknown>;
-    },
-    string
-  >;
-  const userId = await ctx.runMutation(createUser, {
+  const userId = await ctx.runMutation(createOrUpdateUser, {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
@@ -198,16 +211,17 @@ async function resolveAccount(
  * create) the account and its app user, then mint a refresh token + access
  * token. This is the core's entry point for *logging a user in*; each provider
  * calls it (via the app's `completeSignIn`) once it has authenticated the user
- * and produced claims. `createUserHandle` is a handle to the app's
- * user-creation mutation, used only the first time an identity is seen; the JWT
- * is issued with `issuer` as its `iss`. Token lifetimes default to 1m (access)
- * and 30d (refresh) unless `accessTokenTtlSeconds` / `refreshTokenTtlSeconds` are
- * supplied (the app sets these once via `setupCore`).
+ * and produced claims. `createOrUpdateUserHandle` is a handle to the app's
+ * user create-or-update mutation, invoked on every sign-in (without a `userId`
+ * the first time an identity is seen, with the resolved `userId` thereafter);
+ * the JWT is issued with `issuer` as its `iss`. Token lifetimes default to 1m
+ * (access) and 30d (refresh) unless `accessTokenTtlSeconds` /
+ * `refreshTokenTtlSeconds` are supplied (the app sets these once via `setupCore`).
  */
 export const signIn = mutation({
   args: {
     claims: vAuthClaims,
-    createUserHandle: v.string(),
+    createOrUpdateUserHandle: v.string(),
     issuer: v.string(),
     accessTokenTtlSeconds: v.optional(v.number()),
     refreshTokenTtlSeconds: v.optional(v.number()),
@@ -218,7 +232,7 @@ export const signIn = mutation({
     const { accountId, userId } = await resolveAccount(
       ctx,
       args.claims,
-      args.createUserHandle,
+      args.createOrUpdateUserHandle,
     );
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
   },

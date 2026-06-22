@@ -17,17 +17,19 @@ import type { AuthClaims } from "../../lib/claims.js";
 
 /**
  * The shape of the app's user-persistence callback. The app passes
- * `internal.users.upsertFromAuth` (or equivalent) as `createUser`; typing it
- * here gives a compile error if that mutation's args/return drift from what the
- * core expects. The app keeps ownership of its users table — the core only
- * holds a reference to this one mutation.
+ * `internal.users.upsertFromAuth` (or equivalent) as `createOrUpdateUser`;
+ * typing it here gives a compile error if that mutation's args/return drift from
+ * what the core expects. The app keeps ownership of its users table — the core
+ * only holds a reference to this one mutation.
  *
- * It serves both auth paths: sign-in calls it with no `userId` (create or
- * resolve a user, return the id), and `linkToCurrentUser` calls it with the
- * already-known `userId` (sync the provider profile onto that user). Apps that
- * don't need the profile synced on link can simply ignore `userId`.
+ * It serves every auth path: sign-in calls it with no `userId` the first time
+ * an identity is seen (create the user, return the id) and with the resolved
+ * `userId` on every later sign-in (update the user from the latest profile);
+ * `linkToCurrentUser` calls it with the already-known `userId` (sync the
+ * provider profile onto that user). Apps that don't need to react to the update
+ * paths can simply ignore `userId`.
  */
-export type CreateUserFn = FunctionReference<
+export type CreateOrUpdateUserFn = FunctionReference<
   "mutation",
   "internal",
   {
@@ -41,7 +43,7 @@ export type CreateUserFn = FunctionReference<
 
 /**
  * Build the app-facing auth-core handlers from the mounted `core` component
- * reference and the app's user-creation callback. Returns ready-to-export
+ * reference and the app's user create-or-update callback. Returns ready-to-export
  * `signOut`/`refreshSession` mutations plus `completeSignIn`, which the provider
  * factories use to turn provider claims into a session.
  *
@@ -58,7 +60,7 @@ export type CreateUserFn = FunctionReference<
  */
 export function setupCore(opts: {
   component: ComponentApi;
-  createUser: CreateUserFn;
+  createOrUpdateUser: CreateOrUpdateUserFn;
   /** Access-token lifetime in seconds. Defaults to 60 (1 minute). */
   accessTokenTtlSeconds?: number;
   /** Refresh-token lifetime in seconds. Defaults to 30 days. */
@@ -66,7 +68,7 @@ export function setupCore(opts: {
 }) {
   const {
     component,
-    createUser,
+    createOrUpdateUser,
     accessTokenTtlSeconds,
     refreshTokenTtlSeconds,
   } = opts;
@@ -93,9 +95,9 @@ export function setupCore(opts: {
 
   /**
    * Hand a provider's identity claims to the core, passing a handle to the
-   * app's user-creation mutation so the core can mint app users without knowing
-   * the app's schema. A provider calls this from its sign-in action once it has
-   * authenticated the user and produced claims.
+   * app's user create-or-update mutation so the core can persist app users
+   * without knowing the app's schema. A provider calls this from its sign-in
+   * action once it has authenticated the user and produced claims.
    *
    * This initiates a session and the returned token bundle allows authenticating
    * with the Convex backend and refreshing the session.
@@ -104,10 +106,11 @@ export function setupCore(opts: {
     ctx: GenericActionCtx<any>,
     claims: AuthClaims,
   ): Promise<TokenBundle> => {
-    const createUserHandle = await createFunctionHandle(createUser);
+    const createOrUpdateUserHandle =
+      await createFunctionHandle(createOrUpdateUser);
     return await ctx.runMutation(component.public.signIn, {
       claims,
-      createUserHandle,
+      createOrUpdateUserHandle,
       issuer: issuer(),
       accessTokenTtlSeconds,
       refreshTokenTtlSeconds,
@@ -155,7 +158,8 @@ export function setupCore(opts: {
    * It runs on the authenticated client, so `getUserIdentity()` is the active
    * user (e.g. a guest user attaching a durable identity). The core rejects
    * linking an identity that already belongs to a different user. The app's
-   * `createUser` callback is reused to sync the provider profile onto the user.
+   * `createOrUpdateUser` callback is reused to sync the provider profile onto
+   * the user.
    */
   const linkToCurrentUser = mutationGeneric({
     args: {
@@ -180,7 +184,7 @@ export function setupCore(opts: {
         profile: args.profile,
       };
       await linkAccount(ctx, claims, userId);
-      await ctx.runMutation(createUser, { ...claims, userId });
+      await ctx.runMutation(createOrUpdateUser, { ...claims, userId });
       return null;
     },
   });
