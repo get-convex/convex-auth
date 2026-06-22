@@ -249,51 +249,6 @@ describe("signOut", () => {
   });
 });
 
-describe("linkAccount", () => {
-  test("links a new identity, is idempotent, and rejects cross-user conflicts", async () => {
-    const t = setup();
-
-    // Link a brand-new identity to user "user-1".
-    const linked = await t.mutation(api.public.linkAccount, {
-      claims: claims({ provider: "google", providerAccountId: "g-123" }),
-      userId: "user-1",
-    });
-    expect(linked).toEqual({ linked: true, userId: "user-1" });
-
-    // Linking the same identity to the same user again is a no-op.
-    const again = await t.mutation(api.public.linkAccount, {
-      claims: claims({ provider: "google", providerAccountId: "g-123" }),
-      userId: "user-1",
-    });
-    expect(again).toEqual({ linked: false, userId: "user-1" });
-
-    // Linking it to a different user is rejected.
-    await expect(
-      t.mutation(api.public.linkAccount, {
-        claims: claims({ provider: "google", providerAccountId: "g-123" }),
-        userId: "user-2",
-      }),
-    ).rejects.toThrow(/already linked to a different user/i);
-  });
-});
-
-describe("authenticate", () => {
-  test("reports the existing user for a known identity and none otherwise", async () => {
-    const t = setup();
-    const c = claims({ provider: "google", providerAccountId: "g-known" });
-
-    const unknown = await t.query(api.public.authenticate, { claims: c });
-    expect(unknown.existingUserId).toBeUndefined();
-    expect(unknown.provider).toBe("google");
-    expect(unknown.providerAccountId).toBe("g-known");
-
-    await signIn(t, c);
-
-    const known = await t.query(api.public.authenticate, { claims: c });
-    expect(known.existingUserId).toBe("g-known");
-  });
-});
-
 describe("token lifetime configuration", () => {
   test("honors a custom access-token TTL on sign-in", async () => {
     const t = setup();

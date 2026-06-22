@@ -24,30 +24,3 @@ export const vTokenBundle = v.object({
 });
 
 export type TokenBundle = Infer<typeof vTokenBundle>;
-
-/**
- * The result of resolving a provider identity *without* minting a session: the
- * claims as given, plus the existing app user id if that identity is already
- * known. Lets the app decide what to do (sign in, link, create) before any
- * session exists.
- */
-export const vAccountResolution = v.object({
-  provider: v.string(),
-  providerAccountId: v.string(),
-  profile: v.any(),
-  existingUserId: v.optional(v.string()),
-});
-
-export type AccountResolution = Infer<typeof vAccountResolution>;
-
-/**
- * The result of linking a provider identity onto an existing app user.
- * `linked` is `false` when the identity was already linked to that same user
- * (the call is idempotent), `true` when a new link was created.
- */
-export const vAccountLink = v.object({
-  linked: v.boolean(),
-  userId: v.string(),
-});
-
-export type AccountLink = Infer<typeof vAccountLink>;
