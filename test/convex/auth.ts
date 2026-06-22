@@ -87,5 +87,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     Password({ id: "password-link", verify: Resend }),
     Anonymous,
     Passkey,
+    // Opt out of email-first enumeration (discoverable-only sign-in).
+    Passkey({ id: "passkey-no-enumeration", allowCredentialsByIdentifier: false }),
   ],
 });

@@ -77,40 +77,57 @@ export default schema;
 
 ### Register and sign in on the client
 
-Use the `usePasskeyAuth` hook. It fetches the WebAuthn options from your
-backend, prompts the authenticator, and verifies the result — each helper
-resolves once the user is signed in.
+Use the `usePasskeyAuth` hook. The simplest setup is a single email field with
+`signInOrRegisterWithPasskey`: it signs the user in if that email already has a
+passkey, and registers a new one (creating the account) if it doesn't — so you
+don't need separate "sign in" and "sign up" buttons.
 
 ```tsx filename="src/PasskeySignIn.tsx"
 import { usePasskeyAuth } from "@convex-dev/auth/react";
 import { useState } from "react";
 
 export function PasskeySignIn() {
-  const { registerPasskey, signInWithPasskey } = usePasskeyAuth();
+  const { signInOrRegisterWithPasskey } = usePasskeyAuth();
   const [email, setEmail] = useState("");
   return (
-    <>
-      {/* Sign in with an existing passkey (no username needed) */}
-      <button onClick={() => void signInWithPasskey()}>
-        Sign in with a passkey
-      </button>
-
-      {/* Sign up: pass an email (or name) so a new user can be created */}
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const { registered } = await signInOrRegisterWithPasskey({ email });
+        // `registered` is true when a brand new account+passkey was created.
+      }}
+    >
       <input
+        name="email"
+        autoComplete="username webauthn"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
       />
-      <button onClick={() => void registerPasskey({ email })}>
-        Create an account with a passkey
-      </button>
-    </>
+      <button type="submit">Continue with a passkey</button>
+    </form>
   );
 }
 ```
 
-`signInWithPasskey` relies on discoverable credentials, so the browser shows the
-user a list of passkeys for your site — no email or username required.
+If you prefer explicit control, the hook also exposes the lower-level
+`signInWithPasskey()` (usernameless, discoverable) and `registerPasskey()`.
+
+#### Email-first vs. enumeration
+
+`signInOrRegisterWithPasskey` works because, by default, the provider looks up
+the email and tells the client whether it already has passkeys (and offers them
+via `allowCredentials`, so security keys and passkeys synced to another device
+also work). This means an attacker can learn whether an email is registered —
+**account enumeration**. If that's not an acceptable trade-off for your app,
+disable it:
+
+```ts filename="convex/auth.ts"
+Passkey({ allowCredentialsByIdentifier: false });
+```
+
+With it disabled, sign-in is discoverable-only (the browser shows the passkeys
+on the device); usernameless sign-in and autofill still work.
 
 ### Smoothest sign-in: passkey autofill (conditional mediation)
 

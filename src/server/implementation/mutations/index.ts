@@ -35,6 +35,10 @@ import {
   createPasskeyChallengeArgs,
   createPasskeyChallengeImpl,
 } from "./passkeyChallenge.js";
+import {
+  passkeyCredentialsArgs,
+  passkeyCredentialsImpl,
+} from "./passkeyCredentials.js";
 import * as Provider from "../provider.js";
 import { verifierImpl } from "./verifier.js";
 import { LOG_LEVELS, logWithLevel } from "../utils.js";
@@ -54,6 +58,7 @@ export {
   callCreatePasskeyChallenge,
   callConsumePasskeyChallenge,
 } from "./passkeyChallenge.js";
+export { callPasskeyCredentials } from "./passkeyCredentials.js";
 
 export const storeArgs = v.object({
   args: v.union(
@@ -110,6 +115,10 @@ export const storeArgs = v.object({
     v.object({
       type: v.literal("consumePasskeyChallenge"),
       ...consumePasskeyChallengeArgs.fields,
+    }),
+    v.object({
+      type: v.literal("passkeyCredentials"),
+      ...passkeyCredentialsArgs.fields,
     }),
   ),
 });
@@ -174,6 +183,9 @@ export const storeImpl = async (
     }
     case "consumePasskeyChallenge": {
       return consumePasskeyChallengeImpl(ctx, args);
+    }
+    case "passkeyCredentials": {
+      return passkeyCredentialsImpl(ctx, args);
     }
     default:
       args satisfies never;

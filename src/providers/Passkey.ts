@@ -41,6 +41,7 @@ import {
   consumePasskeyChallenge,
   createAccount,
   createPasskeyChallenge,
+  listPasskeyCredentials,
   modifyAccountCredentials,
   retrieveAccount,
 } from "@convex-dev/auth/server";
@@ -141,6 +142,18 @@ export interface PasskeyConfig<DataModel extends GenericDataModel> {
    */
   requireUserVerification?: boolean;
   /**
+   * Enable email-first sign-in. When the client passes an `email` to the
+   * authentication flow, look that user up and return their passkeys as
+   * `allowCredentials`, so the right passkey is suggested and security-key /
+   * cross-device / non-discoverable credentials can be used.
+   *
+   * Defaults to `true`. This reveals whether an email is registered (account
+   * enumeration) — set it to `false` for discoverable-only sign-in with no
+   * enumeration. Usernameless and autofill sign-in (no `email`) work either
+   * way.
+   */
+  allowCredentialsByIdentifier?: boolean;
+  /**
    * How long, in milliseconds, a generated challenge is valid for.
    *
    * Defaults to 5 minutes.
@@ -168,6 +181,8 @@ export function Passkey<DataModel extends GenericDataModel>(
   const challengeMaxAgeMs =
     config.challengeMaxAgeMs ?? DEFAULT_CHALLENGE_MAX_AGE_MS;
   const requireUserVerification = config.requireUserVerification ?? false;
+  const allowCredentialsByIdentifier =
+    config.allowCredentialsByIdentifier ?? true;
   return ConvexCredentials<DataModel>({
     id: "passkey",
     authorize: async (params, ctx): Promise<ConvexCredentialsAuthorizeResult> => {
@@ -273,11 +288,33 @@ export function Passkey<DataModel extends GenericDataModel>(
         }
 
         case "authenticationOptions": {
+          // Email-first sign-in: if the client tells us who they are, hint
+          // their passkeys via `allowCredentials`. Omit it (discoverable /
+          // usernameless) when there's no identifier — which is also required
+          // for conditional mediation (autofill).
+          const email = params.email as string | undefined;
+          let allowCredentials:
+            | { id: Uint8Array; type: "public-key"; transports?: any }[]
+            | undefined;
+          if (allowCredentialsByIdentifier && email) {
+            const credentials = await listPasskeyCredentials(ctx, {
+              provider,
+              email,
+            });
+            if (credentials.length > 0) {
+              allowCredentials = credentials.map((credential) => ({
+                id: isoBase64URL.toBuffer(credential.id),
+                type: "public-key" as const,
+                transports: credential.transports,
+              }));
+            }
+          }
           const options = await generateAuthenticationOptions({
             rpID,
             userVerification: requireUserVerification
               ? "required"
               : "preferred",
+            allowCredentials,
           });
           await createPasskeyChallenge(ctx, {
             challenge: options.challenge,

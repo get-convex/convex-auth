@@ -22,6 +22,7 @@ export {
   modifyAccountCredentials,
   createPasskeyChallenge,
   consumePasskeyChallenge,
+  listPasskeyCredentials,
   Tokens,
   Doc,
   SignInAction,

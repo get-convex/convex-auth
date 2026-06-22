@@ -39,6 +39,7 @@ import {
   callConsumePasskeyChallenge,
   callCreateAccountFromCredentials,
   callCreatePasskeyChallenge,
+  callPasskeyCredentials,
   callInvalidateSessions,
   callModifyAccount,
   callRetreiveAccountWithCredentials,
@@ -742,6 +743,25 @@ export async function consumePasskeyChallenge<
     ...rest,
     challengeType: type,
   });
+}
+
+/**
+ * Use this function from a `Passkey` provider to look up the passkeys
+ * registered to the user(s) with a given email, so the authentication flow can
+ * hint them via `allowCredentials`.
+ *
+ * Note: this reveals whether an email has passkeys (account enumeration).
+ *
+ * @hidden
+ */
+export async function listPasskeyCredentials<
+  DataModel extends GenericDataModel = GenericDataModel,
+>(
+  ctx: GenericActionCtx<DataModel>,
+  args: { provider: string; email: string },
+): Promise<{ id: string; transports?: string[] }[]> {
+  const actionCtx = ctx as unknown as ActionCtx;
+  return await callPasskeyCredentials(actionCtx, args);
 }
 
 function convertErrorsToResponse(

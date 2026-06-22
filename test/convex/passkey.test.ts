@@ -107,6 +107,53 @@ test("adds a passkey to a signed-in user", async () => {
   });
 });
 
+test("hints existing passkeys via allowCredentials for a known email", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const authenticator = await createSoftAuthenticator();
+  await register(t, authenticator, { email: "known@gmail.com" });
+
+  // Known email → the user's passkey is offered via allowCredentials.
+  const { data: options } = await t.action(api.auth.signIn, {
+    provider: "passkey",
+    params: { flow: "authenticationOptions", email: "known@gmail.com" },
+  });
+  const allow = (options as any).allowCredentials;
+  expect(allow).toHaveLength(1);
+  expect(allow[0].id).toEqual(
+    isoBase64URL.fromBuffer(authenticator.credentialId),
+  );
+
+  // Unknown email → no hint (discoverable fallback).
+  const { data: unknownOptions } = await t.action(api.auth.signIn, {
+    provider: "passkey",
+    params: { flow: "authenticationOptions", email: "nobody@gmail.com" },
+  });
+  const noAllow = (unknownOptions as any).allowCredentials;
+  expect(noAllow === undefined || noAllow.length === 0).toBe(true);
+});
+
+test("allowCredentialsByIdentifier: false disables enumeration", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const authenticator = await createSoftAuthenticator();
+  await register(
+    t,
+    authenticator,
+    { email: "secret@gmail.com" },
+    "passkey-no-enumeration",
+  );
+
+  // Even though this email has a passkey, the opt-out provider must not
+  // reveal it.
+  const { data: options } = await t.action(api.auth.signIn, {
+    provider: "passkey-no-enumeration",
+    params: { flow: "authenticationOptions", email: "secret@gmail.com" },
+  });
+  const allow = (options as any).allowCredentials;
+  expect(allow === undefined || allow.length === 0).toBe(true);
+});
+
 test("purges expired passkey challenges on new options requests", async () => {
   setupEnv();
   const t = convexTest(schema);
@@ -170,9 +217,10 @@ async function register(
   t: ReturnType<typeof convexTest> | ReturnType<ReturnType<typeof convexTest>["withIdentity"]>,
   authenticator: SoftAuthenticator,
   params: Record<string, string>,
+  providerId: string = "passkey",
 ) {
   const { data: options } = await t.action(api.auth.signIn, {
-    provider: "passkey",
+    provider: providerId,
     params: { flow: "registrationOptions", ...params },
   });
   const response = await buildRegistrationResponse(
@@ -180,7 +228,7 @@ async function register(
     (options as any).challenge,
   );
   return await t.action(api.auth.signIn, {
-    provider: "passkey",
+    provider: providerId,
     params: { flow: "registration", response: JSON.stringify(response), ...params },
   });
 }

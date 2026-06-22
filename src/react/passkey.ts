@@ -33,6 +33,21 @@ export type PasskeyAuthActions = {
     params?: Record<string, Value>,
   ) => Promise<{ signingIn: boolean }>;
   /**
+   * Email-first sign-in: pass an `email` and this signs the user in if they
+   * already have a passkey, or registers a new passkey (and account) if they
+   * don't — in a single call.
+   *
+   * Requires the provider's `allowCredentialsByIdentifier` (the default). The
+   * returned `registered` flag tells you which path ran, so you can show the
+   * right "welcome back" / "account created" message.
+   *
+   * @param params Must include `email`. Extra fields (e.g. `name`) are stored
+   *               when a new user is created.
+   */
+  signInOrRegisterWithPasskey: (
+    params: Record<string, Value> & { email: string },
+  ) => Promise<{ signingIn: boolean; registered: boolean }>;
+  /**
    * Whether this browser supports passkey autofill (conditional mediation).
    *
    * Use it to decide whether to render an autofill-enabled sign-in field and
@@ -145,6 +160,55 @@ export function usePasskeyAuth(provider: string = "passkey"): PasskeyAuthActions
     [signIn, provider],
   );
 
+  const signInOrRegisterWithPasskey = useCallback(
+    async (params: Record<string, Value> & { email: string }) => {
+      const { data: options } = await signIn(provider, {
+        ...params,
+        flow: "authenticationOptions",
+      });
+      if (options === undefined) {
+        throw new Error(
+          "The Passkey provider did not return authentication options. " +
+            "Is it configured on the server?",
+        );
+      }
+      // The server populates `allowCredentials` when this email already has
+      // passkeys — that's our signal to sign in vs. register.
+      const allowCredentials = (options as { allowCredentials?: unknown[] })
+        .allowCredentials;
+      const { startAuthentication, startRegistration } = await import(
+        "@simplewebauthn/browser"
+      );
+      if (Array.isArray(allowCredentials) && allowCredentials.length > 0) {
+        const response = await startAuthentication(options as any);
+        const result = await signIn(provider, {
+          ...params,
+          flow: "authentication",
+          response: JSON.stringify(response),
+        });
+        return { signingIn: result.signingIn, registered: false };
+      }
+      // No passkey for this email — create one (and a new account).
+      const { data: registrationOptions } = await signIn(provider, {
+        ...params,
+        flow: "registrationOptions",
+      });
+      if (registrationOptions === undefined) {
+        throw new Error(
+          "The Passkey provider did not return registration options.",
+        );
+      }
+      const response = await startRegistration(registrationOptions as any);
+      const result = await signIn(provider, {
+        ...params,
+        flow: "registration",
+        response: JSON.stringify(response),
+      });
+      return { signingIn: result.signingIn, registered: true };
+    },
+    [signIn, provider],
+  );
+
   const isConditionalPasskeySupported = useCallback(async () => {
     const { browserSupportsWebAuthnAutofill } = await import(
       "@simplewebauthn/browser"
@@ -165,8 +229,12 @@ export function usePasskeyAuth(provider: string = "passkey"): PasskeyAuthActions
           conditionalInFlight.current = false;
           return { supported: false };
         }
+        // Conditional mediation requires empty `allowCredentials`, so never
+        // send an identifier here — the browser/password manager picks the
+        // passkey from what's on the device.
+        const { email: _omitEmail, ...rest } = params ?? {};
         const { data: options } = await signIn(provider, {
-          ...params,
+          ...rest,
           flow: "authenticationOptions",
         });
         if (options === undefined) {
@@ -195,6 +263,7 @@ export function usePasskeyAuth(provider: string = "passkey"): PasskeyAuthActions
   return {
     registerPasskey,
     signInWithPasskey,
+    signInOrRegisterWithPasskey,
     isConditionalPasskeySupported,
     startConditionalPasskeySignIn,
   };
