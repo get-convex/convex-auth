@@ -4,6 +4,7 @@ module.exports = {
   extends: [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended-type-checked",
+    "plugin:react-hooks/recommended",
   ],
   ignorePatterns: [
     ".eslintrc.cjs",

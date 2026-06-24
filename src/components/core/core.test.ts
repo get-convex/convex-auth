@@ -353,4 +353,17 @@ describe("token lifetime configuration", () => {
       }),
     ).rejects.toThrow(/shorter than the refresh-token TTL/i);
   });
+
+  test("rejects an access TTL at or below the client refresh window", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.public.signIn, {
+        claims: claims(),
+        createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+        issuer: ISSUER,
+        accessTokenTtlSeconds: 5, // shorter than the 10s client refresh window
+        refreshTokenTtlSeconds: 3600,
+      }),
+    ).rejects.toThrow(/refresh window/i);
+  });
 });

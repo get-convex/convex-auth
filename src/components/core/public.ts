@@ -20,6 +20,7 @@ import {
 } from "../../lib/types.js";
 import { signJwt, generateRefreshToken, hashToken } from "./crypto.js";
 import { CreateOrUpdateUserFn } from "../../lib/types.js";
+import { REFRESH_SKEW_MS } from "./shared.js";
 
 // --- Configuration ---------------------------------------------------------
 
@@ -89,6 +90,14 @@ function resolveTtlConfig(args: {
     args.refreshTokenTtlSeconds ?? DEFAULT_REFRESH_TOKEN_TTL_SECONDS;
   if (accessTokenTtlSeconds <= 0 || refreshTokenTtlSeconds <= 0) {
     throw new Error("Token TTLs must be positive.");
+  }
+  // The client refreshes `REFRESH_SKEW_MS` before expiry, so an access-token
+  // lifetime at or below that window would mark every freshly minted token as
+  // already expired and drive an unbounded refresh loop. Reject it here.
+  if (accessTokenTtlSeconds * 1000 <= REFRESH_SKEW_MS) {
+    throw new Error(
+      `Access-token TTL must be greater than the client refresh window (${REFRESH_SKEW_MS / 1000}s).`,
+    );
   }
   if (accessTokenTtlSeconds >= refreshTokenTtlSeconds) {
     throw new Error(
