@@ -2,9 +2,14 @@ import { mutation, MutationCtx, QueryCtx, env } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { FunctionHandle } from "convex/server";
-import { vAuthClaims, type AuthClaims } from "../../lib/claims.js";
-import { vTokenBundle, type TokenBundle } from "../../lib/tokens.js";
+import {
+  vAuthClaims,
+  type AuthClaims,
+  vTokenBundle,
+  type TokenBundle,
+} from "../../lib/types.js";
 import { signJwt, generateRefreshToken, hashToken } from "./crypto.js";
+import { CreateOrUpdateUserFn } from "../../lib/types.js";
 
 // --- Configuration ---------------------------------------------------------
 
@@ -147,14 +152,9 @@ async function resolveAccount(
   createOrUpdateUserHandle: string,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
   const createOrUpdateUser = createOrUpdateUserHandle as FunctionHandle<
-    "mutation",
-    {
-      provider: string;
-      providerAccountId: string;
-      profile: Record<string, unknown>;
-      userId?: string;
-    },
-    string
+    CreateOrUpdateUserFn["_type"],
+    CreateOrUpdateUserFn["_args"],
+    CreateOrUpdateUserFn["_returnType"]
   >;
 
   const account = await accountByIdentity(

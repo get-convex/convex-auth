@@ -11,7 +11,7 @@ import { v } from "convex/values";
  *  - session lifetimes (`sessions`: refresh tokens, rotation, expiry)
  *
  * It does NOT know about any specific provider. Providers hand it identity
- * claims (see ../../lib/claims) and the core turns that into a session + JWT.
+ * claims (see ../../lib/types) and the core turns that into a session + JWT.
  */
 const component = defineComponent("core", {
   env: {

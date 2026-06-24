@@ -15,8 +15,7 @@ import {
   getCreateOrUpdateUserCalls,
   resetCreateOrUpdateUserCalls,
 } from "./testApp.js";
-import type { AuthClaims } from "../../lib/claims.js";
-import type { TokenBundle } from "../../lib/tokens.js";
+import type { AuthClaims, TokenBundle } from "../../lib/types.js";
 
 const modules = import.meta.glob("./**/*.ts");
 

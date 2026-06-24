@@ -1,39 +1,16 @@
 import {
   mutationGeneric,
   createFunctionHandle,
-  type FunctionReference,
   type GenericActionCtx,
 } from "convex/server";
 import { v } from "convex/values";
 import type { ComponentApi } from "./_generated/component.js";
-import { vTokenBundle, type TokenBundle } from "../../lib/tokens.js";
-import type { AuthClaims } from "../../lib/claims.js";
-
-/**
- * The shape of the app's user-persistence callback. The app passes
- * `internal.users.upsertFromAuth` (or equivalent) as `createOrUpdateUser`;
- * typing it here gives a compile error if that mutation's args/return drift from
- * what the core expects. The app keeps ownership of its users table — the core
- * only holds a reference to this one mutation.
- *
- * It serves every auth path: sign-in calls it with no `userId` the first time
- * an identity is seen (create the user, return the id) and with the resolved
- * `userId` on every later sign-in (update the user from the latest profile);
- * `linkToCurrentUser` calls it with the already-known `userId` (sync the
- * provider profile onto that user). Apps that don't need to react to the update
- * paths can simply ignore `userId`.
- */
-export type CreateOrUpdateUserFn = FunctionReference<
-  "mutation",
-  "internal",
-  {
-    provider: string;
-    providerAccountId: string;
-    profile: Record<string, unknown>;
-    userId?: string;
-  },
-  string
->;
+import {
+  vTokenBundle,
+  type TokenBundle,
+  type AuthClaims,
+} from "../../lib/types.js";
+import { CreateOrUpdateUserFn } from "../../lib/types.js";
 
 /**
  * Build the app-facing auth-core handlers from the mounted `core` component

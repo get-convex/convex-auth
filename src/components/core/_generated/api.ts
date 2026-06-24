@@ -12,6 +12,7 @@ import type * as crypto from "../crypto.js";
 import type * as http from "../http.js";
 import type * as public_ from "../public.js";
 import type * as setup from "../setup.js";
+import type * as testApp from "../testApp.js";
 
 import type {
   ApiFromModules,
@@ -25,6 +26,7 @@ const fullApi: ApiFromModules<{
   http: typeof http;
   public: typeof public_;
   setup: typeof setup;
+  testApp: typeof testApp;
 }> = anyApi as any;
 
 /**
