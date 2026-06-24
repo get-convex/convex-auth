@@ -2,6 +2,7 @@ import {
   mutationGeneric,
   createFunctionHandle,
   type GenericActionCtx,
+  type GenericMutationCtx,
 } from "convex/server";
 import { v } from "convex/values";
 import type { ComponentApi } from "./_generated/component.js";
@@ -9,6 +10,8 @@ import {
   vTokenBundle,
   type TokenBundle,
   type AuthClaims,
+  type AccountResolution,
+  type AccountLink,
 } from "../../lib/types.js";
 import { CreateOrUpdateUserFn } from "../../lib/types.js";
 
@@ -65,16 +68,17 @@ export function setupCore(opts: {
 
   // --- Provider building blocks --------------------------------------------
   //
-  // `completeSignIn` is a plain helper function, not a registered
-  // query/mutation, because it isn't an endpoint a client calls directly. It's
-  // composed *inside* a provider's own action: the provider authenticates the
-  // user its own way, then calls it (passing its own `ctx`) to talk to the
-  // core. It takes `ctx` and uses `ctx.runMutation` precisely so it can run
-  // within whatever provider function is already executing.
+  // `completeSignIn`, `completeAuthenticate`, and `linkAccount` are plain
+  // helper functions, not registered queries/mutations, because they aren't
+  // endpoints a client calls directly. They're composed *inside* a provider's
+  // own action or mutation: the provider authenticates the user its own way,
+  // then calls one of these (passing its own `ctx`) to talk to the core. They
+  // take `ctx` and use `ctx.runQuery`/`ctx.runMutation` precisely so they can
+  // run within whatever provider function is already executing.
   //
-  // The functions further down (`refreshSession`, `signOut`) are different:
-  // they have no provider-specific precondition, so they're registered
-  // mutations the app re-exports for the client to call.
+  // The functions further down (`linkToCurrentUser`, `refreshSession`,
+  // `signOut`) are different: they have no provider-specific precondition, so
+  // they're registered mutations the app re-exports for the client to call.
 
   /**
    * Hand a provider's identity claims to the core, passing a handle to the
@@ -99,6 +103,78 @@ export function setupCore(opts: {
       refreshTokenTtlSeconds,
     });
   };
+
+  /**
+   * Resolve a provider's claims against the core *without* minting a session,
+   * reporting whether the identity already maps to an app user.
+   *
+   * This is useful for authentication flows that shouldn't result in a new
+   * session.
+   */
+  const completeAuthenticate = async (
+    ctx: GenericActionCtx<any>,
+    claims: AuthClaims,
+  ): Promise<AccountResolution> => {
+    return await ctx.runQuery(component.public.authenticate, { claims });
+  };
+
+  /**
+   * Low-level linking primitive: attach a verified provider identity to an
+   * existing user without minting a session. The core owns the accounts table,
+   * so linking must go through here. Most apps don't call this directly. Instead they
+   * use the ready-made `linkToCurrentUser` mutation below. Reach for this only
+   * when writing a fully custom `authenticate` callback that conditionally links
+   * accounts.
+   */
+  const linkAccount = async (
+    ctx: GenericMutationCtx<any>,
+    claims: AuthClaims,
+    userId: string,
+  ): Promise<AccountLink> => {
+    return await ctx.runMutation(component.public.linkAccount, {
+      claims,
+      userId,
+    });
+  };
+
+  /**
+   * Ready-made handler for linking a verified identity onto the *currently
+   * signed-in* user. An app exports this directly as the mutation it calls once
+   * a provider has verified an additional identity for the signed-in user.
+   *
+   * It runs on the authenticated client, so `getUserIdentity()` is the active
+   * user (e.g. a guest user attaching a durable identity). The core rejects
+   * linking an identity that already belongs to a different user. The app's
+   * `createOrUpdateUser` callback is reused to sync the provider profile onto
+   * the user.
+   */
+  const linkToCurrentUser = mutationGeneric({
+    args: {
+      provider: v.string(),
+      providerAccountId: v.string(),
+      profile: v.any(),
+      // Accepted for callers that pass through the result of `authenticate`;
+      // the core enforces the conflict, so we only accept the field here rather
+      // than act on it.
+      existingUserId: v.optional(v.string()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args): Promise<null> => {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity) {
+        throw new Error("Must be signed in to link an account.");
+      }
+      const userId = identity.subject;
+      const claims: AuthClaims = {
+        provider: args.provider,
+        providerAccountId: args.providerAccountId,
+        profile: args.profile,
+      };
+      await linkAccount(ctx, claims, userId);
+      await ctx.runMutation(createOrUpdateUser, { ...claims, userId });
+      return null;
+    },
+  });
 
   /**
    * Refreshes a session using the given token, rotating the refresh token.
@@ -140,6 +216,9 @@ export function setupCore(opts: {
 
   return {
     completeSignIn,
+    completeAuthenticate,
+    linkAccount,
+    linkToCurrentUser,
     refreshSession,
     signOut,
   };

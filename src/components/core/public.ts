@@ -1,4 +1,10 @@
-import { mutation, MutationCtx, QueryCtx, env } from "./_generated/server";
+import {
+  mutation,
+  query,
+  MutationCtx,
+  QueryCtx,
+  env,
+} from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { FunctionHandle } from "convex/server";
@@ -7,6 +13,10 @@ import {
   type AuthClaims,
   vTokenBundle,
   type TokenBundle,
+  vAccountLink,
+  type AccountLink,
+  vAccountResolution,
+  AccountResolution,
 } from "../../lib/types.js";
 import { signJwt, generateRefreshToken, hashToken } from "./crypto.js";
 import { CreateOrUpdateUserFn } from "../../lib/types.js";
@@ -228,6 +238,59 @@ export const signIn = mutation({
       args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
     );
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
+  },
+});
+
+/**
+ * Resolve a provider identity *without* minting a session: report whether the
+ * identity is already linked to an app user, echoing the claims back alongside
+ * any `existingUserId`. This is the read-only counterpart to `signIn`.
+ */
+export const authenticate = query({
+  args: { claims: vAuthClaims },
+  returns: vAccountResolution,
+  handler: async (ctx, args): Promise<AccountResolution> => {
+    const account = await accountByIdentity(
+      ctx,
+      args.claims.provider,
+      args.claims.providerAccountId,
+    );
+    return {
+      provider: args.claims.provider,
+      providerAccountId: args.claims.providerAccountId,
+      profile: args.claims.profile,
+      existingUserId: account?.userId,
+    };
+  },
+});
+
+/**
+ * Link a provider identity to an already-existing user (no session is minted).
+ *
+ * Idempotent: if the identity is already linked to `userId`, the profile is
+ * refreshed and `linked: false` is returned. Linking an identity that already
+ * belongs to a *different* user is rejected.
+ */
+export const linkAccount = mutation({
+  args: { claims: vAuthClaims, userId: v.string() },
+  returns: vAccountLink,
+  handler: async (ctx, args): Promise<AccountLink> => {
+    const { provider, providerAccountId, profile } = args.claims;
+    const existing = await accountByIdentity(ctx, provider, providerAccountId);
+    if (existing) {
+      if (existing.userId !== args.userId) {
+        throw new Error("This identity is already linked to a different user.");
+      }
+      await ctx.db.patch(existing._id, { profile });
+      return { linked: false, userId: existing.userId };
+    }
+    await ctx.db.insert("accounts", {
+      provider,
+      providerAccountId,
+      userId: args.userId,
+      profile,
+    });
+    return { linked: true, userId: args.userId };
   },
 });
 
