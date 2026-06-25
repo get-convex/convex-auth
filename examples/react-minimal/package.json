@@ -1,0 +1,17 @@
+{
+  "name": "@convex-dev/auth-example-react-minimal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@convex-dev/auth": "file:../..",
+    "convex": "^1.40.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.5.2",
+    "vite": "^5.0.0"
+  }
+}

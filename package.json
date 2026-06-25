@@ -23,9 +23,16 @@
     "src"
   ],
   "type": "module",
-  "bin": "./dist/bin.cjs",
+  "bin": {
+    "convex-auth": "./dist/bin.cjs",
+    "generate-auth-keys": "./scripts/generate-auth-keys.mjs"
+  },
   "sideEffects": false,
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint:auth": "eslint src/lib src/components",
+    "test:auth": "vitest run",
+    "test:auth:watch": "vitest",
     "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --format=cjs --outfile=dist/bin.cjs",
     "build:server": "tsc --project tsconfig.server.json",
     "build:react": "tsc --project tsconfig.react.json && shx mkdir -p dist && shx rm -rf dist/react && shx mv distreact/react dist/react && shx rm -r distreact",
@@ -44,6 +51,8 @@
     "test:once": "cd test && npm run test:once"
   },
   "exports": {
+    "./lib/*": "./src/lib/*",
+    "./core/*": "./src/components/core/*",
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
@@ -99,7 +108,7 @@
     "@types/react": "^18.3.12",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "chalk": "^5.3.0",
-    "convex-test": "^0.0.20",
+    "convex-test": "^0.0.53",
     "cspell": "^10.0.0",
     "dotenv": "^17.0.0",
     "eslint": "8.49.0",
