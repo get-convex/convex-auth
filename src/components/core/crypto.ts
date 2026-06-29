@@ -10,12 +10,11 @@ export async function signJwt(opts: {
   issuer: string;
   audience: string;
   expiresInSeconds: number;
-  claims?: Record<string, unknown>;
 }): Promise<{ token: string; expiresAt: number }> {
   const key = await importPKCS8(opts.privateKeyPkcs8, ALG);
   const nowSeconds = Math.floor(Date.now() / 1000);
   const expSeconds = nowSeconds + opts.expiresInSeconds;
-  const token = await new SignJWT({ ...opts.claims })
+  const token = await new SignJWT()
     .setProtectedHeader({ alg: ALG, kid: opts.kid, typ: "JWT" })
     .setSubject(opts.subject)
     .setIssuer(opts.issuer)

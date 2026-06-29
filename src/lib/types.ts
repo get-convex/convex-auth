@@ -1,6 +1,6 @@
 import { FunctionReference } from "convex/server";
 
-import { Infer, v } from "convex/values";
+import { GenericId, Infer, v } from "convex/values";
 
 /**
  * Shared contracts that cross the core/app boundary. That includes validators (and
@@ -58,10 +58,11 @@ export const vCreateOrUpdateUser = v.object({
  *
  *  1. The first time a user signs in with an account from a provider.
  *    * The `userId` argument will not be present in this case.
- *    * The application should create a new user record or use trusted data
- *      (e.g. a verified email) in the `profile` to link to an existing
- *      user record.
- *    * The `_id` of the newly created user should be the return value.
+ *    * The application should do one of:
+ *      a. Create a new user record and return its `_id`
+ *      b. Use trusted information in the `profile` (e.g. a verified email)
+ *         to associate the account with an existing user, and return its
+ *         `_id`
  *  2. Subsequent sign ins from a provider
  *    * The `userId` argument will be present.
  *    * The application may use the data in `profile` to update or otherwise
@@ -78,5 +79,5 @@ export type CreateOrUpdateUserFn = FunctionReference<
   "mutation",
   "internal",
   Infer<typeof vCreateOrUpdateUser>,
-  string
+  GenericId<"users">
 >;
