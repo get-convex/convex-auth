@@ -1,0 +1,25 @@
+{
+  "comment": "Base config for the legacy dist build (server/react/nextjs). The root tsconfig.json has been repurposed for the new component foundation (Bundler resolution, isolatedModules, noEmit), so the legacy build keeps its own emit-oriented settings here. Remove once the legacy build is gone.",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["esnext", "ESNext.Array", "dom", "dom.iterable"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "types":["node"],
+    "paths": {
+      "@convex-dev/auth/server": ["./src/server/index"],
+      "@convex-dev/auth/providers/*": ["./src/providers/*"],
+      "@convex-dev/auth/react": ["./src/react/index"]
+    }
+  }
+}
