@@ -137,6 +137,12 @@ async function issueSession(
   };
 }
 
+type CreateOrUpdateUserFunctionHandle = FunctionHandle<
+  CreateOrUpdateUserFn["_type"],
+  CreateOrUpdateUserFn["_args"],
+  CreateOrUpdateUserFn["_returnType"]
+>;
+
 /**
  * Resolve a provider identity to its account, creating one (and the app user
  * behind it) the first time the identity is seen. The app's user callback runs
@@ -149,14 +155,8 @@ async function issueSession(
 async function resolveAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
-  createOrUpdateUserHandle: string,
+  createOrUpdateUser: CreateOrUpdateUserFunctionHandle,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
-  const createOrUpdateUser = createOrUpdateUserHandle as FunctionHandle<
-    CreateOrUpdateUserFn["_type"],
-    CreateOrUpdateUserFn["_args"],
-    CreateOrUpdateUserFn["_returnType"]
-  >;
-
   const account = await accountByIdentity(
     ctx,
     claims.provider,
@@ -164,14 +164,20 @@ async function resolveAccount(
   );
   if (account) {
     // Returning identity: hand the app the latest claims with the known user id
-    // so it can update its own user record, then refresh the profile we hold.
-    await ctx.runMutation(createOrUpdateUser, {
-      provider: claims.provider,
-      providerAccountId: claims.providerAccountId,
-      profile: claims.profile,
-      userId: account.userId,
-    });
-    await ctx.db.patch(account._id, { profile: claims.profile });
+    // so it can update its own user record.
+    if (
+      account.userId !==
+      (await ctx.runMutation(createOrUpdateUser, {
+        provider: claims.provider,
+        providerAccountId: claims.providerAccountId,
+        profile: claims.profile,
+        userId: account.userId,
+      }))
+    ) {
+      throw new Error(
+        "createOrUpdateUser may not return a new userId for an existing user",
+      );
+    }
     return { accountId: account._id, userId: account.userId };
   }
 
@@ -181,12 +187,12 @@ async function resolveAccount(
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
+    userId: null,
   });
   const accountId = await ctx.db.insert("accounts", {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     userId,
-    profile: claims.profile,
   });
   return { accountId, userId };
 }
@@ -219,7 +225,7 @@ export const signIn = mutation({
     const { accountId, userId } = await resolveAccount(
       ctx,
       args.claims,
-      args.createOrUpdateUserHandle,
+      args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
     );
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
   },
@@ -267,7 +273,7 @@ export const refresh = mutation({
     if (session.refreshTokenExpiresAt < now) {
       // Past its refresh-token lifetime: delete the dead row and report no
       // session.
-      await ctx.db.delete(session._id);
+      await ctx.db.delete("sessions", session._id);
       return null;
     }
 
@@ -276,7 +282,7 @@ export const refresh = mutation({
     const refreshTokenExpiresAt = now + ttl.refreshTokenTtlSeconds * 1000;
     // Retain the hash we're replacing as the previous one, valid for the grace
     // window, then swap in the freshly-minted token as current.
-    await ctx.db.patch(session._id, {
+    await ctx.db.patch("sessions", session._id, {
       refreshTokenHash: newRefreshTokenHash,
       refreshTokenExpiresAt,
       previousRefreshTokenHash: session.refreshTokenHash,
@@ -308,7 +314,7 @@ export const signOut = mutation({
       ctx,
       await hashToken(args.refreshToken),
     );
-    if (session) await ctx.db.delete(session._id);
+    if (session) await ctx.db.delete("sessions", session._id);
     return null;
   },
 });

@@ -43,29 +43,40 @@ export const vAuthClaims = v.object({
 
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
+export const vCreateOrUpdateUser = v.object({
+  provider: v.string(),
+  providerAccountId: v.string(),
+  profile: v.any(),
+  userId: v.union(v.string(), v.null()),
+});
 
 /**
- * The shape of the app's user-persistence callback. The app passes
- * `internal.users.upsertFromAuth` (or equivalent) as `createOrUpdateUser`;
- * typing it here gives a compile error if that mutation's args/return drift from
- * what the core expects. The app keeps ownership of its users table — the core
- * only holds a reference to this one mutation.
+ * This function type represents the core entrypoint for an application
+ * to integrate its user model with Convex Auth.
  *
- * It serves every auth path: sign-in calls it with no `userId` the first time
- * an identity is seen (create the user, return the id) and with the resolved
- * `userId` on every later sign-in (update the user from the latest profile);
- * `linkToCurrentUser` calls it with the already-known `userId` (sync the
- * provider profile onto that user). Apps that don't need to react to the update
- * paths can simply ignore `userId`.
+ * It will be called in two scenarios, both associated with a user signing in:
+ *
+ *  1. The first time a user signs in with an account from a provider.
+ *    * The `userId` argument will not be present in this case.
+ *    * The application should create a new user record or use trusted data
+ *      (e.g. a verified email) in the `profile` to link to an existing
+ *      user record.
+ *    * The `_id` of the newly created user should be the return value.
+ *  2. Subsequent sign ins from a provider
+ *    * The `userId` argument will be present.
+ *    * The application may use the data in `profile` to update or otherwise
+ *      modify the stored user record.
+ *    * The existing `userId` must be the return value.
+ *
+ * The application keeps ownership of its users table — the core only holds a
+ * reference to this one mutation.
+ *
+ * If an application wants to reject a sign in, it can throw a `ConvexError`
+ * and the entire sign in attempt will be blocked.
  */
 export type CreateOrUpdateUserFn = FunctionReference<
   "mutation",
   "internal",
-  {
-    provider: string;
-    providerAccountId: string;
-    profile: Record<string, unknown>;
-    userId?: string;
-  },
+  Infer<typeof vCreateOrUpdateUser>,
   string
 >;

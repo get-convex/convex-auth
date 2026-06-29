@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 import { convexTest } from "convex-test";
 import { beforeAll, describe, expect, test } from "vitest";
 import {
@@ -103,19 +102,17 @@ describe("signIn", () => {
 
     expect(second.userId).toBe(first.userId);
 
-    const { accounts, sessions, profile } = await t.run(async (ctx) => {
+    const { accounts, sessions } = await t.run(async (ctx) => {
       const accountDocs = await ctx.db.query("accounts").collect();
       const sessionDocs = await ctx.db.query("sessions").collect();
       return {
         accounts: accountDocs.length,
         sessions: sessionDocs.length,
-        profile: accountDocs[0]?.profile,
       };
     });
     // One account reused, profile refreshed; a fresh session per sign-in.
     expect(accounts).toBe(1);
     expect(sessions).toBe(2);
-    expect(profile).toEqual({ name: "Alice 2.0" });
   });
 
   test("invokes the app's user callback on every sign-in", async () => {
@@ -129,7 +126,7 @@ describe("signIn", () => {
     // Called both times. First sign-in mints the user (no `userId`); the return
     // carries the known `userId` so the app can update its own user record.
     expect(calls).toHaveLength(2);
-    expect(calls[0].userId).toBeUndefined();
+    expect(calls[0].userId).toBeNull();
     expect(calls[0].profile).toEqual({ name: "Alice" });
     expect(calls[1].userId).toBe("alice");
     expect(calls[1].profile).toEqual({ name: "Alice 2.0" });

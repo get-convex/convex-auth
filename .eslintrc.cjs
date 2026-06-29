@@ -11,8 +11,6 @@ module.exports = {
     "docs",
     "dist",
     "prototype",
-    "examples",
-    "scripts",
     "vitest.config.ts",
     "test-nextjs/backendHarness.js",
   ],

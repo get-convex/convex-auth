@@ -1,5 +1,6 @@
+import { vCreateOrUpdateUser } from "../../lib/types";
 import { internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import { Infer, v } from "convex/values";
 
 /**
  * Test-only spy state. The core calls the app's user callback on every sign-in
@@ -11,12 +12,7 @@ import { v } from "convex/values";
  * state. This file is excluded from the published build, so the global state
  * never reaches production.
  */
-type CreateOrUpdateUserCall = {
-  provider: string;
-  providerAccountId: string;
-  profile: unknown;
-  userId?: string;
-};
+type CreateOrUpdateUserCall = Infer<typeof vCreateOrUpdateUser>;
 const createOrUpdateUserCalls: CreateOrUpdateUserCall[] = [];
 
 /** Read the recorded `createOrUpdateUser` calls (test-only). */
@@ -38,12 +34,7 @@ export function resetCreateOrUpdateUserCalls(): void {
  * path).
  */
 export const createOrUpdateUser = internalMutation({
-  args: {
-    provider: v.string(),
-    providerAccountId: v.string(),
-    profile: v.any(),
-    userId: v.optional(v.string()),
-  },
+  args: vCreateOrUpdateUser,
   returns: v.string(),
   handler: async (_ctx, args) => {
     createOrUpdateUserCalls.push({ ...args });

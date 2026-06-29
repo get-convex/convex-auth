@@ -28,13 +28,26 @@ import { CreateOrUpdateUserFn } from "../../lib/types.js";
  * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
  * and (since the client refreshes shortly before expiry) comfortably longer
  * than a few seconds.
+ *
+ * Changes to token TTLs impact newly minted tokens, not ones that have
+ * already been issued.
  */
 export function setupCore(opts: {
   component: ComponentApi;
   createOrUpdateUser: CreateOrUpdateUserFn;
-  /** Access-token lifetime in seconds. Defaults to 60 (1 minute). */
+  /**
+   * Access-token lifetime in seconds. Defaults to 60 (1 minute).
+   *
+   * Changes to this value impact newly minted tokens, not ones that have
+   * already been issued.
+   */
   accessTokenTtlSeconds?: number;
-  /** Refresh-token lifetime in seconds. Defaults to 30 days. */
+  /**
+   * Refresh-token lifetime in seconds. Defaults to 30 days.
+   *
+   * Changes to this value impact newly minted tokens, not ones that have
+   * already been issued.
+   */
   refreshTokenTtlSeconds?: number;
 }) {
   const {

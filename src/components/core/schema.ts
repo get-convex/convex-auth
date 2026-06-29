@@ -8,7 +8,6 @@ export default defineSchema({
     provider: v.string(),
     providerAccountId: v.string(),
     userId: v.string(),
-    profile: v.any(),
   })
     .index("by_provider_account", ["provider", "providerAccountId"])
     .index("by_user", ["userId"]),
