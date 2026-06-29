@@ -259,7 +259,7 @@ export const authenticate = query({
       provider: args.claims.provider,
       providerAccountId: args.claims.providerAccountId,
       profile: args.claims.profile,
-      existingUserId: account?.userId,
+      userId: account?.userId ?? null,
     };
   },
 });
@@ -267,28 +267,26 @@ export const authenticate = query({
 /**
  * Link a provider identity to an already-existing user (no session is minted).
  *
- * Idempotent: if the identity is already linked to `userId`, the profile is
- * refreshed and `linked: false` is returned. Linking an identity that already
- * belongs to a *different* user is rejected.
+ * Idempotent: if the identity is already linked to `userId`, `linked: false`
+ * is returned. Linking an identity that already belongs to a *different* user
+ * is rejected.
  */
 export const linkAccount = mutation({
   args: { claims: vAuthClaims, userId: v.string() },
   returns: vAccountLink,
   handler: async (ctx, args): Promise<AccountLink> => {
-    const { provider, providerAccountId, profile } = args.claims;
+    const { provider, providerAccountId } = args.claims;
     const existing = await accountByIdentity(ctx, provider, providerAccountId);
     if (existing) {
       if (existing.userId !== args.userId) {
         throw new Error("This identity is already linked to a different user.");
       }
-      await ctx.db.patch(existing._id, { profile });
       return { linked: false, userId: existing.userId };
     }
     await ctx.db.insert("accounts", {
       provider,
       providerAccountId,
       userId: args.userId,
-      profile,
     });
     return { linked: true, userId: args.userId };
   },

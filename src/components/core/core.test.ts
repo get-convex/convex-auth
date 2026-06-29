@@ -279,14 +279,14 @@ describe("authenticate", () => {
     const c = claims({ provider: "google", providerAccountId: "g-known" });
 
     const unknown = await t.query(api.public.authenticate, { claims: c });
-    expect(unknown.existingUserId).toBeUndefined();
+    expect(unknown.userId).toBeNull();
     expect(unknown.provider).toBe("google");
     expect(unknown.providerAccountId).toBe("g-known");
 
     await signIn(t, c);
 
     const known = await t.query(api.public.authenticate, { claims: c });
-    expect(known.existingUserId).toBe("g-known");
+    expect(known.userId).toBe("g-known");
   });
 });
 

@@ -1,4 +1,4 @@
-import { vCreateOrUpdateUser } from "../../lib/types";
+import { vAccountResolution } from "../../lib/types";
 import { internalMutation } from "./_generated/server";
 import { Infer, v } from "convex/values";
 
@@ -12,7 +12,7 @@ import { Infer, v } from "convex/values";
  * state. This file is excluded from the published build, so the global state
  * never reaches production.
  */
-type CreateOrUpdateUserCall = Infer<typeof vCreateOrUpdateUser>;
+type CreateOrUpdateUserCall = Infer<typeof vAccountResolution>;
 const createOrUpdateUserCalls: CreateOrUpdateUserCall[] = [];
 
 /** Read the recorded `createOrUpdateUser` calls (test-only). */
@@ -34,7 +34,7 @@ export function resetCreateOrUpdateUserCalls(): void {
  * path).
  */
 export const createOrUpdateUser = internalMutation({
-  args: vCreateOrUpdateUser,
+  args: vAccountResolution,
   returns: v.string(),
   handler: async (_ctx, args) => {
     createOrUpdateUserCalls.push({ ...args });

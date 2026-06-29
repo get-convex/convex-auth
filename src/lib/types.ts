@@ -43,12 +43,14 @@ export const vAuthClaims = v.object({
 
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
-export const vCreateOrUpdateUser = v.object({
+export const vAccountResolution = v.object({
   provider: v.string(),
   providerAccountId: v.string(),
   profile: v.any(),
   userId: v.union(v.string(), v.null()),
 });
+
+export type AccountResolution = Infer<typeof vAccountResolution>;
 
 /**
  * This function type represents the core entrypoint for an application
@@ -78,24 +80,9 @@ export const vCreateOrUpdateUser = v.object({
 export type CreateOrUpdateUserFn = FunctionReference<
   "mutation",
   "internal",
-  Infer<typeof vCreateOrUpdateUser>,
+  Infer<typeof vAccountResolution>,
   GenericId<"users">
 >;
-
-/**
- * The result of resolving a provider identity *without* minting a session: the
- * claims as given, plus the existing app user id if that identity is already
- * known. Lets the app decide what to do (sign in, link, create) before any
- * session exists.
- */
-export const vAccountResolution = v.object({
-  provider: v.string(),
-  providerAccountId: v.string(),
-  profile: v.any(),
-  existingUserId: v.optional(v.string()),
-});
-
-export type AccountResolution = Infer<typeof vAccountResolution>;
 
 /**
  * The result of linking a provider identity onto an existing app user.
