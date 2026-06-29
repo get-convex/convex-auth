@@ -10,6 +10,8 @@ module.exports = {
     "test",
     "docs",
     "dist",
+    "prototype",
+    "vitest.config.ts",
     "test-nextjs/backendHarness.js",
   ],
   parser: "@typescript-eslint/parser",

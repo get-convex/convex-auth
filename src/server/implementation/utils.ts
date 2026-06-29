@@ -19,7 +19,8 @@ export async function sha256(input: string) {
 export function generateRandomString(length: number, alphabet: string) {
   const random: RandomReader = {
     read(bytes) {
-      crypto.getRandomValues(bytes);
+      // Cast fixes build error in legacy code we will be removing.
+      crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>);
     },
   };
 
@@ -46,7 +47,7 @@ type LogLevel = keyof typeof LOG_LEVELS;
 export function logWithLevel(level: LogLevel, ...args: unknown[]) {
   const configuredLogLevel =
     LOG_LEVELS[
-      (process.env.AUTH_LOG_LEVEL as LogLevel | undefined) ?? "INFO"
+    (process.env.AUTH_LOG_LEVEL as LogLevel | undefined) ?? "INFO"
     ] ?? "INFO";
   switch (level) {
     case "ERROR":

@@ -2,27 +2,23 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "lib": ["esnext", "ESNext.Array", "dom", "dom.iterable"],
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "dist",
-    "allowJs": true,
-    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "strict": true,
     "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowJs": true,
     "jsx": "react-jsx",
-    "moduleResolution": "node",
-    "paths": {
-      "@convex-dev/auth/server": ["./src/server/index"],
-      "@convex-dev/auth/providers/*": ["./src/providers/*"],
-      "@convex-dev/auth/react": ["./src/react/index"]
-    }
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["node"]
   },
-  "include": ["**/*.ts", "**/*.tsx", "*.mjs"],
+  "include": ["src/lib/**/*", "src/components/**/*"],
   "exclude": [
     "node_modules",
     "dist",
+    "prototype",
+    "examples",
     "docs",
     "test",
     "test-router",
