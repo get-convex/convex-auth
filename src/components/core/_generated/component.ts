@@ -31,10 +31,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           claims: { profile: any; provider: string; providerAccountId: string };
         },
         {
-          existingUserId?: string;
           profile: any;
           provider: string;
           providerAccountId: string;
+          userId: string | null;
         },
         Name
       >;
