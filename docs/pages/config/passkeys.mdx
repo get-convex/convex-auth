@@ -110,6 +110,14 @@ export function PasskeySignIn() {
 }
 ```
 
+<Callout type="warning">
+  Always pass an `email` (and optionally a `name`). Besides creating the
+  account, they become the passkey's WebAuthn `userName` / `userDisplayName` —
+  the label the authenticator and password manager show the user. Omit both and
+  the credential is stored under the literal default **`"passkey"`**, so a
+  password manager displays it as an indistinguishable **"passkey passkey"**.
+</Callout>
+
 If you prefer explicit control, the hook also exposes the lower-level
 `signInWithPasskey()` (usernameless, discoverable) and `registerPasskey()`.
 
@@ -202,6 +210,121 @@ Passkey({
   },
 });
 ```
+
+## Verifying the email address
+
+A passkey proves the user controls an _authenticator_ — not that they own the
+_email_ they typed at sign-up. If you collect an email (above) and want to trust
+it (to send invites, receipts, notifications…), verify it with a link.
+
+Do this **server-side**, from the `afterUserCreatedOrUpdated` callback. It runs
+once, in a mutation, right after the account is created.
+
+<Callout type="warning">
+  Don't call an action from the client immediately after
+  `signInOrRegisterWithPasskey` resolves to send the email. At that instant the
+  new session's token may not have propagated to the Convex client yet, so the
+  action runs **unauthenticated** and silently does nothing. The callback has
+  the `userId` directly and avoids the race entirely.
+</Callout>
+
+```ts filename="convex/auth.ts"
+import { Passkey } from "@convex-dev/auth/providers/Passkey";
+import { convexAuth } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [Passkey],
+  callbacks: {
+    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
+      // `existingUserId` is null only for a brand-new sign-up.
+      if (existingUserId !== null) return;
+      await ctx.scheduler.runAfter(0, internal.emailVerification.send, {
+        userId,
+      });
+    },
+  },
+});
+```
+
+The scheduled action mints a single-use token, stores it, and emails a link. Any
+email provider works — here it's the
+[`@convex-dev/resend`](https://www.convex.dev/components/resend) component:
+
+```ts filename="convex/emailVerification.ts"
+import { v } from "convex/values";
+import { internalAction, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { resend } from "./sendEmails"; // your configured Resend client
+
+export const send = internalAction({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const info = await ctx.runMutation(internal.emailVerification.mintToken, {
+      userId,
+    });
+    if (info === null) return; // no email on file
+    const link = `${process.env.SITE_URL}/verify/${info.token}`;
+    await resend.sendEmail(ctx, {
+      from: "My App <verify@myapp.com>",
+      to: info.email,
+      subject: "Verify your email",
+      html: `<a href="${link}">Verify my email</a>`,
+    });
+  },
+});
+
+export const mintToken = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user?.email) return null;
+    const token = crypto.randomUUID().replace(/-/g, "");
+    await ctx.db.insert("emailVerifications", {
+      userId,
+      email: user.email,
+      token,
+    });
+    return { token, email: user.email };
+  },
+});
+
+export const consume = internalMutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const row = await ctx.db
+      .query("emailVerifications")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .unique();
+    if (row === null) return null;
+    await ctx.db.patch(row._id, { verifiedAt: Date.now() });
+    return { email: row.email };
+  },
+});
+```
+
+Add the table (with an index on `token`) to your schema, and point the emailed
+link at an `httpAction` that runs `consume` and renders a confirmation page:
+
+```ts filename="convex/http.ts"
+http.route({
+  pathPrefix: "/verify/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const token = new URL(req.url).pathname.slice("/verify/".length);
+    const res = await ctx.runMutation(internal.emailVerification.consume, {
+      token,
+    });
+    return new Response(res ? "Email verified — you can close this tab." : "Invalid link", {
+      status: res ? 200 : 404,
+      headers: { "Content-Type": "text/html" },
+    });
+  }),
+});
+```
+
+Clicking the emailed link is itself the proof of ownership, so no passkey prompt
+is needed to finish verifying — the user can even open it on another device.
 
 ## How it works
 
