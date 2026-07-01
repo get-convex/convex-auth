@@ -46,8 +46,9 @@ export async function signInImpl(
   | { kind: "signedIn"; signedIn: SessionInfo | null }
   // refresh tokens
   | { kind: "refreshTokens"; signedIn: { tokens: Tokens } }
-  // Multi-step flows like magic link + OTP
-  | { kind: "started"; started: true }
+  // Multi-step flows like magic link + OTP, or a credentials provider
+  // returning data to the client (such as a passkey challenge)
+  | { kind: "started"; started: true; data?: Record<string, any> }
   // OAuth2 and OIDC flows
   | { kind: "redirect"; redirect: string; verifier: string }
 > {
@@ -187,10 +188,18 @@ async function handleCredentials(
   options: {
     generateTokens: boolean;
   },
-): Promise<{ kind: "signedIn"; signedIn: SessionInfo | null }> {
+): Promise<
+  | { kind: "signedIn"; signedIn: SessionInfo | null }
+  | { kind: "started"; started: true; data?: Record<string, any> }
+> {
   const result = await provider.authorize(args.params ?? {}, ctx);
   if (result === null) {
     return { kind: "signedIn", signedIn: null };
+  }
+  // The provider returned a payload to relay to the client (for example a
+  // passkey challenge) instead of signing the user in.
+  if (!("userId" in result)) {
+    return { kind: "started", started: true, data: result.data };
   }
   const idsAndTokens = await callSignIn(ctx, {
     userId: result.userId,

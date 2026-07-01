@@ -1,0 +1,347 @@
+import { Steps } from "nextra/components";
+import { Callout } from "nextra/components";
+
+# Passkeys
+
+> Make sure you're done with [setup](/setup) before configuring authentication
+> methods
+
+[Passkeys](https://passkeys.dev/) (WebAuthn) let your users sign up and sign in
+with a device-bound or synced credential — Face ID, Touch ID, Windows Hello, a
+security key, or a password manager — instead of a password. There's nothing for
+the user to remember and nothing for you to store that can be phished or leaked.
+
+Convex Auth ships passkey support out of the box: a `Passkey` provider for your
+backend and a `usePasskeyAuth` hook for your frontend that drives the whole
+WebAuthn ceremony for you.
+
+<Callout type="info">
+  Passkeys are bound to a domain (the "Relying Party ID"). They work on
+  `localhost` during development and on your production domain once deployed. A
+  passkey created on one domain cannot be used on another.
+</Callout>
+
+## Passkeys setup
+
+<Steps>
+
+### Provider configuration
+
+Add the provider to the `providers` array in `convex/auth.ts`. Import `Passkey`
+from `@convex-dev/auth/providers/Passkey`:
+
+```ts filename="convex/auth.ts"
+import { Passkey } from "@convex-dev/auth/providers/Passkey";
+import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [Passkey],
+});
+```
+
+By default the Relying Party is derived from your `SITE_URL` environment
+variable: the origin is `SITE_URL` and the RP ID is its hostname. You can
+override any of these:
+
+```ts filename="convex/auth.ts"
+Passkey({
+  rp: {
+    id: "example.com",
+    name: "My App",
+    origin: "https://example.com",
+    // or multiple: origin: ["https://example.com", "https://www.example.com"],
+  },
+});
+```
+
+These can also be set via the `AUTH_PASSKEY_RP_ID`, `AUTH_PASSKEY_RP_NAME` and
+`AUTH_PASSKEY_ORIGIN` environment variables.
+
+### Schema
+
+The `Passkey` provider stores each credential in the `authAccounts` table and
+keeps single-use challenges in the `authPasskeyChallenges` table. Both come from
+`authTables`, so as long as you spread `authTables` into your schema there's
+nothing extra to do:
+
+```ts filename="convex/schema.ts"
+import { defineSchema } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
+
+const schema = defineSchema({
+  ...authTables,
+});
+
+export default schema;
+```
+
+### Register and sign in on the client
+
+Use the `usePasskeyAuth` hook. The simplest setup is a single email field with
+`signInOrRegisterWithPasskey`: it signs the user in if that email already has a
+passkey, and registers a new one (creating the account) if it doesn't — so you
+don't need separate "sign in" and "sign up" buttons.
+
+```tsx filename="src/PasskeySignIn.tsx"
+import { usePasskeyAuth } from "@convex-dev/auth/react";
+import { useState } from "react";
+
+export function PasskeySignIn() {
+  const { signInOrRegisterWithPasskey } = usePasskeyAuth();
+  const [email, setEmail] = useState("");
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const { registered } = await signInOrRegisterWithPasskey({ email });
+        // `registered` is true when a brand new account+passkey was created.
+      }}
+    >
+      <input
+        name="email"
+        autoComplete="username webauthn"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@example.com"
+      />
+      <button type="submit">Continue with a passkey</button>
+    </form>
+  );
+}
+```
+
+<Callout type="warning">
+  Always pass an `email` (and optionally a `name`). Besides creating the
+  account, they become the passkey's WebAuthn `userName` / `userDisplayName` —
+  the label the authenticator and password manager show the user. Omit both and
+  the credential is stored under the literal default **`"passkey"`**, so a
+  password manager displays it as an indistinguishable **"passkey passkey"**.
+</Callout>
+
+If you prefer explicit control, the hook also exposes the lower-level
+`signInWithPasskey()` (usernameless, discoverable) and `registerPasskey()`.
+
+#### Email-first vs. enumeration
+
+`signInOrRegisterWithPasskey` works because, by default, the provider looks up
+the email and tells the client whether it already has passkeys (and offers them
+via `allowCredentials`, so security keys and passkeys synced to another device
+also work). This means an attacker can learn whether an email is registered —
+**account enumeration**. If that's not an acceptable trade-off for your app,
+disable it:
+
+```ts filename="convex/auth.ts"
+Passkey({ allowCredentialsByIdentifier: false });
+```
+
+With it disabled, sign-in is discoverable-only (the browser shows the passkeys
+on the device); usernameless sign-in and autofill still work.
+
+### Smoothest sign-in: passkey autofill (conditional mediation)
+
+A "Sign in with a passkey" button is confusing for users who don't know what a
+passkey is. Instead, let the browser surface passkeys directly in your normal
+email field via _conditional mediation_ (autofill). The user just clicks the
+field and picks their account — the password manager even remembers which email
+goes with which passkey, so there's nothing to type or recall.
+
+Call `startConditionalPasskeySignIn` when the form mounts and add the
+`webauthn` token to your field's `autoComplete`:
+
+```tsx filename="src/SignInForm.tsx"
+import { usePasskeyAuth } from "@convex-dev/auth/react";
+import { useEffect } from "react";
+
+export function SignInForm() {
+  const { startConditionalPasskeySignIn } = usePasskeyAuth();
+
+  useEffect(() => {
+    // No-op on browsers without autofill support; resolves once the user
+    // picks a passkey from the field's dropdown.
+    void startConditionalPasskeySignIn();
+  }, [startConditionalPasskeySignIn]);
+
+  return (
+    <form>
+      <input name="email" autoComplete="username webauthn" />
+      {/* ...rest of your form (password, magic link, etc.) */}
+    </form>
+  );
+}
+```
+
+This degrades gracefully: on browsers that don't support autofill it does
+nothing, and your other sign-in methods (and the explicit `signInWithPasskey` /
+`registerPasskey` buttons) keep working. Use `isConditionalPasskeySupported()`
+if you want to branch your UI.
+
+### Add a passkey to an existing user
+
+Call `registerPasskey` while the user is already signed in (for example via
+password or OAuth). The new passkey is linked to the current user instead of
+creating a new one:
+
+```tsx filename="src/AddPasskey.tsx"
+import { usePasskeyAuth } from "@convex-dev/auth/react";
+
+export function AddPasskey() {
+  const { registerPasskey } = usePasskeyAuth();
+  return (
+    <button onClick={() => void registerPasskey()}>Add a passkey</button>
+  );
+}
+```
+
+</Steps>
+
+## Customizing the new user
+
+When a brand new user signs up with a passkey, you can control what's stored in
+the `users` table with the `profile` callback. It receives the params you pass
+to `registerPasskey`:
+
+```ts filename="convex/auth.ts"
+Passkey({
+  profile(params) {
+    return {
+      email: params.email as string,
+      name: params.name as string,
+    };
+  },
+});
+```
+
+## Verifying the email address
+
+A passkey proves the user controls an _authenticator_ — not that they own the
+_email_ they typed at sign-up. If you collect an email (above) and want to trust
+it (to send invites, receipts, notifications…), verify it with a link.
+
+Do this **server-side**, from the `afterUserCreatedOrUpdated` callback. It runs
+once, in a mutation, right after the account is created.
+
+<Callout type="warning">
+  Don't call an action from the client immediately after
+  `signInOrRegisterWithPasskey` resolves to send the email. At that instant the
+  new session's token may not have propagated to the Convex client yet, so the
+  action runs **unauthenticated** and silently does nothing. The callback has
+  the `userId` directly and avoids the race entirely.
+</Callout>
+
+```ts filename="convex/auth.ts"
+import { Passkey } from "@convex-dev/auth/providers/Passkey";
+import { convexAuth } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
+
+export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
+  providers: [Passkey],
+  callbacks: {
+    async afterUserCreatedOrUpdated(ctx, { userId, existingUserId }) {
+      // `existingUserId` is null only for a brand-new sign-up.
+      if (existingUserId !== null) return;
+      await ctx.scheduler.runAfter(0, internal.emailVerification.send, {
+        userId,
+      });
+    },
+  },
+});
+```
+
+The scheduled action mints a single-use token, stores it, and emails a link. Any
+email provider works — here it's the
+[`@convex-dev/resend`](https://www.convex.dev/components/resend) component:
+
+```ts filename="convex/emailVerification.ts"
+import { v } from "convex/values";
+import { internalAction, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { resend } from "./sendEmails"; // your configured Resend client
+
+export const send = internalAction({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const info = await ctx.runMutation(internal.emailVerification.mintToken, {
+      userId,
+    });
+    if (info === null) return; // no email on file
+    const link = `${process.env.SITE_URL}/verify/${info.token}`;
+    await resend.sendEmail(ctx, {
+      from: "My App <verify@myapp.com>",
+      to: info.email,
+      subject: "Verify your email",
+      html: `<a href="${link}">Verify my email</a>`,
+    });
+  },
+});
+
+export const mintToken = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user?.email) return null;
+    const token = crypto.randomUUID().replace(/-/g, "");
+    await ctx.db.insert("emailVerifications", {
+      userId,
+      email: user.email,
+      token,
+    });
+    return { token, email: user.email };
+  },
+});
+
+export const consume = internalMutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const row = await ctx.db
+      .query("emailVerifications")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .unique();
+    if (row === null) return null;
+    await ctx.db.patch(row._id, { verifiedAt: Date.now() });
+    return { email: row.email };
+  },
+});
+```
+
+Add the table (with an index on `token`) to your schema, and point the emailed
+link at an `httpAction` that runs `consume` and renders a confirmation page:
+
+```ts filename="convex/http.ts"
+http.route({
+  pathPrefix: "/verify/",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const token = new URL(req.url).pathname.slice("/verify/".length);
+    const res = await ctx.runMutation(internal.emailVerification.consume, {
+      token,
+    });
+    return new Response(res ? "Email verified — you can close this tab." : "Invalid link", {
+      status: res ? 200 : 404,
+      headers: { "Content-Type": "text/html" },
+    });
+  }),
+});
+```
+
+Clicking the emailed link is itself the proof of ownership, so no passkey prompt
+is needed to finish verifying — the user can even open it on another device.
+
+## How it works
+
+WebAuthn is a two-step ceremony, and `usePasskeyAuth` performs both steps for
+you by calling `signIn` twice:
+
+1. **Options** — the client asks the server for a challenge
+   (`flow: "registrationOptions"` / `"authenticationOptions"`). The server
+   stores the single-use challenge and returns the options as `data`.
+2. **Verification** — the browser produces a signed credential with
+   `@simplewebauthn/browser` and the client sends it back
+   (`flow: "registration"` / `"authentication"`). The server verifies it,
+   stores (or looks up) the public key, and signs the user in.
+
+If you're building a non-React client you can drive these flows directly through
+`signIn`, reading the returned `data` and submitting the signed response
+yourself.
+
+When you're done configuring your chosen authentication methods, learn how to
+use authentication in your frontend and backend in [Authorization](/authz).

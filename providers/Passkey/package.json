@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "main": "../../dist/providers/Passkey/index.js",
+  "module": "../../dist/providers/Passkey/index.js",
+  "types": "../../dist/providers/Passkey/index.d.ts"
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- feat: add built-in passkey (WebAuthn) support via the `Passkey` provider
+  (`@convex-dev/auth/providers/Passkey`) and the `usePasskeyAuth` React hook.
+  Credentials providers can now return `{ data }` from `authorize` to relay a
+  payload (such as a passkey challenge) to the client, and `createAccount`
+  accepts a `userId` to link an account to an existing user.
+
 ## 0.0.94
 
 - chore: bump `@auth/core` peer dependency (#320) @eden881

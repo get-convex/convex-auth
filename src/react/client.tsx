@@ -256,6 +256,11 @@ export function AuthProvider({
         await setToken({ shouldStore: true, tokens });
         return { signingIn: result.tokens !== null };
       }
+      // A multi-step credentials flow (such as passkeys) can return a payload
+      // for the client without signing in. Surface it to the caller.
+      if (result.data !== undefined) {
+        return { signingIn: false, data: result.data };
+      }
       return { signingIn: false };
     },
     [client, setToken, storageGet],

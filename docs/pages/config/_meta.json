@@ -3,6 +3,7 @@
   "email": "Magic Links",
   "otps": "OTPs",
   "passwords": "Passwords",
+  "passkeys": "Passkeys",
   "anonymous": {
     "display": "hidden"
   }
