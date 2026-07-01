@@ -13,12 +13,11 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/lib/**/*", "src/components/**/*"],
+  "include": ["src/lib/**/*", "src/components/**/*", "examples/**/*"],
   "exclude": [
     "node_modules",
     "dist",
     "prototype",
-    "examples",
     "docs",
     "test",
     "test-router",

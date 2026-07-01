@@ -1,4 +1,4 @@
-import { FunctionReference } from "convex/server";
+import { FunctionReference, GenericActionCtx } from "convex/server";
 
 import { GenericId, Infer, v } from "convex/values";
 
@@ -75,9 +75,40 @@ export const vCreateOrUpdateUser = v.object({
  * If an application wants to reject a sign in, it can throw a `ConvexError`
  * and the entire sign in attempt will be blocked.
  */
-export type CreateOrUpdateUserFn = FunctionReference<
+export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
   "mutation",
   "internal",
-  Infer<typeof vCreateOrUpdateUser>,
+  {
+    provider: Provider;
+    providerAccountId: string;
+    profile: any;
+    userId: string | null;
+  },
   GenericId<"users">
 >;
+
+export type CompleteSignInFunc = (
+  ctx: GenericActionCtx<any>,
+  claims: AuthClaims,
+) => Promise<TokenBundle>;
+
+type ProviderSetupFunc<O, P> = (
+  completeSignIn: CompleteSignInFunc,
+  options: O,
+) => P;
+
+export type ProviderConfig<N extends string, O, P> = {
+  name: N;
+  setup: ProviderSetupFunc<O, P>;
+};
+
+/**
+ * A convenience function for defining a `ProviderConfig`.
+ *
+ * All of the generic types are inferred from the passed in object.
+ */
+export function defineProvider<const N extends string, O, P>(
+  config: ProviderConfig<N, O, P>,
+): ProviderConfig<N, O, P> {
+  return config;
+}
