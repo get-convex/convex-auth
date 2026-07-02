@@ -1,0 +1,15 @@
+{
+  "name": "argon2-wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "argon2_wasm_bg.wasm",
+    "argon2_wasm.js",
+    "argon2_wasm.d.ts"
+  ],
+  "main": "argon2_wasm.js",
+  "types": "argon2_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

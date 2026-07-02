@@ -1,0 +1,2 @@
+# wasm-pack / wasm-bindgen output: mark as @generated
+src/components/passwordProvider/rust-argon2/_generated/** linguist-generated=true

@@ -13,6 +13,8 @@ module.exports = {
     "prototype",
     "vitest.config.ts",
     "test-nextjs/backendHarness.js",
+    // wasm-pack / wasm-bindgen generated output.
+    "src/components/passwordProvider/rust-argon2/_generated",
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
