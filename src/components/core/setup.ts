@@ -95,6 +95,31 @@ type AuthApi<T extends readonly ProviderWithOptions[]> = {
 // determined without typing the `createOrUpdateUser` argument. See the note
 // on `setupCore` for why that decoupling is required.
 type CoreBuilder<T extends readonly ProviderWithOptions[]> = {
+  /**
+   * The `createOrUpdateUser` function passed in here represents the core
+   * entrypoint for an application to integrate its user model with Convex Auth.
+   *
+   * It will be called in two scenarios, both associated with a user signing in:
+   *
+   *  1. The first time a user signs in with an account from a provider.
+   *    * The `userId` argument will not be present in this case.
+   *    * The application should do one of:
+   *      a. Create a new user record and return its `_id`
+   *      b. Use trusted information in the `profile` (e.g. a verified email)
+   *         to associate the account with an existing user, and return its
+   *         `_id`
+   *  2. Subsequent sign ins from a provider
+   *    * The `userId` argument will be present.
+   *    * The application may use the data in `profile` to update or otherwise
+   *      modify the stored user record.
+   *    * The existing `userId` must be the return value.
+   *
+   * The application keeps ownership of its users table — the core only holds a
+   * reference to this one mutation.
+   *
+   * If an application wants to reject a sign in, it can throw a `ConvexError`
+   * and the entire sign in attempt will be blocked.
+   */
   attachUserCallback(
     createOrUpdateUser: CreateOrUpdateUserFn<T[number][0]["name"]>,
   ): AuthApi<T>;
@@ -120,8 +145,11 @@ type CoreBuilder<T extends readonly ProviderWithOptions[]> = {
  *
  * Changes to token TTLs impact newly minted tokens, not ones that have
  * already been issued.
+ *
+ * @returns a builder object with an `attachUserCallback` function that
+ *          completes the configuration of Convex Auth.
  */
-// ## Why this is a two-step (`setupCore(...).attachUserCallback(...)`) API
+// Why this is a two-step (`setupCore(...).attachUserCallback(...)`) API
 //
 // The app's `createOrUpdateUser` is a reference into the app's *own* `internal`
 // API. But the module that calls `setupCore` also exports the handlers this

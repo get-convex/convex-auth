@@ -50,31 +50,6 @@ export const vCreateOrUpdateUser = v.object({
   userId: v.union(v.string(), v.null()),
 });
 
-/**
- * This function type represents the core entrypoint for an application
- * to integrate its user model with Convex Auth.
- *
- * It will be called in two scenarios, both associated with a user signing in:
- *
- *  1. The first time a user signs in with an account from a provider.
- *    * The `userId` argument will not be present in this case.
- *    * The application should do one of:
- *      a. Create a new user record and return its `_id`
- *      b. Use trusted information in the `profile` (e.g. a verified email)
- *         to associate the account with an existing user, and return its
- *         `_id`
- *  2. Subsequent sign ins from a provider
- *    * The `userId` argument will be present.
- *    * The application may use the data in `profile` to update or otherwise
- *      modify the stored user record.
- *    * The existing `userId` must be the return value.
- *
- * The application keeps ownership of its users table — the core only holds a
- * reference to this one mutation.
- *
- * If an application wants to reject a sign in, it can throw a `ConvexError`
- * and the entire sign in attempt will be blocked.
- */
 export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
   "mutation",
   "internal",
@@ -98,12 +73,59 @@ type ProviderSetupFunc<O, P> = (
 ) => P;
 
 export type ProviderConfig<N extends string, O, P> = {
+  /**
+   * The name of this provider.
+   *
+   * This value will be persisted the `accounts` table and passed to
+   * the {@link CreateOrUpdateUserFn}.
+   */
   name: N;
+  /**
+   * Convex Auth will call this function to setup this provider.
+   *
+   * It should return an object of names to `actionGeneric` Convex
+   * functions that will make up the public API surface of the provider.
+   * The API is responsible for authenticating a user and triggering
+   * the completion of sign in.
+   *
+   * It will be passed a `completeSignIn` function, which is provided
+   * by Convex Auth. That function accepts claims from a provider,
+   * establishes a session and returns the tokens required for a client
+   * application to make authenticated calls to Convex functions.
+   *
+   * The provider function that completes an authentication flow should
+   * call this function when it has authenticated an account and return
+   * the result.
+   *
+   * It will also receive any `options` that the provider defined.
+   */
   setup: ProviderSetupFunc<O, P>;
 };
 
 /**
  * A convenience function for defining a `ProviderConfig`.
+ *
+ * Call it like:
+ *
+ * ```typescript
+ * const FooProvider = defineProvider(
+ *   {
+ *     name: "foo",
+ *     setup: (completeSignIn, options: {limit: number}) => {
+ *       return {
+ *         login: actionGeneric({
+ *           args: {},
+ *           handler: async (ctx, args) => {
+ *             // Do your login magic here.
+ *             const claims = await authenticateFoo(args, options.limit);
+ *             return completeSignIn(claims);
+ *           }
+ *         })
+ *       }
+ *     },
+ *   }
+ * );
+ * ```
  *
  * All of the generic types are inferred from the passed in object.
  */
