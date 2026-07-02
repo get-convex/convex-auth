@@ -44,12 +44,12 @@ export const setPassword = mutation({
   returns: v.null(),
   handler: async (ctx, { userId, password }) => {
     assertValidPassword(password);
-    const passwordHash = await hashPassword(normalizePassword(password));
+    const passwordHashPHC = await hashPassword(normalizePassword(password));
     const existing = await passwordByUserId(ctx, userId);
     if (existing !== null) {
-      await ctx.db.patch("passwords", existing._id, { passwordHash });
+      await ctx.db.patch("passwords", existing._id, { passwordHashPHC });
     } else {
-      await ctx.db.insert("passwords", { userId, passwordHash });
+      await ctx.db.insert("passwords", { userId, passwordHashPHC });
     }
     return null;
   },
@@ -77,7 +77,7 @@ export const verifyPassword = mutation({
     }
     return await verifyPasswordHash(
       normalizePassword(password),
-      row.passwordHash,
+      row.passwordHashPHC,
     );
   },
 });
