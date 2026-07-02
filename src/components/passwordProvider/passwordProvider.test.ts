@@ -1,0 +1,277 @@
+import { convexTest } from "convex-test";
+import { describe, expect, test } from "vitest";
+import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
+import {
+  argon2d,
+  argon2i,
+  argon2id,
+  argon2Verify,
+  bcrypt,
+  bcryptVerify,
+} from "hash-wasm";
+import { api } from "./_generated/api.js";
+import schema from "./schema.js";
+import { hashPassword, verifyPassword } from "./argon2.js";
+
+const modules = import.meta.glob("./**/*.ts");
+
+const PASSWORD = "correct horse battery staple"; // 28 chars, valid
+
+function setup() {
+  const t = convexTest(schema, modules);
+  // The component mounts the rate limiter; register it with the test instance
+  // so `verifyPassword`'s throttle has a backing component.
+  registerRateLimiter(t);
+  return t;
+}
+
+describe("setPassword + verifyPassword", () => {
+  test("verifies the correct password after setting it", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const ok = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    expect(ok).toBe(true);
+  });
+
+  test("rejects a wrong password", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const ok = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: "wrong horse battery staple",
+    });
+    expect(ok).toBe(false);
+  });
+
+  test("returns false for an unknown user id", async () => {
+    const t = setup();
+    const ok = await t.mutation(api.public.verifyPassword, {
+      userId: "nobody",
+      password: PASSWORD,
+    });
+    expect(ok).toBe(false);
+  });
+
+  test("upserts: setting a new password replaces the old one", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const newPassword = "a whole new password here";
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: newPassword,
+    });
+
+    // Only one row exists for the user.
+    const count = await t.run(
+      async (ctx) => (await ctx.db.query("passwords").collect()).length,
+    );
+    expect(count).toBe(1);
+
+    expect(
+      await t.mutation(api.public.verifyPassword, {
+        userId: "alice",
+        password: newPassword,
+      }),
+    ).toBe(true);
+    expect(
+      await t.mutation(api.public.verifyPassword, {
+        userId: "alice",
+        password: PASSWORD,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("password validation (setPassword only)", () => {
+  test("rejects a too-short password", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.public.setPassword, { userId: "alice", password: "short" }),
+    ).rejects.toThrow(/between 10 and 100/i);
+  });
+
+  test("rejects a password with leading whitespace", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.public.setPassword, {
+        userId: "alice",
+        password: " leadingspace123",
+      }),
+    ).rejects.toThrow(/whitespace/i);
+  });
+});
+
+describe("Unicode normalization", () => {
+  test("verifies across differing normalization forms", async () => {
+    const t = setup();
+    // "café..." spelled two ways: composed é (U+00E9) vs decomposed
+    // e + combining acute (U+0301). Padded to satisfy the length requirement.
+    const composed = "caf\u00e9 password test";
+    const decomposed = "cafe\u0301 password test";
+    expect(composed).not.toBe(decomposed);
+    expect(composed.normalize("NFC")).toBe(decomposed.normalize("NFC"));
+
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: composed,
+    });
+    const ok = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: decomposed,
+    });
+    expect(ok).toBe(true);
+  });
+});
+
+describe("interoperability with hash-wasm", () => {
+  // Must match the params baked into the Rust argon2 crate (argon2-wasm/src/lib.rs).
+  const ARGON2_PARAMS = {
+    iterations: 3,
+    parallelism: 1,
+    memorySize: 16 * 1024,
+    hashLength: 32,
+  };
+
+  test("hash-wasm can verify a hash produced by our crate", async () => {
+    const phc = await hashPassword(PASSWORD);
+    const ok = await argon2Verify({ password: PASSWORD, hash: phc });
+    expect(ok).toBe(true);
+  });
+
+  test("hash-wasm rejects the wrong password against our crate's hash", async () => {
+    const phc = await hashPassword(PASSWORD);
+    const ok = await argon2Verify({ password: "wrong password entirely", hash: phc });
+    expect(ok).toBe(false);
+  });
+
+  test("our crate can verify a hash produced by hash-wasm", async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const phc = await argon2id({
+      ...ARGON2_PARAMS,
+      password: PASSWORD,
+      salt,
+      outputType: "encoded",
+    });
+    const ok = await verifyPassword(PASSWORD, phc);
+    expect(ok).toBe(true);
+  });
+
+  test("our crate rejects the wrong password against hash-wasm's hash", async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const phc = await argon2id({
+      ...ARGON2_PARAMS,
+      password: PASSWORD,
+      salt,
+      outputType: "encoded",
+    });
+    const ok = await verifyPassword("wrong password entirely", phc);
+    expect(ok).toBe(false);
+  });
+});
+
+describe("verifyPassword is lenient about the stored PHC string", () => {
+  // verifyPassword doesn't require the stored hash to be an argon2id hash
+  // produced with our own parameters: verification re-derives everything
+  // (algorithm variant, version, params) from the PHC string itself, and
+  // only rejects when the algorithm identifier isn't one of
+  // argon2i/argon2d/argon2id at all.
+  const ARGON2_PARAMS = {
+    iterations: 3,
+    parallelism: 1,
+    memorySize: 16 * 1024,
+    hashLength: 32,
+  };
+
+  test("verifies an argon2i PHC hash", async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const phc = await argon2i({
+      ...ARGON2_PARAMS,
+      password: PASSWORD,
+      salt,
+      outputType: "encoded",
+    });
+    expect(phc.startsWith("$argon2i$")).toBe(true);
+    expect(await verifyPassword(PASSWORD, phc)).toBe(true);
+  });
+
+  test("verifies an argon2d PHC hash", async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const phc = await argon2d({
+      ...ARGON2_PARAMS,
+      password: PASSWORD,
+      salt,
+      outputType: "encoded",
+    });
+    expect(phc.startsWith("$argon2d$")).toBe(true);
+    expect(await verifyPassword(PASSWORD, phc)).toBe(true);
+  });
+
+  test("verifies an argon2id PHC hash with different parameters than ours", async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const phc = await argon2id({
+      password: PASSWORD,
+      salt,
+      iterations: 2, // our crate always uses 3
+      parallelism: 1,
+      memorySize: 8 * 1024, // our crate always uses 16 * 1024
+      hashLength: 16, // our crate always uses 32
+      outputType: "encoded",
+    });
+    expect(await verifyPassword(PASSWORD, phc)).toBe(true);
+  });
+
+  test("does not verify a PHC-style hash using a non-argon2 algorithm", async () => {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const phc = await bcrypt({
+      password: PASSWORD,
+      salt,
+      costFactor: 4,
+      outputType: "encoded",
+    });
+    expect(phc.startsWith("$2a$")).toBe(true);
+    // Sanity check: hash-wasm itself can verify its own bcrypt hash.
+    expect(await bcryptVerify({ password: PASSWORD, hash: phc })).toBe(true);
+    // Our verifyPassword only understands the argon2 family. bcrypt's PHC-ish
+    // string doesn't even parse as valid argon2 PHC (its cost-factor segment
+    // decodes to a too-short salt), so it rejects outright rather than
+    // silently returning `false` or verifying it as if it were argon2id.
+    await expect(verifyPassword(PASSWORD, phc)).rejects.toThrow();
+  });
+});
+
+describe("rate limiting (verifyPassword only)", () => {
+  test("throws once the per-user bucket is exhausted", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+
+    // Capacity is 5; the first five attempts (wrong password) are allowed, the
+    // sixth within the same window is rejected by the limiter.
+    for (let i = 0; i < 5; i++) {
+      await t.mutation(api.public.verifyPassword, {
+        userId: "alice",
+        password: "wrong horse battery staple",
+      });
+    }
+    await expect(
+      t.mutation(api.public.verifyPassword, {
+        userId: "alice",
+        password: PASSWORD,
+      }),
+    ).rejects.toThrow();
+  });
+});
