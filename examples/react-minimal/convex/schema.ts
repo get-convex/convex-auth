@@ -11,5 +11,7 @@ export default defineSchema({
   }).index("by_author", ["authorId"]),
   users: defineTable({
     name: v.string(),
+    /** Used to record an anonymous account ID for this user, for signing back in. */
+    anonymousAccountId: v.optional(v.string()),
   }),
 });

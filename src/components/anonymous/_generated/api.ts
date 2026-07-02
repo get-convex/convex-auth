@@ -8,19 +8,20 @@
  * @module
  */
 
-import type * as auth from "../auth.js";
-import type * as users from "../users.js";
+import type * as provider from "../provider.js";
+import type * as setup from "../setup.js";
 
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import { anyApi, componentsGeneric } from "convex/server";
 
-declare const fullApi: ApiFromModules<{
-  auth: typeof auth;
-  users: typeof users;
-}>;
+const fullApi: ApiFromModules<{
+  provider: typeof provider;
+  setup: typeof setup;
+}> = anyApi as any;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
@@ -30,10 +31,10 @@ declare const fullApi: ApiFromModules<{
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-export declare const api: FilterApi<
+export const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
->;
+> = anyApi as any;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
@@ -43,12 +44,9 @@ export declare const api: FilterApi<
  * const myFunctionReference = internal.myModule.myFunction;
  * ```
  */
-export declare const internal: FilterApi<
+export const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
->;
+> = anyApi as any;
 
-export declare const components: {
-  core: import("@convex-dev/auth/core/_generated/component.js").ComponentApi<"core">;
-  anonymous: import("@convex-dev/auth/providers/anonymous/_generated/component.js").ComponentApi<"anonymous">;
-};
+export const components = componentsGeneric() as unknown as {};
