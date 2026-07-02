@@ -13,10 +13,11 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/lib/**/*", "src/components/**/*", "examples/**/*"],
+  "include": ["src/lib/**/*", "src/components/**/*"],
   "exclude": [
     "node_modules",
     "dist",
+    "examples",
     "prototype",
     "docs",
     "test",
