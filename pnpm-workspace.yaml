@@ -1,0 +1,9 @@
+packages:
+  - "packages/*"
+  - "examples/*"
+
+# Prevents by default all dependency versions released within the last 7 days
+# (10080 minutes) from being installed. If necessary (e.g. to install an urgent
+# security fix), override this with:
+# `pnpm add <package>@<version> --config.minimumReleaseAge=0`.
+minimumReleaseAge: 10080

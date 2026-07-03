@@ -1,6 +1,0 @@
-{
-  "type": "module",
-  "main": "../../dist/providers/Anonymous/index.js",
-  "module": "../../dist/providers/Anonymous/index.js",
-  "types": "../../dist/providers/Anonymous/index.d.ts"
-}

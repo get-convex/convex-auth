@@ -1,132 +1,26 @@
 {
-  "name": "@convex-dev/auth",
-  "version": "0.0.94",
-  "description": "Authentication for Convex",
-  "keywords": [
-    "authentication",
-    "authorization",
-    "auth",
-    "login",
-    "sign",
-    "convex"
-  ],
-  "homepage": "https://labs.convex.dev/auth",
-  "bugs": "https://github.com/get-convex/convex-auth/issues",
-  "repository": "https://github.com/get-convex/convex-auth",
-  "license": "Apache-2.0",
-  "author": "xixixao",
-  "files": [
-    "dist",
-    "providers",
-    "react",
-    "server",
-    "src"
-  ],
+  "name": "convex-auth-monorepo",
+  "private": true,
   "type": "module",
-  "bin": {
-    "convex-auth": "./dist/bin.cjs",
-    "generate-auth-keys": "./scripts/generate-auth-keys.mjs"
-  },
-  "sideEffects": false,
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "lint:auth": "eslint src/lib src/components",
-    "test:auth": "vitest run",
-    "test:auth:watch": "vitest",
-    "build:bin": "esbuild src/cli/index.ts --bundle --platform=node --format=cjs --outfile=dist/bin.cjs",
-    "build:server": "tsc --project tsconfig.server.json",
-    "build:react": "tsc --project tsconfig.react.json && shx mkdir -p dist && shx rm -rf dist/react && shx mv distreact/react dist/react && shx rm -r distreact",
-    "build:nextjs": "tsc --project tsconfig.nextjs.json && shx mkdir -p dist && shx rm -rf dist/nextjs && shx mv distnextjs/nextjs dist/nextjs && shx rm -r distnextjs",
-    "build": "shx rm -rf dist && npm run build:bin && npm run build:server && npm run build:react && npm run build:nextjs",
-    "docs": "cd docs && npm run dev",
-    "lint": "tsc && eslint . && cd test && npm run lint",
-    "spellcheck": "cspell \"docs/pages/**/*.md*\"",
-    "prepare": "npm run build",
-    "preversion": "npm ci && cd test && npm ci && cd ../test-nextjs && npm ci && cd ../test-router && npm ci && cd .. && npm run build && run-p test:once lint",
-    "version": "(npm whoami || npm login) && vim -c 'normal o' -c 'normal o## '$npm_package_version CHANGELOG.md && prettier -w CHANGELOG.md && git add CHANGELOG.md",
-    "alpha": "npm version prerelease --preid alpha && npm publish --tag alpha && git push --follow-tags",
-    "release": "npm version patch && npm publish && git push --follow-tags",
-    "publish:example": "node publishExample.mjs",
-    "test": "cd test && npm run test",
-    "test:once": "cd test && npm run test:once"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
   },
-  "exports": {
-    "./lib/*": "./src/lib/*",
-    "./core/*": "./src/components/core/*",
-    "./passwordProvider/*": "./src/components/passwordProvider/*",
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "import": "./dist/server/index.js"
-    },
-    "./providers/*": {
-      "types": "./dist/providers/*.d.ts",
-      "import": "./dist/providers/*.js"
-    },
-    "./react": {
-      "import": "./dist/react/index.js",
-      "require": "./dist/react/index.js"
-    },
-    "./nextjs": {
-      "import": "./dist/nextjs/index.js",
-      "require": "./dist/nextjs/index.js"
-    },
-    "./nextjs/server": {
-      "import": "./dist/nextjs/server/index.js",
-      "require": "./dist/nextjs/server/index.js"
-    }
-  },
-  "dependencies": {
-    "@convex-dev/rate-limiter": "^0.3.2",
-    "@oslojs/crypto": "^1.0.1",
-    "@oslojs/encoding": "^1.1.0",
-    "cookie": "^1.0.1",
-    "is-network-error": "^1.1.0",
-    "jose": "^5.2.2",
-    "jwt-decode": "^4.0.0",
-    "lucia": "^3.2.0",
-    "oauth4webapi": "^3.1.2",
-    "path-to-regexp": "^6.3.0",
-    "server-only": "^0.0.1"
-  },
-  "peerDependencies": {
-    "@auth/core": "^0.41.1",
-    "convex": "^1.41.0",
-    "react": "^18.2.0 || ^19.0.0-0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    }
-  },
-  "@comment devDependencies": [
-    "The dependencies of the CLI are also in devDependencies, built into",
-    "a bundle."
-  ],
   "devDependencies": {
-    "@commander-js/extra-typings": "^15.0.0",
-    "@edge-runtime/vm": "^5.0.0",
-    "@types/inquirer": "^9.0.7",
-    "@types/node": "^24.12.4",
-    "@types/react": "^18.3.12",
-    "@typescript-eslint/eslint-plugin": "^6.18.1",
-    "chalk": "^5.3.0",
-    "convex-test": "^0.0.53",
-    "cspell": "^10.0.0",
-    "dotenv": "^17.0.0",
-    "eslint": "8.49.0",
-    "hash-wasm": "^4.12.0",
-    "inquirer": "^14.0.0",
-    "next": "^15.2.5",
-    "npm-run-all2": "^9.0.0",
-    "prettier": "^3.2.5",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "shelljs": "^0.8.5",
-    "shx": "^0.4.0",
-    "tsup": "^8.0.1",
+    "@convex-dev/eslint-plugin": "^2.0.0",
+    "@eslint/js": "^10.0.1",
+    "convex": "^1.41.0",
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.4",
     "typescript": "^6.0.3",
-    "valibot": "^1.0.0",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.0"
-  }
+    "typescript-eslint": "^8.62.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.16.0"
 }

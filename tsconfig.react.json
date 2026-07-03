@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.legacy.json",
-  "compilerOptions": {
-    "outDir": "./distreact",
-    "rootDir": "./src"
-  },
-  "include": ["src/react/**/*"]
-}

@@ -1,6 +1,0 @@
-{
-  "type": "module",
-  "main": "../../dist/providers/Phone/index.js",
-  "module": "../../dist/providers/Phone/index.js",
-  "types": "../../dist/providers/Phone/index.d.ts"
-}

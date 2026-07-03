@@ -9,7 +9,7 @@ runs:
     # Reads rust-toolchain.toml and installs the pinned toolchain + targets.
     - name: Install pinned Rust toolchain
       shell: bash
-      working-directory: src/components/passwordProvider/argon2-wasm
+      working-directory: packages/core/src/components/passwordProvider/argon2-wasm
       run: rustup toolchain install
 
     - name: Cache cargo registry and build artifacts
@@ -18,7 +18,7 @@ runs:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
-          src/components/passwordProvider/argon2-wasm/target
-        key: ${{ runner.os }}-cargo-argon2-wasm-${{ hashFiles('src/components/passwordProvider/argon2-wasm/Cargo.lock') }}
+          packages/core/src/components/passwordProvider/argon2-wasm/target
+        key: ${{ runner.os }}-cargo-argon2-wasm-${{ hashFiles('packages/core/src/components/passwordProvider/argon2-wasm/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-argon2-wasm-

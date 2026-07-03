@@ -1,0 +1,55 @@
+{
+  "name": "@convex-dev/auth",
+  "version": "2.0.0-alpha.0",
+  "description": "Authentication for Convex",
+  "keywords": [
+    "auth",
+    "authentication",
+    "authorization",
+    "convex",
+    "login",
+    "sign"
+  ],
+  "homepage": "https://labs.convex.dev/auth",
+  "bugs": "https://github.com/get-convex/convex-auth/issues",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/get-convex/convex-auth.git",
+    "directory": "packages/core"
+  },
+  "bin": {
+    "generate-auth-keys": "./scripts/generate-auth-keys.mjs"
+  },
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./lib/*": "./src/lib/*",
+    "./core/*": "./src/components/core/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@convex-dev/rate-limiter": "^0.3.2",
+    "jose": "^5.2.2"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "@types/node": "^24.12.4",
+    "convex": "^1.41.0",
+    "convex-test": "^0.0.53",
+    "hash-wasm": "^4.12.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.0"
+  },
+  "peerDependencies": {
+    "convex": "^1.41.0"
+  }
+}

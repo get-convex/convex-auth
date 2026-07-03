@@ -1,5 +1,7 @@
 # Changelog
 
+TODO: Update changelog for v2
+
 ## 0.0.94
 
 - chore: bump `@auth/core` peer dependency (#320) @eden881
