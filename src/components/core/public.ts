@@ -266,6 +266,16 @@ export const refresh = mutation({
         prior.previousRefreshTokenExpiresAt >= now
       ) {
         session = prior;
+      } else if (prior) {
+        // Reuse detection: a rotated token resurfacing *after* its grace
+        // window means two parties hold tokens from the same session — the
+        // rotation raced nothing, so one of them stole it. Revoke the session
+        // so both sides must re-authenticate. The accepted tradeoff (as with
+        // Auth0-style rotation) is that a client that crashed before
+        // persisting its rotated token gets signed out here too. Detection
+        // depth is one rotation — only the latest previous hash is kept.
+        await ctx.db.delete("sessions", prior._id);
+        return null;
       }
     }
     // Unknown token: no session to refresh, and nothing to clean up.

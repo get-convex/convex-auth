@@ -178,6 +178,47 @@ describe("refresh", () => {
     expect(viaGrace.userId).toBe(bundle.userId);
   });
 
+  test("revokes the session when a rotated token resurfaces after the grace window", async () => {
+    const t = setup();
+    const bundle = await signIn(t, claims());
+
+    const rotated = expectBundle(
+      await t.mutation(api.public.refresh, {
+        refreshToken: bundle.refreshToken,
+        issuer: ISSUER,
+      }),
+    );
+
+    // Push the rotated-out token past its grace window.
+    await t.run(async (ctx) => {
+      const session = await ctx.db.query("sessions").unique();
+      await ctx.db.patch(session!._id, {
+        previousRefreshTokenExpiresAt: Date.now() - 1000,
+      });
+    });
+
+    // The pre-rotation token resurfacing now is the theft signal: no bundle,
+    // and the whole session is revoked...
+    expect(
+      await t.mutation(api.public.refresh, {
+        refreshToken: bundle.refreshToken,
+        issuer: ISSUER,
+      }),
+    ).toBeNull();
+    const remaining = await t.run(
+      async (ctx) => (await ctx.db.query("sessions").collect()).length,
+    );
+    expect(remaining).toBe(0);
+
+    // ...so the current token died with it.
+    expect(
+      await t.mutation(api.public.refresh, {
+        refreshToken: rotated.refreshToken,
+        issuer: ISSUER,
+      }),
+    ).toBeNull();
+  });
+
   test("returns null and clears the session once the refresh token has expired", async () => {
     const t = setup();
     const bundle = await signIn(t, claims());

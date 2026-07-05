@@ -1,6 +1,10 @@
-import { FunctionReference } from "convex/server";
+import {
+  FunctionReference,
+  GenericActionCtx,
+  GenericMutationCtx,
+} from "convex/server";
 
-import { GenericId, Infer, v } from "convex/values";
+import { Infer, v } from "convex/values";
 
 /**
  * Shared contracts that cross the core/app boundary. That includes validators (and
@@ -43,6 +47,18 @@ export const vAuthClaims = v.object({
 
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
+/**
+ * The core's claims-for-session exchange, as handed to providers by
+ * `setupCore`. A provider calls it once it has authenticated the user and
+ * produced claims. It only needs `ctx.runMutation`, so a provider can invoke it
+ * from an action (e.g. an OAuth code exchange) or from a mutation (e.g.
+ * redeeming a one-time sign-in code).
+ */
+export type CompleteSignIn = (
+  ctx: GenericActionCtx<any> | GenericMutationCtx<any>,
+  claims: AuthClaims,
+) => Promise<TokenBundle>;
+
 export const vCreateOrUpdateUser = v.object({
   provider: v.string(),
   providerAccountId: v.string(),
@@ -70,7 +86,9 @@ export const vCreateOrUpdateUser = v.object({
  *    * The existing `userId` must be the return value.
  *
  * The application keeps ownership of its users table — the core only holds a
- * reference to this one mutation.
+ * reference to this one mutation. The returned id is typically a `users`
+ * document `_id`, but the core treats it as an opaque string (it becomes the
+ * JWT subject), so an app without a users table may return any stable string.
  *
  * If an application wants to reject a sign in, it can throw a `ConvexError`
  * and the entire sign in attempt will be blocked.
@@ -79,5 +97,5 @@ export type CreateOrUpdateUserFn = FunctionReference<
   "mutation",
   "internal",
   Infer<typeof vCreateOrUpdateUser>,
-  GenericId<"users">
+  string
 >;

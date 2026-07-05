@@ -1,14 +1,10 @@
-import {
-  mutationGeneric,
-  createFunctionHandle,
-  type GenericActionCtx,
-} from "convex/server";
+import { mutationGeneric, createFunctionHandle } from "convex/server";
 import { v } from "convex/values";
 import type { ComponentApi } from "./_generated/component.js";
 import {
   vTokenBundle,
+  type CompleteSignIn,
   type TokenBundle,
-  type AuthClaims,
 } from "../../lib/types.js";
 import { CreateOrUpdateUserFn } from "../../lib/types.js";
 
@@ -67,10 +63,11 @@ export function setupCore(opts: {
   //
   // `completeSignIn` is a plain helper function, not a registered
   // query/mutation, because it isn't an endpoint a client calls directly. It's
-  // composed *inside* a provider's own action: the provider authenticates the
-  // user its own way, then calls it (passing its own `ctx`) to talk to the
+  // composed *inside* a provider's own function: the provider authenticates
+  // the user its own way, then calls it (passing its own `ctx`) to talk to the
   // core. It takes `ctx` and uses `ctx.runMutation` precisely so it can run
-  // within whatever provider function is already executing.
+  // within whatever provider function is already executing — an action or a
+  // mutation alike.
   //
   // The functions further down (`refreshSession`, `signOut`) are different:
   // they have no provider-specific precondition, so they're registered
@@ -80,14 +77,14 @@ export function setupCore(opts: {
    * Hand a provider's identity claims to the core, passing a handle to the
    * app's user create-or-update mutation so the core can persist app users
    * without knowing the app's schema. A provider calls this from its sign-in
-   * action once it has authenticated the user and produced claims.
+   * function once it has authenticated the user and produced claims.
    *
    * This initiates a session and the returned token bundle allows authenticating
    * with the Convex backend and refreshing the session.
    */
-  const completeSignIn = async (
-    ctx: GenericActionCtx<any>,
-    claims: AuthClaims,
+  const completeSignIn: CompleteSignIn = async (
+    ctx,
+    claims,
   ): Promise<TokenBundle> => {
     const createOrUpdateUserHandle =
       await createFunctionHandle(createOrUpdateUser);

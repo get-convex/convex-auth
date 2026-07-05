@@ -25,24 +25,10 @@ export async function signJwt(opts: {
   return { token, expiresAt: expSeconds * 1000 };
 }
 
-/** Cryptographically random opaque refresh token. */
-export function generateRefreshToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-/** SHA-256 hex hash, used so raw refresh tokens are never persisted. */
-export async function hashToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(token),
-  );
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+// The token minting/hashing primitives are shared with provider components
+// (e.g. the oauth component's one-time sign-in codes), so they live in the
+// shared lib; the core re-exports them under its own names.
+export {
+  generateToken as generateRefreshToken,
+  hashToken,
+} from "../../lib/crypto.js";

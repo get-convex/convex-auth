@@ -53,6 +53,7 @@
   "exports": {
     "./lib/*": "./src/lib/*",
     "./core/*": "./src/components/core/*",
+    "./oauth/*": "./src/components/oauth/*",
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
@@ -77,6 +78,7 @@
   "dependencies": {
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
+    "arctic": "^3.7.0",
     "cookie": "^1.0.1",
     "is-network-error": "^1.1.0",
     "jose": "^5.2.2",

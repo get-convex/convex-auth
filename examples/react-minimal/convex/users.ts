@@ -1,31 +1,28 @@
 import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { vCreateOrUpdateUser } from "@convex-dev/auth/lib/types.js";
 
 /**
  * The app's user create-or-update callback. The core invokes it (via a function
  * handle) on every sign-in — without a `userId` the first time an identity is
  * seen, and with the resolved `userId` thereafter.
  *
- * This minimal example owns no users table. Instead of storing a row, it simply
- * echoes the provider-scoped account id back as the app's user id. The core
- * treats that value as an opaque string: it goes into the `accounts`/`sessions`
- * tables and becomes the JWT `subject`, so `ctx.auth.getUserIdentity().subject`
- * ends up being the provider account id. The (provider, providerAccountId) pair
- * is stable, so the subject stays the same across logins.
+ * This minimal example owns no users table. Instead of storing a row, it
+ * fabricates the app user id from the provider identity. The core treats that
+ * value as an opaque string: it goes into the `accounts`/`sessions` tables and
+ * becomes the JWT `subject`. The (provider, providerAccountId) pair is stable,
+ * so the subject stays the same across logins — and prefixing with the
+ * provider keeps ids from two providers from ever colliding.
  *
- * The `userId` arg is part of the core's callback contract (it's set on a
- * returning sign-in, and when an existing user links another identity). With no
- * users table there's nothing to update, so we just honor it when present.
+ * The `userId` arg is part of the core's callback contract (`null` on the
+ * first sign-in, set on a returning one). With no users table there's nothing
+ * to update, so we just honor it when present.
  */
 export const upsertFromAuth = internalMutation({
-  args: {
-    provider: v.string(),
-    providerAccountId: v.string(),
-    profile: v.any(),
-    userId: v.optional(v.string()),
-  },
+  args: vCreateOrUpdateUser,
   returns: v.string(),
-  handler: async (_ctx, args) => args.userId ?? args.providerAccountId,
+  handler: async (_ctx, args) =>
+    args.userId ?? `${args.provider}:${args.providerAccountId}`,
 });
 
 /**
