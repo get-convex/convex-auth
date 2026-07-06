@@ -11,13 +11,11 @@ export default defineSchema({
   // callback sends the browser back to, captured at start so the round trip
   // through the provider can't tamper with it. `challenge` binds the flow to
   // the browser that started it: the hash of a client-held verifier that must
-  // be presented again at redemption. It's set on every browser-driven (HTTP)
-  // flow and absent on caller-driven (`public.start`) flows, which have no
-  // browser handoff to protect.
+  // be presented again at redemption.
   oauthStates: defineTable({
     state: v.string(),
     codeVerifier: v.optional(v.string()),
-    challenge: v.optional(v.string()),
+    challenge: v.string(),
     intent: vAuthIntent,
     redirectTo: v.string(),
     expiresAt: v.number(),

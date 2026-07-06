@@ -438,25 +438,6 @@ describe("GET /callback", () => {
     ).toBe("invalid_state");
   });
 
-  test("rejects a caller-driven state (no challenge to bind a code to)", async () => {
-    const t = setup("google");
-    // `public.start` is the caller-driven transport: its states carry no
-    // challenge, so completing one via the HTTP callback would mint a
-    // one-time code no verifier could ever redeem — reject it outright.
-    const { url } = await t.action(api.public.start, {});
-    const state = new URL(url).searchParams.get("state")!;
-
-    const response = await t.fetch(
-      `/callback?code=provider-code&state=${encodeURIComponent(state)}`,
-    );
-    expect(
-      new URL(response.headers.get("Location")!).searchParams.get("error"),
-    ).toBe("invalid_state");
-    const pending = await t.run(
-      async (ctx) => await ctx.db.query("pendingSignIns").collect(),
-    );
-    expect(pending).toHaveLength(0);
-  });
 });
 
 /** Run a full flow through the HTTP routes and return the one-time code. */
@@ -524,6 +505,7 @@ describe("expired-row cleanup", () => {
       for (const n of [1, 2, 3]) {
         await ctx.db.insert("oauthStates", {
           state: `google:stale-${n}`,
+          challenge: "stale-challenge",
           intent: "session",
           redirectTo: "/",
           expiresAt: Date.now() - 1000,
@@ -557,26 +539,5 @@ describe("expired-row cleanup", () => {
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].codeHash).not.toBe("stale-hash");
-  });
-});
-
-describe("public start/complete (caller-driven transport)", () => {
-  test("runs the same flow steps as the HTTP routes", async () => {
-    const t = setup("google");
-    const { url } = await t.action(api.public.start, {});
-    const state = new URL(url).searchParams.get("state")!;
-    stubGoogleExchange();
-
-    const result = await t.action(api.public.complete, {
-      code: "provider-code",
-      state,
-    });
-    expect(result.intent).toBe("session");
-    expect(result.claims.providerAccountId).toBe("google-user-1");
-
-    // The state is just as single-use on this transport.
-    await expect(
-      t.action(api.public.complete, { code: "provider-code", state }),
-    ).rejects.toThrow(/invalid or expired oauth state/i);
   });
 });

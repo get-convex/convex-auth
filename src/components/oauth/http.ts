@@ -147,10 +147,7 @@ http.route({
     const stored = await ctx.runMutation(internal.model.consumeState, {
       state,
     });
-    // A state without a challenge belongs to the caller-driven transport
-    // (`public.start`); completing it here would mint a code no verifier can
-    // bind to, so it's as invalid as an unknown state.
-    if (!stored || stored.challenge === undefined) {
+    if (!stored) {
       return redirect(appTarget("/", { error: "invalid_state" }));
     }
 

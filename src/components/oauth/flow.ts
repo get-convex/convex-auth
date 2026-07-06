@@ -4,25 +4,24 @@ import type { ActionCtx } from "./_generated/server";
 import { generateToken, hashToken } from "../../lib/crypto.js";
 import { withProviderPrefix, type AuthIntent } from "../../lib/oauth.js";
 import type { AuthClaims } from "../../lib/types.js";
-import { beginAuthorization, exchangeCode, provider } from "./providers.js";
+import { beginAuthorization, provider } from "./providers.js";
 
 /**
- * Flow orchestration shared by the two transports: the HTTP routes (the
- * browser-driven flow) and the `public.start`/`public.complete` actions (for
- * callers that drive the flow themselves). Both run the same steps against
- * the same storage, so the transports can't drift.
+ * The flow steps behind the HTTP routes, kept separate from the transport (an
+ * action ctx and plain values in and out) so a future caller-driven transport
+ * could run the same steps against the same storage.
  */
 
 /**
  * Begin a flow: mint the provider-prefixed `state`, build the authorization
  * URL (storing the PKCE verifier when the provider uses one), and persist the
  * flow's intent and post-callback destination under that state. `challenge`
- * (the hash of a client-held verifier, set on browser-driven flows) is stored
- * alongside so redemption can demand its preimage.
+ * (the hash of a client-held verifier) is stored alongside so redemption can
+ * demand its preimage.
  */
 export async function beginFlow(
   ctx: ActionCtx,
-  opts: { intent: AuthIntent; redirectTo: string; challenge?: string },
+  opts: { intent: AuthIntent; redirectTo: string; challenge: string },
 ): Promise<{ url: string }> {
   const state = withProviderPrefix(provider(), generateState());
   const { url, codeVerifier } = beginAuthorization(state);
@@ -34,27 +33,6 @@ export async function beginFlow(
     redirectTo: opts.redirectTo,
   });
   return { url };
-}
-
-/**
- * Complete a flow in one step: consume the state (single-use) and exchange
- * the code for verified claims. Throws on an unknown/expired state or a
- * failed exchange. The HTTP callback doesn't use this — it consumes the state
- * itself first so it still knows `redirectTo` when the exchange fails.
- */
-export async function completeFlow(
-  ctx: ActionCtx,
-  args: { code: string; state: string },
-): Promise<{ claims: AuthClaims; intent: AuthIntent }> {
-  const stored = await ctx.runMutation(internal.model.consumeState, {
-    state: args.state,
-  });
-  if (!stored) throw new Error("Invalid or expired OAuth state");
-  const claims = await exchangeCode({
-    code: args.code,
-    codeVerifier: stored.codeVerifier,
-  });
-  return { claims, intent: stored.intent };
 }
 
 /**

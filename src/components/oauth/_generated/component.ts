@@ -24,16 +24,6 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
-      complete: FunctionReference<
-        "action",
-        "internal",
-        { code: string; state: string },
-        {
-          claims: { profile: any; provider: string; providerAccountId: string };
-          intent: "session" | "authenticate";
-        },
-        Name
-      >;
       redeem: FunctionReference<
         "mutation",
         "internal",
@@ -42,13 +32,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           claims: { profile: any; provider: string; providerAccountId: string };
           intent: "session" | "authenticate";
         } | null,
-        Name
-      >;
-      start: FunctionReference<
-        "action",
-        "internal",
-        { intent?: "session" | "authenticate" },
-        { url: string },
         Name
       >;
     };

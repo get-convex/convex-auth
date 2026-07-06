@@ -18,9 +18,9 @@ const PENDING_TTL_MS = 2 * 60 * 1000; // 2 minutes
 const CLEANUP_BATCH_SIZE = 20;
 
 // The registered mutations below exist for the component's *actions* (the
-// HTTP routes and `public.start`/`public.complete`), which can only reach the
-// database through `ctx.runMutation`. `public.redeem` is itself a mutation,
-// so it uses the plain `consumePendingByHash` helper directly.
+// HTTP routes), which can only reach the database through `ctx.runMutation`.
+// `public.redeem` is itself a mutation, so it uses the plain
+// `consumePendingByHash` helper directly.
 
 /**
  * Delete a bounded batch of expired rows from one of the flow tables. Called
@@ -47,7 +47,7 @@ export const saveState = internalMutation({
   args: {
     state: v.string(),
     codeVerifier: v.optional(v.string()),
-    challenge: v.optional(v.string()),
+    challenge: v.string(),
     intent: vAuthIntent,
     redirectTo: v.string(),
   },
@@ -64,7 +64,7 @@ export const saveState = internalMutation({
 
 const vStoredState = v.object({
   codeVerifier: v.optional(v.string()),
-  challenge: v.optional(v.string()),
+  challenge: v.string(),
   intent: vAuthIntent,
   redirectTo: v.string(),
 });
