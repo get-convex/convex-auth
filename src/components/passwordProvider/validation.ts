@@ -29,7 +29,7 @@ export type SetPasswordUserError = Infer<typeof setPasswordUserError>;
  * Validate a password against the requirements. Returns a `SetPasswordUserError`
  * describing the first violation, or `null` when the password is valid.
  */
-export function validatePassword(
+export function validatePasswordInputFormat(
   password: string,
 ): SetPasswordUserError | null {
   // Length is measured in Unicode code points (`[...password].length`) rather

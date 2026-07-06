@@ -8,7 +8,7 @@ import {
   verifyPassword as verifyPasswordHash,
 } from "./argon2.js";
 import {
-  validatePassword,
+  validatePasswordInputFormat,
   normalizePassword,
   setPasswordUserError,
 } from "./validation.js";
@@ -53,7 +53,7 @@ export const setPassword = mutation({
   args: { userId: v.string(), password: v.string() },
   returns: setPasswordResult,
   handler: async (ctx, { userId, password }): Promise<SetPasswordResult> => {
-    const userError = validatePassword(password);
+    const userError = validatePasswordInputFormat(password);
     if (userError !== null) {
       return { success: false, userError };
     }
