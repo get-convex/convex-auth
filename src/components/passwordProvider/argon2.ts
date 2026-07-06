@@ -11,7 +11,7 @@ import wasmModule from "./argon2-wasm/pkg/argon2_wasm_bg.wasm";
 let ready: Promise<unknown> | null = null;
 function ensureReady() {
   if (!ready) {
-    ready = init({ module_or_path: wasmModule }).catch((cause) => {
+    ready = init({ module_or_path: wasmModule }).catch((cause: unknown) => {
       // Reset so a later call can retry, and surface a clear error instead of
       // the raw wasm-bindgen failure.
       ready = null;

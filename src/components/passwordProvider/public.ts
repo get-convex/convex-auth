@@ -71,6 +71,15 @@ export const setPassword = mutation({
 });
 
 const verifyPasswordUserError = v.union(
+  v.object({
+    error: v.literal("PASSWORD_TOO_SHORT"),
+    minimumLength: v.number(),
+  }),
+  v.object({
+    error: v.literal("PASSWORD_TOO_LONG"),
+    maximumLength: v.number(),
+  }),
+  v.object({ error: v.literal("PASSWORD_HAS_SURROUNDING_WHITESPACE") }),
   v.object({ error: v.literal("INVALID_CREDENTIALS") }),
   v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
 );
@@ -101,6 +110,22 @@ export const verifyPassword = mutation({
         success: false,
         userError: { error: "RATE_LIMITED", retryAfterMs: status.retryAfter },
       };
+    }
+
+    // We validate the input string before validating the password.
+    // This helps us to provide more user-friendly error messages
+    // (e.g. we can warn them than the password they’re trying
+    // is too short so it can’t be the right one), and is also
+    // useful from a security perspective (we avoid resource
+    // exhaustion attacks where an attacker makes us compute
+    // hashes of really long passwords).
+    //
+    // Note that if we ever change the default password validation rules,
+    // we need to make sure we edit the code so that validation here
+    // still accepts older passwords.
+    const userError = validatePasswordInputFormat(password);
+    if (userError !== null) {
+      return { success: false, userError };
     }
 
     const row = await passwordByUserId(ctx, userId);

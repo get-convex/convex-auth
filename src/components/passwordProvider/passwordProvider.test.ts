@@ -102,7 +102,7 @@ describe("setPassword + verifyPassword", () => {
   });
 });
 
-describe("password validation (setPassword only)", () => {
+describe("password validation (setPassword)", () => {
   test("rejects a too-short password", async () => {
     const t = setup();
     const result = await t.mutation(api.public.setPassword, {
@@ -118,6 +118,56 @@ describe("password validation (setPassword only)", () => {
   test("rejects a password with leading whitespace", async () => {
     const t = setup();
     const result = await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: " leadingspace123",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" },
+    });
+  });
+});
+
+describe("password validation (verifyPassword)", () => {
+  test("rejects a too-short password without touching the stored password", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: "short",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
+    });
+  });
+
+  test("rejects a too-long password", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: "a".repeat(101),
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_LONG", maximumLength: 100 },
+    });
+  });
+
+  test("rejects a password with surrounding whitespace", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
       userId: "alice",
       password: " leadingspace123",
     });
