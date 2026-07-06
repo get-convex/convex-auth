@@ -445,7 +445,8 @@ test("SCIM + OIDC reuses provisioned userId", async () => {
   ).page as AuthEventProjection[];
   expect(
     auditEvents.some(
-      (event) => event.kind === "connection.scim.user.provisioned" && event.subjectId === provisionedUserId,
+      (event) =>
+        event.kind === "connection.scim.user.provisioned" && event.subjectId === provisionedUserId,
     ),
   ).toBe(true);
 }, 60_000);
@@ -722,7 +723,8 @@ test("SCIM + SAML reuses provisioned userId", async () => {
   ).page as AuthEventProjection[];
   expect(
     auditEvents.some(
-      (event) => event.kind === "connection.scim.user.provisioned" && event.subjectId === provisionedUserId,
+      (event) =>
+        event.kind === "connection.scim.user.provisioned" && event.subjectId === provisionedUserId,
     ),
   ).toBe(true);
 }, 60_000);

@@ -1,10 +1,11 @@
 import { SignJWT, createLocalJWKSet, importPKCS8, jwtVerify } from "jose";
 
 import type { AccessToken } from "../shared/brand";
-import { envOptionalString, readConfigSync, requireEnv } from "./env";
+import { envOptionalString, requireEnv } from "./env";
 import { generateRandomString } from "./random";
 import { ConvexAuthConfig } from "./types";
 import type { SessionTokenIdentityClaims } from "./types";
+import { authUrlFromEnv } from "./url";
 import { withSpan } from "./utils/span";
 
 const DEFAULT_JWT_DURATION_MS = 1000 * 60 * 60;
@@ -12,7 +13,7 @@ const TOKEN_JTI_LENGTH = 24;
 const TOKEN_JTI_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 let cachedPrivateKeyPromise: Promise<Awaited<ReturnType<typeof importPKCS8>>> | null = null;
-let cachedIssuer: string | null = null;
+const cachedIssuers = new Map<string, string>();
 
 const JWT_ALG = "EdDSA" as const;
 
@@ -55,29 +56,15 @@ const getPrivateKey = () => {
   return cachedPrivateKeyPromise;
 };
 
-const getIssuer = () => {
-  if (cachedIssuer === null) {
-    cachedIssuer = appendAuthPrefix(
-      requireEnv("CONVEX_SITE_URL"),
-      readConfigSync(envOptionalString("CONVEX_AUTH_HTTP_PREFIX")) ?? "/auth",
-    );
+const getIssuer = (path?: string) => {
+  const key = path ?? "";
+  let issuer = cachedIssuers.get(key);
+  if (issuer === undefined) {
+    issuer = authUrlFromEnv(path);
+    cachedIssuers.set(key, issuer);
   }
-  return cachedIssuer;
+  return issuer;
 };
-
-function appendAuthPrefix(siteUrl: string, prefix: string) {
-  const normalizedSiteUrl = siteUrl.replace(/\/$/, "");
-  const normalizedPrefix = normalizeAuthPrefix(prefix);
-  return `${normalizedSiteUrl}${normalizedPrefix}`;
-}
-
-function normalizeAuthPrefix(prefix: string) {
-  const trimmed = prefix.trim();
-  if (trimmed === "" || trimmed === "/") {
-    return "";
-  }
-  return `/${trimmed.replace(/^\/+|\/+$/g, "")}`;
-}
 
 if (envOptionalString("JWT_PRIVATE_KEY")) {
   try {
@@ -122,6 +109,7 @@ export async function generateOAuthToken(args: {
   userId: string;
   clientId: string;
   scopes: string[];
+  issuer?: string;
   resource?: string;
 }): Promise<string> {
   const privateKey = await withSpan("convex-auth.tokens.import-key", { alg: JWT_ALG }, () =>
@@ -140,7 +128,7 @@ export async function generateOAuthToken(args: {
       .setProtectedHeader({ alg: JWT_ALG })
       .setIssuedAt()
       .setJti(generateRandomString(TOKEN_JTI_LENGTH, TOKEN_JTI_ALPHABET))
-      .setIssuer(getIssuer())
+      .setIssuer(args.issuer ?? getIssuer())
       .setExpirationTime(exp)
       .sign(privateKey),
   );
@@ -175,12 +163,13 @@ function getJwkSet(): ReturnType<typeof createLocalJWKSet> {
  */
 export async function verifyOAuthToken(
   token: string,
-  opts?: { resource?: string },
+  opts?: { issuer?: string; resource?: string },
 ): Promise<{ userId: string; clientId: string; scopes: string[]; resource: string | null } | null> {
   try {
     const { payload } = await jwtVerify(token, getJwkSet(), {
-      issuer: getIssuer(),
+      issuer: opts?.issuer ?? getIssuer(),
       audience: "convex",
+      clockTolerance: 30,
     });
     if ((payload as { token_use?: string }).token_use !== "access") return null;
     const userId = payload.sub;
@@ -234,7 +223,7 @@ export async function generateToken(
       .setProtectedHeader({ alg: JWT_ALG })
       .setIssuedAt()
       .setJti(generateRandomString(TOKEN_JTI_LENGTH, TOKEN_JTI_ALPHABET))
-      .setIssuer(getIssuer())
+      .setIssuer(getIssuer(config.path))
       .setAudience("convex")
       .setExpirationTime(expirationTime)
       .sign(privateKey),

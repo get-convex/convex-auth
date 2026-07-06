@@ -85,8 +85,7 @@ export function AssigneePicker({
               paddingVertical: spacing.sm + 2,
               borderBottomWidth: 1,
               borderBottomColor: colors.border.transparent,
-              backgroundColor:
-                !value || pressed ? colors.background.tertiary : "transparent",
+              backgroundColor: !value || pressed ? colors.background.tertiary : "transparent",
             })}
           >
             <Text
@@ -116,8 +115,7 @@ export function AssigneePicker({
                   paddingVertical: spacing.sm + 2,
                   borderBottomWidth: 1,
                   borderBottomColor: colors.border.transparent,
-                  backgroundColor:
-                    active || pressed ? colors.background.tertiary : "transparent",
+                  backgroundColor: active || pressed ? colors.background.tertiary : "transparent",
                 })}
               >
                 <View

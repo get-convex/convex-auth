@@ -100,12 +100,19 @@ function createRuntimeClient(config: CustomOAuthConfig): OAuthRuntimeClient {
   const token = config.token;
   const pkce = authorization.pkce ?? "required";
   const scopes = [...(config.scopes ?? [])];
-  const getRedirectUri = () => config.redirectUri ?? defaultOAuthRedirectUri(config.id);
+  const getRedirectUri = (redirectUri?: string) =>
+    config.redirectUri ?? defaultOAuthRedirectUri(config.id, redirectUri);
 
   return {
     pkce,
-    createAuthorizationURL({ state, codeVerifier, scopes: requestedScopes, nonce }) {
-      const redirectUri = getRedirectUri();
+    createAuthorizationURL({
+      state,
+      codeVerifier,
+      scopes: requestedScopes,
+      nonce,
+      redirectUri: runtimeRedirectUri,
+    }) {
+      const redirectUri = getRedirectUri(runtimeRedirectUri);
       const url = new URL(authorization.url);
       const nextScopes = requestedScopes.length > 0 ? requestedScopes : scopes;
       url.searchParams.set("response_type", "code");
@@ -130,8 +137,8 @@ function createRuntimeClient(config: CustomOAuthConfig): OAuthRuntimeClient {
       }
       return url;
     },
-    async validateAuthorizationCode({ code, codeVerifier }) {
-      const redirectUri = getRedirectUri();
+    async validateAuthorizationCode({ code, codeVerifier, redirectUri: runtimeRedirectUri }) {
+      const redirectUri = getRedirectUri(runtimeRedirectUri);
       const body = new URLSearchParams();
       body.set("grant_type", "authorization_code");
       body.set("code", code);

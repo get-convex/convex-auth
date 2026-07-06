@@ -1,3 +1,4 @@
+import { ErrorCode } from "../shared/codes";
 import type { Hashed } from "../shared/brand";
 import { convexError as credentialsError } from "./errors";
 import type { AuthProviderMaterializedConfig, ConvexAuthMaterializedConfig } from "./types";
@@ -11,7 +12,7 @@ type CredentialsProviderLike = Extract<AuthProviderMaterializedConfig, { type: "
 function asCredentialsProvider(provider: AuthProviderMaterializedConfig): CredentialsProviderLike {
   if (provider.type !== "credentials") {
     throw credentialsError(
-      "INVALID_CREDENTIALS_PROVIDER",
+      ErrorCode.INVALID_CREDENTIALS_PROVIDER,
       `Provider ${provider.id} is not a credentials provider`,
     );
   }
@@ -30,7 +31,7 @@ export async function hash(
   const hashSecret = credProvider.crypto?.hashSecret;
   if (!hashSecret) {
     throw credentialsError(
-      "MISSING_CRYPTO_FUNCTION",
+      ErrorCode.MISSING_CRYPTO_FUNCTION,
       `Provider ${credProvider.id} does not have a \`crypto.hashSecret\` function`,
     );
   }
@@ -54,7 +55,7 @@ export async function verify(
   const verifySecret = credProvider.crypto?.verifySecret;
   if (!verifySecret) {
     throw credentialsError(
-      "MISSING_CRYPTO_FUNCTION",
+      ErrorCode.MISSING_CRYPTO_FUNCTION,
       `Provider ${credProvider.id} does not have a \`crypto.verifySecret\` function`,
     );
   }

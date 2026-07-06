@@ -153,10 +153,7 @@ export async function base64LogoutResponse(
         StatusCode: SAML_STATUS_SUCCESS,
         InResponseTo: get(requestInfo, "extract.request.id", null),
       };
-      rawSamlResponse = replaceTagsByValue(
-        defaultLogoutResponseTemplate.context,
-        tvalue,
-      );
+      rawSamlResponse = replaceTagsByValue(defaultLogoutResponseTemplate.context, tvalue);
     }
     if (entity.target.entitySetting.wantLogoutResponseSigned) {
       const {

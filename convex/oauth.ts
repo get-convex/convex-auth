@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import { mutation } from "./_generated/server";
 import { auth } from "./auth";
+import { ErrorCode } from "./errors";
 import { permissions } from "./roles";
 
 const requestedScopes = v.optional(v.array(v.string()));
@@ -36,7 +37,7 @@ export const registerClient = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (identity === null) {
       throw new ConvexError({
-        code: "NOT_SIGNED_IN",
+        code: ErrorCode.NOT_SIGNED_IN,
         message: "Sign in before registering an OAuth client.",
       });
     }
@@ -75,7 +76,7 @@ export const authorize = mutation({
     const user = await auth.user.viewer(ctx);
     if (user === null) {
       throw new ConvexError({
-        code: "NOT_SIGNED_IN",
+        code: ErrorCode.NOT_SIGNED_IN,
         message: "Sign in before authorizing an OAuth client.",
       });
     }

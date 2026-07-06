@@ -1,19 +1,12 @@
 import type { OAuth2Tokens } from "arctic";
 
-import type { OAuthMaterializedConfig, OAuthProfile, OAuthTokens } from "../types";
+import type {
+  OAuthMaterializedConfig,
+  OAuthProfile,
+  OAuthRuntimeClient,
+  OAuthTokens,
+} from "../types";
 import { normalizeOAuthTokenResponse } from "./normalize";
-
-type OAuthRuntimeClient = {
-  readonly pkce: "required" | "optional" | "never";
-  createAuthorizationURL(args: {
-    state: string;
-    codeVerifier?: string;
-    scopes: string[];
-    nonce?: string;
-    loginHint?: string;
-  }): URL;
-  validateAuthorizationCode(args: { code: string; codeVerifier?: string }): Promise<OAuthTokens>;
-};
 
 type ArcticPkceMode = OAuthRuntimeClient["pkce"];
 
@@ -27,9 +20,9 @@ type ArcticOAuthProviderWithPkce = {
   validateAuthorizationCode(code: string, codeVerifier: string): Promise<OAuth2Tokens>;
 };
 
-type ArcticOAuthProviderFactory = () =>
-  | ArcticOAuthProviderWithoutPkce
-  | ArcticOAuthProviderWithPkce;
+type ArcticOAuthProviderFactory = (
+  redirectUri?: string,
+) => ArcticOAuthProviderWithoutPkce | ArcticOAuthProviderWithPkce;
 
 /**
  * Internal provider config used to materialize OAuth providers for the auth runtime.
@@ -57,11 +50,13 @@ function normalizeTokens(tokens: OAuth2Tokens): OAuthTokens {
  * @internal
  */
 export function createArcticOAuthClient(
-  provider: ArcticOAuthProviderWithoutPkce | (() => ArcticOAuthProviderWithoutPkce),
+  provider:
+    | ArcticOAuthProviderWithoutPkce
+    | ((redirectUri?: string) => ArcticOAuthProviderWithoutPkce),
   options?: { pkce?: Extract<ArcticPkceMode, "never"> },
 ): OAuthRuntimeClient;
 export function createArcticOAuthClient(
-  provider: ArcticOAuthProviderWithPkce | (() => ArcticOAuthProviderWithPkce),
+  provider: ArcticOAuthProviderWithPkce | ((redirectUri?: string) => ArcticOAuthProviderWithPkce),
   options?: { pkce?: Extract<ArcticPkceMode, "required" | "optional"> },
 ): OAuthRuntimeClient;
 export function createArcticOAuthClient(
@@ -71,13 +66,14 @@ export function createArcticOAuthClient(
     | ArcticOAuthProviderFactory,
   options?: { pkce?: ArcticPkceMode },
 ): OAuthRuntimeClient {
-  const getProvider = () => (typeof provider === "function" ? provider() : provider);
+  const getProvider = (redirectUri?: string) =>
+    typeof provider === "function" ? provider(redirectUri) : provider;
   const pkce =
     options?.pkce ?? (getProvider().createAuthorizationURL.length >= 3 ? "required" : "never");
   return {
     pkce,
-    createAuthorizationURL({ state, codeVerifier, scopes, nonce }) {
-      const provider = getProvider();
+    createAuthorizationURL({ state, codeVerifier, scopes, nonce, redirectUri }) {
+      const provider = getProvider(redirectUri);
       const url =
         pkce !== "never"
           ? (
@@ -95,8 +91,8 @@ export function createArcticOAuthClient(
       }
       return url;
     },
-    async validateAuthorizationCode({ code, codeVerifier }) {
-      const provider = getProvider();
+    async validateAuthorizationCode({ code, codeVerifier, redirectUri }) {
+      const provider = getProvider(redirectUri);
       const tokens =
         pkce !== "never"
           ? await (

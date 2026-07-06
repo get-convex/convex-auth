@@ -29,8 +29,18 @@ function serialize(value: unknown) {
   }
 }
 
+const LEVEL_SEVERITY: Record<LogLevel, number> = {
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  DEBUG: 3,
+};
+
 /**
  * Format and emit a log line, suppressing anything below `configuredLogLevel`.
+ *
+ * The level gate is checked before {@link serialize} runs, so a message gated
+ * out by the configured level never pays the `JSON.stringify` cost of its args.
  *
  * @param module - Source module label included in the prefix.
  * @param level - Severity of this message.
@@ -43,35 +53,25 @@ export function logMessage(
   args: readonly unknown[],
   configuredLogLevel: LogLevel = "INFO",
 ) {
+  if (LEVEL_SEVERITY[level] > LEVEL_SEVERITY[configuredLogLevel]) {
+    return;
+  }
+
   const message = args.map(serialize).join(" ");
-  const meta = { module, level };
+  const prefix = `[${module}] [${level}]`;
 
-  const levelHandlers: Record<LogLevel, () => void> = {
-    ERROR: () => {
-      console.error(`[${meta.module}] [${meta.level}]`, message);
-    },
-    WARN: () => {
-      if (configuredLogLevel === "ERROR") {
-        return;
-      }
-      console.warn(`[${meta.module}] [${meta.level}]`, message);
-    },
-    INFO: () => {
-      if (configuredLogLevel !== "INFO" && configuredLogLevel !== "DEBUG") {
-        return;
-      }
-      console.info(`[${meta.module}] [${meta.level}]`, message);
-    },
-    DEBUG: () => {
-      if (configuredLogLevel !== "DEBUG") {
-        return;
-      }
-      console.debug(`[${meta.module}] [${meta.level}]`, message);
-    },
-  };
-
-  const handler = levelHandlers[level];
-  if (handler) {
-    handler();
+  switch (level) {
+    case "ERROR":
+      console.error(prefix, message);
+      return;
+    case "WARN":
+      console.warn(prefix, message);
+      return;
+    case "INFO":
+      console.info(prefix, message);
+      return;
+    case "DEBUG":
+      console.debug(prefix, message);
+      return;
   }
 }

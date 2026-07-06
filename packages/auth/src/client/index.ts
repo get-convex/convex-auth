@@ -23,6 +23,7 @@ import {
   type AuthSubscriber,
   type OAuthCompletionResult,
   type ClientAdapterDeps,
+  type ClientAdapterFactories,
   type ActionTransport,
   type ClientAdapters,
   type ClientRuntime,
@@ -45,12 +46,9 @@ import {
   isRetriableProxyRefreshError,
   isTransientNetworkError,
   parseProxyErrorBody,
+  ProxyRequestError,
 } from "./runtime/proxy";
 import { createStorageHelpers } from "./runtime/storage";
-import { ClientAdapterFactoriesLive, ClientAdaptersLive } from "./services/adapters";
-import { ClientHttpLive } from "./services/http";
-import { resolveClientServices } from "./services/resolve";
-import { ClientRuntimeLive } from "./services/runtime";
 
 export type {
   AnonymousParams,
@@ -95,6 +93,7 @@ const INVITE_EMAIL_KEY = "__convexAuthPendingInviteEmail";
 const RETRY_BASE_MS = 500;
 const RETRY_MAX_RETRIES = 2;
 const DEFAULT_AUTH_HANDSHAKE_TIMEOUT_MS = 5000;
+const FORCED_REFRESH_REUSE_MS = 10000;
 
 const retryWithJitteredBackoff = <T>(
   fn: () => Promise<T>,
@@ -112,8 +111,14 @@ const retryWithJitteredBackoff = <T>(
  *
  * `ConvexReactClient` exposes `.url` directly.
  * `ConvexClient` exposes `.client.url` via `BaseConvexClient`.
+ *
+ * @param convex - The Convex transport to read the deployment URL from.
+ * @param explicit - An explicit URL that short-circuits discovery.
+ * @returns The resolved deployment URL.
+ * @throws {Error} When no URL can be determined and `explicit` is not provided.
+ * @internal
  */
-function resolveUrl(convex: ConvexTransport, explicit?: string): string {
+export function resolveUrl(convex: ConvexTransport, explicit?: string): string {
   if (explicit) return explicit;
   const candidate = convex as {
     url?: unknown;
@@ -235,14 +240,9 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
 ): AuthClient<Api> {
   const { convex, proxyPath, api: apiRefs } = options;
   const proxy = proxyPath;
-  const services = resolveClientServices({
-    runtime: ClientRuntimeLive(options.runtime ?? {}),
-    adapters: ClientAdaptersLive(options.adapters ?? {}),
-    adapterFactories: ClientAdapterFactoriesLive(options.adapterFactories ?? {}),
-    http: ClientHttpLive(proxy ? null : (options.httpClient ?? null)),
-  });
-  const runtime: ClientRuntime = services.runtime;
-  const adapters: ClientAdapters = services.adapters;
+  const runtime: ClientRuntime = options.runtime ?? {};
+  const adapters: ClientAdapters = options.adapters ?? {};
+  const adapterFactories: ClientAdapterFactories = options.adapterFactories ?? {};
 
   function requireProxyRuntime() {
     if (!runtime.proxy) {
@@ -355,9 +355,9 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
       ) {
         throw new ConvexError((errorBody as Record<string, unknown>).authError as Value);
       }
-      throw new Error(
-        ((errorBody as Record<string, unknown>).error as string) ??
-          `Proxy request failed: ${response.status}`,
+      throw new ProxyRequestError(
+        response.status,
+        (errorBody as Record<string, unknown>).error as string | undefined,
       );
     }
     try {
@@ -369,7 +369,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
   const subscribers = new Set<() => void>();
   let disposeStorageListener: (() => void) | null = null;
 
-  const httpClient: ActionTransport | null = services.httpClient;
+  const httpClient: ActionTransport | null = proxy ? null : (options.httpClient ?? null);
 
   const readInitialToken = (): AccessToken | null => {
     if (!storage) return null;
@@ -395,6 +395,8 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
   let authConfirmed = hasServerToken;
   let handshakePending = false;
   let authEpoch = 0;
+  let lastForcedRefreshTime = 0;
+  let forcedRefreshPromise: Promise<string | null> | null = null;
   let destroyed = false;
   let activeSignIn: {
     key: string;
@@ -512,8 +514,11 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
       authConfirmed = true;
       handshakePending = false;
       settleHandshakeWaiters(authEpoch, { type: "resolve" });
-    } else {
+    } else if (token === null || !authConfirmed) {
       authConfirmed = false;
+      if (token !== null) {
+        handshakePending = true;
+      }
     }
 
     if (updateSnapshot()) {
@@ -602,6 +607,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
 
     if (args.tokens === null) {
       token = null;
+      lastForcedRefreshTime = 0;
       if (args.shouldStore) {
         await storageRemove(JWT_STORAGE_KEY);
         await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
@@ -631,7 +637,10 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         }),
       });
     } else {
-      const shouldEnterHandshake = args.requireHandshake === true || tokenChanged || !authConfirmed;
+      const keepConfirmedAuth =
+        authConfirmed && args.resyncConvexAuth === false && args.requireHandshake !== true;
+      const shouldEnterHandshake =
+        !keepConfirmedAuth && (args.requireHandshake === true || tokenChanged || !authConfirmed);
       if (shouldEnterHandshake) {
         authConfirmed = false;
         handshakePending = true;
@@ -689,7 +698,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     proxyFetch,
     setTokenAndMaybeWait,
   };
-  const passkeyAdapter = adapters.passkey ?? services.adapterFactories.passkey?.(adapterDeps);
+  const passkeyAdapter = adapters.passkey ?? adapterFactories.passkey?.(adapterDeps);
 
   const verifyCode = async (
     args: { code: string; verifier?: string } | { refreshToken: string },
@@ -748,6 +757,26 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
   ): result is Extract<SignInActionResult, { kind: "signedIn" }> => result.kind === "signedIn";
 
   /**
+   * Hand an OAuth authorization URL to the platform launcher.
+   *
+   * Browser-style runtimes navigate away and return nothing, so the caller
+   * receives the `redirect` result. Session-style runtimes (Expo) return the
+   * callback URL, which is completed inline and resolves to `signedIn`.
+   */
+  const launchOAuth = async (redirect: URL, verifier: string): Promise<SignInResult> => {
+    const redirectResult = { kind: "redirect" as const, redirect, verifier } satisfies SignInResult;
+    if (!runtime.oauth) {
+      return redirectResult;
+    }
+    const callback = await runtime.oauth.open(redirect);
+    if (callback === undefined) {
+      return redirectResult;
+    }
+    const completion = await completeOAuth(callback);
+    return completion.handled ? { kind: "signedIn" as const } : redirectResult;
+  };
+
+  /**
    * Sign in with a provider.
    *
    * @param provider - Provider ID (e.g. `"email"`, `"password"`, `"google"`).
@@ -787,7 +816,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     }
     await persistInvite();
 
-    const params =
+    const rawParams =
       args instanceof FormData
         ? (() => {
             const formParams: Record<string, Value> = {};
@@ -799,6 +828,10 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
             return formParams;
           })()
         : (args ?? {});
+    const params: Record<string, Value> =
+      options.oauthRedirectTo !== undefined && rawParams.redirectTo === undefined
+        ? { ...rawParams, redirectTo: options.oauthRedirectTo }
+        : rawParams;
     const flow = typeof params.flow === "string" && params.flow.length > 0 ? params.flow : "signIn";
     const signInKey = buildSignInRequestKey(provider, params);
 
@@ -858,7 +891,8 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
 
     if (activeSignIn !== null) {
       if (activeSignIn.key === signInKey) {
-        return await activeSignIn.promise;
+        const shared = await activeSignIn.promise;
+        return shared.kind === "redirect" ? launchOAuth(shared.redirect, shared.verifier) : shared;
       }
       throw new Error("Another sign-in flow is already in progress.");
     }
@@ -907,13 +941,18 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     })();
 
     activeSignIn = { key: signInKey, promise: signInPromise };
+    let result: SignInResult;
     try {
-      return await signInPromise;
+      result = await signInPromise;
     } finally {
       if (activeSignIn?.promise === signInPromise) {
         activeSignIn = null;
       }
     }
+    if (result.kind === "redirect") {
+      return launchOAuth(result.redirect, result.verifier);
+    }
+    return result;
   };
 
   /**
@@ -952,7 +991,24 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
   }): Promise<string | null> => {
     if (destroyed) return null;
     if (!forceRefreshToken) return token;
+    if (forcedRefreshPromise !== null) {
+      return await forcedRefreshPromise;
+    }
+    if (token !== null && Date.now() - lastForcedRefreshTime < FORCED_REFRESH_REUSE_MS) {
+      return token;
+    }
 
+    forcedRefreshPromise = (async () => {
+      try {
+        return await refreshAccessToken();
+      } finally {
+        forcedRefreshPromise = null;
+      }
+    })();
+    return await forcedRefreshPromise;
+  };
+
+  async function refreshAccessToken(): Promise<string | null> {
     const mutex = runtime.mutex;
     const withMutex = mutex
       ? <T>(key: string, callback: () => Promise<T>) => mutex.withKey(key, callback)
@@ -978,6 +1034,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
               tokens: { token: result.session.token },
               resyncConvexAuth: false,
             });
+            lastForcedRefreshTime = Date.now();
           } else {
             await setToken({
               shouldStore: false,
@@ -1011,13 +1068,14 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
       }
       try {
         await verifyCodeAndSetToken({ refreshToken }, { resyncConvexAuth: false });
+        lastForcedRefreshTime = Date.now();
       } catch (error) {
         await setToken({ shouldStore: true, tokens: null, resyncConvexAuth: false });
         throw error;
       }
       return token;
     });
-  };
+  }
 
   const resolveOAuthInput = (input: URL | string | { code: string }) => {
     if (input instanceof URL) {
@@ -1027,6 +1085,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
           ? (() => {
               const next = new URL(input.toString());
               next.searchParams.delete("code");
+              next.searchParams.delete("state");
               return next;
             })()
           : null,
@@ -1043,6 +1102,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
           ? (() => {
               const next = new URL(url.toString());
               next.searchParams.delete("code");
+              next.searchParams.delete("state");
               return next;
             })()
           : null,
@@ -1050,6 +1110,16 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     } catch {
       return { code: input, cleanupUrl: null };
     }
+  };
+
+  const replaceWithCleanupUrl = async (cleanupUrl: URL) => {
+    if (!runtime.location) return;
+    const current = runtime.location.get();
+    const relativeUrl =
+      current !== null && cleanupUrl.origin === current.origin
+        ? `${cleanupUrl.pathname}${cleanupUrl.search}${cleanupUrl.hash}`
+        : cleanupUrl.toString();
+    await runtime.location.replace(relativeUrl);
   };
 
   const completeOAuth = async (
@@ -1063,6 +1133,9 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     if (result.kind !== "signedIn") {
       throw new Error("OAuth code exchange did not complete sign-in.");
     }
+    if (cleanupUrl) {
+      await replaceWithCleanupUrl(cleanupUrl);
+    }
     return { handled: true, cleanupUrl };
   };
 
@@ -1071,7 +1144,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     await setToken({
       shouldStore: false,
       tokens: storedToken === null ? null : { token: storedToken as AccessToken },
-      resyncConvexAuth: storedToken !== null,
+      resyncConvexAuth: storedToken !== null && storedToken !== token,
     });
   };
 
@@ -1111,8 +1184,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
       try {
         const loc = runtime.location?.get() ?? null;
         if (loc && loc.searchParams.has("code")) {
-          const result = await completeOAuth(loc);
-          if (result.handled) cleanUrlParams(["code"]);
+          await completeOAuth(loc);
         }
       } catch (error) {
         logMessage("convex-auth/client", LOG_LEVELS.ERROR, [

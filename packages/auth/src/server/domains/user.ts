@@ -263,7 +263,11 @@ export function createUserDomain(deps: UserDeps) {
         return { email: addr };
       },
       promote: (ctx: ComponentCtx & { auth: Auth }, args: { email: string; userId?: string }) =>
-        emailPrimary(ctx, args.email, args.userId === undefined ? undefined : { userId: args.userId }),
+        emailPrimary(
+          ctx,
+          args.email,
+          args.userId === undefined ? undefined : { userId: args.userId },
+        ),
       primary: {
         get: (ctx: ComponentAuthReadCtx, opts?: { userId?: string }) => emailPrimary(ctx, opts),
       },

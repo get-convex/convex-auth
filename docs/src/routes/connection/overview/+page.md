@@ -110,8 +110,8 @@ from the current route/context before calling the RPC.
 
 ## What SSO covers
 
-| Protocol | Purpose                                  | Namespace                            |
-| -------- | ---------------------------------------- | ------------------------------------ |
+| Protocol | Purpose                                  | Namespace                                   |
+| -------- | ---------------------------------------- | ------------------------------------------- |
 | OIDC     | OpenID Connect identity provider login   | [`auth.connection.oidc`](/connection/oidc/) |
 | SAML 2.0 | Security Assertion Markup Language login | [`auth.connection.saml`](/connection/saml/) |
 | SCIM 2.0 | Cross-domain user/group provisioning     | [`auth.connection.scim`](/connection/scim/) |
@@ -199,14 +199,14 @@ tenant-specific logic down into protocol config.
 
 ## Related namespaces
 
-| Namespace                                       | Purpose                                   |
-| ----------------------------------------------- | ----------------------------------------- |
-| [`auth.connection`](/connection/connection/)           | Manage SSO connections per group          |
-| [`auth.connection.policy`](/connection/policy/)        | Manage group SSO behavior                 |
-| [`auth.connection.oidc`](/connection/oidc/)            | Configure and validate OIDC providers     |
-| [`auth.connection.saml`](/connection/saml/)            | Configure and validate SAML 2.0 providers |
-| [`auth.connection.signIn`](/connection/rpc/)           | Resolve group SSO sign-in routes          |
-| [`auth.connection.metadata`](/connection/rpc/)         | Generate SAML SP metadata                 |
-| [`auth.connection.scim`](/connection/scim/)            | Configure SCIM 2.0 provisioning           |
-| [`auth.event`](/connection/audit/)                     | Query SSO audit events                    |
-| [`auth.connection.webhook`](/connection/webhook/)      | Manage webhook endpoints                  |
+| Namespace                                         | Purpose                                   |
+| ------------------------------------------------- | ----------------------------------------- |
+| [`auth.connection`](/connection/connection/)      | Manage SSO connections per group          |
+| [`auth.connection.policy`](/connection/policy/)   | Manage group SSO behavior                 |
+| [`auth.connection.oidc`](/connection/oidc/)       | Configure and validate OIDC providers     |
+| [`auth.connection.saml`](/connection/saml/)       | Configure and validate SAML 2.0 providers |
+| [`auth.connection.signIn`](/connection/rpc/)      | Resolve group SSO sign-in routes          |
+| [`auth.connection.metadata`](/connection/rpc/)    | Generate SAML SP metadata                 |
+| [`auth.connection.scim`](/connection/scim/)       | Configure SCIM 2.0 provisioning           |
+| [`auth.event`](/connection/audit/)                | Query SSO audit events                    |
+| [`auth.connection.webhook`](/connection/webhook/) | Manage webhook endpoints                  |

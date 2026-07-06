@@ -76,6 +76,48 @@ function readStringArrayClaim(profile: AuthProfile, key: string): string[] | und
   return Array.isArray(value) ? (value as string[]) : undefined;
 }
 
+/** Lowercased registrable domain of an email address, or `null` when unparseable. */
+function emailDomain(email: unknown): string | null {
+  if (typeof email !== "string") return null;
+  const at = email.lastIndexOf("@");
+  if (at === -1 || at === email.length - 1) return null;
+  return email.slice(at + 1).toLowerCase();
+}
+
+/**
+ * Whether a SAML-asserted email may be treated as verified: true only when its
+ * domain matches a verified (`verifiedAt` set) domain attached to the
+ * connection. SAML carries no `email_verified` claim, so a domain-ownership
+ * proof is the only signal that lets a SAML email drive `verifiedEmail`
+ * account-linking — without it a malicious IdP could assert `victim@other.com`.
+ */
+async function isSamlEmailDomainVerified(
+  ctx: MutationCtx,
+  config: Provider.Config,
+  connectionId: string,
+  email: unknown,
+): Promise<boolean> {
+  const domain = emailDomain(email);
+  if (domain === null) return false;
+  const domains = (await ctx.runQuery(config.component.connection.domain.list, {
+    connectionId,
+  })) as Array<{ domain: string; verifiedAt?: number }>;
+  return domains.some((row) => row.verifiedAt !== undefined && row.domain.toLowerCase() === domain);
+}
+
+/**
+ * Just-in-time membership provisioning for a connection-owned group on SSO
+ * login, reconcile-to-set on roles.
+ *
+ * @remarks
+ * The IdP assertion is authoritative for a connection-owned membership's roles:
+ * an existing membership's `roleIds` are overwritten with exactly the mapped
+ * set even when that shrinks (or empties) it, so a demotion at the IdP drops the
+ * local roles rather than leaving them (the previous additive-only behavior).
+ * The membership itself is never removed here — the user just authenticated
+ * through this connection's IdP, so JIT keeps them a member; full
+ * de-provisioning (and session revocation) is SCIM's responsibility.
+ */
 async function jitProvisionMembership(
   ctx: MutationCtx,
   config: Provider.Config,
@@ -107,7 +149,14 @@ async function jitProvisionMembership(
       roleIds: provisionedRoleIds,
       status: "active",
     });
-  } else if (provisionedRoleIds.length > 0) {
+    return;
+  }
+  const currentRoleIds = existingMembership.roleIds ?? [];
+  const nextRoleSet = new Set(provisionedRoleIds);
+  const sameRoles =
+    currentRoleIds.length === nextRoleSet.size &&
+    currentRoleIds.every((roleId) => nextRoleSet.has(roleId));
+  if (!sameRoles) {
     await ctx.runMutation(config.component.group.member.update, {
       id: existingMembership._id,
       patch: { roleIds: provisionedRoleIds },
@@ -209,6 +258,19 @@ export async function userOAuthImpl(
         })
       : undefined) ?? profileResolved;
 
+  const provisioningProfile =
+    connectionProtocol === "saml" && connectionId !== null
+      ? {
+          ...(profileForProvisioning as Record<string, unknown>),
+          emailVerified: await isSamlEmailDomainVerified(
+            ctx,
+            config,
+            connectionId,
+            (profileForProvisioning as Record<string, unknown>).email,
+          ),
+        }
+      : profileForProvisioning;
+
   const { accountId } = await upsertUserAndAccount(
     ctx,
     verifier.sessionId ?? null,
@@ -225,7 +287,7 @@ export async function userOAuthImpl(
                   : undefined,
           })
         : getProviderOrThrow(provider)) as AuthProviderMaterializedConfig,
-      profile: profileForProvisioning as AuthProfile,
+      profile: provisioningProfile as AuthProfile,
       emails: args.emails,
       accountExtend: normalizeAccountExtend(provider, providerAccountId, accountExtend),
     },

@@ -14,6 +14,8 @@ import type * as connection_audit from "../connection/audit.js";
 import type * as connection_cache from "../connection/cache.js";
 import type * as connection_domain from "../connection/domain.js";
 import type * as connection_domain_verification from "../connection/domain/verification.js";
+import type * as connection_saml_assertion from "../connection/saml/assertion.js";
+import type * as connection_saml_request from "../connection/saml/request.js";
 import type * as connection_scim_config from "../connection/scim/config.js";
 import type * as connection_scim_identity from "../connection/scim/identity.js";
 import type * as connection_secret from "../connection/secret.js";
@@ -46,11 +48,7 @@ import type * as user from "../user.js";
 import type * as user_email from "../user/email.js";
 import type * as user_key from "../user/key.js";
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
+import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
@@ -60,6 +58,8 @@ const fullApi: ApiFromModules<{
   "connection/cache": typeof connection_cache;
   "connection/domain": typeof connection_domain;
   "connection/domain/verification": typeof connection_domain_verification;
+  "connection/saml/assertion": typeof connection_saml_assertion;
+  "connection/saml/request": typeof connection_saml_request;
   "connection/scim/config": typeof connection_scim_config;
   "connection/scim/identity": typeof connection_scim_identity;
   "connection/secret": typeof connection_secret;
@@ -101,10 +101,7 @@ const fullApi: ApiFromModules<{
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-export const api: FilterApi<
-  typeof fullApi,
-  FunctionReference<any, "public">
-> = anyApi as any;
+export const api: FilterApi<typeof fullApi, FunctionReference<any, "public">> = anyApi as any;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.

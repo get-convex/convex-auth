@@ -101,18 +101,7 @@ export default async function setupNodeInterop(project: {
       await run("vp", ["exec", "convex", "deploy", "--yes"], convexEnv, {
         timeout: convexTimeoutMs,
       });
-      await run("vp", ["exec", "convex", "env", "set", "SITE_URL", env.SITE_URL], convexEnv);
       await run("vp", ["exec", "convex", "env", "set", "APP_URL", env.APP_URL], convexEnv);
-      await run(
-        "vp",
-        ["exec", "convex", "env", "set", "CONVEX_AUTH_SITE_URL", env.CONVEX_SITE_URL],
-        convexEnv,
-      );
-      await run(
-        "vp",
-        ["exec", "convex", "env", "set", "CONVEX_AUTH_HTTP_PREFIX", env.CONVEX_AUTH_HTTP_PREFIX],
-        convexEnv,
-      );
       await run("vp", ["exec", "convex", "env", "set", "AUTH_EMAIL", env.AUTH_EMAIL], convexEnv);
       await run(
         "vp",
@@ -165,10 +154,7 @@ export default async function setupNodeInterop(project: {
     project.provide("zitadelPublicUrl", env.ZITADEL_BASE_URL);
     project.provide("zitadelInternalUrl", env.ZITADEL_RUNTIME_BASE_URL);
     project.provide("convexSelfHostedUrl", env.TEST_TARGET_BASE_URL);
-    project.provide(
-      "convexSiteUrl",
-      appendHttpPrefix(env.CONVEX_SITE_URL, env.CONVEX_AUTH_HTTP_PREFIX),
-    );
+    project.provide("convexSiteUrl", `${env.CONVEX_SITE_URL.replace(/\/$/, "")}/auth`);
     project.provide("jwtPrivateKey", generated.jwtPrivateKey);
   } catch (error) {
     await dumpDockerLogs();
@@ -188,8 +174,6 @@ function baseEnv() {
     AUTH_LOG_LEVEL: "DEBUG",
     TEST_TARGET_BASE_URL: "http://127.0.0.1:3210",
     CONVEX_SITE_URL: "http://127.0.0.1:3211",
-    CONVEX_AUTH_HTTP_PREFIX: "/auth",
-    SITE_URL: "http://127.0.0.1:3211",
     APP_URL: "http://localhost:5173",
     AUTH_EMAIL: "test@example.com",
     AUTH_GOOGLE_ID: "test-google-client-id",
@@ -221,17 +205,6 @@ function selfHostedConvexEnv(adminKey: string) {
 
 function composeArgs(...args: string[]) {
   return ["compose", "--env-file", composeEnvPath, "-f", composePath, ...args];
-}
-
-function appendHttpPrefix(siteUrl: string, prefix: string | undefined) {
-  const normalizedSiteUrl = siteUrl.replace(/\/$/, "");
-  if (prefix === undefined || prefix.trim() === "" || prefix.trim() === "/") {
-    return normalizedSiteUrl;
-  }
-  const normalizedPrefix = `/${prefix.trim().replace(/^\/+|\/+$/g, "")}`;
-  return normalizedSiteUrl.endsWith(normalizedPrefix)
-    ? normalizedSiteUrl
-    : `${normalizedSiteUrl}${normalizedPrefix}`;
 }
 
 async function run(

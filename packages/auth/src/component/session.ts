@@ -6,11 +6,12 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { v } from "convex/values";
 
 import { mutation, query } from "./functions";
 import { vSessionDoc } from "./model";
+
+const SESSION_TOKEN_DELETE_BATCH = 1024;
 
 /** Read a session by id. */
 export const get = query({
@@ -26,7 +27,10 @@ export const list = query({
   args: { userId: v.id("User") },
   returns: v.array(vSessionDoc),
   handler: async (ctx, { userId }) => {
-    return await getManyFrom(ctx.db, "Session", "user_id", userId, "userId");
+    return await ctx.db
+      .query("Session")
+      .withIndex("user_id", (q) => q.eq("userId", userId))
+      .take(REVOKE_FOR_USER_MAX);
   },
 });
 
@@ -34,7 +38,10 @@ export const list = query({
  * Create (or rotate) a session together with its first refresh token.
  * Returns the resolved `{ userId, sessionId, refreshTokenId }` — a command
  * summary rather than `v.null()` — because callers need the freshly minted
- * ids to mint tokens and set cookies.
+ * ids to mint tokens and set cookies. When a `replaceSessionId` session was
+ * present and deleted, its id is echoed back as `replacedSessionId` so the
+ * caller can emit a `session.invalidated` audit event for the terminated
+ * session.
  */
 export const create = mutation({
   args: {
@@ -48,24 +55,24 @@ export const create = mutation({
     userId: v.id("User"),
     sessionId: v.id("Session"),
     refreshTokenId: v.optional(v.id("RefreshToken")),
+    replacedSessionId: v.optional(v.id("Session")),
   }),
   handler: async (ctx, args) => {
     let sessionId = args.sessionId;
+    let replacedSessionId: typeof args.replaceSessionId;
 
     if (sessionId === undefined) {
       if (args.replaceSessionId !== undefined) {
         const existingSession = await ctx.db.get("Session", args.replaceSessionId);
         if (existingSession !== null) {
           await ctx.db.delete("Session", args.replaceSessionId);
+          replacedSessionId = args.replaceSessionId;
         }
 
-        const existingTokens = await getManyFrom(
-          ctx.db,
-          "RefreshToken",
-          "session_id",
-          args.replaceSessionId!,
-          "sessionId",
-        );
+        const existingTokens = await ctx.db
+          .query("RefreshToken")
+          .withIndex("session_id", (q) => q.eq("sessionId", args.replaceSessionId!))
+          .take(SESSION_TOKEN_DELETE_BATCH);
         await Promise.all(existingTokens.map((token) => ctx.db.delete("RefreshToken", token._id)));
       }
 
@@ -87,6 +94,7 @@ export const create = mutation({
       userId: args.userId,
       sessionId,
       ...(refreshTokenId === undefined ? {} : { refreshTokenId }),
+      ...(replacedSessionId === undefined ? {} : { replacedSessionId }),
     };
   },
 });
@@ -104,3 +112,35 @@ const remove = mutation({
 });
 
 export { remove };
+
+/** Upper bound on sessions revoked in one de-provisioning transaction. */
+const REVOKE_FOR_USER_MAX = 1000;
+
+/**
+ * Revoke every session a user owns, deleting each session and all of its
+ * refresh tokens in one atomic transaction. Used on SSO de-provisioning so an
+ * offboarded user's live session cookie and long-lived refresh token stop
+ * working immediately rather than at natural expiry. Bounded at
+ * {@link REVOKE_FOR_USER_MAX} sessions per call; returns the number revoked.
+ */
+export const revokeForUser = mutation({
+  args: { userId: v.id("User") },
+  returns: v.object({ revoked: v.number() }),
+  handler: async (ctx, { userId }) => {
+    const sessions = await ctx.db
+      .query("Session")
+      .withIndex("user_id", (q) => q.eq("userId", userId))
+      .take(REVOKE_FOR_USER_MAX);
+    for (const session of sessions) {
+      const tokens = await ctx.db
+        .query("RefreshToken")
+        .withIndex("session_id", (q) => q.eq("sessionId", session._id))
+        .take(SESSION_TOKEN_DELETE_BATCH);
+      for (const token of tokens) {
+        await ctx.db.delete("RefreshToken", token._id);
+      }
+      await ctx.db.delete("Session", session._id);
+    }
+    return { revoked: sessions.length };
+  },
+});

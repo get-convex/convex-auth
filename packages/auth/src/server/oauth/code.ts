@@ -41,7 +41,9 @@ const GRANT_ERROR: Record<OAuthGrantDenial["reason"], { code: string; message: s
   },
 };
 
-function oauthGrantConvexError(denial: OAuthGrantDenial): ConvexError<{ code: string; message: string }> {
+function oauthGrantConvexError(
+  denial: OAuthGrantDenial,
+): ConvexError<{ code: string; message: string }> {
   return new ConvexError(GRANT_ERROR[denial.reason]);
 }
 
@@ -51,7 +53,7 @@ export interface OAuthCodeDomain {
    * Record a user's approval of a client's access request and mint a single-use
    * authorization code (plain returned, hash stored). Validates the client grant
    * via the shared {@link checkOAuthGrant} predicate, inserts an `OAuthCode` with
-   * the PKCE challenge and TTL, and emits `oauth.code.issued`.
+   * the PKCE challenge and TTL, and emits `oauth.code.created`.
    *
    * Call this from an app mutation after confirming the user's intent on the
    * consent page. `userId` MUST be the authenticated caller resolved via
@@ -117,7 +119,7 @@ export function createOAuthCodeDomain(deps: {
         expiresAt: Date.now() + CODE_TTL_MS,
       });
       await emitAuthEvent(ctx, deps, {
-        kind: "oauth.code.issued",
+        kind: "oauth.code.created",
         actor: { type: "user", id: args.userId },
         subject: { type: "oauth_code", id: codeHash },
         targets: [

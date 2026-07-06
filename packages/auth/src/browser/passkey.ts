@@ -1,9 +1,10 @@
 import type {
-  ClientAdapterDeps,
+  FactorDeps,
   PasskeyClient,
-  SignInActionResult,
-  SignInResult,
+  PasskeyRegisterOptions,
+  PasskeySignInOptions,
 } from "../client/core/types";
+import { createPasskeyClientCore, type PasskeyCeremony } from "../client/factors/passkey";
 import { base64urlDecode, base64urlEncode } from "./runtime";
 
 type ConditionalMediationCredential = typeof PublicKeyCredential & {
@@ -39,252 +40,131 @@ type PasskeyAuthenticationOptions = {
   allowCredentials?: PasskeyCredentialDescriptor[];
 };
 
-/** @internal */
-export function createPasskeyClient(deps: ClientAdapterDeps): PasskeyClient {
-  const { proxy, convex, requireApiRefs, proxyFetch, setTokenAndMaybeWait } = deps;
+const browserPasskeyCeremony: PasskeyCeremony = {
+  isSupported: (): boolean =>
+    typeof window !== "undefined" && typeof window.PublicKeyCredential !== "undefined",
 
-  const handleSignedInResult = async (
-    result: SignInActionResult,
-    flow: string,
-  ): Promise<SignInResult> => {
-    if (result.kind !== "signedIn") {
-      return { kind: "started" as const };
+  isAutofillSupported: async (): Promise<boolean> => {
+    if (typeof window === "undefined") return false;
+    if (typeof window.PublicKeyCredential === "undefined") return false;
+    const credential = window.PublicKeyCredential as ConditionalMediationCredential;
+    if (typeof credential.isConditionalMediationAvailable !== "function") {
+      return false;
+    }
+    return credential.isConditionalMediationAvailable();
+  },
+
+  register: async (rawOptions, opts?: PasskeyRegisterOptions) => {
+    const options = rawOptions as PasskeyRegistrationOptions;
+    const createOptions: CredentialCreationOptions = {
+      publicKey: {
+        rp: options.rp,
+        user: {
+          id: base64urlDecode(options.user.id).buffer as ArrayBuffer,
+          name: options.user.name,
+          displayName: options.user.displayName,
+        },
+        challenge: base64urlDecode(options.challenge).buffer as ArrayBuffer,
+        pubKeyCredParams: options.pubKeyCredParams,
+        timeout: options.timeout,
+        attestation: options.attestation,
+        authenticatorSelection: options.authenticatorSelection,
+        excludeCredentials: (options.excludeCredentials ?? []).map(
+          (cred: PasskeyCredentialDescriptor) => ({
+            type: (cred.type ?? "public-key") as "public-key",
+            id: base64urlDecode(cred.id).buffer as ArrayBuffer,
+            transports: cred.transports,
+          }),
+        ),
+      },
+    };
+
+    const createAbort = new AbortController();
+    createOptions.signal = createAbort.signal;
+    const createAbortTimer = setTimeout(
+      () => createAbort.abort(new DOMException("Passkey registration timed out", "TimeoutError")),
+      options.timeout ?? 120_000,
+    );
+    let credential: PublicKeyCredential | null;
+    try {
+      credential = (await navigator.credentials.create(
+        createOptions,
+      )) as PublicKeyCredential | null;
+    } finally {
+      clearTimeout(createAbortTimer);
+    }
+    if (!credential) {
+      throw new Error("Passkey registration was cancelled");
     }
 
-    const sessionEstablished = await setTokenAndMaybeWait(
-      proxy
-        ? {
-            shouldStore: false as const,
-            tokens: result.session === null ? null : { token: result.session.token },
-            waitForHandshake: true,
-            context: { provider: "passkey", flow },
-          }
-        : {
-            shouldStore: true as const,
-            tokens: result.session,
-            waitForHandshake: true,
-            context: { provider: "passkey", flow },
-          },
-    );
+    const response = credential.response as AuthenticatorAttestationResponse;
+    const transports =
+      typeof response.getTransports === "function" ? response.getTransports() : undefined;
 
-    return sessionEstablished
-      ? ({ kind: "signedIn" as const } as SignInResult)
-      : ({ kind: "started" as const } as SignInResult);
-  };
+    return {
+      flow: "verify",
+      clientDataJSON: base64urlEncode(response.clientDataJSON),
+      attestationObject: base64urlEncode(response.attestationObject),
+      transports,
+      passkeyName: opts?.name,
+      email: opts?.email,
+    };
+  },
 
-  return {
-    isSupported: (): boolean => {
-      return typeof window !== "undefined" && typeof window.PublicKeyCredential !== "undefined";
-    },
+  signIn: async (rawOptions, opts?: PasskeySignInOptions) => {
+    const options = rawOptions as PasskeyAuthenticationOptions;
+    const getOptions: CredentialRequestOptions = {
+      publicKey: {
+        challenge: base64urlDecode(options.challenge).buffer as ArrayBuffer,
+        timeout: options.timeout,
+        rpId: options.rpId,
+        userVerification: options.userVerification,
+        allowCredentials: (options.allowCredentials ?? []).map(
+          (cred: PasskeyCredentialDescriptor) => ({
+            type: (cred.type ?? "public-key") as "public-key",
+            id: base64urlDecode(cred.id).buffer as ArrayBuffer,
+            transports: cred.transports,
+          }),
+        ),
+      },
+      ...(opts?.autofill
+        ? ({
+            mediation: "conditional" as CredentialMediationRequirement,
+          } as const)
+        : {}),
+    };
 
-    isAutofillSupported: async (): Promise<boolean> => {
-      if (typeof window === "undefined") return false;
-      if (typeof window.PublicKeyCredential === "undefined") return false;
-      const credential = window.PublicKeyCredential as ConditionalMediationCredential;
-      if (typeof credential.isConditionalMediationAvailable !== "function") {
-        return false;
-      }
-      return credential.isConditionalMediationAvailable();
-    },
+    const getAbort = new AbortController();
+    getOptions.signal = getAbort.signal;
+    const getAbortTimer = opts?.autofill
+      ? undefined
+      : setTimeout(
+          () =>
+            getAbort.abort(new DOMException("Passkey authentication timed out", "TimeoutError")),
+          options.timeout ?? 120_000,
+        );
+    let credential: PublicKeyCredential | null;
+    try {
+      credential = (await navigator.credentials.get(getOptions)) as PublicKeyCredential | null;
+    } finally {
+      if (getAbortTimer !== undefined) clearTimeout(getAbortTimer);
+    }
+    if (!credential) {
+      throw new Error("Passkey authentication was cancelled");
+    }
 
-    register: async (opts?: {
-      name?: string;
-      email?: string;
-      userName?: string;
-      userDisplayName?: string;
-    }): Promise<SignInResult> => {
-      const phase1Params = {
-        flow: "register",
-        email: opts?.email,
-        userName: opts?.userName,
-        userDisplayName: opts?.userDisplayName,
-      };
+    const response = credential.response as AuthenticatorAssertionResponse;
+    return {
+      flow: "verify",
+      credentialId: base64urlEncode(credential.rawId),
+      clientDataJSON: base64urlEncode(response.clientDataJSON),
+      authenticatorData: base64urlEncode(response.authenticatorData),
+      signature: base64urlEncode(response.signature),
+    };
+  },
+};
 
-      let phase1Result: SignInActionResult;
-      if (proxy) {
-        phase1Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: { provider: "passkey", params: phase1Params },
-        })) as SignInActionResult;
-      } else {
-        phase1Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase1Params,
-        })) as SignInActionResult;
-      }
-
-      if (phase1Result.kind !== "passkeyOptions") {
-        throw new Error("Server did not return passkey registration options");
-      }
-
-      const options = phase1Result.options as PasskeyRegistrationOptions;
-      const createOptions: CredentialCreationOptions = {
-        publicKey: {
-          rp: options.rp,
-          user: {
-            id: base64urlDecode(options.user.id).buffer as ArrayBuffer,
-            name: options.user.name,
-            displayName: options.user.displayName,
-          },
-          challenge: base64urlDecode(options.challenge).buffer as ArrayBuffer,
-          pubKeyCredParams: options.pubKeyCredParams,
-          timeout: options.timeout,
-          attestation: options.attestation,
-          authenticatorSelection: options.authenticatorSelection,
-          excludeCredentials: (options.excludeCredentials ?? []).map(
-            (cred: PasskeyCredentialDescriptor) => ({
-              type: (cred.type ?? "public-key") as "public-key",
-              id: base64urlDecode(cred.id).buffer as ArrayBuffer,
-              transports: cred.transports,
-            }),
-          ),
-        },
-      };
-
-      const createAbort = new AbortController();
-      createOptions.signal = createAbort.signal;
-      const createAbortTimer = setTimeout(
-        () => createAbort.abort(new DOMException("Passkey registration timed out", "TimeoutError")),
-        options.timeout ?? 120_000,
-      );
-      let credential: PublicKeyCredential | null;
-      try {
-        credential = (await navigator.credentials.create(
-          createOptions,
-        )) as PublicKeyCredential | null;
-      } finally {
-        clearTimeout(createAbortTimer);
-      }
-      if (!credential) {
-        throw new Error("Passkey registration was cancelled");
-      }
-
-      const response = credential.response as AuthenticatorAttestationResponse;
-      const transports =
-        typeof response.getTransports === "function" ? response.getTransports() : undefined;
-
-      const phase2Params = {
-        flow: "verify",
-        clientDataJSON: base64urlEncode(response.clientDataJSON),
-        attestationObject: base64urlEncode(response.attestationObject),
-        transports,
-        passkeyName: opts?.name,
-        email: opts?.email,
-      };
-
-      let phase2Result: SignInActionResult;
-      if (proxy) {
-        phase2Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: {
-            provider: "passkey",
-            params: phase2Params,
-            verifier: phase1Result.verifier,
-          },
-        })) as SignInActionResult;
-      } else {
-        phase2Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase2Params,
-          verifier: phase1Result.verifier,
-        })) as SignInActionResult;
-      }
-
-      return handleSignedInResult(phase2Result, "verify");
-    },
-
-    signIn: async (opts?: { email?: string; autofill?: boolean }): Promise<SignInResult> => {
-      const phase1Params = {
-        flow: "signIn",
-        email: opts?.email,
-      };
-
-      let phase1Result: SignInActionResult;
-      if (proxy) {
-        phase1Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: { provider: "passkey", params: phase1Params },
-        })) as SignInActionResult;
-      } else {
-        phase1Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase1Params,
-        })) as SignInActionResult;
-      }
-
-      if (phase1Result.kind !== "passkeyOptions") {
-        throw new Error("Server did not return passkey authentication options");
-      }
-
-      const options = phase1Result.options as PasskeyAuthenticationOptions;
-      const getOptions: CredentialRequestOptions = {
-        publicKey: {
-          challenge: base64urlDecode(options.challenge).buffer as ArrayBuffer,
-          timeout: options.timeout,
-          rpId: options.rpId,
-          userVerification: options.userVerification,
-          allowCredentials: (options.allowCredentials ?? []).map(
-            (cred: PasskeyCredentialDescriptor) => ({
-              type: (cred.type ?? "public-key") as "public-key",
-              id: base64urlDecode(cred.id).buffer as ArrayBuffer,
-              transports: cred.transports,
-            }),
-          ),
-        },
-        ...(opts?.autofill
-          ? ({
-              mediation: "conditional" as CredentialMediationRequirement,
-            } as const)
-          : {}),
-      };
-
-      const getAbort = new AbortController();
-      getOptions.signal = getAbort.signal;
-      const getAbortTimer = opts?.autofill
-        ? undefined
-        : setTimeout(
-            () =>
-              getAbort.abort(new DOMException("Passkey authentication timed out", "TimeoutError")),
-            options.timeout ?? 120_000,
-          );
-      let credential: PublicKeyCredential | null;
-      try {
-        credential = (await navigator.credentials.get(getOptions)) as PublicKeyCredential | null;
-      } finally {
-        if (getAbortTimer !== undefined) clearTimeout(getAbortTimer);
-      }
-      if (!credential) {
-        throw new Error("Passkey authentication was cancelled");
-      }
-
-      const response = credential.response as AuthenticatorAssertionResponse;
-      const phase2Params = {
-        flow: "verify",
-        credentialId: base64urlEncode(credential.rawId),
-        clientDataJSON: base64urlEncode(response.clientDataJSON),
-        authenticatorData: base64urlEncode(response.authenticatorData),
-        signature: base64urlEncode(response.signature),
-      };
-
-      let phase2Result: SignInActionResult;
-      if (proxy) {
-        phase2Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: {
-            provider: "passkey",
-            params: phase2Params,
-            verifier: phase1Result.verifier,
-          },
-        })) as SignInActionResult;
-      } else {
-        phase2Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase2Params,
-          verifier: phase1Result.verifier,
-        })) as SignInActionResult;
-      }
-
-      return handleSignedInResult(phase2Result, "verify");
-    },
-  };
+/** @internal */
+export function createPasskeyClient(deps: FactorDeps): PasskeyClient {
+  return createPasskeyClientCore(deps, browserPasskeyCeremony);
 }

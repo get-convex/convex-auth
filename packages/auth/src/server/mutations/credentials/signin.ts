@@ -12,14 +12,9 @@ import { Infer, v } from "convex/values";
 import * as Provider from "../../crypto";
 import type { Hashed } from "../../../shared/brand";
 import { authDb } from "../../db";
-import {
-  getSignInRateLimitState,
-  isStateRateLimited,
-  recordFailedSignIn,
-  resetSignInRateLimit,
-} from "../../limits";
+import { isSignInRateLimited, recordFailedSignIn, resetSignInRateLimit } from "../../limits";
 import { LOG_LEVELS, log, maybeRedact } from "../../log";
-import { issueSession } from "../../session/lifecycle";
+import { getAuthSessionId, issueSession } from "../../session/lifecycle";
 import type { SessionIssuance } from "../../session/lifecycle";
 import { GenericActionCtxWithAuthConfig, MutationCtx } from "../../types";
 import { withSpan } from "../../utils/span";
@@ -110,9 +105,9 @@ async function credentialsSignInInner(
     return { kind: "invalidAccount" };
   }
 
-  const [user, rateLimitState] = await Promise.all([
+  const [user, rateLimited] = await Promise.all([
     db.users.get({ id: existingAccount.userId }),
-    getSignInRateLimitState(ctx, existingAccount._id, config),
+    isSignInRateLimited(ctx, existingAccount._id, config),
   ]);
 
   if (user === null) {
@@ -123,7 +118,7 @@ async function credentialsSignInInner(
     return { kind: "invalidAccount" };
   }
 
-  if (isStateRateLimited(rateLimitState)) {
+  if (rateLimited) {
     return { kind: "tooManyAttempts" };
   }
 
@@ -135,12 +130,12 @@ async function credentialsSignInInner(
     ),
   );
   if (!verified) {
-    await recordFailedSignIn(ctx, existingAccount._id, config, rateLimitState);
+    await recordFailedSignIn(ctx, existingAccount._id, config);
     return { kind: "invalidSecret" };
   }
 
   if (requireVerifiedEmail && !existingAccount.emailVerified) {
-    await resetSignInRateLimit(ctx, existingAccount._id, config, rateLimitState);
+    await resetSignInRateLimit(ctx, existingAccount._id, config);
     return {
       kind: "emailVerificationRequired",
       account: {
@@ -164,12 +159,15 @@ async function credentialsSignInInner(
 
   const totpRequired = enforceTotp && hasTotp;
 
+  const replaceSessionId = (await getAuthSessionId(ctx)) ?? undefined;
+
   const [issuance] = await Promise.all([
     issueSession(ctx, config, {
       userId: existingAccount.userId,
+      replaceSessionId,
       generateTokens: generateTokens && !totpRequired,
     }),
-    resetSignInRateLimit(ctx, existingAccount._id, config, rateLimitState),
+    resetSignInRateLimit(ctx, existingAccount._id, config),
   ]);
 
   if (totpRequired) {

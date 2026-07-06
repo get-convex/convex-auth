@@ -12,7 +12,7 @@ import {
   REFRESH_TOKEN_REUSE_WINDOW_MS,
   refreshTokenExpirationTime,
 } from "../token/refresh";
-import { finalizeSessionIssuance } from "../session/lifecycle";
+import { buildSessionIdentity, finalizeSessionIssuance } from "../session/lifecycle";
 import type { SessionIssuance } from "../session/lifecycle";
 import { buildRefreshIdentityAttributes } from "../telemetry";
 import {
@@ -122,24 +122,11 @@ export async function refreshSessionImpl(
         return {
           userId: exchanged.userId as GenericId<"User">,
           sessionId: exchanged.sessionId as GenericId<"Session">,
-          identity: {
-            subject: exchanged.userId as GenericId<"User">,
-            sessionId: exchanged.sessionId as GenericId<"Session">,
-            ...(typeof user?.name === "string" ? { name: user.name } : null),
-            ...(typeof user?.email === "string" ? { email: user.email } : null),
-            ...(user?.emailVerificationTime !== undefined
-              ? { emailVerified: true }
-              : user?.email !== undefined
-                ? { emailVerified: false }
-                : null),
-            ...(typeof user?.image === "string" ? { picture: user.image } : null),
-            ...(typeof user?.phone === "string" ? { phoneNumber: user.phone } : null),
-            ...(user?.phoneVerificationTime !== undefined
-              ? { phoneNumberVerified: true }
-              : user?.phone !== undefined
-                ? { phoneNumberVerified: false }
-                : null),
-          },
+          identity: buildSessionIdentity(
+            exchanged.userId as GenericId<"User">,
+            exchanged.sessionId as GenericId<"Session">,
+            user,
+          ),
           refreshToken: encodeRefreshToken(
             exchanged.refreshTokenId as GenericId<"RefreshToken">,
             exchanged.sessionId as GenericId<"Session">,

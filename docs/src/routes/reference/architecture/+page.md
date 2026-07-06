@@ -161,10 +161,12 @@ export const { signIn, signOut, store } = auth;
 
 ```ts
 // convex/auth.config.ts — native Convex JWT trust
+import { env } from "./_generated/server";
+
 export default {
   providers: [
     {
-      domain: `${process.env.CONVEX_SITE_URL}/auth`,
+      domain: `${env.CONVEX_SITE_URL}/auth`,
       applicationID: "convex",
     },
   ],
@@ -245,8 +247,13 @@ exists only if your app explicitly exposes app-owned group connection admin
 RPC by writing `authMutation`/`authQuery` functions over the `auth.connection.*`
 facade.
 
-`auth.oauth.*` is the planned provider-mode namespace and is intentionally not
-part of the current stable surface yet.
+`auth.oauth.*` is the app-as-authorization-server surface: it backs OAuth
+client registration and the authorization-code, token, and refresh flows for
+your app's own OAuth clients (for example MCP servers and Dynamic Client
+Registration). It is wired into the `/oauth2/*` HTTP routes mounted by
+`auth.http()`. Full OIDC provider-mode federation — third-party
+`/userinfo` and standard-claim ID tokens for external relying parties — is still
+future work.
 
 ## Multi-access model
 

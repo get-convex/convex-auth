@@ -5,7 +5,24 @@ import schema from "@convex/schema";
 import { ConvexError } from "convex/values";
 import { expect, test } from "vite-plus/test";
 
-import { convexTest } from "./convex/setup";
+import { vAuthEventCategory, vAuthEventKind } from "../packages/auth/src/component/model";
+import {
+  AUTH_EVENT_KINDS,
+  EVENT_CATEGORIES,
+  EVENT_KIND_CATEGORY,
+} from "../packages/auth/src/shared/event/kinds";
+import { convexTest, pruneExpiredForTest } from "./convex/setup";
+
+/** Literal values carried by a `v.union(v.literal(...), ...)` validator. */
+function unionLiteralValues(validator: unknown): string[] {
+  const union = validator as { members: Array<{ kind: string; value: string }> };
+  return union.members.map((member) => {
+    if (member.kind !== "literal") {
+      throw new Error(`expected literal union member, got ${member.kind}`);
+    }
+    return member.value;
+  });
+}
 
 test("auth component registers and serves public core functions", async () => {
   const t = convexTest(schema);
@@ -340,7 +357,7 @@ test("pruneExpired deletes an expired session behind an older non-expired one", 
   });
 
   const result = await t.run(async (ctx) => {
-    return await ctx.runMutation(components.auth.maintenance.pruneExpired, {
+    return await ctx.runMutation(pruneExpiredForTest(components.auth), {
       batchSize: 1,
     });
   });
@@ -375,7 +392,7 @@ test("pruneExpired skips never-expire verifiers and prunes expired ones", async 
   });
 
   const result = await t.run(async (ctx) => {
-    return await ctx.runMutation(components.auth.maintenance.pruneExpired, {
+    return await ctx.runMutation(pruneExpiredForTest(components.auth), {
       batchSize: 1,
     });
   });
@@ -486,6 +503,74 @@ test("event.append projects per target, enqueues the stream appender, and dedupe
   });
   expect(second.created).toBe(false);
   expect(second.createdTargets).toHaveLength(0);
+});
+
+test("event taxonomy: component validators are derived from the shared kind table with no drift", () => {
+  // The component's `vAuthEventKind` / `vAuthEventCategory` validators are
+  // derived from the same shared taxonomy the server union/category-map use.
+  // Assert the derivation reproduces the source set exactly (no kind dropped or
+  // added when collapsing the previously-duplicated lists into one source).
+  const validatorKinds = unionLiteralValues(vAuthEventKind).sort();
+  const sourceKinds = [...AUTH_EVENT_KINDS].sort();
+  expect(validatorKinds).toEqual(sourceKinds);
+  expect(new Set(validatorKinds).size).toBe(AUTH_EVENT_KINDS.length);
+
+  const validatorCategories = unionLiteralValues(vAuthEventCategory).sort();
+  expect(validatorCategories).toEqual([...EVENT_CATEGORIES].sort());
+
+  // Every kind resolves to a category that is a valid category literal.
+  for (const kind of AUTH_EVENT_KINDS) {
+    expect(EVENT_CATEGORIES).toContain(EVENT_KIND_CATEGORY[kind]);
+  }
+});
+
+test("event taxonomy: append+list round-trips every kind and preserves its category", async () => {
+  const t = convexTest(schema);
+
+  const userId = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.user.create, {
+      data: { email: "event-taxonomy@example.com" },
+    });
+  });
+
+  // Append one event per kind (validated against the derived `vAuthEventKind` /
+  // `vAuthEventCategory`) and read the projection back — a drift in the derived
+  // validator would reject the append or drop the row.
+  for (const kind of AUTH_EVENT_KINDS) {
+    const eventId = `${kind}:user:${userId}:tax`;
+    const appended = await t.run(async (ctx) => {
+      return await ctx.runMutation(components.auth.event.append, {
+        event: {
+          eventId,
+          kind,
+          category: EVENT_KIND_CATEGORY[kind],
+          occurredAt: Date.now(),
+          actor: { type: "system" as const },
+          subject: { type: "user" as const, id: userId },
+          targets: [{ kind: "user" as const, id: userId }],
+          outcome: "success" as const,
+        },
+        targets: [{ kind: "user" as const, id: userId }],
+        idempotencyKey: eventId,
+      });
+    });
+    expect(appended.created).toBe(true);
+  }
+
+  const projection = await t.run(async (ctx) => {
+    return await ctx.runQuery(components.auth.event.list, {
+      where: { subject: { type: "user", id: userId } },
+      paginationOpts: { numItems: AUTH_EVENT_KINDS.length + 5, cursor: null },
+    });
+  });
+
+  const projectedKinds = projection.page.map((event: { kind: string }) => event.kind).sort();
+  expect(projectedKinds).toEqual([...AUTH_EVENT_KINDS].sort());
+  for (const event of projection.page as Array<{ kind: string; category: string }>) {
+    expect(event.category).toBe(
+      EVENT_KIND_CATEGORY[event.kind as keyof typeof EVENT_KIND_CATEGORY],
+    );
+  }
 });
 
 test("auth.member.assert throws ConvexError on invalid role ids", async () => {

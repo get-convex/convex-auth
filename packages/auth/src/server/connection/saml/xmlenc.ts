@@ -294,9 +294,7 @@ function resolveEncryptedKeyNode(
 
   if (!encryptedKeyContainer) {
     const keyRetrievalMethod = firstElement("./*[local-name(.)='RetrievalMethod']", keyInfoNode);
-    const retrievalMethodUri = keyRetrievalMethod
-      ? keyRetrievalMethod.getAttribute("URI")
-      : null;
+    const retrievalMethodUri = keyRetrievalMethod ? keyRetrievalMethod.getAttribute("URI") : null;
     if (retrievalMethodUri && retrievalMethodUri.indexOf("#") === 0) {
       const keyId = retrievalMethodUri.substring(1);
       if (!/^[A-Za-z0-9_.:-]+$/.test(keyId)) {

@@ -7,12 +7,13 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { ConvexError, v } from "convex/values";
 import { ErrorCode } from "../shared/codes";
 
 import { mutation, query } from "./functions";
 import { vAccountDoc } from "./model";
+
+const ACCOUNT_LIST_BATCH = 128;
 
 /**
  * Read an account by id, or by `{ provider, providerAccountId }` when both
@@ -44,7 +45,10 @@ export const list = query({
   args: { userId: v.id("User") },
   returns: v.array(vAccountDoc),
   handler: async (ctx, { userId }) => {
-    return await getManyFrom(ctx.db, "Account", "user_id_provider", userId, "userId");
+    return await ctx.db
+      .query("Account")
+      .withIndex("user_id_provider", (q) => q.eq("userId", userId))
+      .take(ACCOUNT_LIST_BATCH);
   },
 });
 

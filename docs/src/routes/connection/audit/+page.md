@@ -19,8 +19,8 @@ the canonical server facade is `auth.event.list(ctx, { where, paginationOpts })`
 
 ## Methods
 
-| Method | Signature                                                               | Returns                                  | Description                       |
-| ------ | ----------------------------------------------------------------------- | ---------------------------------------- | --------------------------------- |
+| Method | Signature                                                                | Returns                                  | Description                       |
+| ------ | ------------------------------------------------------------------------ | ---------------------------------------- | --------------------------------- |
 | `list` | `(ctx, { where: (q) => q.eq("target", scope), paginationOpts, order? })` | `{ page, isDone, continueCursor }` event | Lists redacted event projections. |
 
 ## Example

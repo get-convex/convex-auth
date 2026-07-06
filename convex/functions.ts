@@ -1,7 +1,7 @@
 import { customAction, customMutation, customQuery } from "convex-helpers/server/customFunctions";
 
 import { action, mutation, query } from "./_generated/server";
-import { auth } from "./auth";
+import { auth } from "./auth/core";
 
 const authCtx = auth.ctx();
 

@@ -1,23 +1,19 @@
+import { logMessage, type LogLevel } from "../../shared/log";
 import { configDefaults } from "../config";
 import type { ConvexAuthConfig } from "../types";
-import { createAuthLogger } from "./logger";
 import { createProviderRegistry } from "./providers";
-import { createAuthRefresh } from "./refresh";
-import { createAuthSignIn } from "./signin";
+
+const logger = {
+  log: (level: LogLevel, ...args: unknown[]) => logMessage("convex-auth", level, args),
+};
 
 export function resolveServerServices(config: ConvexAuthConfig) {
   const configValue = configDefaults(config);
-  const logger = createAuthLogger();
   const providerRegistry = createProviderRegistry(configValue, logger);
-  const signIn = createAuthSignIn(configValue);
-  const refresh = createAuthRefresh(configValue);
 
   return {
     config: configValue,
-    logger,
     providerRegistry,
-    signIn,
-    refresh,
   };
 }
 

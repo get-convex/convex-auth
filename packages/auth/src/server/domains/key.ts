@@ -75,7 +75,7 @@ export function createKeyDomain(deps: KeyDeps) {
         extend: data.extend,
       })) as string;
       await emitAuthEvent(ctx, config, {
-        kind: "api_key.issued",
+        kind: "api_key.created",
         actor: { type: "user", id: data.userId },
         subject: { type: "user", id: data.userId },
         targets: [
@@ -361,6 +361,17 @@ export function createKeyDomain(deps: KeyDeps) {
       await ctx.runMutation(config.component.user.key.update, {
         id: opts.id,
         patch: { revoked: true },
+      });
+      await emitAuthEvent(ctx, config, {
+        kind: "api_key.revoked",
+        actor: { type: "user", id: existing.userId },
+        subject: { type: "user", id: existing.userId },
+        targets: [
+          { kind: "user", id: existing.userId },
+          { kind: "api_key", id: opts.id },
+        ],
+        outcome: "success",
+        data: { keyId: opts.id },
       });
       return await key.create(ctx, {
         data: {

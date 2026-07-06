@@ -38,12 +38,12 @@ common interoperability subset:
 
 ## Methods
 
-| Method      | Signature                                               | Returns                                       | Description                                                                                         |
-| ----------- | ------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `configure` | `(ctx, { connectionId, status?, security?, profile? })` | `{ connectionId, token, configId, basePath }` | Configures SCIM provisioning and returns the SCIM bearer token once.                                |
-| `get`       | `(ctx, { connectionId })`                               | SCIM config document                          | Returns the current SCIM configuration for a connection.                                            |
-| `status`    | `(ctx, { connectionId })`                               | `{ configured, ready, ... }`                  | Returns a lightweight readiness summary for a connection.                                           |
-| `validate`  | `(ctx, { connectionId })`                               | `{ checks: [...], capabilities }`             | Validates that the SCIM configuration is complete and returns the supported SCIM capability subset. |
+| Method     | Signature                                               | Returns                                       | Description                                                                                         |
+| ---------- | ------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `set`      | `(ctx, { connectionId, status?, security?, profile? })` | `{ connectionId, token, configId, basePath }` | Configures SCIM provisioning and returns the SCIM bearer token once.                                |
+| `get`      | `(ctx, { connectionId })`                               | SCIM config document                          | Returns the current SCIM configuration for a connection.                                            |
+| `status`   | `(ctx, { connectionId })`                               | `{ configured, ready, ... }`                  | Returns a lightweight readiness summary for a connection.                                           |
+| `validate` | `(ctx, { connectionId })`                               | `{ checks: [...], capabilities }`             | Validates that the SCIM configuration is complete and returns the supported SCIM capability subset. |
 
 ## Example
 

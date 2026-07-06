@@ -9,7 +9,6 @@
 
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { stream } from "convex-helpers/server/stream";
 import { ErrorCode } from "../shared/codes";
 
@@ -254,17 +253,21 @@ export const update = mutation({
       patch.isRoot = newIsRoot;
       patch.rootGroupId = newRootGroupId;
       if (oldRootGroupId && oldRootGroupId !== newRootGroupId) {
+        const CASCADE_MAX = 1000;
         const visited = new Set<string>([groupId]);
         const frontier: Array<Id<"Group">> = [groupId];
         while (frontier.length > 0) {
           const parentId = frontier.pop()!;
-          const children = await getManyFrom(
-            ctx.db,
-            "Group",
-            "parent_group_id",
-            parentId,
-            "parentGroupId",
-          );
+          const children = await ctx.db
+            .query("Group")
+            .withIndex("parent_group_id", (q) => q.eq("parentGroupId", parentId))
+            .take(CASCADE_MAX + 1);
+          if (children.length > CASCADE_MAX) {
+            throw new ConvexError({
+              code: ErrorCode.CASCADE_TOO_LARGE,
+              message: `Group ${parentId} has more than ${CASCADE_MAX} child groups; re-parent re-stamping is not safe in a single mutation. Drain via the migrations component first, then retry.`,
+            });
+          }
           for (const child of children) {
             if (visited.has(child._id)) continue;
             visited.add(child._id);

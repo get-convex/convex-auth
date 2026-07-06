@@ -27,11 +27,11 @@ passkey credentials, and TOTP enrollments.
 
 Manage WebAuthn passkey credentials. Requires `passkey()` in providers.
 
-| Method           | Signature             | Returns             | Description                               |
-| ---------------- | --------------------- | ------------------- | ----------------------------------------- |
-| `passkey.list`   | `(ctx, { userId })`   | `Doc<"passkeys">[]` | Lists all registered passkeys for a user. |
+| Method           | Signature              | Returns             | Description                               |
+| ---------------- | ---------------------- | ------------------- | ----------------------------------------- |
+| `passkey.list`   | `(ctx, { userId })`    | `Doc<"passkeys">[]` | Lists all registered passkeys for a user. |
 | `passkey.update` | `(ctx, { id, patch })` | `{ passkeyId }`     | Renames a passkey credential.             |
-| `passkey.remove` | `(ctx, { id })`       | `{ passkeyId }`     | Deletes a passkey credential.             |
+| `passkey.remove` | `(ctx, { id })`        | `{ passkeyId }`     | Deletes a passkey credential.             |
 
 ```ts
 const passkeys = await auth.account.passkey.list(ctx, { userId });

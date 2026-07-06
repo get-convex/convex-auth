@@ -87,10 +87,8 @@ export default defineSchema({
     provider: v.optional(v.string()),
     connectionId: v.optional(v.id("GroupConnection")),
   })
-    .index("email", ["email"])
-    .index("email_verified", ["email", "verificationTime"])
     .index("user_id", ["userId"])
-    .index("user_id_primary", ["userId", "isPrimary"])
+    .index("user_id_email", ["userId", "email"])
     .index("connection_id_email", ["connectionId", "email"]),
 
   /**
@@ -322,9 +320,11 @@ export default defineSchema({
     .index("token_hash", ["tokenHash"])
     .index("status", ["status"])
     .index("email_status", ["email", "status"])
+    .index("email_group_id_status", ["email", "groupId", "status"])
     .index("invited_by_user_id_status", ["invitedByUserId", "status"])
     .index("group_id", ["groupId"])
     .index("group_id_status", ["groupId", "status"])
+    .index("group_id_email_status", ["groupId", "email", "status"])
     .index("expires_time", ["expiresTime"]),
 
   /**
@@ -364,6 +364,40 @@ export default defineSchema({
     .index("connection_id", ["connectionId"])
     .index("group_id", ["groupId"])
     .index("domain", ["domain"]),
+
+  /**
+   * Pending SAML AuthnRequest IDs awaiting a matching ACS response.
+   *
+   * A row is created when the SP generates a SAML sign-in request and accepted
+   * (single-use) at the ACS handler. Because the ID is looked up server-side and
+   * marked `acceptedAt`, a captured SAMLResponse/RelayState pair cannot be
+   * replayed — the second accept fails. Rows are pruned by `expiresAt`.
+   */
+  SamlLoginRequest: defineTable({
+    connectionId: v.id("GroupConnection"),
+    requestId: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("request_id", ["requestId"])
+    .index("expires_at", ["expiresAt"]),
+
+  /**
+   * Replay cache of SAML assertion IDs already accepted at the ACS handler.
+   *
+   * Catches IdP-initiated responses that carry no `InResponseTo` (so have no
+   * pending {@link SamlLoginRequest} to accept): an assertion ID is recorded
+   * on first acceptance and rejected if seen again. `expiresAt` is bounded by
+   * the assertion's `NotOnOrAfter`, and rows are pruned by `expiresAt`.
+   */
+  SamlSeenAssertion: defineTable({
+    connectionId: v.id("GroupConnection"),
+    assertionId: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("connection_id_assertion_id", ["connectionId", "assertionId"])
+    .index("expires_at", ["expiresAt"]),
 
   /**
    * Pending DNS TXT verification challenges for group connection domains.
@@ -527,6 +561,7 @@ export default defineSchema({
   })
     .index("group_connection_id", ["connectionId"])
     .index("status_next_attempt_at", ["status", "nextAttemptAt"])
+    .index("status_signed_at", ["status", "signedAt"])
     .index("endpoint_id_status", ["endpointId", "status"])
     .index("event_id", ["eventId"])
     .index("event_id_endpoint_id", ["eventId", "endpointId"]),
@@ -633,5 +668,6 @@ export default defineSchema({
     .index("token_hash", ["tokenHash"])
     .index("grant_id", ["grantId"])
     .index("grant_id_first_used", ["grantId", "firstUsedTime"])
+    .index("grant_id_parent_token_id_first_used", ["grantId", "parentTokenId", "firstUsedTime"])
     .index("expires_at", ["expiresAt"]),
 });

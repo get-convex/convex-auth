@@ -89,8 +89,7 @@ function convexCmd(...subArgs: string[]): { file: string; args: string[] } {
 
 type CliOptions = {
   command: "setup" | "doctor" | "urls" | "keys";
-  siteUrl?: string;
-  secondaryUrl?: string;
+  appUrl?: string;
   variables?: string;
   skipGitCheck: boolean;
   allowDirtyGitState: boolean;
@@ -103,19 +102,11 @@ type CliOptions = {
 
 const flagDefs = new Map<string, { type: "string" | "boolean"; description: string }>([
   [
-    "site-url",
+    "app-url",
     {
       type: "string",
       description:
         "Your frontend app URL (e.g. 'http://localhost:5173' for dev, 'https://myapp.com' for prod)",
-    },
-  ],
-  [
-    "secondary-url",
-    {
-      type: "string",
-      description:
-        "Comma-separated additional frontend URLs allowed to share the same auth instance",
     },
   ],
   [
@@ -232,8 +223,7 @@ function parseArgs(argv: string[]): CliOptions {
 
   return {
     command,
-    siteUrl: strings.get("site-url"),
-    secondaryUrl: strings.get("secondary-url"),
+    appUrl: strings.get("app-url"),
     variables: strings.get("variables"),
     skipGitCheck: booleans.has("skip-git-check"),
     allowDirtyGitState: booleans.has("allow-dirty-git-state"),
@@ -293,7 +283,7 @@ async function runSetup(options: CliOptions) {
     step: 1,
   };
 
-  await configureSiteUrl(config, options.siteUrl, options.secondaryUrl);
+  await configureAppUrl(config, options.appUrl);
   await configureKeys(config);
   await modifyTsConfig(config);
   await configureConvexConfig(config);
@@ -335,9 +325,8 @@ async function runUrls(options: CliOptions) {
   validateDeploymentSelectionOptions(options);
   printBanner();
   const deployment = readConvexDeployment(options);
-  const siteUrl =
-    deployment.options.url ?? process.env.CONVEX_SITE_URL ?? "https://<deployment>.convex.site";
-  const authSiteUrl = `${siteUrl.replace(/\/$/, "")}/auth`;
+  const convexSiteUrl = deployment.options.url ?? "https://<deployment>.convex.site";
+  const authSiteUrl = `${convexSiteUrl.replace(/\/$/, "")}/auth`;
   p.log.info("Convex Auth URLs:");
   p.log.message(
     [
@@ -417,17 +406,8 @@ type ProjectConfig = {
   step: number;
 };
 
-async function configureSiteUrl(
-  config: ProjectConfig,
-  forcedValue?: string,
-  forcedSecondaryValue?: string,
-) {
-  logStep(config, "Configure SITE_URL");
-  if (config.isExpo) {
-    p.log.info("React Native projects don't require a SITE_URL.");
-    return;
-  }
-
+async function configureAppUrl(config: ProjectConfig, forcedValue?: string) {
+  logStep(config, "Configure APP_URL");
   const value =
     config.deployment.type === "dev" || config.deployment.type === null
       ? config.isVite
@@ -440,7 +420,7 @@ async function configureSiteUrl(
       : "the URL where your site is hosted (e.g. https://example.com)";
 
   await configureEnvVar(config, {
-    name: "SITE_URL",
+    name: "APP_URL",
     default: value,
     description,
     validate: (input: string | undefined) => {
@@ -455,28 +435,6 @@ async function configureSiteUrl(
       }
     },
     forcedValue,
-  });
-
-  await configureEnvVar(config, {
-    name: "SECONDARY_URL",
-    description: "additional frontend URLs as a comma-separated list (optional)",
-    validate: (input) => {
-      if (!input || input.trim() === "") {
-        return undefined;
-      }
-      for (const candidate of input.split(",").map((url) => url.trim())) {
-        if (candidate === "") {
-          continue;
-        }
-        try {
-          new URL(candidate);
-        } catch {
-          return "Each URL must start with http:// or https://";
-        }
-      }
-      return undefined;
-    },
-    forcedValue: forcedSecondaryValue,
   });
 }
 
@@ -883,10 +841,12 @@ export const auth = createAuthContext(components.auth);
 async function initializeAuthConfig(config: ProjectConfig) {
   logStep(config, "Initialize auth.config file");
   const sourceTemplate = `\
+import { env } from "./_generated/server";$$
+$$
 export default {$$
   providers: [$$
     {$$
-      domain: process.env.CONVEX_SITE_URL + "/auth",$$
+      domain: \`\${env.CONVEX_SITE_URL}/auth\`,$$
       applicationID: "convex",$$
     },$$
   ],$$
@@ -901,7 +861,7 @@ export default {$$
       p.log.success(`${existingPath} is already set up.`);
     } else {
       p.log.info(
-        `You already have ${existingPath}. Make sure it trusts CONVEX_SITE_URL as the Convex auth issuer:`,
+        `You already have ${existingPath}. Make sure it trusts env.CONVEX_SITE_URL as the Convex auth issuer:`,
       );
       p.log.message(indent(`\n${source}\n`));
       const ready = await p.confirm({ message: "Ready to continue?" });
@@ -1285,7 +1245,7 @@ function printFinalSuccessMessage(config: ProjectConfig) {
     p.note(
       [
         "To set up production, run:",
-        '  npx @robelest/convex-auth --prod --site-url "https://myapp.com"',
+        '  npx @robelest/convex-auth --prod --app-url "https://myapp.com"',
         "",
         "Don't forget to set provider secrets on production too:",
         '  npx convex env set --prod AUTH_GITHUB_ID "..."',

@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 
 import { auth } from "./auth/core";
+import { ErrorCode } from "./errors";
 import { authMutation, authQuery } from "./functions";
-import { projectStatus as projectStatusValidator } from "./schema";
+import { projectStatus } from "./schema";
 
 export const list = authQuery({
   args: { groupId: v.string() },
@@ -14,7 +15,7 @@ export const list = authQuery({
       identifier: v.string(),
       slug: v.string(),
       description: v.string(),
-      status: projectStatusValidator,
+      status: projectStatus,
       issueCounter: v.number(),
       openIssueCount: v.number(),
     }),
@@ -76,7 +77,10 @@ export const create = authMutation({
       .replace(/^-+|-+$/g, "")
       .slice(0, 48);
     if (slug.length === 0) {
-      throw new ConvexError({ code: "INVALID_INPUT", message: "Project name is required." });
+      throw new ConvexError({
+        code: ErrorCode.INVALID_INPUT,
+        message: "Project name is required.",
+      });
     }
 
     let identifier = baseIdentifier;
@@ -99,7 +103,7 @@ export const create = authMutation({
       .first();
     if (existingSlug) {
       throw new ConvexError({
-        code: "INVALID_INPUT",
+        code: ErrorCode.INVALID_INPUT,
         message: "A project with that name already exists.",
       });
     }
@@ -130,7 +134,7 @@ export const get = authQuery({
       identifier: v.string(),
       slug: v.string(),
       description: v.string(),
-      status: projectStatusValidator,
+      status: projectStatus,
       issueCounter: v.number(),
       openIssueCount: v.number(),
     }),
@@ -172,7 +176,7 @@ export const update = authMutation({
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
     if (!project) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
+      throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Project not found." });
     }
     const userId = ctx.auth.userId;
 

@@ -400,10 +400,7 @@ function extractText(targetNodes: Element[]): string | string[] | null {
  * it to one of the message-kind shapes above, and is the single boundary where
  * the open record is asserted to that typed shape.
  */
-export function extract<T = Record<string, unknown>>(
-  context: string,
-  fields: ExtractorField[],
-): T {
+export function extract<T = Record<string, unknown>>(context: string, fields: ExtractorField[]): T {
   const { dom } = getContext();
   const rootDoc = dom!.parseFromString(context);
   const shortcutDocs = new Map<string, Document>();

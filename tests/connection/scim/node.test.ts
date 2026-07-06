@@ -553,7 +553,9 @@ test("SCIM → Convex: direct SCIM server protocol validation", async () => {
     })
   ).page as AuthEventProjection[];
   expect(
-    auditEvents.some((event) => event.kind === "connection.scim.set" && event.outcome === "success"),
+    auditEvents.some(
+      (event) => event.kind === "connection.scim.set" && event.outcome === "success",
+    ),
   ).toBe(true);
   expect(
     auditEvents.some(
@@ -561,7 +563,9 @@ test("SCIM → Convex: direct SCIM server protocol validation", async () => {
     ),
   ).toBe(true);
   expect(
-    auditEvents.some((event) => event.kind === "connection.scim.user.updated" && event.subjectId === userId),
+    auditEvents.some(
+      (event) => event.kind === "connection.scim.user.updated" && event.subjectId === userId,
+    ),
   ).toBe(true);
   expect(
     auditEvents.some(
@@ -570,7 +574,8 @@ test("SCIM → Convex: direct SCIM server protocol validation", async () => {
   ).toBe(true);
   expect(
     auditEvents.some(
-      (event) => event.kind === "connection.scim.group.provisioned" && event.subjectId === scimGroupId,
+      (event) =>
+        event.kind === "connection.scim.group.provisioned" && event.subjectId === scimGroupId,
     ),
   ).toBe(true);
   expect(
@@ -596,7 +601,9 @@ test("SCIM → Convex: direct SCIM server protocol validation", async () => {
     })
   ).page as GroupWebhookDelivery[];
   expect(
-    webhookDeliveries.some((delivery) => delivery.kind === "connection.scim.set" && delivery.eventId),
+    webhookDeliveries.some(
+      (delivery) => delivery.kind === "connection.scim.set" && delivery.eventId,
+    ),
   ).toBe(true);
   expect(
     webhookDeliveries.some(

@@ -8,10 +8,21 @@ const REFRESH_TOKEN_PREFIX = "rt_";
 const REFRESH_TOKEN_LENGTH = 40;
 const REFRESH_TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-/** Default OAuth refresh-token lifetime (30 days), mirroring the session inactive window. */
-export const OAUTH_REFRESH_TOKEN_DURATION_S = 30 * 24 * 60 * 60;
-/** Grace window in which a just-rotated token may be replayed (slow networks, retries). */
-const REUSE_WINDOW_MS = 10_000;
+/**
+ * Default OAuth refresh-token lifetime — a rolling 7-day *inactivity* window.
+ * Every rotation slides the grant's expiry forward, so an actively-used client
+ * (e.g. a desktop MCP client) never re-authorizes; only ~7 days with no refresh
+ * at all expires the grant.
+ */
+export const OAUTH_REFRESH_TOKEN_DURATION_S = 7 * 24 * 60 * 60;
+/**
+ * Grace window in which a just-rotated token may be replayed without suspicion
+ * (slow networks, cold-start latency, retries, pipelined requests). Reuse
+ * detection primarily relies on lineage — a replay is only theft once the chain
+ * has advanced past the token — so this is a belt-and-suspenders for replays
+ * that arrive before the client has rotated forward.
+ */
+const REUSE_WINDOW_MS = 60_000;
 
 /** The user, scopes, and resource a rotated refresh token grants. */
 export interface OAuthRefreshGrant {
@@ -40,11 +51,13 @@ export interface OAuthRefreshDomain {
   /**
    * Rotate a refresh token (RFC 6749 §6). Returns the new opaque token plus the
    * granted user/scopes/resource, or `null` if the token is unknown, bound to a
-   * different client, expired, or replayed outside the reuse window (theft — the
-   * whole chain is revoked). Theft emits an `oauth.refresh.reuse_detected` audit
-   * event attributed to the client that *presented* the replayed token — which
-   * may be the victim's own client replaying after a glitch, so read it as
-   * "chain burned, investigate", not "this client is malicious".
+   * different client, expired, or replayed after the client rotated past it
+   * (theft — the whole chain is revoked). Retries and concurrent refreshes that
+   * have *not* advanced past the presented token are tolerated and rotate
+   * normally. Theft emits an `oauth.refresh.reuse_detected` audit event
+   * attributed to the client that *presented* the replayed token — which may be
+   * the victim's own client replaying after a glitch, so read it as "chain
+   * burned, investigate", not "this client is malicious".
    */
   exchange(
     ctx: ComponentCtx,

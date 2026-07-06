@@ -4,14 +4,33 @@ import resendTest from "@convex-dev/resend/test";
 import staticHostingTest from "@convex-dev/static-hosting/test";
 import authTest from "@robelest/convex-auth/test";
 import { convexTest as baseConvexTest } from "convex-test";
+import type { FunctionReference } from "convex/server";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 
-if (!process.env.SITE_URL) {
-  process.env.SITE_URL = "http://localhost:5173";
-}
+/**
+ * A typed handle for the auth component's `maintenance.pruneExpired`, which is an internal
+ * (cron-driven) component mutation deliberately kept off the public `ComponentApi` so a mounting
+ * app cannot invoke the bulk delete. `convex-test` still resolves it at runtime via the registered
+ * module map, so white-box tests use this handle to trigger it.
+ */
+export const pruneExpiredForTest = (
+  auth: unknown,
+): FunctionReference<"mutation", "internal", { batchSize: number }, Record<string, number>> =>
+  (
+    auth as {
+      maintenance: {
+        pruneExpired: FunctionReference<
+          "mutation",
+          "internal",
+          { batchSize: number },
+          Record<string, number>
+        >;
+      };
+    }
+  ).maintenance.pruneExpired;
 
 if (!process.env.APP_URL) {
-  process.env.APP_URL = process.env.SITE_URL;
+  process.env.APP_URL = "http://localhost:5173";
 }
 
 if (!process.env.CONVEX_SITE_URL) {

@@ -4,7 +4,7 @@ import { ErrorCode } from "../shared/codes";
 import { AuthFlowError } from "../shared/errors";
 
 export type AuthErrorData = {
-  code: string;
+  code: ErrorCode;
   message: string;
 };
 
@@ -14,7 +14,7 @@ export type AuthErrorData = {
  * @internal
  */
 export const convexError = (
-  code: string,
+  code: ErrorCode,
   message: string,
   extra?: Record<string, unknown>,
 ): ConvexError<AuthErrorData> => new ConvexError({ code, message, ...extra });
@@ -25,7 +25,13 @@ export const toConvexError = (error: unknown): ConvexError<AuthErrorData> => {
     return error as ConvexError<AuthErrorData>;
   }
   if (error instanceof AuthFlowError) {
-    return new ConvexError({ code: error.code, message: error.message });
+    /**
+     * `AuthFlowError.code` is the wider client/server flow-code space (e.g. the
+     * RFC 8628 device codes `DEVICE_SLOW_DOWN`/`DEVICE_AUTHORIZATION_PENDING`),
+     * which is a superset of the {@link ErrorCode} registry. This is the single
+     * adapter that bridges that wider space into {@link AuthErrorData}.
+     */
+    return new ConvexError({ code: error.code as ErrorCode, message: error.message });
   }
   return new ConvexError({
     code: ErrorCode.INTERNAL_ERROR,

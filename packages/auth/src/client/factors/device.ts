@@ -1,13 +1,6 @@
 import { ConvexError } from "convex/values";
 
-import type {
-  ConvexTransport,
-  DeviceClient,
-  DeviceCodeResult,
-  SignInActionResult,
-  SignInApiRef,
-} from "../core/types";
-import type { AccessToken } from "../../shared/brand";
+import type { DeviceClient, DevicePollParams, FactorDeps, SignInActionResult } from "../core/types";
 import type { AuthTokens } from "../../shared/results";
 import { ErrorCode } from "../../shared/codes";
 
@@ -17,30 +10,8 @@ function isSignedInResult(
   return result.kind === "signedIn";
 }
 
-type DeviceDeps = {
-  proxy: string | undefined;
-  convex: ConvexTransport;
-  requireApiRefs: () => SignInApiRef;
-  proxyFetch: (body: Record<string, unknown>) => Promise<unknown>;
-  setTokenAndMaybeWait: (
-    args:
-      | {
-          shouldStore: true;
-          tokens: AuthTokens | null;
-          waitForHandshake: boolean;
-          context: { provider?: string; flow: string };
-        }
-      | {
-          shouldStore: false;
-          tokens: { token: AccessToken } | null;
-          waitForHandshake: boolean;
-          context: { provider?: string; flow: string };
-        },
-  ) => Promise<boolean>;
-};
-
 /** @internal */
-export function createDeviceClient(deps: DeviceDeps): DeviceClient {
+export function createDeviceClient(deps: FactorDeps): DeviceClient {
   const { proxy, convex, requireApiRefs, proxyFetch, setTokenAndMaybeWait } = deps;
 
   const requestDeviceSignIn = async (
@@ -60,8 +31,8 @@ export function createDeviceClient(deps: DeviceDeps): DeviceClient {
   };
 
   return {
-    poll: async (opts: { code: DeviceCodeResult }): Promise<void> => {
-      const { code } = opts;
+    poll: async (opts: DevicePollParams): Promise<void> => {
+      const { code, signal } = opts;
       const MAX_POLL_DURATION_MS = 30 * 60 * 1000;
       const SLOW_DOWN_INCREMENT_MS = 5 * 1000;
       let currentIntervalMs = code.interval * 1000;
@@ -72,7 +43,9 @@ export function createDeviceClient(deps: DeviceDeps): DeviceClient {
       );
 
       while (Date.now() < expiresAt) {
+        if (signal?.aborted) return;
         await new Promise((resolve) => setTimeout(resolve, currentIntervalMs));
+        if (signal?.aborted) return;
 
         const params: Record<string, unknown> = {
           flow: "poll",

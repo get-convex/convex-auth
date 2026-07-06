@@ -4,14 +4,14 @@ import { serialize as serializeCookie } from "cookie";
 
 import { configDefaults } from "../config";
 import {
-  deleteScimIdentity,
   getScimIdentity,
   getScimIdentityByConnectionAndUser,
   getScimIdentityByMappedGroup,
   insertAccount,
   insertUser,
   listScimIdentitiesByConnection,
-  patchUser,
+  removeScimIdentity,
+  updateUser,
   upsertScimIdentity,
   type ScimIdentityRecord,
 } from "../contract";
@@ -40,6 +40,7 @@ import {
   parseGroupConnectionSamlLoginResponse,
   parseGroupConnectionSamlLogoutMessage,
   profileFromSamlExtract,
+  samlReplayIdentifiers,
   validateGroupConnectionSamlLoginRelayState,
 } from "./saml";
 import {
@@ -249,6 +250,19 @@ type ScimFilterOperator = NonNullable<
  */
 const SCIM_COLLECT_LIMIT = 5000;
 
+/**
+ * Lifetime of a persisted pending SAML AuthnRequest. Bounds how long an ACS
+ * response can accept the request; comfortably covers IdP round-trips and the
+ * default 300s clock skew while keeping the pending-request table small.
+ */
+const SAML_LOGIN_REQUEST_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Fallback TTL for the seen-assertion replay cache when an assertion carries no
+ * `NotOnOrAfter` bound (only reachable when `requireTimestamps` is disabled).
+ */
+const SAML_SEEN_ASSERTION_FALLBACK_TTL_MS = 10 * 60 * 1000;
+
 const SCIM_FILTER_OPERATORS: Record<
   ScimFilterOperator,
   (values: string[], filterValue: string) => boolean
@@ -346,6 +360,65 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
               errorCode: errorCodeForEvent(args.error, "OAUTH_PROVIDER_ERROR"),
             },
     });
+  };
+
+  /**
+   * Enforce server-side SAML replay prevention at the ACS.
+   *
+   * The signature, audience/recipient/timestamp, and `InResponseTo` checks that
+   * ran earlier all travel inside the same replayable POST, so none of them can
+   * tell a captured `SAMLResponse` from a resubmitted one. This consumes the
+   * single-use pending request (defeating SP-initiated replay) and records the
+   * assertion ID in a bounded seen-cache (defeating IdP-initiated replay, which
+   * carries no `InResponseTo`). Either check failing means the response was
+   * already used: a connection-login failure is emitted and the login is
+   * rejected with no session. Throws (never returns) on rejection.
+   */
+  const enforceSamlAcsReplayDefense = async (
+    ctx: GenericActionCtx<GenericDataModel>,
+    connection: { _id: string; groupId: string },
+    parsed: {
+      samlContent: string;
+      extract?: Parameters<typeof samlReplayIdentifiers>[0]["extract"];
+    },
+  ): Promise<void> => {
+    const nowMs = Date.now();
+    const { assertionId, inResponseTo, notOnOrAfter } = samlReplayIdentifiers(parsed);
+    const rejectReplay = async (message: string): Promise<never> => {
+      await recordConnectionLoginEvent(ctx, {
+        connection,
+        protocol: "saml",
+        outcome: "failure",
+        error: new Error(message),
+      });
+      throw convexError(ErrorCode.OAUTH_INVALID_STATE, message);
+    };
+
+    if (typeof inResponseTo === "string" && inResponseTo.length > 0) {
+      const accepted = (await ctx.runMutation(config.component.connection.saml.request.accept, {
+        requestId: inResponseTo,
+        now: nowMs,
+      })) as boolean;
+      if (!accepted) {
+        await rejectReplay("SAML response replays or references an unknown login request.");
+      }
+    }
+
+    if (typeof assertionId !== "string" || assertionId.length === 0) {
+      await rejectReplay("SAML assertion is missing an ID required for replay detection.");
+    }
+    const expiresAtMs =
+      typeof notOnOrAfter === "string" && Number.isFinite(new Date(notOnOrAfter).getTime())
+        ? new Date(notOnOrAfter).getTime()
+        : nowMs + SAML_SEEN_ASSERTION_FALLBACK_TTL_MS;
+    const firstSeen = (await ctx.runMutation(config.component.connection.saml.assertion.accept, {
+      connectionId: connection._id,
+      assertionId: assertionId as string,
+      expiresAt: expiresAtMs,
+    })) as boolean;
+    if (!firstSeen) {
+      await rejectReplay("SAML assertion has already been used.");
+    }
   };
 
   const SCIM_SCHEMAS = [
@@ -616,6 +689,8 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
     throw new Error("Unsupported SCIM PATCH operation.");
   };
 
+  const scimCollectOverflow = () => new Error("SCIM member set too large to reconcile.");
+
   type ScimBody = Record<string, unknown> & {
     displayName?: string;
     userName?: string;
@@ -710,6 +785,8 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
         "SAML RelayState did not match the pending login request.",
       );
     }
+
+    await enforceSamlAcsReplayDefense(ctx, connection, parsedResponse.parsed);
 
     const { samlAttributes, samlSessionIndex, ...userProfile } = profileFromSamlExtract(
       parsedResponse.parsed.extract,
@@ -921,6 +998,41 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
         return out;
       };
 
+      /**
+       * Fully enumerate a group's active members for an authoritative
+       * (destructive) membership replace. Unlike {@link collectMembers}, this
+       * refuses to truncate: a `replace` diffs the incoming set against the
+       * current set and removes the difference, so a partial read would
+       * silently drop overflow members. Throws {@link scimCollectOverflow} past
+       * the collect limit so the caller fails the reconcile (413) rather than
+       * completing a partial authoritative replace.
+       */
+      const collectMembersForReplace = async (
+        ctx: GenericActionCtx<GenericDataModel>,
+        where: { groupId: string; status?: "active" },
+      ) => {
+        const first = await auth.member.list(ctx, {
+          where,
+          paginationOpts: { numItems: 200, cursor: null },
+        });
+        const out = [...first.page];
+        let cursor = first.continueCursor;
+        let done = first.isDone;
+        while (!done) {
+          if (out.length > SCIM_COLLECT_LIMIT) {
+            throw scimCollectOverflow();
+          }
+          const next = await auth.member.list(ctx, {
+            where,
+            paginationOpts: { numItems: 200, cursor },
+          });
+          out.push(...next.page);
+          done = next.isDone;
+          cursor = next.continueCursor;
+        }
+        return out;
+      };
+
       const collectGroups = async (
         ctx: GenericActionCtx<GenericDataModel>,
         where: { parentGroupId: string },
@@ -1016,7 +1128,9 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
             { Location: location },
           );
         }
-        const members = { page: await collectMembers(state.ctx, { groupId: state.connection.groupId }) };
+        const members = {
+          page: await collectMembers(state.ctx, { groupId: state.connection.groupId }),
+        };
         const identities = await listScimIdentitiesByConnection(
           state.ctx,
           config.component.connection,
@@ -1177,9 +1291,9 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
             source: "scim",
           });
           if (Object.keys(patchData).length > 0) {
-            await patchUser(state.ctx, config.component.user, {
+            await updateUser(state.ctx, config.component.user, {
               userId,
-              data: patchData,
+              patch: patchData,
             });
           }
         }
@@ -1358,9 +1472,9 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
           source: "scim",
         });
         if (Object.keys(nextPatchData).length > 0) {
-          await patchUser(state.ctx, config.component.user, {
+          await updateUser(state.ctx, config.component.user, {
             userId,
-            data: nextPatchData,
+            patch: nextPatchData,
           });
         }
         const resolution = existingMembership;
@@ -1417,10 +1531,14 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
         const missing = requireScimResourceId(state.parsedPath.resourceId, "User");
         if (missing) return missing;
         const userId = state.parsedPath.resourceId!;
-        const identity = await getScimIdentityByConnectionAndUser(state.ctx, config.component.connection, {
-          connectionId: state.connection._id,
-          userId,
-        });
+        const identity = await getScimIdentityByConnectionAndUser(
+          state.ctx,
+          config.component.connection,
+          {
+            connectionId: state.connection._id,
+            userId,
+          },
+        );
         if (!identity) {
           return scimError(404, "notFound", "User not found.");
         }
@@ -1431,8 +1549,19 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
         if (resolution.membership) {
           await auth.member.remove(state.ctx, { id: resolution.membership._id });
         }
+        const { revoked } = (await state.ctx.runMutation(config.component.session.revokeForUser, {
+          userId,
+        })) as { revoked: number };
+        if (revoked > 0) {
+          await state.recordScimEvent(
+            "session.invalidated",
+            "success",
+            { type: "user", id: userId },
+            { userId, reason: "connection_deprovision" },
+          );
+        }
         if (state.policy.provisioning.deprovision.mode === "hard") {
-          await deleteScimIdentity(state.ctx, config.component.connection, identity._id);
+          await removeScimIdentity(state.ctx, config.component.connection, identity._id);
         } else {
           await upsertScimIdentity(state.ctx, config.component.connection, {
             connectionId: identity.connectionId,
@@ -1611,7 +1740,10 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
           raw: body,
           lastProvisionedAt: Date.now(),
         });
-        const currentMembers = await collectMembers(state.ctx, { groupId, status: "active" });
+        const currentMembers = await collectMembersForReplace(state.ctx, {
+          groupId,
+          status: "active",
+        });
         const currentByUserId = new Map(currentMembers.map((member) => [member.userId, member]));
         const nextUserIds = new Set(
           (Array.isArray(body.members) ? body.members : []).map((member) => String(member.value)),
@@ -1705,7 +1837,11 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
             );
             const invalidMember = await firstInvalidScimMember(state, addUserIds);
             if (invalidMember !== null) {
-              return scimError(400, "invalidValue", `Group member user not found: ${invalidMember}`);
+              return scimError(
+                400,
+                "invalidValue",
+                `Group member user not found: ${invalidMember}`,
+              );
             }
             for (const userId of addUserIds) {
               const existing = await auth.member.get(state.ctx, { groupId, userId });
@@ -1727,7 +1863,10 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
             continue;
           }
           if (operation.path === "members" && op === "replace") {
-            const currentMembers = await collectMembers(state.ctx, { groupId, status: "active" });
+            const currentMembers = await collectMembersForReplace(state.ctx, {
+              groupId,
+              status: "active",
+            });
             const currentUserIds = new Set<string>(currentMembers.map((member) => member.userId));
             const nextUserIds = new Set<string>(
               (Array.isArray(operation.value) ? operation.value : []).map((member: unknown) =>
@@ -1737,7 +1876,11 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
             const toAddUserIds = [...nextUserIds].filter((userId) => !currentUserIds.has(userId));
             const invalidMember = await firstInvalidScimMember(state, toAddUserIds);
             if (invalidMember !== null) {
-              return scimError(400, "invalidValue", `Group member user not found: ${invalidMember}`);
+              return scimError(
+                400,
+                "invalidValue",
+                `Group member user not found: ${invalidMember}`,
+              );
             }
             for (const member of currentMembers) {
               if (!nextUserIds.has(member.userId)) {
@@ -1814,7 +1957,7 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
           return scimError(404, "notFound", "Group not found.");
         }
         await auth.group.remove(state.ctx, { id: groupId });
-        await deleteScimIdentity(state.ctx, config.component.connection, identity._id);
+        await removeScimIdentity(state.ctx, config.component.connection, identity._id);
         await state.recordScimEvent("connection.scim.group.deactivated", "success", {
           type: "group",
           id: groupId,
@@ -1895,6 +2038,9 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
       if (error instanceof Error && error.message === "Unsupported SCIM PATCH operation.") {
         return scimError(400, "invalidSyntax", error.message);
       }
+      if (error instanceof Error && error.message === "SCIM member set too large to reconcile.") {
+        return scimError(413, "tooLarge", error.message);
+      }
       if (
         error instanceof ConvexError &&
         typeof error.data === "object" &&
@@ -1914,7 +2060,10 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
         }
         return response;
       }
-      throw error;
+      log("WARN", "[connection.scim] unhandled error surfaced as SCIM 500", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return scimError(500, "internalError", "SCIM request failed.");
     }
   };
 
@@ -2069,6 +2218,13 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
       });
       const signature = `saml ${connection._id} ${signInRequest.requestId} ${state}`;
       await callVerifierSignature(ctx, { verifier, signature });
+      const nowMs = Date.now();
+      await ctx.runMutation(config.component.connection.saml.request.create, {
+        connectionId: connection._id,
+        requestId: signInRequest.requestId,
+        createdAt: nowMs,
+        expiresAt: nowMs + SAML_LOGIN_REQUEST_TTL_MS,
+      });
       const redirectTo = url.searchParams.get("redirectTo");
       const redirectCookies =
         redirectTo !== null

@@ -6,22 +6,20 @@ import { ConvexError } from "convex/values";
 
 import type { AuthTokens, SignInDeviceCodeResult, SignInSessionResult } from "../shared/results";
 import { AuthFlowError, authFlowError } from "../shared/errors";
-import { requireEnv } from "./env";
 import { toConvexError } from "./errors";
 import { getAuthenticatedUserIdOrNull } from "./identity/claims";
 import { callSignIn } from "./mutations/calls";
 import { generateRandomString, sha256 } from "./random";
 import type { DeviceProviderConfig, GenericActionCtxWithAuthConfig } from "./types";
+import { appUrlFromEnv } from "./url";
 import {
-  type AuthDataModel,
-  type SessionInfo,
-  mutateDeviceAuthorize,
-  mutateDeviceDelete,
+  mutateDeviceRemove,
   mutateDeviceInsert,
   mutateDeviceUpdateLastPolled,
   queryDeviceByCodeHash,
   queryDeviceByUserCode,
-} from "./types";
+} from "./component/factor/db";
+import { type AuthDataModel, type SessionInfo } from "./types";
 
 type EnrichedActionCtx = GenericActionCtxWithAuthConfig<AuthDataModel>;
 
@@ -73,7 +71,7 @@ async function handleCreate(
     status: "pending",
   });
 
-  const verificationUri = provider.verificationUri ?? `${requireEnv("SITE_URL")}/device`;
+  const verificationUri = provider.verificationUri ?? `${appUrlFromEnv()}/device`;
 
   return {
     kind: "deviceCode" as const,
@@ -102,7 +100,7 @@ async function handlePoll(ctx: EnrichedActionCtx, params: DeviceParams): Promise
     );
   }
   if (Date.now() > doc.expiresAt) {
-    await mutateDeviceDelete(ctx, doc._id);
+    await mutateDeviceRemove(ctx, doc._id);
     throw deviceError(
       "DEVICE_CODE_EXPIRED",
       "The device code has expired. Please start a new authorization request.",
@@ -124,17 +122,24 @@ async function handlePoll(ctx: EnrichedActionCtx, params: DeviceParams): Promise
     );
   }
   if (doc.status === "denied") {
-    await mutateDeviceDelete(ctx, doc._id);
+    await mutateDeviceRemove(ctx, doc._id);
     throw deviceError("DEVICE_CODE_DENIED", "The authorization request was denied.");
   }
-  if (!doc.userId || !doc.sessionId) {
-    throw deviceError("INTERNAL_ERROR", "Authorized device code missing userId or sessionId");
+
+  const accepted = await ctx.runMutation(ctx.auth.config.component.factor.device.accept, {
+    deviceCodeHash: hash,
+    now: Date.now(),
+  });
+  if (accepted === null) {
+    throw deviceError(
+      "DEVICE_AUTHORIZATION_PENDING",
+      "The user has not yet authorized this device.",
+    );
   }
 
-  await mutateDeviceDelete(ctx, doc._id);
   const signInResult = await callSignIn(ctx, {
-    userId: doc.userId,
-    sessionId: doc.sessionId,
+    userId: accepted.userId,
+    sessionId: accepted.sessionId,
     generateTokens: true,
   });
   return { kind: "signedIn" as const, session: signInResult };
@@ -157,7 +162,7 @@ async function handleDeviceVerify(
     throw deviceError("DEVICE_INVALID_USER_CODE", "Invalid or expired user code.");
   }
   if (Date.now() > doc.expiresAt) {
-    await mutateDeviceDelete(ctx, doc._id);
+    await mutateDeviceRemove(ctx, doc._id);
     throw deviceError(
       "DEVICE_CODE_EXPIRED",
       "The device code has expired. Please start a new authorization request.",
@@ -171,7 +176,17 @@ async function handleDeviceVerify(
     userId,
     generateTokens: false,
   });
-  await mutateDeviceAuthorize(ctx, doc._id, signInResult.userId, signInResult.sessionId);
+  const { transitioned } = await ctx.runMutation(
+    ctx.auth.config.component.factor.device.authorize,
+    {
+      id: doc._id,
+      userId: signInResult.userId,
+      sessionId: signInResult.sessionId,
+    },
+  );
+  if (!transitioned) {
+    throw deviceError("DEVICE_ALREADY_AUTHORIZED", "This device code has already been authorized.");
+  }
   return { kind: "signedIn" as const, session: null };
 }
 

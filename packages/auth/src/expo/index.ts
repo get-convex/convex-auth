@@ -17,20 +17,15 @@ import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import { ConvexHttpClient } from "convex/browser";
 
-import { LOG_LEVELS, logMessage } from "../shared/log";
 import {
   client as createClient,
+  resolveUrl,
   type AuthApiRefs,
   type ClientOptions,
   type ClientRuntime,
   type PlatformAuthClient,
 } from "../client/index";
-import type { SignInImpl } from "../client/core/types";
 import { client as createBrowserClient } from "../browser/index";
-import { ClientAdapterFactoriesLive, ClientAdaptersLive } from "../client/services/adapters";
-import { ClientHttpLive } from "../client/services/http";
-import { resolveClientServices } from "../client/services/resolve";
-import { ClientRuntimeLive } from "../client/services/runtime";
 import { createExpoPasskeyClient } from "./passkey";
 
 /**
@@ -90,6 +85,10 @@ const secureStoreStorage = {
  * Native Expo defaults include SecureStore persistence, auth session launch,
  * and native passkey support. Web falls back to the browser entrypoint.
  *
+ * OAuth launch and completion are owned by the core client, driven by the Expo
+ * `runtime.oauth` provided here: it opens the in-app auth session and returns
+ * the callback URL for the core to complete inline.
+ *
  * @param options - Expo client configuration. See {@link ExpoClientOptions}.
  * @typeParam Api - Auth API references that control which factor helpers are
  *   available on the returned client.
@@ -102,107 +101,69 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     return createBrowserClient(options) as PlatformAuthClient<Api>;
   }
 
-  const url =
-    options.proxyPath === undefined ? (options.url ?? inferConvexUrl(options.convex)) : undefined;
-  const runtime = mergeExpoRuntime(options.runtime);
-  const services = resolveClientServices({
-    runtime: ClientRuntimeLive(runtime),
-    adapters: ClientAdaptersLive(options.adapters ?? {}),
-    adapterFactories: ClientAdapterFactoriesLive({
+  const proxyMode = options.proxyPath !== undefined;
+  const url = proxyMode ? undefined : (options.url ?? resolveUrl(options.convex));
+  const redirectUri = resolveRedirectUri(options.authSession);
+
+  return createClient({
+    ...options,
+    oauthRedirectTo: options.oauthRedirectTo ?? redirectUri,
+    storage: options.storage === undefined && proxyMode ? null : options.storage,
+    runtime: mergeExpoRuntime(options.runtime, {
+      redirectUri,
+      preferEphemeralSession: options.authSession?.preferEphemeralSession,
+      proxyMode,
+    }),
+    adapterFactories: {
       ...options.adapterFactories,
       passkey: options.adapterFactories?.passkey ?? ((deps) => createExpoPasskeyClient(deps)),
-    }),
-    http: ClientHttpLive(
-      options.proxyPath !== undefined
-        ? null
-        : (options.httpClient ?? (url ? new ConvexHttpClient(url) : null)),
-    ),
-  });
-
-  const redirectUri = resolveRedirectUri(options.authSession);
-  const baseClient = createClient({
-    ...options,
-    storage:
-      options.storage === undefined && options.proxyPath !== undefined ? null : options.storage,
-    runtime: services.runtime,
-    adapters: services.adapters,
-    adapterFactories: services.adapterFactories,
-    httpClient: services.httpClient,
-  });
-
-  const initialize: typeof baseClient.initialize = async () => {
-    await baseClient.initialize();
-  };
-
-  const signIn: typeof baseClient.signIn = async (provider, ...args) => {
-    const params = args[0] as Record<string, unknown> | undefined;
-    const nextParams = withRedirectTo(params, redirectUri);
-    const result = await (baseClient.signIn as SignInImpl)(provider, nextParams);
-    if (result.kind !== "redirect") {
-      return result;
-    }
-    if (options.proxyPath !== undefined) {
-      throw new Error(
-        "Expo OAuth is not supported when `proxyPath` is set. Use direct mode with `api` and an Expo redirect URI.",
-      );
-    }
-    const authResult = await WebBrowser.openAuthSessionAsync(
-      result.redirect.toString(),
-      redirectUri,
-      {
-        preferEphemeralSession: options.authSession?.preferEphemeralSession,
-      },
-    );
-    if (authResult.type === "success") {
-      const completion = await baseClient.completeOAuth(authResult.url);
-      if (completion.handled) {
-        return { kind: "signedIn" as const };
-      }
-    }
-    return result;
-  };
-
-  const expoClient = {
-    initialize,
-    param: baseClient.param,
-    get invite() {
-      return baseClient.invite;
     },
-    completeOAuth: baseClient.completeOAuth,
-    signIn,
-    signOut: baseClient.signOut,
-    subscribe: baseClient.subscribe,
-    getSnapshot: baseClient.getSnapshot,
-    destroy: baseClient.destroy,
-    ...("totp" in baseClient ? { totp: baseClient.totp } : {}),
-    ...("device" in baseClient ? { device: baseClient.device } : {}),
-    ...("passkey" in baseClient ? { passkey: baseClient.passkey } : {}),
-  } as PlatformAuthClient<Api>;
-
-  void initialize().catch((error) => {
-    logMessage("convex-auth/expo", LOG_LEVELS.ERROR, [
-      "[convex-auth] Expo client initialization failed:",
-      error,
-    ]);
-  });
-
-  return expoClient;
+    httpClient: proxyMode ? null : (options.httpClient ?? (url ? new ConvexHttpClient(url) : null)),
+  }) as PlatformAuthClient<Api>;
 }
 
 function isWebRuntime() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
-function mergeExpoRuntime(runtime: ClientRuntime | undefined): ClientRuntime {
+/**
+ * Build the Expo runtime, layering caller overrides over native defaults.
+ *
+ * Expo intentionally omits `sync` and `mutex` (the cross-tab storage-event
+ * bridge and cross-context lock the browser provides). React Native is
+ * single-process with no `storage` event and no `navigator.locks`, so both
+ * would be no-ops; token refresh falls back to the in-process `localMutex` in
+ * the core. This parity gap is deliberate — do not add stubs.
+ */
+function mergeExpoRuntime(
+  runtime: ClientRuntime | undefined,
+  oauth: { redirectUri: string; preferEphemeralSession: boolean | undefined; proxyMode: boolean },
+): ClientRuntime {
   const defaults: ClientRuntime = {
     environment: "client",
     storage: secureStoreStorage,
+    oauth: {
+      open: async (authorizeUrl) => {
+        if (oauth.proxyMode) {
+          throw new Error(
+            "Expo OAuth is not supported when `proxyPath` is set. Use direct mode with `api` and an Expo redirect URI.",
+          );
+        }
+        const authResult = await WebBrowser.openAuthSessionAsync(
+          authorizeUrl.toString(),
+          oauth.redirectUri,
+          { preferEphemeralSession: oauth.preferEphemeralSession },
+        );
+        return authResult.type === "success" ? authResult.url : undefined;
+      },
+    },
   };
   return {
     ...defaults,
     ...runtime,
     environment: runtime?.environment ?? defaults.environment,
     storage: runtime?.storage === undefined ? defaults.storage : runtime.storage,
+    oauth: runtime?.oauth ?? defaults.oauth,
   };
 }
 
@@ -211,41 +172,4 @@ function resolveRedirectUri(options: ExpoClientOptions["authSession"]): string {
     return options.redirectUri;
   }
   return AuthSession.makeRedirectUri(options);
-}
-
-function withRedirectTo(
-  params: Record<string, unknown> | undefined,
-  redirectTo: string,
-): Record<string, unknown> {
-  if (params?.redirectTo !== undefined) {
-    return params;
-  }
-  return {
-    ...params,
-    redirectTo,
-  };
-}
-
-function inferConvexUrl(convex: unknown): string | undefined {
-  if (!convex || typeof convex !== "object") {
-    return undefined;
-  }
-  const candidate = convex as Record<string, unknown>;
-  try {
-    if (typeof candidate.url === "string") {
-      return candidate.url;
-    }
-  } catch {
-    return undefined;
-  }
-
-  try {
-    const client =
-      typeof candidate.client === "object" && candidate.client !== null
-        ? (candidate.client as Record<string, unknown>)
-        : undefined;
-    return typeof client?.url === "string" ? client.url : undefined;
-  } catch {
-    return undefined;
-  }
 }

@@ -9,7 +9,11 @@
  *     - 2FA sign-in challenge (no `totpId`).
  */
 
-import { encodeBase32LowerCaseNoPadding } from "@oslojs/encoding";
+import {
+  decodeBase64urlIgnorePadding,
+  encodeBase32LowerCaseNoPadding,
+  encodeBase64urlNoPadding,
+} from "@oslojs/encoding";
 import { createTOTPKeyURI, verifyTOTPWithGracePeriod } from "@oslojs/otp";
 import { ConvexError } from "convex/values";
 
@@ -20,24 +24,24 @@ import type { AuthErrorData } from "./errors";
 import { toConvexError } from "./errors";
 import { emitAuthEvent } from "./events";
 import { getAuthenticatedUserIdOrNull } from "./identity/claims";
-import {
-  isSignInRateLimited,
-  recordFailedSignIn,
-  resetSignInRateLimit,
-} from "./limits";
+import { isSignInRateLimited, recordFailedSignIn, resetSignInRateLimit } from "./limits";
 import { callSignIn, callVerifier } from "./mutations/calls";
-import { GenericActionCtxWithAuthConfig, TotpProviderConfig } from "./types";
+import { decryptSecret, encryptSecret } from "./secret";
 import {
-  AuthDataModel,
-  SessionInfo,
   mutateTotpInsert,
   mutateTotpMarkVerified,
   mutateTotpUpdateLastUsed,
-  mutateVerifierDelete,
+  mutateVerifierRemove,
   queryTotpById,
   queryTotpVerifiedByUserId,
   queryUserById,
   queryVerifierById,
+} from "./component/factor/db";
+import {
+  AuthDataModel,
+  GenericActionCtxWithAuthConfig,
+  SessionInfo,
+  TotpProviderConfig,
 } from "./types";
 
 type EnrichedActionCtx = GenericActionCtxWithAuthConfig<AuthDataModel>;
@@ -60,12 +64,42 @@ type TotpDispatch =
 const convexError = (code: ErrorCode, message: string) =>
   toConvexError(authFlowError(code, message));
 
-const asConvexError = (error: unknown, code: ErrorCode, message: string): ConvexError<AuthErrorData> =>
+const asConvexError = (
+  error: unknown,
+  code: ErrorCode,
+  message: string,
+): ConvexError<AuthErrorData> =>
   error instanceof ConvexError
     ? error
     : error instanceof Error
       ? toConvexError(authFlowError(code, error.message || message))
       : convexError(code, message);
+
+/**
+ * Encrypt a raw TOTP secret for storage. The secret bytes are base64url-encoded
+ * and sealed with the server's {@link encryptSecret} (AES-GCM); the resulting
+ * ciphertext string is stored UTF-8-encoded in the `TotpFactor.secret` bytes
+ * field. Runs server-side because component functions cannot read
+ * `AUTH_SECRET_ENCRYPTION_KEY`.
+ */
+async function encryptTotpSecret(secret: Uint8Array): Promise<ArrayBuffer> {
+  const ciphertext = await encryptSecret(encodeBase64urlNoPadding(secret));
+  const encoded = new TextEncoder().encode(ciphertext);
+  return encoded.buffer.slice(
+    encoded.byteOffset,
+    encoded.byteOffset + encoded.byteLength,
+  ) as ArrayBuffer;
+}
+
+/**
+ * Reverse {@link encryptTotpSecret}: decode the stored ciphertext bytes, decrypt
+ * to the base64url secret, and return the raw secret bytes for verification.
+ */
+async function decryptTotpSecret(stored: ArrayBuffer): Promise<Uint8Array> {
+  const ciphertext = new TextDecoder().decode(stored);
+  const secretB64 = await decryptSecret(ciphertext);
+  return decodeBase64urlIgnorePadding(secretB64);
+}
 
 /**
  * Parse a verifier's stored signature into the TOTP ceremony payload.
@@ -190,7 +224,11 @@ export const handleTotp = async (
         try {
           user = await queryUserById(ctx, userId);
         } catch (error) {
-          throw asConvexError(error, ErrorCode.INTERNAL_ERROR, `TOTP setup failed: ${String(error)}`);
+          throw asConvexError(
+            error,
+            ErrorCode.INTERNAL_ERROR,
+            `TOTP setup failed: ${String(error)}`,
+          );
         }
         accountName = user?.email ?? "user";
       }
@@ -208,7 +246,7 @@ export const handleTotp = async (
       try {
         totpId = await mutateTotpInsert(ctx, {
           userId,
-          secret: secret.buffer.slice(secret.byteOffset, secret.byteOffset + secret.byteLength),
+          secret: await encryptTotpSecret(secret),
           digits: provider.options.digits,
           period: provider.options.period,
           verified: false,
@@ -225,7 +263,6 @@ export const handleTotp = async (
           ctx,
           JSON.stringify({
             purpose: "totp.setup",
-            secret: Array.from(secret),
             userId,
             totpId,
             digits: provider.options.digits,
@@ -303,9 +340,10 @@ export const handleTotp = async (
     if (doc.verified) {
       throw convexError(ErrorCode.TOTP_ALREADY_VERIFIED, "TOTP enrollment is already verified.");
     }
+    const enrollmentSecret = await decryptTotpSecret(doc.secret);
     if (
       !verifyTOTPWithGracePeriod(
-        new Uint8Array(doc.secret),
+        enrollmentSecret,
         provider.options.period,
         provider.options.digits,
         code,
@@ -319,7 +357,7 @@ export const handleTotp = async (
     let signInResult;
     try {
       await mutateTotpMarkVerified(ctx, totpId, Date.now());
-      await mutateVerifierDelete(ctx, verifier);
+      await mutateVerifierRemove(ctx, verifier);
       signInResult = await callSignIn(ctx, {
         userId,
         generateTokens: true,
@@ -371,9 +409,8 @@ export const handleTotp = async (
     if (totp === null) {
       throw convexError(ErrorCode.TOTP_NO_ENROLLMENT, "No verified TOTP enrollment found.");
     }
-    if (
-      !verifyTOTPWithGracePeriod(new Uint8Array(totp.secret), totp.period, totp.digits, code, 30)
-    ) {
+    const challengeSecret = await decryptTotpSecret(totp.secret);
+    if (!verifyTOTPWithGracePeriod(challengeSecret, totp.period, totp.digits, code, 30)) {
       await recordFailedSignIn(ctx, userId, ctx.auth.config);
       throw convexError(ErrorCode.TOTP_INVALID_CODE, "Invalid TOTP code.");
     }
@@ -382,7 +419,7 @@ export const handleTotp = async (
     let signInResult;
     try {
       await mutateTotpUpdateLastUsed(ctx, totp._id, Date.now());
-      await mutateVerifierDelete(ctx, verifier);
+      await mutateVerifierRemove(ctx, verifier);
       signInResult = await callSignIn(ctx, { userId, generateTokens: true });
     } catch (error) {
       throw asConvexError(error, ErrorCode.INTERNAL_ERROR, String(error));

@@ -33,9 +33,7 @@ type TagReplacement = (template: string) => BindingContext;
 function asDocumentTemplateReplacement(
   replacement: TagReplacement | undefined,
 ): ((template: SAMLDocumentTemplate) => BindingContext) | undefined {
-  return replacement as
-    | ((template: SAMLDocumentTemplate) => BindingContext)
-    | undefined;
+  return replacement as ((template: SAMLDocumentTemplate) => BindingContext) | undefined;
 }
 
 /** A service-provider entity: its settings, metadata, and request/response builders and parsers. */

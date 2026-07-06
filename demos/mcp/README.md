@@ -48,27 +48,26 @@ against `definePermissions`.
 
 ## Tools
 
-| Tool | Grant | Calls |
-|------|-------|-------|
-| `list_groups` | `projects.read` | `api.groups.list` |
-| `get_workspace` | `members.read` | `api.groups.get` |
-| `list_projects` | `projects.read` | `api.projects.list` |
-| `list_issues` | `projects.read` | `api.issues.list` |
-| `get_issue` | `projects.read` | `api.issues.get` |
-| `list_invites` | `members.read` | `api.groups.listInvites` |
-| `create_project` | `projects.create` | `api.projects.create` |
-| `create_issue` | `issues.create` | `api.issues.create` |
-| `update_issue` | `issues.edit` | `api.issues.update` |
-| `remove_issue` | `issues.delete` | `api.issues.remove` |
-| `create_comment` | `comments.create` | `api.comments.create` |
-| `remove_comment` | `comments.delete` | `api.comments.remove` |
-| `invite_member` | `members.manage` | `api.groups.inviteMember` |
-| `update_member_role` | `members.manage` | `api.groups.updateMemberRole` |
+| Tool                 | Grant             | Calls                         |
+| -------------------- | ----------------- | ----------------------------- |
+| `list_groups`        | `projects.read`   | `api.groups.list`             |
+| `get_workspace`      | `members.read`    | `api.groups.get`              |
+| `list_projects`      | `projects.read`   | `api.projects.list`           |
+| `list_issues`        | `projects.read`   | `api.issues.list`             |
+| `get_issue`          | `projects.read`   | `api.issues.get`              |
+| `list_invites`       | `members.read`    | `api.groups.listInvites`      |
+| `create_project`     | `projects.create` | `api.projects.create`         |
+| `create_issue`       | `issues.create`   | `api.issues.create`           |
+| `update_issue`       | `issues.edit`     | `api.issues.update`           |
+| `remove_issue`       | `issues.delete`   | `api.issues.remove`           |
+| `create_comment`     | `comments.create` | `api.comments.create`         |
+| `remove_comment`     | `comments.delete` | `api.comments.remove`         |
+| `invite_member`      | `members.manage`  | `api.groups.inviteMember`     |
+| `update_member_role` | `members.manage`  | `api.groups.updateMemberRole` |
 
 ## Flow
 
 1. **Register a client.** Two ways:
-
    - **Automatic (Dynamic Client Registration, RFC 7591)** — a real MCP client discovers
      `registration_endpoint` in `/auth/.well-known/openid-configuration` and self-registers
      with no manual step. You can do the same by hand:

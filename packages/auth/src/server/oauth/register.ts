@@ -96,7 +96,8 @@ export function validateClientMetadata(
 
   const requested = typeof body.scope === "string" ? body.scope.split(" ").filter(Boolean) : [];
   const allowed = new Set(allowedScopes);
-  const scopes = requested.length > 0 ? requested.filter((s) => allowed.has(s)) : [...allowedScopes];
+  const scopes =
+    requested.length > 0 ? requested.filter((s) => allowed.has(s)) : [...allowedScopes];
 
   const name =
     typeof body.client_name === "string" && body.client_name.trim().length > 0
@@ -104,10 +105,7 @@ export function validateClientMetadata(
       : "MCP client";
 
   const method = body.token_endpoint_auth_method;
-  if (
-    method !== undefined &&
-    !AUTH_METHODS.includes(method as (typeof AUTH_METHODS)[number])
-  ) {
+  if (method !== undefined && !AUTH_METHODS.includes(method as (typeof AUTH_METHODS)[number])) {
     return {
       ok: false,
       response: jsonError(
@@ -124,8 +122,8 @@ export function validateClientMetadata(
       name,
       redirectUris,
       scopes,
-      tokenEndpointAuthMethod: (method as OAuthTokenEndpointAuthMethod | undefined) ??
-        "client_secret_post",
+      tokenEndpointAuthMethod:
+        (method as OAuthTokenEndpointAuthMethod | undefined) ?? "client_secret_post",
     },
   };
 }

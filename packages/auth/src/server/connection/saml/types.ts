@@ -143,4 +143,6 @@ export interface EntityDefaults {
 }
 
 /** Merged SP and IdP settings carried on an entity instance. */
-export type SamlEntitySettings = ServiceProviderSettings & IdentityProviderSettings & EntityDefaults;
+export type SamlEntitySettings = ServiceProviderSettings &
+  IdentityProviderSettings &
+  EntityDefaults;

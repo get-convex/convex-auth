@@ -2,9 +2,8 @@ import { GenericActionCtx, GenericDataModel } from "convex/server";
 import { ConvexError } from "convex/values";
 
 import { ErrorCode } from "../shared/codes";
-import { requireEnv } from "./env";
 import { ConvexAuthMaterializedConfig } from "./types";
-import { normalizeUrl, siteUrlsFromEnv } from "./url";
+import { appUrlFromEnv, normalizeUrl } from "./url";
 
 const describeUnknown = (value: unknown) => {
   if (typeof value === "string") {
@@ -25,24 +24,22 @@ const describeUnknown = (value: unknown) => {
 /**
  * Resolve a sign-in `redirectTo` param to an absolute URL.
  *
- * Relative paths (`/`, `?`) resolve against `SITE_URL`. Absolute URLs are
- * accepted only when they target an allowed destination: an `http(s)` origin in
- * `SITE_URL`/`SECONDARY_URL`, or a native deep-link base listed in
- * `SECONDARY_URL` (e.g. `myapp://auth`). Any other absolute URL is rejected and
- * falls back to `SITE_URL`, so a crafted `redirectTo` cannot turn the auth
- * origin into an open redirect that leaks the sign-in code. Falls back to
- * `SITE_URL` when `redirectTo` is omitted.
+ * Relative paths (`/`, `?`) resolve against `APP_URL`. Absolute URLs are
+ * accepted only when they target the `APP_URL` origin. Any other absolute URL
+ * is rejected and falls back to `APP_URL`, so a crafted `redirectTo` cannot turn
+ * the auth origin into an open redirect that leaks the sign-in code. Falls back
+ * to `APP_URL` when `redirectTo` is omitted.
  *
  * @throws ConvexError `INVALID_REDIRECT` when `redirectTo` is not a string.
  * @internal
  */
 export async function redirectAbsoluteUrl(
   _ctx: GenericActionCtx<GenericDataModel>,
-  config: ConvexAuthMaterializedConfig,
+  _config: ConvexAuthMaterializedConfig,
   params: { redirectTo: unknown },
 ) {
   if (params.redirectTo === undefined) {
-    return normalizeUrl(requireEnv("SITE_URL"));
+    return normalizeUrl(appUrlFromEnv());
   }
   if (typeof params.redirectTo !== "string") {
     throw new ConvexError({
@@ -62,41 +59,24 @@ export async function redirectAbsoluteUrl(
 }
 
 function defaultRedirectCallback({ redirectTo }: { redirectTo: string }) {
-  const siteUrl = normalizeUrl(requireEnv("SITE_URL"));
+  const siteUrl = normalizeUrl(appUrlFromEnv());
   if (redirectTo.startsWith("?") || redirectTo.startsWith("/")) {
     return `${siteUrl}${redirectTo}`;
   }
-  return isAllowedAbsoluteRedirect(redirectTo) ? redirectTo : siteUrl;
+  return isAllowedAbsoluteRedirect(siteUrl, redirectTo) ? redirectTo : siteUrl;
 }
 
-function isAllowedAbsoluteRedirect(redirectTo: string) {
-  const { allowedUrls } = siteUrlsFromEnv();
-  const allowedOrigins = new Set<string>();
-  for (const base of allowedUrls) {
-    try {
-      const parsed = new URL(base);
-      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-        allowedOrigins.add(parsed.origin);
-      }
-    } catch {
-      continue;
-    }
-  }
+function isAllowedAbsoluteRedirect(siteUrl: string, redirectTo: string) {
   let target: URL | null = null;
   try {
     target = new URL(redirectTo);
   } catch {
     target = null;
   }
-  if (target !== null && (target.protocol === "http:" || target.protocol === "https:")) {
-    return allowedOrigins.has(target.origin);
-  }
-  return allowedUrls.some(
-    (base) =>
-      redirectTo === base ||
-      redirectTo.startsWith(`${base}/`) ||
-      redirectTo.startsWith(`${base}?`) ||
-      redirectTo.startsWith(`${base}#`),
+  return (
+    target !== null &&
+    (target.protocol === "http:" || target.protocol === "https:") &&
+    target.origin === new URL(siteUrl).origin
   );
 }
 

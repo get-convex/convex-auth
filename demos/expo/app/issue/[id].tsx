@@ -482,8 +482,7 @@ export default function IssueDetail() {
             paddingHorizontal: spacing["2xl"],
             borderRadius: radius.md,
             borderCurve: "continuous",
-            backgroundColor:
-              confirmDelete || pressed ? colors.background.error : "transparent",
+            backgroundColor: confirmDelete || pressed ? colors.background.error : "transparent",
           })}
         >
           <Trash size={15} color={confirmDelete ? colors.content.error : colors.warm[500]} />

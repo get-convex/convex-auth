@@ -7,7 +7,7 @@ import {
   createOAuthAuthorizationURL,
   handleOAuthCallback,
 } from "../packages/auth/src/server/oauth/runtime";
-import { isLocalHost, siteUrlsFromEnv } from "../packages/auth/src/server/url";
+import { isLocalHost } from "../packages/auth/src/server/url";
 
 const TEST_COOKIE_NAMESPACE = "server_security_tests";
 
@@ -46,63 +46,6 @@ test("authCookieNames isolates cookie namespaces", () => {
   expect(first.token).not.toBe(second.token);
   expect(first.refreshToken).not.toBe(second.refreshToken);
   expect(first.verifier).not.toBe(second.verifier);
-});
-
-test("siteUrlsFromEnv includes trimmed secondary origins once", () => {
-  const previousSiteUrl = process.env.SITE_URL;
-  const previousSecondaryUrl = process.env.SECONDARY_URL;
-
-  process.env.SITE_URL = "https://app.example.com/";
-  process.env.SECONDARY_URL =
-    " http://localhost:3000/ , https://staging.example.com , http://localhost:3000 ";
-
-  try {
-    expect(siteUrlsFromEnv()).toEqual({
-      primaryUrl: "https://app.example.com",
-      allowedUrls: [
-        "https://app.example.com",
-        "http://localhost:3000",
-        "https://staging.example.com",
-      ],
-    });
-  } finally {
-    if (previousSiteUrl === undefined) {
-      delete process.env.SITE_URL;
-    } else {
-      process.env.SITE_URL = previousSiteUrl;
-    }
-    if (previousSecondaryUrl === undefined) {
-      delete process.env.SECONDARY_URL;
-    } else {
-      process.env.SECONDARY_URL = previousSecondaryUrl;
-    }
-  }
-});
-
-test("siteUrlsFromEnv ignores empty secondary entries", () => {
-  const previousSiteUrl = process.env.SITE_URL;
-  const previousSecondaryUrl = process.env.SECONDARY_URL;
-
-  process.env.SITE_URL = "http://localhost:5173";
-  process.env.SECONDARY_URL = ", , http://localhost:3000 ,,";
-
-  try {
-    expect(siteUrlsFromEnv().allowedUrls).toEqual([
-      "http://localhost:5173",
-      "http://localhost:3000",
-    ]);
-  } finally {
-    if (previousSiteUrl === undefined) {
-      delete process.env.SITE_URL;
-    } else {
-      process.env.SITE_URL = previousSiteUrl;
-    }
-    if (previousSecondaryUrl === undefined) {
-      delete process.env.SECONDARY_URL;
-    } else {
-      process.env.SECONDARY_URL = previousSecondaryUrl;
-    }
-  }
 });
 
 test("parseAuthCookies only reads the active cookie namespace", () => {

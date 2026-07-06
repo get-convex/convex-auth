@@ -174,7 +174,10 @@ export function createGroupService(deps: {
     }
     const saml = getSamlConfig(loaded.config) as RuntimeSamlConfig;
     if (!saml.idp?.metadataXml) {
-      throw convexError(ErrorCode.PROVIDER_NOT_CONFIGURED, "SAML is not configured for this connection.");
+      throw convexError(
+        ErrorCode.PROVIDER_NOT_CONFIGURED,
+        "SAML is not configured for this connection.",
+      );
     }
     return { loaded, connection, saml };
   };
@@ -185,7 +188,10 @@ export function createGroupService(deps: {
       resolveOidcConfigWithSecret(ctx, connectionId),
     ]);
     if (oidc.enabled !== true) {
-      throw convexError(ErrorCode.PROVIDER_NOT_CONFIGURED, "OIDC is not configured for this connection.");
+      throw convexError(
+        ErrorCode.PROVIDER_NOT_CONFIGURED,
+        "OIDC is not configured for this connection.",
+      );
     }
     return { connection, oidc };
   };
@@ -201,7 +207,10 @@ export function createGroupService(deps: {
     if (connection.protocol === "saml") {
       return "saml";
     }
-    throw convexError(ErrorCode.PROVIDER_NOT_CONFIGURED, "Group connection protocol is not configured.");
+    throw convexError(
+      ErrorCode.PROVIDER_NOT_CONFIGURED,
+      "Group connection protocol is not configured.",
+    );
   };
 
   const validateGroupConnectionPolicy = (
@@ -271,7 +280,11 @@ export function createGroupService(deps: {
     },
   ) => {
     if (data.kind.startsWith("webhook.")) return;
-    const endpoints = await listWebhookEndpoints(ctx, config.component.connection, data.connectionId);
+    const endpoints = await listWebhookEndpoints(
+      ctx,
+      config.component.connection,
+      data.connectionId,
+    );
     for (const endpoint of endpoints) {
       if (endpoint.status !== "active" || !endpoint.subscriptions.includes(data.kind)) {
         continue;
@@ -358,7 +371,10 @@ export function createGroupService(deps: {
   const getGroupConnectionScimContext = async (ctx: ComponentReadCtx, request: Request) => {
     const token = extractBearerToken(request);
     if (token === null) {
-      throw convexError(ErrorCode.MISSING_BEARER_TOKEN, "Missing or malformed Authorization: Bearer header.");
+      throw convexError(
+        ErrorCode.MISSING_BEARER_TOKEN,
+        "Missing or malformed Authorization: Bearer header.",
+      );
     }
     const parsedPath = parseScimPath(new URL(request.url).pathname);
 
@@ -377,7 +393,11 @@ export function createGroupService(deps: {
       throw convexError(ErrorCode.INVALID_API_KEY, "Invalid SCIM token.");
     }
 
-    const connection = await getGroupConnection(ctx, config.component.connection, scimConfig.connectionId);
+    const connection = await getGroupConnection(
+      ctx,
+      config.component.connection,
+      scimConfig.connectionId,
+    );
     if (connection === null) {
       throw convexError(ErrorCode.INVALID_PARAMETERS, connectionNotFoundError);
     }

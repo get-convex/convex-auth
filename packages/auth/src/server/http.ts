@@ -9,7 +9,13 @@ import { ConvexError } from "convex/values";
 import { parse as parseCookies } from "cookie";
 
 import { ErrorCode } from "../shared/codes";
-import { corsPreflightHandler, registerCorsPreflight, withCors } from "./cors";
+import {
+  buildCorsHeaders,
+  corsPreflightHandler,
+  corsPreflightResponse,
+  registerCorsPreflight,
+  withCors,
+} from "./cors";
 import type { AuthContext, OptionalAuthContext, UserDoc } from "./auth";
 import type { ComponentCtx, ComponentReadCtx as HttpQueryCtx } from "./component/context";
 import {
@@ -34,9 +40,6 @@ type HttpContextAuthLike = {
   user: {
     get: (ctx: HttpQueryCtx, args: { id: string }) => Promise<UserDoc | null>;
   };
-  active: {
-    get: (ctx: HttpQueryCtx, args: { userId: string }) => Promise<{ groupId: string } | null>;
-  };
   member: {
     get: (
       ctx: HttpQueryCtx,
@@ -46,6 +49,14 @@ type HttpContextAuthLike = {
       roleIds: string[];
       grants: string[];
     }>;
+    list: (
+      ctx: HttpQueryCtx,
+      opts: {
+        where: { userId: string };
+        paginationOpts: { numItems: number; cursor: string | null };
+        withGrants: true;
+      },
+    ) => Promise<{ page: Array<{ groupId: string; roleIds: string[]; grants: string[] }> }>;
   };
   key: {
     verify: (
@@ -57,6 +68,10 @@ type HttpContextAuthLike = {
       scopes: HttpKeyContext["key"]["scopes"];
     }>;
   };
+};
+
+type HttpContextRuntimeOptions = {
+  issuer?: () => string;
 };
 
 /**
@@ -174,30 +189,42 @@ function createNotSignedInError() {
   });
 }
 
-/**
- * Build CORS headers by matching the request's Origin against allowed origins.
- * Defaults to `defaultOrigins` (site URLs) when no per-route config is given.
- */
-function buildCorsHeaders(
-  request: Request,
-  corsConfig: CorsConfig | undefined,
-  defaultOrigins: string[] | (() => string[]),
-): Record<string, string> {
-  const origins =
-    corsConfig?.origins ??
-    (typeof defaultOrigins === "function" ? defaultOrigins() : defaultOrigins);
-  const requestOrigin = request.headers.get("Origin");
-  const matchedOrigin = origins.includes("*")
-    ? "*"
-    : requestOrigin && origins.includes(requestOrigin)
-      ? requestOrigin
-      : null;
+/** A `{ code, message }` error body for the non-OAuth JSON HTTP surface. */
+export type JsonErrorBody = { code: string; message: string };
 
-  return {
-    ...(matchedOrigin ? { "Access-Control-Allow-Origin": matchedOrigin } : {}),
-    "Access-Control-Allow-Methods": corsConfig?.methods ?? "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": corsConfig?.headers ?? "Content-Type,Authorization",
-  };
+/**
+ * Extract a `{ code, message }` body from a thrown value for the non-OAuth JSON
+ * HTTP surface. A structured `ConvexError` carrying `code`/`message` is surfaced
+ * verbatim; anything else collapses to an opaque `INTERNAL_ERROR`.
+ */
+export function convexErrorToBody(error: unknown): JsonErrorBody {
+  if (
+    error instanceof ConvexError &&
+    typeof error.data === "object" &&
+    error.data !== null &&
+    "code" in error.data &&
+    "message" in error.data
+  ) {
+    const { code, message } = error.data as { code: string; message: string };
+    return { code, message };
+  }
+  return { code: ErrorCode.INTERNAL_ERROR, message: "An unexpected error occurred." };
+}
+
+/**
+ * Build a JSON error `Response` for the non-OAuth HTTP surface, in the single
+ * `{ code, message }` shape. OAuth wire endpoints use the RFC 6749
+ * `{ error, error_description }` shape instead (see `oauth/*`).
+ */
+export function jsonError(
+  status: number,
+  body: JsonErrorBody,
+  extraHeaders?: Record<string, string>,
+): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+  });
 }
 
 async function getHttpKeyContext(
@@ -243,10 +270,14 @@ async function getHttpOAuthContext(
   ctx: HttpContextCtx,
   request: Request,
   resource: string | undefined,
+  issuer: string | undefined,
 ): Promise<HttpAuthContext | null> {
   const token = extractBearerToken(request);
   if (token === null || token.startsWith("sk_")) return null;
-  const oauthPayload = await verifyOAuthToken(token, resource !== undefined ? { resource } : undefined);
+  const oauthPayload = await verifyOAuthToken(token, {
+    ...(issuer !== undefined ? { issuer } : {}),
+    ...(resource !== undefined ? { resource } : {}),
+  });
   if (!oauthPayload) return null;
   try {
     const authContext = await getAuthContextForUser(
@@ -271,8 +302,9 @@ async function resolveHttpAuthContext(
   ctx: HttpContextCtx,
   request: Request,
   resource: string | undefined,
+  issuer: string | undefined,
 ): Promise<HttpAuthContext | null> {
-  const oauthContext = await getHttpOAuthContext(auth, ctx, request, resource);
+  const oauthContext = await getHttpOAuthContext(auth, ctx, request, resource, issuer);
   if (oauthContext !== null) return oauthContext;
 
   const sessionUserId = await getSessionUserId(ctx);
@@ -329,8 +361,10 @@ async function resolveHttpContext(
   request: Request,
   config: HttpAuthContextConfig<Record<string, unknown>> | undefined,
   optional: boolean,
+  options: HttpContextRuntimeOptions,
 ) {
-  const fallback = () => resolveHttpAuthContext(auth, ctx, request, config?.resource);
+  const fallback = () =>
+    resolveHttpAuthContext(auth, ctx, request, config?.resource, options.issuer?.());
   const authOverride = config?.authResolve ? await config.authResolve(ctx, fallback) : undefined;
   const resolved = authOverride === undefined ? await fallback() : authOverride;
 
@@ -366,12 +400,13 @@ async function resolveHttpContext(
  */
 export function createHttpContext(
   auth: HttpContextAuthLike,
+  options: HttpContextRuntimeOptions = {},
 ): HttpContextResolver & { optional: OptionalHttpContextResolver } {
   const required = ((
     ctx: HttpContextCtx,
     request: Request,
     config?: HttpAuthContextConfig<Record<string, unknown>>,
-  ) => resolveHttpContext(auth, ctx, request, config, false)) as HttpContextResolver & {
+  ) => resolveHttpContext(auth, ctx, request, config, false, options)) as HttpContextResolver & {
     optional: OptionalHttpContextResolver;
   };
 
@@ -379,7 +414,8 @@ export function createHttpContext(
     ctx: HttpContextCtx,
     request: Request,
     config?: HttpAuthContextConfig<Record<string, unknown>>,
-  ) => resolveHttpContext(auth, ctx, request, config, true)) as OptionalHttpContextResolver;
+  ) =>
+    resolveHttpContext(auth, ctx, request, config, true, options)) as OptionalHttpContextResolver;
 
   return required;
 }
@@ -425,18 +461,13 @@ export function createHttpAction(
       try {
         const rawKey = extractBearerToken(request);
         if (rawKey === null) {
-          return new Response(
-            JSON.stringify({
-              error: "Missing or malformed Authorization: Bearer header.",
-              code: ErrorCode.MISSING_BEARER_TOKEN,
-            }),
+          return jsonError(
+            401,
             {
-              status: 401,
-              headers: {
-                ...corsHeaders,
-                "Content-Type": "application/json",
-              },
+              code: ErrorCode.MISSING_BEARER_TOKEN,
+              message: "Missing or malformed Authorization: Bearer header.",
             },
+            corsHeaders,
           );
         }
 
@@ -465,17 +496,7 @@ export function createHttpAction(
             "code" in keyResult.error.data &&
             "message" in keyResult.error.data
           ) {
-            const { code, message } = keyResult.error.data as {
-              code: string;
-              message: string;
-            };
-            return new Response(JSON.stringify({ error: message, code }), {
-              status: 403,
-              headers: {
-                ...corsHeaders,
-                "Content-Type": "application/json",
-              },
-            });
+            return jsonError(403, convexErrorToBody(keyResult.error), corsHeaders);
           }
           throw keyResult.error;
         }
@@ -484,18 +505,13 @@ export function createHttpAction(
           options?.scope &&
           !keyResult.value.scopes.can(options.scope.resource, options.scope.action)
         ) {
-          return new Response(
-            JSON.stringify({
-              error: "This API key does not have the required permissions.",
-              code: ErrorCode.SCOPE_CHECK_FAILED,
-            }),
+          return jsonError(
+            403,
             {
-              status: 403,
-              headers: {
-                ...corsHeaders,
-                "Content-Type": "application/json",
-              },
+              code: ErrorCode.SCOPE_CHECK_FAILED,
+              message: "This API key does not have the required permissions.",
             },
+            corsHeaders,
           );
         }
 
@@ -529,18 +545,10 @@ export function createHttpAction(
             });
       } catch (error) {
         logError(error);
-        return new Response(
-          JSON.stringify({
-            error: "An unexpected error occurred.",
-            code: ErrorCode.INTERNAL_ERROR,
-          }),
-          {
-            status: 500,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          },
+        return jsonError(
+          500,
+          { code: ErrorCode.INTERNAL_ERROR, message: "An unexpected error occurred." },
+          corsHeaders,
         );
       }
     });
@@ -576,10 +584,9 @@ export function createHttpRoute(
     http.route({
       path: routeConfig.path,
       method: "OPTIONS",
-      handler: httpActionGeneric(async (_ctx, request) => {
-        const corsHeaders = buildCorsHeaders(request, routeConfig.cors, defaultOrigins);
-        return new Response(null, { status: 204, headers: corsHeaders });
-      }),
+      handler: httpActionGeneric(async (_ctx, request) =>
+        corsPreflightResponse(request, routeConfig.cors, defaultOrigins),
+      ),
     });
 
     http.route({
@@ -618,16 +625,7 @@ export function convertErrorsToResponse(
         "code" in error.data &&
         "message" in error.data
       ) {
-        return new Response(
-          JSON.stringify({
-            code: error.data.code,
-            message: error.data.message,
-          }),
-          {
-            status: errorStatusCode,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+        return jsonError(errorStatusCode, convexErrorToBody(error));
       }
       if (error instanceof ConvexError) {
         return new Response(null, {
@@ -657,7 +655,10 @@ export type ConnectionRuntimeRoute = {
   rest: string[];
 };
 
-function parseConnectionRuntimeRoute(pathname: string, routeBase: string): ConnectionRuntimeRoute | null {
+function parseConnectionRuntimeRoute(
+  pathname: string,
+  routeBase: string,
+): ConnectionRuntimeRoute | null {
   const runtimePrefix = `${routeBase}/`;
   const runtimeParts = pathname.startsWith(runtimePrefix)
     ? pathname.slice(runtimePrefix.length).split("/").filter(Boolean)
@@ -718,7 +719,11 @@ export function addOpenIdRoutes(
       body.response_types_supported = ["code"];
       body.grant_types_supported = ["authorization_code", "refresh_token", "client_credentials"];
       body.code_challenge_methods_supported = ["S256"];
-      body.token_endpoint_auth_methods_supported = ["client_secret_post", "client_secret_basic", "none"];
+      body.token_endpoint_auth_methods_supported = [
+        "client_secret_post",
+        "client_secret_basic",
+        "none",
+      ];
       body.scopes_supported = deps.oauth.scopes ?? ["openid", "profile", "email", "offline_access"];
     }
     return body;

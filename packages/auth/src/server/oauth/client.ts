@@ -109,8 +109,7 @@ export function createOAuthClientDomain(deps: OAuthClientDeps): OAuthClientDomai
     async create(ctx, { data }) {
       const clientId = "oc_" + generateRandomString(CLIENT_ID_LENGTH, CLIENT_ID_ALPHABET);
       const tokenEndpointAuthMethod = data.tokenEndpointAuthMethod ?? "client_secret_post";
-      const secret =
-        tokenEndpointAuthMethod === "none" ? null : await generateApiKey("cs_");
+      const secret = tokenEndpointAuthMethod === "none" ? null : await generateApiKey("cs_");
       const { raw: registrationAccessToken, hashedKey: registrationAccessTokenHash } =
         await generateApiKey("reg_");
       await ctx.runMutation(component.oauth.client.create, {

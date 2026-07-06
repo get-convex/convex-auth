@@ -5,13 +5,7 @@ import type { Hashed } from "../../shared/brand";
 import * as Provider from "../crypto";
 import { authDb } from "../db";
 import { requireEnv } from "../env";
-import {
-  getSignInRateLimitState,
-  isStateRateLimited,
-  recordFailedSignIn,
-  resetSignInRateLimit,
-  type SignInRateLimitState,
-} from "../limits";
+import { isSignInRateLimited, recordFailedSignIn, resetSignInRateLimit } from "../limits";
 import { LOG_LEVELS, log } from "../log";
 import type { SignInParams } from "../payloads";
 import { vPayloadRecord } from "../payloads";
@@ -66,9 +60,6 @@ async function verifyCodeAndSignInImplInner(
         ? params.phone
         : undefined;
 
-  let rateLimitState: SignInRateLimitState | null = null;
-  let rateLimitLoaded = false;
-
   try {
     log(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
       params: { email: params.email, phone: params.phone },
@@ -83,12 +74,8 @@ async function verifyCodeAndSignInImplInner(
       requireEnv("CONVEX_SITE_URL");
     }
 
-    if (identifier !== undefined) {
-      rateLimitState = await getSignInRateLimitState(ctx, identifier, config);
-      rateLimitLoaded = true;
-      if (isStateRateLimited(rateLimitState)) {
-        throw new VerifyFailure("Too many failed attempts to verify code for this email");
-      }
+    if (identifier !== undefined && (await isSignInRateLimited(ctx, identifier, config))) {
+      throw new VerifyFailure("Too many failed attempts to verify code for this email");
     }
 
     const db = authDb(ctx, config);
@@ -160,9 +147,7 @@ async function verifyCodeAndSignInImplInner(
 
     const [, , replaceSessionId] = await Promise.all([
       db.verificationCodes.delete(code._id),
-      identifier !== undefined
-        ? resetSignInRateLimit(ctx, identifier, config, rateLimitState)
-        : Promise.resolve(),
+      identifier !== undefined ? resetSignInRateLimit(ctx, identifier, config) : Promise.resolve(),
       getAuthSessionId(ctx),
     ]);
 
@@ -175,12 +160,7 @@ async function verifyCodeAndSignInImplInner(
     if (error instanceof VerifyFailure) {
       log(LOG_LEVELS.ERROR, error.reason);
       if (identifier !== undefined) {
-        await recordFailedSignIn(
-          ctx,
-          identifier,
-          config,
-          rateLimitLoaded ? rateLimitState : undefined,
-        );
+        await recordFailedSignIn(ctx, identifier, config);
       }
       return null;
     }

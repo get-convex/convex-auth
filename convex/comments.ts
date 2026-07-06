@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 
 import { auth } from "./auth/core";
+import { ErrorCode } from "./errors";
 import { authMutation, authQuery } from "./functions";
 
 export const list = authQuery({
@@ -50,12 +51,15 @@ export const create = authMutation({
   handler: async (ctx, args) => {
     const issue = await ctx.db.get(args.issueId);
     if (!issue) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Issue not found." });
+      throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Issue not found." });
     }
 
     const body = args.body.trim();
     if (body.length === 0) {
-      throw new ConvexError({ code: "INVALID_INPUT", message: "Comment cannot be empty." });
+      throw new ConvexError({
+        code: ErrorCode.INVALID_INPUT,
+        message: "Comment cannot be empty.",
+      });
     }
     const userId = ctx.auth.userId;
 
@@ -87,7 +91,7 @@ export const remove = authMutation({
     if (comment.authorUserId !== userId) {
       const issue = await ctx.db.get(comment.issueId);
       if (!issue) {
-        throw new ConvexError({ code: "NOT_FOUND", message: "Issue not found." });
+        throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Issue not found." });
       }
       await auth.member.assert(ctx, {
         userId,

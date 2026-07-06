@@ -7,19 +7,39 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { ConvexError, v } from "convex/values";
 
 import { ErrorCode } from "../../shared/codes";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { mutation, query } from "../functions";
 import { vUserEmailDoc, vUserEmailSource } from "../model";
+
+const USER_EMAIL_BATCH = 64;
+
+async function listOwnedEmails(ctx: Pick<QueryCtx | MutationCtx, "db">, userId: Id<"User">) {
+  const owned = await ctx.db
+    .query("UserEmail")
+    .withIndex("user_id", (q) => q.eq("userId", userId))
+    .take(USER_EMAIL_BATCH + 1);
+  if (owned.length > USER_EMAIL_BATCH) {
+    throw new ConvexError({
+      code: ErrorCode.INVALID_PARAMETERS,
+      message: `User has more than ${USER_EMAIL_BATCH} emails; operation is not safe in one mutation.`,
+    });
+  }
+  return owned;
+}
 
 /** List the emails owned by a user. */
 export const list = query({
   args: { userId: v.id("User") },
   returns: v.array(vUserEmailDoc),
   handler: async (ctx, { userId }) => {
-    return await getManyFrom(ctx.db, "UserEmail", "user_id", userId, "userId");
+    return await ctx.db
+      .query("UserEmail")
+      .withIndex("user_id", (q) => q.eq("userId", userId))
+      .take(USER_EMAIL_BATCH);
   },
 });
 
@@ -41,8 +61,13 @@ export const upsert = mutation({
   },
   returns: v.id("UserEmail"),
   handler: async (ctx, args) => {
-    const owned = await getManyFrom(ctx.db, "UserEmail", "user_id", args.userId, "userId");
-    const existing = owned.find((e) => e.email === args.email) ?? null;
+    const [owned, existing] = await Promise.all([
+      listOwnedEmails(ctx, args.userId),
+      ctx.db
+        .query("UserEmail")
+        .withIndex("user_id_email", (q) => q.eq("userId", args.userId).eq("email", args.email))
+        .first(),
+    ]);
     const makePrimary = args.isPrimary === true || owned.length === 0;
     const verificationTime =
       args.verified === true
@@ -99,9 +124,14 @@ export const promote = mutation({
   args: { userId: v.id("User"), email: v.string() },
   returns: v.null(),
   handler: async (ctx, { userId, email }) => {
-    const owned = await getManyFrom(ctx.db, "UserEmail", "user_id", userId, "userId");
-    const target = owned.find((e) => e.email === email);
-    if (target === undefined) {
+    const [owned, target] = await Promise.all([
+      listOwnedEmails(ctx, userId),
+      ctx.db
+        .query("UserEmail")
+        .withIndex("user_id_email", (q) => q.eq("userId", userId).eq("email", email))
+        .first(),
+    ]);
+    if (target === null) {
       throw new ConvexError({
         code: ErrorCode.INVALID_PARAMETERS,
         message: "Email is not owned by this user.",
@@ -135,9 +165,14 @@ const remove = mutation({
   args: { userId: v.id("User"), email: v.string() },
   returns: v.null(),
   handler: async (ctx, { userId, email }) => {
-    const owned = await getManyFrom(ctx.db, "UserEmail", "user_id", userId, "userId");
-    const target = owned.find((e) => e.email === email);
-    if (target === undefined) {
+    const [owned, target] = await Promise.all([
+      listOwnedEmails(ctx, userId),
+      ctx.db
+        .query("UserEmail")
+        .withIndex("user_id_email", (q) => q.eq("userId", userId).eq("email", email))
+        .first(),
+    ]);
+    if (target === null) {
       throw new ConvexError({
         code: ErrorCode.INVALID_PARAMETERS,
         message: "Email is not owned by this user.",

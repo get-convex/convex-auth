@@ -7,9 +7,16 @@
 import type { PaginationOptions } from "convex/server";
 import type { GenericId } from "convex/values";
 
+import {
+  EVENT_KIND_CATEGORY,
+  type AuthEventCategory,
+  type AuthEventKind,
+} from "../shared/event/kinds";
 import type { AuthComponentApi } from "./component/api";
 import type { ComponentCtx } from "./component/context";
 import { generateRandomString } from "./random";
+
+export type { AuthEventCategory, AuthEventKind };
 
 type Awaitable<T> = T | PromiseLike<T>;
 export type AuthEventJson =
@@ -25,76 +32,6 @@ export type OidcClaims = AuthEventObject;
 export type SamlClaims = AuthEventObject;
 export type ScimRawAttributes = AuthEventObject;
 type AuthEventCtx = ComponentCtx;
-
-export type AuthEventKind =
-  | "user.created"
-  | "user.updated"
-  | "session.signed_in"
-  | "session.signed_out"
-  | "session.invalidated"
-  | "session.refresh_exchanged"
-  | "session.refresh_reuse_detected"
-  | "account.linked"
-  | "account.unlinked"
-  | "password.changed"
-  | "passkey.added"
-  | "passkey.removed"
-  | "totp.enrolled"
-  | "totp.removed"
-  | "email.verified"
-  | "phone.verified"
-  | "api_key.issued"
-  | "api_key.revoked"
-  | "oauth.client.created"
-  | "oauth.client.revoked"
-  | "oauth.code.issued"
-  | "oauth.token.issued"
-  | "oauth.token.exchanged"
-  | "oauth.refresh.reuse_detected"
-  | "oauth.refresh.revoked"
-  | "connection.created"
-  | "connection.updated"
-  | "connection.deleted"
-  | "connection.login.succeeded"
-  | "connection.login.failed"
-  | "connection.domain.verification_requested"
-  | "connection.domain.verified"
-  | "connection.policy.updated"
-  | "connection.saml.set"
-  | "connection.saml.refreshed"
-  | "connection.oidc.set"
-  | "connection.scim.set"
-  | "connection.scim.read"
-  | "connection.scim.user.provisioned"
-  | "connection.scim.user.updated"
-  | "connection.scim.user.deactivated"
-  | "connection.scim.user.reactivated"
-  | "connection.scim.group.provisioned"
-  | "connection.scim.group.updated"
-  | "connection.scim.group.deactivated"
-  | "connection.scim.group.reactivated"
-  | "webhook.endpoint.created"
-  | "webhook.endpoint.disabled"
-  | "webhook.delivery.created"
-  | "webhook.delivery.attempted"
-  | "webhook.delivery.succeeded"
-  | "webhook.delivery.failed";
-
-export type AuthEventCategory =
-  | "user"
-  | "session"
-  | "account"
-  | "password"
-  | "passkey"
-  | "totp"
-  | "email"
-  | "phone"
-  | "api_key"
-  | "oauth"
-  | "connection"
-  | "scim"
-  | "webhook"
-  | "security";
 
 export type AuthEventOutcome = "success" | "failure";
 export type AuthEventTargetKind =
@@ -206,17 +143,17 @@ export type AuthEventDataByKind<TExtend = {}> = {
   "totp.removed": { totpId: string };
   "email.verified": { userId: string; email: string };
   "phone.verified": { userId: string; phone: string };
-  "api_key.issued": { keyId: string; name?: string; prefix?: string };
+  "api_key.created": { keyId: string; name?: string; prefix?: string };
   "api_key.revoked": { keyId: string; reason?: string };
   "oauth.client.created": { clientId: string; name?: string; scopes?: string[] };
   "oauth.client.revoked": { clientId: string };
-  "oauth.code.issued": {
+  "oauth.code.created": {
     clientId: string;
     codeId?: string;
     scopes?: string[];
     redirectUri?: string;
   };
-  "oauth.token.issued": {
+  "oauth.token.created": {
     clientId: string;
     scopes?: string[];
     grantType?: string;
@@ -232,7 +169,7 @@ export type AuthEventDataByKind<TExtend = {}> = {
   "oauth.refresh.revoked": { clientId: string; userId?: string };
   "connection.created": { connectionId: string; protocol?: "oidc" | "saml"; domain?: string };
   "connection.updated": { connectionId: string; changed?: string[] };
-  "connection.deleted": { connectionId: string };
+  "connection.removed": { connectionId: string };
   "connection.login.succeeded": {
     connectionId: string;
     protocol: "oidc" | "saml";
@@ -386,14 +323,14 @@ export type AuthEventHandlerMap<TExtend = {}> = {
     verified?: AuthEventHandler<"phone.verified", TExtend>;
   };
   apiKey?: {
-    issued?: AuthEventHandler<"api_key.issued", TExtend>;
+    created?: AuthEventHandler<"api_key.created", TExtend>;
     revoked?: AuthEventHandler<"api_key.revoked", TExtend>;
   };
   oauth?: {
     clientCreated?: AuthEventHandler<"oauth.client.created", TExtend>;
     clientRevoked?: AuthEventHandler<"oauth.client.revoked", TExtend>;
-    codeIssued?: AuthEventHandler<"oauth.code.issued", TExtend>;
-    tokenIssued?: AuthEventHandler<"oauth.token.issued", TExtend>;
+    codeCreated?: AuthEventHandler<"oauth.code.created", TExtend>;
+    tokenCreated?: AuthEventHandler<"oauth.token.created", TExtend>;
     tokenExchanged?: AuthEventHandler<"oauth.token.exchanged", TExtend>;
     refreshReuseDetected?: AuthEventHandler<"oauth.refresh.reuse_detected", TExtend>;
     refreshRevoked?: AuthEventHandler<"oauth.refresh.revoked", TExtend>;
@@ -401,7 +338,7 @@ export type AuthEventHandlerMap<TExtend = {}> = {
   connection?: {
     connectionCreated?: AuthEventHandler<"connection.created", TExtend>;
     connectionUpdated?: AuthEventHandler<"connection.updated", TExtend>;
-    connectionDeleted?: AuthEventHandler<"connection.deleted", TExtend>;
+    connectionRemoved?: AuthEventHandler<"connection.removed", TExtend>;
     loginSucceeded?: AuthEventHandler<"connection.login.succeeded", TExtend>;
     loginFailed?: AuthEventHandler<"connection.login.failed", TExtend>;
     domainVerificationRequested?: AuthEventHandler<
@@ -537,61 +474,6 @@ function compileWhere(where: AuthEventWhereInput): AuthEventWhereFilter {
   return builder.build();
 }
 
-const EVENT_KIND_CATEGORY: Record<AuthEventKind, AuthEventCategory> = {
-  "user.created": "user",
-  "user.updated": "user",
-  "session.signed_in": "session",
-  "session.signed_out": "session",
-  "session.invalidated": "session",
-  "session.refresh_exchanged": "session",
-  "session.refresh_reuse_detected": "session",
-  "account.linked": "account",
-  "account.unlinked": "account",
-  "password.changed": "password",
-  "passkey.added": "passkey",
-  "passkey.removed": "passkey",
-  "totp.enrolled": "totp",
-  "totp.removed": "totp",
-  "email.verified": "email",
-  "phone.verified": "phone",
-  "api_key.issued": "api_key",
-  "api_key.revoked": "api_key",
-  "oauth.client.created": "oauth",
-  "oauth.client.revoked": "oauth",
-  "oauth.code.issued": "oauth",
-  "oauth.token.issued": "oauth",
-  "oauth.token.exchanged": "oauth",
-  "oauth.refresh.reuse_detected": "oauth",
-  "oauth.refresh.revoked": "oauth",
-  "connection.created": "connection",
-  "connection.updated": "connection",
-  "connection.deleted": "connection",
-  "connection.login.succeeded": "connection",
-  "connection.login.failed": "connection",
-  "connection.domain.verification_requested": "connection",
-  "connection.domain.verified": "connection",
-  "connection.policy.updated": "connection",
-  "connection.saml.set": "connection",
-  "connection.saml.refreshed": "connection",
-  "connection.oidc.set": "connection",
-  "connection.scim.set": "scim",
-  "connection.scim.read": "scim",
-  "connection.scim.user.provisioned": "scim",
-  "connection.scim.user.updated": "scim",
-  "connection.scim.user.deactivated": "scim",
-  "connection.scim.user.reactivated": "scim",
-  "connection.scim.group.provisioned": "scim",
-  "connection.scim.group.updated": "scim",
-  "connection.scim.group.deactivated": "scim",
-  "connection.scim.group.reactivated": "scim",
-  "webhook.endpoint.created": "webhook",
-  "webhook.endpoint.disabled": "webhook",
-  "webhook.delivery.created": "webhook",
-  "webhook.delivery.attempted": "webhook",
-  "webhook.delivery.succeeded": "webhook",
-  "webhook.delivery.failed": "webhook",
-};
-
 function categoryForKind(kind: AuthEventKind): AuthEventCategory {
   return EVENT_KIND_CATEGORY[kind];
 }
@@ -684,18 +566,18 @@ const EVENT_HANDLER_SELECTORS: EventHandlerSelectorTable = {
   "totp.removed": (h) => h.totp?.removed,
   "email.verified": (h) => h.email?.verified,
   "phone.verified": (h) => h.phone?.verified,
-  "api_key.issued": (h) => h.apiKey?.issued,
+  "api_key.created": (h) => h.apiKey?.created,
   "api_key.revoked": (h) => h.apiKey?.revoked,
   "oauth.client.created": (h) => h.oauth?.clientCreated,
   "oauth.client.revoked": (h) => h.oauth?.clientRevoked,
-  "oauth.code.issued": (h) => h.oauth?.codeIssued,
-  "oauth.token.issued": (h) => h.oauth?.tokenIssued,
+  "oauth.code.created": (h) => h.oauth?.codeCreated,
+  "oauth.token.created": (h) => h.oauth?.tokenCreated,
   "oauth.token.exchanged": (h) => h.oauth?.tokenExchanged,
   "oauth.refresh.reuse_detected": (h) => h.oauth?.refreshReuseDetected,
   "oauth.refresh.revoked": (h) => h.oauth?.refreshRevoked,
   "connection.created": (h) => h.connection?.connectionCreated,
   "connection.updated": (h) => h.connection?.connectionUpdated,
-  "connection.deleted": (h) => h.connection?.connectionDeleted,
+  "connection.removed": (h) => h.connection?.connectionRemoved,
   "connection.login.succeeded": (h) => h.connection?.loginSucceeded,
   "connection.login.failed": (h) => h.connection?.loginFailed,
   "connection.domain.verification_requested": (h) => h.connection?.domainVerificationRequested,
@@ -842,14 +724,14 @@ export const authEvents = {
     verified: eventRef("phone.verified"),
   },
   apiKey: {
-    issued: eventRef("api_key.issued"),
+    created: eventRef("api_key.created"),
     revoked: eventRef("api_key.revoked"),
   },
   oauth: {
     clientCreated: eventRef("oauth.client.created"),
     clientRevoked: eventRef("oauth.client.revoked"),
-    codeIssued: eventRef("oauth.code.issued"),
-    tokenIssued: eventRef("oauth.token.issued"),
+    codeCreated: eventRef("oauth.code.created"),
+    tokenCreated: eventRef("oauth.token.created"),
     tokenExchanged: eventRef("oauth.token.exchanged"),
     refreshReuseDetected: eventRef("oauth.refresh.reuse_detected"),
     refreshRevoked: eventRef("oauth.refresh.revoked"),
@@ -857,7 +739,7 @@ export const authEvents = {
   connection: {
     connectionCreated: eventRef("connection.created"),
     connectionUpdated: eventRef("connection.updated"),
-    connectionDeleted: eventRef("connection.deleted"),
+    connectionRemoved: eventRef("connection.removed"),
     loginSucceeded: eventRef("connection.login.succeeded"),
     loginFailed: eventRef("connection.login.failed"),
     domainVerificationRequested: eventRef("connection.domain.verification_requested"),

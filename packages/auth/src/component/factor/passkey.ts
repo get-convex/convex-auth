@@ -7,11 +7,13 @@
  * @module
  */
 
-import { getManyFrom, getOneFrom } from "convex-helpers/server/relationships";
+import { getOneFrom } from "convex-helpers/server/relationships";
 import { v } from "convex/values";
 
 import { mutation, query } from "../functions";
 import { vPasskeyDoc } from "../model";
+
+const PASSKEY_LIST_BATCH = 128;
 
 /** Read a passkey by `id`, or by its WebAuthn `credentialId`. */
 export const get = query({
@@ -40,7 +42,10 @@ export const list = query({
   args: { userId: v.id("User") },
   returns: v.array(vPasskeyDoc),
   handler: async (ctx, { userId }) => {
-    return await getManyFrom(ctx.db, "Passkey", "user_id", userId, "userId");
+    return await ctx.db
+      .query("Passkey")
+      .withIndex("user_id", (q) => q.eq("userId", userId))
+      .take(PASSKEY_LIST_BATCH);
   },
 });
 

@@ -59,8 +59,7 @@ export function createIdentityProvider(settings: IdentityProviderSettings): Iden
     const tpl = settings.loginResponseTemplate;
     if (isString(tpl.context) && Array.isArray(tpl.attributes)) {
       const attributeStatementTemplate =
-        tpl.additionalTemplates?.attributeStatementTemplate ??
-        defaultAttributeStatementTemplate;
+        tpl.additionalTemplates?.attributeStatementTemplate ?? defaultAttributeStatementTemplate;
       const attributeTemplate =
         tpl.additionalTemplates?.attributeTemplate ?? defaultAttributeTemplate;
       const replacement = {

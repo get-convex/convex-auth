@@ -15,12 +15,23 @@
  * Used by the auto-registered `email` provider when `email` is
  * configured in `defineAuth(...)`.
  */
+const HTML_ENTITIES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+/** Escape a value for safe interpolation into HTML text and double-quoted attributes. */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => HTML_ENTITIES[c]!);
+}
+
 /** @internal */
 export function defaultMagicLinkEmail(url: string, host: string): string {
-  const escapedHost = host.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
+  const escapedHost = escapeHtml(host);
+  const escapedUrl = escapeHtml(url);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -49,7 +60,7 @@ export function defaultMagicLinkEmail(url: string, host: string): string {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 24px 0;">
-                    <a href="${url}" target="_blank" style="display:inline-block;background-color:#111827;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:12px 32px;border-radius:6px;line-height:1;">
+                    <a href="${escapedUrl}" target="_blank" style="display:inline-block;background-color:#111827;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:12px 32px;border-radius:6px;line-height:1;">
                       Sign in
                     </a>
                   </td>
@@ -59,7 +70,7 @@ export function defaultMagicLinkEmail(url: string, host: string): string {
                 If the button doesn't work, copy and paste this URL into your browser:
               </p>
               <p style="margin:0;font-size:13px;line-height:1.5;color:#6b7280;word-break:break-all;">
-                ${url}
+                ${escapedUrl}
               </p>
             </td>
           </tr>

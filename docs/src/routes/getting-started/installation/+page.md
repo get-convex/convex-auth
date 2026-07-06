@@ -31,7 +31,7 @@ npx @robelest/convex-auth
 To skip the interactive prompt:
 
 ```bash
-npx @robelest/convex-auth --site-url "http://localhost:5173"
+npx @robelest/convex-auth --app-url "http://localhost:5173"
 ```
 
   </TabItem>
@@ -46,7 +46,7 @@ pnpx @robelest/convex-auth
 To skip the interactive prompt:
 
 ```bash
-pnpx @robelest/convex-auth --site-url "http://localhost:5173"
+pnpx @robelest/convex-auth --app-url "http://localhost:5173"
 ```
 
   </TabItem>
@@ -61,7 +61,7 @@ yarn dlx @robelest/convex-auth
 To skip the interactive prompt:
 
 ```bash
-yarn dlx @robelest/convex-auth --site-url "http://localhost:5173"
+yarn dlx @robelest/convex-auth --app-url "http://localhost:5173"
 ```
 
   </TabItem>
@@ -157,10 +157,12 @@ and crypto code out of your query bundles entirely.
 
 ```ts
 // convex/auth.config.ts
+import { env } from "./_generated/server";
+
 export default {
   providers: [
     {
-      domain: `${process.env.CONVEX_SITE_URL}/auth`,
+      domain: `${env.CONVEX_SITE_URL}/auth`,
       applicationID: "convex",
     },
   ],
@@ -168,9 +170,7 @@ export default {
 ```
 
 `CONVEX_SITE_URL` is provided automatically by Convex. This file is what makes
-`ctx.auth.getUserIdentity()` work against tokens issued by Convex Auth. This
-specific Convex config file is still loaded from deployment environment; use the
-generated `env` import inside Convex functions and auth provider setup.
+`ctx.auth.getUserIdentity()` work against tokens issued by Convex Auth.
 
 ### 5. Auth HTTP routes
 

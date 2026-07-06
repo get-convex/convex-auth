@@ -15,7 +15,7 @@
  */
 
 import { envOptionalNumber, envOptionalString } from "./env";
-import { normalizeUrl } from "./url";
+import { appUrlFromEnv } from "./url";
 
 /** Uniform shape returned by the well-known helper. Adapt to any framework. */
 export type WellKnownResponse = {
@@ -44,11 +44,6 @@ export type WellKnownOptions = {
   /** Options for `/.well-known/assetlinks.json`. */
   assetLinks?: {
     apps?: Array<{ packageName: string; sha256Fingerprints: string[] }>;
-  };
-  /** Options for `/.well-known/webauthn`. */
-  webAuthn?: {
-    /** Override `WEBAUTHN_ALT_ORIGINS`. */
-    origins?: string[];
   };
   /** Options for `/.well-known/security.txt`. */
   securityTxt?: {
@@ -188,22 +183,17 @@ function parseAndroidAppLinksEnv(
 /**
  * Generate `/.well-known/webauthn` content (W3C WebAuthn Level 3).
  *
- * Declares alternative origins permitted to use this RP ID. Lets a passkey
- * registered at `app.example.com` work on `staging.example.com`, browser
- * extensions, or wrapped native webviews.
- *
- * Reads {@link WEBAUTHN_ALT_ORIGINS}; falls back to `SECONDARY_URL` parsed
- * from the existing site URL convention.
+ * The happy path is the app's single frontend origin. Multi-origin RP support
+ * should be handled explicitly by the app instead of hidden deployment envs.
  */
-function webAuthnResponse(opts?: WellKnownOptions["webAuthn"]): WellKnownResponse | null {
-  const explicit = opts?.origins;
-  const fromEnv = parseList(envOptionalString("WEBAUTHN_ALT_ORIGINS"));
-  const fromSecondary = parseList(envOptionalString("SECONDARY_URL")).map(normalizeUrl);
-  const origins = explicit ?? (fromEnv.length > 0 ? fromEnv : fromSecondary);
-  if (origins.length === 0) return null;
-
-  const body = JSON.stringify({ origins });
-  return ok(body, "application/json");
+function webAuthnResponse(): WellKnownResponse | null {
+  let appUrl: string;
+  try {
+    appUrl = appUrlFromEnv();
+  } catch {
+    return null;
+  }
+  return ok(JSON.stringify({ origins: [appUrl] }), "application/json");
 }
 
 /**
@@ -293,7 +283,7 @@ const WELL_KNOWN_HANDLERS: Record<
   "apple-app-site-association": (options) =>
     appleAppSiteAssociationResponse(options?.appleAppSiteAssociation),
   "assetlinks.json": (options) => assetLinksResponse(options?.assetLinks),
-  webauthn: (options) => webAuthnResponse(options?.webAuthn),
+  webauthn: () => webAuthnResponse(),
   "security.txt": (options) => securityTxtResponse(options?.securityTxt),
   "change-password": (options) => changePasswordResponse(options?.changePassword),
 };

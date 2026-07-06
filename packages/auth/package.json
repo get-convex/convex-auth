@@ -21,8 +21,10 @@
     "dist",
     "!dist/**/*.map",
     "!dist/index.js",
+    "!dist/model.js",
     "!dist/model.d.ts",
     "!dist/model.d.ts.map",
+    "!dist/schema.js",
     "!dist/schema.d.ts",
     "!dist/schema.d.ts.map"
   ],
@@ -108,14 +110,15 @@
     "build": "rm -rf dist && vp run build:lib && vp run build:svelte",
     "typecheck": "vp exec tsc --project tsconfig.server.json --noEmit && vp exec tsc --project tsconfig.client.json --noEmit && vp exec tsc --project tsconfig.component.json --noEmit",
     "typecheck:consumer": "vp exec tsc --project tsconfig.consumer.json --noEmit",
+    "typecheck:consumer:dist": "vp exec tsc --project tsconfig.consumer.dist.json --noEmit",
     "check:attw": "vp exec attw --pack . --profile esm-only --exclude-entrypoints ./test ./_generated/component.js ./svelte",
     "check:publint": "vp exec publint --strict",
     "check:packaging": "vp run check:attw && vp run check:publint",
     "check:component-paginate": "node ../../scripts/check-component-paginate.mjs",
     "docs": "vp run --cwd ../../docs dev",
     "lint": "vp run typecheck",
-    "spellcheck": "cspell \"docs/pages/**/*.md*\"",
-    "prepublishOnly": "vp run build && vp run typecheck:consumer && vp run check:packaging",
+    "spellcheck": "cspell \"../../docs/src/routes/**/*.md*\"",
+    "prepublishOnly": "vp run build && vp run typecheck:consumer && vp run typecheck:consumer:dist && vp run check:packaging",
     "test": "vp test --config ../../vite.config.ts --project convex --project node --project interop",
     "test:once": "vp test --config ../../vite.config.ts --run --project convex --project node --project interop",
     "convex:dev": "vp exec convex dev",
@@ -131,14 +134,6 @@
     "@convex-dev/stream": "https://pkg.pr.new/get-convex/stream/@convex-dev/stream@96acc6d",
     "@convex-dev/workpool": "^0.4.7",
     "@noble/hashes": "^2.0.1",
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/resources": "^2.6.1",
-    "@opentelemetry/sdk-logs": "^0.214.0",
-    "@opentelemetry/sdk-metrics": "^2.6.1",
-    "@opentelemetry/sdk-trace-base": "^2.6.1",
-    "@opentelemetry/sdk-trace-node": "^2.6.1",
-    "@opentelemetry/sdk-trace-web": "^2.6.1",
-    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",
     "@oslojs/otp": "^1.1.0",
@@ -157,9 +152,16 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@clack/prompts": "^1.2.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/resources": "^2.6.1",
+    "@opentelemetry/sdk-logs": "^0.214.0",
+    "@opentelemetry/sdk-metrics": "^2.6.1",
+    "@opentelemetry/sdk-trace-base": "^2.6.1",
+    "@opentelemetry/sdk-trace-node": "^2.6.1",
+    "@opentelemetry/sdk-trace-web": "^2.6.1",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@sveltejs/package": "^2.5.8",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
-    "svelte": "^5.55.9",
     "@types/figlet": "^1.7.0",
     "@types/node": "25.2.2",
     "@types/react": "^19.0.0",
@@ -178,11 +180,17 @@
     "publint": "^0.3.17",
     "react-native": "^0.85.2",
     "react-native-passkey": "^3.3.3",
+    "svelte": "^5.55.9",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/resources": "^2.6.1",
+    "@opentelemetry/sdk-trace-node": "^2.6.1",
+    "@opentelemetry/sdk-trace-web": "^2.6.1",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
     "convex": "^1.42.0",
     "expo-auth-session": "*",
     "expo-secure-store": "*",
@@ -192,6 +200,21 @@
     "svelte": "^5.0.0"
   },
   "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/resources": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-node": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-trace-web": {
+      "optional": true
+    },
+    "@opentelemetry/semantic-conventions": {
+      "optional": true
+    },
     "svelte": {
       "optional": true
     },
@@ -212,7 +235,10 @@
     }
   },
   "@comment devDependencies": [
-    "The CLI deps (Effect and @effect/platform-node) are devDependencies",
-    "because they are bundled into dist/bin.js"
+    "The CLI deps (@clack/prompts, figlet, and gradient-string) are",
+    "devDependencies because they are bundled into dist/bin.js.",
+    "The @opentelemetry/* SDK packages are optional peerDependencies gated on",
+    "the /otel entry; @opentelemetry/sdk-logs, /sdk-metrics, and /sdk-trace-base",
+    "are devDependencies because otel.ts imports them as types only."
   ]
 }

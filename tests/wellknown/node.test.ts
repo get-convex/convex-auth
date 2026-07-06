@@ -5,8 +5,7 @@ const ENV_KEYS = [
   "IOS_APP_IDS",
   "IOS_APPLINK_PATHS",
   "ANDROID_APP_LINKS",
-  "WEBAUTHN_ALT_ORIGINS",
-  "SECONDARY_URL",
+  "APP_URL",
   "SECURITY_CONTACT",
   "SECURITY_TXT_EXPIRES_DAYS",
   "CHANGE_PASSWORD_URL",
@@ -121,37 +120,15 @@ test("assetlinks output is a top-level array, not an object", () => {
   expect(r!.body.startsWith("[")).toBe(true);
 });
 
-test("webauthn returns null when no origins configured", () => {
+test("webauthn returns null without APP_URL", () => {
   expect(wellKnown("webauthn")).toBeNull();
 });
 
-test("webauthn reads WEBAUTHN_ALT_ORIGINS", () => {
-  process.env.WEBAUTHN_ALT_ORIGINS = "https://staging.example.com,https://app2.example.com";
+test("webauthn derives origins from APP_URL", () => {
+  process.env.APP_URL = "https://app.example.com/";
   const r = wellKnown("webauthn");
   const body = JSON.parse(r!.body) as { origins: string[] };
-  expect(body.origins).toEqual(["https://staging.example.com", "https://app2.example.com"]);
-});
-
-test("webauthn falls back to SECONDARY_URL", () => {
-  process.env.SECONDARY_URL = "https://staging.example.com/,https://localhost:5173/";
-  const r = wellKnown("webauthn");
-  const body = JSON.parse(r!.body) as { origins: string[] };
-  expect(body.origins).toEqual(["https://staging.example.com", "https://localhost:5173"]);
-});
-
-test("webauthn WEBAUTHN_ALT_ORIGINS takes precedence over SECONDARY_URL", () => {
-  process.env.WEBAUTHN_ALT_ORIGINS = "https://override.example.com";
-  process.env.SECONDARY_URL = "https://secondary.example.com";
-  const r = wellKnown("webauthn");
-  const body = JSON.parse(r!.body) as { origins: string[] };
-  expect(body.origins).toEqual(["https://override.example.com"]);
-});
-
-test("webauthn opts.origins overrides env", () => {
-  process.env.WEBAUTHN_ALT_ORIGINS = "https://env.example.com";
-  const r = wellKnown("webauthn", { webAuthn: { origins: ["https://code.example.com"] } });
-  const body = JSON.parse(r!.body) as { origins: string[] };
-  expect(body.origins).toEqual(["https://code.example.com"]);
+  expect(body.origins).toEqual(["https://app.example.com"]);
 });
 
 test("security.txt returns null without contact", () => {

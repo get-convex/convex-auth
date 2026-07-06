@@ -48,11 +48,7 @@ function makeHandler(opts?: {
   });
 }
 
-function req(
-  clientId: string,
-  method: string,
-  opts?: { token?: string; body?: unknown },
-): Request {
+function req(clientId: string, method: string, opts?: { token?: string; body?: unknown }): Request {
   const headers: Record<string, string> = {};
   if (opts?.token !== undefined) headers.authorization = `Bearer ${opts.token}`;
   if (opts?.body !== undefined) headers["content-type"] = "application/json";
@@ -70,9 +66,7 @@ test("GET returns the client metadata without re-disclosing secrets", async () =
   expect(json.client_id).toBe("oc_1");
   expect(json.token_endpoint_auth_method).toBe("client_secret_post");
   expect(json.scope).toBe("workspace:read");
-  expect(json.registration_client_uri).toBe(
-    "https://app.convex.site/auth/oauth2/register/oc_1",
-  );
+  expect(json.registration_client_uri).toBe("https://app.convex.site/auth/oauth2/register/oc_1");
   expect(json.client_secret).toBeUndefined();
   expect(json.registration_access_token).toBeUndefined();
 });
@@ -89,10 +83,7 @@ test("a token bound to one client cannot manage another", async () => {
 });
 
 test("a deeper path than /register/<id> is not a management endpoint", async () => {
-  const res = await makeHandler()(
-    ctx,
-    req("oc_1/extra", "GET", { token: "reg_good" }),
-  );
+  const res = await makeHandler()(ctx, req("oc_1/extra", "GET", { token: "reg_good" }));
   expect(res.status).toBe(404);
 });
 

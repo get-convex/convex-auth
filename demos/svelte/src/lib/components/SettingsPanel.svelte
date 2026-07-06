@@ -185,7 +185,7 @@
   async function handleDeletePasskey(passkeyId: string) {
     isDeletingPasskeyId = passkeyId;
     try {
-      await client.mutation(api.account.deletePasskey, { passkeyId });
+      await client.mutation(api.account.removePasskey, { passkeyId });
     } catch (e: unknown) {
       toast.error(errorText(e, "Failed to delete passkey"));
     } finally {

@@ -6,6 +6,7 @@ import {
   ConvexAuthConfig,
   PermissionsConfig,
 } from "./types";
+import { normalizeAuthPath } from "./url";
 
 /**
  * Resolve raw provider configs into materialized form and apply defaults.
@@ -19,6 +20,7 @@ export function configDefaults(config_: ConvexAuthConfig) {
     .filter((p) => p !== undefined);
   return {
     ...config,
+    path: normalizeAuthPath(config.path),
     permissions: normalizePermissionsConfig(config.permissions),
     telemetry: normalizeTelemetryConfig(config.telemetry),
     extraProviders: materializeProviders(extraProviders),

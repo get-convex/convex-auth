@@ -1,12 +1,5 @@
 /** A node in the XML description tree: text, an element/attribute object, or an ordered list. */
-export type XmlNode =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | XmlObject
-  | XmlNode[];
+export type XmlNode = string | number | boolean | null | undefined | XmlObject | XmlNode[];
 
 /**
  * An object node. A reserved `_attr` member supplies attributes for the

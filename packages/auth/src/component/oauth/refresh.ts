@@ -4,8 +4,10 @@
  *
  * A code exchange creates an `OAuthRefreshGrant` root (carrying the
  * client/user/scopes/resource) plus the first `OAuthRefreshToken` pointing at it.
- * `exchange` rotates single-use; a reuse outside `reuseWindowMs` is theft and
- * REVOKES THE GRANT (`revokedAt`) in O(1). A revoked or missing grant makes every
+ * `exchange` rotates single-use but tolerates the retries and concurrency real
+ * clients exhibit; a replay *after* the chain has advanced past a token (its
+ * child was consumed) and outside the grace window is theft and REVOKES THE
+ * GRANT (`revokedAt`) in O(1). A revoked or missing grant makes every
  * one of its tokens fail closed at lookup, *before* the bounded, scheduled
  * `purgeRevokedGrant` cleanup deletes the token rows. Mirrors the session refresh
  * model (`token/refresh.ts` over `Session`).
@@ -136,14 +138,25 @@ const vExchangeResult = v.union(
 );
 
 /**
- * Rotate a refresh token, returning a `status`-tagged result. `"rotated"` (first
- * use or an in-window replay) carries the user/scopes/resource for the next
- * access token. `"reuse_detected"` (a replay
- * outside `reuseWindowMs`) is theft: the grant is revoked (`revokedAt`, O(1)) and
- * its token rows are scheduled for bounded cleanup; the user/client are returned
- * for audit. `"invalid"` (unknown hash, missing/legacy grant, revoked grant,
- * `clientId` mismatch, or expired — the expired grant is revoked first) carries
- * nothing. A `clientId` mismatch does not revoke.
+ * Rotate a refresh token, returning a `status`-tagged result.
+ *
+ * Rotation is single-use but tolerant of the retries and concurrency a real
+ * client exhibits: a replay is `"rotated"` (benign) whenever the caller has not
+ * provably rotated past the presented token — that token still has an unused
+ * descendant tip — or the replay lands within `reuseWindowMs`. A benign replay
+ * mints a fresh child and leaves existing tips valid (hash-only storage can't
+ * re-hand the original child, so deleting it would strand a client that did
+ * receive it, forcing a needless re-login). `"rotated"` carries the
+ * user/scopes/resource for the next access token.
+ *
+ * `"reuse_detected"` is genuine theft: a token replayed *after* the chain
+ * advanced past it (its child was already consumed) and outside the grace
+ * window. The grant is revoked (`revokedAt`, O(1)) and its token rows scheduled
+ * for bounded cleanup; the user/client are returned for audit. `"invalid"`
+ * (unknown hash, missing/legacy grant, revoked grant, `clientId` mismatch, or
+ * expired — the expired grant is revoked first) carries nothing; a `clientId`
+ * mismatch does not revoke. `"scope_exceeded"` rejects a broadening request
+ * without burning the token.
  */
 export const exchange = mutation({
   args: {
@@ -204,30 +217,14 @@ export const exchange = mutation({
       await issueChild();
       return rotated;
     }
-    // In-window replay. Hash-only tokens can't re-hand the active tip like sessions,
-    // so the grant holds at most one unused tip. If that tip still descends from doc,
-    // this is a retry (or a simultaneous both-unused race): supersede — drop the
-    // unused tip and mint a fresh one (last-writer-wins for that narrow race). If the
-    // tip has moved PAST doc (doc's child was already consumed, so the chain
-    // advanced), that is a clearer theft signal — revoke the whole grant.
-    if (doc.firstUsedTime + args.reuseWindowMs > args.now) {
-      const unusedTokens = await ctx.db
-        .query("OAuthRefreshToken")
-        .withIndex("grant_id_first_used", (q) =>
-          q.eq("grantId", grantId).eq("firstUsedTime", undefined),
-        )
-        .collect();
-      if (!unusedTokens.some((token) => token.parentTokenId === doc._id)) {
-        await revokeGrant(ctx, grantId, args.now);
-        return {
-          status: "reuse_detected" as const,
-          userId: grant.userId,
-          clientId: grant.clientId,
-        };
-      }
-      for (const token of unusedTokens) {
-        await ctx.db.delete("OAuthRefreshToken", token._id);
-      }
+
+    const unusedChild = await ctx.db
+      .query("OAuthRefreshToken")
+      .withIndex("grant_id_parent_token_id_first_used", (q) =>
+        q.eq("grantId", grantId).eq("parentTokenId", doc._id).eq("firstUsedTime", undefined),
+      )
+      .first();
+    if (unusedChild !== null || doc.firstUsedTime + args.reuseWindowMs > args.now) {
       await issueChild();
       return rotated;
     }

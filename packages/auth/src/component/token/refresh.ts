@@ -7,7 +7,6 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { v } from "convex/values";
 
 import { mutation, query } from "../functions";
@@ -48,8 +47,8 @@ export const get = query({
 });
 
 /**
- * List a session's refresh tokens, or only the children of
- * `parentRefreshTokenId` when supplied.
+ * List up to `SESSION_TOKEN_DELETE_BATCH` refresh tokens for a session, or only
+ * the children of `parentRefreshTokenId` when supplied.
  */
 export const list = query({
   args: {
@@ -64,9 +63,12 @@ export const list = query({
         .withIndex("session_id_parent_refresh_token_id", (q) =>
           q.eq("sessionId", sessionId).eq("parentRefreshTokenId", parentRefreshTokenId),
         )
-        .collect();
+        .take(SESSION_TOKEN_DELETE_BATCH);
     }
-    return await getManyFrom(ctx.db, "RefreshToken", "session_id", sessionId, "sessionId");
+    return await ctx.db
+      .query("RefreshToken")
+      .withIndex("session_id", (q) => q.eq("sessionId", sessionId))
+      .take(SESSION_TOKEN_DELETE_BATCH);
   },
 });
 

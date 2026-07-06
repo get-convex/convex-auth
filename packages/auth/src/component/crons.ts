@@ -6,11 +6,16 @@
 
 import { cronJobs } from "convex/server";
 
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-crons.daily("auth-prune-expired", { hourUTC: 3, minuteUTC: 0 }, api.maintenance.pruneExpired, {});
+crons.daily(
+  "auth-prune-expired",
+  { hourUTC: 3, minuteUTC: 0 },
+  internal.maintenance.pruneExpired,
+  {},
+);
 
 /**
  * Feed newly-projected auth events into the durable stream. The drainer

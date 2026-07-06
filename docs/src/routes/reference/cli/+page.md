@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: Command-line options for the setup wizard.
+description: Command-line commands and options for the setup wizard.
 ---
 
 <svelte:head>
@@ -10,14 +10,30 @@ description: Command-line options for the setup wizard.
 
 # CLI Reference
 
+## Commands
+
+```bash
+pnpx @robelest/convex-auth [command] [options]
+```
+
+The CLI defaults to `setup` when no command is given.
+
+| Command  | Description                                                    |
+| -------- | -------------------------------------------------------------- |
+| `setup`  | Scaffold files and set environment variables (default).        |
+| `doctor` | Verify env vars, files, and mounted auth endpoints.            |
+| `urls`   | Print auth endpoint and provider callback URLs.                |
+| `keys`   | Generate signing/encryption keys and set them on a deployment. |
+
 ## Setup wizard
 
 ```bash
 pnpx @robelest/convex-auth [options]
 ```
 
-The wizard runs 6 steps: configure `SITE_URL`, generate key pair, configure
-`tsconfig.json`, create `convex.config`, create `auth.ts`, create `http.ts`.
+The wizard runs 8 steps: configure `APP_URL`, generate signing and encryption
+keys, modify `tsconfig.json`, create `convex.config`, create `auth.ts`, create
+`http.ts`, create `auth/core.ts`, and create `auth.config.ts`.
 
 The CLI expects typed deployment identifiers such as `dev:my-deployment`,
 `prod:my-deployment`, or `preview:my-deployment` for Convex Cloud. Use `--url`
@@ -27,8 +43,7 @@ for explicit or self-hosted targets.
 
 | Option                     | Description                                               |
 | -------------------------- | --------------------------------------------------------- |
-| `--site-url <url>`         | Value for `SITE_URL`; avoids interactive prompt           |
-| `--secondary-url <urls>`   | Comma-separated value for `SECONDARY_URL`                 |
+| `--app-url <url>`          | Value for `APP_URL`; avoids interactive prompt            |
 | `--prod`                   | Target production deployment                              |
 | `--preview-name <name>`    | Target preview deployment                                 |
 | `--deployment-name <name>` | Target specific named deployment                          |
@@ -72,7 +87,11 @@ export const setScim = authMutation({
   args: { connectionId: v.string() },
   handler: async (ctx, args) => {
     const { groupId } = await auth.connection.get(ctx, { id: args.connectionId });
-    await auth.member.assert(ctx, { userId: ctx.auth.userId, groupId, roleIds: [roles.orgAdmin.id] });
+    await auth.member.assert(ctx, {
+      userId: ctx.auth.userId,
+      groupId,
+      roleIds: [roles.orgAdmin.id],
+    });
     return auth.connection.scim.set(ctx, args);
   },
 });
@@ -81,7 +100,7 @@ export const setScim = authMutation({
 Example:
 
 ```bash
-pnpx @robelest/convex-auth --site-url "https://app.example.com" --secondary-url "http://localhost:3000,http://localhost:5173"
+pnpx @robelest/convex-auth --app-url "https://app.example.com"
 ```
 
 Then call the exported functions with normal Convex hooks:

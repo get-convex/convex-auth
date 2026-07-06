@@ -2,12 +2,9 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 
 import { auth } from "./auth/core";
+import { ErrorCode } from "./errors";
 import { authMutation, authQuery } from "./functions";
-import {
-  projectStatus as projectStatusValidator,
-  issuePriority as issuePriorityValidator,
-  issueStatus as issueStatusValidator,
-} from "./schema";
+import { issuePriority, issueStatus, projectStatus } from "./schema";
 
 type UserLookup = { name?: string; email?: string } | null;
 
@@ -35,13 +32,13 @@ function toIssueView(
   };
 }
 
-const issueViewValidator = v.object({
+const vIssue = v.object({
   _id: v.id("issues"),
   identifier: v.string(),
   number: v.number(),
   title: v.string(),
-  status: issueStatusValidator,
-  priority: issuePriorityValidator,
+  status: issueStatus,
+  priority: issuePriority,
   labels: v.array(v.string()),
   assigneeName: v.union(v.string(), v.null()),
   assigneeUserId: v.union(v.string(), v.null()),
@@ -62,13 +59,13 @@ export const list = authQuery({
         identifier: v.string(),
         slug: v.string(),
         description: v.string(),
-        status: projectStatusValidator,
+        status: projectStatus,
         issueCounter: v.number(),
         openIssueCount: v.number(),
       }),
       v.null(),
     ),
-    issues: v.array(issueViewValidator),
+    issues: v.array(vIssue),
   }),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
@@ -115,7 +112,7 @@ export const list = authQuery({
 
 export const get = authQuery({
   args: { issueId: v.id("issues") },
-  returns: v.union(issueViewValidator, v.null()),
+  returns: v.union(vIssue, v.null()),
   handler: async (ctx, args) => {
     const issue = await ctx.db.get(args.issueId);
     if (!issue) return null;
@@ -142,14 +139,14 @@ export const create = authMutation({
   args: {
     projectId: v.id("projects"),
     title: v.string(),
-    priority: v.optional(issuePriorityValidator),
+    priority: v.optional(issuePriority),
     labels: v.optional(v.array(v.string())),
   },
   returns: v.object({ issueId: v.id("issues") }),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
     if (!project) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
+      throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Project not found." });
     }
     const userId = ctx.auth.userId;
 
@@ -187,8 +184,8 @@ export const update = authMutation({
     issueId: v.id("issues"),
     patch: v.object({
       title: v.optional(v.string()),
-      status: v.optional(issueStatusValidator),
-      priority: v.optional(issuePriorityValidator),
+      status: v.optional(issueStatus),
+      priority: v.optional(issuePriority),
       assigneeUserId: v.optional(v.union(v.string(), v.null())),
       labels: v.optional(v.array(v.string())),
     }),
@@ -198,7 +195,7 @@ export const update = authMutation({
     const userId = ctx.auth.userId;
     const issue = await ctx.db.get(args.issueId);
     if (!issue) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Issue not found." });
+      throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Issue not found." });
     }
 
     const needsEdit =
@@ -220,7 +217,7 @@ export const update = authMutation({
         const isOwnerOrAssignee =
           issue.createdByUserId === userId || issue.assigneeUserId === userId;
         if (!isOwnerOrAssignee) {
-          throw new ConvexError({ code: "FORBIDDEN", message: "Access denied." });
+          throw new ConvexError({ code: ErrorCode.FORBIDDEN, message: "Access denied." });
         }
       }
     }

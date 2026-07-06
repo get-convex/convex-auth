@@ -43,14 +43,14 @@ export const auth = defineAuth(components.auth, {
 
 ## 1. Function verbs
 
-| Verb     | Use for                                                                     | Don't use these synonyms |
-| -------- | --------------------------------------------------------------------------- | ------------------------ |
-| `get`    | Read by identity or selector (overloaded object args allowed: `id`, `ids`). | `fetch`, `read`, `find`  |
-| `list`   | Paginated or bounded list of documents.                                     | `index`, `query`, `all`  |
-| `create` | Insert a new document.                                                      | `insert`, `add`, `make`  |
-| `update` | Partial patch of an existing document. Patch payload arg is `patch` (matches `ctx.db.patch`). | `modify` |
-| `upsert` | Insert-or-update with idempotency.                                          | `save`, `set`            |
-| `remove` | Hard-delete a document. Chosen over `delete` (reserved word → `{ delete_ as delete }`) and crud's `destroy`. | `delete`, `destroy` |
+| Verb     | Use for                                                                                                      | Don't use these synonyms |
+| -------- | ------------------------------------------------------------------------------------------------------------ | ------------------------ |
+| `get`    | Read by identity or selector (overloaded object args allowed: `id`, `ids`).                                  | `fetch`, `read`, `find`  |
+| `list`   | Paginated or bounded list of documents.                                                                      | `index`, `query`, `all`  |
+| `create` | Insert a new document.                                                                                       | `insert`, `add`, `make`  |
+| `update` | Partial patch of an existing document. Patch payload arg is `patch` (matches `ctx.db.patch`).                | `modify`                 |
+| `upsert` | Insert-or-update with idempotency.                                                                           | `save`, `set`            |
+| `remove` | Hard-delete a document. Chosen over `delete` (reserved word → `{ delete_ as delete }`) and crud's `destroy`. | `delete`, `destroy`      |
 
 **Domain verbs** are allowed when the workflow is more than CRUD. The two
 auth-defining verbs are kept strictly distinct:
@@ -80,6 +80,7 @@ client's allowed protocol flows are `grantTypes`; the RFC wire param
 
 **Adoption status — fully applied across the codebase** (component + facade +
 app + tests + docs), as hard cuts (no aliases/back-compat):
+
 - `authorize` / `grantTypes` (OAuth).
 - `delete`→`remove`; `require`→`assert`; `update` patch arg `data`→`patch`.
 - `user.email.add`→`create`; `session.issue`→`create` (the dead simple
@@ -159,7 +160,7 @@ Don't use `args.opts` / `args.input` envelopes — flat args only.
 
 - Throw `new ConvexError({ code: ErrorCode.X, message, ... })` — import `ErrorCode` from `packages/auth/src/shared/codes.ts`.
 - **Never** inline a string literal in `code:`. The central registry is the source of truth; typos surface at compile time, and the union type lets consumers exhaustively switch.
-- New codes go in `shared/error-codes.ts` first, then are used at the throw site.
+- New codes go in `shared/codes.ts` first, then are used at the throw site.
 
 ---
 
@@ -199,7 +200,7 @@ The auth runtime passes the component API around as a config field, aliased as `
 
 ## 8a. OAuth authorization server (app-as-IdP)
 
-When `defineAuth({ oauth: { scopes, pages: { login, consent } } })` is set, the app
+When `defineAuth({ oauth: { pages: { login, consent } } })` is set, the app
 acts as an OAuth 2.1 authorization server (e.g. for MCP clients). Presence of the
 `oauth` block enables the AS; the library owns all wire endpoints, CORS, and discovery.
 
@@ -231,7 +232,7 @@ acts as an OAuth 2.1 authorization server (e.g. for MCP clients). Presence of th
 - **Access tokens** are signed `at+jwt` JWTs. `aud` is `"convex"` (string) — keeps them valid
   Convex identities. RFC 8707 resource binding lives in a separate `resource` claim (default
   `<origin>/mcp`), validated at `/mcp` via `verifyOAuthToken({resource})`; the `aud: ["convex",
-  <resource>]` array form is a documented follow-up gated on Convex accepting an array audience.
+<resource>]` array form is a documented follow-up gated on Convex accepting an array audience.
   `sub` = the user id (or `client:<id>` for `client_credentials`), plus `client_id` and (when
   bound) `resource` claims. `auth.request.context`
   classifies them as `source: "oauth"`.

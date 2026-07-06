@@ -20,17 +20,17 @@ description: Deploy convex-auth to production.
 <Tabs syncKey="pkg">
   <TabItem label="npm">
 
-`npx @robelest/convex-auth --prod --site-url "https://myapp.com"`
+`npx @robelest/convex-auth --prod --app-url "https://myapp.com"`
 
   </TabItem>
   <TabItem label="pnpm">
 
-`pnpx @robelest/convex-auth --prod --site-url "https://myapp.com"`
+`pnpx @robelest/convex-auth --prod --app-url "https://myapp.com"`
 
   </TabItem>
   <TabItem label="yarn">
 
-`yarn dlx @robelest/convex-auth --prod --site-url "https://myapp.com"`
+`yarn dlx @robelest/convex-auth --prod --app-url "https://myapp.com"`
 
   </TabItem>
 </Tabs>
@@ -86,12 +86,12 @@ yarn dlx convex deploy --cmd 'yarn build'
 
 ## Checklist
 
-- `SITE_URL` is set to your production domain (not `localhost`)
+- `APP_URL` is set to your production domain (not `localhost`)
 - `JWT_PRIVATE_KEY`, `JWKS`, and `AUTH_SECRET_ENCRYPTION_KEY` are set (the CLI
   handles this)
 - Provider secrets (`AUTH_*_ID`, `AUTH_*_SECRET`) are configured
 - `CONVEX_SITE_URL` is auto-provided by Convex
-- `convex/auth.config.ts` trusts `process.env.CONVEX_SITE_URL` with
+- `convex/auth.config.ts` trusts `env.CONVEX_SITE_URL` with
   `applicationID: "convex"`
 - OAuth callback URLs are registered with your providers pointing to
   `CONVEX_SITE_URL`
@@ -109,7 +109,6 @@ serve these from the frontend host. See the
   reachable at the RP ID host
 - For password manager UX: `CHANGE_PASSWORD_URL` set (302 from
   `/.well-known/change-password`)
-- For multi-origin passkeys: `WEBAUTHN_ALT_ORIGINS` set (or `SECONDARY_URL`)
 - For security disclosure: `SECURITY_CONTACT` set with unexpired
   `Expires:` (refreshes every `SECURITY_TXT_EXPIRES_DAYS`, default 365)
 

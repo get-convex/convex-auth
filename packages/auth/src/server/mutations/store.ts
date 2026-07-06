@@ -9,9 +9,12 @@ import { vCreateVerificationCodeArgs, createVerificationCodeImpl } from "./code"
 import { vCredentialsSignInArgs, credentialsSignInImpl } from "./credentials/signin";
 import { vInvalidateSessionsArgs, invalidateSessionsImpl } from "./invalidate";
 import { vUserOAuthArgs, userOAuthImpl } from "./oauth";
-import { vRefreshSessionArgs } from "./refresh";
+import { vRefreshSessionArgs, refreshSessionImpl } from "./refresh";
 import { vCreateAccountFromCredentialsArgs, createAccountFromCredentialsImpl } from "./register";
-import { vRetrieveAccountWithCredentialsArgs, retrieveAccountWithCredentialsImpl } from "./retrieve";
+import {
+  vRetrieveAccountWithCredentialsArgs,
+  retrieveAccountWithCredentialsImpl,
+} from "./retrieve";
 import { vVerifierSignatureArgs, verifierSignatureImpl } from "./signature";
 import { vSignInArgs, signInSessionImpl } from "./signin";
 import { signOutImpl } from "./signout";
@@ -87,10 +90,11 @@ export const storeImpl = async (
   }
 
   const handlers: Record<string, (a: typeof args) => Promise<unknown>> = {
-    signIn: (a) => signInSessionImpl(ctx, a as Infer<typeof vSignInArgs> & { type: string }, config),
+    signIn: (a) =>
+      signInSessionImpl(ctx, a as Infer<typeof vSignInArgs> & { type: string }, config),
     signOut: () => signOutImpl(ctx, config),
     refreshSession: (a) =>
-      services.refresh.refresh(ctx, a as Infer<typeof vRefreshSessionArgs> & { type: string }),
+      refreshSessionImpl(ctx, a as Infer<typeof vRefreshSessionArgs> & { type: string }, config),
     verifyCodeAndSignIn: (a) =>
       verifyCodeAndSignInImpl(
         ctx,

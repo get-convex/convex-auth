@@ -17,7 +17,7 @@ description: Required and optional environment variables for convex-auth.
 | `JWT_PRIVATE_KEY`            | Signs session JWTs                                                            |
 | `JWKS`                       | JSON Web Key Set for verification                                             |
 | `AUTH_SECRET_ENCRYPTION_KEY` | Encrypts stored OIDC client secrets and group webhook signing secrets at rest |
-| `SITE_URL`                   | Frontend URL for OAuth/magic link redirects                                   |
+| `APP_URL`                    | Frontend URL for OAuth, email, device, and passkey defaults                   |
 
 These are set automatically by the CLI setup wizard.
 
@@ -31,10 +31,12 @@ Your `convex/auth.config.ts` should trust this same value as the native Convex
 JWT issuer:
 
 ```ts
+import { env } from "./_generated/server";
+
 export default {
   providers: [
     {
-      domain: `${process.env.CONVEX_SITE_URL}/auth`,
+      domain: `${env.CONVEX_SITE_URL}/auth`,
       applicationID: "convex",
     },
   ],
@@ -63,39 +65,49 @@ OAuth provider callbacks default to:
 ${CONVEX_SITE_URL}/auth/callback/<provider>
 ```
 
-This uses `CONVEX_AUTH_HTTP_PREFIX`, which defaults to `/auth`, matching the
-default `auth.http()` route prefix. Pass `redirectUri` in provider config when
-you want to override that default.
+This matches the default `path: "/auth"` used by `defineAuth`. Pass
+`redirectUri` in provider config when you want to override that default.
 
 ## Optional
 
-| Variable                            | Purpose                                                                   | Default           |
-| ----------------------------------- | ------------------------------------------------------------------------- | ----------------- |
-| `SECONDARY_URL`                     | Comma-separated extra frontend origins for passkeys and shared auth flows | -                 |
-| `AUTH_SESSION_TOTAL_DURATION_MS`    | Max session lifetime                                                      | 30 days           |
-| `AUTH_SESSION_INACTIVE_DURATION_MS` | Inactive session timeout                                                  | Provider-specific |
-| `AUTH_LOG_LEVEL`                    | `DEBUG` / `INFO` / `WARN` / `ERROR`                                       | `INFO`            |
+| Variable                            | Purpose                                                          | Default           |
+| ----------------------------------- | ---------------------------------------------------------------- | ----------------- |
+| `AUTH_SESSION_TOTAL_DURATION_MS`    | Max session lifetime                                             | 30 days           |
+| `AUTH_SESSION_INACTIVE_DURATION_MS` | Inactive session timeout                                         | Provider-specific |
+| `AUTH_LOG_LEVEL`                    | `DEBUG` / `INFO` / `WARN` / `ERROR`                              | `INFO`            |
+| `AUTH_LOG_SECRETS`                  | `"true"` logs secret values in full; otherwise they are redacted | `"false"`         |
 
 ### `.well-known` content
 
 These drive the [.well-known endpoints](/reference/well-known) — leave them
 unset to disable a given endpoint (it then returns 404).
 
-| Variable                    | Purpose                                                             | Default                       |
-| --------------------------- | ------------------------------------------------------------------- | ----------------------------- |
-| `IOS_APP_IDS`               | Comma-separated `TEAMID.bundle.id` for `apple-app-site-association` | -                             |
-| `IOS_APPLINK_PATHS`         | Comma-separated path patterns for `applinks` (e.g., `/auth/*`)      | `/auth/*,/callback/*`         |
-| `ANDROID_APP_LINKS`         | `package:FP1;package2:FP2` for `assetlinks.json`                    | -                             |
-| `WEBAUTHN_ALT_ORIGINS`      | Comma-separated origins for `/.well-known/webauthn`                 | falls back to `SECONDARY_URL` |
-| `CHANGE_PASSWORD_URL`       | Redirect target for `/.well-known/change-password`                  | -                             |
-| `SECURITY_CONTACT`          | `Contact:` for `security.txt` (`mailto:` or `https:`)               | -                             |
-| `SECURITY_TXT_EXPIRES_DAYS` | Days until `Expires:` in `security.txt`                             | 365                           |
+| Variable                    | Purpose                                                             | Default               |
+| --------------------------- | ------------------------------------------------------------------- | --------------------- |
+| `IOS_APP_IDS`               | Comma-separated `TEAMID.bundle.id` for `apple-app-site-association` | -                     |
+| `IOS_APPLINK_PATHS`         | Comma-separated path patterns for `applinks` (e.g., `/auth/*`)      | `/auth/*,/callback/*` |
+| `ANDROID_APP_LINKS`         | `package:FP1;package2:FP2` for `assetlinks.json`                    | -                     |
+| `APP_URL`                   | Origin emitted by `/.well-known/webauthn`                           | -                     |
+| `CHANGE_PASSWORD_URL`       | Redirect target for `/.well-known/change-password`                  | -                     |
+| `SECURITY_CONTACT`          | `Contact:` for `security.txt` (`mailto:` or `https:`)               | -                     |
+| `SECURITY_TXT_EXPIRES_DAYS` | Days until `Expires:` in `security.txt`                             | 365                   |
 
-`SITE_URL` remains the canonical frontend URL used for generated links and
-default redirects. Use `SECONDARY_URL` to allow additional localhost or hosted
-frontend origins to share the same auth instance:
+`APP_URL` is the canonical frontend URL used for generated links and default
+redirects:
 
 ```bash
-SITE_URL=https://app.example.com
-SECONDARY_URL=http://localhost:3000,http://localhost:5173,https://staging.example.com
+APP_URL=https://app.example.com
 ```
+
+### Email and password provider
+
+These are declared on `authEnv` (so they are typed and validated when you use
+`defineApp({ env: authEnv })`), but they are read by your own provider config in
+`convex/auth.ts` rather than by the library directly. Wire them where you
+configure the `email()` and `password()` providers.
+
+| Variable                           | Purpose                                                                        | Default   |
+| ---------------------------------- | ------------------------------------------------------------------------------ | --------- |
+| `AUTH_EMAIL`                       | Default `from` address for the `email()` provider                              | -         |
+| `RESEND_API_KEY`                   | API key for sending email through Resend from your `email()` provider's `send` | -         |
+| `AUTH_PASSWORD_EMAIL_VERIFICATION` | `"true"` enables email verification / reset for the `password()` provider      | `"false"` |

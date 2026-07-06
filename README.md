@@ -68,11 +68,11 @@ shape contract.
 | Import path                                          | Use                                                                                                                        |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `@robelest/convex-auth/server`                       | Backend: `defineAuth`, the `auth.*` facade, `authEnv`, `authEvents`, and HTTP route helpers                                |
-| `@robelest/convex-auth/convex.config`                | The component definition for `app.use(auth)` in `convex.config.ts`                                                          |
+| `@robelest/convex-auth/convex.config`                | The component definition for `app.use(auth)` in `convex.config.ts`                                                         |
 | `@robelest/convex-auth/permissions`                  | `definePermissions` and the grant/role types                                                                               |
 | `@robelest/convex-auth/providers` (+ `/providers/*`) | Auth providers: `password`, `google`, `github`, `apple`, `microsoft`, `passkey`, `totp`, `anonymous`, `email`, `device`, … |
 | `@robelest/convex-auth/client`                       | Framework-agnostic browser client factory (`client()` — sign-in/out, token store)                                          |
-| `@robelest/convex-auth/react`                        | React bindings: `ConvexAuthProvider`, `useAuth`, `useConvexAuthClient`                                                      |
+| `@robelest/convex-auth/react`                        | React bindings: `ConvexAuthProvider`, `useAuth`, `useConvexAuthClient`                                                     |
 | `@robelest/convex-auth/expo`                         | React Native / Expo client                                                                                                 |
 | `@robelest/convex-auth/browser`                      | Low-level browser primitives (navigation, passkey, web locks)                                                              |
 | `@robelest/convex-auth/core`                         | `createAuthContext` and low-level building blocks for custom integrations                                                  |
@@ -85,7 +85,7 @@ shape contract.
 | ------------------------------------------------------------------------------ | --------------------------------------------------------------- |
 | [Getting Started](https://convex-auth.pages.dev/getting-started/installation/) | Installation, providers, environment variables                  |
 | [API Reference](https://convex-auth.pages.dev/api/user/)                       | `auth.user`, `auth.session`, `auth.group`, `auth.key`, and more |
-| [Group SSO](https://convex-auth.pages.dev/connection/overview/)                       | OIDC, SAML, SCIM, audit, webhooks                               |
+| [Group SSO](https://convex-auth.pages.dev/connection/overview/)                | OIDC, SAML, SCIM, audit, webhooks                               |
 | [SSR Integration](https://convex-auth.pages.dev/ssr/overview/)                 | SvelteKit, TanStack Start, Next.js                              |
 | [Guides](https://convex-auth.pages.dev/guides/multi-access/)                   | Multi-access, device flow, authorization, production            |
 | [Reference](https://convex-auth.pages.dev/reference/config/)                   | Config options, error codes, CLI, architecture                  |

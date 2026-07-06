@@ -67,13 +67,13 @@ export function apple(config: AppleConfig) {
       ? config.privateKey
       : new TextDecoder().decode(config.privateKey);
   const scopes = config.scopes ?? DEFAULT_SCOPES;
-  const createProvider = () =>
+  const createProvider = (redirectUri?: string) =>
     new ArcticApple(
       config.clientId,
       config.teamId,
       config.keyId,
       new TextEncoder().encode(privateKey),
-      config.redirectUri ?? defaultOAuthRedirectUri("apple"),
+      config.redirectUri ?? defaultOAuthRedirectUri("apple", redirectUri),
     );
   return createOAuthProvider({
     id: "apple",

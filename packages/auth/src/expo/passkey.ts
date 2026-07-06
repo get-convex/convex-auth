@@ -1,11 +1,7 @@
 import { Passkey, type PasskeyCreateRequest, type PasskeyGetRequest } from "react-native-passkey";
 
-import type {
-  ClientAdapterDeps,
-  PasskeyClient,
-  SignInActionResult,
-  SignInResult,
-} from "../client/core/types";
+import type { FactorDeps, PasskeyClient, PasskeyRegisterOptions } from "../client/core/types";
+import { createPasskeyClientCore, type PasskeyCeremony } from "../client/factors/passkey";
 
 type PasskeyCredentialDescriptor = {
   type?: string;
@@ -87,186 +83,68 @@ function wrapNativePasskeyError(e: unknown, cancelMessage: string): Error {
   return new Error(message);
 }
 
-/** @internal */
-export function createExpoPasskeyClient(deps: ClientAdapterDeps): PasskeyClient {
-  const { proxy, convex, requireApiRefs, proxyFetch, setTokenAndMaybeWait } = deps;
+const expoPasskeyCeremony: PasskeyCeremony = {
+  isSupported: () => Passkey.isSupported(),
+  isAutofillSupported: async () => false,
 
-  const handleSignedInResult = async (
-    result: SignInActionResult,
-    flow: string,
-  ): Promise<SignInResult> => {
-    if (result.kind !== "signedIn") {
-      return { kind: "started" as const };
+  register: async (rawOptions, opts?: PasskeyRegisterOptions) => {
+    const options = rawOptions as PasskeyRegistrationOptions;
+    const createRequest: PasskeyCreateRequest = {
+      challenge: options.challenge,
+      rp: { ...options.rp, id: requireStringOption(options.rp.id, "rp.id") },
+      user: options.user,
+      pubKeyCredParams: options.pubKeyCredParams,
+      timeout: options.timeout,
+      attestation: options.attestation,
+      authenticatorSelection: options.authenticatorSelection,
+      excludeCredentials: toPublicKeyCredentialDescriptors(options.excludeCredentials),
+    };
+
+    let credential;
+    try {
+      credential = await Passkey.create(createRequest);
+    } catch (e) {
+      throw wrapNativePasskeyError(e, "Passkey registration was cancelled");
     }
 
-    const sessionEstablished = await setTokenAndMaybeWait(
-      proxy
-        ? {
-            shouldStore: false as const,
-            tokens: result.session === null ? null : { token: result.session.token },
-            waitForHandshake: true,
-            context: { provider: "passkey", flow },
-          }
-        : {
-            shouldStore: true as const,
-            tokens: result.session,
-            waitForHandshake: true,
-            context: { provider: "passkey", flow },
-          },
-    );
+    return {
+      flow: "verify",
+      clientDataJSON: credential.response.clientDataJSON,
+      attestationObject: credential.response.attestationObject,
+      transports: credential.response.transports,
+      passkeyName: opts?.name,
+      email: opts?.email,
+    };
+  },
 
-    return sessionEstablished
-      ? ({ kind: "signedIn" as const } satisfies SignInResult)
-      : ({ kind: "started" as const } satisfies SignInResult);
-  };
+  signIn: async (rawOptions) => {
+    const options = rawOptions as PasskeyAuthenticationOptions;
+    const getRequest: PasskeyGetRequest = {
+      challenge: options.challenge,
+      timeout: options.timeout,
+      rpId: requireStringOption(options.rpId, "rpId"),
+      userVerification: options.userVerification,
+      allowCredentials: toPublicKeyCredentialDescriptors(options.allowCredentials),
+    };
 
-  return {
-    isSupported: () => Passkey.isSupported(),
-    isAutofillSupported: async () => false,
-    register: async (opts?: {
-      name?: string;
-      email?: string;
-      userName?: string;
-      userDisplayName?: string;
-    }): Promise<SignInResult> => {
-      const phase1Params = {
-        flow: "register",
-        email: opts?.email,
-        userName: opts?.userName,
-        userDisplayName: opts?.userDisplayName,
-      };
+    let credential;
+    try {
+      credential = await Passkey.get(getRequest);
+    } catch (e) {
+      throw wrapNativePasskeyError(e, "Passkey authentication was cancelled");
+    }
 
-      let phase1Result: SignInActionResult;
-      if (proxy) {
-        phase1Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: { provider: "passkey", params: phase1Params },
-        })) as SignInActionResult;
-      } else {
-        phase1Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase1Params,
-        })) as SignInActionResult;
-      }
+    return {
+      flow: "verify",
+      credentialId: credential.rawId ?? credential.id,
+      clientDataJSON: credential.response.clientDataJSON,
+      authenticatorData: credential.response.authenticatorData,
+      signature: credential.response.signature,
+    };
+  },
+};
 
-      if (phase1Result.kind !== "passkeyOptions") {
-        throw new Error("Server did not return passkey registration options");
-      }
-
-      const options = phase1Result.options as PasskeyRegistrationOptions;
-      const createRequest: PasskeyCreateRequest = {
-        challenge: options.challenge,
-        rp: { ...options.rp, id: requireStringOption(options.rp.id, "rp.id") },
-        user: options.user,
-        pubKeyCredParams: options.pubKeyCredParams,
-        timeout: options.timeout,
-        attestation: options.attestation,
-        authenticatorSelection: options.authenticatorSelection,
-        excludeCredentials: toPublicKeyCredentialDescriptors(options.excludeCredentials),
-      };
-
-      let credential;
-      try {
-        credential = await Passkey.create(createRequest);
-      } catch (e) {
-        throw wrapNativePasskeyError(e, "Passkey registration was cancelled");
-      }
-
-      const phase2Params = {
-        flow: "verify",
-        clientDataJSON: credential.response.clientDataJSON,
-        attestationObject: credential.response.attestationObject,
-        transports: credential.response.transports,
-        passkeyName: opts?.name,
-        email: opts?.email,
-      };
-
-      let phase2Result: SignInActionResult;
-      if (proxy) {
-        phase2Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: {
-            provider: "passkey",
-            params: phase2Params,
-            verifier: phase1Result.verifier,
-          },
-        })) as SignInActionResult;
-      } else {
-        phase2Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase2Params,
-          verifier: phase1Result.verifier,
-        })) as SignInActionResult;
-      }
-
-      return handleSignedInResult(phase2Result, "verify");
-    },
-    signIn: async (opts?: { email?: string; autofill?: boolean }): Promise<SignInResult> => {
-      const phase1Params = {
-        flow: "signIn",
-        email: opts?.email,
-      };
-
-      let phase1Result: SignInActionResult;
-      if (proxy) {
-        phase1Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: { provider: "passkey", params: phase1Params },
-        })) as SignInActionResult;
-      } else {
-        phase1Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase1Params,
-        })) as SignInActionResult;
-      }
-
-      if (phase1Result.kind !== "passkeyOptions") {
-        throw new Error("Server did not return passkey authentication options");
-      }
-
-      const options = phase1Result.options as PasskeyAuthenticationOptions;
-      const getRequest: PasskeyGetRequest = {
-        challenge: options.challenge,
-        timeout: options.timeout,
-        rpId: requireStringOption(options.rpId, "rpId"),
-        userVerification: options.userVerification,
-        allowCredentials: toPublicKeyCredentialDescriptors(options.allowCredentials),
-      };
-
-      let credential;
-      try {
-        credential = await Passkey.get(getRequest);
-      } catch (e) {
-        throw wrapNativePasskeyError(e, "Passkey authentication was cancelled");
-      }
-
-      const phase2Params = {
-        flow: "verify",
-        credentialId: credential.rawId ?? credential.id,
-        clientDataJSON: credential.response.clientDataJSON,
-        authenticatorData: credential.response.authenticatorData,
-        signature: credential.response.signature,
-      };
-
-      let phase2Result: SignInActionResult;
-      if (proxy) {
-        phase2Result = (await proxyFetch({
-          action: "auth:signIn",
-          args: {
-            provider: "passkey",
-            params: phase2Params,
-            verifier: phase1Result.verifier,
-          },
-        })) as SignInActionResult;
-      } else {
-        phase2Result = (await convex.action(requireApiRefs().signIn, {
-          provider: "passkey",
-          params: phase2Params,
-          verifier: phase1Result.verifier,
-        })) as SignInActionResult;
-      }
-
-      return handleSignedInResult(phase2Result, "verify");
-    },
-  };
+/** @internal */
+export function createExpoPasskeyClient(deps: FactorDeps): PasskeyClient {
+  return createPasskeyClientCore(deps, expoPasskeyCeremony);
 }

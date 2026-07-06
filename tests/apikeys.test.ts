@@ -59,7 +59,7 @@ test("key.create and key.revoke emit audit events", async () => {
     });
   });
   const kinds = (events.page as Array<{ kind: string }>).map((event) => event.kind);
-  expect(kinds).toContain("api_key.issued");
+  expect(kinds).toContain("api_key.created");
   expect(kinds).toContain("api_key.revoked");
 });
 
@@ -874,6 +874,28 @@ test("key.rotate: new key inherits scopes and rateLimit", async () => {
   const rotated = expectKey(rotateGet);
   expect(rotated.scopes).toEqual(scopes);
   expect(rotated.rateLimit).toEqual(rateLimit);
+});
+
+test("key.rotate emits api_key.revoked for the old key", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t, "rotate-audit@example.com");
+
+  const { id: oldKeyId } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: { userId, name: "Rotate Audit", scopes: [] },
+    });
+  });
+
+  await t.run(async (ctx) => auth.key.rotate(ctx, { id: oldKeyId }));
+
+  const events = await t.run(async (ctx) => {
+    return await ctx.runQuery(components.auth.event.list, {
+      where: { target: { kind: "api_key", id: oldKeyId } },
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+  });
+  const kinds = (events.page as Array<{ kind: string }>).map((event) => event.kind);
+  expect(kinds).toContain("api_key.revoked");
 });
 
 test("key.rotate: rotating already-revoked key throws ConvexError", async () => {

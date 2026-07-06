@@ -5,6 +5,22 @@ type ProxyErrorBody = {
   authError?: unknown;
 };
 
+/**
+ * Error thrown when a proxy request returns a non-OK HTTP response. Carries the
+ * HTTP `status` structurally so retriability is classified without re-parsing a
+ * formatted message.
+ *
+ * @internal
+ */
+export class ProxyRequestError extends Error {
+  readonly status: number;
+  constructor(status: number, message?: string) {
+    super(message ?? `Proxy request failed: ${status}`);
+    this.name = "ProxyRequestError";
+    this.status = status;
+  }
+}
+
 /** @internal */
 export function isTransientNetworkError(error: unknown): boolean {
   return (
@@ -18,15 +34,11 @@ export function isRetriableProxyRefreshError(error: unknown): boolean {
   if (isTransientNetworkError(error)) {
     return true;
   }
-  if (!(error instanceof Error)) {
+  if (!(error instanceof ProxyRequestError)) {
     return false;
   }
-  const statusMatch = error.message.match(/Proxy request failed:\s*(\d{3})/);
-  if (statusMatch === null) {
-    return false;
-  }
-  const statusCode = Number(statusMatch[1]);
-  return statusCode === 429 || (statusCode >= 500 && statusCode < 600);
+  const { status } = error;
+  return status === 429 || (status >= 500 && status < 600);
 }
 
 /** @internal */

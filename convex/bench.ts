@@ -26,15 +26,15 @@ import { v } from "convex/values";
 
 import { action } from "./_generated/server";
 
-const authTokensValidator = v.object({
+const vAuthTokens = v.object({
   token: v.string(),
   refreshToken: v.string(),
 });
 
-const signInResultValidator = v.union(
+const vSignInResult = v.union(
   v.object({
     kind: v.literal("signedIn"),
-    session: v.union(authTokensValidator, v.null()),
+    session: v.union(vAuthTokens, v.null()),
   }),
   v.object({
     kind: v.literal("redirect"),
@@ -72,7 +72,7 @@ const signInResultValidator = v.union(
     }),
   }),
 );
-type SignInResult = Infer<typeof signInResultValidator>;
+type SignInResult = Infer<typeof vSignInResult>;
 
 type SignInArgs =
   | { provider: "anonymous" }
@@ -80,11 +80,7 @@ type SignInArgs =
       provider: "password";
       params: { email: string; password: string; flow: "signIn" | "signUp" };
     };
-const authSignIn = makeFunctionReference<
-  "action",
-  SignInArgs,
-  SignInResult
->("auth:signIn");
+const authSignIn = makeFunctionReference<"action", SignInArgs, SignInResult>("auth:signIn");
 
 /**
  * Issue a password sign-in and return the backend-observed wall time
@@ -94,7 +90,7 @@ const authSignIn = makeFunctionReference<
 export const passwordSignIn = action({
   args: { email: v.string(), password: v.string() },
   returns: v.object({
-    result: signInResultValidator,
+    result: vSignInResult,
     backendMs: v.number(),
   }),
   handler: async (ctx, { email, password }) => {
@@ -116,7 +112,7 @@ export const passwordSignIn = action({
 export const anonymousSignIn = action({
   args: {},
   returns: v.object({
-    result: signInResultValidator,
+    result: vSignInResult,
     backendMs: v.number(),
   }),
   handler: async (ctx) => {

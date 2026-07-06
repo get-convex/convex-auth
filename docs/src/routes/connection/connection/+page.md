@@ -24,14 +24,14 @@ root namespace for group connection domain management through
 
 ## Methods
 
-| Method        | Signature                                                  | Returns                            | Description                                                   |
-| ------------- | ---------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------- |
-| `create`      | `(ctx, { groupId, slug?, name?, status?, domains?, ... })` | `{ connectionId, groupId }`        | Creates a new SSO connection for a group.                     |
-| `get`         | `(ctx, { id })` or `(ctx, { domain })`                     | `Doc \| null`                      | Reads a connection by ID or verified domain selector.       |
-| `list`        | `(ctx, { where?, paginationOpts, orderBy?, order? })`      | `{ page, isDone, continueCursor }` | Lists SSO connections with optional filtering and sorting.    |
-| `update`      | `(ctx, { id, patch })`                                      | `{ connectionId }`                 | Updates connection fields (status, metadata, domains, etc.).  |
-| `remove`      | `(ctx, { id })`                                            | `{ connectionId }`                 | Deletes an SSO connection.                                    |
-| `status`      | `(ctx, { id })`                                            | Status object                      | Returns readiness and per-protocol status for the connection. |
+| Method   | Signature                                                  | Returns                            | Description                                                   |
+| -------- | ---------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------- |
+| `create` | `(ctx, { groupId, slug?, name?, status?, domains?, ... })` | `{ connectionId, groupId }`        | Creates a new SSO connection for a group.                     |
+| `get`    | `(ctx, { id })` or `(ctx, { domain })`                     | `Doc \| null`                      | Reads a connection by ID or verified domain selector.         |
+| `list`   | `(ctx, { where?, paginationOpts, orderBy?, order? })`      | `{ page, isDone, continueCursor }` | Lists SSO connections with optional filtering and sorting.    |
+| `update` | `(ctx, { id, patch })`                                     | `{ connectionId }`                 | Updates connection fields (status, metadata, domains, etc.).  |
+| `remove` | `(ctx, { id })`                                            | `{ connectionId }`                 | Deletes an SSO connection.                                    |
+| `status` | `(ctx, { id })`                                            | Status object                      | Returns readiness and per-protocol status for the connection. |
 
 ## Domain methods
 

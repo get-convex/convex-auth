@@ -791,6 +791,50 @@ function extractSignatureMetadataFromXml(content: string) {
   }
 }
 
+/**
+ * Read the `Assertion/@ID` from cryptographically-verified SAML content,
+ * whether the content is the assertion element itself or a response wrapping
+ * one. Returns `undefined` when no assertion ID can be resolved (in which case
+ * the caller must fail closed rather than treat the response as unique).
+ */
+function assertionIdFromXml(content: string): string | undefined {
+  try {
+    const doc = safeParseXml(content, "text/xml");
+    const root = doc.documentElement;
+    const assertion = localName(root) === "Assertion" ? root : findDirectChild(root, "Assertion");
+    const id = getAttribute(assertion, "ID");
+    return typeof id === "string" && id.length > 0 ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Derive the identifiers a SAML ACS handler needs to prevent replay from a
+ * parsed login response: the assertion's `ID` (verified from the canonical
+ * bytes), the `InResponseTo` binding the response to a pending AuthnRequest,
+ * and the tightest `NotOnOrAfter` upper bound (from `<SubjectConfirmationData>`
+ * or `<Conditions>`) used to bound the seen-assertion cache's TTL.
+ * @internal
+ */
+export function samlReplayIdentifiers(parsed: {
+  samlContent: string;
+  extract?: SamlParsedExtract;
+}): {
+  assertionId?: string;
+  inResponseTo?: string;
+  notOnOrAfter?: string;
+} {
+  const extract = parsed.extract;
+  const notOnOrAfter =
+    extract?.subjectConfirmation?.notOnOrAfter ?? extract?.conditions?.notOnOrAfter ?? undefined;
+  return {
+    assertionId: assertionIdFromXml(parsed.samlContent),
+    inResponseTo: extract?.subjectConfirmation?.inResponseTo ?? extract?.response?.inResponseTo,
+    notOnOrAfter,
+  };
+}
+
 function normalizeSignatureMetadata(value: unknown): SignatureMetadata | undefined {
   if (typeof value === "object" && value !== null) {
     const signatureAlgorithm = (value as { signatureAlgorithm?: unknown }).signatureAlgorithm;
@@ -1106,9 +1150,10 @@ function warnWeakSamlAlgorithms(parsed: SamlParsedFlow) {
 }
 
 /**
- * When the connection's `weakAlgorithmHandling` is `"reject"`, throw if any
- * response/assertion signature or digest uses a known-weak algorithm (SHA-1,
- * RSA-1.5, 3DES). Otherwise weak algorithms are only warned about.
+ * Reject a SAML response/assertion whose signature or digest uses a known-weak
+ * algorithm (SHA-1, RSA-1.5, 3DES). Secure by default: rejection is the default
+ * and operators must explicitly set `security.weakAlgorithmHandling: "warn"` to
+ * downgrade to a warning (mirroring the `requireTimestamps` opt-out).
  * @internal
  */
 export function enforceSamlAlgorithmPolicy(opts: {
@@ -1116,7 +1161,7 @@ export function enforceSamlAlgorithmPolicy(opts: {
   config: unknown;
 }) {
   const handling = getSamlSecurityConfig(opts.config).weakAlgorithmHandling;
-  if (handling !== "reject") {
+  if (handling === "warn") {
     return;
   }
   for (const metadata of signatureMetadataList(opts.extract)) {
@@ -1196,6 +1241,13 @@ export async function parseGroupConnectionSamlLogoutMessage(opts: {
  * Map a parsed SAML assertion's attributes (via the connection's attribute
  * mapping, falling back to NameID for the subject) into a normalized profile.
  * Throws if no subject can be resolved.
+ *
+ * @remarks
+ * `emailVerified` is always left `undefined`: SAML carries no `email_verified`
+ * claim, so the assertion alone never proves the email. Verification is decided
+ * downstream (`userOAuthImpl`) from whether the email's domain is a verified
+ * connection domain, keeping a SAML-asserted email unverified by default so it
+ * cannot drive cross-connection `verifiedEmail` account linking.
  * @internal
  */
 export function profileFromSamlExtract(
@@ -1244,7 +1296,7 @@ export function profileFromSamlExtract(
   return finalizeNormalizedProfile({
     id: subject,
     email,
-    emailVerified: typeof email === "string" ? true : undefined,
+    emailVerified: undefined,
     groups,
     name,
     roles,

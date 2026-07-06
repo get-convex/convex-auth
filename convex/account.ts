@@ -2,9 +2,10 @@ import { ConvexError, v } from "convex/values";
 
 import { components } from "./_generated/api";
 import { auth } from "./auth/core";
+import { ErrorCode } from "./errors";
 import { authUserMutation, authUserQuery } from "./functions";
 
-const passkeySummary = v.object({
+const vPasskey = v.object({
   passkeyId: v.string(),
   name: v.union(v.string(), v.null()),
   deviceType: v.string(),
@@ -13,19 +14,19 @@ const passkeySummary = v.object({
   lastUsedAt: v.union(v.number(), v.null()),
 });
 
-const apiKeyScope = v.object({
+const vApiKeyScope = v.object({
   resource: v.string(),
   actions: v.array(v.string()),
 });
 
-const apiKeySummary = v.object({
+const vApiKey = v.object({
   keyId: v.string(),
   prefix: v.string(),
   name: v.string(),
   revoked: v.boolean(),
   createdAt: v.number(),
   lastUsedAt: v.union(v.number(), v.null()),
-  scopes: v.array(apiKeyScope),
+  scopes: v.array(vApiKeyScope),
 });
 
 type PasskeyListCtx = Parameters<typeof auth.account.passkey.list>[0];
@@ -37,7 +38,7 @@ async function requireOwnedPasskey(ctx: PasskeyListCtx, userId: string, passkeyI
   const passkey = passkeys.find((item) => item._id === passkeyId);
   if (!passkey) {
     throw new ConvexError({
-      code: "NOT_FOUND",
+      code: ErrorCode.NOT_FOUND,
       message: "Passkey not found.",
     });
   }
@@ -48,7 +49,7 @@ async function requireOwnedApiKey(ctx: ApiKeyGetCtx, userId: string, keyId: stri
   const key = await auth.key.get(ctx, { id: keyId });
   if (!key || key.userId !== userId) {
     throw new ConvexError({
-      code: "NOT_FOUND",
+      code: ErrorCode.NOT_FOUND,
       message: "API key not found.",
     });
   }
@@ -57,7 +58,7 @@ async function requireOwnedApiKey(ctx: ApiKeyGetCtx, userId: string, keyId: stri
 
 export const listPasskeys = authUserQuery({
   args: {},
-  returns: v.array(passkeySummary),
+  returns: v.array(vPasskey),
   handler: async (ctx) => {
     const userId = ctx.auth.userId;
     const passkeys = await auth.account.passkey.list(ctx, {
@@ -87,7 +88,7 @@ export const renamePasskey = authUserMutation({
   },
 });
 
-export const deletePasskey = authUserMutation({
+export const removePasskey = authUserMutation({
   args: { passkeyId: v.string() },
   returns: v.object({ passkeyId: v.string() }),
   handler: async (ctx, args) => {
@@ -99,7 +100,7 @@ export const deletePasskey = authUserMutation({
 
 export const listApiKeys = authUserQuery({
   args: {},
-  returns: v.array(apiKeySummary),
+  returns: v.array(vApiKey),
   handler: async (ctx) => {
     const userId = ctx.auth.userId;
     const result = await auth.key.list(ctx, {

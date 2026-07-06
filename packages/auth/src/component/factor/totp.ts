@@ -7,11 +7,12 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { v } from "convex/values";
 
 import { mutation, query } from "../functions";
 import { vTotpFactorDoc } from "../model";
+
+const TOTP_LIST_BATCH = 32;
 
 /** Read a TOTP factor by `id`, or by `verifiedForUserId` (a user's confirmed enrollment). */
 export const get = query({
@@ -39,7 +40,10 @@ export const list = query({
   args: { userId: v.id("User") },
   returns: v.array(vTotpFactorDoc),
   handler: async (ctx, { userId }) => {
-    return await getManyFrom(ctx.db, "TotpFactor", "user_id", userId, "userId");
+    return await ctx.db
+      .query("TotpFactor")
+      .withIndex("user_id", (q) => q.eq("userId", userId))
+      .take(TOTP_LIST_BATCH);
   },
 });
 

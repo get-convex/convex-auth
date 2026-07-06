@@ -306,7 +306,7 @@ function getOidcJwks(
   return OIDC_JWKS_CACHE.get(cacheKey);
 }
 
-async function userInfoProfileFx(opts: {
+async function userInfoProfile(opts: {
   endpoint: string;
   accessToken: string;
   verifiedClaims: Record<string, unknown>;
@@ -662,15 +662,15 @@ export async function createGroupConnectionOidcProvider(
         throw new Error("OIDC profile requested before the id_token was verified.");
       }
       if (userinfoEndpoint && typeof tokens.accessToken === "string") {
-        const userInfoProfile = await userInfoProfileFx({
+        const resolvedProfile = await userInfoProfile({
           endpoint: userinfoEndpoint,
           accessToken: tokens.accessToken,
           verifiedClaims,
           verifiedProfile,
           fetchImpl: oidcFetch,
         });
-        if (userInfoProfile !== null) {
-          return userInfoProfile;
+        if (resolvedProfile !== null) {
+          return resolvedProfile;
         }
       }
       return verifiedProfile;

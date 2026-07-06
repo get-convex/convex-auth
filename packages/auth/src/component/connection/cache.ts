@@ -20,7 +20,8 @@
  */
 
 import { ActionCache } from "@convex-dev/action-cache";
-import { v } from "convex/values";
+import type { FunctionReference } from "convex/server";
+import { v, type Infer } from "convex/values";
 
 import { components, internal } from "../_generated/api";
 import { action, internalAction, mutation } from "../functions";
@@ -51,6 +52,79 @@ const fetchUrlArgs = {
   /** Optional `Host` header value (paired with `runtimeOrigin`). */
   externalHost: v.optional(v.string()),
 };
+
+const vOidcDiscovery = v.object({
+  issuer: v.string(),
+  authorization_endpoint: v.string(),
+  token_endpoint: v.string(),
+  jwks_uri: v.string(),
+  userinfo_endpoint: v.optional(v.string()),
+  token_endpoint_auth_methods_supported: v.optional(v.array(v.string())),
+  id_token_signing_alg_values_supported: v.optional(v.array(v.string())),
+});
+
+type FetchUrlArgs = {
+  url: string;
+  runtimeOrigin?: string;
+  externalHost?: string;
+};
+
+type OidcDiscovery = Infer<typeof vOidcDiscovery>;
+
+type OidcDiscoveryAction = FunctionReference<
+  "action",
+  "internal",
+  FetchUrlArgs,
+  OidcDiscovery,
+  string | undefined
+>;
+
+type TextAction = FunctionReference<"action", "internal", FetchUrlArgs, string, string | undefined>;
+
+const requestOidcDiscoveryRef = internal.connection.cache
+  .requestOidcDiscovery as OidcDiscoveryAction;
+const requestTextRef = internal.connection.cache.requestText as TextAction;
+
+function normalizeOidcDiscovery(data: unknown): OidcDiscovery {
+  if (typeof data !== "object" || data === null) {
+    throw new Error("OIDC discovery response is not an object.");
+  }
+  const source = data as Record<string, unknown>;
+  if (typeof source.issuer !== "string") {
+    throw new Error("OIDC discovery is missing 'issuer'.");
+  }
+  if (typeof source.authorization_endpoint !== "string") {
+    throw new Error("OIDC discovery is missing 'authorization_endpoint'.");
+  }
+  if (typeof source.token_endpoint !== "string") {
+    throw new Error("OIDC discovery is missing 'token_endpoint'.");
+  }
+  if (typeof source.jwks_uri !== "string") {
+    throw new Error("OIDC discovery is missing 'jwks_uri'.");
+  }
+  return {
+    issuer: source.issuer,
+    authorization_endpoint: source.authorization_endpoint,
+    token_endpoint: source.token_endpoint,
+    jwks_uri: source.jwks_uri,
+    userinfo_endpoint:
+      typeof source.userinfo_endpoint === "string" ? source.userinfo_endpoint : undefined,
+    token_endpoint_auth_methods_supported: Array.isArray(
+      source.token_endpoint_auth_methods_supported,
+    )
+      ? source.token_endpoint_auth_methods_supported.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : undefined,
+    id_token_signing_alg_values_supported: Array.isArray(
+      source.id_token_signing_alg_values_supported,
+    )
+      ? source.id_token_signing_alg_values_supported.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : undefined,
+  };
+}
 
 function normalizeRuntimeOrigin(runtimeOrigin: string | undefined): string | undefined {
   if (runtimeOrigin === undefined) {
@@ -106,10 +180,10 @@ const buildRequestUrl = (
   return { url: rewritten, headers };
 };
 
-/** Request a URL and parse the response as JSON. @internal */
-export const requestJson = internalAction({
+/** Request an OIDC discovery URL and return the normalized fields used by auth. @internal */
+export const requestOidcDiscovery = internalAction({
   args: fetchUrlArgs,
-  returns: v.any(),
+  returns: vOidcDiscovery,
   handler: async (_ctx, { url, runtimeOrigin, externalHost }) => {
     const req = buildRequestUrl(url, runtimeOrigin, externalHost);
     const response = await fetch(req.url, {
@@ -120,7 +194,7 @@ export const requestJson = internalAction({
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} fetching ${url}`);
     }
-    return await response.json();
+    return normalizeOidcDiscovery(await response.json());
   },
 });
 
@@ -146,34 +220,31 @@ const ONE_HOUR = 60 * 60 * 1000;
 const TWO_HOURS = 2 * ONE_HOUR;
 const ONE_DAY = 24 * ONE_HOUR;
 
-const oidcDiscoveryCache: ActionCache<typeof internal.connection.cache.requestJson> =
-  new ActionCache(components.connectionFetchCache, {
-    action: internal.connection.cache.requestJson,
-    name: "oidcDiscovery",
-    ttl: ONE_HOUR,
-  });
+const oidcDiscoveryCache = new ActionCache(components.connectionFetchCache, {
+  action: requestOidcDiscoveryRef,
+  name: "oidcDiscovery",
+  ttl: ONE_HOUR,
+});
 
-const oidcStatusDiscoveryCache: ActionCache<typeof internal.connection.cache.requestJson> =
-  new ActionCache(components.connectionFetchCache, {
-    action: internal.connection.cache.requestJson,
-    name: "oidcStatusDiscovery",
-    ttl: TWO_HOURS,
-  });
+const oidcStatusDiscoveryCache = new ActionCache(components.connectionFetchCache, {
+  action: requestOidcDiscoveryRef,
+  name: "oidcStatusDiscovery",
+  ttl: TWO_HOURS,
+});
 
-const samlMetadataCache: ActionCache<typeof internal.connection.cache.requestText> =
-  new ActionCache(components.connectionFetchCache, {
-    action: internal.connection.cache.requestText,
-    name: "samlMetadata",
-    ttl: ONE_DAY,
-  });
+const samlMetadataCache = new ActionCache(components.connectionFetchCache, {
+  action: requestTextRef,
+  name: "samlMetadata",
+  ttl: ONE_DAY,
+});
 
 /**
  * Read-through fetch for OIDC discovery JSON. Cached 1h per URL.
  */
 export const oidcDiscovery = action({
   args: fetchUrlArgs,
-  returns: v.any(),
-  handler: async (ctx, args): Promise<unknown> => {
+  returns: vOidcDiscovery,
+  handler: async (ctx, args) => {
     return await oidcDiscoveryCache.fetch(asActionCacheCtx(ctx), args);
   },
 });
@@ -185,8 +256,8 @@ export const oidcDiscovery = action({
  */
 export const oidcStatusDiscovery = action({
   args: fetchUrlArgs,
-  returns: v.any(),
-  handler: async (ctx, args): Promise<unknown> => {
+  returns: vOidcDiscovery,
+  handler: async (ctx, args) => {
     return await oidcStatusDiscoveryCache.fetch(asActionCacheCtx(ctx), args);
   },
 });

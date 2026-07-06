@@ -82,7 +82,7 @@ function DeviceVerification() {
 
 | Option            | Default                  | Description                                    |
 | ----------------- | ------------------------ | ---------------------------------------------- |
-| `verificationUri` | `SITE_URL + "/device"`   | URL of your verification page                  |
+| `verificationUri` | `APP_URL + "/device"`    | URL of your verification page                  |
 | `charset`         | `"BCDFGHJKLMNPQRSTVWXZ"` | User code characters (no vowels, per RFC 8628) |
 | `userCodeLength`  | `8`                      | Code length (displayed as `XXXX-XXXX`)         |
 | `expiresIn`       | `900` (15 min)           | Code lifetime in seconds                       |

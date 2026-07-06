@@ -11,13 +11,13 @@ import {
   createGroupConnection,
   removeConnectionDomain,
   removeConnectionDomainVerification,
-  deleteGroupConnection,
   getConnectionDomainVerification,
   getGroupConnection,
   getGroupConnectionByDomain,
   getScimConfigByConnection,
   listGroupConnections,
   listConnectionDomains,
+  removeGroupConnection,
   updateGroupConnection,
   upsertConnectionDomainVerification,
   upsertGroupConnectionSecret,
@@ -305,7 +305,7 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
       update: async (ctx: ComponentCtx, args: { id: string; patch: Record<string, unknown> }) => {
         await updateGroupConnection(ctx, config.component.connection, {
           connectionId: args.id,
-          data: args.patch,
+          patch: args.patch,
         });
         const updated = await getConnection(ctx, { id: args.id });
         if (updated !== null) {
@@ -324,12 +324,12 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
       },
       remove: async (ctx: ComponentCtx, args: { id: string }) => {
         const connection = await getConnection(ctx, { id: args.id });
-        await deleteGroupConnection(ctx, config.component.connection, args.id);
+        await removeGroupConnection(ctx, config.component.connection, args.id);
         if (connection !== null) {
           await emitGroupAuthEvent(ctx, {
             connectionId: args.id,
             groupId: connection.groupId,
-            kind: "connection.deleted",
+            kind: "connection.removed",
             actor: { type: "system" },
             subject: { type: "connection", id: args.id },
             outcome: "success",
@@ -924,7 +924,7 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
         try {
           await updateGroupConnection(ctx, config.component.connection, {
             connectionId: connection._id,
-            data: {
+            patch: {
               status: "active",
               config: nextConfig,
             },
@@ -1041,7 +1041,7 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
         try {
           await updateGroupConnection(ctx, config.component.connection, {
             connectionId: connection._id,
-            data: {
+            patch: {
               status: connection.status,
               config: nextConfig,
             },
@@ -1383,7 +1383,7 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
         try {
           await updateGroupConnection(ctx, config.component.connection, {
             connectionId: data.connectionId,
-            data: { config: nextConfig },
+            patch: { config: nextConfig },
           });
         } catch {
           throw convexError(ErrorCode.INTERNAL_ERROR, "Failed to persist OIDC registration.");

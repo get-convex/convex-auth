@@ -3,6 +3,7 @@ import type { ConvexError, Value } from "convex/values";
 
 import type { AccessToken } from "../../shared/brand";
 import type { AuthTokens, SignInFlowResult } from "../../shared/results";
+import type { ErrorCode } from "../../shared/codes";
 
 /**
  * Structural interface for any Convex client.
@@ -43,9 +44,16 @@ interface LocationRuntime {
   replace(relativeUrl: string): void | Promise<void>;
 }
 
-/** Platform-specific OAuth launch primitive. */
+/**
+ * Platform-specific OAuth launch primitive.
+ *
+ * `open` receives the provider authorization URL. Platforms that navigate the
+ * whole page away (browser) return nothing; platforms that run the flow in an
+ * in-app session (Expo) return the callback URL so the core can complete the
+ * exchange inline.
+ */
 interface OAuthRuntime {
-  open(url: URL): void | Promise<void>;
+  open(url: URL): void | string | URL | Promise<void | string | URL>;
 }
 
 /** Cross-context synchronization hooks, such as browser storage events. */
@@ -90,11 +98,13 @@ export interface ClientAdapters {
 }
 
 /**
- * Dependencies provided to platform-specific factor adapters.
+ * Shared dependencies threaded into every factor client (`totp`, `device`,
+ * `passkey`). The core `client` builds one of these and passes it to each
+ * factor factory.
  *
  * @internal
  */
-export interface ClientAdapterDeps {
+export interface FactorDeps {
   proxy: string | undefined;
   convex: ConvexTransport;
   requireApiRefs: () => SignInApiRef;
@@ -115,6 +125,13 @@ export interface ClientAdapterDeps {
         },
   ) => Promise<boolean>;
 }
+
+/**
+ * Dependencies provided to platform-specific factor adapters.
+ *
+ * @internal
+ */
+export type ClientAdapterDeps = FactorDeps;
 
 /**
  * Factory overrides for platform-specific factor adapters.
@@ -148,6 +165,7 @@ export type DeviceCodeResult = {
  * - `kind: "totpRequired"` — credentials valid but 2FA is needed; call `auth.totp.verify()`.
  * - `kind: "deviceCode"` — device flow initiated; display the code and poll via `auth.device.poll()`.
  * - `kind: "started"` — a non-immediate flow started (for example email/phone verification).
+ * - `kind: "failed"` — the flow did not complete; `code` is the typed {@link ErrorCode}.
  *
  * @see {@link AuthState}
  */
@@ -156,7 +174,8 @@ export type SignInResult =
   | { kind: "redirect"; redirect: URL; verifier: string }
   | { kind: "totpRequired"; verifier: string }
   | { kind: "deviceCode"; deviceCode: DeviceCodeResult }
-  | { kind: "started" };
+  | { kind: "started" }
+  | { kind: "failed"; code: ErrorCode };
 
 /** @internal */
 export type AuthSnapshot = {
@@ -368,13 +387,16 @@ export interface TotpClient {
    * @param opts.code - The 6-digit TOTP code from the authenticator app.
    * @param opts.verifier - The verifier string returned by {@link TotpClient.setup}.
    * @param opts.totpId - The factor ID returned by {@link TotpClient.setup}.
+   * @returns A {@link SignInResult} — `{ kind: "signedIn" }` on success, or
+   *   `{ kind: "failed", code }` when the code is rejected.
    *
    * @example
    * ```ts
-   * await auth.totp.confirm({ code: "123456", verifier, totpId });
+   * const result = await auth.totp.confirm({ code: "123456", verifier, totpId });
+   * if (result.kind === "failed") showError(result.code);
    * ```
    */
-  confirm(opts: TotpConfirmParams): Promise<void>;
+  confirm(opts: TotpConfirmParams): Promise<SignInResult>;
 
   /**
    * Complete a sign-in that is waiting on TOTP verification.
@@ -384,20 +406,27 @@ export interface TotpClient {
    * @param opts - Verification parameters.
    * @param opts.code - The 6-digit TOTP code from the authenticator app.
    * @param opts.verifier - The verifier string from the `totpRequired` result.
+   * @returns A {@link SignInResult} — `{ kind: "signedIn" }` on success, or
+   *   `{ kind: "failed", code }` when the code is rejected.
    *
    * @example
    * ```ts
    * const result = await auth.signIn("password", { email, password });
    * if (result.kind === "totpRequired") {
-   *   await auth.totp.verify({ code: totpCode, verifier: result.verifier });
+   *   const totp = await auth.totp.verify({ code: totpCode, verifier: result.verifier });
+   *   if (totp.kind === "failed") showError(totp.code);
    * }
    * ```
    */
-  verify(opts: TotpVerifyParams): Promise<void>;
+  verify(opts: TotpVerifyParams): Promise<SignInResult>;
 }
 
 /** Params for {@link DeviceClient.poll}. */
-export type DevicePollParams = { code: DeviceCodeResult };
+export type DevicePollParams = {
+  code: DeviceCodeResult;
+  /** Aborts the poll loop cleanly, e.g. on UI unmount. */
+  signal?: AbortSignal;
+};
 
 /** Params for {@link DeviceClient.verify}. */
 export type DeviceVerifyParams = { code: string };
@@ -417,14 +446,17 @@ export interface DeviceClient {
    *
    * @param opts - Poll options.
    * @param opts.code - The {@link DeviceCodeResult} returned from `signIn("device")`.
+   * @param opts.signal - Optional {@link AbortSignal}; aborting returns cleanly
+   *   at the next loop boundary (e.g. on UI unmount).
    * @throws `ConvexError({ code: "DEVICE_CODE_EXPIRED" })` when the code expires before authorization.
    *
    * @example
    * ```ts
+   * const controller = new AbortController();
    * const result = await auth.signIn("device");
    * if (result.kind === "deviceCode") {
    *   // Display result.deviceCode.userCode to the user
-   *   await auth.device.poll({ code: result.deviceCode });
+   *   await auth.device.poll({ code: result.deviceCode, signal: controller.signal });
    *   console.log("Device authorized!");
    * }
    * ```
@@ -697,6 +729,12 @@ export type ClientOptions<Api extends AuthApiRefs<boolean, boolean, boolean> = A
   proxyPath?: string;
   /** SSR-safe URL source for reading query parameters. */
   location?: URL | (() => URL | null);
+  /**
+   * Default OAuth `redirectTo` applied to `signIn` calls that omit it. Platform
+   * entrypoints set this (e.g. Expo passes its native redirect URI) so the core
+   * can build the authorization URL without a platform-specific `signIn` wrapper.
+   */
+  oauthRedirectTo?: string;
   /**
    * Milliseconds to wait for the Convex client to confirm a new token
    * before a sign-in handshake rejects with `AUTH_HANDSHAKE_TIMEOUT`.

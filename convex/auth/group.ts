@@ -5,6 +5,7 @@ import { api } from "../_generated/api";
 import { query } from "../_generated/server";
 import { auth } from "../auth";
 import { auth as authCore } from "../auth/core";
+import { ErrorCode } from "../errors";
 import { authAction, authMutation, authQuery } from "../functions";
 import { roles } from "../roles";
 
@@ -26,18 +27,18 @@ const vAuthEventKind = v.union(
   v.literal("totp.removed"),
   v.literal("email.verified"),
   v.literal("phone.verified"),
-  v.literal("api_key.issued"),
+  v.literal("api_key.created"),
   v.literal("api_key.revoked"),
   v.literal("oauth.client.created"),
   v.literal("oauth.client.revoked"),
-  v.literal("oauth.code.issued"),
-  v.literal("oauth.token.issued"),
+  v.literal("oauth.code.created"),
+  v.literal("oauth.token.created"),
   v.literal("oauth.token.exchanged"),
   v.literal("oauth.refresh.reuse_detected"),
   v.literal("oauth.refresh.revoked"),
   v.literal("connection.created"),
   v.literal("connection.updated"),
-  v.literal("connection.deleted"),
+  v.literal("connection.removed"),
   v.literal("connection.login.succeeded"),
   v.literal("connection.login.failed"),
   v.literal("connection.domain.verification_requested"),
@@ -300,7 +301,10 @@ async function resolveConnectionGroup(
 ): Promise<string> {
   const connection = await auth.connection.get(ctx, { id: connectionId });
   if (connection === null) {
-    throw new ConvexError({ code: "INVALID_PARAMETERS", message: "Connection not found." });
+    throw new ConvexError({
+      code: ErrorCode.INVALID_PARAMETERS,
+      message: "Connection not found.",
+    });
   }
   return connection.groupId;
 }
@@ -350,7 +354,10 @@ export const getConnectionByDomain = authQuery({
   handler: async (ctx, args) => {
     const resolved = await auth.connection.get(ctx, { domain: args.domain });
     if (resolved?.connection == null) {
-      throw new ConvexError({ code: "INVALID_PARAMETERS", message: "Connection not found." });
+      throw new ConvexError({
+        code: ErrorCode.INVALID_PARAMETERS,
+        message: "Connection not found.",
+      });
     }
     await requireGroupAdmin(ctx, resolved.connection.groupId);
     return resolved;
@@ -374,7 +381,10 @@ export const listConnections = authQuery({
   returns: auth.v.list(auth.v.connection.doc),
   handler: async (ctx, args) => {
     if (!args.where?.groupId) {
-      throw new ConvexError({ code: "INVALID_PARAMETERS", message: "Group scope required." });
+      throw new ConvexError({
+        code: ErrorCode.INVALID_PARAMETERS,
+        message: "Group scope required.",
+      });
     }
     await requireGroupAdmin(ctx, args.where.groupId);
     return auth.connection.list(ctx, {
@@ -571,7 +581,10 @@ export const listAudit = authQuery({
       args.groupId ??
       (args.connectionId ? await resolveConnectionGroup(ctx, args.connectionId) : undefined);
     if (!groupId) {
-      throw new ConvexError({ code: "INVALID_PARAMETERS", message: "Group scope required." });
+      throw new ConvexError({
+        code: ErrorCode.INVALID_PARAMETERS,
+        message: "Group scope required.",
+      });
     }
     await requireGroupAdmin(ctx, groupId);
     return auth.connection.audit.list(ctx, {
@@ -606,7 +619,7 @@ export const createWebhookEndpoint = authMutation({
     });
     if (endpoint === null) {
       throw new ConvexError({
-        code: "INTERNAL_ERROR",
+        code: ErrorCode.INTERNAL_ERROR,
         message: "Created webhook endpoint could not be loaded.",
       });
     }
@@ -649,7 +662,7 @@ export const disableWebhookEndpoint = authMutation({
     const endpoint = await auth.connection.webhook.endpoint.get(ctx, { id: args.id });
     if (!endpoint) {
       throw new ConvexError({
-        code: "INVALID_PARAMETERS",
+        code: ErrorCode.INVALID_PARAMETERS,
         message: "Webhook endpoint not found.",
       });
     }

@@ -80,10 +80,10 @@ test("redirectTo with email", async () => {
   expect(capturedInit.headers.Authorization).toBe(`Bearer ${process.env.RESEND_API_KEY}`);
   expect(capturedInit.body).toBeTypeOf("string");
 
-  const siteUrl = process.env.SITE_URL ?? "http://localhost:5173";
-  const escapedSiteUrl = siteUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const appUrl = process.env.APP_URL ?? "http://localhost:5173";
+  const escapedAppUrl = appUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const code = capturedInit.body.match(
-    new RegExp(`${escapedSiteUrl}\\/dashboard\\?code=([^\\s]+)`),
+    new RegExp(`${escapedAppUrl}\\/dashboard\\?code=([^\\s]+)`),
   )?.[1];
   expect(code).toBeTypeOf("string");
 });

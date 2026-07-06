@@ -18,9 +18,9 @@ teams, workspaces, etc.). Groups can be nested to form a hierarchy.
 | Method   | Signature                                                          | Returns                                                               | Description                                                        |
 | -------- | ------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `create` | `(ctx, { data: { name, slug?, type?, parentGroupId?, extend? } })` | `Id<"Group">`                                                         | Creates a new group. Optionally nest under a parent group.         |
-| `get`    | `(ctx, { id })`                                                    | `Doc<"Group">`                                                       | Reads a group document by ID.                                    |
+| `get`    | `(ctx, { id })`                                                    | `Doc<"Group">`                                                        | Reads a group document by ID.                                      |
 | `list`   | `(ctx, { where?, paginationOpts, orderBy?, order? })`              | `PaginationResult<Doc<"Group">>` — `{ page, isDone, continueCursor }` | Lists groups, optionally filtered by parent. Convex-native shape.  |
-| `update` | `(ctx, { id, patch })`                                              | `null`                                                                | Updates a group's name, slug, type, parent, or extend metadata.    |
+| `update` | `(ctx, { id, patch })`                                             | `null`                                                                | Updates a group's name, slug, type, parent, or extend metadata.    |
 | `remove` | `(ctx, { id })`                                                    | `null`                                                                | Deletes a group and all its nested children, members, and invites. |
 
 ## Examples

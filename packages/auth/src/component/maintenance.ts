@@ -10,21 +10,28 @@
 
 import { v } from "convex/values";
 
-import { mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { internalMutation } from "./functions";
 
 const DEFAULT_BATCH_SIZE = 200;
 const MAX_BATCH_SIZE = 1000;
 
+/** Terminal webhook deliveries are pruned once they are older than this. */
+const WEBHOOK_DELIVERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
  * Delete expired rows across the auth tables (sessions, refresh tokens,
- * verification codes, PKCE verifiers, group invites, device codes) using each
- * table's expiration index, range-scanning up to `batchSize` already-expired
- * rows per table. Rows with no expiry set (never-expire verifiers/invites) are
- * skipped by the index lower bound, so they cannot stall the scan. Returns
- * per-table deletion counts; wire to a daily cron and re-run while counts stay
- * high to clear a backlog.
+ * verification codes, PKCE verifiers, group invites, device codes, OAuth
+ * refresh tokens/grants, SAML pending login requests and seen-assertion replay
+ * cache) plus terminal webhook deliveries older than the retention window,
+ * using each table's expiration/`signedAt` index and range-scanning up to
+ * `batchSize` rows per table. Rows with no expiry set (never-expire
+ * verifiers/invites) are skipped by the index lower bound, so they cannot stall
+ * the scan. When any table fills its batch a backlog remains, so the mutation
+ * reschedules itself to drain the rest; the daily cron is the steady-state
+ * kick. Returns per-table deletion counts.
  */
-export const pruneExpired = mutation({
+export const pruneExpired = internalMutation({
   args: {
     batchSize: v.optional(v.number()),
   },
@@ -37,6 +44,9 @@ export const pruneExpired = mutation({
     deviceCodes: v.number(),
     oauthRefreshTokens: v.number(),
     oauthRefreshGrants: v.number(),
+    webhookDeliveries: v.number(),
+    samlLoginRequests: v.number(),
+    samlSeenAssertions: v.number(),
   }),
   handler: async (ctx, args) => {
     const batchSize = Math.min(Math.max(args.batchSize ?? DEFAULT_BATCH_SIZE, 1), MAX_BATCH_SIZE);
@@ -50,6 +60,9 @@ export const pruneExpired = mutation({
     let deviceCodes = 0;
     let oauthRefreshTokens = 0;
     let oauthRefreshGrants = 0;
+    let webhookDeliveries = 0;
+    let samlLoginRequests = 0;
+    let samlSeenAssertions = 0;
 
     const sessionDocs = await ctx.db
       .query("Session")
@@ -125,6 +138,53 @@ export const pruneExpired = mutation({
       oauthRefreshGrants += 1;
     }
 
+    const webhookCutoff = now - WEBHOOK_DELIVERY_RETENTION_MS;
+    for (const status of ["delivered", "failed"] as const) {
+      if (webhookDeliveries >= batchSize) break;
+      const deliveryDocs = await ctx.db
+        .query("GroupWebhookDelivery")
+        .withIndex("status_signed_at", (q) => q.eq("status", status).lt("signedAt", webhookCutoff))
+        .take(batchSize - webhookDeliveries);
+      for (const doc of deliveryDocs) {
+        await ctx.db.delete("GroupWebhookDelivery", doc._id);
+        webhookDeliveries += 1;
+      }
+    }
+
+    const samlRequestDocs = await ctx.db
+      .query("SamlLoginRequest")
+      .withIndex("expires_at", (q) => q.lt("expiresAt", now))
+      .take(batchSize);
+    for (const doc of samlRequestDocs) {
+      await ctx.db.delete("SamlLoginRequest", doc._id);
+      samlLoginRequests += 1;
+    }
+
+    const samlSeenDocs = await ctx.db
+      .query("SamlSeenAssertion")
+      .withIndex("expires_at", (q) => q.lt("expiresAt", now))
+      .take(batchSize);
+    for (const doc of samlSeenDocs) {
+      await ctx.db.delete("SamlSeenAssertion", doc._id);
+      samlSeenAssertions += 1;
+    }
+
+    if (
+      sessions === batchSize ||
+      refreshTokens === batchSize ||
+      verificationCodes === batchSize ||
+      authVerifiers === batchSize ||
+      invites === batchSize ||
+      deviceCodes === batchSize ||
+      oauthRefreshTokens === batchSize ||
+      oauthRefreshGrants === batchSize ||
+      webhookDeliveries === batchSize ||
+      samlLoginRequests === batchSize ||
+      samlSeenAssertions === batchSize
+    ) {
+      await ctx.scheduler.runAfter(0, internal.maintenance.pruneExpired, { batchSize });
+    }
+
     return {
       sessions,
       refreshTokens,
@@ -134,6 +194,9 @@ export const pruneExpired = mutation({
       deviceCodes,
       oauthRefreshTokens,
       oauthRefreshGrants,
+      webhookDeliveries,
+      samlLoginRequests,
+      samlSeenAssertions,
     };
   },
 });

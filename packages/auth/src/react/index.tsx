@@ -62,8 +62,8 @@ export function SignedOut({ children }: { children: ReactNode }): ReactElement |
 }
 
 /**
- * Render children only while auth is still resolving. A synchronous-storage SPA
- * effectively never hits this; it's for async backends and SSR's first paint.
+ * Render children only while auth is still resolving or Convex is confirming a
+ * stored token.
  */
 export function AuthLoading({ children }: { children: ReactNode }): ReactElement | null {
   const state = useAuth();

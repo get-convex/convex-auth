@@ -92,7 +92,7 @@ or in the Play Console (release).
 
 The output is a top-level JSON array (not an object) — that's the spec.
 
-### Multi-origin passkeys — `webauthn`
+### Passkeys — `webauthn`
 
 ```ts
 import { wellKnown } from "@robelest/convex-auth/server";
@@ -100,9 +100,8 @@ import { wellKnown } from "@robelest/convex-auth/server";
 const r = wellKnown("webauthn");
 ```
 
-Configure with `WEBAUTHN_ALT_ORIGINS` (comma-separated origins). Falls back
-to `SECONDARY_URL` if set. Lets a passkey registered at `app.example.com`
-work on `staging.example.com` or browser extensions.
+This returns the single frontend origin from `APP_URL`. That is the happy path
+for a single app origin and avoids extra deployment configuration.
 
 ### Password managers — `change-password`
 

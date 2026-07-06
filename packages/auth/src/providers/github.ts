@@ -71,11 +71,11 @@ export interface GitHubConfig {
  */
 export function github(config: GitHubConfig) {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
-  const createProvider = () =>
+  const createProvider = (redirectUri?: string) =>
     new ArcticGitHub(
       config.clientId,
       config.clientSecret,
-      config.redirectUri ?? defaultOAuthRedirectUri("github"),
+      config.redirectUri ?? defaultOAuthRedirectUri("github", redirectUri),
     );
   return createOAuthProvider({
     id: "github",

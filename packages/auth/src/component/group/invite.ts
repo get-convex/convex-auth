@@ -17,6 +17,8 @@ import { mutation, query } from "../functions";
 import schema from "../schema";
 import { vGroupInviteDoc, vInviteAcceptResult, vInviteStatus, vPaginated } from "../model";
 
+const STALE_INVITE_EXPIRATION_BATCH = 32;
+
 /** Read an invite by `id`, or by `tokenHash` (the indexed redemption token). */
 export const get = query({
   args: {
@@ -127,15 +129,16 @@ export const create = mutation({
 
     if (args.email !== undefined) {
       if (args.groupId !== undefined) {
-        const existingGroupInvites = await ctx.db
-          .query("GroupInvite")
-          .withIndex("group_id_status", (q) =>
-            q.eq("groupId", args.groupId).eq("status", "pending"),
-          )
-          .filter((q) => q.eq(q.field("email"), args.email))
-          .collect();
-
-        for (const existingGroupInvite of existingGroupInvites) {
+        for (let checked = 0; checked < STALE_INVITE_EXPIRATION_BATCH; checked += 1) {
+          const existingGroupInvite = await ctx.db
+            .query("GroupInvite")
+            .withIndex("group_id_email_status", (q) =>
+              q.eq("groupId", args.groupId).eq("email", args.email).eq("status", "pending"),
+            )
+            .first();
+          if (existingGroupInvite === null) {
+            break;
+          }
           const isExpired =
             existingGroupInvite.expiresTime !== undefined && existingGroupInvite.expiresTime <= now;
           if (isExpired) {
@@ -152,14 +155,32 @@ export const create = mutation({
             existingInviteId: existingGroupInvite._id,
           });
         }
-      } else {
-        const existingPlatformInvites = await ctx.db
+        const remainingGroupInvite = await ctx.db
           .query("GroupInvite")
-          .withIndex("email_status", (q) => q.eq("email", args.email).eq("status", "pending"))
-          .filter((q) => q.eq(q.field("groupId"), undefined))
-          .collect();
-
-        for (const existingPlatformInvite of existingPlatformInvites) {
+          .withIndex("group_id_email_status", (q) =>
+            q.eq("groupId", args.groupId).eq("email", args.email).eq("status", "pending"),
+          )
+          .first();
+        if (remainingGroupInvite !== null) {
+          throw new ConvexError({
+            code: ErrorCode.DUPLICATE_INVITE,
+            message: "Too many stale pending invites for this email in this group",
+            email: args.email,
+            groupId: args.groupId,
+            existingInviteId: remainingGroupInvite._id,
+          });
+        }
+      } else {
+        for (let checked = 0; checked < STALE_INVITE_EXPIRATION_BATCH; checked += 1) {
+          const existingPlatformInvite = await ctx.db
+            .query("GroupInvite")
+            .withIndex("email_group_id_status", (q) =>
+              q.eq("email", args.email).eq("groupId", undefined).eq("status", "pending"),
+            )
+            .first();
+          if (existingPlatformInvite === null) {
+            break;
+          }
           const isExpired =
             existingPlatformInvite.expiresTime !== undefined &&
             existingPlatformInvite.expiresTime <= now;
@@ -174,6 +195,20 @@ export const create = mutation({
             message: "A pending platform invite already exists for this email",
             email: args.email,
             existingInviteId: existingPlatformInvite._id,
+          });
+        }
+        const remainingPlatformInvite = await ctx.db
+          .query("GroupInvite")
+          .withIndex("email_group_id_status", (q) =>
+            q.eq("email", args.email).eq("groupId", undefined).eq("status", "pending"),
+          )
+          .first();
+        if (remainingPlatformInvite !== null) {
+          throw new ConvexError({
+            code: ErrorCode.DUPLICATE_INVITE,
+            message: "Too many stale pending platform invites for this email",
+            email: args.email,
+            existingInviteId: remainingPlatformInvite._id,
           });
         }
       }

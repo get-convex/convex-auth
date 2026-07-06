@@ -280,3 +280,44 @@ test("session expiration", async () => {
 
   expect(refreshedTokens).toBeNull();
 });
+
+test("password sign-in on an authenticated context replaces the old session", async () => {
+  const t = convexTest(schema);
+
+  const firstTokens = expectSignInSession(
+    await t.action(api.auth.signIn, {
+      provider: "password",
+      params: { email: TEST_EMAIL, password: TEST_PASSWORD, flow: "signUp" },
+    }),
+  );
+  const claims = decodeJwt(firstTokens!.token);
+  const asUser = t.withIdentity({ subject: claims.sub, sid: claims.sid as never });
+
+  // Signing in again while already authenticated should REPLACE, not stack:
+  // the previous session's refresh token must stop working.
+  const secondTokens = expectSignInSession(
+    await asUser.action(api.auth.signIn, {
+      provider: "password",
+      params: { email: TEST_EMAIL, password: TEST_PASSWORD, flow: "signIn" },
+    }),
+  );
+  expect(secondTokens).not.toBeNull();
+  expect(secondTokens!.refreshToken).not.toBe(firstTokens!.refreshToken);
+
+  const oldRefresh = await exchangeToken(t, firstTokens!.refreshToken);
+  expect(oldRefresh).toBeNull();
+
+  // Replacing a session emits a `session.invalidated` audit event.
+  const events = await t.run(async (ctx) => {
+    return await ctx.runQuery(components.auth.event.list, {
+      where: { kind: "session.invalidated" },
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+  });
+  expect(events.page.length).toBeGreaterThan(0);
+  expect(
+    (events.page as Array<{ data?: { reason?: string } }>).some(
+      (e) => e.data?.reason === "replaced",
+    ),
+  ).toBe(true);
+});

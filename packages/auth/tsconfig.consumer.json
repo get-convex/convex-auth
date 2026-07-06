@@ -15,7 +15,6 @@
       "@robelest/convex-auth/client": ["./src/client/index"],
       "@robelest/convex-auth/component": ["./src/component/index"],
       "@robelest/convex-auth/convex.config": ["./src/component/convex.config"],
-      "@robelest/convex-auth/errors": ["./src/server/errors"],
       "@robelest/convex-auth/expo": ["./src/expo/index"],
       "@robelest/convex-auth/server": ["./src/server/index"],
       "@robelest/convex-auth/providers": ["./src/providers/index"],

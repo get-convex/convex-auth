@@ -13,7 +13,14 @@ const component = {
   event: { append: refs.append, get: {}, list: {} },
 };
 
-type Appended = { kind: string; actor: unknown; subject: unknown; outcome: string; data: unknown; targets: unknown };
+type Appended = {
+  kind: string;
+  actor: unknown;
+  subject: unknown;
+  outcome: string;
+  data: unknown;
+  targets: unknown;
+};
 
 function makeCtx(handlers: Map<unknown, (args: unknown) => unknown>) {
   const appended: Appended[] = [];
@@ -35,9 +42,14 @@ const domain = createOAuthRefreshDomain({ component: component as never });
 
 test("server exchange emits oauth.refresh.reuse_detected on theft and still returns null", async () => {
   const { ctx, appended } = makeCtx(
-    new Map([[refs.exchange, () => ({ status: "reuse_detected", userId: "user1", clientId: "oc_x" })]]),
+    new Map([
+      [refs.exchange, () => ({ status: "reuse_detected", userId: "user1", clientId: "oc_x" })],
+    ]),
   );
-  const result = await domain.exchange(ctx as never, { refreshToken: "rt_stolen", clientId: "oc_x" });
+  const result = await domain.exchange(ctx as never, {
+    refreshToken: "rt_stolen",
+    clientId: "oc_x",
+  });
 
   expect(result).toBeNull();
   expect(appended).toHaveLength(1);
@@ -55,7 +67,9 @@ test("server exchange emits oauth.refresh.reuse_detected on theft and still retu
 
 test("server exchange returns the grant and emits nothing on a successful rotation", async () => {
   const { ctx, appended } = makeCtx(
-    new Map([[refs.exchange, () => ({ status: "rotated", userId: "user1", scopes: ["workspace:read"] })]]),
+    new Map([
+      [refs.exchange, () => ({ status: "rotated", userId: "user1", scopes: ["workspace:read"] })],
+    ]),
   );
   const result = await domain.exchange(ctx as never, { refreshToken: "rt_ok", clientId: "oc_x" });
 

@@ -144,6 +144,67 @@ test("server token starts authenticated without loading handshake", () => {
   auth.destroy();
 });
 
+test("forced refresh reuses a freshly refreshed token", async () => {
+  const convex = createConvexMock();
+  const fetchMock = vi.fn(async (_body: Record<string, unknown>, proxyPath: string) => {
+    expect(proxyPath).toBe("/api/auth");
+    return new Response(
+      JSON.stringify({
+        kind: "signedIn",
+        session: {
+          token: `fresh-token-${fetchMock.mock.calls.length}`,
+          refreshToken: "dummy",
+        },
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  });
+  const auth = client({
+    convex,
+    proxyPath: "/api/auth",
+    token: "server-token",
+    runtime: { proxy: createProxyRuntime(fetchMock) },
+  });
+
+  const fetchAccessToken = convex.setAuth.mock.calls[0]?.[0] as
+    | ((args: { forceRefreshToken: boolean }) => Promise<string | null>)
+    | undefined;
+  expect(fetchAccessToken).toBeDefined();
+
+  await expect(fetchAccessToken!({ forceRefreshToken: true })).resolves.toBe("fresh-token-1");
+  await expect(fetchAccessToken!({ forceRefreshToken: true })).resolves.toBe("fresh-token-1");
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+
+  auth.destroy();
+});
+
+test("stored browser token starts signed in and tolerates transient auth false", () => {
+  const convex = createConvexMock();
+  const storage = {
+    getItem: vi.fn((key: string) => (key.startsWith("__convexAuthJWT") ? "stored-token" : null)),
+    setItem: vi.fn(async () => {}),
+    removeItem: vi.fn(async () => {}),
+  };
+  const auth = client({
+    convex,
+    api: { signIn: {} as never, signOut: {} as never },
+    url: "https://example.convex.cloud",
+    storage,
+  });
+
+  expect(auth.getSnapshot()).toEqual({ status: "signedIn", token: "stored-token" });
+  convex.triggerAuthChange(false);
+  expect(auth.getSnapshot()).toEqual({ status: "signedIn", token: "stored-token" });
+  convex.triggerAuthChange(true);
+  expect(auth.getSnapshot()).toEqual({ status: "signedIn", token: "stored-token" });
+
+  auth.destroy();
+});
+
 test("proxy signIn waits for Convex auth confirmation", async () => {
   const convex = createConvexMock();
   const auth = client({
@@ -368,7 +429,7 @@ test("proxy refresh does not re-register Convex auth", async () => {
 
   const refreshedToken = await fetchAccessToken!({ forceRefreshToken: true });
   expect(refreshedToken).toBe("fresh-token");
-  expect(auth.getSnapshot()).toEqual({ status: "loading", token: null });
+  expect(auth.getSnapshot()).toEqual({ status: "signedIn", token: "fresh-token" });
   convex.triggerAuthChange(true);
   expect(auth.getSnapshot()).toEqual({ status: "signedIn", token: "fresh-token" });
   expect(convex.setAuth).toHaveBeenCalledTimes(1);

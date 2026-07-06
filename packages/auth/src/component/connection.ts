@@ -8,11 +8,11 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { stream } from "convex-helpers/server/stream";
 
+import { ErrorCode } from "../shared/codes";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -30,6 +30,12 @@ import schema from "./schema";
  * Read a connection. Overloaded: `{ id }` returns the connection doc;
  * `{ domain }` resolves the owning connection and returns
  * `{ connection, domain }`. Returns `null` when nothing matches.
+ *
+ * Domain resolution only ever matches a **verified** domain (`verifiedAt`
+ * set): an unverified/pending domain must not influence login routing or
+ * account linking, or any tenant could claim another's domain (with no
+ * DNS-TXT proof) and hijack its users. Domains are unique per row, so the
+ * first verified match is the owner.
  */
 export const get = query({
   args: {
@@ -46,10 +52,11 @@ export const get = query({
   ),
   handler: async (ctx, args) => {
     if (args.domain !== undefined) {
-      const domainRow = await ctx.db
+      const domainRows = await ctx.db
         .query("GroupConnectionDomain")
         .withIndex("domain", (idx) => idx.eq("domain", args.domain!))
-        .first();
+        .take(DOMAIN_RESOLVE_MAX);
+      const domainRow = domainRows.find((row) => row.verifiedAt !== undefined);
       if (!domainRow) {
         return null;
       }
@@ -189,7 +196,16 @@ export const update = mutation({
   },
 });
 
+/**
+ * Bound on rows scanned when resolving a connection by domain. A domain is
+ * unique per row (`domain.create` rejects cross-connection reuse), so this only
+ * guards against legacy duplicates while the verified-row filter is applied.
+ */
+const DOMAIN_RESOLVE_MAX = 16;
+
 const CASCADE_MAX = 1000;
+const SCIM_CONFIG_DELETE_BATCH = 16;
+const CONNECTION_SECRET_DELETE_BATCH = 32;
 
 async function purgeConnectionDependents(
   ctx: MutationCtx,
@@ -262,23 +278,29 @@ const remove = mutation({
   args: { id: v.id("GroupConnection") },
   returns: v.null(),
   handler: async (ctx, { id: connectionId }) => {
-    const scimConfigs = await getManyFrom(
-      ctx.db,
-      "GroupConnectionScimConfig",
-      "group_connection_id",
-      connectionId,
-      "connectionId",
-    );
+    const scimConfigs = await ctx.db
+      .query("GroupConnectionScimConfig")
+      .withIndex("group_connection_id", (q) => q.eq("connectionId", connectionId))
+      .take(SCIM_CONFIG_DELETE_BATCH + 1);
+    if (scimConfigs.length > SCIM_CONFIG_DELETE_BATCH) {
+      throw new ConvexError({
+        code: ErrorCode.CASCADE_TOO_LARGE,
+        message: `Connection has more than ${SCIM_CONFIG_DELETE_BATCH} SCIM config rows; delete is not safe.`,
+      });
+    }
     for (const scimConfig of scimConfigs) {
       await ctx.db.delete("GroupConnectionScimConfig", scimConfig._id);
     }
-    const secrets = await getManyFrom(
-      ctx.db,
-      "GroupConnectionSecret",
-      "connection_id",
-      connectionId,
-      "connectionId",
-    );
+    const secrets = await ctx.db
+      .query("GroupConnectionSecret")
+      .withIndex("connection_id", (q) => q.eq("connectionId", connectionId))
+      .take(CONNECTION_SECRET_DELETE_BATCH + 1);
+    if (secrets.length > CONNECTION_SECRET_DELETE_BATCH) {
+      throw new ConvexError({
+        code: ErrorCode.CASCADE_TOO_LARGE,
+        message: `Connection has more than ${CONNECTION_SECRET_DELETE_BATCH} secret rows; delete is not safe.`,
+      });
+    }
     for (const secret of secrets) {
       await ctx.db.delete("GroupConnectionSecret", secret._id);
     }

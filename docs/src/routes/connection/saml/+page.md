@@ -25,14 +25,14 @@ Use the `connectionId` returned by
 
 ## Methods
 
-| Method      | Signature                                                                                      | Returns                      | Description                                                                                                             |
-| ----------- | ---------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `configure` | `(ctx, { connectionId, metadata, domains?, request?, security?, serviceProvider?, profile? })` | `{ connectionId, groupId }`  | Configures SAML settings for a connection. Accepts a metadata URL or raw XML.                                           |
-| `get`       | `(ctx, { connectionId })`                                                                      | SAML config document         | Returns the current normalized SAML config for a connection.                                                            |
-| `status`    | `(ctx, { connectionId })`                                                                      | `{ configured, ready, ... }` | Returns a lightweight readiness summary for a connection.                                                               |
-| `metadata`  | `(ctx, { connectionId, entityId?, acsUrl?, sloUrl? })`                                         | `string`                     | Returns the SP metadata XML for the connection via [`auth.connection.metadata(...)`](/connection/rpc/).                         |
-| `validate`  | `(ctx, { connectionId })`                                                                      | `{ checks: [...] }`          | Validates that the SAML configuration is complete and the IdP metadata is parseable. Each check has its own `ok` field. |
-| `refresh`   | `(ctx, { connectionId })`                                                                      | `{ connectionId, groupId }`  | Re-fetches metadata from the configured `metadataUrl` and updates the stored IdP metadata.                              |
+| Method     | Signature                                                                                      | Returns                      | Description                                                                                                             |
+| ---------- | ---------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `set`      | `(ctx, { connectionId, metadata, domains?, request?, security?, serviceProvider?, profile? })` | `{ connectionId, groupId }`  | Configures SAML settings for a connection. Accepts a metadata URL or raw XML.                                           |
+| `get`      | `(ctx, { connectionId })`                                                                      | SAML config document         | Returns the current normalized SAML config for a connection.                                                            |
+| `status`   | `(ctx, { connectionId })`                                                                      | `{ configured, ready, ... }` | Returns a lightweight readiness summary for a connection.                                                               |
+| `metadata` | `(ctx, { connectionId, entityId?, acsUrl?, sloUrl? })`                                         | `string`                     | Returns the SP metadata XML for the connection via [`auth.connection.metadata(...)`](/connection/rpc/).                 |
+| `validate` | `(ctx, { connectionId })`                                                                      | `{ checks: [...] }`          | Validates that the SAML configuration is complete and the IdP metadata is parseable. Each check has its own `ok` field. |
+| `refresh`  | `(ctx, { connectionId })`                                                                      | `{ connectionId, groupId }`  | Re-fetches metadata from the configured `metadataUrl` and updates the stored IdP metadata.                              |
 
 ## Example
 

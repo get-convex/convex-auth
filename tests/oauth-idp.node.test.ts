@@ -11,7 +11,8 @@ import {
 } from "jose";
 import { beforeAll, expect, test, vi } from "vite-plus/test";
 
-type AuthorizeFactory = typeof import("@robelest/convex-auth/server/oauth/authorize").createAuthorizeHandler;
+type AuthorizeFactory =
+  typeof import("@robelest/convex-auth/server/oauth/authorize").createAuthorizeHandler;
 type TokenFactory = typeof import("@robelest/convex-auth/server/oauth/token").createTokenHandler;
 type GenerateOAuthToken = typeof import("@robelest/convex-auth/server/tokens").generateOAuthToken;
 type VerifyOAuthToken = typeof import("@robelest/convex-auth/server/tokens").verifyOAuthToken;
@@ -25,7 +26,9 @@ beforeAll(async () => {
   process.env.CONVEX_SITE_URL = "https://example.convex.site";
   const keys = await generateKeyPair("EdDSA", { crv: "Ed25519", extractable: true });
   process.env.JWT_PRIVATE_KEY = await exportPKCS8(keys.privateKey);
-  process.env.JWKS = JSON.stringify({ keys: [{ use: "sig", ...(await exportJWK(keys.publicKey)) }] });
+  process.env.JWKS = JSON.stringify({
+    keys: [{ use: "sig", ...(await exportJWK(keys.publicKey)) }],
+  });
   vi.resetModules();
   ({ createAuthorizeHandler } = await import("@robelest/convex-auth/server/oauth/authorize"));
   ({ createTokenHandler } = await import("@robelest/convex-auth/server/oauth/token"));
@@ -35,6 +38,9 @@ beforeAll(async () => {
 const MCP_RESOURCE = "https://example.convex.site/mcp";
 
 const REDIRECT_URI = "https://app.example/cb";
+const tokenDeps = {
+  issuer: () => "https://example.convex.site/auth",
+};
 
 const confidentialClient = {
   _id: "client1",
@@ -83,7 +89,11 @@ test("H1: an unregistered redirect_uri is NOT redirected to (open-redirect fix)"
   // response_type omitted + an attacker-controlled, unregistered redirect_uri.
   const res = await handler(
     ctxWithUser,
-    authorizeRequest({ client_id: "oc_test", redirect_uri: "https://evil.example", code_challenge: "abc" }),
+    authorizeRequest({
+      client_id: "oc_test",
+      redirect_uri: "https://evil.example",
+      code_challenge: "abc",
+    }),
   );
   expect(res.status).toBe(400);
   expect(res.headers.get("Location")).toBeNull();
@@ -147,6 +157,7 @@ test("authorize: a valid request redirects to the authorize (consent) page", asy
 
 test("M1: a confidential client must present its secret", async () => {
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => confidentialClient as never,
     verifyClientSecret: async () => confidentialClient as never,
     acceptCode: async () => null,
@@ -169,6 +180,7 @@ test("M1: a confidential client must present its secret", async () => {
 test("authorization_code: valid PKCE issues a signed at+jwt for the user", async () => {
   const verifier = "test-verifier-1234567890";
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => publicClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async (_ctx, _codeHash, clientId) =>
@@ -208,6 +220,7 @@ test("authorization_code: a public (none) client presenting a secret is rejected
   const noneClient = { ...publicClient, tokenEndpointAuthMethod: "none" };
   const verifier = "test-verifier-1234567890";
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => noneClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async (_ctx, _codeHash, clientId) =>
@@ -238,6 +251,7 @@ test("authorization_code: a public (none) client presenting a secret is rejected
 
 test("authorization_code: PKCE mismatch is rejected", async () => {
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => publicClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async (_ctx, _codeHash, clientId, redirectUri, codeChallenge) => {
@@ -270,6 +284,7 @@ test("authorization_code: PKCE mismatch is rejected", async () => {
 
 test("authorization_code: a replayed code is rejected", async () => {
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => publicClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async () => {
@@ -293,6 +308,7 @@ test("authorization_code: a replayed code is rejected", async () => {
 
 test("unsupported grant_type is rejected", async () => {
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => publicClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async () => null,
@@ -305,6 +321,7 @@ test("unsupported grant_type is rejected", async () => {
 
 test("L2: client_credentials uses a namespaced subject, not a bare clientId", async () => {
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => confidentialClient as never,
     verifyClientSecret: async () => confidentialClient as never,
     acceptCode: async () => null,
@@ -367,6 +384,7 @@ test("authorize rejects a malformed or fragment-bearing resource indicator", asy
 test("authorization_code binds the access token to the requested resource", async () => {
   const verifier = "test-verifier-1234567890";
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () => publicClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async (_ctx, _codeHash, clientId) =>
@@ -400,7 +418,9 @@ test("authorization_code binds the access token to the requested resource", asyn
 
 test("refresh_token rotation preserves the resource binding", async () => {
   const handler = createTokenHandler({
-    getClient: async () => ({ ...publicClient, grantTypes: ["authorization_code", "refresh_token"] }) as never,
+    ...tokenDeps,
+    getClient: async () =>
+      ({ ...publicClient, grantTypes: ["authorization_code", "refresh_token"] }) as never,
     verifyClientSecret: async () => null,
     acceptCode: async () => null,
     createRefresh: async () => ({ refreshToken: "rt_new" }),
@@ -424,6 +444,7 @@ test("refresh_token rotation preserves the resource binding", async () => {
 test("refresh_token with broader scope is rejected without rotating", async () => {
   let exchangeCalledWith: { requestedScopes?: string[] } | null = null;
   const handler = createTokenHandler({
+    ...tokenDeps,
     getClient: async () =>
       ({ ...publicClient, grantTypes: ["authorization_code", "refresh_token"] }) as never,
     verifyClientSecret: async () => null,
@@ -457,7 +478,9 @@ test("verifyOAuthToken enforces the resource binding (MCP audience check)", asyn
   });
   expect(await verifyOAuthToken(bound, { resource: MCP_RESOURCE })).not.toBeNull();
   expect((await verifyOAuthToken(bound))?.resource).toBe(MCP_RESOURCE);
-  expect(await verifyOAuthToken(bound, { resource: "https://example.convex.site/other" })).toBeNull();
+  expect(
+    await verifyOAuthToken(bound, { resource: "https://example.convex.site/other" }),
+  ).toBeNull();
 
   const unbound = await generateOAuthToken({ userId: "user1", clientId: "oc_test", scopes: [] });
   expect((await verifyOAuthToken(unbound))?.resource).toBeNull();
@@ -497,6 +520,7 @@ const refreshGrantClient = {
 
 function codeExchangeHandler(client: typeof publicClient, verifier: string) {
   return createTokenHandler({
+    ...tokenDeps,
     getClient: async () => client as never,
     verifyClientSecret: async () => null,
     acceptCode: async (_ctx, _codeHash, clientId) =>
@@ -551,22 +575,30 @@ test("refresh_token exchange is refused for a client without the refresh_token g
     scopes: ["workspace:read"],
   });
   const refused = await createTokenHandler({
+    ...tokenDeps,
     getClient: async () => publicClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async () => null,
     createRefresh: async () => ({ refreshToken: "rt" }),
     exchangeRefresh,
-  })({} as never, tokenRequest({ grant_type: "refresh_token", refresh_token: "rt_old", client_id: "oc_test" }));
+  })(
+    {} as never,
+    tokenRequest({ grant_type: "refresh_token", refresh_token: "rt_old", client_id: "oc_test" }),
+  );
   expect(refused.status).toBe(400);
   expect((await refused.json()).error).toBe("unauthorized_client");
 
   const allowed = await createTokenHandler({
+    ...tokenDeps,
     getClient: async () => refreshGrantClient as never,
     verifyClientSecret: async () => null,
     acceptCode: async () => null,
     createRefresh: async () => ({ refreshToken: "rt" }),
     exchangeRefresh,
-  })({} as never, tokenRequest({ grant_type: "refresh_token", refresh_token: "rt_old", client_id: "oc_test" }));
+  })(
+    {} as never,
+    tokenRequest({ grant_type: "refresh_token", refresh_token: "rt_old", client_id: "oc_test" }),
+  );
   expect(allowed.status).toBe(200);
   expect((await allowed.json()).access_token).toBeTruthy();
 });

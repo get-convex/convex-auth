@@ -6,8 +6,8 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { stream } from "convex-helpers/server/stream";
+import { partial } from "convex-helpers/validators";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { ErrorCode } from "../shared/codes";
@@ -16,31 +16,13 @@ import { mutation, query } from "./functions";
 import { vPaginated, vUserDoc } from "./model";
 import schema from "./schema";
 
-const vUserInsertData = v.object({
-  name: v.optional(v.string()),
-  image: v.optional(v.string()),
-  email: v.optional(v.string()),
-  emailVerificationTime: v.optional(v.number()),
-  phone: v.optional(v.string()),
-  phoneVerificationTime: v.optional(v.number()),
-  isAnonymous: v.optional(v.boolean()),
-  lastActiveGroup: v.optional(v.id("Group")),
-  hasTotp: v.optional(v.boolean()),
-  extend: v.optional(v.any()),
-});
+const vUserInsertData = v.object(schema.tables.User.validator.fields);
 
-const vUserPatchData = v.object({
-  name: v.optional(v.string()),
-  image: v.optional(v.string()),
-  email: v.optional(v.string()),
-  emailVerificationTime: v.optional(v.number()),
-  phone: v.optional(v.string()),
-  phoneVerificationTime: v.optional(v.number()),
-  isAnonymous: v.optional(v.boolean()),
-  lastActiveGroup: v.optional(v.id("Group")),
-  hasTotp: v.optional(v.boolean()),
-  extend: v.optional(v.any()),
-});
+const vUserPatchData = v.object(partial(schema.tables.User.validator.fields));
+
+const CASCADE_MAX = 1000;
+
+const tooMany = (count: number) => count > CASCADE_MAX;
 
 /**
  * Read a user by identity. One overloaded function (single Convex
@@ -124,13 +106,20 @@ export const list = query({
   handler: async (ctx, args) => {
     const where = args.where ?? {};
     const order = args.order ?? "desc";
+    const orderBy = args.orderBy ?? "_creationTime";
 
     const base = stream(ctx.db, schema).query("User");
     let q;
-    if (where.email !== undefined) {
-      q = base.withIndex("email", (idx) => idx.eq("email", where.email!));
-    } else if (where.phone !== undefined) {
-      q = base.withIndex("phone", (idx) => idx.eq("phone", where.phone!));
+    if (orderBy === "email" || where.email !== undefined) {
+      q =
+        where.email !== undefined
+          ? base.withIndex("email", (idx) => idx.eq("email", where.email!))
+          : base.withIndex("email");
+    } else if (orderBy === "phone" || where.phone !== undefined) {
+      q =
+        where.phone !== undefined
+          ? base.withIndex("phone", (idx) => idx.eq("phone", where.phone!))
+          : base.withIndex("phone");
     } else {
       q = base;
     }
@@ -241,8 +230,6 @@ const remove = mutation({
     }
 
     if (cascade === true) {
-      const CASCADE_MAX = 1000;
-      const tooMany = (count: number) => count > CASCADE_MAX;
       const [sessions, accounts, keys, members, passkeys, totps] = await Promise.all([
         ctx.db
           .query("Session")
@@ -311,7 +298,16 @@ const remove = mutation({
         ...totps.map((t) => ctx.db.delete("TotpFactor", t._id)),
       ]);
     }
-    const ownedEmails = await getManyFrom(ctx.db, "UserEmail", "user_id", userId, "userId");
+    const ownedEmails = await ctx.db
+      .query("UserEmail")
+      .withIndex("user_id", (q) => q.eq("userId", userId))
+      .take(CASCADE_MAX + 1);
+    if (tooMany(ownedEmails.length)) {
+      throw new ConvexError({
+        code: ErrorCode.CASCADE_TOO_LARGE,
+        message: `User has more than ${CASCADE_MAX} emails; cascade delete is not safe in a single mutation.`,
+      });
+    }
     await Promise.all(ownedEmails.map((e) => ctx.db.delete("UserEmail", e._id)));
 
     await ctx.db.delete("User", userId);

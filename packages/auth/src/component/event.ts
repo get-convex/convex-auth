@@ -36,6 +36,7 @@ const PRODUCER = { id: "auth", epoch: 0 } as const;
 
 /** Whole auth events drained into the stream per `drainPending` invocation. */
 const DRAIN_BATCH = 25;
+const MAX_EVENT_TARGETS = 64;
 
 function targetKey(target: AuthEventTarget): string {
   return `${target.kind}:${target.id}`;
@@ -108,18 +109,18 @@ const EVENT_KIND_DATA_CATEGORY: Record<AuthEvent["kind"], keyof typeof PUBLIC_DA
   "totp.removed": "totp",
   "email.verified": "email",
   "phone.verified": "phone",
-  "api_key.issued": "api_key",
+  "api_key.created": "api_key",
   "api_key.revoked": "api_key",
   "oauth.client.created": "oauth",
   "oauth.client.revoked": "oauth",
-  "oauth.code.issued": "oauth",
-  "oauth.token.issued": "oauth",
+  "oauth.code.created": "oauth",
+  "oauth.token.created": "oauth",
   "oauth.token.exchanged": "oauth",
   "oauth.refresh.reuse_detected": "oauth",
   "oauth.refresh.revoked": "oauth",
   "connection.created": "connection",
   "connection.updated": "connection",
-  "connection.deleted": "connection",
+  "connection.removed": "connection",
   "connection.login.succeeded": "connection",
   "connection.login.failed": "connection",
   "connection.domain.verification_requested": "connection",
@@ -372,6 +373,12 @@ export const append = mutation({
   }),
   handler: async (ctx, args) => {
     const scopes = args.targets ?? args.event.targets;
+    if (scopes.length > MAX_EVENT_TARGETS) {
+      throw new ConvexError({
+        code: ErrorCode.INVALID_PARAMETERS,
+        message: `Auth events support at most ${MAX_EVENT_TARGETS} targets`,
+      });
+    }
     const seenScopes = new Set<string>();
     const createdTargets: AuthEventTarget[] = [];
     const projections: Array<Infer<typeof vAuthEventProjectionDoc>> = [];
@@ -481,7 +488,13 @@ export const drainPending = internalMutation({
       const rows = await ctx.db
         .query("AuthEventProjection")
         .withIndex("event_id_target", (q) => q.eq("eventId", next.eventId))
-        .collect();
+        .take(MAX_EVENT_TARGETS + 1);
+      if (rows.length > MAX_EVENT_TARGETS) {
+        throw new ConvexError({
+          code: ErrorCode.INVALID_PARAMETERS,
+          message: `Auth event ${next.eventId} has too many projections to drain`,
+        });
+      }
       const event = reconstructEvent(next.eventId, rows);
       const receipt = await authEventStream.appendTail(ctx, {
         streamId,

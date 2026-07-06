@@ -3,15 +3,21 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 const ORIGINAL_ENV = {
   CONVEX_SITE_URL: process.env.CONVEX_SITE_URL,
-  CONVEX_AUTH_HTTP_PREFIX: process.env.CONVEX_AUTH_HTTP_PREFIX,
   JWT_PRIVATE_KEY: process.env.JWT_PRIVATE_KEY,
 };
 
 afterEach(() => {
   vi.resetModules();
-  process.env.CONVEX_SITE_URL = ORIGINAL_ENV.CONVEX_SITE_URL;
-  process.env.CONVEX_AUTH_HTTP_PREFIX = ORIGINAL_ENV.CONVEX_AUTH_HTTP_PREFIX;
-  process.env.JWT_PRIVATE_KEY = ORIGINAL_ENV.JWT_PRIVATE_KEY;
+  if (ORIGINAL_ENV.CONVEX_SITE_URL === undefined) {
+    delete process.env.CONVEX_SITE_URL;
+  } else {
+    process.env.CONVEX_SITE_URL = ORIGINAL_ENV.CONVEX_SITE_URL;
+  }
+  if (ORIGINAL_ENV.JWT_PRIVATE_KEY === undefined) {
+    delete process.env.JWT_PRIVATE_KEY;
+  } else {
+    process.env.JWT_PRIVATE_KEY = ORIGINAL_ENV.JWT_PRIVATE_KEY;
+  }
 });
 
 test("generateToken retries private-key import after an invalid warmup", async () => {
@@ -80,7 +86,6 @@ test("generateToken accepts flattened PKCS#8 private keys", async () => {
 
 test("generateToken uses the mounted auth route as issuer", async () => {
   process.env.CONVEX_SITE_URL = "https://example.convex.site";
-  process.env.CONVEX_AUTH_HTTP_PREFIX = "/custom-auth";
 
   const keys = await generateKeyPair("EdDSA", {
     crv: "Ed25519",
@@ -91,7 +96,7 @@ test("generateToken uses the mounted auth route as issuer", async () => {
   const tokens = await import("@robelest/convex-auth/server/tokens");
   const token = await tokens.generateToken(
     { identity: { subject: "user3" as any, sessionId: "session3" as any } },
-    {} as any,
+    { path: "/custom-auth" } as any,
   );
 
   const claims = decodeJwt(token);
@@ -101,7 +106,6 @@ test("generateToken uses the mounted auth route as issuer", async () => {
 
 test("generateToken defaults to the /auth issuer", async () => {
   process.env.CONVEX_SITE_URL = "https://example.convex.site";
-  delete process.env.CONVEX_AUTH_HTTP_PREFIX;
 
   const keys = await generateKeyPair("EdDSA", {
     crv: "Ed25519",

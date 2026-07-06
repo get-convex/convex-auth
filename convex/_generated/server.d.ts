@@ -37,20 +37,14 @@ type Env = {
   readonly AUTH_SESSION_INACTIVE_DURATION_MS: string | undefined;
   readonly AUTH_SESSION_TOTAL_DURATION_MS: string | undefined;
   readonly CHANGE_PASSWORD_URL: string | undefined;
-  readonly CONVEX_AUTH_HTTP_PREFIX: string | undefined;
-  readonly CONVEX_AUTH_SITE_URL: string | undefined;
   readonly CONVEX_SITE_URL: string | undefined;
-  readonly CUSTOM_AUTH_SITE_URL: string | undefined;
   readonly IOS_APPLINK_PATHS: string | undefined;
   readonly IOS_APP_IDS: string | undefined;
   readonly JWKS: string | undefined;
   readonly JWT_PRIVATE_KEY: string | undefined;
   readonly RESEND_API_KEY: string | undefined;
-  readonly SECONDARY_URL: string | undefined;
   readonly SECURITY_CONTACT: string | undefined;
   readonly SECURITY_TXT_EXPIRES_DAYS: string | undefined;
-  readonly SITE_URL: string | undefined;
-  readonly WEBAUTHN_ALT_ORIGINS: string | undefined;
 };
 
 /**

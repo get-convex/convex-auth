@@ -1,10 +1,8 @@
 import { ConvexError, v } from "convex/values";
 
 import { internalMutation, internalQuery } from "../_generated/server";
-import {
-  issuePriority as issuePriorityValidator,
-  issueStatus as issueStatusValidator,
-} from "../schema";
+import { ErrorCode } from "../errors";
+import { issuePriority, issueStatus } from "../schema";
 
 export const getProject = internalQuery({
   args: { projectId: v.string() },
@@ -42,8 +40,8 @@ export const list = internalQuery({
       issueId: v.id("issues"),
       number: v.number(),
       title: v.string(),
-      status: issueStatusValidator,
-      priority: issuePriorityValidator,
+      status: issueStatus,
+      priority: issuePriority,
       labels: v.array(v.string()),
     }),
   ),
@@ -76,11 +74,11 @@ export const create = internalMutation({
   handler: async (ctx, args) => {
     const projectId = ctx.db.normalizeId("projects", args.projectId);
     if (!projectId) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
+      throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Project not found." });
     }
     const project = await ctx.db.get(projectId);
     if (!project) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Project not found." });
+      throw new ConvexError({ code: ErrorCode.NOT_FOUND, message: "Project not found." });
     }
     const number = project.issueCounter + 1;
     await ctx.db.patch(projectId, {

@@ -24,6 +24,7 @@ import { defineAuth } from "@robelest/convex-auth/server";
 import {
   anonymous,
   apple,
+  credentials,
   custom,
   email,
   github,
@@ -220,6 +221,39 @@ defineAuth(components.auth, {
 Use `custom()` when the provider is OAuth-based but does not have a first-party
 wrapper yet. The `profile()` callback receives a stable token object owned by
 convex-auth so the public API does not depend on Arctic.
+
+## Custom Credentials
+
+`credentials()` is the low-level escape hatch for authentication that is not
+OAuth-based. Provide an `authorize` callback that validates the submitted
+credentials and returns the authenticated user; return `null` to reject the
+attempt. The built-in `password()` provider is layered on top of this.
+
+- Import: `@robelest/convex-auth/providers`
+- Factory: `credentials({ id?, authorize, crypto?, extraProviders? })`
+- Default `id`: `"credentials"`
+
+```ts
+import { credentials } from "@robelest/convex-auth/providers";
+
+defineAuth(components.auth, {
+  providers: [
+    credentials({
+      id: "api-token",
+      authorize: async (params, ctx) => {
+        const user = await lookupUserByToken(ctx, params.token as string);
+        return user ? { userId: user._id } : null;
+      },
+    }),
+  ],
+});
+```
+
+`authorize` receives the raw `params` passed to `signIn` and the action `ctx`.
+Return `{ userId }` (optionally `sessionId`) to complete sign-in, a deferred
+`SignInFlowResult` for multi-step flows, or `null` to reject. Pass `crypto`
+(`hashSecret`/`verifySecret`) for password-style secret verification, and
+`extraProviders` to register additional providers alongside it.
 
 ## Password
 

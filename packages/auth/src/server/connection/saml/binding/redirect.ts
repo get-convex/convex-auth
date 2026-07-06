@@ -174,10 +174,7 @@ export async function logoutResponseRedirectURL(
       if (requestInfo && requestInfo.extract && asParsedRequest(requestInfo.extract).request) {
         tvalue.InResponseTo = asParsedRequest(requestInfo.extract).request.id;
       }
-      rawSamlResponse = replaceTagsByValue(
-        defaultLogoutResponseTemplate.context,
-        tvalue,
-      );
+      rawSamlResponse = replaceTagsByValue(defaultLogoutResponseTemplate.context, tvalue);
     }
     return {
       id,

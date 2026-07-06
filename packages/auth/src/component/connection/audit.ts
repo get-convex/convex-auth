@@ -130,7 +130,9 @@ export const list = query({
     if (args.groupId !== undefined) {
       const result = await paginator(ctx.db, schema)
         .query("AuthEventProjection")
-        .withIndex("target_time", (idx) => idx.eq("targetKind", "group").eq("targetId", args.groupId!))
+        .withIndex("target_time", (idx) =>
+          idx.eq("targetKind", "group").eq("targetId", args.groupId!),
+        )
         .order("desc")
         .paginate(args.paginationOpts);
       return { ...result, page: result.page.map(publicProjection) };

@@ -238,10 +238,16 @@ export function password<DataModel extends GenericDataModel = GenericDataModel>(
             validatePasswordRequirements(newPassword as string);
             const result = await ctx.auth.provider.signIn(ctx, resetProvider, { params });
             if (result === null) {
-              throw new ConvexError({ code: ErrorCode.INVALID_CREDENTIALS, message: "Invalid code" });
+              throw new ConvexError({
+                code: ErrorCode.INVALID_CREDENTIALS,
+                message: "Invalid code",
+              });
             }
             if ("kind" in result) {
-              throw new ConvexError({ code: ErrorCode.INVALID_CREDENTIALS, message: "Invalid code" });
+              throw new ConvexError({
+                code: ErrorCode.INVALID_CREDENTIALS,
+                message: "Invalid code",
+              });
             }
             const { userId, sessionId } = result;
             await ctx.auth.account.update(ctx, {

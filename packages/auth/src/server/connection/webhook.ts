@@ -8,8 +8,8 @@ import {
   listReadyWebhookDeliveries,
   listWebhookDeliveries,
   listWebhookEndpoints,
-  patchWebhookDelivery,
   updateWebhookEndpoint,
+  updateWebhookDelivery,
 } from "../contract";
 import { convexError } from "../errors";
 import type { AuthEventKind } from "../events";
@@ -127,7 +127,7 @@ export function createGroupWebhookDomain(deps: WebhookDeps) {
         const endpoint = await getWebhookEndpoint(ctx, config.component.connection, args.id);
         await updateWebhookEndpoint(ctx, config.component.connection, {
           endpointId: args.id,
-          data: { status: "disabled" },
+          patch: { status: "disabled" },
         });
         if (endpoint) {
           await emitGroupAuthEvent(ctx, {
@@ -159,9 +159,9 @@ export function createGroupWebhookDomain(deps: WebhookDeps) {
         });
       },
       markDelivered: async (ctx: ComponentCtx, args: { id: string; responseStatus?: number }) => {
-        await patchWebhookDelivery(ctx, config.component.connection, {
+        await updateWebhookDelivery(ctx, config.component.connection, {
           deliveryId: args.id,
-          data: {
+          patch: {
             status: "delivered",
             attemptCount: 1,
             lastAttemptAt: Date.now(),
@@ -181,9 +181,9 @@ export function createGroupWebhookDomain(deps: WebhookDeps) {
           };
         },
       ) => {
-        await patchWebhookDelivery(ctx, config.component.connection, {
+        await updateWebhookDelivery(ctx, config.component.connection, {
           deliveryId: args.id,
-          data: {
+          patch: {
             status: args.data.retryAt ? "pending" : "failed",
             attemptCount: args.data.attemptCount,
             lastAttemptAt: Date.now(),

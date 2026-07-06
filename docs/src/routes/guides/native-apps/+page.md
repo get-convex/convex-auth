@@ -60,7 +60,7 @@ entrypoint falls back to the browser client automatically when running on web.
 
 ```js
 // app.config.js
-const passkeyDomain = process.env.SITE_URL ? new URL(process.env.SITE_URL).hostname : null;
+const passkeyDomain = process.env.APP_URL ? new URL(process.env.APP_URL).hostname : null;
 
 module.exports = {
   expo: {
@@ -194,10 +194,10 @@ should appear.
 ## Choosing the RP ID
 
 Your WebAuthn RP ID must match the AASA / `assetlinks.json` host. The
-convex-auth `passkey()` provider derives the RP ID from `SITE_URL` by
+convex-auth `passkey()` provider derives the RP ID from `APP_URL` by
 default:
 
-| `SITE_URL`                | RP ID             |
+| `APP_URL`                 | RP ID             |
 | ------------------------- | ----------------- |
 | `https://app.example.com` | `app.example.com` |
 | `http://localhost:5173`   | `localhost`       |

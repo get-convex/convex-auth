@@ -5,11 +5,12 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { v } from "convex/values";
 
 import { mutation, query } from "../../functions";
 import { vAuthEventKind, vGroupWebhookEndpointDoc, vWebhookEndpointStatus } from "../../model";
+
+const WEBHOOK_ENDPOINT_LIST_BATCH = 128;
 
 /** Read a webhook endpoint by id. */
 export const get = query({
@@ -25,13 +26,10 @@ export const list = query({
   args: { connectionId: v.id("GroupConnection") },
   returns: v.array(vGroupWebhookEndpointDoc),
   handler: async (ctx, { connectionId }) => {
-    return await getManyFrom(
-      ctx.db,
-      "GroupWebhookEndpoint",
-      "group_connection_id",
-      connectionId,
-      "connectionId",
-    );
+    return await ctx.db
+      .query("GroupWebhookEndpoint")
+      .withIndex("group_connection_id", (q) => q.eq("connectionId", connectionId))
+      .take(WEBHOOK_ENDPOINT_LIST_BATCH);
   },
 });
 

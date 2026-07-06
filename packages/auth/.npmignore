@@ -1,6 +1,0 @@
-*.map
-dist/index.js
-dist/model.d.ts
-dist/model.d.ts.map
-dist/schema.d.ts
-dist/schema.d.ts.map

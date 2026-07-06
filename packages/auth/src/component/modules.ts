@@ -28,9 +28,10 @@ const modules: Record<string, () => Promise<unknown>> = {
   "./component/factor/totp.ts": () => import("./factor/totp"),
   "./component/factor/device.ts": () => import("./factor/device"),
   "./component/connection.ts": () => import("./connection"),
+  "./component/connection/saml/request.ts": () => import("./connection/saml/request"),
+  "./component/connection/saml/assertion.ts": () => import("./connection/saml/assertion"),
   "./component/connection/domain.ts": () => import("./connection/domain"),
-  "./component/connection/domain/verification.ts": () =>
-    import("./connection/domain/verification"),
+  "./component/connection/domain/verification.ts": () => import("./connection/domain/verification"),
   "./component/connection/secret.ts": () => import("./connection/secret"),
   "./component/connection/scim/config.ts": () => import("./connection/scim/config"),
   "./component/connection/scim/identity.ts": () => import("./connection/scim/identity"),

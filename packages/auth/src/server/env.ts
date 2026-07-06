@@ -26,20 +26,14 @@ export const authEnv = {
   AUTH_SESSION_INACTIVE_DURATION_MS: v.optional(v.string()),
   AUTH_SESSION_TOTAL_DURATION_MS: v.optional(v.string()),
   CHANGE_PASSWORD_URL: v.optional(v.string()),
-  CONVEX_AUTH_HTTP_PREFIX: v.optional(v.string()),
-  CONVEX_AUTH_SITE_URL: v.optional(v.string()),
   CONVEX_SITE_URL: v.optional(v.string()),
-  CUSTOM_AUTH_SITE_URL: v.optional(v.string()),
   IOS_APP_IDS: v.optional(v.string()),
   IOS_APPLINK_PATHS: v.optional(v.string()),
   JWKS: v.optional(v.string()),
   JWT_PRIVATE_KEY: v.optional(v.string()),
   RESEND_API_KEY: v.optional(v.string()),
-  SECONDARY_URL: v.optional(v.string()),
   SECURITY_CONTACT: v.optional(v.string()),
   SECURITY_TXT_EXPIRES_DAYS: v.optional(v.string()),
-  SITE_URL: v.optional(v.string()),
-  WEBAUTHN_ALT_ORIGINS: v.optional(v.string()),
 } as const;
 
 /** Inferred type of the validated auth environment from {@link authEnv}. */

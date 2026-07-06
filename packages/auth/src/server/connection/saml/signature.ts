@@ -15,12 +15,7 @@ import {
   schemeToHash,
 } from "./xmldsig";
 import { getContext } from "./api";
-import {
-  selectXPath as select,
-  type SelectedValue,
-  isElementNode,
-  isTextNode,
-} from "./dom/select";
+import { selectXPath as select, type SelectedValue, isElementNode, isTextNode } from "./dom/select";
 import { decodeBase64, encodeBase64 } from "@oslojs/encoding";
 import type { SignatureConfig } from "./types";
 import type { SamlMetadata } from "./metadata";
@@ -194,9 +189,7 @@ export async function verifySignature(
 
     if (opts.metadata) {
       const certificateNode = select(".//*[local-name(.)='X509Certificate']", signatureNode);
-      let metadataCertList: string | unknown[] | null = opts.metadata.getX509Certificate(
-        "signing",
-      );
+      let metadataCertList: string | unknown[] | null = opts.metadata.getX509Certificate("signing");
       if (Array.isArray(metadataCertList)) {
         metadataCertList = flattenDeep(metadataCertList);
       } else if (typeof metadataCertList === "string") {
@@ -360,10 +353,7 @@ export async function verifyMessageSignature(
         sigBase64 = encodeBase64(incomingSignature);
       }
       let certOrKey = publicKey;
-      if (
-        publicKey.indexOf("BEGIN CERTIFICATE") < 0 &&
-        publicKey.indexOf("BEGIN PUBLIC KEY") < 0
-      ) {
+      if (publicKey.indexOf("BEGIN CERTIFICATE") < 0 && publicKey.indexOf("BEGIN PUBLIC KEY") < 0) {
         certOrKey = toPemCertificate(publicKey);
       }
       return rsaVerify(certOrKey, source, sigBase64, hash);

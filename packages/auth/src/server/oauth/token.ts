@@ -20,6 +20,7 @@ export type OAuthRefreshRotation = { refreshToken: string; expiresAt: number } &
 
 /** Dependencies injected by the runtime into the token handler. */
 export interface OAuthTokenDeps {
+  issuer: () => string;
   getClient: (
     ctx: GenericActionCtx<GenericDataModel>,
     clientId: string,
@@ -56,10 +57,23 @@ export interface OAuthTokenDeps {
   ) => Promise<unknown>;
 }
 
+/**
+ * RFC 6749 §5.2 token-error response. `Cache-Control: no-store` is set on every
+ * token response (including errors); a `401 invalid_client` additionally carries
+ * a `WWW-Authenticate: Basic realm="token"` challenge (`client_secret_basic` is
+ * a supported auth method).
+ */
 function jsonError(status: number, error: string, description: string): Response {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+  };
+  if (status === 401 && error === "invalid_client") {
+    headers["WWW-Authenticate"] = 'Basic realm="token"';
+  }
   return new Response(JSON.stringify({ error, error_description: description }), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers,
   });
 }
 
@@ -210,6 +224,7 @@ async function handleAuthorizationCode(
     userId: doc.userId,
     clientId,
     scopes: doc.scopes,
+    issuer: deps.issuer(),
     resource: doc.resource,
   });
   const refreshToken = client.grantTypes.includes("refresh_token")
@@ -289,6 +304,7 @@ async function handleRefreshToken(
     userId: rotated.userId,
     clientId,
     scopes,
+    issuer: deps.issuer(),
     resource: rotated.resource,
   });
   await deps.emitEvent?.(ctx, {
@@ -347,9 +363,10 @@ async function handleClientCredentials(
     userId: `client:${clientId}`,
     clientId,
     scopes: effectiveScopes,
+    issuer: deps.issuer(),
   });
   await deps.emitEvent?.(ctx, {
-    kind: "oauth.token.issued",
+    kind: "oauth.token.created",
     actor: { type: "oauth_client", id: clientId },
     subject: { type: "oauth_client", id: clientId },
     targets: [{ kind: "oauth_client", id: clientId }],

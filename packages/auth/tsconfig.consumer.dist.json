@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["esnext", "dom"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "paths": {
+      "@convex/*": ["../../convex/*"],
+      "@robelest/convex-auth/permissions": ["./dist/permissions/index.d.ts"],
+      "@robelest/convex-auth/browser": ["./dist/browser/index.d.ts"],
+      "@robelest/convex-auth/client": ["./dist/client/index.d.ts"],
+      "@robelest/convex-auth/component": ["./dist/component/index.d.ts"],
+      "@robelest/convex-auth/convex.config": ["./dist/component/convex.config.d.ts"],
+      "@robelest/convex-auth/expo": ["./dist/expo/index.d.ts"],
+      "@robelest/convex-auth/server": ["./dist/server/index.d.ts"],
+      "@robelest/convex-auth/providers": ["./dist/providers/index.d.ts"],
+      "@robelest/convex-auth/providers/*": ["./dist/providers/*.d.ts"]
+    }
+  },
+  "include": ["consumer/**/*.ts"]
+}

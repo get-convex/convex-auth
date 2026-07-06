@@ -146,6 +146,62 @@ test("oauth refresh exchange tolerates an in-window replay and leaves invalid to
   expect(notBurned).not.toBeNull();
 });
 
+test("oauth refresh tolerates a long-delayed retry when the client never rotated forward (MCP re-auth fix)", async () => {
+  const t = convexTest(schema);
+  const userId = await makeUser(t, "oauth-refresh-retry@example.com");
+  const now = Date.now();
+  const week = 7 * 24 * 60 * 60 * 1000;
+
+  await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.create, {
+      tokenHash: "rt0",
+      clientId: "oc_retry",
+      userId,
+      scopes: ["workspace:read"],
+      expiresAt: now + week,
+    });
+  });
+
+  const first = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+      tokenHash: "rt0",
+      newTokenHash: "rt1",
+      clientId: "oc_retry",
+      now,
+      newExpiresAt: now + week,
+      reuseWindowMs: 60_000,
+    });
+  });
+  expect(first.status).toBe("rotated");
+
+  // The token response was lost, so the client never used rt1 and retries rt0 ten
+  // minutes later — far outside the grace window. Because the client never rotated
+  // past rt0 (rt1 is still unused), this is a benign retry, not theft: the grant
+  // must stay live rather than force a re-login.
+  const retry = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+      tokenHash: "rt0",
+      newTokenHash: "rt1b",
+      clientId: "oc_retry",
+      now: now + 10 * 60_000,
+      newExpiresAt: now + 10 * 60_000 + week,
+      reuseWindowMs: 60_000,
+    });
+  });
+  expect(retry.status).toBe("rotated");
+
+  const [rt0, rt1, rt1b] = await t.run(async (ctx) => {
+    return [
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "rt0" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "rt1" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "rt1b" }),
+    ];
+  });
+  expect(rt0).not.toBeNull();
+  expect(rt1).not.toBeNull();
+  expect(rt1b).not.toBeNull();
+});
+
 test("oauth refresh revoke revokes the grant so every token in the chain fails closed", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-revoke@example.com");
@@ -191,7 +247,7 @@ test("oauth refresh revoke revokes the grant so every token in the chain fails c
   expect(missing).toBeNull();
 });
 
-test("oauth refresh in-window replay supersedes — only the latest tip survives, no theft", async () => {
+test("oauth refresh replay keeps every issued tip valid — no poisoning, no theft", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-idempotent@example.com");
   const now = Date.now();
@@ -224,8 +280,9 @@ test("oauth refresh in-window replay supersedes — only the latest tip survives
     expect(replay.status).toBe("rotated");
   }
 
-  // No theft (grant stays live), but each in-window replay supersedes the prior
-  // unused tip, so only the latest child (id1c) is usable; id1 and id1b are dropped.
+  // No theft (grant stays live). Each replay mints a fresh child WITHOUT deleting
+  // the earlier tips, so a client that received ANY of them can still rotate —
+  // the fix for clients that retry after a dropped/slow token response.
   const [id0, id1, id1b, id1c] = await t.run(async (ctx) => {
     return [
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "id0" }),
@@ -235,12 +292,12 @@ test("oauth refresh in-window replay supersedes — only the latest tip survives
     ];
   });
   expect(id0).not.toBeNull();
-  expect(id1).toBeNull();
-  expect(id1b).toBeNull();
+  expect(id1).not.toBeNull();
+  expect(id1b).not.toBeNull();
   expect(id1c).not.toBeNull();
 });
 
-test("oauth refresh fork (attacker + victim in-window) collapses to one live chain", async () => {
+test("oauth refresh same-token fork keeps both tips live, theft caught once the chain advances", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-fork@example.com");
   const now = Date.now();
@@ -272,23 +329,32 @@ test("oauth refresh fork (attacker + victim in-window) collapses to one live cha
   expect(victim.status).toBe("rotated");
   expect(attacker.status).toBe("rotated");
 
+  // No poisoning: a same-token fork leaves BOTH children usable, so whichever
+  // token the real client actually persisted still works.
   const [victimChild, attackerChild] = await t.run(async (ctx) => {
     return [
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "victimChild" }),
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "attackerChild" }),
     ];
   });
-  expect(victimChild).toBeNull();
+  expect(victimChild).not.toBeNull();
   expect(attackerChild).not.toBeNull();
 
-  const victimReplay = await exchange("victimChild", "victimChild2", now + 2);
-  expect(victimReplay.status).toBe("invalid");
+  // Both tips rotate independently while the fork is unresolved.
+  expect((await exchange("victimChild", "victimChild2", now + 2)).status).toBe("rotated");
+  expect((await exchange("attackerChild", "attackerChild2", now + 3)).status).toBe("rotated");
 
-  const attackerRotate = await exchange("attackerChild", "attackerChild2", now + 3);
-  expect(attackerRotate.status).toBe("rotated");
+  // Once the chain has advanced past the shared parent, replaying it outside the
+  // grace window is unambiguous theft and burns the whole grant.
+  const theft = await exchange("fork0", "forkX", now + 10_001);
+  expect(theft.status).toBe("reuse_detected");
+  const attackerChild2 = await t.run(async (ctx) => {
+    return await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "attackerChild2" });
+  });
+  expect(attackerChild2).toBeNull();
 });
 
-test("oauth refresh in-window replay after the chain advanced is detected as theft", async () => {
+test("oauth refresh replay after the chain advanced (outside the window) is theft", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-advanced@example.com");
   const now = Date.now();
@@ -318,7 +384,9 @@ test("oauth refresh in-window replay after the chain advanced is detected as the
   expect((await exchange("adv0", "c1", now)).status).toBe("rotated");
   expect((await exchange("c1", "c2", now + 1)).status).toBe("rotated");
 
-  const replay = await exchange("adv0", "cX", now + 2);
+  // adv0's child (c1) has been consumed, so the client provably rotated past
+  // adv0; replaying it outside the grace window is unambiguous theft.
+  const replay = await exchange("adv0", "cX", now + 10_001);
   expect(replay.status).toBe("reuse_detected");
 
   const [adv0, c2, cX] = await t.run(async (ctx) => {

@@ -88,6 +88,7 @@ function createCredentialsMutationHarness(args: {
   const ctx = {
     runQuery,
     runMutation,
+    auth: { getUserIdentity: async () => null },
   } as any;
 
   const config = {

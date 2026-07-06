@@ -11,8 +11,6 @@ import type {
   SignInTotpChallengeResult,
 } from "../../shared/results";
 import { handleDevice } from "../device";
-import { envOptionalString, readConfigSync } from "../env";
-import { requireEnv } from "../env";
 import type { AuthErrorData } from "../errors";
 import { toConvexError } from "../errors";
 import { log } from "../log";
@@ -23,7 +21,7 @@ import {
   callVerifier,
   callVerifyCodeAndSignIn,
 } from "../mutations/calls";
-import { handlePasskeyFx } from "../passkey";
+import { handlePasskey } from "../passkey";
 import type { SignInParams } from "../payloads";
 import { generateRandomString } from "../random";
 import { redirectAbsoluteUrl, setURLSearchParam } from "../redirects";
@@ -36,8 +34,10 @@ import {
   GenericActionCtxWithAuthConfig,
   PhoneConfig,
 } from "../types";
-import { AuthDataModel, SessionInfo, queryTotpVerifiedByUserId } from "../types";
+import { queryTotpVerifiedByUserId } from "../component/factor/db";
+import { AuthDataModel, SessionInfo } from "../types";
 import type { OAuthMaterializedConfig } from "../types";
+import { authUrlFromEnv } from "../url";
 import { withSpan } from "../utils/span";
 
 const DEFAULT_EMAIL_VERIFICATION_CODE_DURATION_S = 60 * 60 * 24;
@@ -136,27 +136,10 @@ export async function signInImpl(
     generateTokens: boolean;
     allowExtraProviders: boolean;
     authSiteUrl?: string;
-    resolveConnectionProtocol?: (ctx: EnrichedActionCtx, connectionId: string) => Promise<"oidc" | "saml">;
-  },
-): Promise<SignInResult> {
-  return signInFx(ctx, provider, args, options);
-}
-
-async function signInFx(
-  ctx: EnrichedActionCtx,
-  provider: AuthProviderMaterializedConfig | null,
-  args: {
-    accountId?: GenericId<"Account">;
-    params?: SignInParams;
-    verifier?: string;
-    refreshToken?: string;
-    calledBy?: string;
-  },
-  options: {
-    generateTokens: boolean;
-    allowExtraProviders: boolean;
-    authSiteUrl?: string;
-    resolveConnectionProtocol?: (ctx: EnrichedActionCtx, connectionId: string) => Promise<"oidc" | "saml">;
+    resolveConnectionProtocol?: (
+      ctx: EnrichedActionCtx,
+      connectionId: string,
+    ) => Promise<"oidc" | "saml">;
   },
 ): Promise<SignInResult> {
   return withSpan(
@@ -207,19 +190,19 @@ async function signInFx(
       switch (resolvedProvider.type) {
         case "email":
         case "phone":
-          return handleEmailAndPhoneProviderFx(ctx, resolvedProvider, args, options);
+          return handleEmailAndPhoneProvider(ctx, resolvedProvider, args, options);
         case "credentials":
-          return handleCredentialsFx(ctx, resolvedProvider, args, options);
+          return handleCredentials(ctx, resolvedProvider, args, options);
         case "oauth":
-          return handleOAuthProviderFx(ctx, resolvedProvider, args, options);
+          return handleOAuthProvider(ctx, resolvedProvider, args, options);
         case "passkey":
-          return handlePasskeyFx(ctx, resolvedProvider, args);
+          return handlePasskey(ctx, resolvedProvider, args);
         case "totp":
           return handleTotp(ctx, resolvedProvider, args);
         case "device":
           return handleDevice(ctx, resolvedProvider, args);
         case "connection":
-          return handleConnectionProviderFx(ctx, args, options);
+          return handleConnectionProvider(ctx, args, options);
         default:
           return assertNever(resolvedProvider, "Unknown provider type");
       }
@@ -227,7 +210,7 @@ async function signInFx(
   );
 }
 
-async function handleEmailAndPhoneProviderFx(
+async function handleEmailAndPhoneProvider(
   ctx: EnrichedActionCtx,
   provider: EmailConfig | PhoneConfig,
   args: {
@@ -329,10 +312,7 @@ async function handleEmailAndPhoneProviderFx(
       }
     } else {
       try {
-        await provider.sendVerificationRequest(
-          { ...verificationArgs, provider },
-          ctx,
-        );
+        await provider.sendVerificationRequest({ ...verificationArgs, provider }, ctx);
       } catch {
         throw toConvexError(authFlowError("INTERNAL_ERROR", "Failed to send phone code"));
       }
@@ -342,7 +322,7 @@ async function handleEmailAndPhoneProviderFx(
   });
 }
 
-async function handleCredentialsFx(
+async function handleCredentials(
   ctx: EnrichedActionCtx,
   provider: ConvexCredentialsConfig,
   args: {
@@ -466,7 +446,7 @@ async function handleCredentialsFx(
   });
 }
 
-async function handleOAuthProviderFx(
+async function handleOAuthProvider(
   ctx: EnrichedActionCtx,
   provider: OAuthMaterializedConfig,
   args: {
@@ -497,10 +477,7 @@ async function handleOAuthProviderFx(
       };
     }
 
-    const authSiteUrl =
-      options.authSiteUrl ??
-      readConfigSync(envOptionalString("CUSTOM_AUTH_SITE_URL")) ??
-      requireEnv("CONVEX_SITE_URL");
+    const authSiteUrl = options.authSiteUrl ?? authUrlFromEnv();
     const redirect = new URL(`${authSiteUrl.replace(/\/$/, "")}/signin/${provider.id}`);
     let verifier: string;
     try {
@@ -530,13 +507,16 @@ async function handleOAuthProviderFx(
   });
 }
 
-async function handleConnectionProviderFx(
+async function handleConnectionProvider(
   ctx: EnrichedActionCtx,
   args: {
     params?: SignInParams;
   },
   options: {
-    resolveConnectionProtocol?: (ctx: EnrichedActionCtx, connectionId: string) => Promise<"oidc" | "saml">;
+    resolveConnectionProtocol?: (
+      ctx: EnrichedActionCtx,
+      connectionId: string,
+    ) => Promise<"oidc" | "saml">;
     authSiteUrl?: string;
   },
 ): Promise<{ kind: "redirect"; redirect: string; verifier: string }> {
@@ -558,7 +538,11 @@ async function handleConnectionProviderFx(
             try {
               return await options.resolveConnectionProtocol!(ctx, connectionId);
             } catch (error) {
-              throw asConvexError(error, "INTERNAL_ERROR", "Failed to resolve Connection protocol.");
+              throw asConvexError(
+                error,
+                "INTERNAL_ERROR",
+                "Failed to resolve Connection protocol.",
+              );
             }
           })()
         : "oidc");
@@ -584,10 +568,7 @@ async function handleConnectionProviderFx(
     } catch (error) {
       throw asConvexError(error, "INTERNAL_ERROR", "Failed to create verifier.");
     }
-    const siteUrl =
-      options.authSiteUrl ??
-      readConfigSync(envOptionalString("CUSTOM_AUTH_SITE_URL")) ??
-      requireEnv("CONVEX_SITE_URL");
+    const siteUrl = options.authSiteUrl ?? authUrlFromEnv();
     const redirect = new URL(
       `${siteUrl.replace(/\/$/, "")}/connections/${connectionId}/${protocol}/signin`,
     );

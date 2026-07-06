@@ -34,7 +34,7 @@ export function createSessionDomain(deps: SessionDeps) {
      * invalidation RPC.
      *
      * @param ctx - Convex action context.
-     * @param args.userId - The user whose sessions should be archived.
+     * @param args.userId - The user whose sessions should be revoked.
      * @param args.except - Optional array of session IDs to keep valid.
      * @returns `{ userId, except }` confirming the operation.
      *

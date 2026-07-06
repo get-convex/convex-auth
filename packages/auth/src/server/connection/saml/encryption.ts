@@ -61,10 +61,7 @@ export function encryptAssertion(
           const encryptAssertionDoc = dom!.parseFromString(
             `<${encAssertionPrefix}:EncryptedAssertion xmlns:${encAssertionPrefix}="${SamlNamespace.assertion}">${res}</${encAssertionPrefix}:EncryptedAssertion>`,
           );
-          doc.documentElement.replaceChild(
-            encryptAssertionDoc.documentElement,
-            rawAssertionNode,
-          );
+          doc.documentElement.replaceChild(encryptAssertionDoc.documentElement, rawAssertionNode);
           return resolve(base64Encode(doc.toString()));
         })
         .catch((err) => {
@@ -100,10 +97,7 @@ export function decryptAssertion(here: { entitySetting: SamlEntitySettings }, en
 
     return decryptAssertionXmlEnc({
       encryptedAssertionXml: encAssertionNode.toString(),
-      privateKey: readPrivateKey(
-        hereSetting.encPrivateKey!,
-        hereSetting.encPrivateKeyPass,
-      ),
+      privateKey: readPrivateKey(hereSetting.encPrivateKey!, hereSetting.encPrivateKeyPass),
     })
       .then((res) => {
         const rawAssertionDoc = dom!.parseFromString(res);

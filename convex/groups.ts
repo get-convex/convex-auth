@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { env, query, internalMutation } from "./_generated/server";
 import { auth } from "./auth/core";
+import { ErrorCode } from "./errors";
 import { authAction, authMutation, authQuery } from "./functions";
 import { roles } from "./roles";
 
@@ -42,20 +43,20 @@ function getPermissions(grants: string[]) {
   };
 }
 
-export const userSummaryValidator = v.object({
+const vUser = v.object({
   userId: v.string(),
   name: v.string(),
   email: v.union(v.string(), v.null()),
 });
 
-const groupSummaryValidator = v.object({
+const vGroup = v.object({
   groupId: v.string(),
   name: v.string(),
   roleIds: v.array(v.string()),
   grants: v.array(v.string()),
 });
 
-const memberSummaryValidator = v.object({
+const vMember = v.object({
   memberId: v.string(),
   userId: v.string(),
   name: v.string(),
@@ -64,14 +65,14 @@ const memberSummaryValidator = v.object({
   status: v.string(),
 });
 
-const inviteSummaryValidator = v.object({
+const vInvite = v.object({
   inviteId: v.string(),
   email: v.union(v.string(), v.null()),
   roleIds: v.array(v.string()),
   createdAt: v.number(),
 });
 
-const permissionsValidator = v.object({
+const vPermissions = v.object({
   canReadProjects: v.boolean(),
   canCreateProjects: v.boolean(),
   canManageProjects: v.boolean(),
@@ -87,7 +88,7 @@ const permissionsValidator = v.object({
   canManageScim: v.boolean(),
 });
 
-const projectSummaryValidator = v.object({
+const vProject = v.object({
   projectId: v.id("projects"),
   name: v.string(),
   identifier: v.string(),
@@ -98,7 +99,7 @@ const projectSummaryValidator = v.object({
   openIssueCount: v.number(),
 });
 
-export type GroupSummary = {
+type GroupRow = {
   groupId: string;
   name: string;
   roleIds: string[];
@@ -163,8 +164,8 @@ export const list = authQuery({
 export const get = authQuery({
   args: { groupId: v.optional(v.string()) },
   returns: v.object({
-    user: v.union(userSummaryValidator, v.null()),
-    groups: v.array(groupSummaryValidator),
+    user: v.union(vUser, v.null()),
+    groups: v.array(vGroup),
     selectedGroup: v.union(
       v.object({
         groupId: v.string(),
@@ -172,9 +173,9 @@ export const get = authQuery({
         roleIds: v.array(v.string()),
         grants: v.array(v.string()),
         userRoleLabel: v.string(),
-        projects: v.array(projectSummaryValidator),
-        members: v.array(memberSummaryValidator),
-        permissions: permissionsValidator,
+        projects: v.array(vProject),
+        members: v.array(vMember),
+        permissions: vPermissions,
       }),
       v.null(),
     ),
@@ -191,20 +192,20 @@ export const get = authQuery({
     const rootGroupIds = roots.page.map((g) => g._id);
     const resolutions = await auth.member.get(ctx, { userId, groupIds: rootGroupIds });
 
-    const groups: GroupSummary[] = roots.page.flatMap((g, i) => {
+    const groups: GroupRow[] = roots.page.flatMap((g, i) => {
       const r = resolutions[i];
       if (!r || r.membership === null) return [];
       return [{ groupId: g._id, name: g.name, roleIds: r.roleIds, grants: r.grants }];
     });
 
-    const userSummary = {
+    const user = {
       userId,
       name: ctx.auth.user.name ?? ctx.auth.user.email ?? "Unknown user",
       email: ctx.auth.user.email ?? null,
     };
 
     if (groups.length === 0) {
-      return { user: userSummary, groups: [], selectedGroup: null };
+      return { user, groups: [], selectedGroup: null };
     }
 
     const selected = groups.find((g) => g.groupId === args.groupId) ?? groups[0]!;
@@ -229,7 +230,7 @@ export const get = authQuery({
     const memberUsers = await auth.user.get(ctx, { ids: memberUserIds });
 
     return {
-      user: userSummary,
+      user,
       groups,
       selectedGroup: {
         groupId: selected.groupId,
@@ -266,7 +267,7 @@ export const get = authQuery({
 
 export const listInvites = authQuery({
   args: { groupId: v.string() },
-  returns: v.array(inviteSummaryValidator),
+  returns: v.array(vInvite),
   handler: async (ctx, args) => {
     const userId = ctx.auth.userId;
     await auth.member.assert(ctx, {
@@ -296,7 +297,7 @@ export const create = authMutation({
     const name = rawName.trim();
     if (name.length < 3) {
       throw new ConvexError({
-        code: "INVALID_INPUT",
+        code: ErrorCode.INVALID_INPUT,
         message: "Name must be at least 3 characters.",
       });
     }
@@ -335,7 +336,7 @@ export const updateMemberRole = authMutation({
     });
     const matched = validRoleIds.find((id) => id === args.roleId);
     if (!matched) {
-      throw new ConvexError({ code: "INVALID_INPUT", message: "Invalid role." });
+      throw new ConvexError({ code: ErrorCode.INVALID_INPUT, message: "Invalid role." });
     }
     if (matched !== validRoleIds[0]) {
       const members = await auth.member.list(ctx, {
@@ -346,7 +347,10 @@ export const updateMemberRole = authMutation({
         (m) => m.roleIds?.includes(validRoleIds[0]) && m._id !== args.memberId,
       ).length;
       if (adminCount === 0) {
-        throw new ConvexError({ code: "INVALID_INPUT", message: "Cannot remove the last admin." });
+        throw new ConvexError({
+          code: ErrorCode.INVALID_INPUT,
+          message: "Cannot remove the last admin.",
+        });
       }
     }
     await auth.member.update(ctx, { id: args.memberId, patch: { roleIds: [matched] } });
@@ -385,7 +389,7 @@ export const createInviteInternal = internalMutation({
     });
     const matched = validRoleIds.find((id) => id === args.roleId);
     if (!matched) {
-      throw new ConvexError({ code: "INVALID_INPUT", message: "Invalid role." });
+      throw new ConvexError({ code: ErrorCode.INVALID_INPUT, message: "Invalid role." });
     }
     const result = await auth.invite.create(ctx, {
       data: {

@@ -27,10 +27,14 @@ are drawn from these grants):
 
 ```ts
 export const { auth } = defineAuth(components.auth, {
-  providers: [/* ... */],
+  providers: [
+    /* ... */
+  ],
   permissions: {
     grants: ["projects.read", "issues.create", "members.read"],
-    roles: { /* ... */ },
+    roles: {
+      /* ... */
+    },
   },
   oauth: {
     pages: {
@@ -46,13 +50,12 @@ export const { auth } = defineAuth(components.auth, {
 The AS signs tokens with EdDSA, so two environment variables are required
 (see [Environment Variables](/getting-started/environment)):
 
-| Variable          | Purpose                                              |
-| ----------------- | ---------------------------------------------------- |
-| `JWT_PRIVATE_KEY` | PKCS8 EdDSA private key used to sign access tokens   |
-| `JWKS`            | Public JWKS (`{"keys":[…]}`) served at `jwks_uri`    |
+| Variable          | Purpose                                            |
+| ----------------- | -------------------------------------------------- |
+| `JWT_PRIVATE_KEY` | PKCS8 EdDSA private key used to sign access tokens |
+| `JWKS`            | Public JWKS (`{"keys":[…]}`) served at `jwks_uri`  |
 
-The issuer is `CONVEX_SITE_URL` + the auth route prefix (`CONVEX_AUTH_HTTP_PREFIX`,
-default `/auth`); `CONVEX_AUTH_SITE_URL` overrides it.
+The issuer is `CONVEX_SITE_URL` plus the auth path, which defaults to `/auth`.
 
 ## Expose tools over MCP
 
@@ -193,15 +196,14 @@ To register a first-party client yourself (the consumer's own dashboard), call
 `auth.oauth.client.create`:
 
 ```ts
-const { clientId, clientSecret, registrationAccessToken } =
-  await auth.oauth.client.create(ctx, {
-    data: {
-      name: "Internal agent",
-      redirectUris: ["https://app.example.com/callback"],
-      scopes: ["projects.read"],
-      // tokenEndpointAuthMethod defaults to "client_secret_post"
-    },
-  });
+const { clientId, clientSecret, registrationAccessToken } = await auth.oauth.client.create(ctx, {
+  data: {
+    name: "Internal agent",
+    redirectUris: ["https://app.example.com/callback"],
+    scopes: ["projects.read"],
+    // tokenEndpointAuthMethod defaults to "client_secret_post"
+  },
+});
 ```
 
 `clientSecret` is returned only for confidential clients. The other client verbs

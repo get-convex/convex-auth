@@ -4,6 +4,18 @@ import { extractBearerToken } from "../utils/bearer";
 import type { OAuthClientDoc, OAuthClientUpdate, OAuthTokenEndpointAuthMethod } from "./client";
 import { clientMetadataBody, jsonError, validateClientMetadata } from "./register";
 
+/**
+ * RFC 7592 `401` challenge for a missing/invalid registration access token.
+ * Carries `WWW-Authenticate: Bearer` (the endpoint authenticates with a bearer
+ * `registration_access_token`) atop the shared `no-store` error body.
+ */
+function unauthorizedError(description: string): Response {
+  const base = jsonError(401, "invalid_token", description);
+  const headers = new Headers(base.headers);
+  headers.set("WWW-Authenticate", 'Bearer realm="registration", error="invalid_token"');
+  return new Response(base.body, { status: 401, headers });
+}
+
 /** Dependencies injected by the runtime into the RFC 7592 management handler. */
 export interface OAuthManageDeps {
   /** Verify a registration access token against the path client (constant-time). */
@@ -17,10 +29,7 @@ export interface OAuthManageDeps {
     args: { clientId: string; patch: OAuthClientUpdate },
   ) => Promise<void>;
   /** Soft-revoke (deregister) the client. */
-  revoke: (
-    ctx: GenericActionCtx<GenericDataModel>,
-    args: { clientId: string },
-  ) => Promise<unknown>;
+  revoke: (ctx: GenericActionCtx<GenericDataModel>, args: { clientId: string }) => Promise<unknown>;
   /** Scopes the server is willing to grant; `PUT` clamps requested scopes to this. */
   allowedScopes: string[];
   /** Build the `registration_client_uri` for the managed client. */
@@ -29,7 +38,9 @@ export interface OAuthManageDeps {
 
 /** The client's effective auth method, falling back for un-backfilled rows. */
 function effectiveMethod(client: OAuthClientDoc): OAuthTokenEndpointAuthMethod {
-  return client.tokenEndpointAuthMethod ?? (client.clientSecretHash ? "client_secret_post" : "none");
+  return (
+    client.tokenEndpointAuthMethod ?? (client.clientSecretHash ? "client_secret_post" : "none")
+  );
 }
 
 /**
@@ -103,8 +114,7 @@ async function handlePut(
       redirectUris,
       scopes,
       tokenEndpointAuthMethod,
-      clientSecretHash:
-        tokenEndpointAuthMethod === "none" ? undefined : client.clientSecretHash,
+      clientSecretHash: tokenEndpointAuthMethod === "none" ? undefined : client.clientSecretHash,
     },
     deps,
     tokenEndpointAuthMethod,
@@ -138,11 +148,11 @@ export function createClientManagementHandler(deps: OAuthManageDeps) {
     }
     const token = extractBearerToken(request);
     if (token === null) {
-      return jsonError(401, "invalid_token", "Registration access token required.");
+      return unauthorizedError("Registration access token required.");
     }
     const client = await deps.verifyRegistrationToken(ctx, { clientId, token });
     if (client === null) {
-      return jsonError(401, "invalid_token", "Invalid registration access token.");
+      return unauthorizedError("Invalid registration access token.");
     }
 
     switch (request.method) {

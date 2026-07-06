@@ -1,5 +1,20 @@
 import { paginationResultValidator } from "convex/server";
-import { type GenericId, v, type Validator, type VId } from "convex/values";
+import { type GenericId, v, type Validator, type VId, type VLiteral } from "convex/values";
+
+import { AUTH_EVENT_KINDS, EVENT_CATEGORIES } from "../shared/event/kinds";
+
+/**
+ * Build a `v.union` of string-literal validators from a non-empty tuple,
+ * preserving each literal in the inferred type (so `Infer<>` stays the precise
+ * union, not `string`). Used to derive the event kind/category validators from
+ * the shared taxonomy tuples.
+ */
+function vLiteralUnion<T extends string>(values: readonly [T, ...T[]]) {
+  const literals = values.map((value) => v.literal(value)) as {
+    [K in keyof T[]]: VLiteral<T>;
+  } & [VLiteral<T>, ...VLiteral<T>[]];
+  return v.union(...literals);
+}
 
 /** Table-name lookup map for the component's tables. */
 export const TABLES = {
@@ -17,6 +32,8 @@ export const TABLES = {
   GroupInvite: "GroupInvite",
   GroupConnection: "GroupConnection",
   GroupConnectionDomain: "GroupConnectionDomain",
+  SamlLoginRequest: "SamlLoginRequest",
+  SamlSeenAssertion: "SamlSeenAssertion",
   GroupConnectionDomainVerification: "GroupConnectionDomainVerification",
   GroupConnectionSecret: "GroupConnectionSecret",
   GroupConnectionScimConfig: "GroupConnectionScimConfig",
@@ -179,79 +196,19 @@ export const vAuthEventTargetKind = v.union(
   v.literal("global"),
 );
 
-/** High-level category grouping for an auth event. */
-export const vAuthEventCategory = v.union(
-  v.literal("user"),
-  v.literal("session"),
-  v.literal("account"),
-  v.literal("password"),
-  v.literal("passkey"),
-  v.literal("totp"),
-  v.literal("email"),
-  v.literal("phone"),
-  v.literal("api_key"),
-  v.literal("oauth"),
-  v.literal("connection"),
-  v.literal("scim"),
-  v.literal("webhook"),
-  v.literal("security"),
-);
+/**
+ * High-level category grouping for an auth event. Derived from the shared
+ * {@link EVENT_CATEGORIES} taxonomy so the validator and the `AuthEventCategory`
+ * TS union stay in lockstep.
+ */
+export const vAuthEventCategory = vLiteralUnion(EVENT_CATEGORIES);
 
-/** Discriminator naming the specific auth event that occurred. */
-export const vAuthEventKind = v.union(
-  v.literal("user.created"),
-  v.literal("user.updated"),
-  v.literal("session.signed_in"),
-  v.literal("session.signed_out"),
-  v.literal("session.invalidated"),
-  v.literal("session.refresh_exchanged"),
-  v.literal("session.refresh_reuse_detected"),
-  v.literal("account.linked"),
-  v.literal("account.unlinked"),
-  v.literal("password.changed"),
-  v.literal("passkey.added"),
-  v.literal("passkey.removed"),
-  v.literal("totp.enrolled"),
-  v.literal("totp.removed"),
-  v.literal("email.verified"),
-  v.literal("phone.verified"),
-  v.literal("api_key.issued"),
-  v.literal("api_key.revoked"),
-  v.literal("oauth.client.created"),
-  v.literal("oauth.client.revoked"),
-  v.literal("oauth.code.issued"),
-  v.literal("oauth.token.issued"),
-  v.literal("oauth.token.exchanged"),
-  v.literal("oauth.refresh.reuse_detected"),
-  v.literal("oauth.refresh.revoked"),
-  v.literal("connection.created"),
-  v.literal("connection.updated"),
-  v.literal("connection.deleted"),
-  v.literal("connection.login.succeeded"),
-  v.literal("connection.login.failed"),
-  v.literal("connection.domain.verification_requested"),
-  v.literal("connection.domain.verified"),
-  v.literal("connection.policy.updated"),
-  v.literal("connection.saml.set"),
-  v.literal("connection.saml.refreshed"),
-  v.literal("connection.oidc.set"),
-  v.literal("connection.scim.set"),
-  v.literal("connection.scim.read"),
-  v.literal("connection.scim.user.provisioned"),
-  v.literal("connection.scim.user.updated"),
-  v.literal("connection.scim.user.deactivated"),
-  v.literal("connection.scim.user.reactivated"),
-  v.literal("connection.scim.group.provisioned"),
-  v.literal("connection.scim.group.updated"),
-  v.literal("connection.scim.group.deactivated"),
-  v.literal("connection.scim.group.reactivated"),
-  v.literal("webhook.endpoint.created"),
-  v.literal("webhook.endpoint.disabled"),
-  v.literal("webhook.delivery.created"),
-  v.literal("webhook.delivery.attempted"),
-  v.literal("webhook.delivery.succeeded"),
-  v.literal("webhook.delivery.failed"),
-);
+/**
+ * Discriminator naming the specific auth event that occurred. Derived from the
+ * shared {@link AUTH_EVENT_KINDS} taxonomy — the single source of truth for the
+ * event kind set shared with the server facade.
+ */
+export const vAuthEventKind = vLiteralUnion(AUTH_EVENT_KINDS);
 
 /** Type of principal that triggered an auth event. */
 export const vAuthEventActorType = v.union(
@@ -769,6 +726,24 @@ export const vGroupConnectionDomainDoc = v.object({
   domain: v.string(),
   isPrimary: v.boolean(),
   verifiedAt: v.optional(v.number()),
+});
+
+/** Validator for a `SamlLoginRequest` document. */
+export const vSamlLoginRequestDoc = v.object({
+  ...vDocMeta(TABLES.SamlLoginRequest),
+  connectionId: v.id(TABLES.GroupConnection),
+  requestId: v.string(),
+  createdAt: v.number(),
+  expiresAt: v.number(),
+  acceptedAt: v.optional(v.number()),
+});
+
+/** Validator for a `SamlSeenAssertion` document. */
+export const vSamlSeenAssertionDoc = v.object({
+  ...vDocMeta(TABLES.SamlSeenAssertion),
+  connectionId: v.id(TABLES.GroupConnection),
+  assertionId: v.string(),
+  expiresAt: v.number(),
 });
 
 /** Validator for a `GroupConnectionDomainVerification` document. */

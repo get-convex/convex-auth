@@ -389,8 +389,7 @@ export function createSignedXml() {
     keyInfoAttributes: {} as { [key: string]: string },
     getKeyInfoContent: (args: { publicCert?: string; prefix?: string }): string | null =>
       staticGetKeyInfoContent(args),
-    getCertFromKeyInfo: (keyInfo: Node | null): string | null =>
-      staticGetCertFromKeyInfo(keyInfo),
+    getCertFromKeyInfo: (keyInfo: Node | null): string | null => staticGetCertFromKeyInfo(keyInfo),
 
     id: 0,
     signedXml: "",

@@ -8,12 +8,13 @@
  * @module
  */
 
-import { getManyFrom } from "convex-helpers/server/relationships";
 import { ConvexError, v } from "convex/values";
 import { ErrorCode } from "../../shared/codes";
 
 import { mutation, query } from "../functions";
 import { vGroupConnectionDomainDoc } from "../model";
+
+const CONNECTION_DOMAIN_BATCH = 500;
 
 /** List the domains attached to a connection (`limit` clamped to 1..500, default 100). */
 export const list = query({
@@ -58,13 +59,16 @@ export const create = mutation({
       });
     }
 
-    const existingForConnection = await getManyFrom(
-      ctx.db,
-      "GroupConnectionDomain",
-      "connection_id",
-      connectionId,
-      "connectionId",
-    );
+    const existingForConnection = await ctx.db
+      .query("GroupConnectionDomain")
+      .withIndex("connection_id", (q) => q.eq("connectionId", connectionId))
+      .take(CONNECTION_DOMAIN_BATCH + 1);
+    if (existingForConnection.length > CONNECTION_DOMAIN_BATCH) {
+      throw new ConvexError({
+        code: ErrorCode.CASCADE_TOO_LARGE,
+        message: `Connection has more than ${CONNECTION_DOMAIN_BATCH} domains; update is not safe in one mutation.`,
+      });
+    }
 
     for (const row of existingForConnection) {
       if (row.domain === args.domain) {

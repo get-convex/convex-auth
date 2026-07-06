@@ -190,10 +190,12 @@ async function checkAllowLink(
   config: ConvexAuthConfig,
   userId: GenericId<"User">,
 ): Promise<boolean> {
-  const isConnectionLink =
-    args.provider.type === "oauth" || args.provider.type === "connection";
+  const isConnectionLink = args.provider.type === "oauth" || args.provider.type === "connection";
   const isCredentialsLink = args.provider.type === "credentials";
-  if (config.connection?.hooks?.allowLink === undefined || (!isConnectionLink && !isCredentialsLink)) {
+  if (
+    config.connection?.hooks?.allowLink === undefined ||
+    (!isConnectionLink && !isCredentialsLink)
+  ) {
     return true;
   }
   const allowed = await config.connection.hooks.allowLink({

@@ -62,12 +62,12 @@ export interface MicrosoftConfig {
  */
 export function microsoft(config: MicrosoftConfig) {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
-  const createProvider = () =>
+  const createProvider = (redirectUri?: string) =>
     new MicrosoftEntraId(
       config.tenant,
       config.clientId,
       config.clientSecret ?? null,
-      config.redirectUri ?? defaultOAuthRedirectUri("microsoft"),
+      config.redirectUri ?? defaultOAuthRedirectUri("microsoft", redirectUri),
     );
   const issuer = `https://login.microsoftonline.com/${config.tenant}/v2.0`;
   const jwks = createRemoteJWKSet(new URL(`${issuer}/discovery/v2.0/keys`));

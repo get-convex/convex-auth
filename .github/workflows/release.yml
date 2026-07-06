@@ -32,9 +32,13 @@ jobs:
         run: |
           vp run '@robelest/convex-auth#build'
 
+      - name: Run offline test suite
+        run: vp test --run --project convex --project node
+
       - name: Run package publish checks
         run: |
           vp run '@robelest/convex-auth#typecheck:consumer'
+          vp run '@robelest/convex-auth#typecheck:consumer:dist'
           vp run '@robelest/convex-auth#check:packaging'
 
       - name: Resolve npm dist-tag

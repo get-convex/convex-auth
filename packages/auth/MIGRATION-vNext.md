@@ -70,7 +70,7 @@ await auth.key.verify(ctx, secret);
 
 // vNext
 await auth.user.get(ctx, { id: userId });
-await auth.user.update(ctx, { id: userId, data: patch });
+await auth.user.update(ctx, { id: userId, patch });
 await auth.key.verify(ctx, { secret });
 ```
 
@@ -97,13 +97,13 @@ functions.
 
 ## Filters and payloads
 
-List filters live under `where`, create/update payloads use `data`, and update
-payload validators are partial.
+List filters live under `where`, create payloads use `data`, update payloads
+use `patch`, and update payload validators are partial.
 
 ```ts
 await auth.member.update(ctx, {
   id: memberId,
-  data: { roleIds: ["support"] },
+  patch: { roleIds: ["support"] },
 });
 
 const pending = await auth.invite.list(ctx, {
@@ -144,7 +144,11 @@ of your app: write `authMutation`/`authQuery` functions that authorize with
 
 ```ts
 // Before — bespoke mount surface (removed)
-export const sso = auth.sso.mount({ access: async (ctx, input) => { /* … */ } });
+export const sso = auth.sso.mount({
+  access: async (ctx, input) => {
+    /* … */
+  },
+});
 export const configureOidc = sso.admin.oidc.configure;
 export const configureScim = sso.admin.scim.configure;
 ```
@@ -172,7 +176,11 @@ export const setOidc = authMutation({
   args: { connectionId: v.string() /* discovery, client, … */ },
   handler: async (ctx, args) => {
     const { groupId } = await auth.connection.get(ctx, { id: args.connectionId });
-    await auth.member.assert(ctx, { userId: ctx.auth.userId, groupId, roleIds: [roles.orgAdmin.id] });
+    await auth.member.assert(ctx, {
+      userId: ctx.auth.userId,
+      groupId,
+      roleIds: [roles.orgAdmin.id],
+    });
     return auth.connection.oidc.set(ctx, args);
   },
 });
@@ -181,15 +189,20 @@ export const setScim = authMutation({
   args: { connectionId: v.string() },
   handler: async (ctx, args) => {
     const { groupId } = await auth.connection.get(ctx, { id: args.connectionId });
-    await auth.member.assert(ctx, { userId: ctx.auth.userId, groupId, roleIds: [roles.orgAdmin.id] });
+    await auth.member.assert(ctx, {
+      userId: ctx.auth.userId,
+      groupId,
+      roleIds: [roles.orgAdmin.id],
+    });
     return auth.connection.scim.set(ctx, args);
   },
 });
 ```
 
 Expose only the helpers your app's UI calls. Use Convex-native args: `{ id }` for
-the primary record, `{ connectionId }` for a foreign key, `{ data }` for
-create/update payloads, and `paginationOpts` for unbounded lists.
+the primary record, `{ connectionId }` for a foreign key, `{ data }` for create
+payloads, `{ patch }` for update payloads, and `paginationOpts` for unbounded
+lists.
 
 ## HTTP and routing
 
@@ -222,4 +235,5 @@ Route helpers such as `auth.request.context(...)` and
 - Use `<entity>Id` only for foreign keys.
 - Use `where` for list filters.
 - Use `paginationOpts` for unbounded lists.
-- Use `data` for create/update payloads.
+- Use `data` for create payloads.
+- Use `patch` for update payloads.

@@ -60,9 +60,7 @@ test("DCR registers a confidential client and clamps scopes to the allowed set",
   expect(json.token_endpoint_auth_method).toBe("client_secret_post");
   expect(json.scope).toBe("workspace:read workspace:write");
   expect(json.registration_access_token).toBe("reg_test");
-  expect(json.registration_client_uri).toBe(
-    "https://app.convex.site/auth/oauth2/register/oc_test",
-  );
+  expect(json.registration_client_uri).toBe("https://app.convex.site/auth/oauth2/register/oc_test");
   expect(captured!.scopes).toEqual(["workspace:read", "workspace:write"]);
   expect(captured!.grantTypes).toEqual(["authorization_code", "refresh_token"]);
   expect(captured!.tokenEndpointAuthMethod).toBe("client_secret_post");

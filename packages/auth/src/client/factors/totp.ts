@@ -1,6 +1,5 @@
-import type { ConvexTransport, SignInActionResult, SignInApiRef, TotpClient } from "../core/types";
-import type { AccessToken } from "../../shared/brand";
-import type { AuthTokens } from "../../shared/results";
+import type { FactorDeps, SignInActionResult, SignInResult, TotpClient } from "../core/types";
+import { ErrorCode } from "../../shared/codes";
 
 function isSignedInResult(
   result: SignInActionResult,
@@ -14,31 +13,34 @@ function isTotpSetupResult(
   return result.kind === "totpSetup";
 }
 
-type TotpDeps = {
-  proxy: string | undefined;
-  convex: ConvexTransport;
-  requireApiRefs: () => SignInApiRef;
-  proxyFetch: (body: Record<string, unknown>) => Promise<unknown>;
-  setTokenAndMaybeWait: (
-    args:
-      | {
-          shouldStore: true;
-          tokens: AuthTokens | null;
-          waitForHandshake: boolean;
-          context: { provider?: string; flow: string };
-        }
-      | {
-          shouldStore: false;
-          tokens: { token: AccessToken } | null;
-          waitForHandshake: boolean;
-          context: { provider?: string; flow: string };
-        },
-  ) => Promise<boolean>;
-};
-
 /** @internal */
-export function createTotpClient(deps: TotpDeps): TotpClient {
+export function createTotpClient(deps: FactorDeps): TotpClient {
   const { proxy, convex, requireApiRefs, proxyFetch, setTokenAndMaybeWait } = deps;
+
+  const completeSignIn = async (
+    result: SignInActionResult,
+    flow: "confirm" | "verify",
+  ): Promise<SignInResult> => {
+    if (!isSignedInResult(result) || !result.session) {
+      return { kind: "failed", code: ErrorCode.TOTP_INVALID_CODE };
+    }
+    const established = await setTokenAndMaybeWait(
+      proxy
+        ? {
+            shouldStore: false,
+            tokens: { token: result.session.token },
+            waitForHandshake: true,
+            context: { provider: "totp", flow },
+          }
+        : {
+            shouldStore: true,
+            tokens: result.session,
+            waitForHandshake: true,
+            context: { provider: "totp", flow },
+          },
+    );
+    return established ? { kind: "signedIn" } : { kind: "started" };
+  };
 
   return {
     setup: async (opts?: {
@@ -85,79 +87,51 @@ export function createTotpClient(deps: TotpDeps): TotpClient {
       };
     },
 
-    confirm: async (opts: { code: string; verifier: string; totpId: string }): Promise<void> => {
+    confirm: async (opts: {
+      code: string;
+      verifier: string;
+      totpId: string;
+    }): Promise<SignInResult> => {
       const params: Record<string, unknown> = {
         flow: "verify",
         code: opts.code,
         totpId: opts.totpId,
       };
 
-      if (proxy) {
-        const result = (await proxyFetch({
-          action: "auth:signIn",
-          args: { provider: "totp", params, verifier: opts.verifier },
-        })) as SignInActionResult;
-        if (isSignedInResult(result) && result.session) {
-          await setTokenAndMaybeWait({
-            shouldStore: false,
-            tokens: result.session === null ? null : { token: result.session.token },
-            waitForHandshake: true,
-            context: { provider: "totp", flow: "confirm" },
-          });
-        }
-        return;
-      }
-
-      const result = (await convex.action(requireApiRefs().signIn, {
-        provider: "totp",
-        params,
-        verifier: opts.verifier,
-      })) as SignInActionResult;
-      if (isSignedInResult(result) && result.session) {
-        await setTokenAndMaybeWait({
-          shouldStore: true,
-          tokens: result.session,
-          waitForHandshake: true,
-          context: { provider: "totp", flow: "confirm" },
-        });
-      }
+      const result = (
+        proxy
+          ? await proxyFetch({
+              action: "auth:signIn",
+              args: { provider: "totp", params, verifier: opts.verifier },
+            })
+          : await convex.action(requireApiRefs().signIn, {
+              provider: "totp",
+              params,
+              verifier: opts.verifier,
+            })
+      ) as SignInActionResult;
+      return completeSignIn(result, "confirm");
     },
 
-    verify: async (opts: { code: string; verifier: string }): Promise<void> => {
+    verify: async (opts: { code: string; verifier: string }): Promise<SignInResult> => {
       const params: Record<string, unknown> = {
         flow: "verify",
         code: opts.code,
       };
 
-      if (proxy) {
-        const result = (await proxyFetch({
-          action: "auth:signIn",
-          args: { provider: "totp", params, verifier: opts.verifier },
-        })) as SignInActionResult;
-        if (isSignedInResult(result) && result.session) {
-          await setTokenAndMaybeWait({
-            shouldStore: false,
-            tokens: result.session === null ? null : { token: result.session.token },
-            waitForHandshake: true,
-            context: { provider: "totp", flow: "verify" },
-          });
-        }
-        return;
-      }
-
-      const result = (await convex.action(requireApiRefs().signIn, {
-        provider: "totp",
-        params,
-        verifier: opts.verifier,
-      })) as SignInActionResult;
-      if (isSignedInResult(result) && result.session) {
-        await setTokenAndMaybeWait({
-          shouldStore: true,
-          tokens: result.session,
-          waitForHandshake: true,
-          context: { provider: "totp", flow: "verify" },
-        });
-      }
+      const result = (
+        proxy
+          ? await proxyFetch({
+              action: "auth:signIn",
+              args: { provider: "totp", params, verifier: opts.verifier },
+            })
+          : await convex.action(requireApiRefs().signIn, {
+              provider: "totp",
+              params,
+              verifier: opts.verifier,
+            })
+      ) as SignInActionResult;
+      return completeSignIn(result, "verify");
     },
   };
 }

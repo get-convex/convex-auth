@@ -218,19 +218,19 @@ export const createGroupConnection = (
 export const updateGroupConnection = async (
   ctx: ComponentWriteCtx,
   componentConnection: ComponentConnection,
-  args: { connectionId: string; data: Record<string, unknown> },
+  args: { connectionId: string; patch: Record<string, unknown> },
 ) => {
   const result = await componentMutation<{ id: string; patch: Record<string, unknown> }, null>(
     ctx,
     componentConnection.update,
-    { id: args.connectionId, patch: args.data },
+    { id: args.connectionId, patch: args.patch },
   );
   invalidateCtxCache(ctx, `group-connection:${args.connectionId}`);
   invalidateCtxCache(ctx, "group-connection-domain");
   return result;
 };
 
-export const deleteGroupConnection = async (
+export const removeGroupConnection = async (
   ctx: ComponentWriteCtx,
   componentConnection: ComponentConnection,
   connectionId: string,
@@ -526,7 +526,7 @@ export const upsertScimIdentity = (
   },
 ) => componentMutation<typeof args, string>(ctx, componentConnection.scim.identity.upsert, args);
 
-export const deleteScimIdentity = (
+export const removeScimIdentity = (
   ctx: ComponentWriteCtx,
   componentConnection: ComponentConnection,
   identityId: string,
@@ -552,17 +552,17 @@ export const insertUser = (
 ) =>
   componentMutation<{ data: Record<string, unknown> }, string>(ctx, componentUser.create, { data });
 
-export const patchUser = (
+export const updateUser = (
   ctx: ComponentWriteCtx,
   componentUser: ComponentUser,
-  args: { userId: string; data: Record<string, unknown> },
+  args: { userId: string; patch: Record<string, unknown> },
 ) =>
   componentMutation<{ id: string; patch: Record<string, unknown> }, null>(
     ctx,
     componentUser.update,
     {
       id: args.userId,
-      patch: args.data,
+      patch: args.patch,
     },
   );
 
@@ -610,12 +610,12 @@ export const createWebhookEndpoint = (
 export const updateWebhookEndpoint = (
   ctx: ComponentWriteCtx,
   componentConnection: ComponentConnection,
-  args: { endpointId: string; data: Record<string, unknown> },
+  args: { endpointId: string; patch: Record<string, unknown> },
 ) =>
   componentMutation<{ id: string; patch: Record<string, unknown> }, null>(
     ctx,
     componentConnection.webhook.endpoint.update,
-    { id: args.endpointId, patch: args.data },
+    { id: args.endpointId, patch: args.patch },
   );
 
 export const listReadyWebhookDeliveries = (
@@ -629,13 +629,13 @@ export const listReadyWebhookDeliveries = (
     args,
   );
 
-export const patchWebhookDelivery = (
+export const updateWebhookDelivery = (
   ctx: ComponentWriteCtx,
   componentConnection: ComponentConnection,
-  args: { deliveryId: string; data: Record<string, unknown> },
+  args: { deliveryId: string; patch: Record<string, unknown> },
 ) =>
   componentMutation<{ id: string; patch: Record<string, unknown> }, null>(
     ctx,
     componentConnection.webhook.delivery.update,
-    { id: args.deliveryId, patch: args.data },
+    { id: args.deliveryId, patch: args.patch },
   );

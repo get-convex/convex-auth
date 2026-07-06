@@ -4,6 +4,7 @@ import { GenericId } from "convex/values";
 import type { RefreshToken } from "../../shared/brand";
 import { authDb } from "../db";
 import { envOptionalNumber, readConfigSync } from "../env";
+import { emitAuthEvent } from "../events";
 import { getAuthenticatedSessionIdOrNull } from "../identity/claims";
 import { LOG_LEVELS, log, maybeRedact } from "../log";
 import { encodeRefreshToken, refreshTokenExpirationTime } from "../token/refresh";
@@ -49,7 +50,15 @@ export type SessionIssuance = {
   refreshToken: RefreshToken | null;
 };
 
-function buildSessionIdentity(
+/**
+ * Build the JWT identity-claim set for a session from the user document.
+ *
+ * Shared by {@link issueSession} and the refresh exchange so both mint
+ * identical claims from the same user fields.
+ *
+ * @internal
+ */
+export function buildSessionIdentity(
   userId: GenericId<"User">,
   sessionId: GenericId<"Session">,
   user: Doc<"User"> | null,
@@ -131,7 +140,7 @@ export async function issueSession(
   },
 ): Promise<SessionIssuance> {
   const db = authDb(ctx, config);
-  const issued = await db.sessions.create({
+  const issued = (await db.sessions.create({
     userId: args.userId,
     sessionId: args.existingSessionId,
     replaceSessionId: args.replaceSessionId,
@@ -139,9 +148,28 @@ export async function issueSession(
     refreshTokenExpirationTime: args.generateTokens
       ? refreshTokenExpirationTime(config)
       : undefined,
-  });
+  })) as {
+    userId: string;
+    sessionId: string;
+    refreshTokenId?: string;
+    replacedSessionId?: string;
+  };
   const sessionId = issued.sessionId as GenericId<"Session">;
   const refreshTokenId = issued.refreshTokenId as GenericId<"RefreshToken"> | undefined;
+  if (issued.replacedSessionId !== undefined) {
+    const replacedSessionId = issued.replacedSessionId as GenericId<"Session">;
+    await emitAuthEvent(ctx, config, {
+      kind: "session.invalidated",
+      actor: { type: "system" },
+      subject: { type: "session", id: replacedSessionId },
+      targets: [
+        { kind: "user", id: issued.userId as GenericId<"User"> },
+        { kind: "session", id: replacedSessionId },
+      ],
+      outcome: "success",
+      data: { userId: issued.userId, reason: "replaced" },
+    });
+  }
   const user = (await db.users.get({ id: issued.userId })) as Doc<"User"> | null;
   return {
     userId: issued.userId as GenericId<"User">,

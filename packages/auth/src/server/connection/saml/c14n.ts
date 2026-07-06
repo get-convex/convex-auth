@@ -369,7 +369,10 @@ function exclusiveProcess(elem: CanonicalNode, options: CanonicalizationOptions 
   );
 }
 
-function envelopedSignatureProcess(node: CanonicalNode, options: CanonicalizationOptions = {}): CanonicalNode {
+function envelopedSignatureProcess(
+  node: CanonicalNode,
+  options: CanonicalizationOptions = {},
+): CanonicalNode {
   if (options.signatureNode == null) {
     const signature = findDirectChildSignature(node);
     if (signature && signature.parentNode && signature.parentNode.removeChild) {

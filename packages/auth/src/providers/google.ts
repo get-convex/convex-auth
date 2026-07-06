@@ -58,11 +58,11 @@ export interface GoogleConfig {
  */
 export function google(config: GoogleConfig) {
   const scopes = config.scopes ?? DEFAULT_SCOPES;
-  const createProvider = () =>
+  const createProvider = (redirectUri?: string) =>
     new ArcticGoogle(
       config.clientId,
       config.clientSecret,
-      config.redirectUri ?? defaultOAuthRedirectUri("google"),
+      config.redirectUri ?? defaultOAuthRedirectUri("google", redirectUri),
     );
   return createOAuthProvider({
     id: "google",

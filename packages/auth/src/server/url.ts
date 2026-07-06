@@ -1,4 +1,6 @@
-import { requireEnv, envOptionalString, readConfigSync } from "./env";
+import { requireEnv } from "./env";
+
+const DEFAULT_AUTH_PATH = "/auth";
 
 /** @internal */
 export function normalizeUrl(url: string) {
@@ -6,19 +8,30 @@ export function normalizeUrl(url: string) {
 }
 
 /** @internal */
-export function siteUrlsFromEnv() {
-  const primaryUrl = normalizeUrl(requireEnv("SITE_URL"));
-  const secondary = readConfigSync(envOptionalString("SECONDARY_URL"));
-  const secondaryUrls =
-    secondary
-      ?.split(",")
-      .map((url) => url.trim())
-      .filter((url) => url.length > 0)
-      .map(normalizeUrl) ?? [];
-  return {
-    primaryUrl,
-    allowedUrls: [...new Set([primaryUrl, ...secondaryUrls])],
-  };
+export function normalizeAuthPath(path: string | undefined) {
+  if (path === undefined || path.trim() === "") {
+    return DEFAULT_AUTH_PATH;
+  }
+  const trimmed = path.trim();
+  if (trimmed === "/") {
+    return "";
+  }
+  return `/${trimmed.replace(/^\/+|\/+$/g, "")}`;
+}
+
+/** @internal */
+export function authUrl(siteUrl: string, path?: string) {
+  return `${normalizeUrl(siteUrl)}${normalizeAuthPath(path)}`;
+}
+
+/** @internal */
+export function authUrlFromEnv(path?: string) {
+  return authUrl(requireEnv("CONVEX_SITE_URL"), path);
+}
+
+/** @internal */
+export function appUrlFromEnv() {
+  return normalizeUrl(requireEnv("APP_URL"));
 }
 
 /** @internal */

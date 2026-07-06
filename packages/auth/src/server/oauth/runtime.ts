@@ -131,9 +131,10 @@ async function exchangeCode(
   provider: OAuthRuntimeClient,
   code: string,
   codeVerifier: string | undefined,
+  redirectUri: string | undefined,
 ): Promise<OAuthTokens> {
   return tryConvex({
-    try: () => provider.validateAuthorizationCode({ code, codeVerifier }),
+    try: () => provider.validateAuthorizationCode({ code, codeVerifier, redirectUri }),
     catch: (error) => {
       if (error instanceof arctic.OAuth2RequestError) {
         console.error("[auth] OAuth token exchange rejected by provider", {
@@ -217,7 +218,11 @@ function validateProfileId(providerId: string, profile: OAuthProfile): OAuthProf
 export async function createOAuthAuthorizationURL(
   providerId: string,
   oauthConfig: OAuthProviderConfigLike,
-  options?: { loginHint?: string; stateTransform?: (state: string) => string },
+  options?: {
+    loginHint?: string;
+    redirectUri?: string;
+    stateTransform?: (state: string) => string;
+  },
 ): Promise<AuthorizationResult> {
   if (oauthConfig.provider === null) {
     throw new Error(`OAuth provider "${providerId}" is missing a runtime client.`);
@@ -248,6 +253,7 @@ export async function createOAuthAuthorizationURL(
     scopes,
     nonce,
     loginHint: options?.loginHint,
+    redirectUri: options?.redirectUri,
   });
 
   log("DEBUG", "OAuth authorization URL created", {
@@ -277,6 +283,7 @@ export async function handleOAuthCallback(
   oauthConfig: OAuthProviderConfigLike,
   params: Record<string, string>,
   cookies: Record<string, string | undefined>,
+  options?: { redirectUri?: string },
 ): Promise<CallbackResult> {
   return withSpan("convex-auth.oauth.callback", { providerId }, async () => {
     if (oauthConfig.provider === null) {
@@ -349,7 +356,12 @@ export async function handleOAuthCallback(
       responseCookies.push(clearCookie("nonce", providerId));
     }
 
-    const tokens = await exchangeCode(oauthConfig.provider, code, codeVerifier);
+    const tokens = await exchangeCode(
+      oauthConfig.provider,
+      code,
+      codeVerifier,
+      options?.redirectUri,
+    );
 
     if (oauthConfig.validateTokens !== undefined) {
       await tryConvex({

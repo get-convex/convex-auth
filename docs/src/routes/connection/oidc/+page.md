@@ -26,12 +26,12 @@ Use the `connectionId` returned by
 
 ## Methods
 
-| Method                         | Signature                                                                   | Returns                      | Description                                                                                                      |
-| ------------------------------ | --------------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `auth.connection.oidc.set` | `(ctx, { connectionId, discovery, client, request?, security?, profile? })` | OIDC config document         | Configures OIDC settings for a connection and stores the normalized config.                                      |
-| `auth.connection.oidc.get`       | `(ctx, { connectionId })`                                                   | OIDC config document         | Returns the current OIDC configuration for a connection.                                                         |
-| `auth.connection.oidc.status`    | `(ctx, { connectionId })`                                                   | `{ configured, ready, ... }` | Returns a lightweight readiness summary for a connection.                                                        |
-| `auth.connection.oidc.validate`  | `(ctx, { connectionId })`                                                   | `{ checks: [...] }`          | Validates that the OIDC configuration is complete and the IdP is reachable. Each check has its own `ok` field.   |
+| Method                          | Signature                                                                   | Returns                      | Description                                                                                                      |
+| ------------------------------- | --------------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `auth.connection.oidc.set`      | `(ctx, { connectionId, discovery, client, request?, security?, profile? })` | OIDC config document         | Configures OIDC settings for a connection and stores the normalized config.                                      |
+| `auth.connection.oidc.get`      | `(ctx, { connectionId })`                                                   | OIDC config document         | Returns the current OIDC configuration for a connection.                                                         |
+| `auth.connection.oidc.status`   | `(ctx, { connectionId })`                                                   | `{ configured, ready, ... }` | Returns a lightweight readiness summary for a connection.                                                        |
+| `auth.connection.oidc.validate` | `(ctx, { connectionId })`                                                   | `{ checks: [...] }`          | Validates that the OIDC configuration is complete and the IdP is reachable. Each check has its own `ok` field.   |
 | `auth.connection.signIn`        | `(ctx, { connectionId?, email?, domain?, redirectTo?, loginHint? })`        | Sign-in route description    | Resolves the client-facing OIDC sign-in route for a connection. Domain/email routing requires a verified domain. |
 
 `clientSecret` is write-only. Configure it through
@@ -43,7 +43,7 @@ If you use `connection({ redirectURI })`, multiple OIDC connections can share a 
 callback URL while still routing back to the correct connection via the encoded
 OIDC state.
 
-## `configure` shape
+## `set` shape
 
 ```ts
 await auth.connection.oidc.set(ctx, {

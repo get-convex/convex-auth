@@ -90,6 +90,19 @@ test("group connection component stores group connection records and domains", a
       id: connectionId,
     })) as any;
   });
+  // An unverified domain must not resolve to its connection: routing/linking
+  // requires a DNS-TXT proof, or any tenant could claim another's domain.
+  const lookupBeforeVerify = await t.run(async (ctx) => {
+    return await ctx.runQuery(components.auth.connection.get, {
+      domain: "acme.com",
+    });
+  });
+  await t.run(async (ctx) => {
+    await ctx.runMutation(components.auth.connection.domain.verify, {
+      id: domainId,
+      verifiedAt: Date.now(),
+    });
+  });
   const lookup = await t.run(async (ctx) => {
     return await ctx.runQuery(components.auth.connection.get, {
       domain: "acme.com",
@@ -102,6 +115,7 @@ test("group connection component stores group connection records and domains", a
   });
   expect(domainId).toBeDefined();
   expect(connection?.groupId).toBe(groupId);
+  expect(lookupBeforeVerify).toBeNull();
   expect((lookup as any)?.connection?._id ?? (lookup as any)?.group?._id).toBe(connectionId);
   expect(domains).toHaveLength(1);
   expect(domains[0]?.isPrimary).toBe(true);

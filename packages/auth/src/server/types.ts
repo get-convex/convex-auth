@@ -14,14 +14,7 @@ import {
 import type { Infer } from "convex/values";
 import { GenericId, Value } from "convex/values";
 
-import {
-  vApiKeyDoc,
-  vAuthVerifierDoc,
-  vDeviceCodeDoc,
-  vPasskeyDoc,
-  vTotpFactorDoc,
-  vUserDoc,
-} from "../component/model";
+import { vApiKeyDoc, vUserDoc } from "../component/model";
 import schema from "../component/schema";
 import type { AuthComponentApi } from "./component/api";
 import type { CredentialsConfig } from "../providers/credentials";
@@ -151,8 +144,13 @@ export type Grant<TPermissions extends PermissionsConfig | undefined> =
 
 export type ConnectionHookProtocol = "oidc" | "saml" | "scim";
 
-export type ConnectionHookProfile<TProtocol extends ConnectionHookProtocol = ConnectionHookProtocol> =
-  TProtocol extends "oidc" ? OidcClaims : TProtocol extends "saml" ? SamlClaims : ScimRawAttributes;
+export type ConnectionHookProfile<
+  TProtocol extends ConnectionHookProtocol = ConnectionHookProtocol,
+> = TProtocol extends "oidc"
+  ? OidcClaims
+  : TProtocol extends "saml"
+    ? SamlClaims
+    : ScimRawAttributes;
 
 /**
  * The config for the Convex Auth library, passed to `defineAuth`.
@@ -165,6 +163,13 @@ export type ConvexAuthConfig<TExtend = {}> = {
    * `@robelest/convex-auth/providers/<provider-name>`
    */
   providers: AuthProviderConfig[];
+  /**
+   * HTTP path where Convex Auth mounts its protocol routes.
+   *
+   * Defaults to `/auth`. Provider callbacks, the JWT issuer, OAuth discovery,
+   * and `auth.request.add(http)` all use this same path.
+   */
+  path?: string;
   connection?: {
     hooks?: {
       profileResolved?: (args: {
@@ -209,8 +214,9 @@ export type ConvexAuthConfig<TExtend = {}> = {
   oauth?: {
     /**
      * Paths of the app's headless pages the authorization server redirects the
-     * browser to. `consent` shows the requested access and approves/denies via
-     * `auth.oauth.consent.*`; `login` is where it sends an unauthenticated user.
+     * browser to. `consent` shows the requested access and approves it via
+     * `auth.oauth.code.authorize`; `login` is where it sends an unauthenticated
+     * user.
      */
     pages: {
       login: string;
@@ -649,11 +655,11 @@ export interface PasskeyProviderConfig {
   id: string;
   type: "passkey";
   options: {
-    /** Relying Party display name. Defaults to SITE_URL hostname. */
+    /** Relying Party display name. Defaults to APP_URL hostname. */
     rpName?: string;
-    /** Relying Party ID (hostname). Defaults to SITE_URL hostname. */
+    /** Relying Party ID (hostname). Defaults to APP_URL hostname. */
     rpId?: string;
-    /** Allowed origins for credential verification. Defaults to SITE_URL plus SECONDARY_URL. */
+    /** Allowed origins for credential verification. Defaults to APP_URL. */
     origin?: string | string[];
     /**
      * Attestation conveyance preference. Defaults to "none".
@@ -764,8 +770,13 @@ export interface OAuthRuntimeClient {
     scopes: string[];
     nonce?: string;
     loginHint?: string;
+    redirectUri?: string;
   }): URL;
-  validateAuthorizationCode(args: { code: string; codeVerifier?: string }): Promise<OAuthTokens>;
+  validateAuthorizationCode(args: {
+    code: string;
+    codeVerifier?: string;
+    redirectUri?: string;
+  }): Promise<OAuthTokens>;
 }
 
 /** Credentials identifying a provider account (e.g. email + hashed password). */
@@ -1003,7 +1014,15 @@ export type ConvexAuthMaterializedConfig = {
   providers: AuthProviderMaterializedConfig[];
 } & Pick<
   ConvexAuthConfig,
-  "component" | "session" | "jwt" | "signIn" | "permissions" | "connection" | "oauth" | "telemetry"
+  | "component"
+  | "path"
+  | "session"
+  | "jwt"
+  | "signIn"
+  | "permissions"
+  | "connection"
+  | "oauth"
+  | "telemetry"
 >;
 
 /**
@@ -1123,7 +1142,7 @@ export interface DeviceProviderConfig {
    * Base URL for the verification page (e.g. `"http://localhost:3000/device"`).
    *
    * This is where users go to enter the device code. If not provided,
-   * falls back to `SITE_URL + "/device"`.
+   * falls back to `APP_URL + "/device"`.
    */
   verificationUri?: string;
 }
@@ -1254,8 +1273,7 @@ export interface HttpKeyContext {
  */
 export interface CorsConfig {
   /**
-   * Allowed origins. Defaults to the site URLs from environment
-   * (`SITE_URL` and `SECONDARY_URL`). Pass `["*"]` to allow any origin.
+   * Allowed origins. Defaults to `APP_URL`. Pass `["*"]` to allow any origin.
    */
   origins?: string[];
   /** Allowed HTTP methods. Defaults to `"GET,POST,PUT,PATCH,DELETE,OPTIONS"`. */
@@ -1319,12 +1337,6 @@ export type SessionTokenIdentityClaims = {
   phoneNumberVerified?: boolean;
 };
 
-type TotpDoc = Infer<typeof vTotpFactorDoc>;
-
-type PasskeyDoc = Infer<typeof vPasskeyDoc>;
-
-type VerifierDoc = Infer<typeof vAuthVerifierDoc>;
-
 /**
  * Cross-component user document shape inferred from the component validator.
  *
@@ -1338,247 +1350,3 @@ type VerifierDoc = Infer<typeof vAuthVerifierDoc>;
 export type CrossComponentUserDoc = Infer<typeof vUserDoc>;
 
 export type KeyDoc = Infer<typeof vApiKeyDoc>;
-
-/**
- * Structural context accepted by every cross-component wrapper below.
- *
- * Works for both action and mutation contexts; only `runQuery` / `runMutation`
- * and the component API (`auth.config.component`) are required.
- *
- * @internal
- */
-export type ComponentCallCtx = {
-  runQuery: GenericActionCtx<AuthDataModel>["runQuery"];
-  runMutation: GenericActionCtx<AuthDataModel>["runMutation"];
-  runAction?: GenericActionCtx<AuthDataModel>["runAction"];
-  auth: { config: { component: AuthComponentApi } };
-};
-
-/**
- * Fetch a user by ID across the component boundary.
- *
- * One of a family of typed wrappers that each encapsulate the single cast at
- * the component boundary, so callers keep full type safety on args and results.
- */
-export async function queryUserById(
-  ctx: ComponentCallCtx,
-  userId: string,
-): Promise<CrossComponentUserDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.user.get, {
-    id: userId,
-  })) as CrossComponentUserDoc | null;
-}
-
-/** Fetch a user by verified email across the component boundary. */
-export async function queryUserByVerifiedEmail(
-  ctx: ComponentCallCtx,
-  email: string,
-): Promise<CrossComponentUserDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.user.get, {
-    verifiedEmail: email,
-  })) as CrossComponentUserDoc | null;
-}
-
-/** Fetch a PKCE verifier by ID across the component boundary. */
-export async function queryVerifierById(
-  ctx: ComponentCallCtx,
-  verifierId: string,
-): Promise<VerifierDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.token.pkce.get, {
-    id: verifierId,
-  })) as VerifierDoc | null;
-}
-
-/** Delete a PKCE verifier by ID across the component boundary. */
-export async function mutateVerifierDelete(
-  ctx: ComponentCallCtx,
-  verifierId: string,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.token.pkce.remove, {
-    id: verifierId,
-  });
-}
-
-/** Fetch a TOTP factor by ID across the component boundary. */
-export async function queryTotpById(
-  ctx: ComponentCallCtx,
-  totpId: string,
-): Promise<TotpDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.factor.totp.get, {
-    id: totpId,
-  })) as TotpDoc | null;
-}
-
-/** Fetch a user's verified TOTP factor across the component boundary. */
-export async function queryTotpVerifiedByUserId(
-  ctx: ComponentCallCtx,
-  userId: string,
-): Promise<TotpDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.factor.totp.get, {
-    verifiedForUserId: userId,
-  })) as TotpDoc | null;
-}
-
-/** Insert a TOTP factor across the component boundary; returns its ID. */
-export async function mutateTotpInsert(
-  ctx: ComponentCallCtx,
-  args: {
-    userId: string;
-    secret: ArrayBuffer;
-    digits: number;
-    period: number;
-    verified: boolean;
-    name?: string;
-    createdAt: number;
-  },
-): Promise<string> {
-  return (await ctx.runMutation(ctx.auth.config.component.factor.totp.create, args)) as string;
-}
-
-/** Mark a TOTP factor verified across the component boundary. */
-export async function mutateTotpMarkVerified(
-  ctx: ComponentCallCtx,
-  totpId: string,
-  lastUsedAt: number,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.totp.update, {
-    id: totpId,
-    patch: { verified: true, lastUsedAt },
-  });
-}
-
-/** Update a TOTP factor's `lastUsedAt` across the component boundary. */
-export async function mutateTotpUpdateLastUsed(
-  ctx: ComponentCallCtx,
-  totpId: string,
-  lastUsedAt: number,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.totp.update, {
-    id: totpId,
-    patch: { lastUsedAt },
-  });
-}
-
-/** List a user's passkeys across the component boundary. */
-export async function queryPasskeysByUserId(
-  ctx: ComponentCallCtx,
-  userId: string,
-): Promise<PasskeyDoc[]> {
-  return (await ctx.runQuery(ctx.auth.config.component.factor.passkey.list, {
-    userId,
-  })) as PasskeyDoc[];
-}
-
-/** Fetch a passkey by credential ID across the component boundary. */
-export async function queryPasskeyByCredentialId(
-  ctx: ComponentCallCtx,
-  credentialId: string,
-): Promise<PasskeyDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.factor.passkey.get, {
-    credentialId,
-  })) as PasskeyDoc | null;
-}
-
-/** Insert a passkey across the component boundary; returns its ID. */
-export async function mutatePasskeyInsert(
-  ctx: ComponentCallCtx,
-  args: {
-    userId: string;
-    credentialId: string;
-    publicKey: ArrayBuffer;
-    algorithm: number;
-    counter: number;
-    transports?: string[];
-    deviceType: string;
-    backedUp: boolean;
-    name?: string;
-    createdAt: number;
-  },
-): Promise<string> {
-  return (await ctx.runMutation(ctx.auth.config.component.factor.passkey.create, args)) as string;
-}
-
-/**
- * Update a passkey's signature counter (anti-cloning) and `lastUsedAt` across
- * the component boundary.
- */
-export async function mutatePasskeyUpdateCounter(
-  ctx: ComponentCallCtx,
-  passkeyId: string,
-  counter: number,
-  lastUsedAt: number,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.passkey.update, {
-    id: passkeyId,
-    patch: { counter, lastUsedAt },
-  });
-}
-
-type DeviceDoc = Infer<typeof vDeviceCodeDoc>;
-
-/** Insert a device-authorization record across the component boundary; returns its ID. */
-export async function mutateDeviceInsert(
-  ctx: ComponentCallCtx,
-  args: {
-    deviceCodeHash: string;
-    userCode: string;
-    expiresAt: number;
-    interval: number;
-    status: "pending" | "authorized" | "denied";
-  },
-): Promise<string> {
-  return (await ctx.runMutation(ctx.auth.config.component.factor.device.create, args)) as string;
-}
-
-/** Fetch a device-authorization record by code hash across the component boundary. */
-export async function queryDeviceByCodeHash(
-  ctx: ComponentCallCtx,
-  deviceCodeHash: string,
-): Promise<DeviceDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.factor.device.get, {
-    deviceCodeHash,
-  })) as DeviceDoc | null;
-}
-
-/** Fetch a device-authorization record by user code across the component boundary. */
-export async function queryDeviceByUserCode(
-  ctx: ComponentCallCtx,
-  userCode: string,
-): Promise<DeviceDoc | null> {
-  return (await ctx.runQuery(ctx.auth.config.component.factor.device.get, {
-    userCode,
-  })) as DeviceDoc | null;
-}
-
-/** Mark a device-authorization record authorized for a user/session across the component boundary. */
-export async function mutateDeviceAuthorize(
-  ctx: ComponentCallCtx,
-  deviceId: string,
-  userId: string,
-  sessionId: string,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.device.authorize, {
-    id: deviceId,
-    userId,
-    sessionId,
-  });
-}
-
-/** Update a device-authorization record's `lastPolledAt` across the component boundary. */
-export async function mutateDeviceUpdateLastPolled(
-  ctx: ComponentCallCtx,
-  deviceId: string,
-  lastPolledAt: number,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.device.update, {
-    id: deviceId,
-    patch: { lastPolledAt },
-  });
-}
-
-/** Delete a device-authorization record by ID across the component boundary. */
-export async function mutateDeviceDelete(ctx: ComponentCallCtx, deviceId: string): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.device.remove, {
-    id: deviceId,
-  });
-}

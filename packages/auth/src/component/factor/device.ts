@@ -60,9 +60,12 @@ export const create = mutation({
 });
 
 /**
- * Approve a device code, flipping its status to `authorized` and binding the
- * approving `userId`/`sessionId` so the polling device can exchange it for a
- * token.
+ * Approve a device code with a `pending → authorized` compare-and-set, binding
+ * the approving `userId`/`sessionId` so the polling device can exchange it for
+ * a token. The transition is atomic: only a still-`pending` record flips, and
+ * the result reports whether this call won. A retried or concurrent verify
+ * observes `transitioned: false` instead of clobbering an already-authorized
+ * record, so at most one authorization (and its session) binds to the code.
  */
 export const authorize = mutation({
   args: {
@@ -70,14 +73,46 @@ export const authorize = mutation({
     userId: v.id("User"),
     sessionId: v.id("Session"),
   },
-  returns: v.null(),
+  returns: v.object({ transitioned: v.boolean() }),
   handler: async (ctx, { id: deviceId, userId, sessionId }) => {
+    const doc = await ctx.db.get("DeviceCode", deviceId);
+    if (doc === null || doc.status !== "pending") {
+      return { transitioned: false };
+    }
     await ctx.db.patch("DeviceCode", deviceId, {
       status: "authorized",
       userId,
       sessionId,
     });
-    return null;
+    return { transitioned: true };
+  },
+});
+
+/**
+ * Atomically accept an authorized device code: look it up by hash, and if it
+ * is still `authorized`, unexpired, and carries a bound `userId`/`sessionId`,
+ * delete it and return that binding. Any other state (missing, expired,
+ * pending, denied, already accepted) returns `null`. Because the read, check,
+ * and delete run in one transaction, two concurrent polls cannot both accept
+ * the same code — only the winner receives the binding, so the device is
+ * signed in exactly once.
+ */
+export const accept = mutation({
+  args: { deviceCodeHash: v.string(), now: v.number() },
+  returns: v.union(v.object({ userId: v.id("User"), sessionId: v.id("Session") }), v.null()),
+  handler: async (ctx, { deviceCodeHash, now }) => {
+    const doc = await ctx.db
+      .query("DeviceCode")
+      .withIndex("device_code_hash", (q) => q.eq("deviceCodeHash", deviceCodeHash))
+      .first();
+    if (doc === null || doc.status !== "authorized" || doc.expiresAt < now) {
+      return null;
+    }
+    if (doc.userId === undefined || doc.sessionId === undefined) {
+      return null;
+    }
+    await ctx.db.delete("DeviceCode", doc._id);
+    return { userId: doc.userId, sessionId: doc.sessionId };
   },
 });
 

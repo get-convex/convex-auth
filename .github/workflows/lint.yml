@@ -63,6 +63,15 @@ jobs:
       - name: Run lint
         run: vp run lint
 
+      - name: Check formatting
+        run: vp run fmt:check
+
+      - name: Spellcheck docs
+        run: vp run '@robelest/convex-auth#spellcheck'
+
+      - name: Check component pagination
+        run: vp run '@robelest/convex-auth#check:component-paginate'
+
       - name: Stop self-hosted Convex backend
         if: always()
         run: |

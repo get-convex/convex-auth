@@ -43,8 +43,7 @@ export default function ProjectPickerScreen() {
                 paddingHorizontal: spacing.lg - 2,
                 paddingVertical: spacing.md - 1,
                 ...recipes.rowBorder,
-                backgroundColor:
-                  pressed || active ? colors.background.tertiary : "transparent",
+                backgroundColor: pressed || active ? colors.background.tertiary : "transparent",
               })}
             >
               <View style={{ flex: 1, gap: spacing.xs, paddingRight: spacing.md }}>
