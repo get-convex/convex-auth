@@ -11,7 +11,7 @@
     "convex:env:list:prod": "APP_ENV=production vp exec varlock run -- vp exec convex env list --prod",
     "dev:convex": "vp exec varlock run -- vp exec convex dev",
     "dev:convex:once": "vp exec varlock run -- vp exec convex dev --once",
-    "build:auth": "vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component && vp exec varlock run -- vp run '@robelest/convex-auth#build'",
+    "build:auth": "vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component && vp fmt packages/auth/src/component/_generated && vp exec varlock run -- vp run '@robelest/convex-auth#build'",
     "build:docs": "vp run --filter docs build",
     "build:demo": "vp run --filter @robelest/convex-auth build && vp run --filter svelte build",
     "test": "vp exec node ./tests/run.ts",
@@ -32,8 +32,8 @@
     "release:push:force": "pnpm dlx tsx scripts/release-push.ts --force",
     "dev:svelte": "vp run --filter svelte dev",
     "dev:expo": "vp run --filter expo start",
-    "codegen:convex": "vp exec varlock run -- vp exec convex codegen && vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component",
-    "codegen:convex:component": "vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component",
+    "codegen:convex": "vp exec varlock run -- vp exec convex codegen && vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component && vp fmt packages/auth/src/component/_generated",
+    "codegen:convex:component": "vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component && vp fmt packages/auth/src/component/_generated",
     "prepare": "vp config"
   },
   "dependencies": {

@@ -40,7 +40,7 @@ export default defineConfig({
     tasks: {
       "cache:build:convex-codegen": {
         command:
-          "vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component",
+          "vp exec varlock run -- vp exec convex codegen --component-dir ./packages/auth/src/component && vp fmt packages/auth/src/component/_generated",
         cache: true,
         input: [
           "convex/**",
