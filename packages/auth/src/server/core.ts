@@ -331,7 +331,7 @@ export function createCoreDomains(deps: CoreDeps) {
     client: oauthClient,
     code: oauthCode,
     refresh: oauthRefresh,
-    authorize: oauthCode.authorize,
+    authorize: (ctx, args) => oauthCode.authorize(ctx, args),
   };
 
   return {

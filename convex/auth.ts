@@ -48,7 +48,7 @@ type ResendSendCtx = Parameters<typeof resend.sendEmailManually>[0];
  * member-level assertion rather than asserting the whole ctx.
  */
 function asResendSendCtx(ctx: GenericActionCtx<AnyDataModel>): ResendSendCtx {
-  return { runMutation: ctx.runMutation as ResendSendCtx["runMutation"] };
+  return { runMutation: ctx.runMutation.bind(ctx) as ResendSendCtx["runMutation"] };
 }
 
 const emailProvider = email({
