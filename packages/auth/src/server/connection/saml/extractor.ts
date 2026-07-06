@@ -1,5 +1,6 @@
-import { getContext } from "./api";
 import camelCase from "camelcase";
+import { getContext } from "./api";
+import { serializeXmlNode } from "./dom/select";
 
 /** A list of field descriptors driving {@link extract}. */
 export type ExtractorFields = ExtractorField[];
@@ -327,8 +328,8 @@ function extractNested(targetDoc: Document, localPath: string[][]): string[] {
 
 function extractEntire(targetNodes: Element[]): string | string[] | null {
   let value: string | string[] | null = null;
-  if (targetNodes.length === 1) value = targetNodes[0].toString();
-  else if (targetNodes.length > 1) value = targetNodes.map((n) => n.toString());
+  if (targetNodes.length === 1) value = serializeXmlNode(targetNodes[0]);
+  else if (targetNodes.length > 1) value = targetNodes.map(serializeXmlNode);
   return value;
 }
 

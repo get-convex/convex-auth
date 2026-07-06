@@ -6,7 +6,7 @@ import { readPrivateKey, base64Encode } from "./encoding";
 import { getPublicKeyPemFromCert } from "./crypto";
 import { SamlNamespace } from "./constants";
 import { getContext } from "./api";
-import { selectXPath as select, isElementNode } from "./dom/select";
+import { selectXPath as select, isElementNode, serializeXmlNode } from "./dom/select";
 import type { SamlEntitySettings } from "./types";
 import type { SamlMetadata } from "./metadata";
 
@@ -50,7 +50,7 @@ export function encryptAssertion(
       const publicKeyPem = getPublicKeyPemFromCert(encryptCert);
 
       encryptAssertionXmlEnc({
-        assertionXml: rawAssertionNode.toString(),
+        assertionXml: serializeXmlNode(rawAssertionNode),
         publicKeyPem,
         certificate: encryptCert,
         encryptionAlgorithm: sourceSamlEntitySettings.dataEncryptionAlgorithm!,
@@ -62,7 +62,7 @@ export function encryptAssertion(
             `<${encAssertionPrefix}:EncryptedAssertion xmlns:${encAssertionPrefix}="${SamlNamespace.assertion}">${res}</${encAssertionPrefix}:EncryptedAssertion>`,
           );
           doc.documentElement.replaceChild(encryptAssertionDoc.documentElement, rawAssertionNode);
-          return resolve(base64Encode(doc.toString()));
+          return resolve(base64Encode(serializeXmlNode(doc)));
         })
         .catch((err) => {
           console.error(err);
@@ -96,13 +96,13 @@ export function decryptAssertion(here: { entitySetting: SamlEntitySettings }, en
     const encAssertionNode = encryptedAssertions[0];
 
     return decryptAssertionXmlEnc({
-      encryptedAssertionXml: encAssertionNode.toString(),
+      encryptedAssertionXml: serializeXmlNode(encAssertionNode),
       privateKey: readPrivateKey(hereSetting.encPrivateKey!, hereSetting.encPrivateKeyPass),
     })
       .then((res) => {
         const rawAssertionDoc = dom!.parseFromString(res);
         doc.documentElement.replaceChild(rawAssertionDoc.documentElement, encAssertionNode);
-        return resolve([doc.toString(), res]);
+        return resolve([serializeXmlNode(doc), res]);
       })
       .catch((err) => {
         console.error(err);

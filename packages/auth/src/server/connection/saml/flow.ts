@@ -50,10 +50,7 @@ const extractorFieldsByMessageKind = new Map<
   ["LogoutResponse", () => logoutResponseFields],
 ]);
 
-function getDefaultExtractorFields(
-  parserType: SamlMessageKind | string,
-  assertion?: string | null,
-): ExtractorFields {
+function getDefaultExtractorFields(parserType: string, assertion?: string | null): ExtractorFields {
   const resolve = extractorFieldsByMessageKind.get(parserType as SamlMessageKind);
   if (!resolve) {
     throw new Error("ERR_UNDEFINED_PARSERTYPE");
@@ -71,7 +68,7 @@ interface FlowOptions {
   from: FlowEntity;
   self: FlowEntity;
   request: SamlHttpRequest;
-  parserType: SamlMessageKind | string;
+  parserType: string;
   binding: string;
   checkSignature?: boolean;
 }
@@ -201,7 +198,7 @@ async function resolveAssertion(
   samlContent: string,
   verificationOptions: Parameters<typeof verifySignature>[1],
   decryptRequired: boolean | undefined,
-  parserType: SamlMessageKind | string,
+  parserType: string,
   self: FlowEntity,
 ): Promise<{ samlContent: string; extractorFields: ExtractorFields }> {
   const [verified, verifiedAssertionNode] = await verifySignature(samlContent, verificationOptions);

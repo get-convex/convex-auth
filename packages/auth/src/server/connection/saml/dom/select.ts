@@ -36,6 +36,10 @@ export function isTextNode(node: Node): node is Text {
   return node.nodeType === 3;
 }
 
+export function serializeXmlNode(node: { toString(): string }): string {
+  return node.toString();
+}
+
 /** The element a container descends from: a document's root element, or the element itself. */
 function rootElement(node: Container): Container | null {
   return "documentElement" in node ? node.documentElement : node;

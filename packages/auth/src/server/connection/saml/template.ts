@@ -93,10 +93,23 @@ function tagging(prefix: string, content: string): string {
   return prefix + camelContent.charAt(0).toUpperCase() + camelContent.slice(1);
 }
 
+function stringifyTagValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    typeof value === "symbol"
+  ) {
+    return value.toString();
+  }
+  return (value as { toString(): string }).toString();
+}
+
 function escapeTag(replacement: unknown): (...args: string[]) => string {
   return (_match: string, quote?: string) => {
-    const text: string =
-      replacement === null || replacement === undefined ? "" : String(replacement);
+    const text = stringifyTagValue(replacement);
     return quote ? `${quote}${xmlEscape(text)}` : text;
   };
 }

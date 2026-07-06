@@ -21,11 +21,21 @@ function escapeXmlAttribute(input: string): string {
   return escapeXmlText(input).replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
+function renderScalar(value: string | number | boolean): string {
+  return typeof value === "string" ? value : value.toString();
+}
+
+function renderAttributeValue(value: XmlNode): string {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value) || isXmlObject(value)) return renderValue(value);
+  return renderScalar(value);
+}
+
 function renderAttributes(attrs: XmlObject): string {
   return Object.keys(attrs)
     .map((key) => {
       const value = attrs[key];
-      return ` ${key}="${escapeXmlAttribute(String(value))}"`;
+      return ` ${key}="${escapeXmlAttribute(renderAttributeValue(value))}"`;
     })
     .join("");
 }
@@ -45,7 +55,7 @@ function renderValue(value: XmlNode): string {
       .join("");
   }
 
-  return escapeXmlText(String(value));
+  return escapeXmlText(renderScalar(value));
 }
 
 function renderElement(tagName: string, value: XmlNode): string {

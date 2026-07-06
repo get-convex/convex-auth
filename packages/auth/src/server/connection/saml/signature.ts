@@ -1,3 +1,4 @@
+import { decodeBase64, encodeBase64 } from "@oslojs/encoding";
 import {
   readPrivateKey,
   base64Encode,
@@ -15,8 +16,13 @@ import {
   schemeToHash,
 } from "./xmldsig";
 import { getContext } from "./api";
-import { selectXPath as select, type SelectedValue, isElementNode, isTextNode } from "./dom/select";
-import { decodeBase64, encodeBase64 } from "@oslojs/encoding";
+import {
+  selectXPath as select,
+  type SelectedValue,
+  isElementNode,
+  isTextNode,
+  serializeXmlNode,
+} from "./dom/select";
 import type { SignatureConfig } from "./types";
 import type { SamlMetadata } from "./metadata";
 
@@ -229,7 +235,7 @@ export async function verifySignature(
 
     sig.loadSignature(signatureNode);
 
-    verified = await sig.checkSignature(doc.toString());
+    verified = await sig.checkSignature(serializeXmlNode(doc));
 
     if (!verified) {
       if (isAssertionSignature) {
@@ -247,14 +253,14 @@ export async function verifySignature(
 
       const encryptedAssertions = select("./*[local-name()='EncryptedAssertion']", rootNode);
       if (assertions.length === 1) {
-        return [true, assertions[0].toString()];
+        return [true, serializeXmlNode(assertions[0])];
       } else if (encryptedAssertions.length >= 1) {
-        return [true, rootNode.toString()];
+        return [true, serializeXmlNode(rootNode)];
       } else {
         return [true, null];
       }
     } else if (rootNode.localName === "Assertion") {
-      return [true, rootNode.toString()];
+      return [true, serializeXmlNode(rootNode)];
     } else {
       return [true, null];
     }

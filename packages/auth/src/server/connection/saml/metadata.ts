@@ -263,7 +263,7 @@ export function parseIdpMetadata(input: MetadataIdpConstructor): IdpMetadata {
     getSingleLogoutService: (binding) => getSingleLogoutService(meta, binding),
     isWantAuthnRequestsSigned: () => {
       const v = meta.wantAuthnRequestsSigned;
-      return v !== undefined ? String(v) === "true" : false;
+      return v === "true" || v === true;
     },
     getSingleSignOnService: (binding) => {
       if (isString(binding)) {

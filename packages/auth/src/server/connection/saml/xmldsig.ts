@@ -1,7 +1,7 @@
 import { safeParseXml } from "./api";
 import { CanonicalNode, CanonicalizationOptions, getTransformByAlgorithm } from "./c14n";
 import { sha1Base64, sha256Base64, rsaSign, rsaVerify } from "./crypto";
-import { SelectedValue, evaluateXPathToNodes } from "./dom/select";
+import { SelectedValue, evaluateXPathToNodes, serializeXmlNode } from "./dom/select";
 import { toUtf8String } from "./encoding";
 
 /** A value usable as bytes: a string or a `Uint8Array`. */
@@ -670,7 +670,7 @@ export function createSignedXml() {
       signatureXml += self.getKeyInfo(prefix);
       signatureXml += `</${currentPrefix}Signature>`;
 
-      self.originalXmlWithIds = doc.toString();
+      self.originalXmlWithIds = serializeXmlNode(doc);
 
       let existingPrefixesString = "";
       Object.keys(existingPrefixes).forEach((key) => {
@@ -718,7 +718,7 @@ export function createSignedXml() {
       await self.calculateSignatureValue(doc);
       signatureDoc.insertBefore(self.createSignature(prefix), signedInfoNodes[0].nextSibling);
       self.signatureXml = (signatureDoc as { toString(): string }).toString();
-      self.signedXml = doc.toString();
+      self.signedXml = serializeXmlNode(doc);
     },
 
     loadReference(refNode: Node) {
