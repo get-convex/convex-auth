@@ -1,13 +1,17 @@
 import { mutation, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { components } from "./_generated/api";
-import { v } from "convex/values";
+import { Infer, v } from "convex/values";
 import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
 import {
   hashPassword,
   verifyPassword as verifyPasswordHash,
 } from "./argon2.js";
-import { assertValidPassword, normalizePassword } from "./validation.js";
+import {
+  validatePassword,
+  normalizePassword,
+  setPasswordUserError,
+} from "./validation.js";
 
 // Throttle for password verification attempts.
 //
@@ -33,6 +37,12 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 });
 
+const setPasswordResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), userError: setPasswordUserError }),
+);
+type SetPasswordResult = Infer<typeof setPasswordResult>;
+
 /**
  * Set (or replace) a user's password.
  *
@@ -41,9 +51,13 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
  */
 export const setPassword = mutation({
   args: { userId: v.string(), password: v.string() },
-  returns: v.null(),
-  handler: async (ctx, { userId, password }) => {
-    assertValidPassword(password);
+  returns: setPasswordResult,
+  handler: async (ctx, { userId, password }): Promise<SetPasswordResult> => {
+    const userError = validatePassword(password);
+    if (userError !== null) {
+      return { success: false, userError };
+    }
+
     const passwordHashPHC = await hashPassword(normalizePassword(password));
     const existing = await passwordByUserId(ctx, userId);
     if (existing !== null) {
@@ -51,9 +65,21 @@ export const setPassword = mutation({
     } else {
       await ctx.db.insert("passwords", { userId, passwordHashPHC });
     }
-    return null;
+
+    return { success: true };
   },
 });
+
+const verifyPasswordUserError = v.union(
+  v.object({ error: v.literal("INVALID_CREDENTIALS") }),
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
+
+const verifyPasswordResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), userError: verifyPasswordUserError }),
+);
+type VerifyPasswordResult = Infer<typeof verifyPasswordResult>;
 
 /**
  * Verify a user's password.
@@ -65,20 +91,32 @@ export const setPassword = mutation({
  */
 export const verifyPassword = mutation({
   args: { userId: v.string(), password: v.string() },
-  returns: v.boolean(),
-  handler: async (ctx, { userId, password }) => {
-    await rateLimiter.limit(ctx, "verifyPassword", {
+  returns: verifyPasswordResult,
+  handler: async (ctx, { userId, password }): Promise<VerifyPasswordResult> => {
+    const status = await rateLimiter.limit(ctx, "verifyPassword", {
       key: userId,
-      throws: true,
     });
+    if (!status.ok) {
+      return {
+        success: false,
+        userError: { error: "RATE_LIMITED", retryAfterMs: status.retryAfter },
+      };
+    }
+
     const row = await passwordByUserId(ctx, userId);
     if (row === null) {
-      return false;
+      // The app owns the user ↔ userId mapping, so an unknown userId is an
+      // unrecoverable programming error rather than a user-facing condition.
+      throw new Error(`No password stored for userId ${userId}.`);
     }
-    return await verifyPasswordHash(
+    const matches = await verifyPasswordHash(
       normalizePassword(password),
       row.passwordHashPHC,
     );
+    if (!matches) {
+      return { success: false, userError: { error: "INVALID_CREDENTIALS" } };
+    }
+    return { success: true };
   },
 });
 

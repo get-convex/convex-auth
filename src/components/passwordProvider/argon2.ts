@@ -10,7 +10,14 @@ import wasmModule from "./argon2-wasm/pkg/argon2_wasm_bg.wasm";
 // (This component doesn’t do concurrent WASM calls at the moment, but it’s still safer to do so.)
 let ready: Promise<unknown> | null = null;
 function ensureReady() {
-  if (!ready) ready = init({ module_or_path: wasmModule }); // WebAssembly.instantiate(module, imports)
+  if (!ready) {
+    ready = init({ module_or_path: wasmModule }).catch((cause) => {
+      // Reset so a later call can retry, and surface a clear error instead of
+      // the raw wasm-bindgen failure.
+      ready = null;
+      throw new Error(`Failed to initialize the argon2 WASM module: ${cause}`);
+    });
+  }
   return ready;
 }
 
@@ -18,7 +25,13 @@ function ensureReady() {
 export async function hashPassword(password: string): Promise<string> {
   await ensureReady();
   const salt = crypto.getRandomValues(new Uint8Array(16)); // randomness stays in JS
-  return hash_password(password, salt);
+  try {
+    return hash_password(password, salt);
+  } catch (cause) {
+    // Hashing shouldn't fail for a valid input; surface a clear error instead
+    // of the raw wasm-bindgen failure.
+    throw new Error(`Failed to hash password: ${cause}`);
+  }
 }
 
 /** Verify a password against a stored PHC string. */
@@ -27,5 +40,12 @@ export async function verifyPassword(
   phc: string,
 ): Promise<boolean> {
   await ensureReady();
-  return verify_password(password, phc);
+  try {
+    return verify_password(password, phc);
+  } catch (cause) {
+    // Thrown when the stored PHC string can't be parsed as an argon2 hash (it's
+    // always our own data, so this is unrecoverable). Surface a clear error
+    // instead of the raw wasm-bindgen failure.
+    throw new Error(`Failed to verify password against the stored hash: ${cause}`);
+  }
 }
