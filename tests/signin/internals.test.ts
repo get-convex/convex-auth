@@ -1,7 +1,9 @@
 import { password } from "@robelest/convex-auth/providers/password";
 import { credentialsSignInImpl } from "@robelest/convex-auth/server/mutations/credentials/signin";
 import * as mutations from "@robelest/convex-auth/server/mutations/calls";
+import { enrichActionCtx } from "@robelest/convex-auth/server/runtime";
 import { signInImpl } from "@robelest/convex-auth/server/signin/flow";
+import type { GenericActionCtx, GenericDataModel } from "convex/server";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 afterEach(() => {
@@ -242,6 +244,65 @@ test("password provider routes unverified sign-in through verify provider withou
     accountId: "account1",
     params,
   });
+});
+
+test("runtime enrichment preserves non-enumerable Convex action methods", async () => {
+  type FakeActionCtx = {
+    auth: { getUserIdentity(): Promise<null> };
+    runAction(ref: string): Promise<string>;
+    runMutation(ref: string): Promise<string>;
+    runQuery(ref: string): Promise<string>;
+    secretDescriptor: string;
+  };
+
+  const originalThisValues: unknown[] = [];
+  const authCtx = {
+    getUserIdentity: async function (this: unknown) {
+      expect(this).toBe(authCtx);
+      return null;
+    },
+  };
+  const originalCtx = { auth: authCtx } as FakeActionCtx;
+
+  Object.defineProperties(originalCtx, {
+    runAction: {
+      value: async function (this: unknown, ref: string) {
+        originalThisValues.push(this);
+        return `action:${ref}`;
+      },
+    },
+    runMutation: {
+      value: async function (this: unknown, ref: string) {
+        originalThisValues.push(this);
+        return `mutation:${ref}`;
+      },
+    },
+    runQuery: {
+      value: async function (this: unknown, ref: string) {
+        originalThisValues.push(this);
+        return `query:${ref}`;
+      },
+    },
+    secretDescriptor: {
+      value: "preserved",
+    },
+  });
+
+  expect(({ ...originalCtx } as Partial<FakeActionCtx>).runQuery).toBeUndefined();
+
+  const enriched = enrichActionCtx(originalCtx as unknown as GenericActionCtx<GenericDataModel>, {
+    getUserIdentity: authCtx.getUserIdentity.bind(authCtx),
+    config: { component: {} },
+  }) as unknown as FakeActionCtx & {
+    auth: typeof authCtx & { config: { component: Record<string, never> } };
+  };
+
+  expect(enriched.secretDescriptor).toBe("preserved");
+  expect(await enriched.runQuery("get")).toBe("query:get");
+  expect(await enriched.runMutation("set")).toBe("mutation:set");
+  expect(await enriched.runAction("do")).toBe("action:do");
+  expect(await enriched.auth.getUserIdentity()).toBeNull();
+  expect(originalThisValues).toEqual([originalCtx, originalCtx, originalCtx]);
 });
 
 test("credentials sign-in keeps the no-token contract when authorize pre-issues a session", async () => {

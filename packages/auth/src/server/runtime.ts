@@ -78,6 +78,63 @@ function bridgeRuntimeType<T>(value: object): T {
 }
 
 /**
+ * Preserve Convex action context behavior while replacing `ctx.auth`.
+ *
+ * Convex context methods can be non-enumerable or prototype-backed. A plain
+ * `{ ...ctx, auth }` drops those methods in packaged builds, so calls such as
+ * `ctx.runQuery(...)` disappear inside provider flows. Forward the call methods
+ * bound to the original ctx and preserve the rest of the context descriptors.
+ *
+ * @internal
+ */
+export function enrichActionCtx<
+  DataModel extends GenericDataModel,
+  AuthContext extends GenericActionCtx<DataModel>["auth"] & Record<string, unknown>,
+>(
+  ctx: GenericActionCtx<DataModel>,
+  auth: AuthContext,
+): GenericActionCtx<DataModel> & { auth: AuthContext } {
+  const {
+    auth: _authDescriptor,
+    runAction: _runActionDescriptor,
+    runMutation: _runMutationDescriptor,
+    runQuery: _runQueryDescriptor,
+    ...descriptors
+  } = Object.getOwnPropertyDescriptors(ctx);
+
+  const enriched = Object.create(
+    Object.getPrototypeOf(ctx),
+    descriptors,
+  ) as GenericActionCtx<DataModel>;
+
+  Object.defineProperties(enriched, {
+    auth: {
+      configurable: true,
+      enumerable: true,
+      value: auth,
+      writable: true,
+    },
+    runAction: {
+      configurable: true,
+      value: ctx.runAction.bind(ctx),
+      writable: true,
+    },
+    runMutation: {
+      configurable: true,
+      value: ctx.runMutation.bind(ctx),
+      writable: true,
+    },
+    runQuery: {
+      configurable: true,
+      value: ctx.runQuery.bind(ctx),
+      writable: true,
+    },
+  });
+
+  return enriched as GenericActionCtx<DataModel> & { auth: AuthContext };
+}
+
+/**
  * The type of the signIn Convex Action returned from the auth() helper.
  *
  * This type is exported for implementors of other client integrations.
@@ -498,9 +555,8 @@ export function Auth(config_: ConvexAuthConfig) {
   const passkeyHelpers = { remove: passkeyDelete };
   const totpHelpers = { remove: totpDelete };
 
-  const enrichCtx = <DataModel extends GenericDataModel>(ctx: GenericActionCtx<DataModel>) => ({
-    ...ctx,
-    auth: {
+  const enrichCtx = <DataModel extends GenericDataModel>(ctx: GenericActionCtx<DataModel>) =>
+    enrichActionCtx(ctx, {
       ...ctx.auth,
       getUserIdentity: ctx.auth.getUserIdentity.bind(ctx.auth),
       config,
@@ -511,8 +567,7 @@ export function Auth(config_: ConvexAuthConfig) {
       member: auth.member,
       provider: auth.provider,
       event: auth.event,
-    },
-  });
+    });
 
   return {
     auth,
