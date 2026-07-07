@@ -1,5 +1,5 @@
 import { internalMutation, query } from "./_generated/server";
-import { GenericId, v } from "convex/values";
+import { v } from "convex/values";
 
 /**
  * The app's user create-or-update callback. The core invokes it (via a function
@@ -19,19 +19,13 @@ import { GenericId, v } from "convex/values";
  */
 export const upsertFromAuth = internalMutation({
   args: {
-    provider: v.union(v.literal("foo"), v.literal("bar")),
+    provider: v.string(),
     providerAccountId: v.string(),
     profile: v.any(),
-    userId: v.union(v.string(), v.null()),
+    userId: v.optional(v.string()),
   },
-  returns: v.id("users"),
-  handler: async (ctx, args) => {
-    args.provider;
-    if (args.profile.name && typeof args.profile.name === "string") {
-      return ctx.db.insert("users", { name: args.profile.name });
-    }
-    throw Error("unable to add user; no name");
-  },
+  returns: v.string(),
+  handler: async (_ctx, args) => args.userId ?? args.providerAccountId,
 });
 
 /**

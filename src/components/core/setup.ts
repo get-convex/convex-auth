@@ -1,142 +1,28 @@
 import {
   mutationGeneric,
   createFunctionHandle,
-  RegisteredMutation,
+  type GenericActionCtx,
 } from "convex/server";
 import { v } from "convex/values";
 import type { ComponentApi } from "./_generated/component.js";
 import {
   vTokenBundle,
   type TokenBundle,
-  ProviderConfig,
-  CompleteSignInFunc,
+  type AuthClaims,
 } from "../../lib/types.js";
 import { CreateOrUpdateUserFn } from "../../lib/types.js";
 
-// Helper: pairs a `ProviderConfig` with its options, preserving `Name`, `Options` and `Api` individually.
-export function provider<Name extends string, Options, Api>(
-  config: ProviderConfig<Name, Options, Api>,
-  options: Options,
-): readonly [ProviderConfig<Name, Options, Api>, Options] {
-  return [config, options] as const;
-}
-
-// An explicitly loosley typed tuple of [ProviderConfig, Options].
-type ProviderWithOptions = readonly [ProviderConfig<any, any, any>, any];
-
-// Maps a tuple of entries to
-// { [ProviderConfig.name]: ReturnType<ProviderConfig.setup> } by distributing
-// over the tuple's union.
-type ProviderApis<T extends readonly ProviderWithOptions[]> = {
-  [K in T[number] as K[0]["name"]]: ReturnType<K[0]["setup"]>;
-};
-
-/**
- * Refreshes a session using the given token, rotating the refresh token.
- *
- * A successful refresh returns a new token bundle. A failed refresh (an
- * unknown or expired token) returns `null` and leaves no usable session
- * behind (an expired session is deleted as part of the same call). Callers,
- * including the client, should treat a `null` result as signed-out and clear
- * any stored session.
- */
-type RefreshSessionFunc = RegisteredMutation<
-  "public",
-  {
-    refreshToken: string;
-  },
-  Promise<TokenBundle | null>
->;
-
-/**
- * Signs out of the current session.
- *
- * After this the refresh token is no longer valid.
- */
-type SignOutFunc = RegisteredMutation<
-  "public",
-  {
-    refreshToken: string;
-  },
-  Promise<null>
->;
-
-// The app-facing handlers that `attachUserCallback` produces once the
-// create-or-update-user callback is supplied.
-type AuthApi<T extends readonly ProviderWithOptions[]> = {
-  /**
-   * Signs out of the current session.
-   *
-   * After this the refresh token is no longer valid.
-   */
-  signOut: SignOutFunc;
-  /**
-   * Refreshes a session using the given token, rotating the refresh token.
-   *
-   * A successful refresh returns a new token bundle. A failed refresh (an
-   * unknown or expired token) returns `null` and leaves no usable session
-   * behind (an expired session is deleted as part of the same call). Callers,
-   * including the client, should treat a `null` result as signed-out and clear
-   * any stored session.
-   */
-  refreshSession: RefreshSessionFunc;
-  /**
-   * The auth APIs that each provider exposes.
-   *
-   * Each provider is accessible on this object by its name.
-   */
-  providers: ProviderApis<T>;
-};
-
-// Intermediate builder returned by `setupCore` before the app's user callback
-// is known. Its sole method, `attachUserCallback`, is deliberately
-// *non-generic* in the provider tuple `T`: `T` is already fixed by the time
-// `attachUserCallback` is called, so its return type `AuthApi<T>` is fully
-// determined without typing the `createOrUpdateUser` argument. See the note
-// on `setupCore` for why that decoupling is required.
-type CoreBuilder<T extends readonly ProviderWithOptions[]> = {
-  /**
-   * The `createOrUpdateUser` function passed in here represents the core
-   * entrypoint for an application to integrate its user model with Convex Auth.
-   *
-   * It will be called in two scenarios, both associated with a user signing in:
-   *
-   *  1. The first time a user signs in with an account from a provider.
-   *    * The `userId` argument will not be present in this case.
-   *    * The application should do one of:
-   *      a. Create a new user record and return its `_id`
-   *      b. Use trusted information in the `profile` (e.g. a verified email)
-   *         to associate the account with an existing user, and return its
-   *         `_id`
-   *  2. Subsequent sign ins from a provider
-   *    * The `userId` argument will be present.
-   *    * The application may use the data in `profile` to update or otherwise
-   *      modify the stored user record.
-   *    * The existing `userId` must be the return value.
-   *
-   * The application keeps ownership of its users table — the core only holds a
-   * reference to this one mutation.
-   *
-   * If an application wants to reject a sign in, it can throw a `ConvexError`
-   * and the entire sign in attempt will be blocked.
-   */
-  attachUserCallback(
-    createOrUpdateUser: CreateOrUpdateUserFn<T[number][0]["name"]>,
-  ): AuthApi<T>;
-};
-
 /**
  * Build the app-facing auth-core handlers from the mounted `core` component
- * reference and the auth providers that the app will use. Returns
- * ready-to-export `signOut`/`refreshSession` mutations plus a typesafe
- * `providers` object keyed by provider name and containing its API.
+ * reference and the app's user create-or-update callback. Returns ready-to-export
+ * `signOut`/`refreshSession` mutations plus `completeSignIn`, which the provider
+ * factories use to turn provider claims into a session.
  *
  * The core never triggers a sign-in itself: it has no idea how any given
  * provider authenticates a user. *Triggering `signIn` is each provider's
- * responsibility* and should be part of its returned API. A provider verifies
- * the user its own way (checking a password, say), produces the standard
- * claims, and then calls a `completeSignIn` function that the core makes
- * available to each provider to allow them to exchange claims for a session.
+ * responsibility*: a provider verifies the user its own way (checking a
+ * password, say), produces the standard claims, and then calls `completeSignIn`
+ * to exchange them for a session. The core only supplies that exchange.
  *
  * Token lifetimes are configurable here and default to 1m (access) and 30d
  * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
@@ -145,37 +31,10 @@ type CoreBuilder<T extends readonly ProviderWithOptions[]> = {
  *
  * Changes to token TTLs impact newly minted tokens, not ones that have
  * already been issued.
- *
- * @returns a builder object with an `attachUserCallback` function that
- *          completes the configuration of Convex Auth.
  */
-// Why this is a two-step (`setupCore(...).attachUserCallback(...)`) API
-//
-// The app's `createOrUpdateUser` is a reference into the app's *own* `internal`
-// API. But the module that calls `setupCore` also exports the handlers this
-// returns (`signOut` etc.), so those exports are part of that same `internal`
-// API. If the `internal.*` reference were passed straight into this generic
-// call, TS would have to type it while inferring the provider tuple `T` — and
-// typing it forces resolving the module's own API type, which depends on these
-// exports, which depend on this call: a cycle, reported as
-// `TS7022: '…' implicitly has type 'any' because it … is referenced … in its
-// own initializer`.
-//
-// Splitting the call sidesteps that. `setupCore` is generic in `T` but never
-// sees the `internal.*` reference, so inferring `T` touches nothing circular.
-// `attachUserCallback` *does* take the reference, but by then `T` is fixed,
-// so it is a non-generic call whose return type `AuthApi<T>` is fully
-// determined by the signature alone. TS resolves the exported bindings' types
-// from that return type without eagerly typing the `internal.*` argument, so
-// the cycle never forms. (Inside the *single generic* call it did, because
-// inferring `T` required typing every argument, `internal.*` included.)
-export function setupCore<T extends readonly ProviderWithOptions[]>({
-  component,
-  accessTokenTtlSeconds,
-  refreshTokenTtlSeconds,
-  providers,
-}: {
+export function setupCore(opts: {
   component: ComponentApi;
+  createOrUpdateUser: CreateOrUpdateUserFn;
   /**
    * Access-token lifetime in seconds. Defaults to 60 (1 minute).
    *
@@ -190,66 +49,98 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
    * already been issued.
    */
   refreshTokenTtlSeconds?: number;
-  providers: T;
-}): CoreBuilder<T> {
+}) {
+  const {
+    component,
+    createOrUpdateUser,
+    accessTokenTtlSeconds,
+    refreshTokenTtlSeconds,
+  } = opts;
+
   const issuer = (): string => {
     const url = process.env.CONVEX_SITE_URL;
     if (!url) throw new Error("CONVEX_SITE_URL is not available");
     return url;
   };
 
-  // Takes the `createOrUpdateUser` callback, wires it to sign in and returns the
-  // full auth API.
-  const buildFullApi = (
-    createOrUpdateUser: CreateOrUpdateUserFn<T[number][0]["name"]>,
-  ): AuthApi<T> => {
-    const completeSignIn: CompleteSignInFunc = async (ctx, claims) => {
-      const createOrUpdateUserHandle =
-        await createFunctionHandle(createOrUpdateUser);
-      return await ctx.runMutation(component.public.signIn, {
-        claims,
-        createOrUpdateUserHandle,
+  // --- Provider building blocks --------------------------------------------
+  //
+  // `completeSignIn` is a plain helper function, not a registered
+  // query/mutation, because it isn't an endpoint a client calls directly. It's
+  // composed *inside* a provider's own action: the provider authenticates the
+  // user its own way, then calls it (passing its own `ctx`) to talk to the
+  // core. It takes `ctx` and uses `ctx.runMutation` precisely so it can run
+  // within whatever provider function is already executing.
+  //
+  // The functions further down (`refreshSession`, `signOut`) are different:
+  // they have no provider-specific precondition, so they're registered
+  // mutations the app re-exports for the client to call.
+
+  /**
+   * Hand a provider's identity claims to the core, passing a handle to the
+   * app's user create-or-update mutation so the core can persist app users
+   * without knowing the app's schema. A provider calls this from its sign-in
+   * action once it has authenticated the user and produced claims.
+   *
+   * This initiates a session and the returned token bundle allows authenticating
+   * with the Convex backend and refreshing the session.
+   */
+  const completeSignIn = async (
+    ctx: GenericActionCtx<any>,
+    claims: AuthClaims,
+  ): Promise<TokenBundle> => {
+    const createOrUpdateUserHandle =
+      await createFunctionHandle(createOrUpdateUser);
+    return await ctx.runMutation(component.public.signIn, {
+      claims,
+      createOrUpdateUserHandle,
+      issuer: issuer(),
+      accessTokenTtlSeconds,
+      refreshTokenTtlSeconds,
+    });
+  };
+
+  /**
+   * Refreshes a session using the given token, rotating the refresh token.
+   *
+   * A successful refresh returns a new token bundle. A failed refresh (an
+   * unknown or expired token) returns `null` and leaves no usable session
+   * behind (an expired session is deleted as part of the same call). Callers,
+   * including the client, should treat a `null` result as signed-out and clear
+   * any stored session.
+   */
+  const refreshSession = mutationGeneric({
+    args: { refreshToken: v.string() },
+    returns: v.union(vTokenBundle, v.null()),
+    handler: async (ctx, args): Promise<TokenBundle | null> => {
+      return await ctx.runMutation(component.public.refresh, {
+        refreshToken: args.refreshToken,
         issuer: issuer(),
         accessTokenTtlSeconds,
         refreshTokenTtlSeconds,
       });
-    };
+    },
+  });
 
-    const result = {} as any;
-    for (const [config, options] of providers) {
-      result[config.name] = config.setup(completeSignIn, options);
-    }
+  /**
+   * Signs out of the current session.
+   *
+   * After this the refresh token is no longer valid.
+   */
+  const signOut = mutationGeneric({
+    args: { refreshToken: v.string() },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+      await ctx.runMutation(component.public.signOut, {
+        refreshToken: args.refreshToken,
+      });
+      return null;
+    },
+  });
 
-    const refreshSession = mutationGeneric({
-      args: { refreshToken: v.string() },
-      returns: v.union(vTokenBundle, v.null()),
-      handler: async (ctx, args): Promise<TokenBundle | null> => {
-        return await ctx.runMutation(component.public.refresh, {
-          refreshToken: args.refreshToken,
-          issuer: issuer(),
-          accessTokenTtlSeconds,
-          refreshTokenTtlSeconds,
-        });
-      },
-    });
-
-    const signOut = mutationGeneric({
-      args: { refreshToken: v.string() },
-      returns: v.null(),
-      handler: async (ctx, args) => {
-        await ctx.runMutation(component.public.signOut, {
-          refreshToken: args.refreshToken,
-        });
-        return null;
-      },
-    });
-
-    return {
-      refreshSession,
-      signOut,
-      providers: result,
-    };
+  return {
+    completeSignIn,
+    refreshSession,
+    signOut,
   };
-
-  return { attachUserCallback: buildFullApi };
 }
