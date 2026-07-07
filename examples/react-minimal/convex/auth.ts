@@ -1,13 +1,33 @@
+import { CompleteSignInFunc, defineProvider } from "../../../src/lib/types";
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup.js";
+import { provider, setupCore } from "@convex-dev/auth/core/setup.js";
+
+const FooProvider = defineProvider({
+  name: "foo",
+  setup: (completeSignIn, options: { x: string }) => {
+    return {
+      login: () => null,
+    };
+  },
+});
 
 // The core owns sessions, accounts, and JWT minting. It calls back into our
 // `upsertFromAuth` on every sign-in; this example owns no users table and just
 // echoes the account id back as the app user id.
-const core = setupCore({
+export const { signOut, refreshSession, providers } = setupCore({
   component: components.core,
-  createOrUpdateUser: internal.users.upsertFromAuth,
-});
+  providers: [
+    provider(FooProvider, { x: "value" }),
+    provider(
+      {
+        name: "bar",
+        setup: (completeSignIn: CompleteSignInFunc, options: { x: number }) => {
+          return { x: "hi" };
+        },
+      },
+      { x: 2 },
+    ),
+  ],
+}).attachUserCallback(internal.users.upsertFromAuth);
 
-// A sign-in path (e.g. username/password) is wired in alongside a provider.
-export const { signOut, refreshSession } = core;
+const { foo, bar } = providers;
