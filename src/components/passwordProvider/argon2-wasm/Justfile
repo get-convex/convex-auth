@@ -1,0 +1,27 @@
+set shell := ["bash", "-uc"]
+
+wasm-pack-version := "0.15.0"
+
+_default:
+    @just --list
+
+# Install the pinned wasm-pack version.
+install-wasm-pack:
+    cargo install wasm-pack --version {{ wasm-pack-version }} --locked --force
+
+# Regenerate the wasm-bindgen bindings in pkg/.
+build: install-wasm-pack
+    wasm-pack build --release --target web --out-dir pkg --out-name argon2_wasm
+
+test:
+    cargo test --locked
+
+# Compile for the wasm32 target without regenerating bindings (fast syntax/type check).
+check:
+    cargo build --locked --release --target wasm32-unknown-unknown
+
+fmt:
+    cargo fmt --check
+
+lint:
+    cargo clippy --locked --all-targets -- -D warnings
