@@ -14,7 +14,7 @@ export const {
   component: components.core,
   providers: [
     provider(Anonymous, {
-      component: components.anonymous,
+      component: components.authAnonymous,
     }),
   ],
 }).attachUserCallback(internal.users.upsertFromAuth);

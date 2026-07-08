@@ -1,5 +1,5 @@
 import { defineComponent } from "convex/server";
 
-const component = defineComponent("anonymous");
+const component = defineComponent("authAnonymous");
 
 export default component;

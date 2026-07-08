@@ -1,6 +1,6 @@
-import { ComponentApi } from "./_generated/component";
+import { mutationGeneric } from "convex/server";
 import { defineProvider } from "../../lib/types";
-import { actionGeneric } from "convex/server";
+import { ComponentApi } from "./_generated/component";
 
 /**
  * An anonymous accounts provider.
@@ -16,7 +16,7 @@ export const Anonymous = defineProvider({
   setup: (completeSignIn, options: { component: ComponentApi }) => {
     const { component } = options;
     return {
-      signInAnonymous: actionGeneric({
+      signInAnonymous: mutationGeneric({
         args: {},
         handler: async (ctx) => {
           const anonymousId = await ctx.runMutation(

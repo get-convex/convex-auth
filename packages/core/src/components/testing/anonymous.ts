@@ -10,7 +10,7 @@ const modules = import.meta.glob("../anonymous/**/*.ts");
  */
 export function registerAnonymousProvider(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name: string = "anonymous",
+  name: string = "authAnonymous",
 ) {
   t.registerComponent(name, schema, modules);
 }
