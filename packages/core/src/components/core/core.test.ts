@@ -8,13 +8,13 @@ import {
   jwtVerify,
   type JWK,
 } from "jose";
-import { api } from "./_generated/api.js";
-import schema from "./schema.js";
+import { api } from "./_generated/api";
+import schema from "./schema";
 import {
   getCreateOrUpdateUserCalls,
   resetCreateOrUpdateUserCalls,
-} from "./testApp.js";
-import type { AuthClaims, TokenBundle } from "../../lib/types.js";
+} from "./testApp";
+import type { AuthClaims, TokenBundle } from "../../lib/types";
 
 const modules = import.meta.glob("./**/*.ts");
 

@@ -11,7 +11,7 @@ import {
   validatePasswordInputFormat,
   normalizePassword,
   setPasswordUserError,
-} from "./validation.js";
+} from "./validation";
 
 // Throttle for password verification attempts.
 //
