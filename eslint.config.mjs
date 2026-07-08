@@ -15,6 +15,9 @@ export default defineConfig([
       ".context/**",
       ".pnpm-store/**",
       "packages/argon2id/src/argon2-wasm/pkg/**",
+      // Generated output in the docs package (Next.js build + Fumadocs MDX).
+      "packages/docs/.next/**",
+      "packages/docs/.source/**",
     ],
   },
   js.configs.recommended,
@@ -24,7 +27,7 @@ export default defineConfig([
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["*.config.ts", "packages/*/*.config.ts"],
+          allowDefaultProject: ["*.config.ts", "packages/*/vitest.config.ts"],
         },
         tsconfigRootDir: import.meta.dirname,
       },
