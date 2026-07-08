@@ -28,15 +28,16 @@ function setup() {
 describe("setPassword + verifyPassword", () => {
   test("verifies the correct password after setting it", async () => {
     const t = setup();
-    await t.mutation(api.public.setPassword, {
+    const setResult = await t.mutation(api.public.setPassword, {
       userId: "alice",
       password: PASSWORD,
     });
-    const ok = await t.mutation(api.public.verifyPassword, {
+    expect(setResult).toEqual({ success: true });
+    const result = await t.mutation(api.public.verifyPassword, {
       userId: "alice",
       password: PASSWORD,
     });
-    expect(ok).toBe(true);
+    expect(result).toEqual({ success: true });
   });
 
   test("rejects a wrong password", async () => {
@@ -45,20 +46,24 @@ describe("setPassword + verifyPassword", () => {
       userId: "alice",
       password: PASSWORD,
     });
-    const ok = await t.mutation(api.public.verifyPassword, {
+    const result = await t.mutation(api.public.verifyPassword, {
       userId: "alice",
       password: "wrong horse battery staple",
     });
-    expect(ok).toBe(false);
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    });
   });
 
-  test("returns false for an unknown user id", async () => {
+  test("throws for an unknown user id", async () => {
     const t = setup();
-    const ok = await t.mutation(api.public.verifyPassword, {
-      userId: "nobody",
-      password: PASSWORD,
-    });
-    expect(ok).toBe(false);
+    await expect(
+      t.mutation(api.public.verifyPassword, {
+        userId: "nobody",
+        password: PASSWORD,
+      }),
+    ).rejects.toThrow();
   });
 
   test("upserts: setting a new password replaces the old one", async () => {
@@ -84,32 +89,92 @@ describe("setPassword + verifyPassword", () => {
         userId: "alice",
         password: newPassword,
       }),
-    ).toBe(true);
+    ).toEqual({ success: true });
     expect(
       await t.mutation(api.public.verifyPassword, {
         userId: "alice",
         password: PASSWORD,
       }),
-    ).toBe(false);
+    ).toEqual({
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    });
   });
 });
 
-describe("password validation (setPassword only)", () => {
+describe("password validation (setPassword)", () => {
   test("rejects a too-short password", async () => {
     const t = setup();
-    await expect(
-      t.mutation(api.public.setPassword, { userId: "alice", password: "short" }),
-    ).rejects.toThrow(/between 10 and 100/i);
+    const result = await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: "short",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
+    });
   });
 
   test("rejects a password with leading whitespace", async () => {
     const t = setup();
-    await expect(
-      t.mutation(api.public.setPassword, {
-        userId: "alice",
-        password: " leadingspace123",
-      }),
-    ).rejects.toThrow(/whitespace/i);
+    const result = await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: " leadingspace123",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" },
+    });
+  });
+});
+
+describe("password validation (verifyPassword)", () => {
+  test("rejects a too-short password without touching the stored password", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: "short",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
+    });
+  });
+
+  test("rejects a too-long password", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: "a".repeat(101),
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_LONG", maximumLength: 100 },
+    });
+  });
+
+  test("rejects a password with surrounding whitespace", async () => {
+    const t = setup();
+    await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: " leadingspace123",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" },
+    });
   });
 });
 
@@ -127,11 +192,11 @@ describe("Unicode normalization", () => {
       userId: "alice",
       password: composed,
     });
-    const ok = await t.mutation(api.public.verifyPassword, {
+    const result = await t.mutation(api.public.verifyPassword, {
       userId: "alice",
       password: decomposed,
     });
-    expect(ok).toBe(true);
+    expect(result).toEqual({ success: true });
   });
 });
 
@@ -152,7 +217,10 @@ describe("interoperability with hash-wasm", () => {
 
   test("hash-wasm rejects the wrong password against our crate's hash", async () => {
     const phc = await hashPassword(PASSWORD);
-    const ok = await argon2Verify({ password: "wrong password entirely", hash: phc });
+    const ok = await argon2Verify({
+      password: "wrong password entirely",
+      hash: phc,
+    });
     expect(ok).toBe(false);
   });
 
@@ -252,7 +320,7 @@ describe("verifyPassword is lenient about the stored PHC string", () => {
 });
 
 describe("rate limiting (verifyPassword only)", () => {
-  test("throws once the per-user bucket is exhausted", async () => {
+  test("returns RATE_LIMITED once the per-user bucket is exhausted", async () => {
     const t = setup();
     await t.mutation(api.public.setPassword, {
       userId: "alice",
@@ -267,11 +335,16 @@ describe("rate limiting (verifyPassword only)", () => {
         password: "wrong horse battery staple",
       });
     }
-    await expect(
-      t.mutation(api.public.verifyPassword, {
-        userId: "alice",
-        password: PASSWORD,
-      }),
-    ).rejects.toThrow();
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: PASSWORD,
+    });
+    expect(result.success).toBe(false);
+    if (result.success === false) {
+      expect(result.userError.error).toBe("RATE_LIMITED");
+      if (result.userError.error === "RATE_LIMITED") {
+        expect(typeof result.userError.retryAfterMs).toBe("number");
+      }
+    }
   });
 });
