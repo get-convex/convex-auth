@@ -9,4 +9,7 @@ export default defineSchema({
     authorName: v.string(),
     body: v.string(),
   }).index("by_author", ["authorId"]),
+  users: defineTable({
+    name: v.string(),
+  }),
 });

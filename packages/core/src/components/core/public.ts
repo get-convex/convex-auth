@@ -138,9 +138,9 @@ async function issueSession(
 }
 
 type CreateOrUpdateUserFunctionHandle = FunctionHandle<
-  CreateOrUpdateUserFn["_type"],
-  CreateOrUpdateUserFn["_args"],
-  CreateOrUpdateUserFn["_returnType"]
+  CreateOrUpdateUserFn<string>["_type"],
+  CreateOrUpdateUserFn<string>["_args"],
+  CreateOrUpdateUserFn<string>["_returnType"]
 >;
 
 /**

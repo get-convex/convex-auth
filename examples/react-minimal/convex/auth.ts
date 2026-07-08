@@ -1,13 +1,38 @@
+import { defineProvider } from "@convex-dev/auth/lib/types.js";
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup.js";
+import { provider, setupCore } from "@convex-dev/auth/core/setup.js";
 
-// The core owns sessions, accounts, and JWT minting. It calls back into our
-// `upsertFromAuth` on every sign-in; this example owns no users table and just
-// echoes the account id back as the app user id.
-const core = setupCore({
-  component: components.core,
-  createOrUpdateUser: internal.users.upsertFromAuth,
+/**
+ * Documentation for the FakeProvider.
+ *
+ * Pair with {@link FakeOptions} when installing as a {@link provider}.
+ */
+// TODO: dowski - remove this when we have real providers to work with
+const FakeProvider = defineProvider({
+  name: "fake",
+  setup: (completeSignIn, options: FakeOptions) => {
+    return {
+      login: (arg1: string) => null,
+    };
+  },
 });
 
-// A sign-in path (e.g. username/password) is wired in alongside a provider.
-export const { signOut, refreshSession } = core;
+/**
+ * Docs for the FakeOptions.
+ */
+type FakeOptions = {
+  /**
+   * Docs for the exampleValue.
+   */
+  exampleValue: string;
+};
+
+// The core owns sessions, accounts, and JWT minting. It calls back into our
+// `upsertFromAuth` on every sign-in from a provider.
+export const { signOut, refreshSession, providers } = setupCore({
+  component: components.core,
+  providers: [
+    // TODO: dowski - remove this when we have real providers to work with
+    provider(FakeProvider, { exampleValue: "passed to FakeProvider.setup" }),
+  ],
+}).attachUserCallback(internal.users.upsertFromAuth);
