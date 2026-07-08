@@ -7,3 +7,8 @@ pnpm-lock.yaml
 .pnpm-store
 packages/argon2id/src/argon2-wasm/pkg/
 packages/argon2id/src/argon2-wasm/target/
+
+# Fumadocs generated output (packages/docs)
+**/.next/
+**/.source/
+next-env.d.ts
