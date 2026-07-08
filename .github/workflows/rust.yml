@@ -1,4 +1,4 @@
-name: argon2-wasm CI
+name: Rust
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -8,11 +8,14 @@ on:
   pull_request:
     paths:
       - "packages/argon2id/src/argon2-wasm/**"
+      - ".github/workflows/rust.yml"
+  workflow_dispatch:
 
 permissions: {}
 
 jobs:
-  build-and-test:
+  ci:
+    name: CI
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
