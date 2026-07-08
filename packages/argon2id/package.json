@@ -1,0 +1,29 @@
+{
+  "name": "@convex-dev/argon2id",
+  "version": "0.0.0",
+  "description": "argon2id password hashing (WASM) for Convex Auth",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/get-convex/convex-auth.git",
+    "directory": "packages/argon2id"
+  },
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build:wasm": "cd src/argon2-wasm && just build",
+    "prepare": "test -f src/argon2-wasm/pkg/argon2_wasm_bg.wasm || pnpm run build:wasm",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.4",
+    "typescript": "^6.0.3"
+  }
+}

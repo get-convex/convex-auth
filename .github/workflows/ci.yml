@@ -17,11 +17,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/argon2-wasm-setup
-
-      - name: Build argon2-wasm
-        working-directory: packages/core/src/components/passwordProvider/argon2-wasm
-        run: just build
+      - uses: ./.github/actions/rust-setup
 
       - name: Install pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0

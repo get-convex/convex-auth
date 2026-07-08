@@ -6,13 +6,17 @@ This branch contains a WIP implementation of Convex Auth v2.
 
 Use `pnpm install` at the root.
 
-The `passwordProvider` component depends on some Rust code. In order to build the repository from source, you will need to run:
+The `@convex-dev/argon2id` package depends on some Rust code compiled to WebAssembly.
+Its `prepare` script builds it automatically on `pnpm install` when the compiled
+output is missing, so you'll need [`just`](https://github.com/casey/just) and the
+toolchain pinned in `packages/argon2id/src/argon2-wasm/rust-toolchain.toml` (installed
+automatically by `rustup` on first use).
+
+To rebuild the WASM after changing the Rust source, run:
 
 ```bash
-cd packages/core/src/components/passwordProvider/argon2-wasm/ && just build
+pnpm --filter @convex-dev/argon2id build:wasm
 ```
-
-TODO(nicolas) Make the Rust build automatic
 
 Common tasks:
 

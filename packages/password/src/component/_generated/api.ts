@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as argon2 from "../argon2.js";
 import type * as public_ from "../public.js";
 import type * as validation from "../validation.js";
 
@@ -21,7 +20,6 @@ import { anyApi, componentsGeneric } from "convex/server";
 import type { ComponentApi as RateLimiter } from "@convex-dev/rate-limiter/_generated/component.js";
 
 const fullApi: ApiFromModules<{
-  argon2: typeof argon2;
   public: typeof public_;
   validation: typeof validation;
 }> = anyApi as any;
