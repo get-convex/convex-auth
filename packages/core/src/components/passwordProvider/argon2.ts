@@ -4,6 +4,10 @@ import init, {
 } from "./argon2-wasm/pkg/argon2_wasm.js";
 import wasmModule from "./argon2-wasm/pkg/argon2_wasm_bg.wasm";
 
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+
 // The wasm-bindgen module must be instantiated once before its exports can be
 // called. Memoize the promise so concurrent calls share a single init.
 //
@@ -15,9 +19,12 @@ function ensureReady() {
       // Reset so a later call can retry, and surface a clear error instead of
       // the raw wasm-bindgen failure.
       ready = null;
-      throw new Error(`Failed to initialize the argon2 WASM module: ${cause}`, {
-        cause,
-      });
+      throw new Error(
+        `Failed to initialize the argon2 WASM module: ${errorMessage(cause)}`,
+        {
+          cause,
+        },
+      );
     });
   }
   return ready;
@@ -32,7 +39,9 @@ export async function hashPassword(password: string): Promise<string> {
   } catch (cause) {
     // Hashing shouldn't fail for a valid input; surface a clear error instead
     // of the raw wasm-bindgen failure.
-    throw new Error(`Failed to hash password: ${cause}`, { cause });
+    throw new Error(`Failed to hash password: ${errorMessage(cause)}`, {
+      cause,
+    });
   }
 }
 
@@ -49,7 +58,7 @@ export async function verifyPassword(
     // always our own data, so this is unrecoverable). Surface a clear error
     // instead of the raw wasm-bindgen failure.
     throw new Error(
-      `Failed to verify password against the stored hash: ${cause}`,
+      `Failed to verify password against the stored hash: ${errorMessage(cause)}`,
       {
         cause,
       },

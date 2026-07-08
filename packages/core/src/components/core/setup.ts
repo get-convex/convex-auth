@@ -1,8 +1,8 @@
 import {
   mutationGeneric,
   createFunctionHandle,
-  type GenericActionCtx,
   type GenericDataModel,
+  type GenericMutationCtx,
 } from "convex/server";
 import { v } from "convex/values";
 import type { ComponentApi } from "./_generated/component.js";
@@ -12,6 +12,11 @@ import {
   type AuthClaims,
 } from "../../lib/types.js";
 import { CreateOrUpdateUserFn } from "../../lib/types.js";
+
+type CompleteSignInCtx = Pick<
+  GenericMutationCtx<GenericDataModel>,
+  "runMutation"
+>;
 
 /**
  * Build the app-facing auth-core handlers from the mounted `core` component
@@ -87,7 +92,7 @@ export function setupCore(opts: {
    * with the Convex backend and refreshing the session.
    */
   const completeSignIn = async (
-    ctx: GenericActionCtx<GenericDataModel>,
+    ctx: CompleteSignInCtx,
     claims: AuthClaims,
   ): Promise<TokenBundle> => {
     const createOrUpdateUserHandle =

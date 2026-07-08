@@ -10,6 +10,25 @@
 
 import type { FunctionReference } from "convex/server";
 
+type PasswordFormatUserError =
+  | { error: "PASSWORD_TOO_SHORT"; minimumLength: number }
+  | { error: "PASSWORD_TOO_LONG"; maximumLength: number }
+  | { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" };
+
+type SetPasswordResult =
+  | { success: true }
+  | { success: false; userError: PasswordFormatUserError };
+
+type VerifyPasswordResult =
+  | { success: true }
+  | {
+      success: false;
+      userError:
+        | PasswordFormatUserError
+        | { error: "INVALID_CREDENTIALS" }
+        | { error: "RATE_LIMITED"; retryAfterMs: number };
+    };
+
 /**
  * A utility for referencing a Convex component's exposed API.
  *
@@ -28,14 +47,14 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         { password: string; userId: string },
-        null,
+        SetPasswordResult,
         Name
       >;
       verifyPassword: FunctionReference<
         "mutation",
         "internal",
         { password: string; userId: string },
-        boolean,
+        VerifyPasswordResult,
         Name
       >;
     };
