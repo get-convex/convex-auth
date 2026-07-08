@@ -1,4 +1,10 @@
-import { mutation, MutationCtx, QueryCtx, env } from "./_generated/server";
+import {
+  mutation,
+  query,
+  MutationCtx,
+  QueryCtx,
+  env,
+} from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { FunctionHandle } from "convex/server";
@@ -228,6 +234,30 @@ export const signIn = mutation({
       args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
     );
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
+  },
+});
+
+/**
+ * Resolve a provider identity to its app user id without minting a session.
+ *
+ * Providers use this (via the `resolveUserId` helper the core hands them) to look
+ * up the user behind a `(provider, providerAccountId)` pair before authenticating
+ * — e.g. a password provider needs the user id to verify a stored password *before*
+ * a session is issued. Returns `null` when no account exists for the identity.
+ *
+ * This is a component-internal function (callable by the app, not by end-user
+ * clients), so it does not expose account existence to the outside world; the
+ * provider's own public API decides what, if anything, to reveal.
+ */
+export const getUserIdByAccount = query({
+  args: { provider: v.string(), providerAccountId: v.string() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (
+    ctx,
+    { provider, providerAccountId },
+  ): Promise<string | null> => {
+    const account = await accountByIdentity(ctx, provider, providerAccountId);
+    return account?.userId ?? null;
   },
 });
 
