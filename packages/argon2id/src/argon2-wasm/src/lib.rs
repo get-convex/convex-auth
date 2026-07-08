@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 // 16 MiB memory, 3 iterations, 1 degree of parallelism.
 fn argon2() -> Result<Argon2<'static>, JsError> {
     let params = Params::new(16 * 1024, 3, 1, None).map_err(|e| JsError::new(&e.to_string()))?;
-    Ok(Argon2::new(Algorithm::Argon2id, Version::V0x13, params))
+        Ok(Argon2::new(Algorithm::Argon2id, Version::V0x13, params))
 }
 
 #[wasm_bindgen]
