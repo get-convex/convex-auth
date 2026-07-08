@@ -1,0 +1,19 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+# Installs workspace dependencies. The argon2id package's `prepare` script also
+# builds the Rust/WASM hasher on install (requires `just` + a Rust toolchain).
+setup = "pnpm install"
+run_mode = "concurrent"
+
+# Docs site (Fumadocs / Next.js). Uses the per-workspace port so multiple
+# workspaces can serve docs at the same time.
+[scripts.run.docs]
+command = "pnpm -C packages/docs dev -p $CONDUCTOR_PORT"
+default = true
+icon = "book-open"
+
+# Vitest across all packages in watch mode.
+[scripts.run.test]
+command = "pnpm -r --parallel test:watch"
+icon = "test-tube"
