@@ -22,13 +22,15 @@ export const upsertFromAuth = internalMutation({
       return args.userId as Id<"users">;
     }
     switch (args.provider) {
-      case "anonymous":
+      case "anonymous": {
         const name = "Anonymous";
         const anonymousAccountId = args.providerAccountId;
         return ctx.db.insert("users", { name, anonymousAccountId });
-      default:
+      }
+      default: {
         const _exhaustive: never = args.provider;
         return _exhaustive;
+      }
     }
   },
 });
