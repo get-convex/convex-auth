@@ -15,7 +15,9 @@ function ensureReady() {
       // Reset so a later call can retry, and surface a clear error instead of
       // the raw wasm-bindgen failure.
       ready = null;
-      throw new Error(`Failed to initialize the argon2 WASM module: ${cause}`);
+      throw new Error(`Failed to initialize the argon2 WASM module: ${cause}`, {
+        cause,
+      });
     });
   }
   return ready;
