@@ -1,7 +1,6 @@
 import { ComponentApi } from "./_generated/component";
 import { defineProvider } from "../../lib/types";
 import { actionGeneric } from "convex/server";
-import { v } from "convex/values";
 
 /**
  * An anonymous accounts provider.
@@ -9,29 +8,20 @@ import { v } from "convex/values";
  * Useful to establish an authenticated session without requiring a user
  * to provide any credentials.
  *
- * When installing, pair with {@link AnonymousOptions} to customize the
- * behavior in your application.
- *
- * The {@link AnonymousOptions.allowReturningAccounts} value controls whether a
- * previously issued anonymous ID can be used to re-establish a session. It
- * defaults to `false`.
+ * There is no support for allowing a user to return with a previously issued
+ * anonymous account.
  */
 export const Anonymous = defineProvider({
   name: "anonymous",
-  setup: (completeSignIn, options: AnonymousOptions) => {
-    const { component, allowReturningAccounts = false } = options;
+  setup: (completeSignIn, options: { component: ComponentApi }) => {
+    const { component } = options;
     return {
       signInAnonymous: actionGeneric({
-        args: {
-          id: v.optional(v.string()),
-        },
-        handler: async (ctx, args) => {
-          if (args.id && !allowReturningAccounts) {
-            throw Error("returning acccounts not allowed");
-          }
+        args: {},
+        handler: async (ctx) => {
           const anonymousId = await ctx.runMutation(
-            component.provider.signInAnonymous,
-            args,
+            component.provider.createAnonymousAccount,
+            {},
           );
           return await completeSignIn(ctx, {
             provider: "anonymous",
@@ -43,11 +33,3 @@ export const Anonymous = defineProvider({
     };
   },
 });
-
-type AnonymousOptions = {
-  component: ComponentApi;
-  /**
-   * Whether returning anonymous IDs will be accepted by the {@link Anonymous} provider.
-   */
-  allowReturningAccounts?: boolean;
-};

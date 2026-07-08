@@ -14,7 +14,6 @@ export const {
   component: components.core,
   providers: [
     provider(Anonymous, {
-      allowReturningAccounts: true,
       component: components.anonymous,
     }),
   ],

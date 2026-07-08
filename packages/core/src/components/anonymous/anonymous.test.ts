@@ -11,24 +11,9 @@ function setup() {
 }
 
 describe("anonymous auth", () => {
-  test("without argument, returns ID", async () => {
+  test("createAnonymousAccount, returns ID", async () => {
     const t = setup();
-    const result = await t.mutation(api.provider.signInAnonymous, {});
+    const result = await t.mutation(api.provider.createAnonymousAccount, {});
     expect(result).not.toBe(null);
-  });
-
-  test("with returning ID, non matching, throws", async () => {
-    const t = setup();
-    const result = t.mutation(api.provider.signInAnonymous, { id: "fake id" });
-    await expect(result).rejects.toThrow();
-  });
-
-  test("with returning ID, matching, returns ID", async () => {
-    const t = setup();
-    const newId = await t.mutation(api.provider.signInAnonymous, {});
-    const returningId = await t.mutation(api.provider.signInAnonymous, {
-      id: newId,
-    });
-    expect(returningId).toEqual(newId);
   });
 });

@@ -1,5 +1,4 @@
-import { internalMutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
@@ -16,36 +15,15 @@ export const upsertFromAuth = internalMutation({
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
-    if (args.userId) {
-      // We don't do any updating for existing users. Simply return
-      // the ID back.
-      return args.userId as Id<"users">;
-    }
     switch (args.provider) {
       case "anonymous": {
         const name = "Anonymous";
-        const anonymousAccountId = args.providerAccountId;
-        return ctx.db.insert("users", { name, anonymousAccountId });
+        return ctx.db.insert("users", { name });
       }
       default: {
         const _exhaustive: never = args.provider;
         return _exhaustive;
       }
     }
-  },
-});
-
-/**
- * Returns an anonymous sign in ID for an authenticated user, if one exists.
- */
-export const anonymousSignInId = query({
-  args: {},
-  handler: async (ctx) => {
-    const ident = await ctx.auth.getUserIdentity();
-    if (!ident) {
-      return null;
-    }
-    return (await ctx.db.get("users", ident.subject as Id<"users">))
-      ?.anonymousAccountId;
   },
 });

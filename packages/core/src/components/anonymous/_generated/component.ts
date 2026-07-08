@@ -24,10 +24,10 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     provider: {
-      signInAnonymous: FunctionReference<
+      createAnonymousAccount: FunctionReference<
         "mutation",
         "internal",
-        { id?: string },
+        {},
         any,
         Name
       >;

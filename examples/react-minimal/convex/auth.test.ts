@@ -6,7 +6,6 @@ import { registerCore } from "@convex-dev/auth/providers/testing/core.js";
 import schema from "./schema.js";
 import { generateKeyPair, exportPKCS8, exportJWK, decodeJwt } from "jose";
 import { randomUUID } from "crypto";
-import { GenericId } from "convex/values";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -55,18 +54,5 @@ describe("anonymous sign in", () => {
     const result = await t.action(api.auth.signInAnonymous, {});
     const jwt = decodeJwt(result.accessToken);
     expect(jwt.sub).toBe(result.userId);
-  });
-
-  test("allows returning account", async () => {
-    const t = await setup();
-    const result = await t.action(api.auth.signInAnonymous, {});
-    const jwt = decodeJwt(result.accessToken);
-    const signedIn = t.withIdentity({ issuer: jwt.iss, subject: jwt.sub });
-    const anonId = await signedIn.query(api.users.anonymousSignInId);
-    expect(anonId).not.toBe(null);
-    const newResult = await t.action(api.auth.signInAnonymous, {
-      id: anonId! as GenericId<"accounts">,
-    });
-    expect(newResult.userId).toBe(result.userId);
   });
 });
