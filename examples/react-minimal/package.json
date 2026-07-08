@@ -1,0 +1,24 @@
+{
+  "name": "@convex-dev/auth-example-react-minimal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@convex-dev/auth": "workspace:*",
+    "convex": "^1.41.0",
+    "jose": "^5.10.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "convex-test": "^0.0.53",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
+  }
+}
