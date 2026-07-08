@@ -8,17 +8,22 @@ import { v } from "convex/values";
  */
 export const upsertFromAuth = internalMutation({
   args: {
-    // TODO: dowski - remove this when we have real providers to work with
-    provider: v.union(v.literal("fake")),
+    provider: v.union(v.literal("anonymous")),
     providerAccountId: v.string(),
     profile: v.any(),
     userId: v.union(v.string(), v.null()),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
-    if (args.profile.name && typeof args.profile.name === "string") {
-      return ctx.db.insert("users", { name: args.profile.name });
+    switch (args.provider) {
+      case "anonymous": {
+        const name = "Anonymous";
+        return ctx.db.insert("users", { name });
+      }
+      default: {
+        const _exhaustive: never = args.provider;
+        return _exhaustive;
+      }
     }
-    throw Error("unable to add user; no name");
   },
 });

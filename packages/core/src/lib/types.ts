@@ -67,8 +67,15 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
   GenericId<"users">
 >;
 
+/**
+ * The subset of a Convex `ctx` that {@link CompleteSignInFunc} needs. It only
+ * calls `runMutation`, so accepting this structural type lets a provider
+ * complete sign in from either a mutation or an action.
+ */
+type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
+
 export type CompleteSignInFunc = (
-  ctx: GenericActionCtx<GenericDataModel>,
+  ctx: RunMutationCtx,
   claims: AuthClaims,
 ) => Promise<TokenBundle>;
 

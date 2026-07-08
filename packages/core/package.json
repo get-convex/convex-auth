@@ -28,7 +28,9 @@
   "sideEffects": false,
   "exports": {
     "./lib/*": "./src/lib/*",
-    "./core/*": "./src/components/core/*"
+    "./core/*": "./src/components/core/*",
+    "./providers/anonymous/*": "./src/components/anonymous/*",
+    "./providers/testing/*": "./src/components/testing/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
