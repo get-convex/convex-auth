@@ -57,7 +57,7 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
     provider: Provider;
     providerAccountId: string;
     // TODO: dowski - investigate type safety for provider profile data.
-    profile: any;
+    profile: unknown;
     userId: string | null;
   },
   GenericId<"users">

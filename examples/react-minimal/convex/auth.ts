@@ -10,9 +10,9 @@ import { provider, setupCore } from "@convex-dev/auth/core/setup.js";
 // TODO: dowski - remove this when we have real providers to work with
 const FakeProvider = defineProvider({
   name: "fake",
-  setup: (completeSignIn, options: FakeOptions) => {
+  setup: (_completeSignIn, _options: FakeOptions) => {
     return {
-      login: (arg1: string) => null,
+      login: (_arg1: string) => null,
     };
   },
 });

@@ -23,7 +23,10 @@ export function provider<Name extends string, Options, Api>(
   return [config, options] as const;
 }
 
-// An explicitly loosley typed tuple of [ProviderConfig, Options].
+// An explicitly loosely typed tuple of [ProviderConfig, Options]. The `any`s are
+// intentional: this is a constraint that concrete provider tuples must extend, and
+// `unknown` would break assignability via contravariance in `ProviderConfig.setup`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ProviderWithOptions = readonly [ProviderConfig<any, any, any>, any];
 
 // Maps a tuple of entries to
@@ -232,7 +235,7 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
       });
     };
 
-    const result = {} as any;
+    const result: Record<string, unknown> = {};
     for (const [config, options] of providers) {
       result[config.name] = config.setup(completeSignIn, options);
     }
@@ -264,7 +267,7 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
     return {
       refreshSession,
       signOut,
-      providers: result,
+      providers: result as ProviderApis<T>,
     };
   };
 
