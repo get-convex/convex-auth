@@ -1,0 +1,9 @@
+node_modules
+dist
+**/_generated/**
+.agents
+.context
+pnpm-lock.yaml
+.pnpm-store
+packages/core/src/components/passwordProvider/argon2-wasm/pkg/
+packages/core/src/components/passwordProvider/argon2-wasm/target/

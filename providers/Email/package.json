@@ -1,6 +1,0 @@
-{
-  "type": "module",
-  "main": "../../dist/providers/Email/index.js",
-  "module": "../../dist/providers/Email/index.js",
-  "types": "../../dist/providers/Email/index.d.ts"
-}

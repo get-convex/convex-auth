@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.legacy.json",
-  "compilerOptions": {
-    "outDir": "./dist/",
-    "rootDir": "./src/",
-    "stripInternal": true
-  },
-  "include": ["src/server/**/*", "src/providers/**/*"]
-}

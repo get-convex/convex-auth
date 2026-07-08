@@ -1,3 +1,0 @@
-[submodule "prototype"]
-	path = prototype
-	url = git@github.com:get-convex/component-auth-prototype.git

@@ -1,6 +1,0 @@
-{
-  "type": "module",
-  "main": "../../dist/providers/ConvexCredentials/index.js",
-  "module": "../../dist/providers/ConvexCredentials/index.js",
-  "types": "../../dist/providers/ConvexCredentials/index.d.ts"
-}
