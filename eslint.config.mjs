@@ -14,7 +14,7 @@ export default defineConfig([
       ".agents/**",
       ".context/**",
       ".pnpm-store/**",
-      "packages/core/src/components/passwordProvider/argon2-wasm/pkg/**",
+      "packages/argon2id/src/argon2-wasm/pkg/**",
     ],
   },
   js.configs.recommended,
@@ -49,7 +49,11 @@ export default defineConfig([
     },
   },
   {
-    files: ["**/convex/**/*.{js,ts}", "packages/*/src/components/**/*.ts"],
+    files: [
+      "**/convex/**/*.{js,ts}",
+      "packages/*/src/components/**/*.ts",
+      "packages/*/src/component/**/*.ts",
+    ],
     ignores: ["**/*.test.ts"],
     plugins: {
       "@convex-dev": convexPlugin,

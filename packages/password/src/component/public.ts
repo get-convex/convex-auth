@@ -6,7 +6,7 @@ import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
 import {
   hashPassword,
   verifyPassword as verifyPasswordHash,
-} from "./argon2.js";
+} from "@convex-dev/argon2id";
 import {
   validatePasswordInputFormat,
   normalizePassword,

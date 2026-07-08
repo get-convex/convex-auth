@@ -11,7 +11,7 @@ import {
 } from "hash-wasm";
 import { api } from "./_generated/api.js";
 import schema from "./schema.js";
-import { hashPassword, verifyPassword } from "./argon2.js";
+import { hashPassword, verifyPassword } from "@convex-dev/argon2id";
 
 const modules = import.meta.glob("./**/*.ts");
 

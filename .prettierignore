@@ -5,5 +5,5 @@ dist
 .context
 pnpm-lock.yaml
 .pnpm-store
-packages/core/src/components/passwordProvider/argon2-wasm/pkg/
-packages/core/src/components/passwordProvider/argon2-wasm/target/
+packages/argon2id/src/argon2-wasm/pkg/
+packages/argon2id/src/argon2-wasm/target/

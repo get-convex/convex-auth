@@ -1,5 +1,5 @@
-name: argon2-wasm setup
-description: Install just, the pinned Rust toolchain, and cache cargo artifacts for argon2-wasm
+name: Rust setup
+description: Install just, the pinned Rust toolchain, and cache cargo artifacts
 
 runs:
   using: composite
@@ -9,7 +9,7 @@ runs:
     # Reads rust-toolchain.toml and installs the pinned toolchain + targets.
     - name: Install pinned Rust toolchain
       shell: bash
-      working-directory: packages/core/src/components/passwordProvider/argon2-wasm
+      working-directory: packages/argon2id/src/argon2-wasm
       run: rustup toolchain install
 
     - name: Cache cargo registry and build artifacts
@@ -18,7 +18,7 @@ runs:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
-          packages/core/src/components/passwordProvider/argon2-wasm/target
-        key: ${{ runner.os }}-cargo-argon2-wasm-${{ hashFiles('packages/core/src/components/passwordProvider/argon2-wasm/Cargo.lock') }}
+          packages/argon2id/src/argon2-wasm/target
+        key: ${{ runner.os }}-cargo-argon2-wasm-${{ hashFiles('packages/argon2id/src/argon2-wasm/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-argon2-wasm-
