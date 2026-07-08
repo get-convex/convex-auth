@@ -5,13 +5,13 @@ import {
   type GenericDataModel,
 } from "convex/server";
 import { v } from "convex/values";
-import type { ComponentApi } from "./_generated/component.js";
+import type { ComponentApi } from "./_generated/component";
 import {
   vTokenBundle,
   type TokenBundle,
   type AuthClaims,
-} from "../../lib/types.js";
-import { CreateOrUpdateUserFn } from "../../lib/types.js";
+} from "../../lib/types";
+import { CreateOrUpdateUserFn } from "../../lib/types";
 
 /**
  * Build the app-facing auth-core handlers from the mounted `core` component

@@ -7,9 +7,9 @@ import {
   type AuthClaims,
   vTokenBundle,
   type TokenBundle,
-} from "../../lib/types.js";
-import { signJwt, generateRefreshToken, hashToken } from "./crypto.js";
-import { CreateOrUpdateUserFn } from "../../lib/types.js";
+} from "../../lib/types";
+import { signJwt, generateRefreshToken, hashToken } from "./crypto";
+import { CreateOrUpdateUserFn } from "../../lib/types";
 
 // --- Configuration ---------------------------------------------------------
 
