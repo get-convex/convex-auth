@@ -30,7 +30,7 @@ export async function hashPassword(password: string): Promise<string> {
   } catch (cause) {
     // Hashing shouldn't fail for a valid input; surface a clear error instead
     // of the raw wasm-bindgen failure.
-    throw new Error(`Failed to hash password: ${cause}`);
+    throw new Error(`Failed to hash password: ${cause}`, { cause });
   }
 }
 
@@ -46,6 +46,11 @@ export async function verifyPassword(
     // Thrown when the stored PHC string can't be parsed as an argon2 hash (it's
     // always our own data, so this is unrecoverable). Surface a clear error
     // instead of the raw wasm-bindgen failure.
-    throw new Error(`Failed to verify password against the stored hash: ${cause}`);
+    throw new Error(
+      `Failed to verify password against the stored hash: ${cause}`,
+      {
+        cause,
+      },
+    );
   }
 }
