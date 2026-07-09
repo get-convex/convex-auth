@@ -33,7 +33,7 @@ type ProviderWithOptions = readonly [ProviderConfig<any, any, any>, any];
 // { [ProviderConfig.name]: ReturnType<ProviderConfig.setup> } by distributing
 // over the tuple's union.
 type ProviderApis<T extends readonly ProviderWithOptions[]> = {
-  [K in T[number]as K[0]["name"]]: ReturnType<K[0]["setup"]>;
+  [K in T[number] as K[0]["name"]]: ReturnType<K[0]["setup"]>;
 };
 
 // The app-facing handlers that `attachUserCallback` produces once the
