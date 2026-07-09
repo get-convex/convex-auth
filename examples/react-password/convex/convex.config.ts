@@ -1,7 +1,7 @@
 import { defineApp } from "convex/server";
 import { v } from "convex/values";
 import core from "@convex-dev/auth/core/convex.config.js";
-import passwordProvider from "@convex-dev/auth-password/component/convex.config.js";
+import passwordProvider from "@convex-dev/auth/providers/password/convex.config.js";
 
 const app = defineApp({
   env: {

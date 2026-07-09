@@ -1,9 +1,9 @@
 # react-password example
 
 An in-repo Convex backend that mounts the `@convex-dev/auth` core component
-together with the `@convex-dev/auth-password` provider. It exists as an example
-of wiring username/password auth into an application and for integration testing
-the password provider end to end.
+together with its password provider. It exists as an example of wiring
+username/password auth into an application and for integration testing the
+password provider end to end.
 
 The core owns sessions, accounts, and JWT minting; the password provider stores
 and verifies passwords keyed to an opaque user id. `convex/users.ts` owns the

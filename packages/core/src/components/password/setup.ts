@@ -1,12 +1,12 @@
 import { actionGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
-import { defineProvider, vTokenBundle } from "@convex-dev/auth/lib/types.js";
-import type { ComponentApi } from "./component/_generated/component.js";
+import { defineProvider, vTokenBundle } from "../../lib/types";
+import type { ComponentApi } from "./_generated/component.js";
 import {
   validatePasswordInputFormat,
   setPasswordUserError,
   verifyPasswordUserError,
-} from "./component/validation.js";
+} from "./validation.js";
 
 /**
  * Options for {@link UsernamePassword}.

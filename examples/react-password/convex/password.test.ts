@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { api } from "./_generated/api.js";
 import { registerCore } from "@convex-dev/auth/providers/testing/core.js";
-import { registerPasswordProvider } from "@convex-dev/auth-password/testing";
+import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password.js";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");

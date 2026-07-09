@@ -78,9 +78,6 @@ importers:
       '@convex-dev/auth':
         specifier: workspace:*
         version: link:../../packages/core
-      '@convex-dev/auth-password':
-        specifier: workspace:*
-        version: link:../../packages/password
       convex:
         specifier: ^1.41.0
         version: 1.42.1(react@19.2.7)
@@ -130,6 +127,12 @@ importers:
 
   packages/core:
     dependencies:
+      '@convex-dev/argon2id':
+        specifier: workspace:*
+        version: link:../argon2id
+      '@convex-dev/rate-limiter':
+        specifier: ^0.3.2
+        version: 0.3.2(convex@1.42.1(react@19.2.7))(react@19.2.7)
       jose:
         specifier: ^5.2.2
         version: 5.10.0
@@ -146,6 +149,9 @@ importers:
       convex-test:
         specifier: ^0.0.53
         version: 0.0.53(convex@1.42.1(react@19.2.7))
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -207,43 +213,6 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
-
-  packages/password:
-    dependencies:
-      '@convex-dev/argon2id':
-        specifier: workspace:*
-        version: link:../argon2id
-      '@convex-dev/auth':
-        specifier: workspace:*
-        version: link:../core
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.42.1(react@19.2.7))(react@19.2.7)
-    devDependencies:
-      '@edge-runtime/vm':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@types/node':
-        specifier: ^24.12.4
-        version: 24.13.2
-      convex:
-        specifier: ^1.41.0
-        version: 1.42.1(react@19.2.7)
-      convex-test:
-        specifier: ^0.0.53
-        version: 0.0.53(convex@1.42.1(react@19.2.7))
-      hash-wasm:
-        specifier: ^4.12.0
-        version: 4.12.0
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vite:
-        specifier: ^8.0.16
-        version: 8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)
-      vitest:
-        specifier: ^4.1.0
-        version: 4.1.9(@edge-runtime/vm@5.0.0)(@types/node@24.13.2)(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0))
 
 packages:
 

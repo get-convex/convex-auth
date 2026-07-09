@@ -4,8 +4,7 @@ This is Convex Auth, an authentication framework built on top of Convex. We’re
 
 This is a pnpm monorepo:
 
-- `packages/core` — the core auth component, published as `@convex-dev/auth`. Owns sessions, accounts, and JWT minting; it is provider-agnostic.
-- `packages/password` — the password provider component, published as `@convex-dev/auth-password`. Stores and verifies passwords keyed by an opaque user id.
+- `packages/core` — the auth package, published as `@convex-dev/auth`. Owns sessions, accounts, and JWT minting (the provider-agnostic core), plus the bundled providers: the anonymous provider and the password provider (which stores and verifies passwords keyed by an opaque user id).
 - `packages/argon2id` — a private package (`@convex-dev/argon2id`) wrapping the argon2id WASM hasher used by the password provider. Its `prepare` script builds the Rust/WASM output when it's missing.
 - `examples/` — example apps, each an in-repo Convex backend run from its own
   directory:
