@@ -13,7 +13,7 @@ import { ComponentApi } from "./_generated/component";
  */
 export const Anonymous = defineProvider({
   name: "anonymous",
-  setup: (completeSignIn, options: { component: ComponentApi }) => {
+  setup: ({ completeSignIn }, options: { component: ComponentApi }) => {
     const { component } = options;
     return {
       signInAnonymous: mutationGeneric({

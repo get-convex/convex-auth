@@ -26,6 +26,28 @@ export const setPasswordUserError = v.union(
 export type SetPasswordUserError = Infer<typeof setPasswordUserError>;
 
 /**
+ * A user-facing error describing why a password *verification* was rejected.
+ * Safe to surface to the end user. Adds the credential-check failures
+ * (`INVALID_CREDENTIALS`, `RATE_LIMITED`) to the format errors above. Declared
+ * here alongside {@link setPasswordUserError} so setup recipes can reuse it in
+ * their own return validators.
+ */
+export const verifyPasswordUserError = v.union(
+  v.object({
+    error: v.literal("PASSWORD_TOO_SHORT"),
+    minimumLength: v.number(),
+  }),
+  v.object({
+    error: v.literal("PASSWORD_TOO_LONG"),
+    maximumLength: v.number(),
+  }),
+  v.object({ error: v.literal("PASSWORD_HAS_SURROUNDING_WHITESPACE") }),
+  v.object({ error: v.literal("INVALID_CREDENTIALS") }),
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
+export type VerifyPasswordUserError = Infer<typeof verifyPasswordUserError>;
+
+/**
  * Validate a password against the requirements. Returns a `SetPasswordUserError`
  * describing the first violation, or `null` when the password is valid.
  */

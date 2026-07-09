@@ -23,7 +23,9 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./component/*": "./src/component/*"
+    "./component/*": "./src/component/*",
+    "./setup": "./src/setup.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -32,6 +34,7 @@
   },
   "dependencies": {
     "@convex-dev/argon2id": "workspace:*",
+    "@convex-dev/auth": "workspace:*",
     "@convex-dev/rate-limiter": "^0.3.2"
   },
   "devDependencies": {
