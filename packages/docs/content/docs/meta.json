@@ -1,0 +1,9 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "login-providers",
+    "advanced",
+    "migrating"
+  ]
+}
