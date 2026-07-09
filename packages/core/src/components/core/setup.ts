@@ -33,38 +33,8 @@ type ProviderWithOptions = readonly [ProviderConfig<any, any, any>, any];
 // { [ProviderConfig.name]: ReturnType<ProviderConfig.setup> } by distributing
 // over the tuple's union.
 type ProviderApis<T extends readonly ProviderWithOptions[]> = {
-  [K in T[number] as K[0]["name"]]: ReturnType<K[0]["setup"]>;
+  [K in T[number]as K[0]["name"]]: ReturnType<K[0]["setup"]>;
 };
-
-/**
- * Refreshes a session using the given token, rotating the refresh token.
- *
- * A successful refresh returns a new token bundle. A failed refresh (an
- * unknown or expired token) returns `null` and leaves no usable session
- * behind (an expired session is deleted as part of the same call). Callers,
- * including the client, should treat a `null` result as signed-out and clear
- * any stored session.
- */
-type RefreshSessionFunc = RegisteredMutation<
-  "public",
-  {
-    refreshToken: string;
-  },
-  Promise<TokenBundle | null>
->;
-
-/**
- * Signs out of the current session.
- *
- * After this the refresh token is no longer valid.
- */
-type SignOutFunc = RegisteredMutation<
-  "public",
-  {
-    refreshToken: string;
-  },
-  Promise<null>
->;
 
 // The app-facing handlers that `attachUserCallback` produces once the
 // create-or-update-user callback is supplied.
@@ -74,7 +44,11 @@ type AuthApi<T extends readonly ProviderWithOptions[]> = {
    *
    * After this the refresh token is no longer valid.
    */
-  signOut: SignOutFunc;
+  signOut: RegisteredMutation<
+    "public",
+    { refreshToken: string },
+    Promise<null>
+  >;
   /**
    * Refreshes a session using the given token, rotating the refresh token.
    *
@@ -84,7 +58,11 @@ type AuthApi<T extends readonly ProviderWithOptions[]> = {
    * including the client, should treat a `null` result as signed-out and clear
    * any stored session.
    */
-  refreshSession: RefreshSessionFunc;
+  refreshSession: RegisteredMutation<
+    "public",
+    { refreshToken: string },
+    Promise<TokenBundle | null>
+  >;
   /**
    * The auth APIs that each provider exposes.
    *
