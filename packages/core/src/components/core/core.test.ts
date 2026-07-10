@@ -309,3 +309,37 @@ describe("token lifetime configuration", () => {
     ).rejects.toThrow(/shorter than the refresh-token TTL/i);
   });
 });
+
+describe("getUserIdByAccount", () => {
+  test("returns null for an unknown identity", async () => {
+    const t = setup();
+    const userId = await t.query(api.public.getUserIdByAccount, {
+      provider: "password",
+      providerAccountId: "alice",
+    });
+    expect(userId).toBeNull();
+  });
+
+  test("returns the user id after the account is created by signIn", async () => {
+    const t = setup();
+    const bundle = await signIn(t, claims());
+    const userId = await t.query(api.public.getUserIdByAccount, {
+      provider: "password",
+      providerAccountId: "alice",
+    });
+    expect(userId).toBe(bundle.userId);
+  });
+
+  test("does not confuse identities across providers", async () => {
+    const t = setup();
+    await signIn(
+      t,
+      claims({ provider: "password", providerAccountId: "alice" }),
+    );
+    const other = await t.query(api.public.getUserIdByAccount, {
+      provider: "google",
+      providerAccountId: "alice",
+    });
+    expect(other).toBeNull();
+  });
+});

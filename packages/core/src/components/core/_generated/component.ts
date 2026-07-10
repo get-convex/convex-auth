@@ -24,6 +24,13 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      getUserIdByAccount: FunctionReference<
+        "query",
+        "internal",
+        { provider: string; providerAccountId: string },
+        string | null,
+        Name
+      >;
       refresh: FunctionReference<
         "mutation",
         "internal",
