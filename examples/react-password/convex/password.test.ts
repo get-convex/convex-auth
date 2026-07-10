@@ -50,25 +50,55 @@ const signIn = (
   password: string,
 ) => t.action(api.auth.signInWithPassword, { username, password });
 
+type PasswordResult =
+  | Awaited<ReturnType<typeof signUp>>
+  | Awaited<ReturnType<typeof signIn>>;
+type PasswordSuccess = Extract<PasswordResult, { success: true }>;
+
 describe("setupUsernamePassword", () => {
   test("signs up a new user and returns a session", async () => {
     const t = await setup();
     const result = await signUp(t, "alice", PASSWORD);
-    expect(result.success).toBe(true);
-    if (!result.success) throw new Error("expected success");
-    expect(result.tokens.userId).toBeTruthy();
-    expect(result.tokens.accessToken).toBeTruthy();
-    expect(result.tokens.refreshToken).toBeTruthy();
+    expect(result).toEqual({
+      success: true,
+      tokens: {
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
+        refreshToken: expect.any(String),
+        refreshTokenExpiresAt: expect.any(Number),
+        userId: expect.any(String),
+      },
+    });
   });
 
   test("signs in with the correct password", async () => {
     const t = await setup();
     const up = await signUp(t, "alice", PASSWORD);
     const inResult = await signIn(t, "alice", PASSWORD);
-    expect(inResult.success).toBe(true);
-    if (!inResult.success || !up.success) throw new Error("expected success");
+    expect(up).toEqual({
+      success: true,
+      tokens: {
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
+        refreshToken: expect.any(String),
+        refreshTokenExpiresAt: expect.any(Number),
+        userId: expect.any(String),
+      },
+    });
+    expect(inResult).toEqual({
+      success: true,
+      tokens: {
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
+        refreshToken: expect.any(String),
+        refreshTokenExpiresAt: expect.any(Number),
+        userId: expect.any(String),
+      },
+    });
     // Same identity → same app user id.
-    expect(inResult.tokens.userId).toBe(up.tokens.userId);
+    expect((inResult as PasswordSuccess).tokens.userId).toBe(
+      (up as PasswordSuccess).tokens.userId,
+    );
   });
 
   test("rejects a wrong password with INVALID_CREDENTIALS", async () => {
@@ -103,13 +133,32 @@ describe("setupUsernamePassword", () => {
   test("usernames are case-insensitive", async () => {
     const t = await setup();
     const up = await signUp(t, "Alice", PASSWORD);
-    if (!up.success) throw new Error("expected success");
+    expect(up).toEqual({
+      success: true,
+      tokens: {
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
+        refreshToken: expect.any(String),
+        refreshTokenExpiresAt: expect.any(Number),
+        userId: expect.any(String),
+      },
+    });
 
     // A different casing is treated as the same account for both sign-in...
     const inResult = await signIn(t, "ALICE", PASSWORD);
-    expect(inResult.success).toBe(true);
-    if (!inResult.success) throw new Error("expected success");
-    expect(inResult.tokens.userId).toBe(up.tokens.userId);
+    expect(inResult).toEqual({
+      success: true,
+      tokens: {
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
+        refreshToken: expect.any(String),
+        refreshTokenExpiresAt: expect.any(Number),
+        userId: expect.any(String),
+      },
+    });
+    expect((inResult as PasswordSuccess).tokens.userId).toBe(
+      (up as PasswordSuccess).tokens.userId,
+    );
 
     // ...and the taken-username check.
     const dup = await signUp(t, "alice", PASSWORD);
@@ -122,12 +171,22 @@ describe("setupUsernamePassword", () => {
   test("rejects a too-short password at sign-up without creating an account", async () => {
     const t = await setup();
     const up = await signUp(t, "alice", "short");
-    expect(up.success).toBe(false);
-    if (up.success) throw new Error("expected failure");
-    expect(up.userError.error).toBe("PASSWORD_TOO_SHORT");
+    expect(up).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
+    });
 
     // No account was created, so a later sign-up with a valid password works.
     const retry = await signUp(t, "alice", PASSWORD);
-    expect(retry.success).toBe(true);
+    expect(retry).toEqual({
+      success: true,
+      tokens: {
+        accessToken: expect.any(String),
+        accessTokenExpiresAt: expect.any(Number),
+        refreshToken: expect.any(String),
+        refreshTokenExpiresAt: expect.any(Number),
+        userId: expect.any(String),
+      },
+    });
   });
 });
