@@ -11,11 +11,17 @@
     "react-dom": "^19.2.7"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^24.12.4",
     "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "convex-test": "^0.0.53",
     "typescript": "^6.0.3",
