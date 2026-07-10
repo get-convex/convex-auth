@@ -166,4 +166,36 @@ describe("React bindings", () => {
     expect(result.current.auth.isAuthenticated).toBe(false);
     expect(result.current.token).toBeNull();
   });
+
+  test("propagates a cross-tab sign-out after the provider remounts", async () => {
+    const storage = new InMemoryStorage();
+    const { client } = makeClient({}, storage);
+
+    // Remounting the same client — React StrictMode's mount → unmount → mount in
+    // dev, or an ordinary route change — disposes then re-inits it. Cross-tab
+    // sign-out must still work afterward, which only holds if the re-init
+    // re-attaches the window storage listener the dispose removed.
+    render(<AuthProvider authClient={client}>hi</AuthProvider>).unmount();
+
+    const { result } = renderAuth(client);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    await act(async () => {
+      await result.current.actions.setSession(bundle(1));
+    });
+    expect(result.current.auth.isAuthenticated).toBe(true);
+
+    // Another tab cleared the JWT key: dispatch the storage event to the window
+    // listener the re-init should have re-attached.
+    const event = Object.assign(new Event("storage"), {
+      storageArea: storage,
+      key: `${JWT_STORAGE_KEY}_${SUFFIX}`,
+      newValue: null,
+    });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(result.current.auth.isAuthenticated).toBe(false);
+    expect(result.current.token).toBeNull();
+  });
 });

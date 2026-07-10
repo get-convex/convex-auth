@@ -9,8 +9,13 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
-import type { AuthClient } from "../browser/sessionManager";
+import { INITIAL_AUTH_STATE, type AuthClient } from "../browser/sessionManager";
 import type { TokenBundle } from "../lib/types";
+
+// React calls this during SSR and initial hydration — before `init()` has read
+// storage — so it always reports the loading state. It lives here rather than
+// on the core client because server rendering is a React-specific concern.
+const getServerSnapshot = () => INITIAL_AUTH_STATE;
 
 /** The value exposed by {@link useAuthActions}. */
 export type ConvexAuthActionsContextType = {
@@ -73,10 +78,14 @@ export function AuthProvider({
   const state = useSyncExternalStore(
     authClient.subscribe,
     authClient.getSnapshot,
-    authClient.getServerSnapshot,
+    getServerSnapshot,
   );
 
   useEffect(() => {
+    // In StrictMode (dev) React runs this mount → cleanup → mount on the same
+    // client instance, so it is init'd, disposed, then init'd again. That's
+    // fine: init()/dispose() are symmetric, and the second init() re-attaches
+    // the cross-tab listener the dispose() removed.
     void authClient.init();
     return () => authClient.dispose();
   }, [authClient]);
