@@ -10,6 +10,7 @@ import {
   type TokenBundle,
   ProviderConfig,
   CompleteSignInFunc,
+  ResolveUserIdFunc,
   CreateOrUpdateUserFn,
 } from "../../lib/types.js";
 
@@ -215,7 +216,15 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
 
     const result: Record<string, unknown> = {};
     for (const [config, options] of providers) {
-      result[config.name] = config.setup(completeSignIn, options);
+      const resolveUserId: ResolveUserIdFunc = (ctx, providerAccountId) =>
+        ctx.runQuery(component.public.getUserIdByAccount, {
+          provider: config.name,
+          providerAccountId,
+        });
+      result[config.name] = config.setup(
+        { completeSignIn, resolveUserId },
+        options,
+      );
     }
 
     const refreshSession = mutationGeneric({

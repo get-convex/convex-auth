@@ -74,15 +74,31 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
  */
 type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
 
+/**
+ * Exchanges verified auth claims for a bundle.
+ */
 export type CompleteSignInFunc = (
   ctx: RunMutationCtx,
   claims: AuthClaims,
 ) => Promise<TokenBundle>;
 
-type ProviderSetupFunc<O, P> = (
-  completeSignIn: CompleteSignInFunc,
-  options: O,
-) => P;
+/**
+ * A function that finds the user ID a provider account ID is associated with
+ * (bound to a particular provider).
+ *
+ * This does not mint a session or edit any data.
+ */
+export type ResolveUserIdFunc = (
+  ctx: GenericActionCtx<GenericDataModel>,
+  providerAccountId: string,
+) => Promise<string | null>;
+
+export type ProviderHelpers = {
+  completeSignIn: CompleteSignInFunc;
+  resolveUserId: ResolveUserIdFunc;
+};
+
+type ProviderSetupFunc<O, P> = (helpers: ProviderHelpers, options: O) => P;
 
 export type ProviderConfig<N extends string, O, P> = {
   /**
@@ -102,14 +118,14 @@ export type ProviderConfig<N extends string, O, P> = {
    * client code. The API is responsible for authenticating a user and
    * triggering the completion of sign in.
    *
-   * It will be passed a `completeSignIn` function, which is provided
-   * by Convex Auth. That function accepts claims from a provider,
-   * establishes a session and returns the tokens required for a client
-   * application to make authenticated calls to Convex functions.
-   *
-   * The provider function that completes an authentication flow should
-   * call this function when it has authenticated an account and return
-   * the result.
+   * It will be passed a {@link ProviderHelpers} bundle, provided by Convex
+   * Auth. `completeSignIn` accepts claims from a provider, establishes a
+   * session and returns the tokens required for a client application to make
+   * authenticated calls to Convex functions; the provider function that
+   * completes an authentication flow should call it once it has authenticated
+   * an account and return the result. `resolveUserId` looks up the app user id
+   * behind one of this provider's account identifiers without minting a session
+   * (e.g. to find the user a password should be verified against).
    *
    * It will also receive any `options` that the provider defined.
    */
@@ -125,14 +141,14 @@ export type ProviderConfig<N extends string, O, P> = {
  * const FooProvider = defineProvider(
  *   {
  *     name: "foo",
- *     setup: (completeSignIn, options: {limit: number}) => {
+ *     setup: ({ completeSignIn, resolveUserId }, options: {limit: number}) => {
  *       return {
  *         login: actionGeneric({
  *           args: {},
  *           handler: async (ctx, args) => {
  *             // Do your login magic here.
  *             const claims = await authenticateFoo(args, options.limit);
- *             return completeSignIn(claims);
+ *             return completeSignIn(ctx, claims);
  *           }
  *         })
  *       }

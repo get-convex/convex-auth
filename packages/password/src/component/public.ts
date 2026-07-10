@@ -11,6 +11,7 @@ import {
   validatePasswordInputFormat,
   normalizePassword,
   setPasswordUserError,
+  verifyPasswordUserError,
 } from "./validation";
 
 // Throttle for password verification attempts.
@@ -69,20 +70,6 @@ export const setPassword = mutation({
     return { success: true };
   },
 });
-
-const verifyPasswordUserError = v.union(
-  v.object({
-    error: v.literal("PASSWORD_TOO_SHORT"),
-    minimumLength: v.number(),
-  }),
-  v.object({
-    error: v.literal("PASSWORD_TOO_LONG"),
-    maximumLength: v.number(),
-  }),
-  v.object({ error: v.literal("PASSWORD_HAS_SURROUNDING_WHITESPACE") }),
-  v.object({ error: v.literal("INVALID_CREDENTIALS") }),
-  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
-);
 
 const verifyPasswordResult = v.union(
   v.object({ success: v.literal(true) }),
