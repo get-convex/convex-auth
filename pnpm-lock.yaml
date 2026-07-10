@@ -116,7 +116,7 @@ importers:
         specifier: ^8.0.16
         version: 8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)
 
-  packages/argon2id:
+  packages/argon2id-wasm:
     devDependencies:
       '@types/node':
         specifier: ^24.12.4
@@ -127,12 +127,12 @@ importers:
 
   packages/core:
     dependencies:
-      '@convex-dev/argon2id':
-        specifier: workspace:*
-        version: link:../argon2id
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
         version: 0.3.2(convex@1.42.1(react@19.2.7))(react@19.2.7)
+      argon2id-wasm:
+        specifier: workspace:*
+        version: link:../argon2id-wasm
       jose:
         specifier: ^5.2.2
         version: 5.10.0
