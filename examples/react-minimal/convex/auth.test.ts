@@ -1,8 +1,8 @@
 import { convexTest } from "convex-test";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { api } from "./_generated/api.js";
-import { registerAnonymousProvider } from "@convex-dev/auth/providers/testing/anonymous.js";
-import { registerCore } from "@convex-dev/auth/providers/testing/core.js";
+import { registerAnonymousProvider } from "@convex-dev/auth/providers/testing/anonymous";
+import { registerCore } from "@convex-dev/auth/providers/testing/core";
 import schema from "./schema.js";
 import { generateKeyPair, exportPKCS8, exportJWK, decodeJwt } from "jose";
 import { randomUUID } from "crypto";
