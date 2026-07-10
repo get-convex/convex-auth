@@ -74,31 +74,25 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
  */
 type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
 
+/**
+ * Exchanges verified auth claims for a bundle.
+ */
 export type CompleteSignInFunc = (
   ctx: RunMutationCtx,
   claims: AuthClaims,
 ) => Promise<TokenBundle>;
 
 /**
- * Resolve one of this provider's account identifiers to the app user id behind
- * it, or `null` when no account exists yet. Unlike {@link CompleteSignInFunc},
- * this does *not* mint a session — it's how a provider looks up the user before
- * authenticating (e.g. to verify a stored password against the right user id).
+ * A function that finds the user ID a provider account ID is associated with
+ * (bound to a particular provider).
  *
- * The `provider` name is bound in by the core, so the provider only passes its
- * own account identifier (for the password recipe, the lowercased username).
+ * This does not mint a session or edit any data.
  */
 export type ResolveUserIdFunc = (
   ctx: GenericActionCtx<GenericDataModel>,
   providerAccountId: string,
 ) => Promise<string | null>;
 
-/**
- * The capabilities the core hands to each provider's {@link ProviderConfig.setup}.
- * They let a provider exchange verified claims for a session
- * ({@link CompleteSignInFunc}) and look up the user behind an account identity
- * ({@link ResolveUserIdFunc}) without minting one.
- */
 export type ProviderHelpers = {
   completeSignIn: CompleteSignInFunc;
   resolveUserId: ResolveUserIdFunc;
