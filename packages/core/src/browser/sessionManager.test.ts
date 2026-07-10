@@ -201,4 +201,41 @@ describe("AuthClient", () => {
       token: null,
     });
   });
+
+  test("re-attaches the storage listener when init runs after dispose", async () => {
+    const listeners = new Set<(event: StorageEvent) => void>();
+    const storage = new InMemoryStorage();
+    (globalThis as { window?: unknown }).window = {
+      addEventListener: (_type: string, l: (event: StorageEvent) => void) =>
+        listeners.add(l),
+      removeEventListener: (_type: string, l: (event: StorageEvent) => void) =>
+        listeners.delete(l),
+    };
+
+    const { client } = makeClient({}, storage);
+    // init/dispose is a symmetric, repeatable lifecycle: an init() after a
+    // dispose() must restore cross-tab sync. (A consumer that re-mounts the same
+    // client — e.g. React StrictMode — drives exactly this sequence; that path
+    // is covered end-to-end in the React bindings' tests.)
+    await client.init();
+    client.dispose();
+    await client.init();
+    await client.setSession(bundle(1));
+    expect(client.getSnapshot().isAuthenticated).toBe(true);
+    expect(listeners.size).toBe(1);
+
+    // Another tab cleared the JWT key.
+    listeners.forEach((l) =>
+      l({
+        storageArea: storage,
+        key: `${JWT_STORAGE_KEY}_${SUFFIX}`,
+        newValue: null,
+      } as unknown as StorageEvent),
+    );
+
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: false,
+      token: null,
+    });
+  });
 });

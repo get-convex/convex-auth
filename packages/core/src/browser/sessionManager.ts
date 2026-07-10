@@ -52,7 +52,10 @@ export interface AuthState {
 
 type Listener = () => void;
 
-const INITIAL_AUTH_STATE: AuthState = Object.freeze({
+/** The state a fresh client reports until {@link AuthClient.init} has loaded
+ * the persisted session. Exported so framework bindings can use it as their
+ * pre-hydration snapshot. */
+export const INITIAL_AUTH_STATE: AuthState = Object.freeze({
   isLoading: true,
   isAuthenticated: false,
   token: null,
@@ -101,7 +104,9 @@ export class AuthClient {
     this.#lockKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
   }
 
-  // --- Reactive store API (for React's useSyncExternalStore) ---------------
+  // --- Observable store API ------------------------------------------------
+  // A minimal subscribe/snapshot store any UI framework can consume (React via
+  // useSyncExternalStore, others via their own reactivity).
 
   subscribe = (listener: Listener): (() => void) => {
     this.#listeners.add(listener);
@@ -109,9 +114,6 @@ export class AuthClient {
   };
 
   getSnapshot = (): AuthState => this.#snapshot;
-
-  // Just a static value for now. Will carry future SSR state.
-  getServerSnapshot = (): AuthState => INITIAL_AUTH_STATE;
 
   /** The current access token, or null. */
   getAccessToken(): string | null {
@@ -122,12 +124,19 @@ export class AuthClient {
 
   /**
    * Load any persisted session from storage and start listening for cross-tab
-   * changes. Idempotent. Until this resolves, the client reports `isLoading`.
+   * changes. Until this resolves, the client reports `isLoading`.
+   *
+   * Symmetric and repeatable with {@link dispose}: loading the session happens
+   * once, but the cross-tab listener is (re)attached on every call, so an
+   * `init` after a `dispose` fully restores the client.
    */
   async init(): Promise<void> {
+    // Attach before the one-time guard so a dispose()/init() cycle re-attaches
+    // the listener rather than skipping it. Idempotent, so repeat calls are
+    // harmless.
+    this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
-    this.#attachStorageListener();
     const [accessToken, refreshToken] = await Promise.all([
       this.#storage.get(JWT_STORAGE_KEY),
       this.#storage.get(REFRESH_TOKEN_STORAGE_KEY),
@@ -139,13 +148,17 @@ export class AuthClient {
     this.#notify();
   }
 
-  /** Detach listeners. Call on teardown. */
+  /**
+   * Detach the cross-tab storage listener. Call on teardown. Store subscribers
+   * are intentionally left in place — each is removed via the unsubscribe
+   * returned by {@link subscribe} — so a later {@link init} restores the client
+   * without losing its subscribers.
+   */
   dispose(): void {
     if (this.#storageListener !== null && typeof window !== "undefined") {
       window.removeEventListener("storage", this.#storageListener);
       this.#storageListener = null;
     }
-    this.#listeners.clear();
   }
 
   // --- Public actions ------------------------------------------------------
@@ -256,6 +269,7 @@ export class AuthClient {
 
   #attachStorageListener(): void {
     if (typeof window === "undefined") return;
+    if (this.#storageListener !== null) return;
     const jwtKey = this.#storage.key(JWT_STORAGE_KEY);
     const refreshKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
     const listener = (event: StorageEvent) => {
