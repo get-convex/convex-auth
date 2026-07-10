@@ -1,7 +1,7 @@
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
-import schema from "../password/schema.js";
+import schema from "../password/schema";
 const modules = import.meta.glob("../password/**/*.ts");
 
 /**

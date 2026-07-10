@@ -27,11 +27,14 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./lib/*": "./src/lib/*",
-    "./core/*": "./src/components/core/*",
-    "./providers/anonymous/*": "./src/components/anonymous/*",
-    "./providers/password/*": "./src/components/password/*",
-    "./providers/testing/*": "./src/components/testing/*"
+    "./lib/*": "./src/lib/*.ts",
+    "./core/convex.config.js": "./src/components/core/convex.config.ts",
+    "./core/*": "./src/components/core/*.ts",
+    "./providers/anonymous/convex.config.js": "./src/components/anonymous/convex.config.ts",
+    "./providers/anonymous/*": "./src/components/anonymous/*.ts",
+    "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
+    "./providers/password/*": "./src/components/password/*.ts",
+    "./providers/testing/*": "./src/components/testing/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

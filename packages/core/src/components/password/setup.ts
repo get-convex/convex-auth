@@ -6,7 +6,7 @@ import {
   validatePasswordInputFormat,
   setPasswordUserError,
   verifyPasswordUserError,
-} from "./validation.js";
+} from "./validation";
 
 /**
  * Options for {@link UsernamePassword}.
