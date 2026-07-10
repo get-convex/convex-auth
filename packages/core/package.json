@@ -37,8 +37,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@convex-dev/argon2id": "workspace:*",
     "@convex-dev/rate-limiter": "^0.3.2",
+    "argon2id-wasm": "workspace:*",
     "jose": "^5.2.2"
   },
   "devDependencies": {
