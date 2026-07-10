@@ -12,6 +12,9 @@ install-wasm-pack:
 # Regenerate the wasm-bindgen bindings in pkg/.
 build: install-wasm-pack
     wasm-pack build --release --target web --out-dir pkg --out-name argon2_wasm
+    # wasm-pack writes a `.gitignore` (`*`) into pkg/; drop it so npm doesn't
+    # exclude the generated bindings when publishing (pkg/ is our shipped output).
+    rm -f pkg/.gitignore
 
 test:
     cargo test --locked
