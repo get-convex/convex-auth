@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build:wasm": "cd rust && just build",
-    "prepare": "test -f src/argon2-wasm/pkg/argon2_wasm_bg.wasm || pnpm run build:wasm",
+    "prepack": "pnpm run build:wasm",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

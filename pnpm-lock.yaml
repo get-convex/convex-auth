@@ -131,8 +131,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2(convex@1.42.1(react@19.2.7))(react@19.2.7)
       argon2id-wasm:
-        specifier: workspace:*
-        version: link:../argon2id-wasm
+        specifier: 0.0.0-alpha.1
+        version: 0.0.0-alpha.1
       jose:
         specifier: ^5.2.2
         version: 5.10.0
@@ -1473,6 +1473,9 @@ packages:
 
   ajv@6.15.0:
     resolution: {integrity: sha512-fgFx7Hfoq60ytK2c7DhnF8jIvzYgOMxfugjLOSMHjLIPgenqa7S7oaagATUq99mV6IYvN2tRmC0wnTYX6iPbMw==}
+
+  argon2id-wasm@0.0.0-alpha.1:
+    resolution: {integrity: sha512-rBKe0DTm6+lhKn0MJ4D73k4OeOyoDSMZJ3zOaD4W485dzRR6hgc8GAglGJes18E1EsNQ2drCrbBF4Vs6bV4jqg==}
 
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
@@ -3917,6 +3920,8 @@ snapshots:
       fast-json-stable-stringify: 2.1.0
       json-schema-traverse: 0.4.1
       uri-js: 4.4.1
+
+  argon2id-wasm@0.0.0-alpha.1: {}
 
   argparse@2.0.1: {}
 
