@@ -1,8 +1,8 @@
 import init, {
   hash_password,
   verify_password,
-} from "./argon2-wasm/pkg/argon2_wasm.js";
-import wasmModule from "./argon2-wasm/pkg/argon2_wasm_bg.wasm";
+} from "../rust/pkg/argon2_wasm.js";
+import wasmModule from "../rust/pkg/argon2_wasm_bg.wasm";
 
 // The wasm-bindgen module must be instantiated once before its exports can be
 // called. Memoize the promise so concurrent calls share a single init.

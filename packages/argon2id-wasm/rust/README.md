@@ -1,4 +1,4 @@
-# argon2-wasm
+# argon2id-wasm
 
 A tiny Rust crate that wraps [`argon2`](https://docs.rs/argon2) and compiles to WebAssembly
 via `wasm-bindgen`. It backs the `argon2id-wasm` package, which the password

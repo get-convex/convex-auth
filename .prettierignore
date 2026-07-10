@@ -5,8 +5,8 @@ dist
 .context
 pnpm-lock.yaml
 .pnpm-store
-packages/argon2id-wasm/src/argon2-wasm/pkg/
-packages/argon2id-wasm/src/argon2-wasm/target/
+packages/argon2id-wasm/rust/pkg/
+packages/argon2id-wasm/rust/target/
 
 # Fumadocs generated output (packages/docs)
 **/.next/

@@ -15,6 +15,11 @@ build: install-wasm-pack
     # wasm-pack writes a `.gitignore` (`*`) into pkg/; drop it so npm doesn't
     # exclude the generated bindings when publishing (pkg/ is our shipped output).
     rm -f pkg/.gitignore
+    # Our TypeScript wrapper imports the wasm module as a bundler-provided
+    # default export. Keep wasm-pack's generated binding declarations, but drop
+    # the raw `.wasm.d.ts` that declares low-level named exports and shadows
+    # `src/wasm.d.ts` for downstream typecheckers.
+    rm -f pkg/argon2_wasm_bg.wasm.d.ts
 
 test:
     cargo test --locked
