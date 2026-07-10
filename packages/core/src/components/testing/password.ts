@@ -1,8 +1,8 @@
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
-import schema from "./component/schema.js";
-const modules = import.meta.glob("./component/**/*.ts");
+import schema from "../password/schema.js";
+const modules = import.meta.glob("../password/**/*.ts");
 
 /**
  * Register the password provider component with a `convex-test` instance.

@@ -30,6 +30,7 @@
     "./lib/*": "./src/lib/*",
     "./core/*": "./src/components/core/*",
     "./providers/anonymous/*": "./src/components/anonymous/*",
+    "./providers/password/*": "./src/components/password/*",
     "./providers/testing/*": "./src/components/testing/*"
   },
   "scripts": {
@@ -38,6 +39,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@convex-dev/argon2id": "workspace:*",
+    "@convex-dev/rate-limiter": "^0.3.2",
     "jose": "^5.2.2"
   },
   "devDependencies": {
@@ -45,6 +48,7 @@
     "@types/node": "^24.12.4",
     "convex": "^1.41.0",
     "convex-test": "^0.0.53",
+    "hash-wasm": "^4.12.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.0"

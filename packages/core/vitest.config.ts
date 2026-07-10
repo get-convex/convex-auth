@@ -33,8 +33,9 @@ export default defineConfig({
     server: {
       deps: {
         // convex-test loads function modules dynamically; inlining keeps that
-        // resolution working under Vitest's transform pipeline.
-        inline: ["convex-test"],
+        // resolution working under Vitest's transform pipeline. `@convex-dev/argon2id`
+        // is inlined so its `.wasm` import is handled by `wasmModulePlugin`.
+        inline: ["convex-test", "@convex-dev/argon2id"],
       },
     },
   },

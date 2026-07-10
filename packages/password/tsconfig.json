@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    // `vite/client` types the `import.meta.glob` that convex-test relies on.
-    "types": ["node", "vite/client"]
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
-}
