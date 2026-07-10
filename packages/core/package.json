@@ -34,9 +34,7 @@
     "./providers/testing/*": "./src/components/testing/*"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@convex-dev/argon2id": "workspace:*",

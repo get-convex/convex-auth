@@ -8,7 +8,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
