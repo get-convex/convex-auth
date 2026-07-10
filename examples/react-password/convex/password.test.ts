@@ -51,8 +51,7 @@ const signIn = (
 ) => t.action(api.auth.signInWithPassword, { username, password });
 
 type PasswordResult =
-  | Awaited<ReturnType<typeof signUp>>
-  | Awaited<ReturnType<typeof signIn>>;
+  Awaited<ReturnType<typeof signUp>> | Awaited<ReturnType<typeof signIn>>;
 type PasswordSuccess = Extract<PasswordResult, { success: true }>;
 
 describe("setupUsernamePassword", () => {
