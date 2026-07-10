@@ -6,18 +6,6 @@ This branch contains a WIP implementation of Convex Auth v2.
 
 Use `pnpm install` at the root.
 
-The `argon2id-wasm` package depends on some Rust code compiled to WebAssembly.
-Its `prepare` script builds it automatically on `pnpm install` when the compiled
-output is missing, so you'll need [`just`](https://github.com/casey/just) and the
-toolchain pinned in `packages/argon2id-wasm/src/argon2-wasm/rust-toolchain.toml` (installed
-automatically by `rustup` on first use).
-
-To rebuild the WASM after changing the Rust source, run:
-
-```bash
-pnpm --filter argon2id-wasm build:wasm
-```
-
 Common tasks:
 
 - `pnpm test` — run tests across packages (Vitest).
