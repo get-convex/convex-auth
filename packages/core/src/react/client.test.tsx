@@ -1,0 +1,169 @@
+// @vitest-environment jsdom
+import { act, render, renderHook, waitFor } from "@testing-library/react";
+import { ReactNode } from "react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { AuthApi, AuthClient } from "../browser/sessionManager";
+import {
+  InMemoryStorage,
+  JWT_STORAGE_KEY,
+  REFRESH_TOKEN_STORAGE_KEY,
+} from "../browser/storage";
+import type { TokenBundle } from "../lib/types";
+import { AuthProvider, useAuth } from "./client";
+import { useAuthActions, useAuthToken } from "./index";
+
+const NAMESPACE = "https://happy-animal-123.convex.cloud";
+// Matches NamespacedStorage's `replace(/[^a-zA-Z0-9]/g, "")`.
+const SUFFIX = "httpshappyanimal123convexcloud";
+
+function bundle(n: number): TokenBundle {
+  return {
+    accessToken: `access-${n}`,
+    accessTokenExpiresAt: 0,
+    refreshToken: `refresh-${n}`,
+    refreshTokenExpiresAt: 0,
+    userId: "user-1",
+  };
+}
+
+function makeClient(
+  authApi: Partial<AuthApi> = {},
+  storage = new InMemoryStorage(),
+) {
+  const client = new AuthClient({
+    authApi: {
+      refreshSession: async () => null,
+      signOut: async () => {},
+      ...authApi,
+    },
+    storage,
+    storageNamespace: NAMESPACE,
+  });
+  return { client, storage };
+}
+
+/** Render the provider around a hook and expose every auth hook's value. */
+function renderAuth(client: AuthClient) {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <AuthProvider authClient={client}>{children}</AuthProvider>
+  );
+  return renderHook(
+    () => ({
+      auth: useAuth(),
+      token: useAuthToken(),
+      actions: useAuthActions(),
+    }),
+    { wrapper },
+  );
+}
+
+describe("React bindings", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("useAuth throws when used outside a provider", () => {
+    expect(() => renderHook(() => useAuth())).toThrow(
+      /useAuth must be used within a <ConvexAuthProvider>/,
+    );
+  });
+
+  test("useAuthActions throws when used outside a provider", () => {
+    expect(() => renderHook(() => useAuthActions())).toThrow(
+      /useAuthActions must be used within a <ConvexAuthProvider>/,
+    );
+  });
+
+  test("useAuthToken returns null when used outside a provider", () => {
+    // The token context has a null default rather than throwing.
+    const { result } = renderHook(() => useAuthToken());
+    expect(result.current).toBeNull();
+  });
+
+  test("AuthProvider initializes the client on mount and disposes on unmount", async () => {
+    const { client } = makeClient();
+    const init = vi.spyOn(client, "init");
+    const dispose = vi.spyOn(client, "dispose");
+
+    const { unmount } = render(
+      <AuthProvider authClient={client}>hi</AuthProvider>,
+    );
+    expect(init).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
+
+    unmount();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  test("reports loading then unauthenticated for an empty store", async () => {
+    const { client } = makeClient();
+    const { result } = renderAuth(client);
+
+    expect(result.current.auth.isLoading).toBe(true);
+
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    expect(result.current.auth.isAuthenticated).toBe(false);
+    expect(result.current.token).toBeNull();
+  });
+
+  test("hydrates a persisted session and exposes the token", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    storage.setItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`, "refresh-1");
+    const { client } = makeClient({}, storage);
+
+    const { result } = renderAuth(client);
+
+    await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
+    expect(result.current.auth.isLoading).toBe(false);
+    expect(result.current.token).toBe("access-1");
+  });
+
+  test("setSession authenticates and re-renders consumers", async () => {
+    const { client } = makeClient();
+    const { result } = renderAuth(client);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.actions.setSession(bundle(1));
+    });
+
+    expect(result.current.auth.isAuthenticated).toBe(true);
+    expect(result.current.token).toBe("access-1");
+  });
+
+  test("fetchAccessToken from the auth context returns the current token", async () => {
+    const { client } = makeClient();
+    const { result } = renderAuth(client);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    await act(async () => {
+      await result.current.actions.setSession(bundle(1));
+    });
+
+    const token = await result.current.auth.fetchAccessToken({
+      forceRefreshToken: false,
+    });
+    expect(token).toBe("access-1");
+  });
+
+  test("signOut revokes on the server and clears consumers", async () => {
+    const signOut = vi.fn(async (rt: string) => {
+      expect(rt).toBe("refresh-1");
+    });
+    const { client } = makeClient({ signOut });
+    const { result } = renderAuth(client);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    await act(async () => {
+      await result.current.actions.setSession(bundle(1));
+    });
+    expect(result.current.auth.isAuthenticated).toBe(true);
+
+    await act(async () => {
+      await result.current.actions.signOut();
+    });
+
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(result.current.auth.isAuthenticated).toBe(false);
+    expect(result.current.token).toBeNull();
+  });
+});
