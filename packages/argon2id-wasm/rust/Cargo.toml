@@ -1,5 +1,5 @@
 [package]
-name = "argon2-wasm"
+name = "argon2id-wasm"
 version = "0.1.0"
 edition = "2021"
 

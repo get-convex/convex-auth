@@ -14,7 +14,7 @@ export default defineConfig([
       ".agents/**",
       ".context/**",
       ".pnpm-store/**",
-      "packages/argon2id-wasm/src/argon2-wasm/pkg/**",
+      "packages/argon2id-wasm/rust/pkg/**",
       // Generated output in the docs package (Next.js build + Fumadocs MDX).
       "packages/docs/.next/**",
       "packages/docs/.source/**",

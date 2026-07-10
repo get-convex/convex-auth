@@ -201,7 +201,7 @@ describe("Unicode normalization", () => {
 });
 
 describe("interoperability with hash-wasm", () => {
-  // Must match the params baked into the Rust argon2 crate (argon2-wasm/src/lib.rs).
+  // Must match the params baked into the Rust argon2 crate (rust/src/lib.rs).
   const ARGON2_PARAMS = {
     iterations: 3,
     parallelism: 1,

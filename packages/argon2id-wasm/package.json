@@ -1,12 +1,12 @@
 {
   "name": "argon2id-wasm",
-  "version": "0.0.0-alpha.0",
+  "version": "0.0.0-alpha.1",
   "description": "argon2id password hashing in WASM",
   "license": "Apache-2.0",
   "files": [
     "src/index.ts",
     "src/wasm.d.ts",
-    "src/argon2-wasm/pkg"
+    "rust/pkg"
   ],
   "type": "module",
   "sideEffects": false,
@@ -14,7 +14,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build:wasm": "cd src/argon2-wasm && just build",
+    "build:wasm": "cd rust && just build",
     "prepare": "test -f src/argon2-wasm/pkg/argon2_wasm_bg.wasm || pnpm run build:wasm",
     "typecheck": "tsc --noEmit"
   },
