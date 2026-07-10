@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { api } from "./_generated/api.js";
-import { registerCore } from "@convex-dev/auth/providers/testing/core.js";
+import { registerCore } from "@convex-dev/auth/providers/testing/core";
 import { registerPasswordProvider } from "@convex-dev/auth-password/testing";
 import schema from "./schema.js";
 

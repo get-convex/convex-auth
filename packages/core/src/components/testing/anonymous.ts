@@ -1,6 +1,6 @@
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
-import schema from "../anonymous/schema.js";
+import schema from "../anonymous/schema";
 const modules = import.meta.glob("../anonymous/**/*.ts");
 
 /**

@@ -12,7 +12,7 @@ import {
   CompleteSignInFunc,
   ResolveUserIdFunc,
   CreateOrUpdateUserFn,
-} from "../../lib/types.js";
+} from "../../lib/types";
 
 // Helper: pairs a `ProviderConfig` with its options, preserving `Name`, `Options` and `Api` individually.
 // TODO: dowski - consider whether this function should exist, or whether defineProvider

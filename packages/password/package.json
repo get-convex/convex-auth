@@ -23,7 +23,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./component/*": "./src/component/*",
+    "./component/*": "./src/component/*.ts",
     "./setup": "./src/setup.ts",
     "./testing": "./src/testing.ts"
   },

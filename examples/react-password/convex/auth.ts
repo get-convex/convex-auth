@@ -1,5 +1,5 @@
 import { components, internal } from "./_generated/api";
-import { provider, setupCore } from "@convex-dev/auth/core/setup.js";
+import { provider, setupCore } from "@convex-dev/auth/core/setup";
 import { UsernamePassword } from "@convex-dev/auth-password/setup";
 
 // The core owns sessions, accounts, and JWT minting. It calls back into our
