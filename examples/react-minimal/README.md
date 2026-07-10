@@ -10,14 +10,14 @@ The auth system owns sessions, providers, accounts, and JWT minting;
 
 ## Generate code / run
 
-Run the example from the root directory.
+Run the example from its own directory.
 
 ```bash
+cd examples/react-minimal
 npx convex dev --once    # provisions a deployment, generates convex/_generated
 npx generate-auth-keys   # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
 ```
 
 ## Test usage
 
-The tests defined in the example are run along with `npm run test:auth` in the
-repo root.
+The tests defined in the example are run along with `pnpm test` in the repo root.
