@@ -4,7 +4,9 @@
   "description": "argon2id password hashing in WASM",
   "license": "Apache-2.0",
   "files": [
-    "src"
+    "src/index.ts",
+    "src/wasm.d.ts",
+    "src/argon2-wasm/pkg"
   ],
   "type": "module",
   "sideEffects": false,

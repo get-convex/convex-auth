@@ -1,0 +1,4 @@
+# This file intentionally lists no patterns.
+# We use it to make npm ignore `.gitignore`, so that `pkg` get included
+# in the output.
+# We use `files` in `package.json` for the actual filtering.
