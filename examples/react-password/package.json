@@ -10,9 +10,7 @@
     "react-dom": "^19.2.7"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
