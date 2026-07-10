@@ -11,6 +11,20 @@
  * window, which forgives the residual cross-tab race the fallback can't cover.
  */
 
+/**
+ * Run `callback` while holding the lock named `key`, resolving to its result.
+ * Only one callback per key runs at a time.
+ */
+export async function runWithMutex<T>(
+  key: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  return locks !== undefined
+    ? await locks.request(key, callback)
+    : await manualMutex(key, callback);
+}
+
 type MutexState = {
   currentlyRunning: Promise<void> | null;
   waiting: Array<() => Promise<void>>;
@@ -46,18 +60,4 @@ function manualMutex<T>(key: string, callback: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     enqueue(key, () => callback().then(resolve, reject));
   });
-}
-
-/**
- * Run `callback` while holding the lock named `key`, resolving to its result.
- * Only one callback per key runs at a time.
- */
-export async function browserMutex<T>(
-  key: string,
-  callback: () => Promise<T>,
-): Promise<T> {
-  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
-  return locks !== undefined
-    ? await locks.request(key, callback)
-    : await manualMutex(key, callback);
 }

@@ -13,10 +13,10 @@ export {
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "./storage";
-export { browserMutex } from "./mutex";
+export { runWithMutex } from "./mutex";
 export {
   AuthClient,
   type AuthApi,
-  type AuthClientOptions,
+  type AuthClientConfig,
   type AuthState,
 } from "./sessionManager";

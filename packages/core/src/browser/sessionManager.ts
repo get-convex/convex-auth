@@ -1,5 +1,5 @@
 import type { TokenBundle } from "../lib/types";
-import { browserMutex } from "./mutex";
+import { runWithMutex } from "./mutex";
 import {
   JWT_STORAGE_KEY,
   NamespacedStorage,
@@ -15,9 +15,9 @@ const RETRY_JITTER = 100;
 
 /**
  * The two auth API calls the core client makes. Kept as an injected interface
- * so this layer never imports Convex: the React bindings implement it (over an
- * HTTP client, to avoid deadlocking the websocket during a refresh), and tests
- * implement it with a fake.
+ * so this layer never imports Convex: framework bindings should implement it
+ * (over an HTTP client, to avoid deadlocking the websocket during a refresh),
+ * and tests implement it with a fake.
  */
 export interface AuthApi {
   /**
@@ -29,7 +29,11 @@ export interface AuthApi {
   signOut: (refreshToken: string) => Promise<void>;
 }
 
-export interface AuthClientOptions {
+/**
+ * Configuration for the {@link AuthClient}.
+ */
+export interface AuthClientConfig {
+  /** The API that the server exposes for auth. */
   authApi: AuthApi;
   /** Where tokens are persisted. */
   storage: TokenStorage;
@@ -48,7 +52,7 @@ export interface AuthState {
 
 type Listener = () => void;
 
-const INITIAL_SNAPSHOT: AuthState = Object.freeze({
+const INITIAL_AUTH_STATE: AuthState = Object.freeze({
   isLoading: true,
   isAuthenticated: false,
   token: null,
@@ -67,9 +71,10 @@ function isNetworkError(error: unknown): boolean {
  * It persists the {@link TokenBundle} from a sign-in, hands out the access
  * token via {@link AuthClient.fetchAccessToken} (refreshing under a cross-tab
  * lock when forced), keeps in sync across tabs, and exposes a
- * subscribe/snapshot API so any UI framework can render its state. It establishes
- * sessions from provider authentication results. Providers authenticate users and
- * call {@link AuthClient.setSession} with the resulting bundle.
+ * subscribe/snapshot API so any UI framework can render its state. It
+ * establishes sessions from provider authentication results. Providers
+ * authenticate and sign-in users and call {@link AuthClient.setSession} with
+ * a token bundle.
  */
 export class AuthClient {
   readonly #authApi: AuthApi;
@@ -82,17 +87,17 @@ export class AuthClient {
   #isLoading = true;
   #initialized = false;
 
-  #snapshot: AuthState = INITIAL_SNAPSHOT;
+  #snapshot: AuthState = INITIAL_AUTH_STATE;
   readonly #listeners = new Set<Listener>();
   #storageListener: ((event: StorageEvent) => void) | null = null;
 
-  constructor(options: AuthClientOptions) {
-    this.#authApi = options.authApi;
+  constructor(config: AuthClientConfig) {
+    this.#authApi = config.authApi;
     this.#storage = new NamespacedStorage(
-      options.storage,
-      options.storageNamespace,
+      config.storage,
+      config.storageNamespace,
     );
-    this.#verbose = options.verbose ?? false;
+    this.#verbose = config.verbose ?? false;
     this.#lockKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
   }
 
@@ -106,7 +111,7 @@ export class AuthClient {
   getSnapshot = (): AuthState => this.#snapshot;
 
   // Just a static value for now. Will carry future SSR state.
-  getServerSnapshot = (): AuthState => INITIAL_SNAPSHOT;
+  getServerSnapshot = (): AuthState => INITIAL_AUTH_STATE;
 
   /** The current access token, or null. */
   getAccessToken(): string | null {
@@ -186,7 +191,7 @@ export class AuthClient {
       return this.#accessToken;
     }
     const tokenBeforeLock = this.#accessToken;
-    return await browserMutex(this.#lockKey, async () => {
+    return await runWithMutex(this.#lockKey, async () => {
       // Another tab may have refreshed while we waited for the lock; if so,
       // use its result rather than rotating again.
       if (this.#accessToken !== tokenBeforeLock) {
