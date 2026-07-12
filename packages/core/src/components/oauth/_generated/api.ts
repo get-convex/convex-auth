@@ -8,9 +8,8 @@
  * @module
  */
 
-import type * as public_ from "../public.js";
+import type * as provider from "../provider.js";
 import type * as setup from "../setup.js";
-import type * as validation from "../validation.js";
 
 import type {
   ApiFromModules,
@@ -20,9 +19,8 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  public: typeof public_;
+  provider: typeof provider;
   setup: typeof setup;
-  validation: typeof validation;
 }> = anyApi as any;
 
 /**
@@ -51,6 +49,4 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {
-  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
-};
+export const components = componentsGeneric() as unknown as {};

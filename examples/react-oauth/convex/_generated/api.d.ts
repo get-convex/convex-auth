@@ -8,22 +8,19 @@
  * @module
  */
 
-import type * as public_ from "../public.js";
-import type * as setup from "../setup.js";
-import type * as validation from "../validation.js";
+import type * as auth from "../auth.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import { anyApi, componentsGeneric } from "convex/server";
 
-const fullApi: ApiFromModules<{
-  public: typeof public_;
-  setup: typeof setup;
-  validation: typeof validation;
-}> = anyApi as any;
+declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
+  users: typeof users;
+}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
@@ -33,10 +30,10 @@ const fullApi: ApiFromModules<{
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-export const api: FilterApi<
+export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
-> = anyApi as any;
+>;
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
@@ -46,11 +43,12 @@ export const api: FilterApi<
  * const myFunctionReference = internal.myModule.myFunction;
  * ```
  */
-export const internal: FilterApi<
+export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
-> = anyApi as any;
+>;
 
-export const components = componentsGeneric() as unknown as {
-  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+export declare const components: {
+  core: import("@convex-dev/auth/core/_generated/component.js").ComponentApi<"core">;
+  authOauth: import("@convex-dev/auth/providers/oauth/_generated/component.js").ComponentApi<"authOauth">;
 };
