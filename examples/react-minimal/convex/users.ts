@@ -1,4 +1,5 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 /**
@@ -25,5 +26,21 @@ export const upsertFromAuth = internalMutation({
         return _exhaustive;
       }
     }
+  },
+});
+
+/**
+ * The currently signed-in user, or null. Demonstrates an authenticated query:
+ * Convex validates the access token the client sends and exposes its `sub`
+ * claim (the app user id) via `ctx.auth`.
+ */
+export const loggedInUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      return null;
+    }
+    return await ctx.db.get("users", identity.subject as Id<"users">);
   },
 });
