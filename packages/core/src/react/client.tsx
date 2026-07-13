@@ -70,9 +70,18 @@ export function useAuth() {
  */
 export function AuthProvider({
   authClient,
+  actions,
   children,
 }: {
   authClient: AuthClient;
+  /**
+   * Overrides the actions exposed via {@link ConvexAuthActionsContext}. Defaults
+   * to the client's own `setSession`/`signOut`. SSR bindings (e.g. Next.js)
+   * inject actions that route through a server endpoint so the refresh token
+   * stays in an httpOnly cookie, while still populating the same context that
+   * provider hooks (`useAnonymousAuth`, etc.) read.
+   */
+  actions?: ConvexAuthActionsContextType;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -104,7 +113,7 @@ export function AuthProvider({
     [state.isLoading, state.isAuthenticated, fetchAccessToken],
   );
 
-  const actions = useMemo<ConvexAuthActionsContextType>(
+  const defaultActions = useMemo<ConvexAuthActionsContextType>(
     () => ({
       setSession: authClient.setSession,
       signOut: authClient.signOut,
@@ -114,7 +123,7 @@ export function AuthProvider({
 
   return (
     <ConvexAuthInternalContext.Provider value={authState}>
-      <ConvexAuthActionsContext.Provider value={actions}>
+      <ConvexAuthActionsContext.Provider value={actions ?? defaultActions}>
         <ConvexAuthTokenContext.Provider value={state.token}>
           {children}
         </ConvexAuthTokenContext.Provider>

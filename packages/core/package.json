@@ -39,7 +39,9 @@
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",
     "./server": "./src/server/index.ts",
-    "./react": "./src/react/index.tsx"
+    "./react": "./src/react/index.tsx",
+    "./nextjs": "./src/nextjs/index.tsx",
+    "./nextjs/server": "./src/nextjs/server.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -60,6 +62,7 @@
     "convex-test": "^0.0.53",
     "hash-wasm": "^4.12.0",
     "jsdom": "^29.1.1",
+    "next": "^15.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^6.0.3",
@@ -68,9 +71,13 @@
   },
   "peerDependencies": {
     "convex": "^1.41.0",
+    "next": "^14.0.0 || ^15.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }
