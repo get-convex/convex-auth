@@ -47,6 +47,12 @@ export type SignInAnonymousMutation = FunctionReference<
  *   return <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
  * }
  * ```
+ * When the `TokenBundle` is passed to `setSession`, that kicks off the
+ * internal Convex auth machinery that authenticates the client with the
+ * configured backend and re-renders components in an authenticated state.
+ * Content within `<Authenticated>` helper components will render as will other
+ * components that build on the authenticated state returned by
+ * `useConvexAuthActions`.
  *
  * @param signInMutation The app's `signInAnonymous` mutation reference.
  */
