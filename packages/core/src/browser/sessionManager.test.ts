@@ -21,15 +21,6 @@ function bundle(n: number): TokenBundle {
   };
 }
 
-/** A resolvable promise, to control refresh timing in the concurrency test. */
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
-
 function makeClient(
   authApi: Partial<AuthApi> = {},
   storage = new InMemoryStorage(),
@@ -136,9 +127,9 @@ describe("AuthClient", () => {
   });
 
   test("concurrent forced fetches collapse to a single refresh", async () => {
-    const gate = deferred<void>();
+    const { promise, resolve } = Promise.withResolvers<void>();
     const refreshSession = vi.fn(async () => {
-      await gate.promise;
+      await promise;
       return bundle(2);
     });
     const { client } = makeClient({ refreshSession });
@@ -150,7 +141,7 @@ describe("AuthClient", () => {
       client.fetchAccessToken({ forceRefreshToken: true }),
       client.fetchAccessToken({ forceRefreshToken: true }),
     ];
-    gate.resolve();
+    resolve();
     const results = await Promise.all(pending);
 
     expect(refreshSession).toHaveBeenCalledTimes(1);

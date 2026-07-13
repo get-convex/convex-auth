@@ -32,13 +32,10 @@ type MutexState = {
 
 const mutexes = new Map<string, MutexState>();
 
-function getMutex(key: string): MutexState {
-  let mutex = mutexes.get(key);
-  if (mutex === undefined) {
-    mutex = { currentlyRunning: null, waiting: [] };
-    mutexes.set(key, mutex);
-  }
-  return mutex;
+function manualMutex<T>(key: string, callback: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    enqueue(key, () => callback().then(resolve, reject));
+  });
 }
 
 function enqueue(key: string, callback: () => Promise<void>) {
@@ -56,8 +53,11 @@ function enqueue(key: string, callback: () => Promise<void>) {
   }
 }
 
-function manualMutex<T>(key: string, callback: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    enqueue(key, () => callback().then(resolve, reject));
-  });
+function getMutex(key: string): MutexState {
+  let mutex = mutexes.get(key);
+  if (mutex === undefined) {
+    mutex = { currentlyRunning: null, waiting: [] };
+    mutexes.set(key, mutex);
+  }
+  return mutex;
 }

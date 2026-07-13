@@ -43,7 +43,7 @@ export interface AuthClientConfig {
   verbose?: boolean;
 }
 
-/** The reactive snapshot the React layer subscribes to. */
+/** Auth state that can be subscribed to via {@link AuthClient.subscribe} */
 export interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -108,11 +108,19 @@ export class AuthClient {
   // A minimal subscribe/snapshot store any UI framework can consume (React via
   // useSyncExternalStore, others via their own reactivity).
 
+  /**
+   * Subscribe to be notified when the {@link AuthState} changes.
+   *
+   * Subscribers should call {@link getSnapshot} when notified of a change.
+   */
   subscribe = (listener: Listener): (() => void) => {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
   };
 
+  /**
+   * Returns the latest {@link AuthState} snapshot.
+   */
   getSnapshot = (): AuthState => this.#snapshot;
 
   /** The current access token, or null. */
