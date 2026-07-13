@@ -12,3 +12,6 @@ packages/argon2id-wasm/rust/target/
 **/.next/
 **/.source/
 next-env.d.ts
+
+# Convex local backend state (examples)
+**/.convex/

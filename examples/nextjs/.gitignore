@@ -1,0 +1,6 @@
+.env.local
+.next
+next-env.d.ts
+*.tsbuildinfo
+*.log
+cookies.txt
