@@ -39,7 +39,7 @@ const projects = ["packages", "examples"].flatMap((group) =>
         environment: "edge-runtime",
         // Tests live under src/ (packages) or convex/ (examples). Scoping the
         // include keeps the globber out of heavy dirs (e.g. Rust `target/`).
-        include: ["src/**/*.test.ts", "convex/**/*.test.ts"],
+        include: ["src/**/*.test.{ts,tsx}", "convex/**/*.test.{ts,tsx}"],
         exclude: [...configDefaults.exclude, "**/target/**", "**/pkg/**"],
         passWithNoTests: true, // TODO(nicolas) remove?
         server: {
