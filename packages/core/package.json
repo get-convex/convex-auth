@@ -34,7 +34,8 @@
     "./providers/anonymous/*": "./src/components/anonymous/*.ts",
     "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
     "./providers/password/*": "./src/components/password/*.ts",
-    "./providers/testing/*": "./src/components/testing/*.ts"
+    "./providers/testing/*": "./src/components/testing/*.ts",
+    "./browser": "./src/browser/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
