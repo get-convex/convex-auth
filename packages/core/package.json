@@ -38,6 +38,7 @@
     "./providers/password/*": "./src/components/password/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",
+    "./server": "./src/server/index.ts",
     "./react": "./src/react/index.tsx"
   },
   "scripts": {
