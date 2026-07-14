@@ -4,6 +4,7 @@ description: Set up Convex Auth in your project.
 ---
 
 import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 Every project using Convex Auth follows these steps.
 
@@ -11,112 +12,56 @@ Every project using Convex Auth follows these steps.
 
 <Step>
 
-### Configure `SITE_URL`
+### Install Convex Auth
 
-The `SITE_URL` environment variable is used when redirecting back to your site
-during OAuth sign-in and magic links. For local development:
+Add the Convex Auth package to your project:
+
+<Tabs items={["npm", "pnpm", "yarn", "bun"]}>
+  <Tab value="npm">
+    ```sh npm i https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+  <Tab value="pnpm">
+    ```sh pnpm add https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+  <Tab value="yarn">
+    ```sh yarn add https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+  <Tab value="bun">
+    ```sh bun add https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+</Tabs>
+
+<Callout type="warn">
+  Convex Auth v2 is still in development. This installs the latest `reboot`
+  build from a preview registry rather than a published release.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Run the setup command
+
+Run the Convex Auth CLI to configure your project.
 
 ```sh
-npx convex env set SITE_URL http://localhost:5173
+npx @convex-dev/auth
 ```
+
+This command:
+
+- Verifies you have `@convex-dev/auth` installed.
+- Generates a key pair for your dev deployment (`AUTH_PRIVATE_KEY` and `AUTH_JWKS` environment variables).
+- Initializes the following files in `convex/`: `auth.config.ts`, `convex.config.ts`, `auth.ts`.
 
 </Step>
 
 <Step>
 
-### Generate private and public keys
+### Install a login provider
 
-Create a `generateKeys.mjs` file:
-
-```js title="generateKeys.mjs"
-import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
-
-const keys = await generateKeyPair("RS256", { extractable: true });
-const privateKey = await exportPKCS8(keys.privateKey);
-const publicKey = await exportJWK(keys.publicKey);
-const jwks = JSON.stringify({ keys: [{ use: "sig", ...publicKey }] });
-
-process.stdout.write(
-  `JWT_PRIVATE_KEY="${privateKey.trimEnd().replace(/\n/g, " ")}"`,
-);
-process.stdout.write("\n");
-process.stdout.write(`JWKS=${jwks}`);
-```
-
-Run it and set the two environment variables it prints in your Convex
-deployment:
-
-```sh
-node generateKeys.mjs
-```
-
-</Step>
-
-<Step>
-
-### Update `convex/tsconfig.json`
-
-Add the following compiler options:
-
-```json title="convex/tsconfig.json"
-{
-  "compilerOptions": {
-    "skipLibCheck": true,
-    "moduleResolution": "Bundler"
-  }
-}
-```
-
-</Step>
-
-<Step>
-
-### Create `convex/auth.config.ts`
-
-```ts title="convex/auth.config.ts"
-export default {
-  providers: [
-    {
-      domain: process.env.CONVEX_SITE_URL,
-      applicationID: "convex",
-    },
-  ],
-};
-```
-
-</Step>
-
-<Step>
-
-### Initialize `convex/auth.ts`
-
-```ts title="convex/auth.ts"
-import { convexAuth } from "@convex-dev/auth/server";
-
-export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [],
-});
-```
-
-</Step>
-
-<Step>
-
-### Configure `convex/http.ts`
-
-```ts title="convex/http.ts"
-import { httpRouter } from "convex/server";
-import { auth } from "./auth";
-
-const http = httpRouter();
-
-auth.addHttpRoutes(http);
-
-export default http;
-```
+<Callout type="warn">WIP</Callout>
 
 </Step>
 
 </Steps>
-
-Next, add one or more [login providers](/docs/login-providers/password).
