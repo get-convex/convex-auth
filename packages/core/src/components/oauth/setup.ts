@@ -8,6 +8,12 @@ import { generateRandomToken, sha256Base64Url, sha256Hex } from "./crypto";
  * Configuration for a single upstream OAuth provider (IdP).
  */
 export type OauthProviderConfig = {
+  /**
+   * This IdP's component mount (e.g. `components.oauthGoogle`). The
+   * component is mounted once per IdP so each mount can bind its own
+   * `CLIENT_SECRET` and serve its own callback route.
+   */
+  component: ComponentApi;
   /** The OAuth client id issued by the provider. */
   clientId: string;
   /** The provider's authorization endpoint, e.g. Google's `https://accounts.google.com/o/oauth2/v2/auth`. */
@@ -33,9 +39,7 @@ export type OauthProviderConfig = {
  * Options for {@link Oauth}.
  */
 export type OauthOptions = {
-  /** The mounted oauth component (`components.authOauth`). */
-  component: ComponentApi;
-  /** Upstream providers keyed by name; the key is used in routes, claims, and account identity. */
+  /** Upstream providers keyed by name; the key is used in claims and account identity. */
   providers: Record<string, OauthProviderConfig>;
   /**
    * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`.
@@ -73,16 +77,14 @@ function parseUrl(value: string): URL | null {
  * 3. The caller redeems the ticket (plus its original state) to complete
  *    sign-in.
  *
- * The component must be mounted with an `httpPrefix` in `convex.config.ts`
- * (e.g. `app.use(oauthProvider, { httpPrefix: "/oauth" })`) so the callback
- * is routable; register `<site-url><httpPrefix>/callback/<provider>` as the
- * redirect URI with each provider.
+ * The component is mounted once per IdP in `convex.config.ts`, each mount
+ * with its own name, `httpPrefix`, and `CLIENT_SECRET` binding (see the
+ * component's convex.config.ts); register `<site-url><httpPrefix>/callback`
+ * as the redirect URI with each provider.
  */
 export const Oauth = defineProvider({
   name: "oauth",
   setup: (_helpers, options: OauthOptions) => {
-    const { component } = options;
-
     // Normalize the allowlist up front so misconfiguration fails at deploy
     // time, not on the first sign-in.
     const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
@@ -141,7 +143,7 @@ export const Oauth = defineProvider({
           // neither stored nor visible in function logs.
           const stateHash = await sha256Hex(args.state);
           const callbackBaseUrl = await ctx.runMutation(
-            component.provider.createAuthorizationRequest,
+            providerConfig.component.provider.createAuthorizationRequest,
             {
               provider: args.provider,
               stateHash,
@@ -157,7 +159,7 @@ export const Oauth = defineProvider({
             ...providerConfig.extraAuthorizationParams,
             response_type: "code",
             client_id: providerConfig.clientId,
-            redirect_uri: `${callbackBaseUrl}/callback/${args.provider}`,
+            redirect_uri: `${callbackBaseUrl}/callback`,
             state: args.state,
           };
 

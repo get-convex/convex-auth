@@ -7,6 +7,7 @@ const app = defineApp({
   env: {
     AUTH_PRIVATE_KEY: v.string(),
     AUTH_JWKS: v.string(),
+    AUTH_GOOGLE_CLIENT_SECRET: v.string(),
   },
 });
 
@@ -17,6 +18,15 @@ app.use(core, {
     AUTH_JWKS: app.env.AUTH_JWKS,
   },
 });
-app.use(oauthProvider);
+
+// The oauth component mounts once per IdP: each mount gets its own callback
+// route and client secret binding.
+app.use(oauthProvider, {
+  name: "oauthGoogle",
+  httpPrefix: "/oauth/google",
+  env: {
+    CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
+  },
+});
 
 export default app;

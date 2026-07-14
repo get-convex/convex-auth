@@ -9,6 +9,7 @@
  */
 
 import type * as crypto from "../crypto.js";
+import type * as http from "../http.js";
 import type * as provider from "../provider.js";
 import type * as setup from "../setup.js";
 
@@ -21,6 +22,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   crypto: typeof crypto;
+  http: typeof http;
   provider: typeof provider;
   setup: typeof setup;
 }> = anyApi as any;

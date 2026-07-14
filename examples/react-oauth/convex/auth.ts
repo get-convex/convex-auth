@@ -16,9 +16,9 @@ export const {
   component: components.core,
   providers: [
     provider(Oauth, {
-      component: components.authOauth,
       providers: {
         google: {
+          component: components.oauthGoogle,
           clientId: process.env.AUTH_GOOGLE_CLIENT_ID ?? "",
           authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
           scopes: ["openid", "email", "profile"],

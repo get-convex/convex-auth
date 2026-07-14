@@ -6,8 +6,8 @@ import schema from "./schema.js";
 const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
-  // Components see a CONVEX_SITE_URL prefixed with their http mount.
-  process.env.CONVEX_SITE_URL = "https://test.convex.site/oauth";
+  // Each per-IdP mount sees a CONVEX_SITE_URL prefixed with its http mount.
+  process.env.CONVEX_SITE_URL = "https://test.convex.site/oauth/google";
   const t = convexTest(schema, modules);
   return t;
 }
@@ -20,7 +20,7 @@ describe("oauth", () => {
       stateHash: "0".repeat(64),
       redirectTo: "https://app.example.com/after",
     });
-    expect(result).toBe("https://test.convex.site/oauth");
+    expect(result).toBe("https://test.convex.site/oauth/google");
     await t.run(async (ctx) => {
       const requests = await ctx.db.query("authorizationRequests").collect();
       expect(requests).toHaveLength(1);
