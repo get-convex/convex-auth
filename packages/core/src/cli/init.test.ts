@@ -5,7 +5,7 @@ import {
   detectPackageManager,
   FILE_TEMPLATES,
   installCommand,
-} from "../../scripts/init.mjs";
+} from "./program";
 
 const PROJECT = "/project";
 

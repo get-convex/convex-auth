@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * `npx @convex-dev/auth` — initialize a basic Convex Auth (v2) project.
  *
@@ -16,13 +15,22 @@
  * `defaultDeps`) so it can be driven end-to-end in unit tests with the file
  * system, key generation, and Convex env access all stubbed out.
  */
+
+// TODO(nicolas) This is a rough draft. Ideally, we simplify the setup process
+// (e.g. by skipping the need for a key pair generation + simplyfying the API)
+// so that users don’t need to rely on this.
+
 import { Command } from "commander";
 import { generateKeyPair, exportPKCS8, exportJWK } from "jose";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+} from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const ALG = "RS256";
 
@@ -89,7 +97,35 @@ export const {
 };
 
 /** The install command for a given package manager. */
-export function installCommand(packageManager) {
+type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
+
+type AuthKeys = {
+  authPrivateKey: string;
+  authJwks: string;
+};
+
+type PackageJson = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+export type InitDeps = {
+  cwd: () => string;
+  fs: {
+    existsSync: (path: string) => boolean;
+    readFileSync: (path: string) => string;
+    writeFileSync: (path: string, contents: string) => void;
+    mkdirSync: (path: string, options: { recursive: true }) => unknown;
+  };
+  log: (message: string) => void;
+  warn: (message: string) => void;
+  generateKeys: () => Promise<AuthKeys>;
+  getEnv: (key: string) => string | null;
+  setEnv: (key: string, value: string) => void;
+  detectPackageManager: (dir: string) => string;
+};
+
+export function installCommand(packageManager: string) {
   switch (packageManager) {
     case "pnpm":
       return `pnpm add ${INSTALL_SPEC}`;
@@ -108,7 +144,10 @@ export function installCommand(packageManager) {
  * the CLI (`npm_config_user_agent`) and falling back to whichever lockfile is
  * present in `dir`. Defaults to npm.
  */
-export function detectPackageManager(dir, env = process.env) {
+export function detectPackageManager(
+  dir: string,
+  env: NodeJS.ProcessEnv = process.env,
+): PackageManager {
   const userAgent = env.npm_config_user_agent ?? "";
   if (userAgent.startsWith("pnpm")) return "pnpm";
   if (userAgent.startsWith("bun")) return "bun";
@@ -140,7 +179,7 @@ async function generateAuthKeys() {
 }
 
 /** Read an env var off the current directory's Convex deployment. */
-function getConvexEnv(key) {
+function getConvexEnv(key: string) {
   const result = spawnSync("npx", ["convex", "env", "get", key], {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -151,7 +190,7 @@ function getConvexEnv(key) {
 }
 
 /** Set an env var on the current directory's Convex deployment. */
-function setConvexEnv(key, value) {
+function setConvexEnv(key: string, value: string) {
   const result = spawnSync("npx", ["convex", "env", "set", key, value], {
     stdio: "inherit",
     cwd: process.cwd(),
@@ -162,10 +201,15 @@ function setConvexEnv(key, value) {
 }
 
 /** The real implementations, injected into `runInit` (overridden in tests). */
-export function defaultDeps() {
+export function defaultDeps(): InitDeps {
   return {
     cwd: () => process.cwd(),
-    fs: { existsSync, readFileSync, writeFileSync, mkdirSync },
+    fs: {
+      existsSync,
+      readFileSync: (path) => readFileSync(path, "utf8"),
+      writeFileSync,
+      mkdirSync,
+    },
     log: (message) => console.log(message),
     warn: (message) => console.warn(message),
     generateKeys: generateAuthKeys,
@@ -176,7 +220,7 @@ export function defaultDeps() {
 }
 
 /** Whether `@convex-dev/auth` appears in the package's (dev)dependencies. */
-function hasAuthDependency(pkg) {
+function hasAuthDependency(pkg: PackageJson) {
   return (
     AUTH_PACKAGE in (pkg.dependencies ?? {}) ||
     AUTH_PACKAGE in (pkg.devDependencies ?? {})
@@ -184,7 +228,7 @@ function hasAuthDependency(pkg) {
 }
 
 /** Indent a block of text for display inside a warning. */
-function indent(text) {
+function indent(text: string) {
   return text
     .split("\n")
     .map((line) => (line.length > 0 ? `    ${line}` : line))
@@ -192,7 +236,7 @@ function indent(text) {
 }
 
 /** Ensure the signing keys exist on the deployment (idempotent). */
-async function ensureAuthKeys(deps, force) {
+async function ensureAuthKeys(deps: InitDeps, force: boolean) {
   if (!force && deps.getEnv("AUTH_PRIVATE_KEY") && deps.getEnv("AUTH_JWKS")) {
     deps.log(
       "AUTH_PRIVATE_KEY and AUTH_JWKS are already set; leaving them unchanged " +
@@ -211,7 +255,7 @@ async function ensureAuthKeys(deps, force) {
  * A file that already exists is never overwritten: instead we warn and print
  * the content it should contain.
  */
-function writeAuthFiles(deps, dir) {
+function writeAuthFiles(deps: InitDeps, dir: string) {
   const convexDir = join(dir, "convex");
   if (!deps.fs.existsSync(convexDir)) {
     deps.fs.mkdirSync(convexDir, { recursive: true });
@@ -236,7 +280,11 @@ function writeAuthFiles(deps, dir) {
  * reported via `command.error`, which prints to stderr and exits (or throws a
  * `CommanderError` when the command has `exitOverride` set, as in tests).
  */
-async function runInit(deps, options, command) {
+async function runInit(
+  deps: InitDeps,
+  options: { force?: boolean },
+  command: Command,
+) {
   const dir = deps.cwd();
   const pkgPath = join(dir, "package.json");
 
@@ -248,9 +296,9 @@ async function runInit(deps, options, command) {
     return;
   }
 
-  let pkg;
+  let pkg: PackageJson;
   try {
-    pkg = JSON.parse(deps.fs.readFileSync(pkgPath, "utf8"));
+    pkg = JSON.parse(deps.fs.readFileSync(pkgPath));
   } catch {
     command.error(`Could not parse ${pkgPath} as JSON.`);
     return;
@@ -267,7 +315,7 @@ async function runInit(deps, options, command) {
   }
 
   deps.log("Setting up the auth signing keys…");
-  await ensureAuthKeys(deps, options.force);
+  await ensureAuthKeys(deps, options.force ?? false);
 
   deps.log("Scaffolding Convex Auth files…");
   writeAuthFiles(deps, dir);
@@ -279,7 +327,7 @@ async function runInit(deps, options, command) {
 }
 
 /** Build the commander program, wired to the given dependencies. */
-export function createProgram(deps = defaultDeps()) {
+export function createProgram(deps: InitDeps = defaultDeps()) {
   const program = new Command();
   program
     .name("@convex-dev/auth")
@@ -290,8 +338,3 @@ export function createProgram(deps = defaultDeps()) {
 }
 
 export { runInit };
-
-// Run when invoked directly (`npx @convex-dev/auth`), not when imported by tests.
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  createProgram().parseAsync(process.argv);
-}

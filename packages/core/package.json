@@ -19,9 +19,10 @@
     "directory": "packages/core"
   },
   "bin": {
-    "@convex-dev/auth": "./scripts/init.mjs"
+    "@convex-dev/auth": "./dist/cli/init.js"
   },
   "files": [
+    "dist",
     "src",
     "scripts"
   ],
@@ -42,6 +43,8 @@
     "./react": "./src/react/index.tsx"
   },
   "scripts": {
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "prepare": "pnpm build:cli",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
