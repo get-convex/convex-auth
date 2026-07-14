@@ -59,11 +59,19 @@ function Dashboard() {
   const { signOut } = useAuthActions();
   return (
     <>
-      <p>
-        Signed in as <strong>{user ? user.name : "…"}</strong>
-        {user ? ` (${user._id})` : ""}
-      </p>
-      <p style={{ wordBreak: "break-all", color: "#666", fontSize: "0.8rem" }}>
+      {user && (
+        <p>
+          Signed in as <strong>{user.name}</strong> ({user.id})
+        </p>
+      )}
+
+      <p
+        style={{
+          wordBreak: "break-all",
+          color: "#666",
+          fontSize: "0.8rem",
+        }}
+      >
         Access token: {token ? `${token.slice(0, 24)}…` : "(none)"}
       </p>
       <button onClick={() => signOut()}>Sign out</button>

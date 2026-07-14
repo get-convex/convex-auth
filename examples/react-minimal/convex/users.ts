@@ -30,9 +30,9 @@ export const upsertFromAuth = internalMutation({
 });
 
 /**
- * The currently signed-in user, or null. Demonstrates an authenticated query:
- * Convex validates the access token the client sends and exposes its `sub`
- * claim (the app user id) via `ctx.auth`.
+ * The currently signed-in user, or null.
+ *
+ * Demonstrates an authenticated query.
  */
 export const loggedInUser = query({
   args: {},
@@ -41,6 +41,12 @@ export const loggedInUser = query({
     if (identity === null) {
       return null;
     }
-    return await ctx.db.get("users", identity.subject as Id<"users">);
+    const userId = identity.subject as Id<"users">;
+    const user = await ctx.db.get("users", userId);
+    if (user === null) {
+      return null;
+    }
+
+    return { id: user._id, name: user.name };
   },
 });
