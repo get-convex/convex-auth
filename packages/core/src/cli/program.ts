@@ -24,7 +24,12 @@ import { Command } from "commander";
 import { generateKeyPair, exportPKCS8, exportJWK } from "jose";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+} from "node:fs";
 import { join } from "node:path";
 
 const ALG = "RS256";
