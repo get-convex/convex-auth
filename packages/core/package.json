@@ -19,10 +19,11 @@
     "directory": "packages/core"
   },
   "bin": {
-    "generate-auth-keys": "./scripts/generate-auth-keys.mjs"
+    "@convex-dev/auth": "./scripts/init.mjs"
   },
   "files": [
-    "src"
+    "src",
+    "scripts"
   ],
   "type": "module",
   "sideEffects": false,
@@ -45,6 +46,7 @@
   "dependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
     "argon2id-wasm": "0.0.0-alpha.1",
+    "commander": "^14.0.2",
     "jose": "^5.2.2"
   },
   "devDependencies": {
