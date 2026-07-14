@@ -2,10 +2,6 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  accounts: defineTable({
-    providerAccountId: v.string(),
-  }),
-
   /**
    * In-flight authorization requests, created at sign-in and consumed by the
    * provider callback. The callback claims a request by atomically deleting

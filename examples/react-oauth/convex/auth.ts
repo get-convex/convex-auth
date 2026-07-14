@@ -1,4 +1,5 @@
 import { components, internal } from "./_generated/api";
+import { env } from "./_generated/server";
 import { provider, setupCore } from "@convex-dev/auth/core/setup";
 import { Oauth } from "@convex-dev/auth/providers/oauth/setup";
 
@@ -19,7 +20,7 @@ export const {
       providers: {
         google: {
           component: components.oauthGoogle,
-          clientId: process.env.AUTH_GOOGLE_CLIENT_ID ?? "",
+          clientId: env.AUTH_GOOGLE_CLIENT_ID,
           authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
           scopes: ["openid", "email", "profile"],
           pkce: true,

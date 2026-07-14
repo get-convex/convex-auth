@@ -7,6 +7,7 @@ const app = defineApp({
   env: {
     AUTH_PRIVATE_KEY: v.string(),
     AUTH_JWKS: v.string(),
+    AUTH_GOOGLE_CLIENT_ID: v.string(),
     AUTH_GOOGLE_CLIENT_SECRET: v.string(),
   },
 });

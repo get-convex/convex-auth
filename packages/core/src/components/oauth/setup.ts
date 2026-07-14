@@ -85,8 +85,14 @@ function parseUrl(value: string): URL | null {
 export const Oauth = defineProvider({
   name: "oauth",
   setup: (_helpers, options: OauthOptions) => {
-    // Normalize the allowlist up front so misconfiguration fails at deploy
-    // time, not on the first sign-in.
+    // Validate configuration up front so it fails at deploy time, not on
+    // the first sign-in.
+    for (const [name, config] of Object.entries(options.providers)) {
+      if (config.clientId === "") {
+        throw new Error(`OAuth provider "${name}" has an empty clientId`);
+      }
+    }
+
     const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
       const url = parseUrl(allowed);
       if (url === null || url.origin === "null") {
@@ -111,10 +117,12 @@ export const Oauth = defineProvider({
         },
         returns: v.object({ redirect: v.string() }),
         handler: async (ctx, args) => {
-          const providerConfig = options.providers[args.provider];
-          if (providerConfig === undefined) {
+          // `hasOwn` rather than an undefined check: a lookup like
+          // "constructor" hits the prototype chain and returns a function.
+          if (!Object.hasOwn(options.providers, args.provider)) {
             throw new Error(`Unknown OAuth provider "${args.provider}"`);
           }
+          const providerConfig = options.providers[args.provider];
 
           if (
             args.state.length < MIN_STATE_LENGTH ||
