@@ -61,7 +61,7 @@ function Dashboard() {
     <>
       <p>
         Signed in as <strong>{user ? user.name : "…"}</strong>
-        {user ? ` (${user._id})` : ""}
+        {user ? ` (${user.id})` : ""}
       </p>
       <p style={{ wordBreak: "break-all", color: "#666", fontSize: "0.8rem" }}>
         Access token: {token ? `${token.slice(0, 24)}…` : "(none)"}

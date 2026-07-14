@@ -6,15 +6,13 @@
   "dependencies": {
     "@convex-dev/auth": "workspace:*",
     "convex": "^1.41.0",
-    "jose": "^5.10.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "dev": "convex dev --start vite",
+    "build": "vite build && tsc -p convex --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p convex --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -22,8 +20,9 @@
     "@types/node": "^24.12.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.3",
     "convex-test": "^0.0.53",
+    "jose": "^5.10.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"
   }

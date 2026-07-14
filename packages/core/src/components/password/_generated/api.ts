@@ -9,6 +9,7 @@
  */
 
 import type * as public_ from "../public.js";
+import type * as setup from "../setup.js";
 import type * as validation from "../validation.js";
 
 import type {
@@ -17,10 +18,10 @@ import type {
   FunctionReference,
 } from "convex/server";
 import { anyApi, componentsGeneric } from "convex/server";
-import type { ComponentApi as RateLimiter } from "@convex-dev/rate-limiter/_generated/component.js";
 
 const fullApi: ApiFromModules<{
   public: typeof public_;
+  setup: typeof setup;
   validation: typeof validation;
 }> = anyApi as any;
 
@@ -51,5 +52,5 @@ export const internal: FilterApi<
 > = anyApi as any;
 
 export const components = componentsGeneric() as unknown as {
-  rateLimiter: RateLimiter<"rateLimiter">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };
