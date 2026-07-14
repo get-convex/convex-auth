@@ -24,11 +24,16 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     provider: {
-      createOauthAccount: FunctionReference<
+      createAuthorizationRequest: FunctionReference<
         "mutation",
         "internal",
-        {},
-        any,
+        {
+          codeVerifier?: string;
+          provider: string;
+          redirectTo: string;
+          stateHash: string;
+        },
+        string,
         Name
       >;
     };

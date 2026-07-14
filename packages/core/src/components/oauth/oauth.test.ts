@@ -6,14 +6,28 @@ import schema from "./schema.js";
 const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
+  // Components see a CONVEX_SITE_URL prefixed with their http mount.
+  process.env.CONVEX_SITE_URL = "https://test.convex.site/oauth";
   const t = convexTest(schema, modules);
   return t;
 }
 
 describe("oauth", () => {
-  test("createOauthAccount, returns ID", async () => {
+  test("createAuthorizationRequest stores the request and returns the callback base URL", async () => {
     const t = setup();
-    const result = await t.mutation(api.provider.createOauthAccount, {});
-    expect(result).not.toBe(null);
+    const result = await t.mutation(api.provider.createAuthorizationRequest, {
+      provider: "google",
+      stateHash: "0".repeat(64),
+      redirectTo: "https://app.example.com/after",
+    });
+    expect(result).toBe("https://test.convex.site/oauth");
+    await t.run(async (ctx) => {
+      const requests = await ctx.db.query("authorizationRequests").collect();
+      expect(requests).toHaveLength(1);
+      expect(requests[0].provider).toBe("google");
+      expect(requests[0].stateHash).toBe("0".repeat(64));
+      expect(requests[0].codeVerifier).toBeUndefined();
+      expect(requests[0].expiresAt).toBeGreaterThan(Date.now());
+    });
   });
 });
