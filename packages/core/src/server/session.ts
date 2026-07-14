@@ -43,9 +43,8 @@ export interface ServerAuthSessionConfig {
    */
   refreshSkewSeconds?: number;
   /**
-   * Base cookie attributes (httpOnly/secure/sameSite/path). Per-cookie
-   * lifetime is derived from the token bundle. Defaults to
-   * {@link defaultCookieOptions}.
+   * Base cookie attributes (httpOnly/sameSite/path). Per-cookie lifetime is
+   * derived from the token bundle. Defaults to {@link defaultCookieOptions}.
    */
   cookieOptions?: CookieOptions;
 }
@@ -53,13 +52,13 @@ export interface ServerAuthSessionConfig {
 export class ServerAuthSession {
   readonly #authApi: AuthApi;
   readonly #cookies: CookieStore;
-  readonly #skew: number;
+  readonly #refreshSkewSeconds: number;
   readonly #cookieOptions: CookieOptions;
 
   constructor(config: ServerAuthSessionConfig) {
     this.#authApi = config.authApi;
     this.#cookies = config.cookies;
-    this.#skew = config.refreshSkewSeconds ?? 10;
+    this.#refreshSkewSeconds = config.refreshSkewSeconds ?? 10;
     this.#cookieOptions = config.cookieOptions ?? defaultCookieOptions();
   }
 
@@ -70,7 +69,7 @@ export class ServerAuthSession {
    */
   async getToken(): Promise<string | null> {
     const token = (await this.#cookies.get(AUTH_JWT_COOKIE)) ?? null;
-    if (token !== null && !isTokenExpiring(token, this.#skew)) {
+    if (token !== null && !isTokenExpiring(token, this.#refreshSkewSeconds)) {
       return token;
     }
     const bundle = await this.refresh();

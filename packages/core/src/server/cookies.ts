@@ -56,15 +56,16 @@ export interface CookieStore {
 }
 
 /**
- * The default attributes for auth cookies: httpOnly (so the tokens never reach
- * client JS), `secure` in production, `sameSite: "lax"`, rooted at `/`.
- * Per-cookie lifetime (`expires`) is derived from the token bundle by the
- * caller.
+ * The default attributes for auth cookies.
+ *
+ *  * `httpOnly: true` (so the refresh token never reaches client JS)
+ *  * `sameSite: "lax"` to aid in CSRF protection (see
+ *     https://auth.pilcrowonpaper.com/csrf)
+ *  * `path: "/"` so the cookies will be sent for all paths on the site
  */
 export function defaultCookieOptions(): CookieOptions {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
   };

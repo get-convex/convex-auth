@@ -17,19 +17,20 @@ function jwt(expSeconds: number, sub = "user-1"): string {
   return `${b64({ alg: "RS256", typ: "JWT" })}.${b64({ sub, exp: expSeconds })}.sig`;
 }
 
+// Pin "now" so token-expiry math is deterministic.
 const NOW = 1_000_000; // seconds
 const nowMs = NOW * 1000;
 
 function newTokenBundle(
   n: number,
-  accessTtl = 60,
-  refreshTtl = 2_592_000,
+  accessTtlSeconds = 60,
+  refreshTtlSeconds = 60 * 60 * 24 * 30,
 ): TokenBundle {
   return {
-    accessToken: jwt(NOW + accessTtl),
-    accessTokenExpiresAt: nowMs + accessTtl * 1000,
+    accessToken: jwt(NOW + accessTtlSeconds),
+    accessTokenExpiresAt: nowMs + accessTtlSeconds * 1000,
     refreshToken: `refresh-${n}`,
-    refreshTokenExpiresAt: nowMs + refreshTtl * 1000,
+    refreshTokenExpiresAt: nowMs + refreshTtlSeconds * 1000,
     userId: "user-1",
   };
 }
@@ -59,12 +60,10 @@ function newSession(
   const session = new ServerAuthSession({
     authApi: {
       refreshSession: async () => null,
-      signOut: async () => { },
+      signOut: async () => {},
       ...authApi,
     },
     cookies,
-    // Pin "now" so token-expiry math is deterministic.
-    refreshSkewSeconds: 10,
   });
   return { session, cookies };
 }
@@ -170,7 +169,7 @@ describe("ServerAuthSession", () => {
   });
 
   test("signOut with no session is a no-op that still clears cookies", async () => {
-    const signOut = vi.fn(async () => { });
+    const signOut = vi.fn(async () => {});
     const cookies = new FakeCookies();
     const { session } = newSession({ signOut }, cookies);
 
