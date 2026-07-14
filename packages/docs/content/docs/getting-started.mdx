@@ -1,0 +1,67 @@
+---
+title: Getting Started
+description: Set up Convex Auth in your project.
+---
+
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+Every project using Convex Auth follows these steps.
+
+<Steps>
+
+<Step>
+
+### Install Convex Auth
+
+Add the Convex Auth package to your project:
+
+<Tabs items={["npm", "pnpm", "yarn", "bun"]}>
+  <Tab value="npm">
+    ```sh npm i https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+  <Tab value="pnpm">
+    ```sh pnpm add https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+  <Tab value="yarn">
+    ```sh yarn add https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+  <Tab value="bun">
+    ```sh bun add https://pkg.pr.new/@convex-dev/auth@reboot ```
+  </Tab>
+</Tabs>
+
+<Callout type="warn">
+  Convex Auth v2 is still in development. This installs the latest `reboot`
+  build from a preview registry rather than a published release.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Run the setup command
+
+Run the Convex Auth CLI to configure your project.
+
+```sh
+npx @convex-dev/auth
+```
+
+This command:
+
+- Verifies you have `@convex-dev/auth` installed.
+- Generates a key pair for your dev deployment (`AUTH_PRIVATE_KEY` and `AUTH_JWKS` environment variables).
+- Initializes the following files in `convex/`: `auth.config.ts`, `convex.config.ts`, `auth.ts`.
+
+</Step>
+
+<Step>
+
+### Install a login provider
+
+<Callout type="warn">WIP</Callout>
+
+</Step>
+
+</Steps>
