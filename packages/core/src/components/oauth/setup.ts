@@ -48,15 +48,6 @@ export type OauthOptions = {
   allowedRedirectOrigins: string[];
 };
 
-/**
- * Client-generated state is opaque, but a guessable value would let an
- * attacker inject their authorization code into a victim's flow, so a
- * minimum length is enforced (32 base64url chars ≈ 192 bits). The cap just
- * bounds work done on hostile input.
- */
-const MIN_STATE_LENGTH = 32;
-const MAX_STATE_LENGTH = 256;
-
 /** `new URL` without the exception: returns null on unparseable input. */
 function parseUrl(value: string): URL | null {
   try {
@@ -69,9 +60,9 @@ function parseUrl(value: string): URL | null {
 /**
  * OAuth sign-in against configured upstream providers. The flow:
  *
- * 1. `signIn` (here): validate, record an authorization request in the
- *    component, return the provider authorization URL for the client to
- *    navigate to.
+ * 1. `signIn` (here): validate, mint `state`, record an authorization
+ *    request in the component, and return the provider authorization URL
+ *    for the client to navigate to plus the state it must hold onto.
  * 2. The provider redirects back to the component's HTTP callback, which
  *    claims the request, exchanges the code, and mints a one-time ticket.
  * 3. The caller redeems the ticket (plus its original state) to complete
@@ -105,17 +96,16 @@ export const Oauth = defineProvider({
 
     return {
       /**
-       * Start an OAuth sign-in. The client generates and keeps `state` (it
-       * must present the same value again to complete sign-in), then
-       * navigates to the returned `redirect` URL.
+       * Start an OAuth sign-in. The server mints `state` and returns it;
+       * the client keeps it (it must present the same value again to
+       * complete sign-in) and navigates to the returned `redirect` URL.
        */
       signInOauth: mutationGeneric({
         args: {
           provider: v.string(),
-          state: v.string(),
           redirectTo: v.string(),
         },
-        returns: v.object({ redirect: v.string() }),
+        returns: v.object({ redirect: v.string(), state: v.string() }),
         handler: async (ctx, args) => {
           // `hasOwn` rather than an undefined check: a lookup like
           // "constructor" hits the prototype chain and returns a function.
@@ -123,15 +113,6 @@ export const Oauth = defineProvider({
             throw new Error(`Unknown OAuth provider "${args.provider}"`);
           }
           const providerConfig = options.providers[args.provider];
-
-          if (
-            args.state.length < MIN_STATE_LENGTH ||
-            args.state.length > MAX_STATE_LENGTH
-          ) {
-            throw new Error(
-              `state must be between ${MIN_STATE_LENGTH} and ${MAX_STATE_LENGTH} characters`,
-            );
-          }
 
           const redirectTo = parseUrl(args.redirectTo);
           if (redirectTo === null) {
@@ -143,13 +124,14 @@ export const Oauth = defineProvider({
             );
           }
 
+          const state = generateRandomToken();
           const codeVerifier = providerConfig.pkce
             ? generateRandomToken()
             : undefined;
 
           // Only the hash crosses the component boundary, so the raw state is
           // neither stored nor visible in function logs.
-          const stateHash = await sha256Hex(args.state);
+          const stateHash = await sha256Hex(state);
           const callbackBaseUrl = await ctx.runMutation(
             providerConfig.component.provider.createAuthorizationRequest,
             {
@@ -168,7 +150,7 @@ export const Oauth = defineProvider({
             response_type: "code",
             client_id: providerConfig.clientId,
             redirect_uri: `${callbackBaseUrl}/callback`,
-            state: args.state,
+            state,
           };
 
           if (providerConfig.scopes !== undefined) {
@@ -185,7 +167,7 @@ export const Oauth = defineProvider({
             url.searchParams.set(key, value);
           }
 
-          return { redirect: url.toString() };
+          return { redirect: url.toString(), state };
         },
       }),
     };
