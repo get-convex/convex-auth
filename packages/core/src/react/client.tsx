@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { INITIAL_AUTH_STATE, type AuthClient } from "../browser/sessionManager";
-import type { TokenBundle } from "../lib/types";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 
 // React calls this during SSR and initial hydration — before `init()` has read
 // storage — so it always reports the loading state. It lives here rather than
@@ -20,10 +20,12 @@ const getServerSnapshot = () => INITIAL_AUTH_STATE;
 /** The value exposed by {@link useAuthActions}. */
 export type ConvexAuthActionsContextType = {
   /**
-   * Adopt a session established by a provider. A provider's sign-in flow
-   * returns a {@link TokenBundle}; pass it here to authenticate the client.
+   * Adopt a session established by a provider. A provider's client-direct
+   * sign-in returns a full {@link TokenBundle}; its SSR sibling returns an
+   * access-only {@link SlimTokenBundle}. Pass either here to authenticate the
+   * client.
    */
-  setSession: (bundle: TokenBundle) => Promise<void>;
+  setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
   /** Sign out: revoke the session on the server and clear it locally. */
   signOut: () => Promise<void>;
 };
@@ -41,12 +43,12 @@ export const ConvexAuthTokenContext = createContext<string | null>(null);
  */
 const ConvexAuthInternalContext = createContext<
   | {
-      isLoading: boolean;
-      isAuthenticated: boolean;
-      fetchAccessToken: (args: {
-        forceRefreshToken: boolean;
-      }) => Promise<string | null>;
-    }
+    isLoading: boolean;
+    isAuthenticated: boolean;
+    fetchAccessToken: (args: {
+      forceRefreshToken: boolean;
+    }) => Promise<string | null>;
+  }
   | undefined
 >(undefined);
 

@@ -13,6 +13,7 @@
  */
 
 import { JWT_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from "../browser/storage";
+import type { TokenBundle } from "../lib/types";
 
 /** The cookie holding the current access token (a JWT). */
 export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;
@@ -69,4 +70,37 @@ export function defaultCookieOptions(): CookieOptions {
     sameSite: "lax",
     path: "/",
   };
+}
+
+/**
+ * Write a session's tokens as cookies: the access token in
+ * {@link AUTH_JWT_COOKIE} and the refresh token in {@link AUTH_REFRESH_COOKIE}.
+ * Both live as long as the refresh token (the access token is refreshed on
+ * expiry). With {@link defaultCookieOptions} the refresh cookie is httpOnly, so
+ * it never reaches client JS.
+ *
+ * This is the one place that knows which cookies hold a session and how their
+ * lifetimes derive from the bundle, so refresh, middleware, and every provider's
+ * sign-in handler shape cookies identically.
+ */
+export async function writeAuthCookies(
+  cookies: CookieStore,
+  bundle: TokenBundle,
+  options: CookieOptions = defaultCookieOptions(),
+): Promise<void> {
+  const expires = new Date(bundle.refreshTokenExpiresAt);
+  await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, {
+    ...options,
+    expires,
+  });
+  await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
+    ...options,
+    expires,
+  });
+}
+
+/** Delete both auth cookies. The counterpart of {@link writeAuthCookies}. */
+export async function clearAuthCookies(cookies: CookieStore): Promise<void> {
+  await cookies.delete(AUTH_JWT_COOKIE);
+  await cookies.delete(AUTH_REFRESH_COOKIE);
 }

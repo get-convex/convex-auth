@@ -1,4 +1,4 @@
-import type { TokenBundle } from "../lib/types";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 import { runWithMutex } from "./mutex";
 import {
   JWT_STORAGE_KEY,
@@ -14,19 +14,45 @@ const RETRY_BACKOFF = [500, 2000];
 const RETRY_JITTER = 100;
 
 /**
- * The two auth API calls the core client makes. Kept as an injected interface
- * so this layer never imports Convex: framework bindings should implement it
- * (over an HTTP client, to avoid deadlocking the websocket during a refresh),
- * and tests implement it with a fake.
+ * The two auth API calls the core client makes, as an injected interface so
+ * this layer never imports Convex: framework bindings implement it (over an
+ * HTTP client, to avoid deadlocking the websocket during a refresh), and tests
+ * implement it with a fake.
+ *
+ * The one interface serves SPA and SSR session models. In the default direct
+ * model the client holds the refresh token and passes it in, and a refresh
+ * returns a full {@link TokenBundle} (including the rotated refresh token to
+ * persist). Under SSR the refresh token lives in a server-only httpOnly cookie
+ * the browser can't read, so `refreshToken` is `null`, the implementation
+ * reaches the real token server-side (e.g. by POSTing to a route that reads
+ * the cookie), and a refresh returns an access-only {@link SlimTokenBundle}. The
+ * client persists the result according to its shape — see {@link AuthClient},
+ * which reads which fields came back rather than being told which model it is
+ * in.
  */
 export interface AuthApi {
   /**
-   * Rotate the refresh token and mint a fresh access token. `null` means the
-   * session is gone (unknown or expired refresh token) — treat as signed out.
+   * Rotate the refresh token and mint a fresh access token.
+   *
+   * If a `refreshToken` is supplied, that means the client has access to
+   * it and can expect a full {@link TokenBundle} as the return value.
+   *
+   * Clients without access to the `refreshToken` (SSR when the token is
+   * in an httpOnly cookie) should pass `null` and will receive a
+   * {@link SlimTokenBundle} as the return value.
    */
-  refreshSession: (refreshToken: string) => Promise<TokenBundle | null>;
-  /** Revoke the session for a refresh token. Idempotent. */
-  signOut: (refreshToken: string) => Promise<void>;
+  refreshSession: (
+    refreshToken: string | null,
+  ) => Promise<TokenBundle | SlimTokenBundle | null>;
+
+  /**
+   * Revoke the current session. 
+   *
+   * If the client has access to the `refreshToken` (it's a SPA), it should
+   * pass it in. Clients without access to the refresh token (SSR) should pass
+   * `null`.
+   */
+  signOut: (refreshToken: string | null) => Promise<void>;
 }
 
 /**
@@ -86,6 +112,10 @@ export class AuthClient {
   readonly #lockKey: string;
 
   #accessToken: string | null = null;
+  /**
+   * If the client code is running in SSR mode, this value will always be
+   * `null`.
+   */
   #refreshToken: string | null = null;
   #isLoading = true;
   #initialized = false;
@@ -173,24 +203,25 @@ export class AuthClient {
 
   /**
    * Adopt the session a provider just established. Providers call this after
-   * their own sign-in flow returns a {@link TokenBundle}.
+   * their own sign-in flow returns a session: a full {@link TokenBundle} when
+   * the client holds the refresh token, or an access-only {@link SlimTokenBundle}
+   * when it is delegated (cookie-held).
    */
-  setSession = async (bundle: TokenBundle): Promise<void> => {
-    await this.#storeTokens(bundle);
+  setSession = async (session: TokenBundle | SlimTokenBundle): Promise<void> => {
+    await this.#adopt(session);
   };
 
   /**
    * Revoke the current session on the server (best effort) and clear it
-   * locally.
+   * locally. The refresh token is passed to the API when the client holds one
+   * (`null` when it is delegated, where the API reaches the cookie itself).
    */
   signOut = async (): Promise<void> => {
     const refreshToken = await this.#currentRefreshToken();
-    if (refreshToken !== null) {
-      try {
-        await this.#authApi.signOut(refreshToken);
-      } catch {
-        // Usually means we were already signed out, which is fine.
-      }
+    try {
+      await this.#authApi.signOut(refreshToken);
+    } catch {
+      // Usually means we were already signed out, which is fine.
     }
     this.#log("signed out, erasing tokens");
     await this.#storeTokens(null);
@@ -220,12 +251,10 @@ export class AuthClient {
         return this.#accessToken;
       }
       const refreshToken = await this.#currentRefreshToken();
-      if (refreshToken === null) {
-        this.#log("no refresh token, cannot refresh");
-        return null;
-      }
-      const bundle = await this.#refreshWithRetry(refreshToken);
-      await this.#storeTokens(bundle);
+      const result = await this.#withRetry(() =>
+        this.#authApi.refreshSession(refreshToken),
+      );
+      await this.#adopt(result);
       return this.#accessToken;
     });
   };
@@ -239,11 +268,16 @@ export class AuthClient {
     );
   }
 
-  async #refreshWithRetry(refreshToken: string): Promise<TokenBundle | null> {
+  /**
+   * Run a refresh `op`, retrying only on transient network errors (backoff +
+   * jitter). Shared by both refresh modes — the caller supplies the actual
+   * refresh call so this stays agnostic to whether a token is passed.
+   */
+  async #withRetry<T>(op: () => Promise<T>): Promise<T> {
     let lastError: unknown;
     for (let retry = 0; retry < RETRY_BACKOFF.length; retry++) {
       try {
-        return await this.#authApi.refreshSession(refreshToken);
+        return await op();
       } catch (error) {
         lastError = error;
         if (!isNetworkError(error)) break;
@@ -253,6 +287,22 @@ export class AuthClient {
       }
     }
     throw lastError;
+  }
+
+  /**
+   * Adopt a sign-in or refresh result, persisting it by its shape: a full
+   * {@link TokenBundle} stores both tokens; an access-only {@link SlimTokenBundle}
+   * stores just the access token (a delegated, cookie-held session); `null`
+   * clears the session.
+   */
+  async #adopt(result: TokenBundle | SlimTokenBundle | null): Promise<void> {
+    if (result === null) {
+      await this.#storeTokens(null);
+    } else if ("refreshToken" in result) {
+      await this.#storeTokens(result);
+    } else {
+      await this.#storeAccessOnly(result);
+    }
   }
 
   /**
@@ -271,6 +321,19 @@ export class AuthClient {
       await this.#storage.set(JWT_STORAGE_KEY, bundle.accessToken);
       await this.#storage.set(REFRESH_TOKEN_STORAGE_KEY, bundle.refreshToken);
     }
+    this.#isLoading = false;
+    this.#notify();
+  }
+
+  /**
+   * Store an access-only (delegated, cookie-held) session: set just the access
+   * token, never touching the refresh-token slot (there is none in JS). Clearing
+   * always goes through {@link #storeTokens}, so this only ever adopts a
+   * session. Notifies subscribers.
+   */
+  async #storeAccessOnly(session: SlimTokenBundle): Promise<void> {
+    this.#accessToken = session.accessToken;
+    await this.#storage.set(JWT_STORAGE_KEY, session.accessToken);
     this.#isLoading = false;
     this.#notify();
   }

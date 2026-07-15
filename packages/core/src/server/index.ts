@@ -1,8 +1,7 @@
 /**
  * Framework-agnostic server (SSR) building blocks for Convex Auth: a cookie
  * abstraction, access-token inspection, and the {@link ServerAuthSession} that
- * ties them together. The Next.js bindings (`@convex-dev/auth/nextjs/server`)
- * build on these, and other SSR frameworks can too.
+ * ties them together.
  *
  * @module
  */
@@ -12,13 +11,25 @@ export {
   type CookieStore,
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
+  clearAuthCookies,
   defaultCookieOptions,
+  writeAuthCookies,
 } from "./cookies";
 export {
   type DecodedAccessToken,
   decodeAccessToken,
   isTokenExpiring,
 } from "./jwt";
-export { ServerAuthSession, type ServerAuthSessionConfig } from "./session";
-export type { AuthApi } from "../browser/sessionManager";
-export type { TokenBundle } from "../lib/types";
+export {
+  ServerAuthSession,
+  type RefreshSession,
+  type ServerAuthSessionConfig,
+} from "./session";
+export type {
+  ConvexAuthApi,
+  RefreshSessionFn,
+  SignOutFn,
+  SlimTokenBundle,
+  TokenBundle,
+} from "../lib/types";
+export { makeSlimBundle } from "../lib/types";

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { TokenBundle } from "../lib/types";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 import { AuthClient, AuthApi } from "./sessionManager";
 import {
   InMemoryStorage,
@@ -28,7 +28,7 @@ function makeClient(
   const client = new AuthClient({
     authApi: {
       refreshSession: async () => null,
-      signOut: async () => {},
+      signOut: async () => { },
       ...authApi,
     },
     storage,
@@ -94,7 +94,7 @@ describe("AuthClient", () => {
   });
 
   test("forced fetch rotates the session via refreshSession", async () => {
-    const refreshSession = vi.fn(async (rt: string) => {
+    const refreshSession = vi.fn(async (rt: string | null) => {
       expect(rt).toBe("refresh-1");
       return bundle(2);
     });
@@ -149,7 +149,7 @@ describe("AuthClient", () => {
   });
 
   test("signOut revokes on the server and clears locally", async () => {
-    const signOut = vi.fn(async (rt: string) => {
+    const signOut = vi.fn(async (rt: string | null) => {
       expect(rt).toBe("refresh-1");
     });
     const { client } = makeClient({ signOut });
@@ -170,7 +170,7 @@ describe("AuthClient", () => {
     (globalThis as { window?: unknown }).window = {
       addEventListener: (_type: string, l: (event: StorageEvent) => void) =>
         listeners.push(l),
-      removeEventListener: () => {},
+      removeEventListener: () => { },
     };
 
     const { client } = makeClient({}, storage);
@@ -224,6 +224,92 @@ describe("AuthClient", () => {
       } as unknown as StorageEvent),
     );
 
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: false,
+      token: null,
+    });
+  });
+});
+
+function publicSession(n: number): SlimTokenBundle {
+  return { accessToken: `access-${n}`, accessTokenExpiresAt: 0, userId: "user-1" };
+}
+
+// A "delegated" (SSR/cookie-based) session is not a separate mode — the client
+// is configured identically, and the delegated shape emerges purely from the
+// data: sign-in and refresh yield an access-only PublicSession, so no refresh
+// token is ever stored, and the API is called with a `null` refresh token.
+describe("AuthClient (delegated / access-only sessions)", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  test("setSession adopts an access-only session, storing no refresh token", async () => {
+    const { client, storage } = makeClient();
+    await client.init();
+    await client.setSession(publicSession(1));
+
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
+    // The refresh token lives in a server-only cookie — never in JS storage.
+    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
+  });
+
+  test("hydrates a delegated session from just the access token", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const { client } = makeClient({}, storage);
+    await client.init();
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: true,
+      token: "access-1",
+    });
+  });
+
+  test("forced fetch refreshes via the token-less (null) API call", async () => {
+    const refreshSession = vi.fn(async () => publicSession(2));
+    const { client, storage } = makeClient({ refreshSession });
+    await client.init();
+    await client.setSession(publicSession(1));
+
+    const token = await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(token).toBe("access-2");
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    // No refresh token in JS, so the API is called with null (it reads the cookie).
+    expect(refreshSession).toHaveBeenCalledWith(null);
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-2");
+    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
+  });
+
+  test("a null delegated refresh clears the session", async () => {
+    const { client, storage } = makeClient({
+      refreshSession: async () => null,
+    });
+    await client.init();
+    await client.setSession(publicSession(1));
+
+    const token = await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(token).toBeNull();
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: false,
+      token: null,
+    });
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
+  });
+
+  test("signOut calls the API with a null token and clears locally", async () => {
+    const signOut = vi.fn(async () => { });
+    const { client } = makeClient({ signOut });
+    await client.init();
+    await client.setSession(publicSession(1));
+
+    await client.signOut();
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith(null);
     expect(client.getSnapshot()).toMatchObject({
       isAuthenticated: false,
       token: null,

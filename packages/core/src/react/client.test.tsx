@@ -147,7 +147,7 @@ describe("React bindings", () => {
   });
 
   test("signOut revokes on the server and clears consumers", async () => {
-    const signOut = vi.fn(async (rt: string) => {
+    const signOut = vi.fn(async (rt: string | null) => {
       expect(rt).toBe("refresh-1");
     });
     const { client } = makeClient({ signOut });
