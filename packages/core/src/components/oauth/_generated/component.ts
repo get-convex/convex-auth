@@ -32,8 +32,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           provider: string;
           redirectTo: string;
           stateHash: string;
+          tokenEndpoint: string;
+          userinfoEndpoints?: Record<string, string>;
         },
-        string,
+        { callbackBaseUrl: string; clientId: string },
         Name
       >;
     };

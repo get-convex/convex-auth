@@ -5,19 +5,59 @@ import type { ComponentApi } from "./_generated/component.js";
 import { generateRandomToken, sha256Base64Url, sha256Hex } from "./crypto";
 
 /**
+ * Standard OIDC id_token claims, loosely typed: the well-known ones are
+ * named, everything else comes through the index signature.
+ */
+export type OidcClaims = {
+  sub: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  picture?: string;
+  [claim: string]: unknown;
+};
+
+/**
  * Configuration for a single upstream OAuth provider (IdP).
  */
 export type OauthProviderConfig = {
   /**
    * This IdP's component mount (e.g. `components.oauthGoogle`). The
    * component is mounted once per IdP so each mount can bind its own
-   * `CLIENT_SECRET` and serve its own callback route.
+   * `CLIENT_ID`/`CLIENT_SECRET` and serve its own callback route.
    */
   component: ComponentApi;
-  /** The OAuth client id issued by the provider. */
-  clientId: string;
   /** The provider's authorization endpoint, e.g. Google's `https://accounts.google.com/o/oauth2/v2/auth`. */
   authorizationEndpoint: string;
+  /** The provider's token endpoint, e.g. Google's `https://oauth2.googleapis.com/token`. */
+  tokenEndpoint: string;
+  /**
+   * Profile endpoints the callback fetches with the access token after the
+   * code exchange (GET with a bearer token; provider variation lives in the
+   * URL's query params). Keys name each response in the `profile` mapping's
+   * second argument. Required for providers that don't return an OIDC
+   * id_token, e.g. GitHub:
+   *
+   * ```ts
+   * userinfoEndpoints: {
+   *   user: "https://api.github.com/user",
+   *   emails: "https://api.github.com/user/emails",
+   * }
+   * ```
+   */
+  userinfoEndpoints?: Record<string, string>;
+  /**
+   * Map what the provider told us about the user — id_token claims
+   * (`undefined` for non-OIDC providers) and userinfo responses keyed as
+   * configured (`undefined` unless `userinfoEndpoints` is set) — to the
+   * account identity used at redemption. `id` becomes the provider account
+   * id. Defaults to OIDC claims: `(claims) => ({ id: claims.sub, ...claims })`,
+   * so providers without an id_token must supply this.
+   */
+  profile?: (
+    claims: OidcClaims | undefined,
+    userInfoResponses: Record<string, any> | undefined,
+  ) => { id: string; [key: string]: unknown };
   /** Scopes to request, e.g. `["openid", "email", "profile"]`. Omitted from the URL when absent. */
   scopes?: string[];
   /**
@@ -69,21 +109,15 @@ function parseUrl(value: string): URL | null {
  *    sign-in.
  *
  * The component is mounted once per IdP in `convex.config.ts`, each mount
- * with its own name, `httpPrefix`, and `CLIENT_SECRET` binding (see the
- * component's convex.config.ts); register `<site-url><httpPrefix>/callback`
- * as the redirect URI with each provider.
+ * with its own name, `httpPrefix`, and `CLIENT_ID`/`CLIENT_SECRET` bindings
+ * (see the component's convex.config.ts); register
+ * `<site-url><httpPrefix>/callback` as the redirect URI with each provider.
  */
 export const Oauth = defineProvider({
   name: "oauth",
   setup: (_helpers, options: OauthOptions) => {
     // Validate configuration up front so it fails at deploy time, not on
     // the first sign-in.
-    for (const [name, config] of Object.entries(options.providers)) {
-      if (config.clientId === "") {
-        throw new Error(`OAuth provider "${name}" has an empty clientId`);
-      }
-    }
-
     const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
       const url = parseUrl(allowed);
       if (url === null || url.origin === "null") {
@@ -130,15 +164,21 @@ export const Oauth = defineProvider({
             : undefined;
 
           // Only the hash crosses the component boundary, so the raw state is
-          // neither stored nor visible in function logs.
+          // neither stored nor visible in function logs. Exchange config the
+          // callback needs is stored on the request row; the mount's
+          // CLIENT_ID comes back for the authorization URL.
           const stateHash = await sha256Hex(state);
-          const callbackBaseUrl = await ctx.runMutation(
+          const { callbackBaseUrl, clientId } = await ctx.runMutation(
             providerConfig.component.provider.createAuthorizationRequest,
             {
               provider: args.provider,
               stateHash,
               redirectTo: args.redirectTo,
+              tokenEndpoint: providerConfig.tokenEndpoint,
               ...(codeVerifier === undefined ? {} : { codeVerifier }),
+              ...(providerConfig.userinfoEndpoints === undefined
+                ? {}
+                : { userinfoEndpoints: providerConfig.userinfoEndpoints }),
             },
           );
 
@@ -148,7 +188,7 @@ export const Oauth = defineProvider({
           const params: Record<string, string> = {
             ...providerConfig.extraAuthorizationParams,
             response_type: "code",
-            client_id: providerConfig.clientId,
+            client_id: clientId,
             redirect_uri: `${callbackBaseUrl}/callback`,
             state,
           };

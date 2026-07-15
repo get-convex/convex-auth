@@ -21,11 +21,12 @@ app.use(core, {
 });
 
 // The oauth component mounts once per IdP: each mount gets its own callback
-// route and client secret binding.
+// route and client credential bindings.
 app.use(oauthProvider, {
   name: "oauthGoogle",
   httpPrefix: "/oauth/google",
   env: {
+    CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,
     CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
   },
 });

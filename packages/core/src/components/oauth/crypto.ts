@@ -33,3 +33,25 @@ export async function sha256Base64Url(value: string): Promise<string> {
 export function generateRandomToken(): string {
   return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
 }
+
+function base64UrlDecode(value: string): Uint8Array {
+  const base64 = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+/**
+ * Decode a JWT's payload without verifying its signature. Only safe for
+ * tokens received directly from the issuer over TLS (e.g. an id_token from
+ * the token exchange), where transport authenticates the issuer.
+ */
+export function decodeJwtPayload(jwt: string): Record<string, unknown> {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) {
+    throw new Error("Malformed JWT");
+  }
+  return JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[1])));
+}

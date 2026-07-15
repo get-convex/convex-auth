@@ -34,6 +34,7 @@ import type { DataModel } from "./dataModel.js";
  * Typesafe environment variables declared in `convex.config.ts`.
  */
 type Env = {
+  readonly CLIENT_ID: string;
   readonly CLIENT_SECRET: string;
 };
 

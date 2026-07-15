@@ -11,7 +11,7 @@ export default defineSchema({
   authorizationRequests: defineTable({
     /** Provider the request was issued for, e.g. "google". */
     provider: v.string(),
-    /** Hash of the client-generated state. The raw value is never stored. */
+    /** Hash of the server-minted state. The raw value is never stored. */
     stateHash: v.string(),
     /** Post-login destination, validated against allowed redirects at sign-in. */
     redirectTo: v.string(),
@@ -20,6 +20,18 @@ export default defineSchema({
      * Stored raw because it must be sent to the provider at code exchange.
      */
     codeVerifier: v.optional(v.string()),
+    /**
+     * The provider's token endpoint, copied from app-side config at
+     * sign-in: the callback runs inside the component, which can't see app
+     * config, so non-secret exchange config is stored on the row.
+     */
+    tokenEndpoint: v.string(),
+    /**
+     * Profile endpoints to fetch with the access token after the exchange,
+     * keyed by the name the app's `profile` mapping receives each response
+     * under. Copied from app-side config like `tokenEndpoint`.
+     */
+    userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
     /** The callback rejects requests older than this. */
     expiresAt: v.number(),
   }).index("stateHash", ["stateHash"]),
@@ -41,15 +53,22 @@ export default defineSchema({
      */
     stateHash: v.string(),
     /**
-     * sha256 of the server-minted one-time token. The raw value travels only
-     * in the callback redirect.
+     * sha256 of the server-minted one-time token. The raw value appears only
+     * in the callback redirect URL and is never stored.
      */
     ottHash: v.string(),
     /** Tickets expire quickly (~2 minutes). */
     expiresAt: v.number(),
-    /** Provider account id, e.g. the id_token `sub` claim. */
-    providerAccountId: v.string(),
-    /** Provider claims passed through to `completeSignIn` at redemption. */
-    profile: v.any(),
+    /**
+     * id_token claims, present when the provider returned one (OIDC). At
+     * least one of `claims` and `userInfoResponses` is always present; the
+     * app's `profile` mapping receives both at redemption.
+     */
+    claims: v.optional(v.any()),
+    /**
+     * Userinfo responses keyed by the configured endpoint names, present
+     * when the provider config sets `userinfoEndpoints`.
+     */
+    userInfoResponses: v.optional(v.record(v.string(), v.any())),
   }).index("ottHash", ["ottHash"]),
 });
