@@ -10,14 +10,19 @@
     "react-dom": "^19.2.7"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "dev": "convex dev --start vite",
+    "build": "vite build && tsc -p convex --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p convex --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^24.12.4",
     "@types/react": "^19.2.17",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.3",
     "convex-test": "^0.0.53",
     "jose": "^5.10.0",
     "typescript": "^6.0.3",
