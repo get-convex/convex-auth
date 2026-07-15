@@ -56,6 +56,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           accessTokenTtlSeconds?: number;
           claims: { profile: any; provider: string; providerAccountId: string };
           createOrUpdateUserHandle: string;
+          existingUserId?: string;
           issuer: string;
           refreshTokenTtlSeconds?: number;
         },

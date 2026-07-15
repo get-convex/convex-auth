@@ -157,11 +157,18 @@ type CreateOrUpdateUserFunctionHandle = FunctionHandle<
  * user record from the latest claims). The profile the core holds for the
  * account is refreshed to match. Returns just what minting a session needs: the
  * account id and its app user id.
+ *
+ * `existingUserId` supports providers that create the app user *before* the
+ * identity is proven (e.g. email verification): when supplied, a first-time
+ * account is bound to that user rather than a freshly minted one. It is an error
+ * for the identity to already belong to a *different* user, or for the callback
+ * to return a different id than the one supplied.
  */
 async function resolveAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
   createOrUpdateUser: CreateOrUpdateUserFunctionHandle,
+  existingUserId?: string,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
   const account = await accountByIdentity(
     ctx,
@@ -169,6 +176,13 @@ async function resolveAccount(
     claims.providerAccountId,
   );
   if (account) {
+    // An identity may not be re-bound to a different user than it already
+    // belongs to.
+    if (existingUserId !== undefined && account.userId !== existingUserId) {
+      throw new Error(
+        "This identity is already associated with a different user.",
+      );
+    }
     // Returning identity: hand the app the latest claims with the known user id
     // so it can update its own user record.
     if (
@@ -187,14 +201,20 @@ async function resolveAccount(
     return { accountId: account._id, userId: account.userId };
   }
 
-  // First sign-in for this identity: ask the app to mint/return its user id,
-  // then record the provider-identity -> user mapping.
+  // First sign-in for this identity: ask the app to mint/return its user id
+  // (binding to `existingUserId` when the provider already created one), then
+  // record the provider-identity -> user mapping.
   const userId = await ctx.runMutation(createOrUpdateUser, {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
-    userId: null,
+    userId: existingUserId ?? null,
   });
+  if (existingUserId !== undefined && userId !== existingUserId) {
+    throw new Error(
+      "createOrUpdateUser must return the supplied existingUserId.",
+    );
+  }
   const accountId = await ctx.db.insert("accounts", {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
@@ -224,6 +244,9 @@ export const signIn = mutation({
     issuer: v.string(),
     accessTokenTtlSeconds: v.optional(v.number()),
     refreshTokenTtlSeconds: v.optional(v.number()),
+    // Bind a first-time account to a user the provider created ahead of proving
+    // the identity (e.g. an email-verification sign-up). See `resolveAccount`.
+    existingUserId: v.optional(v.string()),
   },
   returns: vTokenBundle,
   handler: async (ctx, args): Promise<TokenBundle> => {
@@ -232,6 +255,7 @@ export const signIn = mutation({
       ctx,
       args.claims,
       args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
+      args.existingUserId,
     );
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
   },

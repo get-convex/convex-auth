@@ -36,6 +36,8 @@
     "./providers/anonymous/*": "./src/components/anonymous/*.ts",
     "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
     "./providers/password/*": "./src/components/password/*.ts",
+    "./providers/emailValidation/convex.config.js": "./src/components/emailValidation/convex.config.ts",
+    "./providers/emailValidation/*": "./src/components/emailValidation/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",
     "./server": "./src/server/index.ts",
@@ -46,11 +48,14 @@
   },
   "dependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
+    "@oslojs/crypto": "^1.0.1",
+    "@oslojs/encoding": "^1.1.0",
     "argon2id-wasm": "0.0.0-alpha.1",
     "commander": "^14.0.2",
     "jose": "^5.2.2"
   },
   "devDependencies": {
+    "@convex-dev/resend": "^0.2.5",
     "@edge-runtime/vm": "^5.0.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -67,10 +72,14 @@
     "vitest": "^4.1.0"
   },
   "peerDependencies": {
+    "@convex-dev/resend": "^0.2.5",
     "convex": "^1.41.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
+    "@convex-dev/resend": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }

@@ -76,11 +76,34 @@ type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
 
 /**
  * Exchanges verified auth claims for a bundle.
+ *
+ * `options.existingUserId` binds the resulting account to a user the provider
+ * already created (via {@link CreateUserFunc}) rather than minting a new one.
+ * This supports flows that create the app user *before* the identity is proven
+ * (e.g. email verification), then complete sign-in once it is.
  */
 export type CompleteSignInFunc = (
   ctx: RunMutationCtx,
   claims: AuthClaims,
+  options?: { existingUserId?: string },
 ) => Promise<TokenBundle>;
+
+/**
+ * Create an app user via the app's `createOrUpdateUser` callback *without*
+ * creating a provider account or minting a session.
+ *
+ * A provider uses this when it must reserve the app user before it can prove the
+ * identity — e.g. email verification writes the users row at sign-up, then only
+ * mints tokens (and creates the account) once the address is confirmed via
+ * {@link CompleteSignInFunc} with `existingUserId`. The core stores nothing at
+ * this stage, so the callback is invoked directly with `userId: null`.
+ *
+ * Returns the new app user id.
+ */
+export type CreateUserFunc = (
+  ctx: RunMutationCtx,
+  claims: AuthClaims,
+) => Promise<string>;
 
 /**
  * A function that finds the user ID a provider account ID is associated with
@@ -96,6 +119,7 @@ export type ResolveUserIdFunc = (
 export type ProviderHelpers = {
   completeSignIn: CompleteSignInFunc;
   resolveUserId: ResolveUserIdFunc;
+  createUser: CreateUserFunc;
 };
 
 type ProviderSetupFunc<O, P> = (helpers: ProviderHelpers, options: O) => P;

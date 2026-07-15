@@ -10,6 +10,7 @@ import {
   type TokenBundle,
   ProviderConfig,
   CompleteSignInFunc,
+  CreateUserFunc,
   ResolveUserIdFunc,
   CreateOrUpdateUserFn,
 } from "../../lib/types";
@@ -202,7 +203,7 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
   const buildFullApi = (
     createOrUpdateUser: CreateOrUpdateUserFn<T[number][0]["name"]>,
   ): AuthApi<T> => {
-    const completeSignIn: CompleteSignInFunc = async (ctx, claims) => {
+    const completeSignIn: CompleteSignInFunc = async (ctx, claims, options) => {
       const createOrUpdateUserHandle =
         await createFunctionHandle(createOrUpdateUser);
       return await ctx.runMutation(component.public.signIn, {
@@ -211,7 +212,27 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
         issuer: issuer(),
         accessTokenTtlSeconds,
         refreshTokenTtlSeconds,
+        existingUserId: options?.existingUserId,
       });
+    };
+
+    // Create the app user directly through the app's callback, without touching
+    // the core: no account, no session. Providers use this to reserve the user
+    // before an identity is proven (see `CreateUserFunc`); `completeSignIn` with
+    // `existingUserId` later binds the account and mints tokens.
+    const createUser: CreateUserFunc = async (ctx, claims) => {
+      // `claims.provider` is a plain `string` (it crossed the provider/core
+      // boundary), so reference the callback at its widened `string` provider
+      // type rather than the concrete literal union.
+      return await ctx.runMutation(
+        createOrUpdateUser as CreateOrUpdateUserFn<string>,
+        {
+          provider: claims.provider,
+          providerAccountId: claims.providerAccountId,
+          profile: claims.profile,
+          userId: null,
+        },
+      );
     };
 
     const result: Record<string, unknown> = {};
@@ -222,7 +243,7 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
           providerAccountId,
         });
       result[config.name] = config.setup(
-        { completeSignIn, resolveUserId },
+        { completeSignIn, resolveUserId, createUser },
         options,
       );
     }
