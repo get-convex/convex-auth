@@ -11,7 +11,7 @@ const TICKET_TTL_MS = 2 * 60 * 1000;
 
 /**
  * Record an in-flight authorization request. Called by the app-side
- * `signInOauth` before it redirects the user to the provider; the provider
+ * `signIn` before it redirects the user to the provider; the provider
  * callback later claims the request by state hash.
  *
  * Exchange config the callback needs (`tokenEndpoint`, `userinfoEndpoints`)

@@ -9,7 +9,7 @@ import { v } from "convex/values";
  */
 export const createOrUpdateUser = internalMutation({
   args: {
-    provider: v.literal("oauth"),
+    provider: v.literal("google"),
     providerAccountId: v.string(),
     profile: v.any(),
     userId: v.union(v.string(), v.null()),

@@ -18,9 +18,9 @@ export type OidcClaims = {
 };
 
 /**
- * Configuration for a single upstream OAuth provider (IdP).
+ * Options for one {@link Oauth} provider instance (a single IdP).
  */
-export type OauthProviderConfig = {
+export type OauthOptions = {
   /**
    * This IdP's component mount (e.g. `components.oauthGoogle`). The
    * component is mounted once per IdP so each mount can bind its own
@@ -73,14 +73,6 @@ export type OauthProviderConfig = {
    * ...) always win over entries here.
    */
   extraAuthorizationParams?: Record<string, string>;
-};
-
-/**
- * Options for {@link Oauth}.
- */
-export type OauthOptions = {
-  /** Upstream providers keyed by name; the key is used in claims and account identity. */
-  providers: Record<string, OauthProviderConfig>;
   /**
    * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`.
    * Exact origin match; open-redirect prevention.
@@ -98,7 +90,18 @@ function parseUrl(value: string): URL | null {
 }
 
 /**
- * OAuth sign-in against configured upstream providers. The flow:
+ * OAuth sign-in against a single upstream provider (IdP). Register one
+ * instance per IdP; the instance's name is persisted to the accounts table
+ * as the account's provider:
+ *
+ * ```ts
+ * providers: [
+ *   provider(Oauth("google"), { component: components.oauthGoogle, ... }),
+ *   provider(Oauth("github"), { component: components.oauthGithub, ... }),
+ * ]
+ * ```
+ *
+ * The flow:
  *
  * 1. `signIn` (here): validate, mint `state`, record an authorization
  *    request in the component, and return the provider authorization URL
@@ -113,103 +116,97 @@ function parseUrl(value: string): URL | null {
  * (see the component's convex.config.ts); register
  * `<site-url><httpPrefix>/callback` as the redirect URI with each provider.
  */
-export const Oauth = defineProvider({
-  name: "oauth",
-  setup: (_helpers, options: OauthOptions) => {
-    // Validate configuration up front so it fails at deploy time, not on
-    // the first sign-in.
-    const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
-      const url = parseUrl(allowed);
-      if (url === null || url.origin === "null") {
-        throw new Error(
-          `allowedRedirectOrigins entry is not a valid origin: "${allowed}"`,
-        );
-      }
-      return url.origin;
-    });
-
-    return {
-      /**
-       * Start an OAuth sign-in. The server mints `state` and returns it;
-       * the client keeps it (it must present the same value again to
-       * complete sign-in) and navigates to the returned `redirect` URL.
-       */
-      signInOauth: mutationGeneric({
-        args: {
-          provider: v.string(),
-          redirectTo: v.string(),
-        },
-        returns: v.object({ redirect: v.string(), state: v.string() }),
-        handler: async (ctx, args) => {
-          // `hasOwn` rather than an undefined check: a lookup like
-          // "constructor" hits the prototype chain and returns a function.
-          if (!Object.hasOwn(options.providers, args.provider)) {
-            throw new Error(`Unknown OAuth provider "${args.provider}"`);
-          }
-          const providerConfig = options.providers[args.provider];
-
-          const redirectTo = parseUrl(args.redirectTo);
-          if (redirectTo === null) {
-            throw new Error("redirectTo must be an absolute URL");
-          }
-          if (!allowedOrigins.includes(redirectTo.origin)) {
-            throw new Error(
-              `redirectTo origin "${redirectTo.origin}" is not in allowedRedirectOrigins`,
-            );
-          }
-
-          const state = generateRandomToken();
-          const codeVerifier = providerConfig.pkce
-            ? generateRandomToken()
-            : undefined;
-
-          // Only the hash crosses the component boundary, so the raw state is
-          // neither stored nor visible in function logs. Exchange config the
-          // callback needs is stored on the request row; the mount's
-          // CLIENT_ID comes back for the authorization URL.
-          const stateHash = await sha256Hex(state);
-          const { callbackBaseUrl, clientId } = await ctx.runMutation(
-            providerConfig.component.provider.createAuthorizationRequest,
-            {
-              provider: args.provider,
-              stateHash,
-              redirectTo: args.redirectTo,
-              tokenEndpoint: providerConfig.tokenEndpoint,
-              ...(codeVerifier === undefined ? {} : { codeVerifier }),
-              ...(providerConfig.userinfoEndpoints === undefined
-                ? {}
-                : { userinfoEndpoints: providerConfig.userinfoEndpoints }),
-            },
+export function Oauth<const N extends string>(name: N) {
+  return defineProvider({
+    name,
+    setup: (_helpers, options: OauthOptions) => {
+      // Validate configuration up front so it fails at deploy time, not on
+      // the first sign-in.
+      const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
+        const url = parseUrl(allowed);
+        if (url === null || url.origin === "null") {
+          throw new Error(
+            `allowedRedirectOrigins entry is not a valid origin: "${allowed}"`,
           );
+        }
+        return url.origin;
+      });
 
-          // Protocol params come last so they win over extras. Set on
-          // `searchParams` (rather than replacing `url.search`) to preserve
-          // any params baked into the configured endpoint URL.
-          const params: Record<string, string> = {
-            ...providerConfig.extraAuthorizationParams,
-            response_type: "code",
-            client_id: clientId,
-            redirect_uri: `${callbackBaseUrl}/callback`,
-            state,
-          };
+      return {
+        /**
+         * Start an OAuth sign-in. The server mints `state` and returns it;
+         * the client keeps it (it must present the same value again to
+         * complete sign-in) and navigates to the returned `redirect` URL.
+         */
+        signIn: mutationGeneric({
+          args: {
+            redirectTo: v.string(),
+          },
+          returns: v.object({ redirect: v.string(), state: v.string() }),
+          handler: async (ctx, args) => {
+            const redirectTo = parseUrl(args.redirectTo);
+            if (redirectTo === null) {
+              throw new Error("redirectTo must be an absolute URL");
+            }
+            if (!allowedOrigins.includes(redirectTo.origin)) {
+              throw new Error(
+                `redirectTo origin "${redirectTo.origin}" is not in allowedRedirectOrigins`,
+              );
+            }
 
-          if (providerConfig.scopes !== undefined) {
-            params.scope = providerConfig.scopes.join(" ");
-          }
+            const state = generateRandomToken();
+            const codeVerifier = options.pkce
+              ? generateRandomToken()
+              : undefined;
 
-          if (codeVerifier !== undefined) {
-            params.code_challenge = await sha256Base64Url(codeVerifier);
-            params.code_challenge_method = "S256";
-          }
+            // Only the hash crosses the component boundary, so the raw state is
+            // neither stored nor visible in function logs. Exchange config the
+            // callback needs is stored on the request row; the mount's
+            // CLIENT_ID comes back for the authorization URL.
+            const stateHash = await sha256Hex(state);
+            const { callbackBaseUrl, clientId } = await ctx.runMutation(
+              options.component.provider.createAuthorizationRequest,
+              {
+                provider: name,
+                stateHash,
+                redirectTo: args.redirectTo,
+                tokenEndpoint: options.tokenEndpoint,
+                ...(codeVerifier === undefined ? {} : { codeVerifier }),
+                ...(options.userinfoEndpoints === undefined
+                  ? {}
+                  : { userinfoEndpoints: options.userinfoEndpoints }),
+              },
+            );
 
-          const url = new URL(providerConfig.authorizationEndpoint);
-          for (const [key, value] of Object.entries(params)) {
-            url.searchParams.set(key, value);
-          }
+            // Protocol params come last so they win over extras. Set on
+            // `searchParams` (rather than replacing `url.search`) to preserve
+            // any params baked into the configured endpoint URL.
+            const params: Record<string, string> = {
+              ...options.extraAuthorizationParams,
+              response_type: "code",
+              client_id: clientId,
+              redirect_uri: `${callbackBaseUrl}/callback`,
+              state,
+            };
 
-          return { redirect: url.toString(), state };
-        },
-      }),
-    };
-  },
-});
+            if (options.scopes !== undefined) {
+              params.scope = options.scopes.join(" ");
+            }
+
+            if (codeVerifier !== undefined) {
+              params.code_challenge = await sha256Base64Url(codeVerifier);
+              params.code_challenge_method = "S256";
+            }
+
+            const url = new URL(options.authorizationEndpoint);
+            for (const [key, value] of Object.entries(params)) {
+              url.searchParams.set(key, value);
+            }
+
+            return { redirect: url.toString(), state };
+          },
+        }),
+      };
+    },
+  });
+}
