@@ -1,5 +1,5 @@
 {
-  "name": "@convex-dev/auth-example-react-password",
+  "name": "example-react-password",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,8 @@
     "@convex-dev/auth": "workspace:*",
     "convex": "^1.41.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1"
   },
   "scripts": {
     "dev": "convex dev --start vite",
