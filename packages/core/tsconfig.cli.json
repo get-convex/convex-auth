@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "declaration": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "outDir": "dist/cli",
+    "rootDir": "src/cli",
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["src/cli/init.ts", "src/cli/program.ts"],
+  "exclude": []
+}
