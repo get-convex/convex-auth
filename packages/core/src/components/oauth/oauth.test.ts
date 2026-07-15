@@ -116,4 +116,67 @@ describe("oauth", () => {
       expect(tickets[0].expiresAt).toBeGreaterThan(Date.now());
     });
   });
+
+  test("claimTicket returns the ticket exactly once", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      provider: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      claims: { sub: "user-123" },
+    });
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(claimed).toEqual({
+      provider: "google",
+      claims: { sub: "user-123" },
+    });
+    const second = await t.mutation(api.provider.claimTicket, {
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(second).toBeNull();
+  });
+
+  test("claimTicket returns null on state mismatch and preserves the ticket", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      provider: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      claims: { sub: "user-123" },
+    });
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      ottHash: "a".repeat(64),
+      stateHash: "f".repeat(64),
+    });
+    expect(claimed).toBeNull();
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(1);
+    });
+  });
+
+  test("claimTicket deletes but does not return an expired ticket", async () => {
+    vi.useFakeTimers();
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      provider: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      claims: { sub: "user-123" },
+    });
+    vi.advanceTimersByTime(3 * 60 * 1000);
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(claimed).toBeNull();
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(0);
+    });
+  });
 });

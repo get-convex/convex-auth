@@ -1,6 +1,6 @@
 import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
-import { defineProvider } from "../../lib/types";
+import { defineProvider, vTokenBundle, type TokenBundle } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import { generateRandomToken, sha256Base64Url, sha256Hex } from "./crypto";
 
@@ -51,7 +51,7 @@ export type OauthOptions = {
    * (`undefined` for non-OIDC providers) and userinfo responses keyed as
    * configured (`undefined` unless `userinfoEndpoints` is set) — to the
    * account identity used at redemption. `id` becomes the provider account
-   * id. Defaults to OIDC claims: `(claims) => ({ id: claims.sub, ...claims })`,
+   * id. Defaults to OIDC claims: `(claims) => ({ ...claims, id: claims.sub })`,
    * so providers without an id_token must supply this.
    */
   profile?: (
@@ -108,8 +108,9 @@ function parseUrl(value: string): URL | null {
  *    for the client to navigate to plus the state it must hold onto.
  * 2. The provider redirects back to the component's HTTP callback, which
  *    claims the request, exchanges the code, and mints a one-time ticket.
- * 3. The caller redeems the ticket (plus its original state) to complete
- *    sign-in.
+ * 3. `redeem` (here): the client presents the one-time code from the
+ *    callback redirect plus its original state, and gets back the session
+ *    token bundle.
  *
  * The component is mounted once per IdP in `convex.config.ts`, each mount
  * with its own name, `httpPrefix`, and `CLIENT_ID`/`CLIENT_SECRET` bindings
@@ -119,7 +120,7 @@ function parseUrl(value: string): URL | null {
 export function Oauth<const N extends string>(name: N) {
   return defineProvider({
     name,
-    setup: (_helpers, options: OauthOptions) => {
+    setup: (helpers, options: OauthOptions) => {
       // Validate configuration up front so it fails at deploy time, not on
       // the first sign-in.
       const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
@@ -204,6 +205,67 @@ export function Oauth<const N extends string>(name: N) {
             }
 
             return { redirect: url.toString(), state };
+          },
+        }),
+
+        /**
+         * Complete an OAuth sign-in by redeeming the one-time `code` from
+         * the callback redirect together with the state held since `signIn`.
+         * Returns the session token bundle, or null when the code is
+         * unknown, already redeemed, expired, or the state doesn't match —
+         * all indistinguishable to the caller, like a failed
+         * `refreshSession`.
+         *
+         * The component calls are subtransactions of this mutation, so a
+         * failure anywhere (including the app rejecting the sign-in from
+         * `createOrUpdateUser`) rolls back the ticket claim; only a
+         * successful redemption consumes the ticket.
+         */
+        redeem: mutationGeneric({
+          args: {
+            code: v.string(),
+            state: v.string(),
+          },
+          returns: v.union(vTokenBundle, v.null()),
+          handler: async (ctx, args): Promise<TokenBundle | null> => {
+            const ticket = await ctx.runMutation(
+              options.component.provider.claimTicket,
+              {
+                ottHash: await sha256Hex(args.code),
+                stateHash: await sha256Hex(args.state),
+              },
+            );
+            if (ticket === null) {
+              return null;
+            }
+
+            // The default mapping covers OIDC providers; anything without
+            // an id_token must configure `profile`.
+            const profileFn =
+              options.profile ??
+              ((oidcClaims: OidcClaims | undefined) => {
+                if (oidcClaims === undefined) {
+                  throw new Error(
+                    `Provider "${name}" returned no id_token, so a profile mapping is required`,
+                  );
+                }
+                return { ...oidcClaims, id: oidcClaims.sub };
+              });
+            const profile = profileFn(
+              ticket.claims as OidcClaims | undefined,
+              ticket.userInfoResponses,
+            );
+            if (typeof profile.id !== "string" || profile.id === "") {
+              throw new Error(
+                `Profile mapping for provider "${name}" returned no id`,
+              );
+            }
+
+            return await helpers.completeSignIn(ctx, {
+              provider: name,
+              providerAccountId: profile.id,
+              profile,
+            });
           },
         }),
       };

@@ -24,6 +24,17 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     provider: {
+      claimTicket: FunctionReference<
+        "mutation",
+        "internal",
+        { ottHash: string; stateHash: string },
+        null | {
+          claims?: any;
+          provider: string;
+          userInfoResponses?: Record<string, any>;
+        },
+        Name
+      >;
       createAuthorizationRequest: FunctionReference<
         "mutation",
         "internal",

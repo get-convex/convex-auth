@@ -11,7 +11,7 @@ export const {
   signOut,
   refreshSession,
   providers: {
-    google: { signIn: signInGoogle },
+    google: { signIn: signInGoogle, redeem: redeemGoogle },
   },
 } = setupCore({
   component: components.core,

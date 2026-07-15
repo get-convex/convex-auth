@@ -115,3 +115,51 @@ export const createTicket = internalMutation({
     return null;
   },
 });
+
+/**
+ * Claim a ticket by one-time token hash: find, check, delete, and return it
+ * in one transaction, so a replayed or raced redemption finds nothing.
+ *
+ * The caller must also present the hash of the state minted at sign-in,
+ * binding redemption to the client that initiated the flow. A state mismatch
+ * returns null *without* deleting: someone holding a stolen one-time token
+ * but not the state must not be able to burn the real client's ticket. An
+ * expired row is deleted but not returned. All failures are indistinguishable
+ * to the caller.
+ */
+export const claimTicket = mutation({
+  args: {
+    ottHash: v.string(),
+    stateHash: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      provider: v.string(),
+      claims: v.optional(v.any()),
+      userInfoResponses: v.optional(v.record(v.string(), v.any())),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const ticket = await ctx.db
+      .query("tickets")
+      .withIndex("ottHash", (q) => q.eq("ottHash", args.ottHash))
+      .unique();
+    if (ticket === null) {
+      return null;
+    }
+    if (ticket.expiresAt < Date.now()) {
+      await ctx.db.delete(ticket._id);
+      return null;
+    }
+    if (ticket.stateHash !== args.stateHash) {
+      return null;
+    }
+    await ctx.db.delete(ticket._id);
+    return {
+      provider: ticket.provider,
+      claims: ticket.claims,
+      userInfoResponses: ticket.userInfoResponses,
+    };
+  },
+});
