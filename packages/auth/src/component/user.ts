@@ -124,15 +124,14 @@ export const list = query({
       q = base;
     }
 
-    const filterPhone = where.email !== undefined && where.phone !== undefined;
-
     return await q
       .order(order)
       .filterWith(
         async (d) =>
           (where.isAnonymous === undefined || d.isAnonymous === where.isAnonymous) &&
           (where.name === undefined || d.name === where.name) &&
-          (!filterPhone || d.phone === where.phone),
+          (where.email === undefined || d.email === where.email) &&
+          (where.phone === undefined || d.phone === where.phone),
       )
       .paginate(args.paginationOpts);
   },

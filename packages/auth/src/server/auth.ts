@@ -209,7 +209,7 @@ export type AuthApiBase<
   provider: ReturnType<typeof AuthFactory>["auth"]["provider"];
   account: ReturnType<typeof AuthFactory>["auth"]["account"];
   group: ReturnType<typeof AuthFactory>["auth"]["group"] & {
-    /** Current user's active-group selection (`get` / `set` / `clear`). */
+    /** Current user's active-group selection (`get` / `update` / `remove`). */
     active: ReturnType<typeof AuthFactory>["auth"]["active"];
   };
   member: MemberApiWithPermissions<TPermissions>;

@@ -213,8 +213,8 @@ export function createCoreDomains(deps: CoreDeps) {
 
   /**
    * The current user's active group — the workspace selection persisted
-   * natively on `User.lastActiveGroup`. Reuses the existing `get/set/clear`
-   * vocabulary instead of bespoke `setActiveGroup`/`getActiveGroup`.
+   * natively on `User.lastActiveGroup`. Exposes `get` / `update` / `remove`
+   * instead of bespoke `setActiveGroup`/`getActiveGroup`.
    */
   const active = {
     /**

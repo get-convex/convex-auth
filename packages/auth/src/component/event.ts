@@ -52,9 +52,10 @@ const PUBLIC_DATA_KEYS = {
   email: ["userId"],
   phone: ["userId"],
   api_key: ["keyId", "name", "prefix", "reason"],
-  oauth: ["clientId", "codeId", "name", "scopes", "grantType", "resource", "changed", "userId"],
+  oauth: ["clientId", "codeId", "name", "scopes", "grantType", "resource", "userId"],
   connection: [
     "connectionId",
+    "changed",
     "protocol",
     "domain",
     "recordName",

@@ -601,3 +601,68 @@ test("auth.member.assert throws ConvexError on invalid role ids", async () => {
     }),
   ).rejects.toThrow(ConvexError);
 });
+
+test("user.list honors a phone filter even when ordering by email", async () => {
+  const t = convexTest(schema);
+
+  await t.run(async (ctx) => {
+    await ctx.runMutation(components.auth.user.create, {
+      data: { email: "match@example.com", phone: "+15550001111" },
+    });
+    await ctx.runMutation(components.auth.user.create, {
+      data: { email: "other@example.com", phone: "+15559998888" },
+    });
+  });
+
+  // Regression: `orderBy: "email"` used to route through the email index and
+  // silently drop the `where.phone` predicate, returning every user.
+  const filtered = await t.run(async (ctx) => {
+    return await ctx.runQuery(components.auth.user.list, {
+      where: { phone: "+15550001111" },
+      orderBy: "email",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+  });
+
+  expect(filtered.page.map((user: any) => user.phone)).toEqual(["+15550001111"]);
+});
+
+test("connection.update applies the patch and records a connection.updated audit event", async () => {
+  const t = convexTest(schema);
+
+  const groupId = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.group.create, {
+      name: "Audit Org",
+      slug: "audit-org",
+      type: "organization",
+    });
+  });
+
+  const created = await t.run(async (ctx) => {
+    return await auth.connection.create(ctx as any, {
+      groupId,
+      slug: "audit-idp",
+      name: "Audit IdP",
+      status: "active",
+      protocol: "saml",
+    });
+  });
+  const connectionId = created.connectionId;
+
+  // Regression: the emitted `connection.updated` event carries `data.changed`,
+  // which the component `vAuthEventData` validator must accept. Before the fix
+  // this threw an ArgumentValidationError and rolled back the whole update.
+  await t.run(async (ctx) => {
+    await auth.connection.update(ctx as any, {
+      id: connectionId,
+      patch: { name: "Audit IdP (renamed)" },
+    });
+  });
+
+  const after = await t.run(async (ctx) => {
+    return (await ctx.runQuery(components.auth.connection.get, {
+      id: connectionId,
+    })) as any;
+  });
+  expect(after?.name).toBe("Audit IdP (renamed)");
+});

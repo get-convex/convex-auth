@@ -314,14 +314,14 @@ export function createAccountDomain(deps: AccountDeps) {
        *
        * @param ctx - Convex mutation context.
        * @param args.id - The passkey credential's document ID.
-       * @param args.data.name - The new display name for the passkey.
+       * @param args.patch.name - The new display name for the passkey.
        * @returns `{ passkeyId }` confirming the update.
        *
        * @example
        * ```ts
        * await auth.account.passkey.update(ctx, {
        *   id: passkeyId,
-       *   data: { name: "Work laptop" },
+       *   patch: { name: "Work laptop" },
        * });
        * ```
        */

@@ -261,14 +261,14 @@ export function createGroupDomain(deps: GroupDeps) {
      *
      * @param ctx - Convex mutation context.
      * @param opts.id - The group's document ID.
-     * @param opts.data - Fields to merge (e.g. `name`, `slug`, `tags`, `parentGroupId`).
+     * @param opts.patch - Fields to merge (e.g. `name`, `slug`, `parentGroupId`).
      * @returns `null`.
      *
      * @example
      * ```ts
      * await auth.group.update(ctx, {
      *   id: groupId,
-     *   data: {
+     *   patch: {
      *     name: "Acme Corp (renamed)",
      *     slug: "acme-corp",
      *   },
@@ -285,7 +285,7 @@ export function createGroupDomain(deps: GroupDeps) {
     },
     /**
      * Remove a group and recursively cascade to all descendant groups,
-     * their members, invites, and tags.
+     * their members, and invites.
      *
      * @param ctx - Convex mutation context.
      * @param opts.id - The group's document ID.

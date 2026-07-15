@@ -278,6 +278,7 @@ export const vAuthEventData = v.union(
     keyId: v.optional(v.string()),
     name: v.optional(v.string()),
     prefix: v.optional(v.string()),
+    reason: v.optional(v.string()),
   }),
   v.object({
     email: v.optional(v.string()),
@@ -296,6 +297,7 @@ export const vAuthEventData = v.union(
   }),
   v.object({
     connectionId: v.optional(v.string()),
+    changed: v.optional(vAuthEventStringArray),
     protocol: v.optional(v.union(v.literal("oidc"), v.literal("saml"))),
     domain: v.optional(v.string()),
     recordName: v.optional(v.string()),
