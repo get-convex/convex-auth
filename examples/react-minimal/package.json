@@ -1,5 +1,5 @@
 {
-  "name": "@convex-dev/auth-example-react-minimal",
+  "name": "example-react-minimal",
   "version": "0.0.0",
   "private": true,
   "type": "module",
