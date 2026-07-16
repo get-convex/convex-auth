@@ -20,6 +20,7 @@ export const {
       component: components.oauthGoogle,
       authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenEndpoint: "https://oauth2.googleapis.com/token",
+      issuer: "https://accounts.google.com",
       scopes: ["openid", "email", "profile"],
       pkce: true,
       allowedRedirectOrigins: ["http://localhost:5173"],

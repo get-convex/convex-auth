@@ -32,6 +32,7 @@ export const createAuthorizationRequest = mutation({
     codeVerifier: v.optional(v.string()),
     tokenEndpoint: v.string(),
     userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
+    issuer: v.optional(v.string()),
   },
   returns: v.object({
     callbackBaseUrl: v.string(),
@@ -68,6 +69,7 @@ export const claimAuthorizationRequest = internalMutation({
       codeVerifier: v.optional(v.string()),
       tokenEndpoint: v.string(),
       userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
+      issuer: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -78,7 +80,7 @@ export const claimAuthorizationRequest = internalMutation({
     if (request === null) {
       return null;
     }
-    await ctx.db.delete(request._id);
+    await ctx.db.delete("authorizationRequests", request._id);
     if (request.expiresAt < Date.now()) {
       return null;
     }
@@ -89,6 +91,7 @@ export const claimAuthorizationRequest = internalMutation({
       codeVerifier: request.codeVerifier,
       tokenEndpoint: request.tokenEndpoint,
       userinfoEndpoints: request.userinfoEndpoints,
+      issuer: request.issuer,
     };
   },
 });
@@ -121,21 +124,23 @@ export const createTicket = internalMutation({
  * in one transaction, so a replayed or raced redemption finds nothing.
  *
  * The caller must also present the hash of the state minted at sign-in,
- * binding redemption to the client that initiated the flow. A state mismatch
- * returns null *without* deleting: someone holding a stolen one-time token
- * but not the state must not be able to burn the real client's ticket. An
- * expired row is deleted but not returned. All failures are indistinguishable
- * to the caller.
+ * binding redemption to the client that initiated the flow, and the provider
+ * name it expects, so a misconfigured or renamed provider instance can't
+ * redeem a ticket into the wrong account namespace. A state or provider
+ * mismatch returns null *without* deleting: someone holding a stolen
+ * one-time token but not the state must not be able to burn the real
+ * client's ticket. An expired row is deleted but not returned. All failures
+ * are indistinguishable to the caller.
  */
 export const claimTicket = mutation({
   args: {
+    provider: v.string(),
     ottHash: v.string(),
     stateHash: v.string(),
   },
   returns: v.union(
     v.null(),
     v.object({
-      provider: v.string(),
       claims: v.optional(v.any()),
       userInfoResponses: v.optional(v.record(v.string(), v.any())),
     }),
@@ -149,15 +154,17 @@ export const claimTicket = mutation({
       return null;
     }
     if (ticket.expiresAt < Date.now()) {
-      await ctx.db.delete(ticket._id);
+      await ctx.db.delete("tickets", ticket._id);
       return null;
     }
-    if (ticket.stateHash !== args.stateHash) {
+    if (
+      ticket.stateHash !== args.stateHash ||
+      ticket.provider !== args.provider
+    ) {
       return null;
     }
-    await ctx.db.delete(ticket._id);
+    await ctx.db.delete("tickets", ticket._id);
     return {
-      provider: ticket.provider,
       claims: ticket.claims,
       userInfoResponses: ticket.userInfoResponses,
     };

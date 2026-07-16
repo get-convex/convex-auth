@@ -126,14 +126,15 @@ describe("oauth", () => {
       claims: { sub: "user-123" },
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
+      provider: "google",
       ottHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
     expect(claimed).toEqual({
-      provider: "google",
       claims: { sub: "user-123" },
     });
     const second = await t.mutation(api.provider.claimTicket, {
+      provider: "google",
       ottHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
@@ -149,8 +150,29 @@ describe("oauth", () => {
       claims: { sub: "user-123" },
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
+      provider: "google",
       ottHash: "a".repeat(64),
       stateHash: "f".repeat(64),
+    });
+    expect(claimed).toBeNull();
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(1);
+    });
+  });
+
+  test("claimTicket returns null on provider mismatch and preserves the ticket", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      provider: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      claims: { sub: "user-123" },
+    });
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      provider: "github",
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
     });
     expect(claimed).toBeNull();
     await t.run(async (ctx) => {
@@ -170,6 +192,7 @@ describe("oauth", () => {
     });
     vi.advanceTimersByTime(3 * 60 * 1000);
     const claimed = await t.mutation(api.provider.claimTicket, {
+      provider: "google",
       ottHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });

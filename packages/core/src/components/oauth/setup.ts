@@ -1,6 +1,10 @@
 import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
-import { defineProvider, vTokenBundle, type TokenBundle } from "../../lib/types";
+import {
+  defineProvider,
+  vTokenBundle,
+  type TokenBundle,
+} from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import { generateRandomToken, sha256Base64Url, sha256Hex } from "./crypto";
 
@@ -32,6 +36,15 @@ export type OauthOptions = {
   /** The provider's token endpoint, e.g. Google's `https://oauth2.googleapis.com/token`. */
   tokenEndpoint: string;
   /**
+   * Expected `iss` of the provider's id_tokens, e.g. Google's
+   * `https://accounts.google.com`. Recommended for every OIDC provider:
+   * `sub` is only unique within an issuer, so a token endpoint that serves
+   * multiple issuers (multi-tenant IdPs) could otherwise collide account
+   * identities. When set, the callback rejects id_tokens from any other
+   * issuer.
+   */
+  issuer?: string;
+  /**
    * Profile endpoints the callback fetches with the access token after the
    * code exchange (GET with a bearer token; provider variation lives in the
    * URL's query params). Keys name each response in the `profile` mapping's
@@ -56,6 +69,8 @@ export type OauthOptions = {
    */
   profile?: (
     claims: OidcClaims | undefined,
+    // `any` so app mappings can dig into responses without casting.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     userInfoResponses: Record<string, any> | undefined,
   ) => { id: string; [key: string]: unknown };
   /** Scopes to request, e.g. `["openid", "email", "profile"]`. Omitted from the URL when absent. */
@@ -176,6 +191,9 @@ export function Oauth<const N extends string>(name: N) {
                 ...(options.userinfoEndpoints === undefined
                   ? {}
                   : { userinfoEndpoints: options.userinfoEndpoints }),
+                ...(options.issuer === undefined
+                  ? {}
+                  : { issuer: options.issuer }),
               },
             );
 
@@ -231,6 +249,7 @@ export function Oauth<const N extends string>(name: N) {
             const ticket = await ctx.runMutation(
               options.component.provider.claimTicket,
               {
+                provider: name,
                 ottHash: await sha256Hex(args.code),
                 stateHash: await sha256Hex(args.state),
               },

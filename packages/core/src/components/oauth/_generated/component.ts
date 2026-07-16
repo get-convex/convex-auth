@@ -27,12 +27,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       claimTicket: FunctionReference<
         "mutation",
         "internal",
-        { ottHash: string; stateHash: string },
-        null | {
-          claims?: any;
-          provider: string;
-          userInfoResponses?: Record<string, any>;
-        },
+        { ottHash: string; provider: string; stateHash: string },
+        null | { claims?: any; userInfoResponses?: Record<string, any> },
         Name
       >;
       createAuthorizationRequest: FunctionReference<
@@ -40,6 +36,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           codeVerifier?: string;
+          issuer?: string;
           provider: string;
           redirectTo: string;
           stateHash: string;

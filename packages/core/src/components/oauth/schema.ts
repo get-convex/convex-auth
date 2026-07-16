@@ -32,6 +32,12 @@ export default defineSchema({
      * under. Copied from app-side config like `tokenEndpoint`.
      */
     userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
+    /**
+     * Expected `iss` of the provider's id_tokens, copied from app-side
+     * config. When present the callback rejects id_tokens from any other
+     * issuer.
+     */
+    issuer: v.optional(v.string()),
     /** The callback rejects requests older than this. */
     expiresAt: v.number(),
   }).index("stateHash", ["stateHash"]),

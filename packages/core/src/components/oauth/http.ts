@@ -86,17 +86,28 @@ async function exchangeCode(args: {
 }
 
 /**
- * Decode an id_token and check the claims that guard against config mixups:
- * the token was minted for this OAuth app (`aud`) and isn't expired (`exp`).
- * Signature verification is deliberately skipped — the token came directly
- * from the provider's token endpoint over TLS, which OIDC Core sanctions in
- * place of checking the signature.
+ * Decode an id_token and check the claims that guard against config mixups
+ * and issuer collisions: the token was minted for this OAuth app (`aud`,
+ * and `azp` when present), by the configured issuer (`iss`, when the app
+ * config names one — `sub` is only unique within an issuer), and isn't
+ * expired (`exp`). Signature verification is deliberately skipped — the
+ * token came directly from the provider's token endpoint over TLS, which
+ * OIDC Core sanctions in place of checking the signature.
  */
-function validateIdToken(idToken: string): Record<string, unknown> {
+function validateIdToken(
+  idToken: string,
+  expectedIssuer: string | undefined,
+): Record<string, unknown> {
   const claims = decodeJwtPayload(idToken);
+  if (expectedIssuer !== undefined && claims.iss !== expectedIssuer) {
+    throw new Error("id_token issuer does not match the configured issuer");
+  }
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!audiences.includes(env.CLIENT_ID)) {
     throw new Error("id_token audience does not match CLIENT_ID");
+  }
+  if (claims.azp !== undefined && claims.azp !== env.CLIENT_ID) {
+    throw new Error("id_token authorized party does not match CLIENT_ID");
   }
   if (typeof claims.exp !== "number" || claims.exp * 1000 < Date.now()) {
     throw new Error("id_token is expired");
@@ -171,8 +182,11 @@ http.route({
         error ?? "missing code",
         url.searchParams.get("error_description") ?? "",
       );
-      const normalized = error === "access_denied" ? "access_denied" : "oauth_error";
-      return redirect(withParams(authRequest.redirectTo, { error: normalized }));
+      const normalized =
+        error === "access_denied" ? "access_denied" : "oauth_error";
+      return redirect(
+        withParams(authRequest.redirectTo, { error: normalized }),
+      );
     }
 
     try {
@@ -182,7 +196,10 @@ http.route({
         codeVerifier: authRequest.codeVerifier,
       });
 
-      const claims = idToken === undefined ? undefined : validateIdToken(idToken);
+      const claims =
+        idToken === undefined
+          ? undefined
+          : validateIdToken(idToken, authRequest.issuer);
 
       let userInfoResponses: Record<string, unknown> | undefined;
       if (authRequest.userinfoEndpoints !== undefined) {
@@ -221,7 +238,9 @@ http.route({
         `OAuth exchange failed for provider "${authRequest.provider}":`,
         exchangeError,
       );
-      return redirect(withParams(authRequest.redirectTo, { error: "oauth_error" }));
+      return redirect(
+        withParams(authRequest.redirectTo, { error: "oauth_error" }),
+      );
     }
   }),
 });
