@@ -1,5 +1,32 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
 import { v } from "convex/values";
+
+/**
+ * The signed-in user's document, or `null` when unauthenticated. The JWT's
+ * subject is the app user id minted by `createOrUpdateUser`.
+ */
+export const me = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("users"),
+      _creationTime: v.number(),
+      email: v.string(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      return null;
+    }
+    const userId = ctx.db.normalizeId("users", identity.subject);
+    if (userId === null) {
+      return null;
+    }
+    return await ctx.db.get("users", userId);
+  },
+});
 
 /**
  * The app's create-or-update-user callback (see `attachUserCallback`). The core

@@ -14,35 +14,30 @@ const TICKET_TTL_MS = 2 * 60 * 1000;
  * `signIn` before it redirects the user to the provider; the provider
  * callback later claims the request by state hash.
  *
- * Exchange config the callback needs (`tokenEndpoint`, `userinfoEndpoints`)
- * is snapshotted onto the row here because the component can't see app-side
- * config.
+ * Exchange config the callback needs (`callbackUrl`, `tokenEndpoint`,
+ * `userInfoEndpoints`) is snapshotted onto the row here because the
+ * component can't see app-side config or system env vars — a typed-env
+ * component's `process.env` only contains its bound vars, so the caller
+ * builds `callbackUrl` from `CONVEX_SITE_URL` app-side.
  *
- * Returns the two per-mount values the caller needs to build the
- * authorization URL: the component's mounted base URL
- * (`process.env.CONVEX_SITE_URL` is overridden inside components to include
- * the `httpPrefix` the app mounted the component under) and the mount's
- * `CLIENT_ID` env binding.
+ * Returns the mount's `CLIENT_ID` env binding, which the caller needs for
+ * the authorization URL.
  */
 export const createAuthorizationRequest = mutation({
   args: {
     provider: v.string(),
     stateHash: v.string(),
     redirectTo: v.string(),
+    callbackUrl: v.string(),
     codeVerifier: v.optional(v.string()),
     tokenEndpoint: v.string(),
     userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     issuer: v.optional(v.string()),
   },
   returns: v.object({
-    callbackBaseUrl: v.string(),
     clientId: v.string(),
   }),
   handler: async (ctx, args) => {
-    const siteUrl = process.env.CONVEX_SITE_URL;
-    if (siteUrl === undefined) {
-      throw new Error("CONVEX_SITE_URL is not set");
-    }
     // The env declaration guarantees the bindings exist at deploy time but
     // can't express non-emptiness; catch that here, at the first sign-in,
     // rather than on the provider's error page.
@@ -55,7 +50,7 @@ export const createAuthorizationRequest = mutation({
       ...args,
       expiresAt: Date.now() + AUTHORIZATION_REQUEST_TTL_MS,
     });
-    return { callbackBaseUrl: siteUrl, clientId: env.CLIENT_ID };
+    return { clientId: env.CLIENT_ID };
   },
 });
 
@@ -81,6 +76,7 @@ export const claimAuthorizationRequest = internalMutation({
       provider: v.string(),
       stateHash: v.string(),
       redirectTo: v.string(),
+      callbackUrl: v.string(),
       codeVerifier: v.optional(v.string()),
       tokenEndpoint: v.string(),
       userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
@@ -104,6 +100,7 @@ export const claimAuthorizationRequest = internalMutation({
       provider: request.provider,
       stateHash: request.stateHash,
       redirectTo: request.redirectTo,
+      callbackUrl: request.callbackUrl,
       codeVerifier: request.codeVerifier,
       tokenEndpoint: request.tokenEndpoint,
       userInfoEndpoints: request.userInfoEndpoints,

@@ -37,6 +37,16 @@ export type OauthOptions = {
    * `CLIENT_ID`/`CLIENT_SECRET` and serve its own callback route.
    */
   component: ComponentApi;
+  /**
+   * The `httpPrefix` this IdP's component is mounted under in
+   * convex.config.ts, e.g. `"/oauth/google"`. Must match that mount: the
+   * OAuth `redirect_uri` is built app-side as
+   * `${CONVEX_SITE_URL}${httpPrefix}/callback` because the component itself
+   * can't see the system env var (a typed-env component's `process.env`
+   * only contains its bound vars). A mismatch surfaces on the first sign-in
+   * attempt as the provider rejecting an unregistered redirect URI.
+   */
+  httpPrefix: string;
   /** The provider's authorization endpoint, e.g. Google's `https://accounts.google.com/o/oauth2/v2/auth`. */
   authorizationEndpoint: string;
   /** The provider's token endpoint, e.g. Google's `https://oauth2.googleapis.com/token`. */
@@ -191,6 +201,11 @@ export function Oauth<const N extends string>(name: N) {
         }
         return url.origin;
       });
+      if (!/^\/\S+[^/\s]$/.test(options.httpPrefix)) {
+        throw new Error(
+          `httpPrefix for provider "${name}" must start with "/" and not end with "/", e.g. "/oauth/google"`,
+        );
+      }
       requireHttpsUrl(options.authorizationEndpoint, "authorizationEndpoint");
       requireHttpsUrl(options.tokenEndpoint, "tokenEndpoint");
       if (options.userInfoEndpoints !== undefined) {
@@ -264,17 +279,28 @@ export function Oauth<const N extends string>(name: N) {
               ? generateRandomToken()
               : undefined;
 
+            // The redirect_uri is built here, app-side, because the
+            // component can't see the system env var. It's stored on the
+            // request row so the code exchange presents the byte-identical
+            // value, as OAuth requires.
+            const siteUrl = process.env.CONVEX_SITE_URL;
+            if (siteUrl === undefined) {
+              throw new Error("CONVEX_SITE_URL is not set");
+            }
+            const callbackUrl = `${siteUrl}${options.httpPrefix}${CALLBACK_PATH}`;
+
             // Only the hash crosses the component boundary, so the raw state is
             // neither stored nor visible in function logs. Exchange config the
             // callback needs is stored on the request row; the mount's
             // CLIENT_ID comes back for the authorization URL.
             const stateHash = await sha256Hex(state);
-            const { callbackBaseUrl, clientId } = await ctx.runMutation(
+            const { clientId } = await ctx.runMutation(
               options.component.provider.createAuthorizationRequest,
               {
                 provider: name,
                 stateHash,
                 redirectTo: args.redirectTo,
+                callbackUrl,
                 tokenEndpoint: options.tokenEndpoint,
                 codeVerifier,
                 userInfoEndpoints: options.userInfoEndpoints,
@@ -290,7 +316,7 @@ export function Oauth<const N extends string>(name: N) {
               ...options.extraAuthorizationParams,
               response_type: "code",
               client_id: clientId,
-              redirect_uri: `${callbackBaseUrl}${CALLBACK_PATH}`,
+              redirect_uri: callbackUrl,
               state,
             };
 

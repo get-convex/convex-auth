@@ -87,6 +87,7 @@ async function fetchRefusingRedirects(
 async function exchangeCode(args: {
   tokenEndpoint: string;
   code: string;
+  callbackUrl: string;
   codeVerifier: string | undefined;
 }): Promise<{ idToken: string | undefined; accessToken: string | undefined }> {
   const body = new URLSearchParams({
@@ -94,7 +95,9 @@ async function exchangeCode(args: {
     code: args.code,
     client_id: env.CLIENT_ID,
     client_secret: env.CLIENT_SECRET,
-    redirect_uri: `${process.env.CONVEX_SITE_URL}${CALLBACK_PATH}`,
+    // Must byte-match the redirect_uri from the authorization request, so
+    // it comes off the request row rather than being rebuilt here.
+    redirect_uri: args.callbackUrl,
   });
   if (args.codeVerifier !== undefined) {
     body.set("code_verifier", args.codeVerifier);
@@ -246,6 +249,7 @@ http.route({
       const { idToken, accessToken } = await exchangeCode({
         tokenEndpoint: authRequest.tokenEndpoint,
         code,
+        callbackUrl: authRequest.callbackUrl,
         codeVerifier: authRequest.codeVerifier,
       });
 

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n vite,convex -c green,blue \"vite\" \"convex dev\"",
+    "dev": "concurrently -n vite,convex -c green,blue \"vite\" \"convex dev --tail-logs\"",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"

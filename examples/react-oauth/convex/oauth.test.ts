@@ -3,12 +3,10 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { api } from "./_generated/api.js";
 import { registerCore } from "@convex-dev/auth/providers/testing/core";
-import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password";
+import { registerOauthProvider } from "@convex-dev/auth/providers/testing/oauth";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
-
-const PASSWORD = "correct horse battery staple"; // 28 chars, valid
 
 async function setup() {
   // The core signs JWTs from these env vars (see core/public.ts). Mint a real
@@ -27,10 +25,15 @@ async function setup() {
       keys: [{ ...publicJwk, kid: "test-key", alg: "RS256", use: "sig" }],
     }),
   );
+  // convex-test doesn't emulate per-mount env binding renames (convex.config
+  // maps AUTH_GOOGLE_CLIENT_ID onto the component's CLIENT_ID), so stub the
+  // component-side names directly.
+  vi.stubEnv("CLIENT_ID", "test-client-id");
+  vi.stubEnv("CLIENT_SECRET", "test-client-secret");
 
   const t = convexTest(schema, modules);
   registerCore(t);
-  registerPasswordProvider(t);
+  registerOauthProvider(t, "oauthGoogle");
   return t;
 }
 
@@ -38,154 +41,47 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const signUp = (
-  t: Awaited<ReturnType<typeof setup>>,
-  username: string,
-  password: string,
-) => t.action(api.auth.signUpWithPassword, { username, password });
-
-const signIn = (
-  t: Awaited<ReturnType<typeof setup>>,
-  username: string,
-  password: string,
-) => t.action(api.auth.signInWithPassword, { username, password });
-
-type PasswordResult =
-  Awaited<ReturnType<typeof signUp>> | Awaited<ReturnType<typeof signIn>>;
-type PasswordSuccess = Extract<PasswordResult, { success: true }>;
-
-describe("setupUsernamePassword", () => {
-  test("signs up a new user and returns a session", async () => {
+// The full callback flow (code exchange, ticket mint) runs over the
+// component's HTTP route, which app-level convex-test doesn't serve; it's
+// covered by the component's own tests. These tests cover the app-facing
+// mutations.
+describe("oauth", () => {
+  test("signIn returns the authorization URL and the minted state", async () => {
     const t = await setup();
-    const result = await signUp(t, "alice", PASSWORD);
-    expect(result).toEqual({
-      success: true,
-      tokens: {
-        accessToken: expect.any(String),
-        accessTokenExpiresAt: expect.any(Number),
-        refreshToken: expect.any(String),
-        refreshTokenExpiresAt: expect.any(Number),
-        userId: expect.any(String),
-      },
+    const { redirect, state } = await t.mutation(api.auth.signInGoogle, {
+      redirectTo: "http://localhost:5173/",
     });
-  });
-
-  test("signs in with the correct password", async () => {
-    const t = await setup();
-    const up = await signUp(t, "alice", PASSWORD);
-    const inResult = await signIn(t, "alice", PASSWORD);
-    expect(up).toEqual({
-      success: true,
-      tokens: {
-        accessToken: expect.any(String),
-        accessTokenExpiresAt: expect.any(Number),
-        refreshToken: expect.any(String),
-        refreshTokenExpiresAt: expect.any(Number),
-        userId: expect.any(String),
-      },
-    });
-    expect(inResult).toEqual({
-      success: true,
-      tokens: {
-        accessToken: expect.any(String),
-        accessTokenExpiresAt: expect.any(Number),
-        refreshToken: expect.any(String),
-        refreshTokenExpiresAt: expect.any(Number),
-        userId: expect.any(String),
-      },
-    });
-    // Same identity → same app user id.
-    expect((inResult as PasswordSuccess).tokens.userId).toBe(
-      (up as PasswordSuccess).tokens.userId,
+    expect(state).toEqual(expect.any(String));
+    const url = new URL(redirect);
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "https://accounts.google.com/o/oauth2/v2/auth",
     );
-  });
-
-  test("rejects a wrong password with INVALID_CREDENTIALS", async () => {
-    const t = await setup();
-    await signUp(t, "alice", PASSWORD);
-    const result = await signIn(t, "alice", "wrong horse battery staple");
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "INVALID_CREDENTIALS" },
-    });
-  });
-
-  test("rejects an unknown username with USER_NOT_FOUND", async () => {
-    const t = await setup();
-    const result = await signIn(t, "nobody", PASSWORD);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "USER_NOT_FOUND" },
-    });
-  });
-
-  test("rejects signing up a taken username", async () => {
-    const t = await setup();
-    await signUp(t, "alice", PASSWORD);
-    const result = await signUp(t, "alice", PASSWORD);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "USERNAME_TAKEN" },
-    });
-  });
-
-  test("usernames are case-insensitive", async () => {
-    const t = await setup();
-    const up = await signUp(t, "Alice", PASSWORD);
-    expect(up).toEqual({
-      success: true,
-      tokens: {
-        accessToken: expect.any(String),
-        accessTokenExpiresAt: expect.any(Number),
-        refreshToken: expect.any(String),
-        refreshTokenExpiresAt: expect.any(Number),
-        userId: expect.any(String),
-      },
-    });
-
-    // A different casing is treated as the same account for both sign-in...
-    const inResult = await signIn(t, "ALICE", PASSWORD);
-    expect(inResult).toEqual({
-      success: true,
-      tokens: {
-        accessToken: expect.any(String),
-        accessTokenExpiresAt: expect.any(Number),
-        refreshToken: expect.any(String),
-        refreshTokenExpiresAt: expect.any(Number),
-        userId: expect.any(String),
-      },
-    });
-    expect((inResult as PasswordSuccess).tokens.userId).toBe(
-      (up as PasswordSuccess).tokens.userId,
+    expect(url.searchParams.get("response_type")).toBe("code");
+    expect(url.searchParams.get("client_id")).toBe("test-client-id");
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://example.convex.site/oauth/google/callback",
     );
-
-    // ...and the taken-username check.
-    const dup = await signUp(t, "alice", PASSWORD);
-    expect(dup).toEqual({
-      success: false,
-      userError: { error: "USERNAME_TAKEN" },
-    });
+    expect(url.searchParams.get("scope")).toBe("openid email profile");
+    expect(url.searchParams.get("state")).toBe(state);
+    expect(url.searchParams.get("code_challenge")).toEqual(expect.any(String));
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
   });
 
-  test("rejects a too-short password at sign-up without creating an account", async () => {
+  test("signIn rejects a redirectTo outside allowedRedirectOrigins", async () => {
     const t = await setup();
-    const up = await signUp(t, "alice", "short");
-    expect(up).toEqual({
-      success: false,
-      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
-    });
+    await expect(
+      t.mutation(api.auth.signInGoogle, {
+        redirectTo: "https://evil.example.com/after",
+      }),
+    ).rejects.toThrow("not in allowedRedirectOrigins");
+  });
 
-    // No account was created, so a later sign-up with a valid password works.
-    const retry = await signUp(t, "alice", PASSWORD);
-    expect(retry).toEqual({
-      success: true,
-      tokens: {
-        accessToken: expect.any(String),
-        accessTokenExpiresAt: expect.any(Number),
-        refreshToken: expect.any(String),
-        refreshTokenExpiresAt: expect.any(Number),
-        userId: expect.any(String),
-      },
+  test("redeem returns null for an unknown code", async () => {
+    const t = await setup();
+    const result = await t.mutation(api.auth.redeemGoogle, {
+      code: "not-a-real-code",
+      state: "not-a-real-state",
     });
+    expect(result).toBeNull();
   });
 });

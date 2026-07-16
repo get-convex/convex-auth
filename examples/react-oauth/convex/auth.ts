@@ -18,6 +18,8 @@ export const {
   providers: [
     provider(Oauth("google"), {
       component: components.oauthGoogle,
+      // Must match the mount in convex.config.ts.
+      httpPrefix: "/oauth/google",
       authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
       tokenEndpoint: "https://oauth2.googleapis.com/token",
       issuer: "https://accounts.google.com",

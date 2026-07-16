@@ -11,9 +11,7 @@ import schema from "./schema.js";
 const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
-  // Each per-IdP mount sees a CONVEX_SITE_URL prefixed with its http mount,
-  // and its own client credential bindings.
-  vi.stubEnv("CONVEX_SITE_URL", "https://test.convex.site/oauth/google");
+  // Each per-IdP mount binds its own client credentials.
   vi.stubEnv("CLIENT_ID", "test-client-id");
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   const t = convexTest(schema, modules);
@@ -25,6 +23,7 @@ const requestArgs = {
   provider: "google",
   stateHash: "0".repeat(64),
   redirectTo: "https://app.example.com/after",
+  callbackUrl: "https://test.convex.site/oauth/google/callback",
   tokenEndpoint: "https://oauth2.googleapis.com/token",
 };
 
@@ -41,7 +40,6 @@ describe("oauth", () => {
       requestArgs,
     );
     expect(result).toEqual({
-      callbackBaseUrl: "https://test.convex.site/oauth/google",
       clientId: "test-client-id",
     });
     await t.run(async (ctx) => {
@@ -69,6 +67,7 @@ describe("oauth", () => {
       provider: "google",
       stateHash: requestArgs.stateHash,
       redirectTo: "https://app.example.com/after",
+      callbackUrl: "https://test.convex.site/oauth/google/callback",
       tokenEndpoint: "https://oauth2.googleapis.com/token",
     });
     const second = await t.mutation(
