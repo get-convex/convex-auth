@@ -28,7 +28,7 @@ function makeClient(
   const client = new AuthClient({
     authApi: {
       refreshSession: async () => null,
-      signOut: async () => { },
+      signOut: async () => {},
       ...authApi,
     },
     storage,
@@ -170,7 +170,7 @@ describe("AuthClient", () => {
     (globalThis as { window?: unknown }).window = {
       addEventListener: (_type: string, l: (event: StorageEvent) => void) =>
         listeners.push(l),
-      removeEventListener: () => { },
+      removeEventListener: () => {},
     };
 
     const { client } = makeClient({}, storage);
@@ -231,15 +231,19 @@ describe("AuthClient", () => {
   });
 });
 
-function publicSession(n: number): SlimTokenBundle {
-  return { accessToken: `access-${n}`, accessTokenExpiresAt: 0, userId: "user-1" };
+/**
+ * Returns a {@link SlimTokenBundle} which is the typical auth response from
+ * an SSR integration.
+ */
+function ssrAuthResult(n: number): SlimTokenBundle {
+  return {
+    accessToken: `access-${n}`,
+    accessTokenExpiresAt: 0,
+    userId: "user-1",
+  };
 }
 
-// A "delegated" (SSR/cookie-based) session is not a separate mode — the client
-// is configured identically, and the delegated shape emerges purely from the
-// data: sign-in and refresh yield an access-only PublicSession, so no refresh
-// token is ever stored, and the API is called with a `null` refresh token.
-describe("AuthClient (delegated / access-only sessions)", () => {
+describe("AuthClient (SSR)", () => {
   afterEach(() => {
     delete (globalThis as { window?: unknown }).window;
   });
@@ -247,7 +251,7 @@ describe("AuthClient (delegated / access-only sessions)", () => {
   test("setSession adopts an access-only session, storing no refresh token", async () => {
     const { client, storage } = makeClient();
     await client.init();
-    await client.setSession(publicSession(1));
+    await client.setSession(ssrAuthResult(1));
 
     expect(client.getSnapshot()).toEqual({
       isLoading: false,
@@ -256,10 +260,12 @@ describe("AuthClient (delegated / access-only sessions)", () => {
     });
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
     // The refresh token lives in a server-only cookie — never in JS storage.
-    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
+    expect(
+      storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`),
+    ).toBeNull();
   });
 
-  test("hydrates a delegated session from just the access token", async () => {
+  test("hydrates a session from just the access token", async () => {
     const storage = new InMemoryStorage();
     storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
     const { client } = makeClient({}, storage);
@@ -271,10 +277,10 @@ describe("AuthClient (delegated / access-only sessions)", () => {
   });
 
   test("forced fetch refreshes via the token-less (null) API call", async () => {
-    const refreshSession = vi.fn(async () => publicSession(2));
+    const refreshSession = vi.fn(async () => ssrAuthResult(2));
     const { client, storage } = makeClient({ refreshSession });
     await client.init();
-    await client.setSession(publicSession(1));
+    await client.setSession(ssrAuthResult(1));
 
     const token = await client.fetchAccessToken({ forceRefreshToken: true });
     expect(token).toBe("access-2");
@@ -282,15 +288,17 @@ describe("AuthClient (delegated / access-only sessions)", () => {
     // No refresh token in JS, so the API is called with null (it reads the cookie).
     expect(refreshSession).toHaveBeenCalledWith(null);
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-2");
-    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
+    expect(
+      storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`),
+    ).toBeNull();
   });
 
-  test("a null delegated refresh clears the session", async () => {
+  test("a null refresh clears the session", async () => {
     const { client, storage } = makeClient({
       refreshSession: async () => null,
     });
     await client.init();
-    await client.setSession(publicSession(1));
+    await client.setSession(ssrAuthResult(1));
 
     const token = await client.fetchAccessToken({ forceRefreshToken: true });
     expect(token).toBeNull();
@@ -302,10 +310,10 @@ describe("AuthClient (delegated / access-only sessions)", () => {
   });
 
   test("signOut calls the API with a null token and clears locally", async () => {
-    const signOut = vi.fn(async () => { });
+    const signOut = vi.fn(async () => {});
     const { client } = makeClient({ signOut });
     await client.init();
-    await client.setSession(publicSession(1));
+    await client.setSession(ssrAuthResult(1));
 
     await client.signOut();
     expect(signOut).toHaveBeenCalledTimes(1);

@@ -73,11 +73,13 @@ export function defaultCookieOptions(): CookieOptions {
 }
 
 /**
- * Write a session's tokens as cookies: the access token in
- * {@link AUTH_JWT_COOKIE} and the refresh token in {@link AUTH_REFRESH_COOKIE}.
- * Both live as long as the refresh token (the access token is refreshed on
- * expiry). With {@link defaultCookieOptions} the refresh cookie is httpOnly, so
- * it never reaches client JS.
+ * Write the tokens in a `bundle` as cookies.
+ *
+ * The access token is stored in in {@link AUTH_JWT_COOKIE} and the refresh
+ * token in {@link AUTH_REFRESH_COOKIE}. Both live as long as the refresh
+ * token, although the access token will likely expire sooner and need to be
+ * refreshed). With {@link defaultCookieOptions} the refresh cookie is
+ * httpOnly, so it never reaches client JS.
  *
  * This is the one place that knows which cookies hold a session and how their
  * lifetimes derive from the bundle, so refresh, middleware, and every provider's

@@ -29,10 +29,10 @@ export const vTokenBundle = v.object({
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
 /**
- * The access-only view of a session that an SSR route hands back to the
- * browser. It is a {@link TokenBundle} with the refresh token (and its expiry)
- * removed: under SSR the refresh token lives only in an httpOnly cookie and
- * must never reach client JS.
+ * The token bundle that an SSR route hands back to the client. It is a slimmed
+ * down version of a {@link TokenBundle} with the refresh token (and its
+ * expiry) removed: under SSR the refresh token lives only in an httpOnly
+ * cookie and never reaches client JS.
  */
 export type SlimTokenBundle = {
   accessToken: string;
@@ -40,8 +40,10 @@ export type SlimTokenBundle = {
   userId: string;
 };
 
-/** Project a {@link TokenBundle} down to its access-only {@link SlimTokenBundle},
- * dropping the refresh token so it is never sent to the browser. */
+/**
+ * Strip down a {@link TokenBundle} down to a {@link SlimTokenBundle},
+ * dropping the refresh token so it is never sent to the browser.
+ */
 export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
   return {
     accessToken: bundle.accessToken,
@@ -71,9 +73,7 @@ export type SignOutFn = FunctionReference<
 /**
  * The auth mutations the app exports from `setupCore(...).attachUserCallback`.
  * Passed as references (not names) because an app may re-export them under any
- * names. Shared by every binding that refreshes or revokes a session — the React
- * client ({@link ConvexAuthProvider}), the SSR refresh/sign-out handlers, and the
- * Next.js middleware — so the contract can never drift between them.
+ * names. Consumed by both SPA and SSR implementations.
  */
 export type ConvexAuthApi = {
   refreshSession: RefreshSessionFn;

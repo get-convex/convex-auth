@@ -1,20 +1,20 @@
 /**
  * The framework-agnostic owner of an auth session on the server (SSR).
  *
- * Where the browser {@link AuthClient} keeps the session in `localStorage` and
- * holds the refresh token in client JS, the server keeps it in cookies — the
- * refresh token in an httpOnly cookie that never reaches the browser. This
- * class orchestrates reading those cookies, refreshing the access token against
- * the server when it is missing or near expiry, and writing the rotated tokens
- * back as cookies.
+ * Whereas SPA clients keep the session tokens in `localStorage` and accesses
+ * the refresh token in client JS, an SSR client and host exchange the tokens
+ * via cookies. This code orchestrates reading those cookies, refreshing the
+ * access token against the server when it is missing or near expiry, and
+ * writing the rotated tokens back as cookies.
  *
- * It takes an injected `refreshSession` callback, so it never imports Convex: a
- * framework binding supplies one on top of an HTTP client and a
- * {@link CookieStore} built on its request/response cookies, and tests supply a
- * fake. The server can access the real refresh token (from the cookie), so it
- * always passes a `refreshToken` and gets back a full {@link TokenBundle} to
- * re-cookie. Signing out is a separate concern (see the `signOutHandler`), so it
- * is not part of this class.
+ * The {@link ServerAuthSessionConfig} class takes an injected `refreshSession`
+ * callback, so it never imports Convex: a framework binding supplies one on
+ * top of an HTTP client and a {@link CookieStore} built on its
+ * request/response cookies, and tests supply a fake. The SSR host accesses the
+ * refresh token (from the cookie), passes it in a refresh request to the
+ * Convex backend and gets back a full {@link TokenBundle}. It uses that bundle
+ * to update the cookie values and communicate the refreshed access token to
+ * the client.
  *
  * @module
  */

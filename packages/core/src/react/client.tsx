@@ -20,10 +20,12 @@ const getServerSnapshot = () => INITIAL_AUTH_STATE;
 /** The value exposed by {@link useAuthActions}. */
 export type ConvexAuthActionsContextType = {
   /**
-   * Adopt a session established by a provider. A provider's client-direct
-   * sign-in returns a full {@link TokenBundle}; its SSR sibling returns an
-   * access-only {@link SlimTokenBundle}. Pass either here to authenticate the
-   * client.
+   * Initialize or refresh a session.
+   *
+   * A SPA client will receive a full {@link TokenBundle} so it can access the
+   * refresh token for direct session refreshing. An SSR client will receive a
+   * {@link SlimTokenBundle} which doesn't include the refresh token (that
+   * value is in an httpOnly cookie, not reachable by client JS code).
    */
   setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
   /** Sign out: revoke the session on the server and clear it locally. */
@@ -43,12 +45,12 @@ export const ConvexAuthTokenContext = createContext<string | null>(null);
  */
 const ConvexAuthInternalContext = createContext<
   | {
-    isLoading: boolean;
-    isAuthenticated: boolean;
-    fetchAccessToken: (args: {
-      forceRefreshToken: boolean;
-    }) => Promise<string | null>;
-  }
+      isLoading: boolean;
+      isAuthenticated: boolean;
+      fetchAccessToken: (args: {
+        forceRefreshToken: boolean;
+      }) => Promise<string | null>;
+    }
   | undefined
 >(undefined);
 
