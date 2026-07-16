@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 export function Dashboard() {
-  const user = useQuery(api.users.loggedInUser);
+  const user = useQuery(api.currentUser.loggedInUser);
   const token = useAuthToken();
   const { signOut } = useAuthActions();
   return (

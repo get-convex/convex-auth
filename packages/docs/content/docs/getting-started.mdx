@@ -5,6 +5,7 @@ description: Set up Convex Auth in your project.
 
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Card, Cards } from "fumadocs-ui/components/card";
 
 Every project using Convex Auth follows these steps.
 
@@ -72,7 +73,20 @@ This command:
 
 ### Install a login provider
 
-<Callout type="warn">WIP</Callout>
+Pick a login method and follow its guide to wire it up:
+
+<Cards>
+  <Card
+    href="/login-providers/password"
+    title="Username + Password"
+    description="Sign users in with a username and a password."
+  />
+  <Card
+    href="/login-providers/anonymous"
+    title="Anonymous"
+    description="Sign users in without any credentials."
+  />
+</Cards>
 
 </Step>
 

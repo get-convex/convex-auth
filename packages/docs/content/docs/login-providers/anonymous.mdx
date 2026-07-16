@@ -1,6 +1,87 @@
 ---
 title: Anonymous
-description: Anonymous sign-in.
+description: Sign users in without any credentials.
 ---
 
-<Callout type="warn">This page is a work in progress.</Callout>
+import { Step, Steps } from "fumadocs-ui/components/steps";
+
+The anonymous provider signs a user in without asking for any credentials. It's
+useful for letting people try your app before they commit to creating an
+account.
+
+## Setting up anonymous login in your app
+
+<Steps>
+
+<Step>
+
+### Follow the “Getting Started” guide
+
+First, follow the [Getting Started](/getting-started) guide:
+
+<Cards>
+  <Card
+    href="/getting-started"
+    title="Getting Started"
+    description="Installing dependencies + initial set up."
+  />
+</Cards>
+
+</Step>
+
+<Step>
+
+### Install the component
+
+Register the anonymous component alongside the core in `convex/convex.config.ts`:
+
+<include
+  lang="ts"
+  meta='title="convex/convex.config.ts" highlight="import anonymous from" highlight="app.use(anonymous)"'
+>
+  ../../../../../examples/react-minimal/convex/convex.config.ts
+</include>
+
+</Step>
+
+<Step>
+
+### Wire up the provider
+
+Add the `Anonymous` provider to `setupCore` and export its sign-in action in
+`convex/auth.ts`:
+
+<include
+  lang="ts"
+  meta='title="convex/auth.ts" highlight="import { Anonymous }" highlight="providers: {...}," highlight="providers: [...],"'
+>
+  ../../../../../examples/react-minimal/convex/auth.ts
+</include>
+
+</Step>
+
+<Step>
+
+### Set up user creation
+
+<include lang="ts" meta='title="convex/users.ts"'>
+  ../../../../../examples/react-minimal/convex/users.ts
+</include>
+
+</Step>
+
+<Step>
+
+### Set up the authentication UI
+
+Call `useAnonymousAuth` with the exported action and invoke `signInAnonymous`:
+
+{/* TODO Do we want to split this into more files? */}
+
+<include lang="tsx" meta='title="src/App.tsx"'>
+  ../../../../../examples/react-minimal/src/App.tsx
+</include>
+
+</Step>
+
+</Steps>

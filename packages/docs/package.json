@@ -21,11 +21,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.2",
+    "@types/hast": "3.0.4",
     "@types/mdx": "^2.0.14",
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.5.16",
+    "shiki": "4.3.1",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3"
   }
