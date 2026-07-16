@@ -31,7 +31,7 @@ export default defineSchema({
      * keyed by the name the app's `profile` mapping receives each response
      * under. Copied from app-side config like `tokenEndpoint`.
      */
-    userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
+    userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     /**
      * Expected `iss` of the provider's id_tokens, copied from app-side
      * config. When present the callback rejects id_tokens from any other
@@ -66,15 +66,14 @@ export default defineSchema({
     /** Tickets expire quickly (~2 minutes). */
     expiresAt: v.number(),
     /**
-     * id_token claims, present when the provider returned one (OIDC). At
-     * least one of `claims` and `userInfoResponses` is always present; the
-     * app's `profile` mapping receives both at redemption.
+     * The identity the provider attested: JSON of
+     * `{ claims, userInfoResponses }` (id_token claims when the provider
+     * returned one, userinfo responses keyed by the configured endpoint
+     * names; at least one is present), AES-GCM encrypted with a key derived
+     * from the raw one-time token. The raw token is never stored, so
+     * database access alone cannot read the payload, and provider-chosen
+     * JSON keys never become Convex field names.
      */
-    claims: v.optional(v.any()),
-    /**
-     * Userinfo responses keyed by the configured endpoint names, present
-     * when the provider config sets `userinfoEndpoints`.
-     */
-    userInfoResponses: v.optional(v.record(v.string(), v.any())),
+    payload: v.string(),
   }).index("ottHash", ["ottHash"]),
 });

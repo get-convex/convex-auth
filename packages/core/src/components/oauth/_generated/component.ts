@@ -28,7 +28,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         { ottHash: string; provider: string; stateHash: string },
-        null | { claims?: any; userInfoResponses?: Record<string, any> },
+        null | { payload: string },
         Name
       >;
       createAuthorizationRequest: FunctionReference<
@@ -41,7 +41,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           redirectTo: string;
           stateHash: string;
           tokenEndpoint: string;
-          userinfoEndpoints?: Record<string, string>;
+          userInfoEndpoints?: Record<string, string>;
         },
         { callbackBaseUrl: string; clientId: string },
         Name

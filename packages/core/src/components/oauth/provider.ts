@@ -31,7 +31,7 @@ export const createAuthorizationRequest = mutation({
     redirectTo: v.string(),
     codeVerifier: v.optional(v.string()),
     tokenEndpoint: v.string(),
-    userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
+    userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     issuer: v.optional(v.string()),
   },
   returns: v.object({
@@ -42,6 +42,14 @@ export const createAuthorizationRequest = mutation({
     const siteUrl = process.env.CONVEX_SITE_URL;
     if (siteUrl === undefined) {
       throw new Error("CONVEX_SITE_URL is not set");
+    }
+    // The env declaration guarantees the bindings exist at deploy time but
+    // can't express non-emptiness; catch that here, at the first sign-in,
+    // rather than on the provider's error page.
+    if (env.CLIENT_ID === "" || env.CLIENT_SECRET === "") {
+      throw new Error(
+        "The CLIENT_ID and CLIENT_SECRET env bindings must not be empty",
+      );
     }
     await ctx.db.insert("authorizationRequests", {
       ...args,
@@ -54,7 +62,9 @@ export const createAuthorizationRequest = mutation({
 /**
  * Claim an authorization request by state hash: find, delete, and return it
  * in one transaction, so a replayed or raced callback finds nothing. An
- * expired row is also deleted but not returned.
+ * expired row is also deleted, but only its `redirectTo` is returned so the
+ * callback can send the user back to the app instead of stranding them on
+ * an error page.
  */
 export const claimAuthorizationRequest = internalMutation({
   args: {
@@ -63,12 +73,17 @@ export const claimAuthorizationRequest = internalMutation({
   returns: v.union(
     v.null(),
     v.object({
+      expired: v.literal(true),
+      redirectTo: v.string(),
+    }),
+    v.object({
+      expired: v.literal(false),
       provider: v.string(),
       stateHash: v.string(),
       redirectTo: v.string(),
       codeVerifier: v.optional(v.string()),
       tokenEndpoint: v.string(),
-      userinfoEndpoints: v.optional(v.record(v.string(), v.string())),
+      userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
       issuer: v.optional(v.string()),
     }),
   ),
@@ -82,15 +97,16 @@ export const claimAuthorizationRequest = internalMutation({
     }
     await ctx.db.delete("authorizationRequests", request._id);
     if (request.expiresAt < Date.now()) {
-      return null;
+      return { expired: true as const, redirectTo: request.redirectTo };
     }
     return {
+      expired: false as const,
       provider: request.provider,
       stateHash: request.stateHash,
       redirectTo: request.redirectTo,
       codeVerifier: request.codeVerifier,
       tokenEndpoint: request.tokenEndpoint,
-      userinfoEndpoints: request.userinfoEndpoints,
+      userInfoEndpoints: request.userInfoEndpoints,
       issuer: request.issuer,
     };
   },
@@ -99,15 +115,15 @@ export const claimAuthorizationRequest = internalMutation({
 /**
  * Mint a one-time redeemable ticket after a successful code exchange. The
  * caller (the callback) holds the raw one-time token; only its hash is
- * stored.
+ * stored, and the identity payload arrives already encrypted with a key
+ * derived from that token.
  */
 export const createTicket = internalMutation({
   args: {
     provider: v.string(),
     stateHash: v.string(),
     ottHash: v.string(),
-    claims: v.optional(v.any()),
-    userInfoResponses: v.optional(v.record(v.string(), v.any())),
+    payload: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -141,8 +157,7 @@ export const claimTicket = mutation({
   returns: v.union(
     v.null(),
     v.object({
-      claims: v.optional(v.any()),
-      userInfoResponses: v.optional(v.record(v.string(), v.any())),
+      payload: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -164,9 +179,6 @@ export const claimTicket = mutation({
       return null;
     }
     await ctx.db.delete("tickets", ticket._id);
-    return {
-      claims: ticket.claims,
-      userInfoResponses: ticket.userInfoResponses,
-    };
+    return { payload: ticket.payload };
   },
 });

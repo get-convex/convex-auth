@@ -58,3 +58,62 @@ export function decodeJwtPayload(jwt: string): Record<string, unknown> {
   }
   return JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[1])));
 }
+
+/**
+ * Derive an AES-256-GCM key from a raw one-time token. A domain-separated
+ * SHA-256 suffices as the KDF: the token is itself 256 bits of CSPRNG
+ * output, so no stretching is needed.
+ */
+async function deriveTokenKey(token: string): Promise<CryptoKey> {
+  const keyBytes = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`convex-auth-ticket-payload:${token}`),
+  );
+  return await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+/**
+ * Encrypt a ticket payload with a key derived from the raw one-time token.
+ * The token is never persisted (only its hash is), so database access alone
+ * cannot decrypt the result; the key preimage travels only in the callback
+ * redirect URL. Returns base64url(iv || ciphertext).
+ */
+export async function encryptWithToken(
+  token: string,
+  plaintext: string,
+): Promise<string> {
+  const key = await deriveTokenKey(token);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      new TextEncoder().encode(plaintext),
+    ),
+  );
+  const combined = new Uint8Array(iv.length + ciphertext.length);
+  combined.set(iv);
+  combined.set(ciphertext, iv.length);
+  return base64UrlEncode(combined);
+}
+
+/**
+ * Decrypt {@link encryptWithToken} output. Throws when the token is wrong
+ * or the payload was tampered with (AES-GCM authenticates).
+ */
+export async function decryptWithToken(
+  token: string,
+  encrypted: string,
+): Promise<string> {
+  const key = await deriveTokenKey(token);
+  const combined = base64UrlDecode(encrypted);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: combined.slice(0, 12) },
+    key,
+    combined.slice(12),
+  );
+  return new TextDecoder().decode(plaintext);
+}

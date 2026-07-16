@@ -6,7 +6,13 @@ import {
   type TokenBundle,
 } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
-import { generateRandomToken, sha256Base64Url, sha256Hex } from "./crypto";
+import { CALLBACK_PATH } from "./constants";
+import {
+  decryptWithToken,
+  generateRandomToken,
+  sha256Base64Url,
+  sha256Hex,
+} from "./crypto";
 
 /**
  * Standard OIDC id_token claims, loosely typed: the well-known ones are
@@ -52,17 +58,17 @@ export type OauthOptions = {
    * id_token, e.g. GitHub:
    *
    * ```ts
-   * userinfoEndpoints: {
+   * userInfoEndpoints: {
    *   user: "https://api.github.com/user",
    *   emails: "https://api.github.com/user/emails",
    * }
    * ```
    */
-  userinfoEndpoints?: Record<string, string>;
+  userInfoEndpoints?: Record<string, string>;
   /**
    * Map what the provider told us about the user — id_token claims
    * (`undefined` for non-OIDC providers) and userinfo responses keyed as
-   * configured (`undefined` unless `userinfoEndpoints` is set) — to the
+   * configured (`undefined` unless `userInfoEndpoints` is set) — to the
    * account identity used at redemption. `id` becomes the provider account
    * id. Defaults to OIDC claims: `(claims) => ({ ...claims, id: claims.sub })`,
    * so providers without an id_token must supply this.
@@ -84,8 +90,9 @@ export type OauthOptions = {
   pkce?: boolean;
   /**
    * Extra query params for the authorization URL, e.g. Google's
-   * `{ access_type: "offline" }`. Protocol params (`state`, `redirect_uri`,
-   * ...) always win over entries here.
+   * `{ access_type: "offline" }`. Must not include protocol params
+   * (`state`, `redirect_uri`, `code_challenge`, ...); setup rejects them so
+   * they can never silently conflict with what `signIn` sends.
    */
   extraAuthorizationParams?: Record<string, string>;
   /**
@@ -103,6 +110,34 @@ function parseUrl(value: string): URL | null {
     return null;
   }
 }
+
+/**
+ * Require an absolute https URL (plain http is allowed only for localhost,
+ * for development against a local IdP). Credentials and tokens travel to
+ * these endpoints, so a typo'd scheme must not downgrade them to cleartext.
+ */
+function requireHttpsUrl(value: string, label: string): void {
+  const url = parseUrl(value);
+  if (url === null) {
+    throw new Error(`${label} is not a valid URL: "${value}"`);
+  }
+  const isLocalhost =
+    url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost)) {
+    throw new Error(`${label} must use https: "${value}"`);
+  }
+}
+
+/** Params `signIn` sets itself; `extraAuthorizationParams` may not. */
+const PROTOCOL_PARAMS = [
+  "response_type",
+  "client_id",
+  "redirect_uri",
+  "state",
+  "scope",
+  "code_challenge",
+  "code_challenge_method",
+];
 
 /**
  * OAuth sign-in against a single upstream provider (IdP). Register one
@@ -131,6 +166,10 @@ function parseUrl(value: string): URL | null {
  * with its own name, `httpPrefix`, and `CLIENT_ID`/`CLIENT_SECRET` bindings
  * (see the component's convex.config.ts); register
  * `<site-url><httpPrefix>/callback` as the redirect URI with each provider.
+ *
+ * The callback only accepts GET redirects. Providers that POST it
+ * (`response_mode=form_post`, notably Apple when name/email scopes are
+ * requested) are not supported yet.
  */
 export function Oauth<const N extends string>(name: N) {
   return defineProvider({
@@ -147,12 +186,46 @@ export function Oauth<const N extends string>(name: N) {
         }
         return url.origin;
       });
+      requireHttpsUrl(options.authorizationEndpoint, "authorizationEndpoint");
+      requireHttpsUrl(options.tokenEndpoint, "tokenEndpoint");
+      if (options.userInfoEndpoints !== undefined) {
+        const entries = Object.entries(options.userInfoEndpoints);
+        if (entries.length === 0) {
+          throw new Error(
+            `userInfoEndpoints for provider "${name}" must have at least one entry`,
+          );
+        }
+        for (const [key, endpoint] of entries) {
+          // Keys become Convex record field names on the authorization
+          // request row, which allow only printable ASCII not starting
+          // with "$".
+          if (!/^[ -~]+$/.test(key) || key.startsWith("$")) {
+            throw new Error(
+              `userInfoEndpoints key "${key}" for provider "${name}" must be printable ASCII and not start with "$"`,
+            );
+          }
+          requireHttpsUrl(endpoint, `userInfoEndpoints["${key}"]`);
+        }
+      }
+      for (const key of Object.keys(options.extraAuthorizationParams ?? {})) {
+        if (PROTOCOL_PARAMS.includes(key)) {
+          throw new Error(
+            `extraAuthorizationParams for provider "${name}" must not set protocol param "${key}"`,
+          );
+        }
+      }
 
       return {
         /**
          * Start an OAuth sign-in. The server mints `state` and returns it;
          * the client keeps it (it must present the same value again to
          * complete sign-in) and navigates to the returned `redirect` URL.
+         *
+         * The state is the client's proof at redemption that it initiated
+         * this flow. Keep it in private storage (e.g. sessionStorage) and
+         * never read it from a URL: a client that accepts state from URL
+         * params can be handed an attacker's flow and complete sign-in into
+         * the attacker's account (login CSRF).
          */
         signIn: mutationGeneric({
           args: {
@@ -187,24 +260,21 @@ export function Oauth<const N extends string>(name: N) {
                 stateHash,
                 redirectTo: args.redirectTo,
                 tokenEndpoint: options.tokenEndpoint,
-                ...(codeVerifier === undefined ? {} : { codeVerifier }),
-                ...(options.userinfoEndpoints === undefined
-                  ? {}
-                  : { userinfoEndpoints: options.userinfoEndpoints }),
-                ...(options.issuer === undefined
-                  ? {}
-                  : { issuer: options.issuer }),
+                codeVerifier,
+                userInfoEndpoints: options.userInfoEndpoints,
+                issuer: options.issuer,
               },
             );
 
-            // Protocol params come last so they win over extras. Set on
-            // `searchParams` (rather than replacing `url.search`) to preserve
-            // any params baked into the configured endpoint URL.
+            // Protocol params come last, and setup rejects extras that name
+            // them, so they can never be overridden. Set on `searchParams`
+            // (rather than replacing `url.search`) to preserve any params
+            // baked into the configured endpoint URL.
             const params: Record<string, string> = {
               ...options.extraAuthorizationParams,
               response_type: "code",
               client_id: clientId,
-              redirect_uri: `${callbackBaseUrl}/callback`,
+              redirect_uri: `${callbackBaseUrl}${CALLBACK_PATH}`,
               state,
             };
 
@@ -229,10 +299,11 @@ export function Oauth<const N extends string>(name: N) {
         /**
          * Complete an OAuth sign-in by redeeming the one-time `code` from
          * the callback redirect together with the state held since `signIn`.
-         * Returns the session token bundle, or null when the code is
-         * unknown, already redeemed, expired, or the state doesn't match —
-         * all indistinguishable to the caller, like a failed
-         * `refreshSession`.
+         * The state must be the value stored at sign-in time, never one
+         * read from a URL. Returns the session token bundle, or null when
+         * the code is unknown, already redeemed, expired, or the state
+         * doesn't match — all indistinguishable to the caller, like a
+         * failed `refreshSession`.
          *
          * The component calls are subtransactions of this mutation, so a
          * failure anywhere (including the app rejecting the sign-in from
@@ -258,6 +329,16 @@ export function Oauth<const N extends string>(name: N) {
               return null;
             }
 
+            // The ticket found by hash proves `code` is the token the
+            // payload was encrypted under, so decryption only fails on
+            // corruption.
+            const { claims, userInfoResponses } = JSON.parse(
+              await decryptWithToken(args.code, ticket.payload),
+            ) as {
+              claims: OidcClaims | undefined;
+              userInfoResponses: Record<string, unknown> | undefined;
+            };
+
             // The default mapping covers OIDC providers; anything without
             // an id_token must configure `profile`.
             const profileFn =
@@ -270,10 +351,7 @@ export function Oauth<const N extends string>(name: N) {
                 }
                 return { ...oidcClaims, id: oidcClaims.sub };
               });
-            const profile = profileFn(
-              ticket.claims as OidcClaims | undefined,
-              ticket.userInfoResponses,
-            );
+            const profile = profileFn(claims, userInfoResponses);
             if (typeof profile.id !== "string" || profile.id === "") {
               throw new Error(
                 `Profile mapping for provider "${name}" returned no id`,

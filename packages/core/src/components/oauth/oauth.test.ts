@@ -1,6 +1,11 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api.js";
+import {
+  decryptWithToken,
+  encryptWithToken,
+  generateRandomToken,
+} from "./crypto.js";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -8,9 +13,9 @@ const modules = import.meta.glob("./**/*.ts");
 function setup() {
   // Each per-IdP mount sees a CONVEX_SITE_URL prefixed with its http mount,
   // and its own client credential bindings.
-  process.env.CONVEX_SITE_URL = "https://test.convex.site/oauth/google";
-  process.env.CLIENT_ID = "test-client-id";
-  process.env.CLIENT_SECRET = "test-client-secret";
+  vi.stubEnv("CONVEX_SITE_URL", "https://test.convex.site/oauth/google");
+  vi.stubEnv("CLIENT_ID", "test-client-id");
+  vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   const t = convexTest(schema, modules);
   return t;
 }
@@ -25,6 +30,7 @@ const requestArgs = {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("oauth", () => {
@@ -59,6 +65,7 @@ describe("oauth", () => {
       { stateHash: requestArgs.stateHash },
     );
     expect(claimed).toEqual({
+      expired: false,
       provider: "google",
       stateHash: requestArgs.stateHash,
       redirectTo: "https://app.example.com/after",
@@ -80,7 +87,7 @@ describe("oauth", () => {
     expect(claimed).toBeNull();
   });
 
-  test("claimAuthorizationRequest deletes but does not return an expired request", async () => {
+  test("claimAuthorizationRequest deletes an expired request and returns only redirectTo", async () => {
     vi.useFakeTimers();
     const t = setup();
     await t.mutation(api.provider.createAuthorizationRequest, requestArgs);
@@ -89,7 +96,10 @@ describe("oauth", () => {
       internal.provider.claimAuthorizationRequest,
       { stateHash: requestArgs.stateHash },
     );
-    expect(claimed).toBeNull();
+    expect(claimed).toEqual({
+      expired: true,
+      redirectTo: "https://app.example.com/after",
+    });
     await t.run(async (ctx) => {
       const requests = await ctx.db.query("authorizationRequests").collect();
       expect(requests).toHaveLength(0);
@@ -102,17 +112,13 @@ describe("oauth", () => {
       provider: "google",
       stateHash: "0".repeat(64),
       ottHash: "a".repeat(64),
-      claims: { sub: "user-123", email: "user@example.com" },
+      payload: "encrypted-payload",
     });
     await t.run(async (ctx) => {
       const tickets = await ctx.db.query("tickets").collect();
       expect(tickets).toHaveLength(1);
       expect(tickets[0].ottHash).toBe("a".repeat(64));
-      expect(tickets[0].claims).toEqual({
-        sub: "user-123",
-        email: "user@example.com",
-      });
-      expect(tickets[0].userInfoResponses).toBeUndefined();
+      expect(tickets[0].payload).toBe("encrypted-payload");
       expect(tickets[0].expiresAt).toBeGreaterThan(Date.now());
     });
   });
@@ -123,16 +129,14 @@ describe("oauth", () => {
       provider: "google",
       stateHash: "0".repeat(64),
       ottHash: "a".repeat(64),
-      claims: { sub: "user-123" },
+      payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       provider: "google",
       ottHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
-    expect(claimed).toEqual({
-      claims: { sub: "user-123" },
-    });
+    expect(claimed).toEqual({ payload: "encrypted-payload" });
     const second = await t.mutation(api.provider.claimTicket, {
       provider: "google",
       ottHash: "a".repeat(64),
@@ -147,7 +151,7 @@ describe("oauth", () => {
       provider: "google",
       stateHash: "0".repeat(64),
       ottHash: "a".repeat(64),
-      claims: { sub: "user-123" },
+      payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       provider: "google",
@@ -167,7 +171,7 @@ describe("oauth", () => {
       provider: "google",
       stateHash: "0".repeat(64),
       ottHash: "a".repeat(64),
-      claims: { sub: "user-123" },
+      payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       provider: "github",
@@ -188,7 +192,7 @@ describe("oauth", () => {
       provider: "google",
       stateHash: "0".repeat(64),
       ottHash: "a".repeat(64),
-      claims: { sub: "user-123" },
+      payload: "encrypted-payload",
     });
     vi.advanceTimersByTime(3 * 60 * 1000);
     const claimed = await t.mutation(api.provider.claimTicket, {
@@ -201,5 +205,16 @@ describe("oauth", () => {
       const tickets = await ctx.db.query("tickets").collect();
       expect(tickets).toHaveLength(0);
     });
+  });
+
+  test("ticket payload encryption round-trips only with the right token", async () => {
+    const token = generateRandomToken();
+    const payload = JSON.stringify({ claims: { sub: "user-123" } });
+    const encrypted = await encryptWithToken(token, payload);
+    expect(encrypted).not.toContain("user-123");
+    expect(await decryptWithToken(token, encrypted)).toBe(payload);
+    await expect(
+      decryptWithToken(generateRandomToken(), encrypted),
+    ).rejects.toThrow();
   });
 });

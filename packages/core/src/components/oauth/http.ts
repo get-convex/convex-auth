@@ -1,7 +1,13 @@
 import { httpRouter } from "convex/server";
 import { env, httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { decodeJwtPayload, generateRandomToken, sha256Hex } from "./crypto";
+import { CALLBACK_PATH } from "./constants";
+import {
+  decodeJwtPayload,
+  encryptWithToken,
+  generateRandomToken,
+  sha256Hex,
+} from "./crypto";
 
 // Each per-IdP mount serves its own provider callback under the prefix the
 // app declares in convex.config.ts (`app.use(oauthProvider, { name:
@@ -9,14 +15,8 @@ import { decodeJwtPayload, generateRandomToken, sha256Hex } from "./crypto";
 // is <prefix>/callback — the redirect URI registered with the provider.
 const http = httpRouter();
 
-/** Append query params to an absolute URL, preserving existing ones. */
-function withParams(target: string, params: Record<string, string>): string {
-  const url = new URL(target);
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-  return url.toString();
-}
+/** Outbound requests fail after this instead of pinning the callback to the platform limit. */
+const FETCH_TIMEOUT_MS = 30 * 1000;
 
 /** A 302 redirect response. */
 function redirect(location: string): Response {
@@ -27,19 +27,50 @@ function redirect(location: string): Response {
 }
 
 /**
- * Fetch that treats any HTTP redirect as an error. Token and userinfo
- * endpoints never legitimately redirect; following one could forward
- * credentials to an unintended host.
+ * 302 back to the app's `redirectTo` with outcome params. Stale
+ * `code`/`error` params from a previous attempt are removed first, so a
+ * `redirectTo` derived from the app's current URL can't carry a
+ * contradictory outcome.
+ */
+function redirectToApp(
+  redirectTo: string,
+  params: Record<string, string>,
+): Response {
+  const url = new URL(redirectTo);
+  url.searchParams.delete("code");
+  url.searchParams.delete("error");
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return redirect(url.toString());
+}
+
+/**
+ * Fetch that enforces a timeout and treats any HTTP redirect as an error.
+ * Token and userinfo endpoints never legitimately redirect; following one
+ * could forward credentials to an unintended host. The timeout turns a
+ * stalled endpoint into a normal failure, which redirects the user back to
+ * the app instead of stranding them on a platform error.
  */
 async function fetchRefusingRedirects(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(url, { ...init, redirect: "manual" });
-  if (response.status >= 300 && response.status < 400) {
-    throw new Error(`Request to ${url} responded with a redirect`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error(`Request to ${url} responded with a redirect`);
+    }
+    return response;
+  } finally {
+    clearTimeout(timeout);
   }
-  return response;
 }
 
 /**
@@ -58,7 +89,7 @@ async function exchangeCode(args: {
     code: args.code,
     client_id: env.CLIENT_ID,
     client_secret: env.CLIENT_SECRET,
-    redirect_uri: `${process.env.CONVEX_SITE_URL}/callback`,
+    redirect_uri: `${process.env.CONVEX_SITE_URL}${CALLBACK_PATH}`,
   });
   if (args.codeVerifier !== undefined) {
     body.set("code_verifier", args.codeVerifier);
@@ -146,7 +177,7 @@ async function fetchUserInfo(
 }
 
 http.route({
-  path: "/callback",
+  path: CALLBACK_PATH,
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     const url = new URL(request.url);
@@ -155,9 +186,12 @@ http.route({
     const error = url.searchParams.get("error");
 
     // Without state we can't identify the flow, so there's no stored
-    // redirectTo to send the user back to — a bare 400 is all we have.
+    // redirectTo to send the user back to; a bare 400 is all we have.
     if (state === null) {
-      return new Response("Missing state", { status: 400 });
+      return new Response(
+        "This sign-in link is invalid. Return to the app and try signing in again.",
+        { status: 400 },
+      );
     }
 
     // Claiming is atomic (find + delete in one mutation), so a replayed or
@@ -168,10 +202,18 @@ http.route({
       internal.provider.claimAuthorizationRequest,
       { stateHash: await sha256Hex(state) },
     );
+    // No row means the flow is gone entirely (already claimed, or forged);
+    // there is nowhere left to redirect to.
     if (authRequest === null) {
-      return new Response("Unknown or expired authorization request", {
-        status: 400,
-      });
+      return new Response(
+        "This sign-in link has expired or was already used. Return to the app and try signing in again.",
+        { status: 400 },
+      );
+    }
+    // An expired request still knows where the user came from; send them
+    // back to the app instead of stranding them here.
+    if (authRequest.expired) {
+      return redirectToApp(authRequest.redirectTo, { error: "expired" });
     }
 
     // From here on the flow is legitimate, so failures go back to the app
@@ -184,9 +226,7 @@ http.route({
       );
       const normalized =
         error === "access_denied" ? "access_denied" : "oauth_error";
-      return redirect(
-        withParams(authRequest.redirectTo, { error: normalized }),
-      );
+      return redirectToApp(authRequest.redirectTo, { error: normalized });
     }
 
     try {
@@ -201,46 +241,48 @@ http.route({
           ? undefined
           : validateIdToken(idToken, authRequest.issuer);
 
-      let userInfoResponses: Record<string, unknown> | undefined;
-      if (authRequest.userinfoEndpoints !== undefined) {
-        if (accessToken === undefined) {
-          throw new Error("Token exchange returned no access_token");
-        }
-        userInfoResponses = await fetchUserInfo(
-          authRequest.userinfoEndpoints,
-          accessToken,
-        );
+      if (
+        authRequest.userInfoEndpoints !== undefined &&
+        accessToken === undefined
+      ) {
+        throw new Error("Token exchange returned no access_token");
       }
+      const userInfoResponses =
+        authRequest.userInfoEndpoints === undefined || accessToken === undefined
+          ? undefined
+          : await fetchUserInfo(authRequest.userInfoEndpoints, accessToken);
 
       // A provider that returns no id_token and has no configured userinfo
       // endpoints gives us nothing to identify the user with.
       if (claims === undefined && userInfoResponses === undefined) {
         throw new Error(
-          "Token exchange returned no id_token and no userinfoEndpoints are configured",
+          "Token exchange returned no id_token and no userInfoEndpoints are configured",
         );
       }
 
       // Nothing user-visible exists yet; the ticket is a short-lived,
       // one-time proof that provider authentication succeeded. Only the
-      // hash of the one-time token is stored.
+      // hash of the one-time token is stored, and the identity payload is
+      // encrypted with a key derived from the raw token, so database access
+      // alone can read neither.
       const ott = generateRandomToken();
       await ctx.runMutation(internal.provider.createTicket, {
         provider: authRequest.provider,
         stateHash: authRequest.stateHash,
         ottHash: await sha256Hex(ott),
-        claims,
-        userInfoResponses,
+        payload: await encryptWithToken(
+          ott,
+          JSON.stringify({ claims, userInfoResponses }),
+        ),
       });
 
-      return redirect(withParams(authRequest.redirectTo, { code: ott }));
+      return redirectToApp(authRequest.redirectTo, { code: ott });
     } catch (exchangeError) {
       console.error(
         `OAuth exchange failed for provider "${authRequest.provider}":`,
         exchangeError,
       );
-      return redirect(
-        withParams(authRequest.redirectTo, { error: "oauth_error" }),
-      );
+      return redirectToApp(authRequest.redirectTo, { error: "oauth_error" });
     }
   }),
 });
