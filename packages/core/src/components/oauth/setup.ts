@@ -43,11 +43,12 @@ export type OauthOptions = {
   tokenEndpoint: string;
   /**
    * Expected `iss` of the provider's id_tokens, e.g. Google's
-   * `https://accounts.google.com`. Recommended for every OIDC provider:
+   * `https://accounts.google.com`. Required for every OIDC provider:
    * `sub` is only unique within an issuer, so a token endpoint that serves
    * multiple issuers (multi-tenant IdPs) could otherwise collide account
-   * identities. When set, the callback rejects id_tokens from any other
-   * issuer.
+   * identities. The callback rejects any returned id_token unless this is
+   * set and matches. Omit only for plain-OAuth providers that never return
+   * an id_token (e.g. GitHub).
    */
   issuer?: string;
   /**

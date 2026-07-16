@@ -48,14 +48,15 @@ function redirectToApp(
 /**
  * Fetch that enforces a timeout and treats any HTTP redirect as an error.
  * Token and userinfo endpoints never legitimately redirect; following one
- * could forward credentials to an unintended host. The timeout turns a
- * stalled endpoint into a normal failure, which redirects the user back to
- * the app instead of stranding them on a platform error.
+ * could forward credentials to an unintended host. The body is consumed
+ * while the timeout is still armed, so an endpoint that stalls before or
+ * after sending headers becomes a normal failure that redirects the user
+ * back to the app instead of pinning the callback until the platform limit.
  */
 async function fetchRefusingRedirects(
   url: string,
   init: RequestInit,
-): Promise<Response> {
+): Promise<{ ok: boolean; status: number; bodyText: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -67,7 +68,11 @@ async function fetchRefusingRedirects(
     if (response.status >= 300 && response.status < 400) {
       throw new Error(`Request to ${url} responded with a redirect`);
     }
-    return response;
+    return {
+      ok: response.ok,
+      status: response.status,
+      bodyText: await response.text(),
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -105,10 +110,10 @@ async function exchangeCode(args: {
   });
   if (!response.ok) {
     throw new Error(
-      `Token exchange failed with ${response.status}: ${await response.text()}`,
+      `Token exchange failed with ${response.status}: ${response.bodyText}`,
     );
   }
-  const tokens = await response.json();
+  const tokens = JSON.parse(response.bodyText) as Record<string, unknown>;
   return {
     idToken: typeof tokens.id_token === "string" ? tokens.id_token : undefined,
     accessToken:
@@ -118,24 +123,32 @@ async function exchangeCode(args: {
 
 /**
  * Decode an id_token and check the claims that guard against config mixups
- * and issuer collisions: the token was minted for this OAuth app (`aud`,
- * and `azp` when present), by the configured issuer (`iss`, when the app
- * config names one — `sub` is only unique within an issuer), and isn't
- * expired (`exp`). Signature verification is deliberately skipped — the
- * token came directly from the provider's token endpoint over TLS, which
- * OIDC Core sanctions in place of checking the signature.
+ * and issuer collisions: the token was minted by the configured issuer
+ * (`iss`; required whenever an id_token comes back, because `sub` is only
+ * unique within an issuer and a shared or multi-tenant token endpoint can
+ * serve several), for this OAuth app alone (`aud` must be exactly
+ * CLIENT_ID; multi-audience tokens are rejected because no other audience
+ * is trusted, and `azp` must match when present), and isn't expired
+ * (`exp`). Signature verification is deliberately skipped: the token came
+ * directly from the provider's token endpoint over TLS, which OIDC Core
+ * sanctions in place of checking the signature.
  */
 function validateIdToken(
   idToken: string,
   expectedIssuer: string | undefined,
 ): Record<string, unknown> {
+  if (expectedIssuer === undefined) {
+    throw new Error(
+      "The provider returned an id_token but no issuer is configured; set `issuer` in the provider options so the token can be validated",
+    );
+  }
   const claims = decodeJwtPayload(idToken);
-  if (expectedIssuer !== undefined && claims.iss !== expectedIssuer) {
+  if (claims.iss !== expectedIssuer) {
     throw new Error("id_token issuer does not match the configured issuer");
   }
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (!audiences.includes(env.CLIENT_ID)) {
-    throw new Error("id_token audience does not match CLIENT_ID");
+  if (audiences.length !== 1 || audiences[0] !== env.CLIENT_ID) {
+    throw new Error("id_token audience must be exactly CLIENT_ID");
   }
   if (claims.azp !== undefined && claims.azp !== env.CLIENT_ID) {
     throw new Error("id_token authorized party does not match CLIENT_ID");
@@ -167,10 +180,10 @@ async function fetchUserInfo(
       });
       if (!response.ok) {
         throw new Error(
-          `Userinfo request "${key}" failed with ${response.status}: ${await response.text()}`,
+          `Userinfo request "${key}" failed with ${response.status}: ${response.bodyText}`,
         );
       }
-      return [key, await response.json()] as const;
+      return [key, JSON.parse(response.bodyText) as unknown] as const;
     }),
   );
   return Object.fromEntries(responses);

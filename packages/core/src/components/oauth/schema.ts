@@ -34,8 +34,8 @@ export default defineSchema({
     userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     /**
      * Expected `iss` of the provider's id_tokens, copied from app-side
-     * config. When present the callback rejects id_tokens from any other
-     * issuer.
+     * config. Absent only for plain-OAuth providers; the callback rejects
+     * any returned id_token unless this is present and matches.
      */
     issuer: v.optional(v.string()),
     /** The callback rejects requests older than this. */
