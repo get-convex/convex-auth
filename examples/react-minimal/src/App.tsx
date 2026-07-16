@@ -8,6 +8,7 @@ import {
 import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import "./index.css";
 
 export function App() {
   return (
