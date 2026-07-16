@@ -55,7 +55,8 @@ export type OauthOptions = {
    * Profile endpoints the callback fetches with the access token after the
    * code exchange (GET with a bearer token; provider variation lives in the
    * URL's query params). Keys name each response in the `profile` mapping's
-   * second argument. Required for providers that don't return an OIDC
+   * second argument; only the `profile` mapping sees the responses, so this
+   * option requires one. Required for providers that don't return an OIDC
    * id_token, e.g. GitHub:
    *
    * ```ts
@@ -123,7 +124,10 @@ function requireHttpsUrl(value: string, label: string): void {
     throw new Error(`${label} is not a valid URL: "${value}"`);
   }
   const isLocalhost =
-    url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    url.hostname === "localhost" ||
+    url.hostname.endsWith(".localhost") ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]";
   if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost)) {
     throw new Error(`${label} must use https: "${value}"`);
   }
@@ -190,6 +194,13 @@ export function Oauth<const N extends string>(name: N) {
       requireHttpsUrl(options.authorizationEndpoint, "authorizationEndpoint");
       requireHttpsUrl(options.tokenEndpoint, "tokenEndpoint");
       if (options.userInfoEndpoints !== undefined) {
+        // The default profile mapping only reads id_token claims, so
+        // userinfo responses would be fetched and never used.
+        if (options.profile === undefined) {
+          throw new Error(
+            `userInfoEndpoints for provider "${name}" requires a \`profile\` mapping`,
+          );
+        }
         const entries = Object.entries(options.userInfoEndpoints);
         if (entries.length === 0) {
           throw new Error(
@@ -198,11 +209,15 @@ export function Oauth<const N extends string>(name: N) {
         }
         for (const [key, endpoint] of entries) {
           // Keys become Convex record field names on the authorization
-          // request row, which allow only printable ASCII not starting
-          // with "$".
-          if (!/^[ -~]+$/.test(key) || key.startsWith("$")) {
+          // request row, which allow only printable ASCII up to 1024
+          // characters, not starting with "$".
+          if (
+            !/^[ -~]+$/.test(key) ||
+            key.length > 1024 ||
+            key.startsWith("$")
+          ) {
             throw new Error(
-              `userInfoEndpoints key "${key}" for provider "${name}" must be printable ASCII and not start with "$"`,
+              `userInfoEndpoints key "${key}" for provider "${name}" must be printable ASCII, at most 1024 characters, and not start with "$"`,
             );
           }
           requireHttpsUrl(endpoint, `userInfoEndpoints["${key}"]`);
