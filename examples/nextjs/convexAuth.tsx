@@ -13,8 +13,5 @@ export const {
   ConvexAuthNextjsServerProvider,
 } = setupConvexAuthNextjs({
   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
-  api: {
-    refreshSession: api.auth.refreshSession,
-    signOut: api.auth.signOut,
-  },
+  refreshSession: api.auth.refreshSession,
 });
