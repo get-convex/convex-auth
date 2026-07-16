@@ -19,7 +19,16 @@ import { api } from "../convex/_generated/api";
  */
 const deploymentHost = new URL(import.meta.env.VITE_CONVEX_URL).host;
 const TOKENS_KEY = `convexAuth.tokens.${deploymentHost}`;
-const STATE_KEY = `convexAuth.oauthState.${deploymentHost}`;
+const FLOW_KEY = `convexAuth.oauthFlow.${deploymentHost}`;
+
+/** Client-callable mutation refs for each provider wired in convex/auth.ts. */
+const PROVIDER_API = {
+  google: { signIn: api.auth.signInGoogle, redeem: api.auth.redeemGoogle },
+  github: { signIn: api.auth.signInGithub, redeem: api.auth.redeemGithub },
+};
+
+/** Providers the example can sign in with. */
+export type OAuthProviderName = keyof typeof PROVIDER_API;
 
 /**
  * Refresh this long before the access token actually expires, so a token
@@ -48,8 +57,8 @@ function loadTokens(): TokenBundle | null {
 
 /** Sign-in and sign-out actions plus the latest sign-in flow error. */
 type AuthActions = {
-  /** Start the Google OAuth flow; navigates away to the provider. */
-  signIn: () => Promise<void>;
+  /** Start the named provider's OAuth flow; navigates away to the provider. */
+  signIn: (provider: OAuthProviderName) => Promise<void>;
   /** End the session on the server (best-effort) and locally. */
   signOut: () => Promise<void>;
   /** User-facing message when the last sign-in attempt failed, else null. */
@@ -88,6 +97,38 @@ export function useAuthActions(): AuthActions {
     throw new Error("useAuthActions must be used inside AuthProvider");
   }
   return actions;
+}
+
+/**
+ * Take (read and remove) the pending sign-in flow stored at sign-in time:
+ * the state that proves this client initiated the flow, and which provider
+ * it belongs to (the callback returns only `code`).
+ */
+function takePendingFlow(): {
+  provider: OAuthProviderName;
+  state: string;
+} | null {
+  const raw = localStorage.getItem(FLOW_KEY);
+  localStorage.removeItem(FLOW_KEY);
+  if (raw === null) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as { provider?: unknown; state?: unknown };
+    if (
+      typeof parsed.provider !== "string" ||
+      !(parsed.provider in PROVIDER_API) ||
+      typeof parsed.state !== "string"
+    ) {
+      return null;
+    }
+    return {
+      provider: parsed.provider as OAuthProviderName,
+      state: parsed.state,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** User-facing messages for the callback's normalized `error` param. */
@@ -163,18 +204,20 @@ export function AuthProvider({
     // The state minted at sign-in is this client's proof that it initiated
     // the flow; it's read from storage only, never from the URL (login-CSRF
     // guard), and consumed here whether or not redemption succeeds.
-    const state = localStorage.getItem(STATE_KEY);
-    localStorage.removeItem(STATE_KEY);
-    if (state === null) {
+    const pending = takePendingFlow();
+    if (pending === null) {
       setFlowError("This sign-in can't be completed here. Please try again.");
       setRedeeming(false);
       return;
     }
     void (async () => {
-      const bundle = await client.mutation(api.auth.redeemGoogle, {
-        code,
-        state,
-      });
+      const bundle = await client.mutation(
+        PROVIDER_API[pending.provider].redeem,
+        {
+          code,
+          state: pending.state,
+        },
+      );
       if (bundle === null) {
         setFlowError("Sign-in expired. Please try again.");
       } else {
@@ -185,14 +228,18 @@ export function AuthProvider({
     // Runs once on mount; client and setTokens are stable.
   }, []);
 
-  const signIn = useCallback(async () => {
-    setFlowError(null);
-    const { redirect, state } = await client.mutation(api.auth.signInGoogle, {
-      redirectTo: window.location.href,
-    });
-    localStorage.setItem(STATE_KEY, state);
-    window.location.href = redirect;
-  }, [client]);
+  const signIn = useCallback(
+    async (provider: OAuthProviderName) => {
+      setFlowError(null);
+      const { redirect, state } = await client.mutation(
+        PROVIDER_API[provider].signIn,
+        { redirectTo: window.location.href },
+      );
+      localStorage.setItem(FLOW_KEY, JSON.stringify({ provider, state }));
+      window.location.href = redirect;
+    },
+    [client],
+  );
 
   const signOut = useCallback(async () => {
     const bundle = tokensRef.current;

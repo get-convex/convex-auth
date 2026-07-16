@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { useAuthActions } from "./auth";
+import { useAuthActions, type OAuthProviderName } from "./auth";
 
 /** Google's multi-color "G" mark. */
 const GoogleIcon = (): ReactNode => (
@@ -25,7 +25,48 @@ const GoogleIcon = (): ReactNode => (
   </svg>
 );
 
-/** The sign-in card: the Google button plus any sign-in flow error. */
+/** GitHub's Octocat mark, tinted via `currentColor`. */
+const GitHubIcon = (): ReactNode => (
+  <svg
+    className="h-5 w-5 shrink-0"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.39 1.24-3.23-.13-.3-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.25 2.88.12 3.18.77.84 1.24 1.92 1.24 3.23 0 4.62-2.81 5.64-5.49 5.94.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5z" />
+  </svg>
+);
+
+/** A brand-styled OAuth sign-in option rendered as a button. */
+type ProviderButton = {
+  /** The provider to pass to `signIn`. */
+  id: OAuthProviderName;
+  /** Human-readable provider name, shown in the button label. */
+  name: string;
+  /** Brand icon rendered to the left of the label. */
+  icon: ReactNode;
+  /** Tailwind color/border classes controlling the button's appearance. */
+  className: string;
+};
+
+/** Available sign-in providers. */
+const PROVIDERS: ProviderButton[] = [
+  {
+    id: "google",
+    name: "Google",
+    icon: <GoogleIcon />,
+    className:
+      "bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50",
+  },
+  {
+    id: "github",
+    name: "GitHub",
+    icon: <GitHubIcon />,
+    className: "bg-gray-900 text-white hover:bg-gray-800",
+  },
+];
+
+/** The sign-in card: one button per provider plus any sign-in flow error. */
 function SignedOut(): ReactNode {
   const { signIn, flowError } = useAuthActions();
   return (
@@ -41,14 +82,19 @@ function SignedOut(): ReactNode {
           {flowError}
         </p>
       )}
-      <button
-        type="button"
-        onClick={() => void signIn()}
-        className="flex w-full items-center justify-center gap-3 rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
-      >
-        <GoogleIcon />
-        Continue with Google
-      </button>
+      <div className="flex flex-col gap-3">
+        {PROVIDERS.map((provider) => (
+          <button
+            key={provider.id}
+            type="button"
+            onClick={() => void signIn(provider.id)}
+            className={`flex w-full items-center justify-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 ${provider.className}`}
+          >
+            {provider.icon}
+            Continue with {provider.name}
+          </button>
+        ))}
+      </div>
     </>
   );
 }

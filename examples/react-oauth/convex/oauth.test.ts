@@ -27,13 +27,14 @@ async function setup() {
   );
   // convex-test doesn't emulate per-mount env binding renames (convex.config
   // maps AUTH_GOOGLE_CLIENT_ID onto the component's CLIENT_ID), so stub the
-  // component-side names directly.
+  // component-side names directly; both mounts see the same credentials.
   vi.stubEnv("CLIENT_ID", "test-client-id");
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
 
   const t = convexTest(schema, modules);
   registerCore(t);
   registerOauthProvider(t, "oauthGoogle");
+  registerOauthProvider(t, "oauthGithub");
   return t;
 }
 
@@ -79,6 +80,34 @@ describe("oauth", () => {
   test("redeem returns null for an unknown code", async () => {
     const t = await setup();
     const result = await t.mutation(api.auth.redeemGoogle, {
+      code: "not-a-real-code",
+      state: "not-a-real-state",
+    });
+    expect(result).toBeNull();
+  });
+
+  test("github signIn returns its own authorization URL without PKCE", async () => {
+    const t = await setup();
+    const { redirect, state } = await t.mutation(api.auth.signInGithub, {
+      redirectTo: "http://localhost:5173/",
+    });
+    const url = new URL(redirect);
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "https://github.com/login/oauth/authorize",
+    );
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://example.convex.site/oauth/github/callback",
+    );
+    expect(url.searchParams.get("scope")).toBe("read:user user:email");
+    expect(url.searchParams.get("state")).toBe(state);
+    // The github provider is configured without `pkce`.
+    expect(url.searchParams.get("code_challenge")).toBeNull();
+    expect(url.searchParams.get("code_challenge_method")).toBeNull();
+  });
+
+  test("github redeem returns null for an unknown code", async () => {
+    const t = await setup();
+    const result = await t.mutation(api.auth.redeemGithub, {
       code: "not-a-real-code",
       state: "not-a-real-state",
     });

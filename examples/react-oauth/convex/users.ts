@@ -36,7 +36,7 @@ export const me = query({
  */
 export const createOrUpdateUser = internalMutation({
   args: {
-    provider: v.literal("google"),
+    provider: v.union(v.literal("google"), v.literal("github")),
     providerAccountId: v.string(),
     profile: v.any(),
     userId: v.union(v.string(), v.null()),

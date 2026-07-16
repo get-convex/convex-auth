@@ -9,6 +9,8 @@ const app = defineApp({
     AUTH_JWKS: v.string(),
     AUTH_GOOGLE_CLIENT_ID: v.string(),
     AUTH_GOOGLE_CLIENT_SECRET: v.string(),
+    AUTH_GITHUB_CLIENT_ID: v.string(),
+    AUTH_GITHUB_CLIENT_SECRET: v.string(),
   },
 });
 
@@ -28,6 +30,15 @@ app.use(oauthProvider, {
   env: {
     CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,
     CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
+  },
+});
+
+app.use(oauthProvider, {
+  name: "oauthGithub",
+  httpPrefix: "/oauth/github",
+  env: {
+    CLIENT_ID: app.env.AUTH_GITHUB_CLIENT_ID,
+    CLIENT_SECRET: app.env.AUTH_GITHUB_CLIENT_SECRET,
   },
 });
 
