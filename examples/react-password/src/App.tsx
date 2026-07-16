@@ -8,6 +8,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./routes/dashboard";
 import { LogIn } from "./routes/logIn";
 import { SignUp } from "./routes/signUp";
+import "./index.css";
 
 export function App() {
   return (

@@ -46,7 +46,7 @@ Register the anonymous component alongside the core in `convex/convex.config.ts`
 
 <Step>
 
-### Wire up the provider
+### Set up the public backend functions
 
 Add the `Anonymous` provider to `setupCore` and export its sign-in action in
 `convex/auth.ts`:
@@ -66,6 +66,22 @@ Add the `Anonymous` provider to `setupCore` and export its sign-in action in
 
 <include lang="ts" meta='title="convex/users.ts"'>
   ../../../../../examples/react-minimal/convex/users.ts
+</include>
+
+</Step>
+
+<Step>
+
+### Set up the provider on the client
+
+Wrap your app in `ConvexAuthProvider`, passing it the `refreshSession` and
+`signOut` actions in `src/main.tsx`:
+
+<include
+  lang="tsx"
+  meta='title="src/main.tsx" highlight="import { ConvexAuthProvider }" highlight="<ConvexAuthProvider...>" highlight="</ConvexAuthProvider>"'
+>
+  ../../../../../examples/react-minimal/src/main.tsx
 </include>
 
 </Step>
