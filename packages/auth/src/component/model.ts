@@ -298,6 +298,7 @@ export const vAuthEventData = v.union(
   v.object({
     connectionId: v.optional(v.string()),
     changed: v.optional(vAuthEventStringArray),
+    userId: v.optional(v.string()),
     protocol: v.optional(v.union(v.literal("oidc"), v.literal("saml"))),
     domain: v.optional(v.string()),
     recordName: v.optional(v.string()),

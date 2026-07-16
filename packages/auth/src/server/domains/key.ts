@@ -229,14 +229,14 @@ export function createKeyDomain(deps: KeyDeps) {
      *
      * @param ctx - Convex mutation context.
      * @param opts.id - The API key's document ID.
-     * @param opts.data - Fields to merge into the key document.
+     * @param opts.patch - Fields to merge into the key document.
      * @returns `null`.
      *
      * @example
      * ```ts
      * await auth.key.update(ctx, {
      *   id: keyId,
-     *   data: {
+     *   patch: {
      *     name: "CI Pipeline (updated)",
      *     scopes: [{ resource: "data", actions: ["read", "write"] }],
      *   },

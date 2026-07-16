@@ -56,6 +56,7 @@ const PUBLIC_DATA_KEYS = {
   connection: [
     "connectionId",
     "changed",
+    "userId",
     "protocol",
     "domain",
     "recordName",
