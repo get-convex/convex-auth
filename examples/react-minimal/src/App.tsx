@@ -44,8 +44,7 @@ function Dashboard() {
   return (
     <>
       <p>
-        Signed in as <strong>{user ? user.name : "…"}</strong>
-        {user ? ` (${user.id})` : ""}
+        Signed in as <strong>{user ? user.id : "…"}</strong>
       </p>
       <p>Access token: {token ? `${token.slice(0, 24)}…` : "(none)"}</p>
       <button onClick={() => signOut()}>Sign out</button>

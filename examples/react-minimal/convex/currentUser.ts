@@ -19,6 +19,6 @@ export const loggedInUser = query({
       return null;
     }
 
-    return { id: user._id, name: user.name };
+    return { id: user._id };
   },
 });

@@ -12,8 +12,7 @@ export const upsertFromAuth = internalMutation({
   handler: async (ctx, args) => {
     switch (args.provider) {
       case "anonymous": {
-        const name = "Anonymous";
-        return ctx.db.insert("users", { name });
+        return ctx.db.insert("users", {});
       }
       default: {
         const _exhaustive: never = args.provider;
