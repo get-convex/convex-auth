@@ -46,16 +46,17 @@ Register the anonymous component alongside the core in `convex/convex.config.ts`
 
 <Step>
 
-### Set up the public backend functions
+### Add a `users` table to the schema
 
-Add the `Anonymous` provider to `setupCore` and export its sign-in action in
-`convex/auth.ts`:
+Add an empty `users` table to your schema in `convex/schema.ts`.
+
+Convex Auth will create a row here to each account. You can also add application-specific fields to this table if necessary.
 
 <include
   lang="ts"
-  meta='title="convex/auth.ts" highlight="import { Anonymous }" highlight="providers: {...}," highlight="providers: [...],"'
+  meta='title="convex/schema.ts" highlight="users: defineTable({}),"'
 >
-  ../../../../../examples/react-minimal/convex/auth.ts
+  ../../../../../examples/react-minimal/convex/schema.ts
 </include>
 
 </Step>
@@ -66,6 +67,22 @@ Add the `Anonymous` provider to `setupCore` and export its sign-in action in
 
 <include lang="ts" meta='title="convex/users.ts"'>
   ../../../../../examples/react-minimal/convex/users.ts
+</include>
+
+</Step>
+
+<Step>
+
+### Set up the public backend functions
+
+Add the `Anonymous` provider to `setupCore` and export its sign-in action in
+`convex/auth.ts`:
+
+<include
+  lang="ts"
+  meta='title="convex/auth.ts" highlight="import { Anonymous }" highlight="providers: {...}," highlight="providers: [...],"'
+>
+  ../../../../../examples/react-minimal/convex/auth.ts
 </include>
 
 </Step>
