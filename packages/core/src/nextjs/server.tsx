@@ -57,9 +57,10 @@ export function nextjsMiddlewareRedirect(
 }
 
 /**
- * A {@link CookieStore} over a middleware `NextRequest`. Reads come from the
- * request; writes are buffered and replayed onto the response via
- * {@link MiddlewareCookieStore.applyTo}.
+ * A {@link CookieStore} implemented on an HTTP request/response model.
+ *
+ * Reads come from the cookies on the request; writes are buffered and applied
+ * to the response via {@link MiddlewareCookieStore.applyTo}.
  */
 class MiddlewareCookieStore implements CookieStore {
   readonly #request: NextRequest;
@@ -160,7 +161,7 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
   }
 
   /** Server Component that reads the cookie token and renders the client
-   * provider, so the browser hydrates already authenticated. */
+   * provider, so the client hydrates ready to authenticate. */
   async function ConvexAuthNextjsServerProvider({
     children,
   }: {
