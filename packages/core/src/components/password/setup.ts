@@ -37,7 +37,13 @@ const signInResult = v.union(
     ),
   }),
 );
-type SignInResult = Infer<typeof signInResult>;
+
+/**
+ * The result of `signInWithPassword`.
+ *
+ * On success the minted session tokens, otherwise a user-facing `userError`.
+ */
+export type SignInResult = Infer<typeof signInResult>;
 
 const signUpResult = v.union(
   v.object({ success: v.literal(true), tokens: vTokenBundle }),
@@ -49,7 +55,13 @@ const signUpResult = v.union(
     ),
   }),
 );
-type SignUpResult = Infer<typeof signUpResult>;
+
+/**
+ * The result of `signUpWithPassword`.
+ *
+ * On success the minted session tokens, otherwise a user-facing `userError`.
+ */
+export type SignUpResult = Infer<typeof signUpResult>;
 
 /**
  * The simplest password recipe: every account is a `(username, password)` pair,

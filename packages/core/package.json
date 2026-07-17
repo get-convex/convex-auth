@@ -36,6 +36,7 @@
     "./providers/anonymous/react": "./src/components/anonymous/react.tsx",
     "./providers/anonymous/*": "./src/components/anonymous/*.ts",
     "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
+    "./providers/password/react": "./src/components/password/react.tsx",
     "./providers/password/*": "./src/components/password/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",

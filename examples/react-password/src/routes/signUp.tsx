@@ -1,15 +1,12 @@
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useAction } from "convex/react";
+import { useSignUpWithPassword } from "@convex-dev/auth/providers/password/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
 export function SignUp() {
-  const { setSession } = useAuthActions();
-  const signUp = useAction(api.auth.signUpWithPassword);
+  const { signUp, pending } = useSignUpWithPassword(api.auth.signUpWithPassword);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
 
   return (
     <>
@@ -17,11 +14,9 @@ export function SignUp() {
         onSubmit={async (e) => {
           e.preventDefault();
           setError(null);
-          setPending(true);
           try {
             const result = await signUp({ username, password });
             if (result.success) {
-              await setSession(result.tokens);
               return;
             }
             setError(() => {
@@ -41,8 +36,6 @@ export function SignUp() {
             });
           } catch {
             setError("Something went wrong. Please try again.");
-          } finally {
-            setPending(false);
           }
         }}
       >
