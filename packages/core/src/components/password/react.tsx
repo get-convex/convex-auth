@@ -47,7 +47,26 @@ type SignUpWithPasswordAction = FunctionReference<
 >;
 
 /**
- * Client for the password provider's sign-in flow: wire the app's
+ * A failure the client produces that the server never returns: the action
+ * threw (a network blip, a bug, an unexpected server error) rather than
+ * resolving to a `userError`. The flow hooks fold that into the result as
+ * `OTHER_ERROR` so callers handle *every* failure through the one `userError`
+ * switch and never need their own `try`/`catch`. The thrown value is preserved
+ * on `cause` for callers that want to inspect or log it.
+ */
+type UnexpectedFailure = {
+  success: false;
+  userError: { error: "OTHER_ERROR"; cause: unknown };
+};
+
+/** The result of the `signIn` callback from {@link useSignInWithPassword}. */
+export type SignInWithPasswordResult = SignInResult | UnexpectedFailure;
+
+/** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
+export type SignUpWithPasswordResult = SignUpResult | UnexpectedFailure;
+
+/**
+ * Client for the password provider's sign-in flow: wire the backend's
  * `signInWithPassword` action to the core client.
  *
  * The returned `signIn` runs the action with the given credentials and, on
@@ -89,7 +108,7 @@ export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
 }
 
 /**
- * Client for the password provider's sign-up flow: wire the app's
+ * Client for the password provider's sign-up flow: wire the backend's
  * `signUpWithPassword` action to the core client.
  *
  * The returned `signUp` runs the action with the given credentials and, on
@@ -111,7 +130,7 @@ export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
  * }
  * ```
  *
- * @param signUpAction The app's `signUpWithPassword` action reference.
+ * @param signUpAction The backend's `signUpWithPassword` action reference.
  */
 export function useSignUpWithPassword(signUpAction: SignUpWithPasswordAction) {
   const { run, pending } = usePasswordFlow(signUpAction);
@@ -132,7 +151,7 @@ function usePasswordFlow<Result extends SignInResult | SignUpResult>(
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
-    async (credentials: Credentials) => {
+    async (credentials: Credentials): Promise<Result | UnexpectedFailure> => {
       setPending(true);
       try {
         const result = await runAction(credentials);
@@ -140,9 +159,14 @@ function usePasswordFlow<Result extends SignInResult | SignUpResult>(
           await setSession(result.tokens);
         }
         return result;
+      } catch (cause) {
+        // The action threw instead of resolving to a `userError`. Fold it into
+        // the same discriminated result as `OTHER_ERROR`, preserving the thrown
+        // value on `cause`, so the caller handles it alongside every other
+        // failure and can still inspect or log the original error if it wants.
+        return { success: false, userError: { error: "OTHER_ERROR", cause } };
       } finally {
-        // Reset even if the action throws, so the caller's own catch can
-        // surface an unexpected failure without leaving the form stuck.
+        // Reset even when the action throws.
         setPending(false);
       }
     },

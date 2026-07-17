@@ -16,33 +16,34 @@ export function LogIn() {
         onSubmit={async (e) => {
           e.preventDefault();
           setError(null);
-          try {
-            const result = await signIn({ username, password });
-            if (result.success) {
-              return;
-            }
-            setError(() => {
-              switch (result.userError.error) {
-                case "USER_NOT_FOUND":
-                  return "No account exists with that username.";
-                case "INVALID_CREDENTIALS":
-                  return "Incorrect username or password.";
-                case "PASSWORD_TOO_SHORT":
-                  return `Password must be at least ${result.userError.minimumLength} characters.`;
-                case "PASSWORD_TOO_LONG":
-                  return `Password must be at most ${result.userError.maximumLength} characters.`;
-                case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-                  return "Password can't start or end with whitespace.";
-                case "RATE_LIMITED":
-                  return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
-                default:
-                  result.userError satisfies never;
-                  return `Unknown error: ` + result.userError;
-              }
-            });
-          } catch {
-            setError("Something went wrong. Please try again.");
+          const result = await signIn({ username, password });
+          if (result.success) {
+            return;
           }
+          setError(() => {
+            switch (result.userError.error) {
+              case "USER_NOT_FOUND":
+                return "No account exists with that username.";
+              case "INVALID_CREDENTIALS":
+                return "Incorrect username or password.";
+              case "PASSWORD_TOO_SHORT":
+                return `Password must be at least ${result.userError.minimumLength} characters.`;
+              case "PASSWORD_TOO_LONG":
+                return `Password must be at most ${result.userError.maximumLength} characters.`;
+              case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+                return "Password can't start or end with whitespace.";
+              case "RATE_LIMITED":
+                return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+              case "OTHER_ERROR":
+                // The action threw unexpectedly; the original error is
+                // available on `cause` if you want to log or inspect it.
+                console.error("Sign-in failed:", result.userError.cause);
+                return "Something went wrong. Please try again.";
+              default:
+                result.userError satisfies never;
+                return `Unknown error: ` + result.userError;
+            }
+          });
         }}
       >
         <h1>Log in</h1>
