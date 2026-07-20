@@ -7,7 +7,15 @@ import { InMemoryStorage } from "../../browser/storage";
 import type { TokenBundle } from "../../lib/types";
 import { AuthProvider, useAuth } from "../../react/client";
 import { useAuthToken } from "../../react";
-import { useSignInWithPassword, useSignUpWithPassword } from "./react";
+import {
+  SignInWithPasswordResult,
+  SignUpWithPasswordResult,
+  useSignInWithPassword,
+  useSignUpWithPassword,
+} from "./react";
+
+type Result = SignInWithPasswordResult | SignUpWithPasswordResult;
+type Flow = { run: (c: typeof credentials) => Promise<Result>; pending: boolean };
 
 const { runAction } = vi.hoisted(() => ({ runAction: vi.fn() }));
 vi.mock("convex/react", async (importActual) => ({
@@ -47,7 +55,7 @@ const flows = [
   },
 ];
 
-function renderFlow(useFlow: () => { run: any; pending: boolean }) {
+function renderFlow(useFlow: () => Flow) {
   const client = new AuthClient({
     authApi: { refreshSession: async () => null, signOut: async () => {} },
     storage: new InMemoryStorage(),
@@ -74,7 +82,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     expect(result.current.auth.isAuthenticated).toBe(false);
 
-    let returned: any;
+    let returned: Result;
     await act(async () => {
       returned = await result.current.flow.run(credentials);
     });
@@ -91,7 +99,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     const { result } = renderFlow(useFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned: any;
+    let returned: Result;
     await act(async () => {
       returned = await result.current.flow.run(credentials);
     });
@@ -106,7 +114,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     const { result } = renderFlow(useFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned: any;
+    let returned: Result;
     await act(async () => {
       returned = await result.current.flow.run(credentials);
     });
