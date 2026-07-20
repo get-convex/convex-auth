@@ -16,7 +16,8 @@ export {
 export { runWithMutex } from "./mutex";
 export {
   AuthClient,
-  type AuthApi,
+  type SpaAuthApi,
+  type SsrAuthApi,
   type AuthClientConfig,
   type AuthState,
 } from "./sessionManager";

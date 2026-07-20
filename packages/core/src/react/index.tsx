@@ -89,17 +89,12 @@ export function ConvexAuthProvider({
       logger: client.logger,
     });
     return new AuthClient({
+      mode: "spa",
       authApi: {
-        // The browser holds the refresh token, so it is always present here; a
-        // `null` means there is no session to refresh, so short-circuit.
         refreshSession: (refreshToken) =>
-          refreshToken === null
-            ? Promise.resolve(null)
-            : httpClient.mutation(api.refreshSession, { refreshToken }),
+          httpClient.mutation(api.refreshSession, { refreshToken }),
         signOut: async (refreshToken) => {
-          if (refreshToken !== null) {
-            await httpClient.mutation(api.signOut, { refreshToken });
-          }
+          await httpClient.mutation(api.signOut, { refreshToken });
         },
       },
       storage: storage ?? defaultStorage(),

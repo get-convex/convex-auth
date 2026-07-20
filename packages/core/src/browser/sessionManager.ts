@@ -14,51 +14,33 @@ const RETRY_BACKOFF = [500, 2000];
 const RETRY_JITTER = 100;
 
 /**
- * An interface representing the core refresh and sign out APIs that the
- * framework provides.
+ * The refresh and sign-out API for a **SPA** client, where JS holds the
+ * refresh token directly.
  *
- * This interface serves SPA and SSR session models.
- *
- * In the SPA model the client holds the refresh token and passes to it
- * directly to the Convex backend to refresh. That refresh returns a full
- * {@link TokenBundle} (including a new refresh token to persist).
- *
- * Under SSR the refresh token lives in an httpOnly cookie that JS code can't
- * read. Token refresh happens via an HTTP request to the SSR host which
- * carries the refresh token in the cookie. The refresh request returns a
- * {@link SlimTokenBundle} with just a new access token.
+ * Refreshing rotates the token and returns a full {@link TokenBundle}
+ * (including the next refresh token to persist), or `null` when the session is
+ * gone.
  */
-export interface AuthApi {
-  /**
-   * Rotate the refresh token and mint a fresh access token.
-   *
-   * If a `refreshToken` is supplied, that means the client has access to
-   * it and can expect a full {@link TokenBundle} as the return value.
-   *
-   * Clients without access to the `refreshToken` (SSR when the token is
-   * in an httpOnly cookie) should pass `null` and will receive a
-   * {@link SlimTokenBundle} as the return value.
-   */
-  refreshSession: (
-    refreshToken: string | null,
-  ) => Promise<TokenBundle | SlimTokenBundle | null>;
-
-  /**
-   * Revoke the current session.
-   *
-   * If the client has access to the `refreshToken` (it's a SPA), it should
-   * pass it in. Clients without access to the refresh token (SSR) should pass
-   * `null`.
-   */
-  signOut: (refreshToken: string | null) => Promise<void>;
+export interface SpaAuthApi {
+  refreshSession: (refreshToken: string) => Promise<TokenBundle | null>;
+  signOut: (refreshToken: string) => Promise<void>;
 }
 
 /**
- * Configuration for the {@link AuthClient}.
+ * The refresh and sign-out API for an **SSR** client, where the refresh token
+ * lives in an httpOnly cookie that JS can't read.
+ *
+ * Refreshing goes through an HTTP request to the SSR host, which carries the
+ * refresh token in the cookie and replies with a {@link SlimTokenBundle}
+ * containing a new access token, or `null` when the session is gone.
  */
-export interface AuthClientConfig {
-  /** The API that the server exposes for auth. */
-  authApi: AuthApi;
+export interface SsrAuthApi {
+  refreshSession: () => Promise<SlimTokenBundle | null>;
+  signOut: () => Promise<void>;
+}
+
+/** Config common to both session models. */
+interface AuthClientConfigBase {
   /** Where tokens are persisted. */
   storage: TokenStorage;
   /** Namespace for storage keys; typically the deployment URL. */
@@ -66,6 +48,20 @@ export interface AuthClientConfig {
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
 }
+
+/**
+ * Configuration for the {@link AuthClient}, discriminated by session `mode`.
+ *
+ * The mode determines who holds the refresh token, and therefore the shape of
+ * the auth API the client drives:
+ *  - `"spa"`: JS holds the refresh token; the client passes it to a
+ *    {@link SpaAuthApi}.
+ *  - `"ssr"`: the refresh token is in an httpOnly cookie; a {@link SsrAuthApi}
+ *    is called without one and reads the cookie server-side.
+ */
+export type AuthClientConfig =
+  | (AuthClientConfigBase & { mode: "spa"; authApi: SpaAuthApi })
+  | (AuthClientConfigBase & { mode: "ssr"; authApi: SsrAuthApi });
 
 /** Auth state that can be subscribed to via {@link AuthClient.subscribe} */
 export interface AuthState {
@@ -104,7 +100,13 @@ function isNetworkError(error: unknown): boolean {
  * a token bundle.
  */
 export class AuthClient {
-  readonly #authApi: AuthApi;
+  /**
+   * Rotate the session, resolving to the new bundle or `null` when the session
+   * is gone.
+   */
+  readonly #refresh: () => Promise<TokenBundle | SlimTokenBundle | null>;
+  /** Revoke the session on the server. */
+  readonly #signOutApi: () => Promise<void>;
   readonly #storage: NamespacedStorage;
   readonly #verbose: boolean;
   readonly #lockKey: string;
@@ -123,13 +125,33 @@ export class AuthClient {
   #storageListener: ((event: StorageEvent) => void) | null = null;
 
   constructor(config: AuthClientConfig) {
-    this.#authApi = config.authApi;
     this.#storage = new NamespacedStorage(
       config.storage,
       config.storageNamespace,
     );
     this.#verbose = config.verbose ?? false;
     this.#lockKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
+
+    // Bind the mode-specific refresh/sign-out behavior.
+    if (config.mode === "spa") {
+      const { authApi } = config;
+      this.#refresh = async () => {
+        const refreshToken = await this.#currentRefreshToken();
+        // No token means there's no session to refresh — don't call the API.
+        if (refreshToken === null) return null;
+        return authApi.refreshSession(refreshToken);
+      };
+      this.#signOutApi = async () => {
+        const refreshToken = await this.#currentRefreshToken();
+        if (refreshToken !== null) await authApi.signOut(refreshToken);
+      };
+    } else {
+      const { authApi } = config;
+      // The refresh token is in an httpOnly cookie that the API reads
+      // server-side, so it isn't passed directly.
+      this.#refresh = () => authApi.refreshSession();
+      this.#signOutApi = () => authApi.signOut();
+    }
   }
 
   // --- Observable store API ------------------------------------------------
@@ -218,9 +240,8 @@ export class AuthClient {
    * sent to the server for handling the sign out operation.
    */
   signOut = async (): Promise<void> => {
-    const refreshToken = await this.#currentRefreshToken();
     try {
-      await this.#authApi.signOut(refreshToken);
+      await this.#signOutApi();
     } catch {
       // Usually means we were already signed out, which is fine.
     }
@@ -251,10 +272,7 @@ export class AuthClient {
         this.#log(`using token refreshed by another tab`);
         return this.#accessToken;
       }
-      const refreshToken = await this.#currentRefreshToken();
-      const result = await this.#withRetry(() =>
-        this.#authApi.refreshSession(refreshToken),
-      );
+      const result = await this.#withRetry(() => this.#refresh());
       await this.#adopt(result);
       return this.#accessToken;
     });

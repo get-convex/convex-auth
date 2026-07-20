@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
-import { AuthClient, AuthApi } from "./sessionManager";
+import { AuthClient, SpaAuthApi, SsrAuthApi } from "./sessionManager";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
@@ -22,10 +22,28 @@ function bundle(n: number): TokenBundle {
 }
 
 function makeClient(
-  authApi: Partial<AuthApi> = {},
+  authApi: Partial<SpaAuthApi> = {},
   storage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
+    mode: "spa",
+    authApi: {
+      refreshSession: async () => null,
+      signOut: async () => {},
+      ...authApi,
+    },
+    storage,
+    storageNamespace: NAMESPACE,
+  });
+  return { client, storage };
+}
+
+function makeSsrClient(
+  authApi: Partial<SsrAuthApi> = {},
+  storage = new InMemoryStorage(),
+) {
+  const client = new AuthClient({
+    mode: "ssr",
     authApi: {
       refreshSession: async () => null,
       signOut: async () => {},
@@ -94,7 +112,7 @@ describe("AuthClient", () => {
   });
 
   test("forced fetch rotates the session via refreshSession", async () => {
-    const refreshSession = vi.fn(async (rt: string | null) => {
+    const refreshSession = vi.fn(async (rt: string) => {
       expect(rt).toBe("refresh-1");
       return bundle(2);
     });
@@ -149,7 +167,7 @@ describe("AuthClient", () => {
   });
 
   test("signOut revokes on the server and clears locally", async () => {
-    const signOut = vi.fn(async (rt: string | null) => {
+    const signOut = vi.fn(async (rt: string) => {
       expect(rt).toBe("refresh-1");
     });
     const { client } = makeClient({ signOut });
@@ -249,7 +267,7 @@ describe("AuthClient (SSR)", () => {
   });
 
   test("setSession adopts an access-only session, storing no refresh token", async () => {
-    const { client, storage } = makeClient();
+    const { client, storage } = makeSsrClient();
     await client.init();
     await client.setSession(ssrAuthResult(1));
 
@@ -268,7 +286,7 @@ describe("AuthClient (SSR)", () => {
   test("hydrates a session from just the access token", async () => {
     const storage = new InMemoryStorage();
     storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
-    const { client } = makeClient({}, storage);
+    const { client } = makeSsrClient({}, storage);
     await client.init();
     expect(client.getSnapshot()).toMatchObject({
       isAuthenticated: true,
@@ -276,17 +294,18 @@ describe("AuthClient (SSR)", () => {
     });
   });
 
-  test("forced fetch refreshes via the token-less (null) API call", async () => {
+  test("forced fetch refreshes via the token-less API call", async () => {
     const refreshSession = vi.fn(async () => ssrAuthResult(2));
-    const { client, storage } = makeClient({ refreshSession });
+    const { client, storage } = makeSsrClient({ refreshSession });
     await client.init();
     await client.setSession(ssrAuthResult(1));
 
     const token = await client.fetchAccessToken({ forceRefreshToken: true });
     expect(token).toBe("access-2");
     expect(refreshSession).toHaveBeenCalledTimes(1);
-    // No refresh token in JS, so the API is called with null (it reads the cookie).
-    expect(refreshSession).toHaveBeenCalledWith(null);
+    // No refresh token in JS, so the API is called with no arguments (it reads
+    // the cookie server-side).
+    expect(refreshSession).toHaveBeenCalledWith();
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-2");
     expect(
       storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`),
@@ -294,7 +313,7 @@ describe("AuthClient (SSR)", () => {
   });
 
   test("a null refresh clears the session", async () => {
-    const { client, storage } = makeClient({
+    const { client, storage } = makeSsrClient({
       refreshSession: async () => null,
     });
     await client.init();
@@ -309,15 +328,15 @@ describe("AuthClient (SSR)", () => {
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
   });
 
-  test("signOut calls the API with a null token and clears locally", async () => {
+  test("signOut calls the API with no arguments and clears locally", async () => {
     const signOut = vi.fn(async () => {});
-    const { client } = makeClient({ signOut });
+    const { client } = makeSsrClient({ signOut });
     await client.init();
     await client.setSession(ssrAuthResult(1));
 
     await client.signOut();
     expect(signOut).toHaveBeenCalledTimes(1);
-    expect(signOut).toHaveBeenCalledWith(null);
+    expect(signOut).toHaveBeenCalledWith();
     expect(client.getSnapshot()).toMatchObject({
       isAuthenticated: false,
       token: null,

@@ -2,7 +2,7 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { AuthApi, AuthClient } from "../browser/sessionManager";
+import { SpaAuthApi, AuthClient } from "../browser/sessionManager";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
@@ -27,10 +27,11 @@ function bundle(n: number): TokenBundle {
 }
 
 function makeClient(
-  authApi: Partial<AuthApi> = {},
+  authApi: Partial<SpaAuthApi> = {},
   storage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
+    mode: "spa",
     authApi: {
       refreshSession: async () => null,
       signOut: async () => {},
@@ -147,7 +148,7 @@ describe("React bindings", () => {
   });
 
   test("signOut revokes on the server and clears consumers", async () => {
-    const signOut = vi.fn(async (rt: string | null) => {
+    const signOut = vi.fn(async (rt: string) => {
       expect(rt).toBe("refresh-1");
     });
     const { client } = makeClient({ signOut });
