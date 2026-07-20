@@ -28,6 +28,18 @@ describe("serializeCookie", () => {
   test("url-encodes the value", () => {
     expect(serializeCookie("t", "a b/c")).toContain("t=a%20b%2Fc");
   });
+
+  test("emits SameSite=None for cross-site cookies", () => {
+    expect(
+      serializeCookie("t", "abc", { sameSite: "none", secure: true }),
+    ).toContain("SameSite=None");
+  });
+
+  test("floors a non-integer maxAge rather than throwing", () => {
+    expect(serializeCookie("t", "abc", { maxAge: 60.7 })).toContain(
+      "Max-Age=60",
+    );
+  });
 });
 
 describe("httpCookies", () => {
@@ -41,6 +53,15 @@ describe("httpCookies", () => {
     expect(cookies.get("a")).toBe("1");
     expect(cookies.get("b")).toBe("hello world");
     expect(cookies.get("missing")).toBeUndefined();
+  });
+
+  test("a foreign cookie with malformed percent-encoding does not throw", () => {
+    // A `%` that isn't valid percent-encoding would make a hand-rolled
+    // decodeURIComponent throw and fail the whole request; `cookie` falls back
+    // to the raw value and still reads our own cookies.
+    const cookies = httpCookies(requestWith("other=100%; a=1"));
+    expect(cookies.get("other")).toBe("100%");
+    expect(cookies.get("a")).toBe("1");
   });
 
   test("writes reflect back to reads within the request", () => {

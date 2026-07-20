@@ -13,12 +13,14 @@
  * @module
  */
 
+import { parse, serialize } from "cookie";
 import { CookieOptions, CookieStore } from "./cookies";
-
-const SAME_SITE = { lax: "Lax", strict: "Strict", none: "None" } as const;
 
 /**
  * Serialize a cookie into a `Set-Cookie` header value.
+ *
+ * Thin adapter over the `cookie` package's `serialize` that maps our
+ * {@link CookieOptions} onto it.
  *
  * Deletion is expressed by the caller as an empty value with `maxAge: 0` (and a
  * past `expires`); see {@link httpCookies}'s `delete`.
@@ -28,36 +30,16 @@ export function serializeCookie(
   value: string,
   options: CookieOptions = {},
 ): string {
-  const parts = [`${name}=${encodeURIComponent(value)}`];
-  // Path first among attributes so a delete matches the write's default path.
-  parts.push(`Path=${options.path ?? "/"}`);
-  if (options.maxAge !== undefined) {
-    parts.push(`Max-Age=${Math.floor(options.maxAge)}`);
-  }
-  if (options.expires !== undefined) {
-    parts.push(`Expires=${options.expires.toUTCString()}`);
-  }
-  if (options.domain !== undefined) parts.push(`Domain=${options.domain}`);
-  if (options.httpOnly) parts.push("HttpOnly");
-  if (options.secure) parts.push("Secure");
-  if (options.sameSite !== undefined) {
-    parts.push(`SameSite=${SAME_SITE[options.sameSite]}`);
-  }
-  return parts.join("; ");
-}
-
-/** Parse a request `Cookie` header (`a=1; b=2`) into a name→value map. */
-function parseCookieHeader(header: string | null): Map<string, string> {
-  const jar = new Map<string, string>();
-  if (header === null) return jar;
-  for (const pair of header.split(";")) {
-    const eq = pair.indexOf("=");
-    if (eq === -1) continue;
-    const name = pair.slice(0, eq).trim();
-    if (name === "") continue;
-    jar.set(name, decodeURIComponent(pair.slice(eq + 1).trim()));
-  }
-  return jar;
+  return serialize(name, value, {
+    path: options.path ?? "/",
+    maxAge:
+      options.maxAge === undefined ? undefined : Math.floor(options.maxAge),
+    expires: options.expires,
+    domain: options.domain,
+    httpOnly: options.httpOnly,
+    secure: options.secure,
+    sameSite: options.sameSite,
+  });
 }
 
 /**
@@ -84,7 +66,10 @@ export interface HttpCookies extends CookieStore {
  * ```
  */
 export function httpCookies(request: Request): HttpCookies {
-  const jar = parseCookieHeader(request.headers.get("cookie"));
+  // `cookie`'s `parse` tolerates malformed percent-encoding on foreign cookies
+  // (falling back to the raw value) rather than throwing and failing the whole
+  // request.
+  const jar = parse(request.headers.get("cookie") ?? "");
   // Reflect writes back to reads within the same request, and remember them as
   // serialized Set-Cookie headers to flush onto the response.
   const overlay = new Map<string, string | null>();
@@ -92,7 +77,7 @@ export function httpCookies(request: Request): HttpCookies {
   return {
     get(name) {
       if (overlay.has(name)) return overlay.get(name) ?? undefined;
-      return jar.get(name);
+      return jar[name];
     },
     set(name, value, options) {
       overlay.set(name, value);
