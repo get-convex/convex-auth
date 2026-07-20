@@ -104,7 +104,22 @@ export type SignUpWithPasswordResult = SignUpResult | UnexpectedFailure;
  */
 export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
   const { run, pending } = usePasswordFlow(signInAction);
-  return { signIn: run, pending };
+  return {
+    /**
+     * Passes up the given crendentials to perform a username/password sign in.
+     *
+     * Returns an object with a `success` boolean flag.
+     *
+     * If it is `true` the sign-in was successful and the client will establish
+     * an authenticated session with the Convex backend server.
+     *
+     * If it is `false` the returned object will have a `userError` field with
+     * additional details about why sign-in failed.
+     */
+    signIn: run,
+    /** `true` if the sign-in attempt is being validated. */
+    pending,
+  };
 }
 
 /**
@@ -134,7 +149,22 @@ export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
  */
 export function useSignUpWithPassword(signUpAction: SignUpWithPasswordAction) {
   const { run, pending } = usePasswordFlow(signUpAction);
-  return { signUp: run, pending };
+  return {
+    /**
+     * Passes up the given crendentials to perform a username/password sign up.
+     *
+     * Returns an object with a `success` boolean flag.
+     *
+     * If it is `true` the sign-up was successful and the client will establish
+     * an authenticated session with the Convex backend server.
+     *
+     * If it is `false` the returned object will have a `userError` field with
+     * additional details about why sign-up failed.
+     */
+    signUp: run,
+    /** `true` if the sign-up attempt is being validated. */
+    pending,
+  };
 }
 
 /**
