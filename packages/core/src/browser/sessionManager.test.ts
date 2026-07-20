@@ -342,4 +342,16 @@ describe("AuthClient (SSR)", () => {
       token: null,
     });
   });
+
+  test("clears refresh token if present", async () => {
+    const refreshSession = vi.fn(async () => ssrAuthResult(2));
+    const storage = new InMemoryStorage();
+    storage.setItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`, "refresh-1");
+    const { client } = makeSsrClient({ refreshSession }, storage);
+    await client.init();
+    await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      null,
+    );
+  });
 });

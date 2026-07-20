@@ -106,7 +106,7 @@ export class AuthClient {
    */
   readonly #refresh: () => Promise<TokenBundle | SlimTokenBundle | null>;
   /** Revoke the session on the server. */
-  readonly #signOutApi: () => Promise<void>;
+  readonly #signOutInternal: () => Promise<void>;
   readonly #storage: NamespacedStorage;
   readonly #verbose: boolean;
   readonly #lockKey: string;
@@ -141,7 +141,7 @@ export class AuthClient {
         if (refreshToken === null) return null;
         return authApi.refreshSession(refreshToken);
       };
-      this.#signOutApi = async () => {
+      this.#signOutInternal = async () => {
         const refreshToken = await this.#currentRefreshToken();
         if (refreshToken !== null) await authApi.signOut(refreshToken);
       };
@@ -150,7 +150,7 @@ export class AuthClient {
       // The refresh token is in an httpOnly cookie that the API reads
       // server-side, so it isn't passed directly.
       this.#refresh = () => authApi.refreshSession();
-      this.#signOutApi = () => authApi.signOut();
+      this.#signOutInternal = () => authApi.signOut();
     }
   }
 
@@ -234,14 +234,11 @@ export class AuthClient {
   };
 
   /**
-   * Revoke the current session on the server (best effort) and clear it
-   * locally. The refresh token is passed to the API when the client holds one.
-   * Otherwise it is expected to be present in an httpOnly cookie which will be
-   * sent to the server for handling the sign out operation.
+   * Revoke the current session on the server and clear it locally.
    */
   signOut = async (): Promise<void> => {
     try {
-      await this.#signOutApi();
+      await this.#signOutInternal();
     } catch {
       // Usually means we were already signed out, which is fine.
     }
@@ -250,11 +247,10 @@ export class AuthClient {
   };
 
   /**
-   * The function handed to Convex's `ConvexProviderWithAuth`. Returns the
-   * cached access token, or — when `forceRefreshToken` is true (the server
-   * rejected the last token or it is near expiry) — rotates the refresh token
-   * under a cross-tab lock and returns the fresh access token. Returns `null`
-   * (never `undefined`) when there is no usable session.
+   * The function handed to Convex's `ConvexProviderWithAuth`.
+   *
+   * Returns a cached access token, or fetches a new token if
+   * `forceRefreshToken` is `true`.
    */
   fetchAccessToken = async ({
     forceRefreshToken,
@@ -348,6 +344,12 @@ export class AuthClient {
    * Stores just the access token and notifies subscribers.
    */
   async #storeAccessOnly(session: SlimTokenBundle): Promise<void> {
+    // Null out/remove any existing refresh token. It shouldn't be set unless
+    // this was somehow a client instance configured for SPA use being
+    // "upgraded" to SSR use.
+    this.#refreshToken = null;
+    await this.#storage.remove(REFRESH_TOKEN_STORAGE_KEY);
+
     this.#accessToken = session.accessToken;
     await this.#storage.set(JWT_STORAGE_KEY, session.accessToken);
     this.#isLoading = false;
