@@ -85,7 +85,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     expect(result.current.auth.isAuthenticated).toBe(false);
 
-    let returned: Result;
+    let returned!: Result;
     await act(async () => {
       returned = await result.current.flow.run(credentials);
     });
@@ -102,7 +102,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     const { result } = renderFlow(useFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned: Result;
+    let returned!: Result;
     await act(async () => {
       returned = await result.current.flow.run(credentials);
     });
@@ -117,7 +117,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     const { result } = renderFlow(useFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned: Result;
+    let returned!: Result;
     await act(async () => {
       returned = await result.current.flow.run(credentials);
     });
