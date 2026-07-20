@@ -15,7 +15,10 @@ import {
 } from "./react";
 
 type Result = SignInWithPasswordResult | SignUpWithPasswordResult;
-type Flow = { run: (c: typeof credentials) => Promise<Result>; pending: boolean };
+type Flow = {
+  run: (c: typeof credentials) => Promise<Result>;
+  pending: boolean;
+};
 
 const { runAction } = vi.hoisted(() => ({ runAction: vi.fn() }));
 vi.mock("convex/react", async (importActual) => ({
