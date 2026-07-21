@@ -227,16 +227,34 @@ async function handleAuthorizationCode(
     issuer: deps.issuer(),
     resource: doc.resource,
   });
-  const refreshToken = client.grantTypes.includes("refresh_token")
-    ? (
+  // `acceptCode` already consumed the single-use code in a SEPARATE component
+  // transaction (an action can't span the two mutations atomically), so if
+  // refresh-grant creation now fails we cannot re-run the code. Rather than throw
+  // — which returns 500 and forces the client through a full re-authorization even
+  // though a valid access token was just minted — degrade to an access-token-only
+  // response (`refresh_token` is optional per RFC 6749 §5.1); the client
+  // re-authorizes normally when the access token expires. The ideal fix folds code
+  // acceptance and refresh minting into ONE component mutation, which requires
+  // threading the refresh params through the refresh facade + runtime wiring.
+  let refreshToken: string | undefined;
+  if (client.grantTypes.includes("refresh_token")) {
+    try {
+      refreshToken = (
         await deps.createRefresh(ctx, {
           clientId,
           userId: doc.userId,
           scopes: doc.scopes,
           resource: doc.resource,
         })
-      ).refreshToken
-    : undefined;
+      ).refreshToken;
+    } catch (err) {
+      console.error(
+        "[auth] OAuth refresh-grant creation failed after authorization-code redemption; " +
+          "returning an access token without a refresh token",
+        err,
+      );
+    }
+  }
   await deps.emitEvent?.(ctx, {
     kind: "oauth.token.exchanged",
     actor: { type: "oauth_client", id: clientId },

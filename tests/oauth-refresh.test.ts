@@ -146,7 +146,7 @@ test("oauth refresh exchange tolerates an in-window replay and leaves invalid to
   expect(notBurned).not.toBeNull();
 });
 
-test("oauth refresh tolerates a long-delayed retry when the client never rotated forward (MCP re-auth fix)", async () => {
+test("oauth refresh: an in-window retry re-points the single child; the client keeps refreshing without a re-login", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-retry@example.com");
   const now = Date.now();
@@ -174,17 +174,17 @@ test("oauth refresh tolerates a long-delayed retry when the client never rotated
   });
   expect(first.status).toBe("rotated");
 
-  // The token response was lost, so the client never used rt1 and retries rt0 ten
-  // minutes later — far outside the grace window. Because the client never rotated
-  // past rt0 (rt1 is still unused), this is a benign retry, not theft: the grant
-  // must stay live rather than force a re-login.
+  // The token response was dropped, so the client never received rt1 and retries
+  // rt0 within the grace window with a freshly-generated successor hash. This is a
+  // benign retry: it must succeed WITHOUT forking a second chain, so rt1 (which the
+  // client never saw) is dropped and rt1b becomes the single live successor.
   const retry = await t.run(async (ctx) => {
     return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
       tokenHash: "rt0",
       newTokenHash: "rt1b",
       clientId: "oc_retry",
-      now: now + 10 * 60_000,
-      newExpiresAt: now + 10 * 60_000 + week,
+      now: now + 30_000,
+      newExpiresAt: now + 30_000 + week,
       reuseWindowMs: 60_000,
     });
   });
@@ -197,9 +197,83 @@ test("oauth refresh tolerates a long-delayed retry when the client never rotated
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "rt1b" }),
     ];
   });
+  // No fork: rt0 stays live, rt1 (the tip the client never received) is dropped,
+  // and rt1b is the single live successor the retry handed back.
   expect(rt0).not.toBeNull();
-  expect(rt1).not.toBeNull();
+  expect(rt1).toBeNull();
   expect(rt1b).not.toBeNull();
+
+  // The retried successor rotates forward normally — the grant is never revoked.
+  const advance = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+      tokenHash: "rt1b",
+      newTokenHash: "rt2",
+      clientId: "oc_retry",
+      now: now + 60_000,
+      newExpiresAt: now + 60_000 + week,
+      reuseWindowMs: 60_000,
+    });
+  });
+  expect(advance.status).toBe("rotated");
+});
+
+test("oauth refresh: replaying a rotated token outside the grace window is reuse, even if the client never advanced", async () => {
+  const t = convexTest(schema);
+  const userId = await makeUser(t, "oauth-refresh-latereplay@example.com");
+  const now = Date.now();
+  const week = 7 * 24 * 60 * 60 * 1000;
+
+  await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.create, {
+      tokenHash: "lr0",
+      clientId: "oc_late",
+      userId,
+      scopes: ["workspace:read"],
+      expiresAt: now + week,
+    });
+  });
+
+  expect(
+    (
+      await t.run(async (ctx) => {
+        return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+          tokenHash: "lr0",
+          newTokenHash: "lr1",
+          clientId: "oc_late",
+          now,
+          newExpiresAt: now + week,
+          reuseWindowMs: 60_000,
+        });
+      })
+    ).status,
+  ).toBe("rotated");
+
+  // A distinct rotation of an already-used token TEN MINUTES later — long past the
+  // grace window — is treated as theft rather than a benign retry: a client that
+  // truly retries does so promptly, so an out-of-window replay of a token the
+  // holder never advanced past burns the whole grant.
+  const late = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+      tokenHash: "lr0",
+      newTokenHash: "lr1b",
+      clientId: "oc_late",
+      now: now + 10 * 60_000,
+      newExpiresAt: now + 10 * 60_000 + week,
+      reuseWindowMs: 60_000,
+    });
+  });
+  expect(late).toEqual({ status: "reuse_detected", userId, clientId: "oc_late" });
+
+  const [lr0, lr1, lr1b] = await t.run(async (ctx) => {
+    return [
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "lr0" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "lr1" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "lr1b" }),
+    ];
+  });
+  expect(lr0).toBeNull();
+  expect(lr1).toBeNull();
+  expect(lr1b).toBeNull();
 });
 
 test("oauth refresh revoke revokes the grant so every token in the chain fails closed", async () => {
@@ -247,7 +321,7 @@ test("oauth refresh revoke revokes the grant so every token in the chain fails c
   expect(missing).toBeNull();
 });
 
-test("oauth refresh replay keeps every issued tip valid — no poisoning, no theft", async () => {
+test("oauth refresh in-window replays re-point the single child instead of forking", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-idempotent@example.com");
   const now = Date.now();
@@ -280,9 +354,10 @@ test("oauth refresh replay keeps every issued tip valid — no poisoning, no the
     expect(replay.status).toBe("rotated");
   }
 
-  // No theft (grant stays live). Each replay mints a fresh child WITHOUT deleting
-  // the earlier tips, so a client that received ANY of them can still rotate —
-  // the fix for clients that retry after a dropped/slow token response.
+  // No theft (grant stays live) AND no fork: each in-window replay RE-POINTS id0's
+  // single successor to the freshly presented tip, dropping the previous one. Only
+  // the latest tip (id1c) survives, so a stolen token can never accumulate a
+  // parallel chain of live successors.
   const [id0, id1, id1b, id1c] = await t.run(async (ctx) => {
     return [
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "id0" }),
@@ -292,12 +367,69 @@ test("oauth refresh replay keeps every issued tip valid — no poisoning, no the
     ];
   });
   expect(id0).not.toBeNull();
-  expect(id1).not.toBeNull();
-  expect(id1b).not.toBeNull();
+  expect(id1).toBeNull();
+  expect(id1b).toBeNull();
   expect(id1c).not.toBeNull();
 });
 
-test("oauth refresh same-token fork keeps both tips live, theft caught once the chain advances", async () => {
+test("oauth refresh: retrying the exact same rotation (identical newTokenHash) is idempotent", async () => {
+  const t = convexTest(schema);
+  const userId = await makeUser(t, "oauth-refresh-sameidem@example.com");
+  const now = Date.now();
+
+  await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.create, {
+      tokenHash: "s0",
+      clientId: "oc_same",
+      userId,
+      scopes: ["workspace:read"],
+      expiresAt: now + 60_000,
+    });
+  });
+
+  const exchange = (newTokenHash: string, when: number) =>
+    t.run(async (ctx) => {
+      return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+        tokenHash: "s0",
+        newTokenHash,
+        clientId: "oc_same",
+        now: when,
+        newExpiresAt: now + 60_000,
+        reuseWindowMs: 10_000,
+      });
+    });
+
+  const first = await exchange("s1", now);
+  expect(first.status).toBe("rotated");
+  // Replaying the SAME rotation (identical successor hash) is a no-op success — it
+  // must not fork, revoke, or otherwise disturb the chain.
+  const again = await exchange("s1", now + 1);
+  expect(again.status).toBe("rotated");
+
+  const [s0, s1] = await t.run(async (ctx) => {
+    return [
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "s0" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "s1" }),
+    ];
+  });
+  expect(s0).not.toBeNull();
+  expect(s1).not.toBeNull();
+
+  // The single successor still rotates forward cleanly after the idempotent retry.
+  const advance = await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+      tokenHash: "s1",
+      newTokenHash: "s2",
+      clientId: "oc_same",
+      now: now + 2,
+      newExpiresAt: now + 60_000,
+      reuseWindowMs: 10_000,
+    });
+  });
+  expect(advance.status).toBe("rotated");
+});
+
+test("oauth refresh forbids same-token forking: the second rotation re-points the single child, theft caught once the chain advances", async () => {
   const t = convexTest(schema);
   const userId = await makeUser(t, "oauth-refresh-fork@example.com");
   const now = Date.now();
@@ -329,25 +461,27 @@ test("oauth refresh same-token fork keeps both tips live, theft caught once the 
   expect(victim.status).toBe("rotated");
   expect(attacker.status).toBe("rotated");
 
-  // No poisoning: a same-token fork leaves BOTH children usable, so whichever
-  // token the real client actually persisted still works.
+  // No fork: a second rotation of the SAME parent RE-POINTS fork0's single
+  // successor, so only the latest tip survives. A one-time-stolen token can no
+  // longer split off a parallel chain that rides forever undetected.
   const [victimChild, attackerChild] = await t.run(async (ctx) => {
     return [
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "victimChild" }),
       await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "attackerChild" }),
     ];
   });
-  expect(victimChild).not.toBeNull();
+  expect(victimChild).toBeNull();
   expect(attackerChild).not.toBeNull();
 
-  // Both tips rotate independently while the fork is unresolved.
-  expect((await exchange("victimChild", "victimChild2", now + 2)).status).toBe("rotated");
+  // The dropped tip no longer rotates; only the single live successor advances.
+  expect((await exchange("victimChild", "victimChild2", now + 2)).status).toBe("invalid");
   expect((await exchange("attackerChild", "attackerChild2", now + 3)).status).toBe("rotated");
 
-  // Once the chain has advanced past the shared parent, replaying it outside the
-  // grace window is unambiguous theft and burns the whole grant.
-  const theft = await exchange("fork0", "forkX", now + 10_001);
-  expect(theft.status).toBe("reuse_detected");
+  // fork0's successor has now been consumed, so replaying fork0 — even INSIDE the
+  // grace window — is unambiguous theft and burns the whole grant (the exact case
+  // the old chain-forking logic let ride undetected).
+  const theft = await exchange("fork0", "forkX", now + 4);
+  expect(theft).toEqual({ status: "reuse_detected", userId, clientId: "oc_fork" });
   const attackerChild2 = await t.run(async (ctx) => {
     return await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "attackerChild2" });
   });
@@ -399,6 +533,60 @@ test("oauth refresh replay after the chain advanced (outside the window) is thef
   expect(adv0).toBeNull();
   expect(c2).toBeNull();
   expect(cX).toBeNull();
+});
+
+test("oauth refresh: a detected replay revokes every token in the grant family (deep chain)", async () => {
+  const t = convexTest(schema);
+  const userId = await makeUser(t, "oauth-refresh-family@example.com");
+  const now = Date.now();
+
+  await t.run(async (ctx) => {
+    return await ctx.runMutation(components.auth.oauth.refresh.create, {
+      tokenHash: "f0",
+      clientId: "oc_fam",
+      userId,
+      scopes: ["workspace:read"],
+      expiresAt: now + 60_000,
+    });
+  });
+
+  const exchange = (tokenHash: string, newTokenHash: string, when: number) =>
+    t.run(async (ctx) => {
+      return await ctx.runMutation(components.auth.oauth.refresh.exchange, {
+        tokenHash,
+        newTokenHash,
+        clientId: "oc_fam",
+        now: when,
+        newExpiresAt: now + 60_000,
+        reuseWindowMs: 10_000,
+      });
+    });
+
+  // Advance a multi-generation chain: f0 → f1 → f2 → f3.
+  expect((await exchange("f0", "f1", now)).status).toBe("rotated");
+  expect((await exchange("f1", "f2", now + 1)).status).toBe("rotated");
+  expect((await exchange("f2", "f3", now + 2)).status).toBe("rotated");
+
+  // A stolen f0 replayed after the chain advanced trips reuse detection...
+  const theft = await exchange("f0", "fx", now + 10_001);
+  expect(theft).toEqual({ status: "reuse_detected", userId, clientId: "oc_fam" });
+
+  // ...and every token in the family — including the live tip f3 the real client
+  // still holds — now fails closed.
+  const [f0, f1, f2, f3, fx] = await t.run(async (ctx) => {
+    return [
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "f0" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "f1" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "f2" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "f3" }),
+      await ctx.runQuery(components.auth.oauth.refresh.get, { tokenHash: "fx" }),
+    ];
+  });
+  expect(f0).toBeNull();
+  expect(f1).toBeNull();
+  expect(f2).toBeNull();
+  expect(f3).toBeNull();
+  expect(fx).toBeNull();
 });
 
 test("oauth.refresh.reuse_detected keeps clientId and userId through the projection", async () => {

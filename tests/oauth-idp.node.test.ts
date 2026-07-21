@@ -602,3 +602,49 @@ test("refresh_token exchange is refused for a client without the refresh_token g
   expect(allowed.status).toBe(200);
   expect((await allowed.json()).access_token).toBeTruthy();
 });
+
+test("authorization_code degrades to an access-token-only response when refresh-grant creation fails", async () => {
+  // The single-use code is consumed by `acceptCode` in a separate component
+  // transaction; if refresh-grant creation then fails the endpoint must NOT 500
+  // (which would force the client through a full re-authorization even though a
+  // valid access token was minted) — it issues the access token without a refresh
+  // token, per RFC 6749 §5.1.
+  const verifier = "degrade-verifier-123456";
+  const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const res = await createTokenHandler({
+      ...tokenDeps,
+      getClient: async () => refreshGrantClient as never,
+      verifyClientSecret: async () => null,
+      acceptCode: async (_ctx, _codeHash, clientId) =>
+        ({
+          userId: "user1",
+          clientId,
+          redirectUri: REDIRECT_URI,
+          scopes: ["workspace:read"],
+          codeChallenge: challengeFor(verifier),
+          expiresAt: Date.now() + 60_000,
+        }) as never,
+      createRefresh: async () => {
+        throw new Error("refresh grant mint failed");
+      },
+      exchangeRefresh: async () => null,
+    })(
+      {} as never,
+      tokenRequest({
+        grant_type: "authorization_code",
+        code: "rawcode",
+        redirect_uri: REDIRECT_URI,
+        client_id: "oc_test",
+        code_verifier: verifier,
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.access_token).toBeTruthy();
+    expect(body.refresh_token).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+  } finally {
+    errorSpy.mockRestore();
+  }
+});
