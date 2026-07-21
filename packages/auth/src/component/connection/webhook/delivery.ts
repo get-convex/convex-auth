@@ -289,11 +289,25 @@ export const dispatch = internalAction({
       eventId: string;
       kind: Infer<typeof vAuthEventKind>;
       payload: unknown;
+      status: Infer<typeof vWebhookDeliveryStatus>;
       attemptCount: number;
       signature: string;
       signedAt: number;
     } | null;
     if (!delivery) return null;
+
+    // At-least-once delivery. The workpool can re-invoke `dispatch` for a
+    // delivery whose previous attempt already settled — a retry scheduled
+    // before a sibling attempt committed its terminal status, a re-enqueue
+    // after a crash, or an `onDispatchComplete` that already failed the row.
+    // Re-read the row and bail before POSTing again once it is terminal, so a
+    // delivered/failed delivery is never re-sent. A crash in the narrow window
+    // between the POST and the status write still re-delivers, so receivers get
+    // at-least-once (not exactly-once) semantics and MUST dedup on the stable
+    // `X-Auth-Delivery-Id` header sent below.
+    if (delivery.status === "delivered" || delivery.status === "failed") {
+      return null;
+    }
 
     const endpoint = (await ctx.runQuery(api.connection.webhook.endpoint.get, {
       id: delivery.endpointId as Id<"GroupWebhookEndpoint">,

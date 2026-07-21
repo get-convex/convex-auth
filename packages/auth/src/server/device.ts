@@ -10,6 +10,7 @@ import { toConvexError } from "./errors";
 import { getAuthenticatedUserIdOrNull } from "./identity/claims";
 import { callSignIn } from "./mutations/calls";
 import { generateRandomString, sha256 } from "./random";
+import { sessionExpirationTime } from "./session/lifecycle";
 import type { DeviceProviderConfig, GenericActionCtxWithAuthConfig } from "./types";
 import { appUrlFromEnv } from "./url";
 import {
@@ -172,19 +173,34 @@ async function handleDeviceVerify(
     throw deviceError("DEVICE_ALREADY_AUTHORIZED", "This device code has already been authorized.");
   }
 
-  const signInResult = await callSignIn(ctx, {
+  // Mint the session the polling device will later adopt, then let the
+  // `authorize` compare-and-set decide the winner. The CAS is the
+  // serialization point: only a still-`pending` code transitions, so a
+  // concurrent or retried verify that loses the race is rolled back below and
+  // never leaves an orphan Session.
+  //
+  // The session is created directly (not via `callSignIn`) on purpose: the
+  // device must receive its OWN fresh session rather than have the approving
+  // user's current session replaced out from under them, and the session must
+  // not become durable unless this call wins the CAS.
+  const deviceSession = (await ctx.runMutation(ctx.auth.config.component.session.create, {
     userId,
-    generateTokens: false,
-  });
+    sessionExpirationTime: sessionExpirationTime(ctx.auth.config),
+  })) as { sessionId: string };
   const { transitioned } = await ctx.runMutation(
     ctx.auth.config.component.factor.device.authorize,
     {
       id: doc._id,
-      userId: signInResult.userId,
-      sessionId: signInResult.sessionId,
+      userId,
+      sessionId: deviceSession.sessionId,
     },
   );
   if (!transitioned) {
+    // Lost the race (or a retry of an already-authorized code): drop the
+    // session we optimistically minted so it cannot survive as an orphan.
+    await ctx.runMutation(ctx.auth.config.component.session.remove, {
+      id: deviceSession.sessionId,
+    });
     throw deviceError("DEVICE_ALREADY_AUTHORIZED", "This device code has already been authorized.");
   }
   return { kind: "signedIn" as const, session: null };

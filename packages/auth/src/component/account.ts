@@ -63,6 +63,31 @@ export const create = mutation({
   },
   returns: v.id("Account"),
   handler: async (ctx, args) => {
+    // Dedup on the (provider, providerAccountId) identity. A bare insert let two
+    // concurrent or retried provisioning ceremonies — SCIM POST retries, a
+    // passkey double-submit — create duplicate Account rows, which then made
+    // `account.get(...).unique()` throw on every future lookup (a permanent
+    // sign-in lockout / rogue credential attribution). The index-range read plus
+    // insert in this single mutation is OCC-atomic: a racing insert into the same
+    // range conflicts and retries, then observes the winner's row below.
+    const existing = await ctx.db
+      .query("Account")
+      .withIndex("provider_account_id", (q) =>
+        q.eq("provider", args.provider).eq("providerAccountId", args.providerAccountId),
+      )
+      .first();
+    if (existing !== null) {
+      if (existing.userId !== args.userId) {
+        // Already linked to a different user — reject rather than silently
+        // attribute the identity (e.g. an attacker registering a passkey
+        // credentialId that already belongs to a victim).
+        throw new ConvexError({
+          code: ErrorCode.ACCOUNT_ALREADY_LINKED,
+          message: "This account is already linked to another user.",
+        });
+      }
+      return existing._id;
+    }
     return await ctx.db.insert("Account", args);
   },
 });

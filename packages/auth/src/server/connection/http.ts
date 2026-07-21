@@ -1222,6 +1222,14 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
             profile: extracted as Record<string, unknown>,
           })) as typeof extracted | undefined) ?? extracted;
         const externalId = provisionProfile.externalId;
+        // Provider under which this connection links SSO accounts. The SCIM
+        // externalId is the providerAccountId, so (providerId, externalId) is
+        // the Account's natural key — used both to resolve an already-
+        // provisioned user below and to dedup the Account insert.
+        const providerId =
+          state.connection.protocol === "oidc"
+            ? groupOidcProviderId(state.connection._id)
+            : groupSamlProviderId(state.connection._id);
         const existingIdentity = externalId
           ? await getScimIdentity(state.ctx, config.component.connection, {
               connectionId: state.connection._id,
@@ -1229,8 +1237,27 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
               externalId,
             })
           : null;
-        const existingUser = existingIdentity?.userId
-          ? await auth.user.get(state.ctx, { id: existingIdentity.userId })
+        // Resolve the already-provisioned user from the SCIM identity, falling
+        // back to the linked Account when the identity row is absent. This
+        // handler runs across several transactions (it is an action, not one
+        // mutation), so a prior POST for the same externalId can have created
+        // the User + Account but not yet written the identity; without this
+        // fallback a retry would insert a SECOND User and a duplicate Account
+        // sharing (providerId, externalId), and that duplicate makes
+        // `account.get(...).unique()` throw on every future SSO login
+        // (permanent lockout). Fully serializing a *simultaneous* double-POST
+        // additionally needs a component-side resolve-or-create keyed on the
+        // identity index — see selfAssessment.
+        const linkedAccount =
+          externalId && !existingIdentity?.userId
+            ? ((await state.ctx.runQuery(config.component.account.get, {
+                provider: providerId,
+                providerAccountId: externalId,
+              })) as { _id: string; userId: string } | null)
+            : null;
+        const resolvedUserId = existingIdentity?.userId ?? linkedAccount?.userId;
+        const existingUser = resolvedUserId
+          ? await auth.user.get(state.ctx, { id: resolvedUserId })
           : null;
         const created = existingUser === null;
         const provisionedRoleIds = resolveProvisionedRoleIds({
@@ -1259,15 +1286,22 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
               ...(provisionProfile.extend ? { extend: provisionProfile.extend } : {}),
             });
         if (created && externalId) {
-          const providerId =
-            state.connection.protocol === "oidc"
-              ? groupOidcProviderId(state.connection._id)
-              : groupSamlProviderId(state.connection._id);
-          await insertAccount(state.ctx, config.component.account, {
-            userId,
+          // New user: link the SSO Account, but only when one does not already
+          // exist for (providerId, externalId). Re-checking immediately before
+          // the insert dedups against a racing or retried POST so two Accounts
+          // can never share the key and break `account.get(...).unique()` at
+          // login.
+          const priorAccount = (await state.ctx.runQuery(config.component.account.get, {
             provider: providerId,
             providerAccountId: externalId,
-          });
+          })) as { _id: string } | null;
+          if (priorAccount === null) {
+            await insertAccount(state.ctx, config.component.account, {
+              userId,
+              provider: providerId,
+              providerAccountId: externalId,
+            });
+          }
         }
         if (existingUser) {
           const nextUserData: Record<string, unknown> = {
