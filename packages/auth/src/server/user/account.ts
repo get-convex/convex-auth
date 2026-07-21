@@ -339,8 +339,19 @@ async function defaultCreateOrUpdateUser(
       ...profile
     },
   } = args;
-  const emailVerified =
-    profileEmailVerified ?? (provider.type === "oauth" && provider.accountLinking !== "none");
+  // nOAuth hardening: an OAuth email counts as verified — and is therefore
+  // eligible to drive email-based account linking — ONLY when the provider
+  // emits an explicit positive signal (`emailVerified === true`). The previous
+  // default (`?? (provider.type === "oauth" && provider.accountLinking !==
+  // "none")`) treated an ABSENT or false claim as verified, letting an IdP that
+  // never asserts verification link a fresh OAuth identity into a pre-existing
+  // account that owns the same email (account takeover). This expression is
+  // equivalent to the old `?? false` for every non-OAuth provider, so
+  // password/email/phone semantics are unchanged; providers that do signal
+  // verification (e.g. github, or an OIDC `email_verified: true` claim) keep
+  // linking, and a caller that later proves the email still links via the
+  // explicit `args.shouldLinkViaEmail` flag below.
+  const emailVerified = profileEmailVerified === true;
   const phoneVerified = profilePhoneVerified ?? false;
   const connectionScopedLinking =
     provider.type === "oauth" && provider.accountLinking === "sameConnection";

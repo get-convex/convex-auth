@@ -164,6 +164,27 @@ async function exchangeCode(
   });
 }
 
+/**
+ * Read an OIDC `email_verified` claim as a tri-state signal.
+ *
+ * Per OpenID Connect the claim is a JSON boolean, but some IdPs encode it as
+ * the string `"true"` / `"false"`. Only an explicit positive value resolves to
+ * `true`; an explicit negative resolves to `false`; anything else — most
+ * importantly an ABSENT claim — resolves to `undefined`. Downstream account
+ * linking (`server/user/account.ts`) treats only `true` as verified, so never
+ * fabricating a positive here is what stops an IdP that omits the claim from
+ * driving email-based account takeover (nOAuth class).
+ */
+function readEmailVerifiedClaim(claim: unknown): boolean | undefined {
+  if (claim === true || claim === "true") {
+    return true;
+  }
+  if (claim === false || claim === "false") {
+    return false;
+  }
+  return undefined;
+}
+
 async function extractProfile(
   providerId: string,
   oauthConfig: OAuthProviderConfigLike,
@@ -186,6 +207,7 @@ async function extractProfile(
       name: (claims.name as string) ?? undefined,
       email: (claims.email as string) ?? undefined,
       image: (claims.picture as string) ?? undefined,
+      emailVerified: readEmailVerifiedClaim(claims.email_verified),
     };
   }
 
