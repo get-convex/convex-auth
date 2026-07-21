@@ -1,6 +1,11 @@
 import { api } from "@convex/_generated/api";
 import schema from "@convex/schema";
 import { custom } from "@robelest/convex-auth/providers";
+import {
+  OAUTH_SIGN_IN_CODE_ALPHABET,
+  OAUTH_SIGN_IN_CODE_LENGTH,
+} from "@robelest/convex-auth/server/mutations/oauth";
+import { generateRandomString } from "@robelest/convex-auth/server/random";
 import { expect, test, vi } from "vite-plus/test";
 
 import { convexTest } from "./convex/setup";
@@ -214,4 +219,16 @@ test("custom oauth provider leaves access token expiry undefined when expires_in
   expect(tokens.scopes).toEqual(["identify", "email"]);
 
   vi.unstubAllGlobals();
+});
+
+test("oauth sign-in handoff code is a 32-char high-entropy alphanumeric code", () => {
+  // Regression: the OAuth sign-in handoff code was an 8-digit numeric string
+  // (~26.6 bits), brute-forceable within its 2-minute TTL. It must now follow
+  // the 32-char alphanumeric OAuth-code convention used elsewhere (~190 bits).
+  expect(OAUTH_SIGN_IN_CODE_LENGTH).toBe(32);
+  expect(OAUTH_SIGN_IN_CODE_ALPHABET).toMatch(/^[A-Za-z0-9]+$/);
+  expect(new Set(OAUTH_SIGN_IN_CODE_ALPHABET).size).toBe(62);
+
+  const code = generateRandomString(OAUTH_SIGN_IN_CODE_LENGTH, OAUTH_SIGN_IN_CODE_ALPHABET);
+  expect(code).toMatch(/^[A-Za-z0-9]{32}$/);
 });

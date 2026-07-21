@@ -5,7 +5,7 @@ import type { Hashed, VerificationCode } from "../../shared/brand";
 import { ErrorCode } from "../../shared/codes";
 import * as Provider from "../crypto";
 import { authDb } from "../db";
-import { LOG_LEVELS, log } from "../log";
+import { LOG_LEVELS, log, maybeRedact } from "../log";
 import { sha256 } from "../random";
 import { getAuthSessionId } from "../session/lifecycle";
 import { MutationCtx } from "../types";
@@ -25,13 +25,29 @@ export const vCreateVerificationCodeArgs = v.object({
 
 type ReturnType = string;
 
+/**
+ * Redact secret-bearing fields (the plaintext verification `code`) from the
+ * create-code args before they reach a DEBUG log line, so enabling DEBUG never
+ * writes a live OTP/verification code to logs.
+ * @internal
+ */
+export function redactCreateVerificationCodeArgsForLog(
+  args: Infer<typeof vCreateVerificationCodeArgs>,
+): Infer<typeof vCreateVerificationCodeArgs> {
+  return { ...args, code: maybeRedact(args.code) };
+}
+
 export async function createVerificationCodeImpl(
   ctx: MutationCtx,
   args: Infer<typeof vCreateVerificationCodeArgs>,
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  log(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", args);
+  log(
+    LOG_LEVELS.DEBUG,
+    "createVerificationCodeImpl args:",
+    redactCreateVerificationCodeArgsForLog(args),
+  );
   const {
     email,
     phone,

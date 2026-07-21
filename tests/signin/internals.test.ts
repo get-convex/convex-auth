@@ -20,6 +20,7 @@ function createCredentialsMutationHarness(args: {
     lastAttemptTime: number;
   } | null;
   totpDoc?: { _id: string } | null;
+  accountMissing?: boolean;
 }) {
   const refs = {
     accountGet: Symbol("accountGet"),
@@ -51,7 +52,7 @@ function createCredentialsMutationHarness(args: {
 
   const runQuery = vi.fn(async (ref: unknown) => {
     if (ref === refs.accountGet) {
-      return account;
+      return args.accountMissing ? null : account;
     }
     if (ref === refs.userGetById) {
       return user;
@@ -339,4 +340,40 @@ test("credentials sign-in keeps the no-token contract when authorize pre-issues 
       tokens: null,
     },
   });
+});
+
+test("credentialsSignIn verifies against a dummy hash when the account is missing (enumeration timing)", async () => {
+  const harness = createCredentialsMutationHarness({ accountMissing: true });
+  const verifySecret = vi.fn(async (_secret: string, _hash: string) => false);
+
+  const result = await credentialsSignInImpl(
+    harness.ctx,
+    {
+      provider: "password",
+      account: { id: "ghost@example.com", secret: "attempt-secret" },
+      generateTokens: true,
+      requireVerifiedEmail: false,
+      enforceTotp: false,
+    },
+    () =>
+      ({
+        id: "password",
+        type: "credentials",
+        crypto: { verifySecret },
+      }) as any,
+    harness.config,
+  );
+
+  expect(result).toEqual({ kind: "invalidAccount" });
+  // The fix: even though no account exists, the submitted secret must still be
+  // run through verify (against a constant dummy hash), so a missing account is
+  // not distinguishable from a wrong password by response timing.
+  expect(verifySecret).toHaveBeenCalledTimes(1);
+  // Verified against the constant throwaway dummy scrypt hash, never a real one.
+  expect(verifySecret).toHaveBeenCalledWith("attempt-secret", expect.stringContaining("scrypt:"));
+  // The missing-account branch must never issue a session.
+  expect(harness.runMutation).not.toHaveBeenCalledWith(
+    harness.refs.sessionCreate,
+    expect.anything(),
+  );
 });

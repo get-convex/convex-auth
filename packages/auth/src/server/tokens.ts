@@ -169,6 +169,10 @@ export async function verifyOAuthToken(
     const { payload } = await jwtVerify(token, getJwkSet(), {
       issuer: opts?.issuer ?? getIssuer(),
       audience: "convex",
+      // Defense-in-depth: pin the accepted JWS algorithm so a token can only be
+      // verified under EdDSA, never coerced to a different `alg` (algorithm
+      // substitution / confusion hardening).
+      algorithms: [JWT_ALG],
       clockTolerance: 30,
     });
     if ((payload as { token_use?: string }).token_use !== "access") return null;
@@ -179,6 +183,12 @@ export async function verifyOAuthToken(
     const resourceClaim = (payload as { resource?: unknown }).resource;
     const resource = typeof resourceClaim === "string" ? resourceClaim : null;
     if (opts?.resource !== undefined && resource !== opts.resource) return null;
+    // NOTE: the returned `scopes` are ADVISORY, not a Convex-enforced capability
+    // boundary. Because `aud` is "convex", Convex's identity layer accepts this
+    // token as the user's full identity — any query/mutation the user could run,
+    // a client bearing this token can run via `ctx.runQuery`/`ctx.runMutation`,
+    // regardless of `scope`. Integrators MUST enforce these scopes app-side
+    // (e.g. inside each MCP tool handler) for them to actually restrict access.
     return { userId, clientId, scopes: scope ? scope.split(" ") : [], resource };
   } catch {
     return null;

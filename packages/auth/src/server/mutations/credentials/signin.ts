@@ -20,6 +20,38 @@ import { GenericActionCtxWithAuthConfig, MutationCtx } from "../../types";
 import { withSpan } from "../../utils/span";
 import { AUTH_STORE_REF } from "../store/refs";
 
+/**
+ * A well-formed but intentionally unmatchable password hash. Verifying any
+ * secret against it runs the provider's full (scrypt) work and always fails.
+ * Used on the missing-account branch so sign-in spends comparable time whether
+ * or not the account exists — closing the user-enumeration timing oracle.
+ *
+ * The prefix and params mirror the default password provider's scrypt format so
+ * that provider performs a real scrypt hash; the salt and digest are all zero,
+ * a digest scrypt can never actually produce, so verification never succeeds.
+ */
+const DUMMY_PASSWORD_HASH =
+  `scrypt:N=16384,r=16,p=1,dkLen=64$${"0".repeat(64)}$${"0".repeat(128)}` as Hashed<"Password">;
+
+/**
+ * Run a throwaway secret verification purely to equalize timing on branches
+ * that reject before the real verify would run. Never authenticates: it
+ * verifies against {@link DUMMY_PASSWORD_HASH} (which cannot match) and swallows
+ * any error, so a misconfigured or non-credentials provider still yields the
+ * unified rejection rather than a distinguishable error or timing.
+ */
+async function burnVerifyForTiming(
+  getProviderOrThrow: Provider.GetProviderOrThrowFunc,
+  providerId: string,
+  secret: string,
+): Promise<void> {
+  try {
+    await Provider.verify(getProviderOrThrow(providerId), secret, DUMMY_PASSWORD_HASH);
+  } catch {
+    // Intentionally ignored — this path exists only to equalize timing.
+  }
+}
+
 /** Argument validator for the combined credentials-verify + session-issue mutation. */
 export const vCredentialsSignInArgs = v.object({
   provider: v.string(),
@@ -102,6 +134,11 @@ async function credentialsSignInInner(
     providerAccountId: account.id,
   });
   if (existingAccount === null) {
+    // A real account pays the full secret-verify (scrypt) cost below, so burn
+    // the same cost here before returning the unified rejection. Without this a
+    // missing account returns early and its faster response leaks (by timing)
+    // that the account does not exist. Result intentionally ignored.
+    await burnVerifyForTiming(getProviderOrThrow, providerId, account.secret);
     return { kind: "invalidAccount" };
   }
 

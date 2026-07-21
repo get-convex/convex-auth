@@ -7,7 +7,7 @@ import { GenericId, Infer, v } from "convex/values";
 import { getGroup, getGroupConnection } from "../contract";
 import * as Provider from "../crypto";
 import { authDb } from "../db";
-import { log } from "../log";
+import { log, maybeRedact } from "../log";
 import type { AuthAccountExtend, AuthProfile } from "../payloads";
 import { vAccountExtend, vPayloadRecord } from "../payloads";
 import { vProfileEmail } from "../../component/model";
@@ -26,6 +26,19 @@ import { upsertUserAndAccount } from "../user/account";
 import { AUTH_STORE_REF } from "./store/refs";
 
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2;
+
+/**
+ * Length and alphabet of the short-lived OAuth sign-in handoff code minted
+ * below. Matches the 32-char alphanumeric convention used for OAuth
+ * authorization codes elsewhere (`server/oauth/code.ts`): ~190 bits of entropy,
+ * versus ~26.6 bits for the previous 8-digit numeric code — which was
+ * brute-forceable within this handoff's 2-minute TTL.
+ * @internal
+ */
+export const OAUTH_SIGN_IN_CODE_LENGTH = 32;
+/** @internal */
+export const OAUTH_SIGN_IN_CODE_ALPHABET =
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 /** Argument validator for the OAuth/Connection user provisioning mutation. */
 export const vUserOAuthArgs = v.object({
@@ -167,6 +180,18 @@ async function jitProvisionMembership(
 type OAuthReturnType = string;
 
 /**
+ * Redact secret-bearing fields (the OAuth state `signature`) from the
+ * provisioning args before they reach a DEBUG log line, so enabling DEBUG never
+ * writes the verifier signature to logs.
+ * @internal
+ */
+export function redactUserOAuthArgsForLog(
+  args: Infer<typeof vUserOAuthArgs>,
+): Infer<typeof vUserOAuthArgs> {
+  return { ...args, signature: maybeRedact(args.signature) };
+}
+
+/**
  * Provision a user and account from a verified OAuth/Connection profile.
  *
  * Resolves any group connection (OIDC/SAML) and its policy, runs the
@@ -181,7 +206,7 @@ export async function userOAuthImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<OAuthReturnType> {
-  log("DEBUG", "userOAuthImpl args:", args);
+  log("DEBUG", "userOAuthImpl args:", redactUserOAuthArgsForLog(args));
   const { profile, provider, providerAccountId, signature, accountExtend } = args;
   const typedProfile = profile as AuthProfile;
   const db = authDb(ctx, config);
@@ -319,7 +344,7 @@ export async function userOAuthImpl(
     }
   }
 
-  const code = generateRandomString(8, "0123456789");
+  const code = generateRandomString(OAUTH_SIGN_IN_CODE_LENGTH, OAUTH_SIGN_IN_CODE_ALPHABET);
   await db.verifiers.delete(verifier._id);
   const existingVerificationCode = await db.verificationCodes.get({ accountId });
   if (existingVerificationCode !== null) {
