@@ -337,7 +337,9 @@ export const upsertScimConfig = async (
     status: string;
     basePath: string;
     tokenHash: string;
-    lastRotatedAt: number;
+    // Optional to match the component `scim.config.upsert` validator
+    // (`lastRotatedAt: v.optional(v.number())`).
+    lastRotatedAt?: number;
     extend?: unknown;
   },
 ) => {
@@ -376,7 +378,9 @@ export const upsertConnectionDomainVerification = (
     expiresAt: number;
   },
 ) =>
-  componentMutation<typeof args, null>(ctx, componentConnection.domain.verification.upsert, args);
+  // The component `domain.verification.upsert` returns the verification-record
+  // id (`v.id("GroupConnectionDomainVerification")`), not `null`.
+  componentMutation<typeof args, string>(ctx, componentConnection.domain.verification.upsert, args);
 
 export const removeConnectionDomainVerification = (
   ctx: ComponentWriteCtx,
@@ -396,7 +400,9 @@ export const verifyConnectionDomain = (
   componentConnection: ComponentConnection,
   args: { domainId: string; verifiedAt: number },
 ) =>
-  componentMutation<{ id: string; verifiedAt: number }, null>(
+  // The component `domain.verify` returns the updated domain doc
+  // (`vGroupConnectionDomainDoc`), not `null`.
+  componentMutation<{ id: string; verifiedAt: number }, ConnectionDomainRecord>(
     ctx,
     componentConnection.domain.verify,
     {
@@ -429,7 +435,9 @@ export const upsertGroupConnectionSecret = async (
     updatedAt: number;
   },
 ) => {
-  const result = await componentMutation<typeof args, null>(
+  // The component `secret.upsert` returns the secret-record id
+  // (`v.id("GroupConnectionSecret")`), not `null`.
+  const result = await componentMutation<typeof args, string>(
     ctx,
     componentConnection.secret.upsert,
     args,
