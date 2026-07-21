@@ -60,6 +60,17 @@ async function verifyCodeAndSignInImplInner(
         ? params.phone
         : undefined;
 
+  // Every rate-limit key this attempt is throttled and recorded against. Seeded
+  // with the email/phone identifier when present, then extended with the
+  // resolved code's account below. Keying on the account closes the code-only
+  // bypass: a `signIn({ code })` with no email/phone previously skipped the
+  // limit entirely (both the check and the failure-record were gated on
+  // `identifier !== undefined`), letting a resolved code be replayed unthrottled.
+  const rateLimitKeys = new Set<string>();
+  if (identifier !== undefined) {
+    rateLimitKeys.add(identifier);
+  }
+
   try {
     log(LOG_LEVELS.DEBUG, "verifyCodeAndSignInImpl args:", {
       params: { email: params.email, phone: params.phone },
@@ -88,6 +99,19 @@ async function verifyCodeAndSignInImplInner(
     const code = await db.verificationCodes.get({ code: hash });
     if (code === null) {
       throw new VerifyFailure("Invalid verification code");
+    }
+
+    // The code resolved to an account: throttle (and, on failure below, record)
+    // against that account too, so a code-only verify with no email/phone is
+    // still rate-limited. Prefixed so it can never collide with an email/phone
+    // identifier key. This whole handler is one mutation transaction, so the
+    // check + record + reset are atomic (no TOCTOU as in the action flows).
+    const accountKey = `accountId:${code.accountId}`;
+    if (!rateLimitKeys.has(accountKey)) {
+      rateLimitKeys.add(accountKey);
+      if (await isSignInRateLimited(ctx, accountKey, config)) {
+        throw new VerifyFailure("Too many failed attempts to verify code");
+      }
     }
 
     if (code.verifier !== verifier) {
@@ -145,11 +169,13 @@ async function verifyCodeAndSignInImplInner(
             )
           ).userId;
 
-    const [, , replaceSessionId] = await Promise.all([
+    const [, replaceSessionId] = await Promise.all([
       db.verificationCodes.delete(code._id),
-      identifier !== undefined ? resetSignInRateLimit(ctx, identifier, config) : Promise.resolve(),
       getAuthSessionId(ctx),
     ]);
+    // Successful verify: clear the failure counter for every key we accumulated
+    // (email/phone plus the resolved account).
+    await Promise.all([...rateLimitKeys].map((key) => resetSignInRateLimit(ctx, key, config)));
 
     return await issueSession(ctx, config, {
       userId,
@@ -159,9 +185,11 @@ async function verifyCodeAndSignInImplInner(
   } catch (error) {
     if (error instanceof VerifyFailure) {
       log(LOG_LEVELS.ERROR, error.reason);
-      if (identifier !== undefined) {
-        await recordFailedSignIn(ctx, identifier, config);
-      }
+      // Record the failure against every key we resolved (email/phone and, once
+      // the code was found, its account). A code-only attempt whose code never
+      // resolves accumulates no account key; throttling that residual would need
+      // an IP/global limiter unavailable inside this mutation.
+      await Promise.all([...rateLimitKeys].map((key) => recordFailedSignIn(ctx, key, config)));
       return null;
     }
     throw error;

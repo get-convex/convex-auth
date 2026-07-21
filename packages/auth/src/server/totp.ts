@@ -24,7 +24,7 @@ import type { AuthErrorData } from "./errors";
 import { toConvexError } from "./errors";
 import { emitAuthEvent } from "./events";
 import { getAuthenticatedUserIdOrNull } from "./identity/claims";
-import { isSignInRateLimited, recordFailedSignIn, resetSignInRateLimit } from "./limits";
+import { reserveSignInAttempt, resetSignInRateLimit } from "./limits";
 import { callSignIn, callVerifier } from "./mutations/calls";
 import { decryptSecret, encryptSecret } from "./secret";
 import {
@@ -322,7 +322,10 @@ export const handleTotp = async (
     ) {
       throw convexError(ErrorCode.TOTP_INVALID_VERIFIER, "Invalid or expired TOTP verifier.");
     }
-    if (await isSignInRateLimited(ctx, userId, ctx.auth.config)) {
+    // Reserve (consume) a token up front so concurrent guesses cannot all clear
+    // a non-consuming check before any failure commits — this is an action, so
+    // each runQuery/runMutation is a separate transaction. Refunded on success.
+    if (await reserveSignInAttempt(ctx, userId, ctx.auth.config)) {
       throw convexError(ErrorCode.RATE_LIMITED, "Too many TOTP attempts. Try again later.");
     }
     let doc;
@@ -350,7 +353,8 @@ export const handleTotp = async (
         30,
       )
     ) {
-      await recordFailedSignIn(ctx, userId, ctx.auth.config);
+      // The reservation above already consumed this attempt's token; do not
+      // double-record.
       throw convexError(ErrorCode.TOTP_INVALID_CODE, "Invalid TOTP code.");
     }
     await resetSignInRateLimit(ctx, userId, ctx.auth.config);
@@ -396,7 +400,10 @@ export const handleTotp = async (
     }
     const userId = data.userId;
 
-    if (await isSignInRateLimited(ctx, userId, ctx.auth.config)) {
+    // Reserve (consume) a token up front so concurrent guesses cannot all clear
+    // a non-consuming check before any failure commits — this is an action, so
+    // each runQuery/runMutation is a separate transaction. Refunded on success.
+    if (await reserveSignInAttempt(ctx, userId, ctx.auth.config)) {
       throw convexError(ErrorCode.RATE_LIMITED, "Too many TOTP attempts. Try again later.");
     }
 
@@ -411,7 +418,8 @@ export const handleTotp = async (
     }
     const challengeSecret = await decryptTotpSecret(totp.secret);
     if (!verifyTOTPWithGracePeriod(challengeSecret, totp.period, totp.digits, code, 30)) {
-      await recordFailedSignIn(ctx, userId, ctx.auth.config);
+      // The reservation above already consumed this attempt's token; do not
+      // double-record.
       throw convexError(ErrorCode.TOTP_INVALID_CODE, "Invalid TOTP code.");
     }
     await resetSignInRateLimit(ctx, userId, ctx.auth.config);

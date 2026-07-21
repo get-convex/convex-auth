@@ -72,6 +72,37 @@ export async function recordFailedSignIn(
 }
 
 /**
+ * Reserve one sign-in attempt up front, consuming a token as part of the same
+ * atomic component mutation. Returns `true` when the caller is **blocked** (the
+ * bucket was already empty, so no token was taken) and `false` when a token was
+ * successfully consumed and the caller may proceed.
+ *
+ * Unlike {@link isSignInRateLimited} — a non-consuming peek — this closes the
+ * check-then-record TOCTOU that lets N concurrent guesses in an **action**
+ * (TOTP / passkey verify) all pass a `check()` before any `limit()` commits.
+ * Reserving before the verification makes each attempt consume a token
+ * atomically, so the per-hour cap bounds *attempts*, not merely logged failures.
+ *
+ * A single normal attempt consumes exactly one token; callers refund it on a
+ * successful verification via {@link resetSignInRateLimit}. On a failed
+ * verification the caller must NOT also call {@link recordFailedSignIn} — the
+ * reservation already counted the attempt.
+ *
+ * @internal
+ */
+export async function reserveSignInAttempt(
+  ctx: SignInLimitCtx,
+  identifier: string,
+  config: SignInLimitConfig,
+): Promise<boolean> {
+  const { ok } = await ctx.runMutation(config.component.limits.signInRecord, {
+    identifier,
+    maxAttemptsPerHour: maxAttempts(config),
+  });
+  return !ok;
+}
+
+/**
  * Reset the rate limit for the given identifier.
  *
  * @internal

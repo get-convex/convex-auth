@@ -8,8 +8,9 @@
  */
 
 import { getOneFrom } from "convex-helpers/server/relationships";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
+import { ErrorCode } from "../../shared/codes";
 import { mutation, query } from "../functions";
 import { vPasskeyDoc } from "../model";
 
@@ -49,7 +50,17 @@ export const list = query({
   },
 });
 
-/** Insert a new passkey credential. */
+/**
+ * Insert a new passkey credential, deduped by `credentialId`.
+ *
+ * Reading the `credential_id` index range for the incoming credential
+ * establishes the OCC read dependency that serializes two concurrent
+ * registrations of the same credential: the loser re-runs, sees the winner's
+ * row, and (for the same user) returns it instead of inserting a duplicate.
+ * Without this guard a duplicate row makes the `get({ credentialId })`
+ * `.unique()` lookup throw on every later sign-in — a permanent lockout for that
+ * credential.
+ */
 export const create = mutation({
   args: {
     userId: v.id("User"),
@@ -65,6 +76,23 @@ export const create = mutation({
   },
   returns: v.id("Passkey"),
   handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("Passkey")
+      .withIndex("credential_id", (q) => q.eq("credentialId", args.credentialId))
+      .first();
+    if (existing !== null) {
+      if (existing.userId !== args.userId) {
+        throw new ConvexError({
+          code: ErrorCode.ACCOUNT_ALREADY_LINKED,
+          message: "This passkey credential is already registered to another account.",
+          credentialId: args.credentialId,
+        });
+      }
+      // Same user re-submitting the same credential (a double-clicked or raced
+      // registration): idempotent — return the credential already stored rather
+      // than inserting a duplicate.
+      return existing._id;
+    }
     return await ctx.db.insert("Passkey", args);
   },
 });

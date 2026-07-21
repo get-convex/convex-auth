@@ -52,7 +52,7 @@ import type { AuthErrorData } from "./errors";
 import { toConvexError } from "./errors";
 import { emitAuthEvent } from "./events";
 import { getAuthenticatedUserIdOrNull } from "./identity/claims";
-import { isSignInRateLimited, recordFailedSignIn, resetSignInRateLimit } from "./limits";
+import { reserveSignInAttempt, resetSignInRateLimit } from "./limits";
 import { LOG_LEVELS, log } from "./log";
 import { callSignIn, callVerifier } from "./mutations/calls";
 import {
@@ -451,6 +451,12 @@ export async function handlePasskey(
       });
     } catch (err) {
       logPasskeyError(err);
+      // Preserve structured failures (e.g. the credentialId-uniqueness guard in
+      // `factor.passkey.create` firing when two registrations race the same
+      // credential) instead of masking them as a generic internal error.
+      if (err instanceof ConvexError) {
+        throw err;
+      }
       throw convexError(ErrorCode.INTERNAL_ERROR, "An unexpected error occurred.");
     }
 
@@ -498,7 +504,10 @@ export async function handlePasskey(
       throw convexError(ErrorCode.PASSKEY_UNKNOWN_CREDENTIAL, "Unknown credential");
     }
 
-    if (await isSignInRateLimited(ctx, passkey.userId, ctx.auth.config)) {
+    // Reserve (consume) a token up front so concurrent guesses cannot all clear
+    // a non-consuming check before any failure commits — this is an action, so
+    // each runQuery/runMutation is a separate transaction. Refunded on success.
+    if (await reserveSignInAttempt(ctx, passkey.userId, ctx.auth.config)) {
       throw convexError(ErrorCode.RATE_LIMITED, "Too many passkey attempts. Try again later.");
     }
 
@@ -518,22 +527,21 @@ export async function handlePasskey(
     verifyRpId(authenticatorData, rp.rpId);
     verifyUserFlags(authenticatorData, rp);
 
-    try {
-      verifyAssertionSignature(passkey, signatureBytes, messageHash);
+    // The reservation above already consumed this attempt's token, so a failed
+    // signature or counter check simply propagates. There is no separate
+    // failure-record step — running it as its own transaction is exactly what
+    // let concurrent guesses slip past the old check-then-record sequence.
+    verifyAssertionSignature(passkey, signatureBytes, messageHash);
 
-      if (
-        passkey.counter !== 0 &&
-        authenticatorData.signatureCounter !== 0 &&
-        authenticatorData.signatureCounter <= passkey.counter
-      ) {
-        throw convexError(
-          ErrorCode.PASSKEY_COUNTER_ERROR,
-          "Authenticator counter did not increase — possible credential cloning detected.",
-        );
-      }
-    } catch (error) {
-      await recordFailedSignIn(ctx, passkey.userId, ctx.auth.config);
-      throw error;
+    if (
+      passkey.counter !== 0 &&
+      authenticatorData.signatureCounter !== 0 &&
+      authenticatorData.signatureCounter <= passkey.counter
+    ) {
+      throw convexError(
+        ErrorCode.PASSKEY_COUNTER_ERROR,
+        "Authenticator counter did not increase — possible credential cloning detected.",
+      );
     }
 
     await resetSignInRateLimit(ctx, passkey.userId, ctx.auth.config);
