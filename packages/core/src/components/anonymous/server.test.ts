@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { TokenBundle } from "../../lib/types";
 import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "../../server/cookies";
-import { anonymousSignInHandler } from "./server";
+import { setupConvexAuthServer } from "../../server/setup";
+import { anonymous } from "./server";
 
 const { mutationMock } = vi.hoisted(() => ({ mutationMock: vi.fn() }));
 vi.mock("convex/browser", () => ({
@@ -20,15 +21,20 @@ const bundle: TokenBundle = {
 
 const fnRef = {} as never;
 
+const signInHandler = (secure: boolean) =>
+  setupConvexAuthServer({
+    convexUrl: "https://x.convex.cloud",
+    refreshSession: fnRef,
+    signOut: fnRef,
+    cookieOptions: { secure },
+  }).signInHandler(anonymous(fnRef));
+
 beforeEach(() => mutationMock.mockReset());
 
-describe("anonymousSignInHandler", () => {
+describe("anonymous sign-in via signInHandler", () => {
   test("mints server-side, cookies the refresh token, returns access-only", async () => {
     mutationMock.mockResolvedValue(bundle);
-    const handler = anonymousSignInHandler({
-      convexUrl: "https://x.convex.cloud",
-      signIn: fnRef,
-    });
+    const handler = signInHandler(true);
 
     const res = await handler(
       new Request("https://app.test/auth/signin/anonymous", { method: "POST" }),
@@ -53,5 +59,19 @@ describe("anonymousSignInHandler", () => {
     expect(jwt).toContain("access-1");
     expect(refresh).toContain("refresh-1");
     expect(refresh).toContain("HttpOnly");
+    // `secure: true` reaches the cookies the handler writes.
+    expect(jwt).toContain("Secure");
+    expect(refresh).toContain("Secure");
+  });
+
+  test("omits Secure when secure is false", async () => {
+    mutationMock.mockResolvedValue(bundle);
+    const handler = signInHandler(false);
+
+    const res = await handler(
+      new Request("https://app.test/auth/signin/anonymous", { method: "POST" }),
+    );
+    const setCookies = res.headers.getSetCookie();
+    expect(setCookies.every((c) => !c.includes("Secure"))).toBe(true);
   });
 });

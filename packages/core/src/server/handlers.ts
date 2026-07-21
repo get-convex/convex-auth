@@ -23,7 +23,7 @@ import type { RefreshSessionFn, SignOutFn, TokenBundle } from "../lib/types";
 import { makeSlimBundle } from "../lib/types";
 import {
   AUTH_REFRESH_COOKIE,
-  CookieOptions,
+  AuthCookieOptions,
   clearAuthCookies,
   writeAuthCookies,
 } from "./cookies";
@@ -39,8 +39,8 @@ export interface RefreshHandlerConfig {
   convexUrl: string;
   /** The app's `refreshSession` mutation reference. */
   refreshSession: RefreshSessionFn;
-  /** Overrides the default auth cookie attributes. */
-  cookieOptions?: CookieOptions;
+  /** Auth cookie attributes; `secure` is required. */
+  cookieOptions: AuthCookieOptions;
 }
 
 /**
@@ -72,8 +72,8 @@ export interface SignOutHandlerConfig {
   convexUrl: string;
   /** The app's `signOut` mutation reference. */
   signOut: SignOutFn;
-  /** Overrides the default auth cookie attributes. */
-  cookieOptions?: CookieOptions;
+  /** Auth cookie attributes; `secure` is required. */
+  cookieOptions: AuthCookieOptions;
 }
 
 /**
@@ -111,7 +111,7 @@ export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
 export async function signInResponse(
   request: Request,
   bundle: TokenBundle | null,
-  cookieOptions?: CookieOptions,
+  cookieOptions: AuthCookieOptions,
 ): Promise<Response> {
   const cookies = httpCookies(request);
   // Sign-in only writes cookies — it never refreshes or revokes — so it uses the

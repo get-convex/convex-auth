@@ -39,6 +39,7 @@ describe("refreshHandler", () => {
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,
+      cookieOptions: { secure: false },
     });
 
     const res = await handler(requestWithRefresh("refresh-1"));
@@ -70,6 +71,7 @@ describe("refreshHandler", () => {
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,
+      cookieOptions: { secure: false },
     });
 
     const res = await handler(requestWithRefresh());
@@ -82,6 +84,7 @@ describe("refreshHandler", () => {
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,
+      cookieOptions: { secure: false },
     });
 
     const res = await handler(requestWithRefresh("stale"));
@@ -97,6 +100,7 @@ describe("signOutHandler", () => {
     const handler = signOutHandler({
       convexUrl: "https://x.convex.cloud",
       signOut: fnRef,
+      cookieOptions: { secure: false },
     });
 
     const res = await handler(requestWithRefresh("refresh-1"));
@@ -115,6 +119,7 @@ describe("signOutHandler", () => {
     const handler = signOutHandler({
       convexUrl: "https://x.convex.cloud",
       signOut: fnRef,
+      cookieOptions: { secure: false },
     });
 
     const res = await handler(requestWithRefresh());
