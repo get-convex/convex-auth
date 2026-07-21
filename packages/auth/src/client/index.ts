@@ -43,6 +43,7 @@ import { createTotpClient } from "./factors/totp";
 import { createInviteManager } from "./runtime/invite";
 import { localMutex } from "./runtime/mutex";
 import {
+  isAuthRefreshRejection,
   isRetriableProxyRefreshError,
   isTransientNetworkError,
   parseProxyErrorBody,
@@ -172,15 +173,37 @@ function formDataEntries(formData: unknown): Iterable<[string, string | { name: 
 function resolveExplicitToken(value: string | null | undefined): AccessToken | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  if (value.length === 0) {
-    throw new Error(
-      "The `token` option must be a non-empty JWT string or null. Omit `token` to discover persisted auth.",
-    );
-  }
+  // A cleared auth cookie surfaces as an empty (or whitespace-only) string
+  // during SSR. Treat it as an explicit signed-out seed instead of throwing and
+  // crashing the render.
+  if (value.trim().length === 0) return null;
   if (value.trim() !== value) {
     throw new Error("The `token` option must not include leading or trailing whitespace.");
   }
   return value as AccessToken;
+}
+
+/**
+ * Decode the `sub` (subject / user id) claim from a JWT access token without
+ * verifying its signature. Used only to compare identities across browser tabs
+ * — never for authorization. Returns `null` when the token cannot be decoded.
+ */
+function decodeJwtSubject(jwt: string): string | null {
+  try {
+    const payloadSegment = jwt.split(".")[1];
+    if (payloadSegment === undefined || payloadSegment.length === 0) {
+      return null;
+    }
+    const normalized = payloadSegment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    if (typeof atob !== "function") {
+      return null;
+    }
+    const claims = JSON.parse(atob(padded)) as { sub?: unknown };
+    return typeof claims.sub === "string" ? claims.sub : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -233,7 +256,8 @@ function resolveExplicitToken(value: string | null | undefined): AccessToken | n
  * @throws {Error} When the Convex deployment URL cannot be determined and `url` is not passed explicitly.
  * @throws {Error} When `proxyPath` is not set and the `api` option is missing.
  * @throws {Error} When `proxyPath` is set and `runtime.proxy` is missing.
- * @throws {Error} When `token` is an empty string or includes leading/trailing whitespace.
+ * @throws {Error} When `token` has leading or trailing whitespace. An empty or
+ *   whitespace-only string is treated as an explicit signed-out seed, not an error.
  */
 export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = AuthApiRefs>(
   options: ClientOptions<Api>,
@@ -398,6 +422,12 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
   let lastForcedRefreshTime = 0;
   let forcedRefreshPromise: Promise<string | null> | null = null;
   let destroyed = false;
+  // Bounded grace window for a confirmed session that Convex reports as `false`.
+  // A transient mid-rotation `false` is followed by a confirming `true` (which
+  // clears the timer); a real server-side deauth (revoke/expiry) leaves it to
+  // fire and sign out. The timer callback pins itself to the token epoch it was
+  // armed for so a concurrent rotation cannot trigger a spurious sign-out.
+  let deauthGraceTimer: ReturnType<typeof setTimeout> | null = null;
   let activeSignIn: {
     key: string;
     promise: Promise<SignInResult>;
@@ -466,6 +496,47 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     }
   };
 
+  const rejectAllHandshakeWaiters = (error: ConvexError<Value>) => {
+    for (const waiter of Array.from(handshakeWaiters)) {
+      clearTimeout(waiter.timeoutId);
+      handshakeWaiters.delete(waiter);
+      waiter.deferred.reject(error);
+    }
+  };
+
+  const clearDeauthGrace = () => {
+    if (deauthGraceTimer !== null) {
+      clearTimeout(deauthGraceTimer);
+      deauthGraceTimer = null;
+    }
+  };
+
+  /**
+   * Arm the bounded re-handshake window after Convex reports a confirmed
+   * session as unauthenticated. The public snapshot is intentionally left on
+   * the confirmed state so a transient mid-rotation `false` does not flicker the
+   * UI; only if no confirming `true` arrives before the window elapses (and the
+   * token identity is unchanged) do we sign out.
+   */
+  const startDeauthGrace = () => {
+    if (deauthGraceTimer !== null) {
+      return;
+    }
+    const epoch = authEpoch;
+    deauthGraceTimer = setTimeout(() => {
+      deauthGraceTimer = null;
+      if (destroyed || authEpoch !== epoch || !authConfirmed || token === null) {
+        return;
+      }
+      void setToken({ shouldStore: true, tokens: null }).catch((error) => {
+        logMessage("convex-auth/client", LOG_LEVELS.ERROR, [
+          "[convex-auth] Sign-out after server-side deauthentication failed:",
+          error,
+        ]);
+      });
+    }, handshakeTimeoutMs);
+  };
+
   const waitForAuthHandshake = async (context: AuthFlowContext) => {
     if (token === null) {
       return;
@@ -494,6 +565,20 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
             timeoutMs: handshakeTimeoutMs,
           }),
         );
+        // Unstick the state machine: a never-confirmed handshake that times out
+        // must not leave `handshakePending` set (which would spin the UI in
+        // `loading` forever). Drive the still-current, still-pending token to
+        // signed-out — but keep the persisted refresh token (shouldStore:false),
+        // since a 5s handshake timeout is only a latency signal, not a revoke:
+        // a later reload can still recover the session from storage.
+        if (!destroyed && authEpoch === epoch && token !== null && handshakePending) {
+          void setToken({ shouldStore: false, tokens: null }).catch((error) => {
+            logMessage("convex-auth/client", LOG_LEVELS.ERROR, [
+              "[convex-auth] Sign-out after handshake timeout failed:",
+              error,
+            ]);
+          });
+        }
       }, handshakeTimeoutMs),
     };
     handshakeWaiters.add(waiter);
@@ -513,12 +598,21 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     if (isAuthenticated) {
       authConfirmed = true;
       handshakePending = false;
+      clearDeauthGrace();
       settleHandshakeWaiters(authEpoch, { type: "resolve" });
     } else if (token === null || !authConfirmed) {
       authConfirmed = false;
       if (token !== null) {
         handshakePending = true;
       }
+    } else {
+      // A previously confirmed session (`token !== null && authConfirmed`) is
+      // now reported unauthenticated. This is ambiguous: it may be a transient
+      // mid-rotation `false` (a confirming `true` follows shortly) or a real
+      // server-side deauthentication (revoke/expiry). Keep the confirmed
+      // snapshot for now and arm a bounded grace window that signs out only if
+      // no `true` re-confirms in time.
+      startDeauthGrace();
     }
 
     if (updateSnapshot()) {
@@ -604,27 +698,32 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         },
   ) => {
     const previousToken = token;
+    const nextToken = args.tokens === null ? null : args.tokens.token;
+
+    // Assign the token and bump the epoch synchronously — before any storage
+    // I/O await — so `authEpoch` and `token` never disagree within a tick. The
+    // forced-refresh race guard depends on this: a concurrent `signOut` that
+    // clears the token must be observable by an in-flight refresh the instant
+    // it happens, not only after the storage write resolves.
+    token = nextToken;
+    const tokenChanged = token !== previousToken;
+    if (tokenChanged) {
+      authEpoch += 1;
+      rejectObsoleteHandshakeWaiters(authEpoch);
+      clearDeauthGrace();
+    }
 
     if (args.tokens === null) {
-      token = null;
       lastForcedRefreshTime = 0;
       if (args.shouldStore) {
         await storageRemove(JWT_STORAGE_KEY);
         await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
       }
     } else {
-      token = args.tokens.token;
       if (args.shouldStore && "refreshToken" in args.tokens) {
         await storageSet(JWT_STORAGE_KEY, args.tokens.token);
         await storageSet(REFRESH_TOKEN_STORAGE_KEY, args.tokens.refreshToken);
       }
-    }
-
-    const tokenChanged = token !== previousToken;
-
-    if (tokenChanged) {
-      authEpoch += 1;
-      rejectObsoleteHandshakeWaiters(authEpoch);
     }
 
     if (token === null) {
@@ -711,23 +810,6 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         ) as Promise<SignInActionResult>,
       isTransientNetworkError,
     );
-  };
-
-  const verifyCodeAndSetToken = async (
-    args: { code: string; verifier?: string } | { refreshToken: string },
-    opts?: { resyncConvexAuth?: boolean },
-  ) => {
-    const result = await verifyCode(args);
-    if (result.kind !== "signedIn") {
-      throw new Error("Code exchange did not return tokens.");
-    }
-    const { session } = result;
-    await setToken({
-      shouldStore: true,
-      tokens: session,
-      resyncConvexAuth: opts?.resyncConvexAuth,
-    });
-    return session !== null;
   };
 
   const normalizeDeviceCodeResult = (device_code: unknown): DeviceCodeResult => {
@@ -1019,6 +1101,7 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
       return await withMutex(`__convexAuthProxyRefresh_${escapedNamespace}`, async () => {
         if (token !== tokenBeforeRefresh) return token;
 
+        const epochAtRefreshStart = authEpoch;
         try {
           const result = await retryWithJitteredBackoff(
             () =>
@@ -1028,6 +1111,11 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
               }) as Promise<SignInActionResult>,
             isRetriableProxyRefreshError,
           );
+          // A concurrent signOut / rotation / destroy superseded this refresh:
+          // drop the result instead of re-authenticating a stale identity.
+          if (destroyed || authEpoch !== epochAtRefreshStart) {
+            return token;
+          }
           if (isSignedInResult(result) && result.session) {
             await setToken({
               shouldStore: false,
@@ -1047,7 +1135,20 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
             "[convex-auth] Proxy refresh failed:",
             error,
           ]);
-          if (token === null) {
+          if (destroyed || authEpoch !== epochAtRefreshStart) {
+            return token;
+          }
+          if (isAuthRefreshRejection(error)) {
+            // A proxy 401 / invalid-refresh is a real sign-out. Clearing the
+            // token here breaks the Convex re-force-refresh -> 401 loop the old
+            // catch-and-retain behavior caused; a transient failure (network,
+            // 429, 5xx) still retains the token so the session can recover.
+            await setToken({
+              shouldStore: false,
+              tokens: null,
+              resyncConvexAuth: false,
+            });
+          } else if (token === null) {
             finalizeLoadingState();
           }
         }
@@ -1066,12 +1167,36 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         await setToken({ shouldStore: true, tokens: null, resyncConvexAuth: false });
         return null;
       }
+      const epochAtRefreshStart = authEpoch;
       try {
-        await verifyCodeAndSetToken({ refreshToken }, { resyncConvexAuth: false });
+        const result = await verifyCode({ refreshToken });
+        // Superseded by a concurrent signOut / rotation / destroy: discard the
+        // freshly minted token rather than re-authenticating a stale identity.
+        if (destroyed || authEpoch !== epochAtRefreshStart) {
+          return token;
+        }
+        if (result.kind !== "signedIn") {
+          throw new Error("Code exchange did not return tokens.");
+        }
+        await setToken({ shouldStore: true, tokens: result.session, resyncConvexAuth: false });
         lastForcedRefreshTime = Date.now();
       } catch (error) {
-        await setToken({ shouldStore: true, tokens: null, resyncConvexAuth: false });
-        throw error;
+        if (destroyed || authEpoch !== epochAtRefreshStart) {
+          return token;
+        }
+        if (isAuthRefreshRejection(error)) {
+          // The refresh credential was rejected (revoked/expired): sign out and
+          // delete the stored refresh token.
+          await setToken({ shouldStore: true, tokens: null, resyncConvexAuth: false });
+          return null;
+        }
+        // Transient failure (network / 5xx after in-flight retries): keep the
+        // session and the stored refresh token so a later forced refresh can
+        // recover instead of signing the user out on a blip.
+        logMessage("convex-auth/client", LOG_LEVELS.ERROR, [
+          "[convex-auth] Token refresh failed transiently, keeping session:",
+          error,
+        ]);
       }
       return token;
     });
@@ -1169,7 +1294,13 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         return;
       }
 
-      if (!tokenProvided) {
+      // Only hydrate from storage when we did NOT already load a token
+      // synchronously at boot (`readInitialToken`). With synchronous storage
+      // (web localStorage) `hasServerToken` is already true, so re-reading is
+      // redundant and can clobber a token a cross-tab sync adopted into memory
+      // in the same tick; async-only storage (e.g. Expo SecureStore) returns
+      // null synchronously, leaving `hasServerToken` false, and needs this.
+      if (!tokenProvided && !hasServerToken) {
         try {
           await hydrateFromStorage();
         } catch {
@@ -1219,18 +1350,50 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
   };
 
   if (!proxy && runtime.sync) {
+    const logStorageSyncError = (error: unknown) => {
+      logMessage("convex-auth/client", LOG_LEVELS.ERROR, [
+        "[convex-auth] Storage event handler failed:",
+        error,
+      ]);
+    };
     disposeStorageListener =
       runtime.sync.subscribe(key(JWT_STORAGE_KEY), (value) => {
+        if (destroyed) return;
         if (value === token) return;
+
+        // Another tab signed out: propagate the sign-out here too.
+        if (value === null) {
+          void setToken({ shouldStore: false, tokens: null }).catch(logStorageSyncError);
+          return;
+        }
+
+        const incoming = value as AccessToken;
+
+        if (authConfirmed && token !== null) {
+          // This tab holds a confirmed identity. Adopt a cross-tab token only
+          // when it belongs to the SAME subject (a rotated access token) — and
+          // do so without dropping confirmation, so a same-user rotation does
+          // not flicker the UI through `loading`. A token for a DIFFERENT
+          // subject is ignored to prevent one tab silently adopting another
+          // user's identity.
+          const currentSubject = decodeJwtSubject(token);
+          const incomingSubject = decodeJwtSubject(incoming);
+          if (currentSubject !== null && incomingSubject === currentSubject) {
+            void setToken({
+              shouldStore: false,
+              tokens: { token: incoming },
+              resyncConvexAuth: false,
+            }).catch(logStorageSyncError);
+          }
+          return;
+        }
+
+        // This tab is signed out or still resolving: adopt a cross-tab sign-in
+        // and run the confirmation handshake.
         void setToken({
           shouldStore: false,
-          tokens: value === null ? null : { token: value as AccessToken },
-        }).catch((error) => {
-          logMessage("convex-auth/client", LOG_LEVELS.ERROR, [
-            "[convex-auth] Storage event handler failed:",
-            error,
-          ]);
-        });
+          tokens: { token: incoming },
+        }).catch(logStorageSyncError);
       }) ?? null;
   }
 
@@ -1319,12 +1482,15 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
      */
     destroy: () => {
       destroyed = true;
-      settleHandshakeWaiters(authEpoch, {
-        type: "reject",
-        error: createHandshakeError("AUTH_HANDSHAKE_REJECTED", {
+      clearDeauthGrace();
+      // Reject ALL waiters, not just those at the current epoch — leftover
+      // waiters from an earlier epoch would otherwise leak their timers and
+      // never-settled promises across an unmount / hot-module replacement.
+      rejectAllHandshakeWaiters(
+        createHandshakeError("AUTH_HANDSHAKE_REJECTED", {
           reason: "destroyed",
         }),
-      });
+      );
       disposeStorageListener?.();
       subscribers.clear();
     },

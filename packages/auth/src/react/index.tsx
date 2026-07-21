@@ -8,6 +8,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useSyncExternalStore,
   type ReactElement,
@@ -37,11 +38,17 @@ const LOADING: AuthState = { status: "loading", token: null };
 /** Read the current auth state. */
 export function useAuth(): AuthState {
   const client = useContext(AuthClientContext);
-  return useSyncExternalStore(
-    (cb: () => void) => (client ? client.subscribe(cb) : () => {}),
-    () => (client ? client.getSnapshot() : LOADING),
-    () => LOADING,
+  // Memoize so `useSyncExternalStore` does not tear down and re-create the
+  // subscription on every render — it only re-subscribes when `client` changes.
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => (client ? client.subscribe(onStoreChange) : () => {}),
+    [client],
   );
+  // Server snapshot honors the SSR token seed carried by `client.getSnapshot()`
+  // (via the `token` option) instead of always reporting `loading`, so a
+  // server-seeded signed-in/out state hydrates without a loading flash.
+  const getSnapshot = useCallback(() => (client ? client.getSnapshot() : LOADING), [client]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /** Render children only when signed in; supports a render prop receiving the JWT. */

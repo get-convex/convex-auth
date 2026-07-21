@@ -672,12 +672,11 @@ test("browser client opens OAuth redirects via runtime oauth launcher", async ()
   auth.destroy();
 });
 
-test("invalid explicit SSR tokens are rejected", () => {
-  for (const [token, message] of [
-    ["", "The `token` option must be a non-empty JWT string or null."],
-    [" server-token", "The `token` option must not include leading or trailing whitespace."],
-    ["server-token ", "The `token` option must not include leading or trailing whitespace."],
-  ] as const) {
+test("SSR tokens with embedded whitespace are rejected", () => {
+  // A cleared cookie ("" / whitespace-only) now boots signed out (see
+  // client-state.test.ts); a content-bearing token with stray surrounding
+  // whitespace still indicates a real token-plumbing bug and throws.
+  for (const token of [" server-token", "server-token "] as const) {
     const convex = createConvexMock();
     expect(() =>
       client({
@@ -690,7 +689,7 @@ test("invalid explicit SSR tokens are rejected", () => {
           }),
         },
       }),
-    ).toThrow(message);
+    ).toThrow("The `token` option must not include leading or trailing whitespace.");
     expect(convex.setAuth).not.toHaveBeenCalled();
   }
 });
