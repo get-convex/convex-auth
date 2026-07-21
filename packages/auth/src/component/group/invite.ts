@@ -142,8 +142,13 @@ export const create = mutation({
           const isExpired =
             existingGroupInvite.expiresTime !== undefined && existingGroupInvite.expiresTime <= now;
           if (isExpired) {
+            // Clear `expiresTime` on the terminal transition so the row leaves
+            // the `expires_time` retention index; `maintenance.pruneExpired`
+            // reclaims terminal invites by age instead (avoids index-front
+            // starvation).
             await ctx.db.patch("GroupInvite", existingGroupInvite._id, {
               status: "expired",
+              expiresTime: undefined,
             });
             continue;
           }
@@ -185,8 +190,11 @@ export const create = mutation({
             existingPlatformInvite.expiresTime !== undefined &&
             existingPlatformInvite.expiresTime <= now;
           if (isExpired) {
+            // Clear `expiresTime` on the terminal transition (see the group-path
+            // note above).
             await ctx.db.patch("GroupInvite", existingPlatformInvite._id, {
               status: "expired",
+              expiresTime: undefined,
             });
             continue;
           }
@@ -263,7 +271,12 @@ export const accept = mutation({
       const now = Date.now();
       if (invite.status === "pending") {
         if (invite.expiresTime !== undefined && invite.expiresTime <= now) {
-          await ctx.db.patch("GroupInvite", invite._id, { status: "expired" });
+          // Clear `expiresTime` on the terminal transition so the row leaves the
+          // `expires_time` retention index (reclaimed by age in maintenance).
+          await ctx.db.patch("GroupInvite", invite._id, {
+            status: "expired",
+            expiresTime: undefined,
+          });
           throw new ConvexError({
             code: ErrorCode.INVITE_EXPIRED,
             message: "Invite has expired",
@@ -370,8 +383,11 @@ export const accept = mutation({
       });
     }
     if (invite.expiresTime !== undefined && invite.expiresTime <= Date.now()) {
+      // Clear `expiresTime` on the terminal transition (reclaimed by age in
+      // maintenance instead of via the `expires_time` index).
       await ctx.db.patch("GroupInvite", id, {
         status: "expired",
+        expiresTime: undefined,
       });
       throw new ConvexError({
         code: ErrorCode.INVITE_EXPIRED,
@@ -409,7 +425,13 @@ export const revoke = mutation({
         currentStatus: invite.status,
       });
     }
-    await ctx.db.patch("GroupInvite", inviteId, { status: "revoked" });
+    // Clear `expiresTime` on the terminal transition so the row leaves the
+    // `expires_time` retention index; `maintenance.pruneExpired` reclaims
+    // revoked invites by age.
+    await ctx.db.patch("GroupInvite", inviteId, {
+      status: "revoked",
+      expiresTime: undefined,
+    });
     return null;
   },
 });
