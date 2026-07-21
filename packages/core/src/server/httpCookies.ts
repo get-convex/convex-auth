@@ -1,18 +1,3 @@
-/**
- * A framework-agnostic {@link CookieStore} over a WHATWG `Request`/`Response`.
- *
- * The shared {@link ServerAuthSession} reads and writes cookies through a
- * {@link CookieStore}. A framework that hands off raw WHATWG requests (a route
- * handler that is `(Request) => Response` — Next.js App Router, Remix, Hono, …)
- * can use {@link httpCookies} to adapt them: it parses the incoming `Cookie`
- * header for reads and buffers writes as `Set-Cookie` headers to apply to the
- * outgoing response.
- *
- * Nothing here depends on React, Next.js, or Convex.
- *
- * @module
- */
-
 import { parse, serialize } from "cookie";
 import { CookieOptions, CookieStore } from "./cookies";
 
@@ -54,7 +39,11 @@ export interface HttpCookies extends CookieStore {
 }
 
 /**
- * Adapt an incoming WHATWG {@link Request}'s cookies to a {@link CookieStore}.
+ * Adapt an incoming {@link Request}'s cookies to a {@link CookieStore}.
+ *
+ * The returned {@link HttpCookies} object allows applying changes to the
+ * cookies via the {@link HttpCookies#applyTo} function. Pass it {@link
+ * Response} `Headers` and it will write the cookie values.
  *
  * ```ts
  * const cookies = httpCookies(request);

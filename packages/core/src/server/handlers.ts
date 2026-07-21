@@ -1,19 +1,19 @@
 /**
  * Framework-agnostic `(Request) => Response` auth handlers.
  *
- * These are the provider-*agnostic* halves of the SSR auth surface — refreshing
- * the access token and signing out — as plain WHATWG handlers a framework mounts
- * at routes of its choosing (e.g. `/auth/refresh`, `/auth/signout`). They read
- * the httpOnly refresh-token cookie from the request and reply with the
- * access-only {@link SlimTokenBundle} the browser is allowed to hold — the
- * refresh token stays in the cookie and never reaches the response body.
+ * These are the provider-*agnostic* halves of the SSR auth surface. This
+ * module exposes plain WHATWG handlers an application mounts at routes of its
+ * choosing (e.g. `/auth/refresh`, `/auth/signout`). They read the httpOnly
+ * refresh-token cookie from the request and reply with the access-only {@link
+ * SlimTokenBundle} the browser is allowed to hold. The refresh token stays in
+ * the cookie and never reaches the response body.
  *
- * Each handler takes only the one mutation reference it calls: `refreshHandler`
- * the app's `refreshSession`, `signOutHandler` its `signOut`.
+ * Each handler takes only the one mutation reference it calls:
+ * `refreshHandler` the app's `refreshSession`, `signOutHandler` its `signOut`.
  *
  * A provider's *sign-in* handler is the per-provider counterpart (see e.g.
- * `@convex-dev/auth/providers/anonymous/server`); it mints a bundle and defers
- * to {@link signInResponse} to cookie it and reply.
+ * `@convex-dev/auth/providers/anonymous/server`); it mints a bundle and
+ * delegates to {@link signInResponse} to properly build the response.
  *
  * @module
  */

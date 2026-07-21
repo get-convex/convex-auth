@@ -29,12 +29,10 @@ import {
  * {@link TokenBundle} and, when the sign-in takes args, how to read them off the
  * request. {@link setupConvexAuthServer}'s `signInHandler` wraps it into a route.
  *
- * `parseArgs` is required exactly when the mutation takes arguments, and
- * omittable when it does not (Convex treats `Record<string, never>` as "no
- * args"). So a provider that takes args cannot forget to parse them, while a
- * no-argument provider like anonymous stays a bare `{ signIn }`.
+ * A `parseArgs` function that extracts args from the {@link Request} is
+ * required if the mutation takes arguments.
  */
-export type SignInProvider<Args extends Record<string, any>> = {
+export type SignInProvider<Args extends Record<string, unknown>> = {
   /** The provider's sign-in mutation reference. */
   signIn: FunctionReference<"mutation", "public", Args, TokenBundle | null>;
 } & (Args extends Record<string, never>
@@ -83,7 +81,7 @@ export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
       cookieOptions,
     }),
     /** Build a sign-in route from a provider descriptor. */
-    signInHandler<Args extends Record<string, any>>(
+    signInHandler<Args extends Record<string, unknown>>(
       provider: SignInProvider<Args>,
     ): RequestHandler {
       // Widen the conditionally-required descriptor so parseArgs reads uniformly.
