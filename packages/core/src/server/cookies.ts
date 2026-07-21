@@ -20,7 +20,7 @@ export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;
 /** The cookie holding the current (rotating) refresh token. */
 export const AUTH_REFRESH_COOKIE = REFRESH_TOKEN_STORAGE_KEY;
 
-/** Attributes applied when writing a cookie. */
+/** Attributes applied when writing a cookie. The low-level shape, all optional. */
 export interface CookieOptions {
   /** Whether to hide the cookie from client JS. */
   httpOnly?: boolean;
@@ -37,6 +37,18 @@ export interface CookieOptions {
   /** Cookie domain. */
   domain?: string;
 }
+
+/**
+ * The cookie options a framework integration must supply for auth cookies.
+ *
+ * `secure` is required. Whether auth cookies are HTTPS-only depends on the
+ * deployment (HTTPS in production, plain http on localhost), so every
+ * integration has to decide it explicitly rather than inherit a default that
+ * would be wrong in one environment or the other.
+ */
+export type AuthCookieOptions = Omit<CookieOptions, "secure"> & {
+  secure: boolean;
+};
 
 /**
  * Read/write/delete cookies. Every method may be synchronous or return a
@@ -57,14 +69,18 @@ export interface CookieStore {
 }
 
 /**
- * The default attributes for auth cookies.
+ * The environment-independent attributes for auth cookies, merged under any
+ * caller-supplied options by {@link writeAuthCookies}.
  *
  *  * `httpOnly: true` (so the refresh token never reaches client JS)
  *  * `sameSite: "lax"` to aid in CSRF protection (see
  *     https://auth.pilcrowonpaper.com/csrf)
  *  * `path: "/"` so the cookies will be sent for all paths on the site
+ *
+ * `secure` is deliberately absent: it varies by environment and is supplied by
+ * the caller via {@link AuthCookieOptions}.
  */
-export function defaultCookieOptions(): CookieOptions {
+function invariantCookieOptions(): Omit<CookieOptions, "secure"> {
   return {
     httpOnly: true,
     sameSite: "lax",
@@ -78,8 +94,8 @@ export function defaultCookieOptions(): CookieOptions {
  * The access token is stored in in {@link AUTH_JWT_COOKIE} and the refresh
  * token in {@link AUTH_REFRESH_COOKIE}. Both live as long as the refresh
  * token, although the access token will likely expire sooner and need to be
- * refreshed). With {@link defaultCookieOptions} the refresh cookie is
- * httpOnly, so it never reaches client JS.
+ * refreshed). The invariant attributes (httpOnly etc.) are merged in, so the
+ * refresh cookie is httpOnly and never reaches client JS.
  *
  * This is the one place that knows which cookies hold a session and how their
  * lifetimes derive from the bundle, so refresh, middleware, and every provider's
@@ -88,15 +104,13 @@ export function defaultCookieOptions(): CookieOptions {
 export async function writeAuthCookies(
   cookies: CookieStore,
   bundle: TokenBundle,
-  options: CookieOptions = defaultCookieOptions(),
+  options: AuthCookieOptions,
 ): Promise<void> {
+  const base = { ...invariantCookieOptions(), ...options };
   const expires = new Date(bundle.refreshTokenExpiresAt);
-  await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, {
-    ...options,
-    expires,
-  });
+  await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, { ...base, expires });
   await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
-    ...options,
+    ...base,
     expires,
   });
 }

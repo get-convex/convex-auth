@@ -23,10 +23,9 @@ import type { TokenBundle } from "../lib/types";
 import {
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
-  CookieOptions,
+  AuthCookieOptions,
   CookieStore,
   clearAuthCookies,
-  defaultCookieOptions,
   writeAuthCookies,
 } from "./cookies";
 import { isTokenExpiring } from "./jwt";
@@ -53,23 +52,23 @@ export interface ServerAuthSessionConfig {
    */
   refreshSkewSeconds?: number;
   /**
-   * Base cookie attributes (httpOnly/sameSite/path). Per-cookie lifetime is
-   * derived from the token bundle. Defaults to {@link defaultCookieOptions}.
+   * Base cookie attributes. Per-cookie lifetime is derived from the token
+   * bundle. `secure` is required (see {@link AuthCookieOptions}).
    */
-  cookieOptions?: CookieOptions;
+  cookieOptions: AuthCookieOptions;
 }
 
 export class ServerAuthSession {
   readonly #refreshSession: RefreshSession;
   readonly #cookies: CookieStore;
   readonly #refreshSkewSeconds: number;
-  readonly #cookieOptions: CookieOptions;
+  readonly #cookieOptions: AuthCookieOptions;
 
   constructor(config: ServerAuthSessionConfig) {
     this.#refreshSession = config.refreshSession;
     this.#cookies = config.cookies;
     this.#refreshSkewSeconds = config.refreshSkewSeconds ?? 10;
-    this.#cookieOptions = config.cookieOptions ?? defaultCookieOptions();
+    this.#cookieOptions = config.cookieOptions;
   }
 
   /**

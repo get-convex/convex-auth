@@ -7,12 +7,12 @@
  */
 
 export {
+  type AuthCookieOptions,
   type CookieOptions,
   type CookieStore,
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
   clearAuthCookies,
-  defaultCookieOptions,
   writeAuthCookies,
 } from "./cookies";
 export {

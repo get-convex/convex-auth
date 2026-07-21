@@ -56,7 +56,11 @@ function newSession(
   refreshSession: RefreshSession = async () => null,
   cookies = new FakeCookies(),
 ) {
-  const session = new ServerAuthSession({ refreshSession, cookies });
+  const session = new ServerAuthSession({
+    refreshSession,
+    cookies,
+    cookieOptions: { secure: false },
+  });
   return { session, cookies };
 }
 
