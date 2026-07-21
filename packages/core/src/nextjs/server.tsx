@@ -18,7 +18,12 @@ import { cookies as nextCookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ReactNode } from "react";
 import type { RefreshSessionFn } from "../lib/types";
-import { AUTH_JWT_COOKIE, CookieOptions, CookieStore } from "../server/cookies";
+import {
+  AUTH_JWT_COOKIE,
+  AuthCookieOptions,
+  CookieOptions,
+  CookieStore,
+} from "../server/cookies";
 import { isTokenExpiring } from "../server/jwt";
 import { ServerAuthSession } from "../server/session";
 
@@ -116,12 +121,21 @@ class MiddlewareCookieStore implements CookieStore {
 export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
   const httpClient = new ConvexHttpClient(config.convexUrl);
 
+  // Next sets NODE_ENV to "production" for `next build`/`next start` and
+  // "development" for `next dev`, so cookies are HTTPS-only in production while
+  // still working over http on localhost. An explicit `secure` still wins.
+  const cookieOptions: AuthCookieOptions = {
+    ...config.cookieOptions,
+    secure:
+      config.cookieOptions?.secure ?? process.env.NODE_ENV === "production",
+  };
+
   const newSession = (cookies: CookieStore) =>
     new ServerAuthSession({
       refreshSession: (refreshToken) =>
         httpClient.mutation(config.refreshSession, { refreshToken }),
       cookies,
-      cookieOptions: config.cookieOptions,
+      cookieOptions,
     });
 
   /** Wrap Next.js middleware to refresh the session up front (so downstream

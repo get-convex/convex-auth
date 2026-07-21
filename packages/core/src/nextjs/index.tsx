@@ -135,8 +135,8 @@ export function ConvexAuthNextjsProvider({
  * `useAnonymousAuth` (`@convex-dev/auth/providers/anonymous/react`).
  *
  * Sign-in runs on the SSR host: this POSTs to the anonymous sign-in route (where
- * `anonymousSignInHandler` is mounted), and adopts the access-only session it
- * returns.
+ * the `anonymous` provider is mounted via `signInHandler`), and adopts the
+ * access-only session it returns.
  *
  * ```tsx
  * const { signInAnonymous } = useAnonymousAuth();
