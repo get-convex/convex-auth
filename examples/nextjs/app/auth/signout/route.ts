@@ -1,7 +1,3 @@
-import { signOutHandler } from "@convex-dev/auth/server";
-import { api } from "@/convex/_generated/api";
+import { auth } from "@/serverAuth";
 
-export const POST = signOutHandler({
-  convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
-  signOut: api.auth.signOut,
-});
+export const POST = auth.signOutHandler;
