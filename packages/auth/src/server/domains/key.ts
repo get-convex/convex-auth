@@ -21,6 +21,17 @@ export type KeyDeps = {
   config: ReturnType<typeof configDefaults>;
 };
 
+/**
+ * Sampling window for the `lastUsedAt` touch in {@link createKeyDomain}'s
+ * `verify`. Bearer verification runs on every authenticated API-key request, so
+ * writing `lastUsedAt` unconditionally turns read-only traffic into a
+ * per-request write on a single, potentially very hot `ApiKey` document — a
+ * classic OCC contention point when one shared key drives high QPS. `lastUsedAt`
+ * only needs coarse ("used ~this minute") accuracy, so the touch is coarsened:
+ * skipped unless the stored value is unset or older than this window.
+ */
+const LAST_USED_COARSEN_MS = 60_000;
+
 export function createKeyDomain(deps: KeyDeps) {
   const { config } = deps;
 
@@ -134,7 +145,22 @@ export function createKeyDomain(deps: KeyDeps) {
           message: "This API key has expired.",
         });
       }
-      const patchData: Record<string, unknown> = { lastUsedAt: Date.now() };
+      const now = Date.now();
+      let patch: Record<string, unknown> | null = null;
+      // Rate-limit enforcement, when configured, must always persist the new
+      // token-bucket state (that is the whole point of the check).
+      //
+      // NOTE: the rate-limit check is a read (via `key.get` above, its own
+      // transaction) → decide → write (`key.update`, a separate transaction)
+      // sequence. Because those are two transactions, two concurrent requests
+      // can both read the same `rateLimitState`, both decide "not limited", and
+      // both persist a decrement of the *same* starting state — so the true
+      // atomic decrement is lost and a burst can slip past the limit. Closing
+      // that window needs the read-check-decrement folded into a single
+      // component mutation on `ApiKey` (which owns the row's transaction);
+      // that mutation lives in `component/user/key.ts`, outside this file's
+      // edit scope, so it is left as a follow-up. The coarsening below does not
+      // affect the rate-limit path (its state is still written every request).
       if (k.rateLimit) {
         const { limited, newState } = checkKeyRateLimit(k.rateLimit, k.rateLimitState ?? undefined);
         if (limited) {
@@ -143,12 +169,23 @@ export function createKeyDomain(deps: KeyDeps) {
             message: "API key rate limit exceeded. Please try again later.",
           });
         }
-        patchData.rateLimitState = newState;
+        patch = { rateLimitState: newState };
       }
-      await ctx.runMutation(config.component.user.key.update, {
-        id: k._id,
-        patch: patchData,
-      });
+      // Coarsen the `lastUsedAt` touch: only write when it is unset or older
+      // than the sampling window, so repeated verifications of the same key
+      // within the window do not each issue a write.
+      const lastUsedAt = typeof k.lastUsedAt === "number" ? k.lastUsedAt : 0;
+      if (now - lastUsedAt >= LAST_USED_COARSEN_MS) {
+        patch = { ...patch, lastUsedAt: now };
+      }
+      // Skip the write entirely in the common hot-path case: no rate limit
+      // configured and `lastUsedAt` still fresh — verification stays read-only.
+      if (patch !== null) {
+        await ctx.runMutation(config.component.user.key.update, {
+          id: k._id,
+          patch,
+        });
+      }
       return {
         userId: k.userId,
         keyId: k._id,
