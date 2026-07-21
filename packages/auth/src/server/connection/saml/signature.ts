@@ -134,7 +134,10 @@ export async function constructSamlSignature(opts: SignatureConstructor): Promis
  * Fails closed: a failed assertion signature aborts immediately rather than
  * falling through to another candidate. When `opts.metadata` is supplied,
  * the response's X509 certificate is pinned to one declared in metadata
- * (supporting rolling certificate usage).
+ * (supporting rolling certificate usage). If metadata declares no signing
+ * certificate, verification is rejected (`NO_SELECTED_CERTIFICATE`) rather than
+ * trusting a certificate embedded in the assertion itself — a self-signed forgery
+ * must never be allowed to verify against its own bundled certificate.
  *
  * Returns a tuple where the first element is `true` if the signature is valid,
  * and the second is the cryptographically authenticated assertion node as a
@@ -200,19 +203,28 @@ export async function verifySignature(
         metadataCertList = flattenDeep(metadataCertList);
       } else if (typeof metadataCertList === "string") {
         metadataCertList = [metadataCertList];
+      } else {
+        metadataCertList = [];
       }
       /**
        * `flattenDeep` is deliberately loose (`unknown[]`); IdP metadata only ever
-       * yields PEM strings here, which `normalizeCerString` accepts. The `null`
-       * branch is left unguarded so a missing certificate throws exactly as the
-       * original `any`-typed code did — this single narrowing reflects that every
-       * non-throwing path has reshaped `metadataCertList` into a cert array.
+       * yields PEM strings here, which `normalizeCerString` accepts. A missing
+       * (`null`) or empty list is normalized to `[]` above so the fail-closed
+       * guard below throws a clean `NO_SELECTED_CERTIFICATE` instead of a raw
+       * `TypeError`.
        */
       const metadataCert: string[] = (metadataCertList as Array<string | Uint8Array>).map(
         normalizeCerString,
       );
 
-      if (certificateNode.length === 0 && metadataCert.length === 0) {
+      /**
+       * Fail CLOSED: without at least one pinned signing certificate from IdP
+       * metadata there is no trust anchor. NEVER fall back to an
+       * `<X509Certificate>` embedded in the assertion — trusting the assertion's
+       * own certificate lets a self-signed forgery verify against itself (auth
+       * bypass). Reject whether or not the assertion carries an embedded cert.
+       */
+      if (metadataCert.length === 0) {
         throw new Error("NO_SELECTED_CERTIFICATE");
       }
 
@@ -220,10 +232,7 @@ export async function verifySignature(
         const x509CertificateData = certificateNodeData(certificateNode[0]);
         const x509Certificate = normalizeCerString(x509CertificateData);
 
-        if (
-          metadataCert.length >= 1 &&
-          !metadataCert.find((cert) => cert.trim() === x509Certificate.trim())
-        ) {
+        if (!metadataCert.find((cert) => cert.trim() === x509Certificate.trim())) {
           throw new Error("ERROR_UNMATCH_CERTIFICATE_DECLARATION_IN_METADATA");
         }
 

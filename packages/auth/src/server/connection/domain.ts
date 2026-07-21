@@ -880,6 +880,21 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
               : "Failed to parse SAML metadata.",
           );
         }
+        // Fail closed: an IdP whose metadata declares no usable signing
+        // certificate can never have its assertions verified, so it must not be
+        // activated. Reject before persisting `status: "active"` below.
+        const setIdpSigningCert = parsed.signingCert;
+        const setHasUsableSigningCert =
+          typeof setIdpSigningCert === "string"
+            ? setIdpSigningCert.trim().length > 0
+            : Array.isArray(setIdpSigningCert) &&
+              setIdpSigningCert.some((cert) => typeof cert === "string" && cert.trim().length > 0);
+        if (!setHasUsableSigningCert) {
+          throw convexError(
+            ErrorCode.INVALID_PARAMETERS,
+            "SAML IdP metadata has no usable signing certificate. A signing certificate is required to verify assertions before the connection can be activated.",
+          );
+        }
         log("DEBUG", "[group-connection] saml:configure:parsed", {
           connectionId: data.connectionId,
           metadataUrl,
@@ -1023,6 +1038,23 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
             error instanceof Error
               ? `Failed to parse SAML metadata: ${error.message}`
               : "Failed to parse SAML metadata.",
+          );
+        }
+        // Fail closed: refreshed IdP metadata that yields no usable signing
+        // certificate would leave the connection unable to verify assertions.
+        // Reject rather than overwrite the stored config with cert-less metadata.
+        const refreshIdpSigningCert = parsed.signingCert;
+        const refreshHasUsableSigningCert =
+          typeof refreshIdpSigningCert === "string"
+            ? refreshIdpSigningCert.trim().length > 0
+            : Array.isArray(refreshIdpSigningCert) &&
+              refreshIdpSigningCert.some(
+                (cert) => typeof cert === "string" && cert.trim().length > 0,
+              );
+        if (!refreshHasUsableSigningCert) {
+          throw convexError(
+            ErrorCode.INVALID_PARAMETERS,
+            "SAML IdP metadata has no usable signing certificate. A signing certificate is required to verify assertions.",
           );
         }
         const nextConfig = upsertProtocolConfig(connection.config, "saml", {
