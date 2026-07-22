@@ -182,6 +182,8 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
     children: ReactNode;
   }) {
     const initialToken = await convexAuthNextjsAccessToken();
+    // Lazily import the client component so other consumers of this module
+    // don't have to take on those dependencies.
     const { ConvexAuthNextjsProvider } = await import("./index");
     return (
       <ConvexAuthNextjsProvider
