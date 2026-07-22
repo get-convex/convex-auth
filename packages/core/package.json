@@ -23,8 +23,7 @@
   },
   "files": [
     "dist",
-    "src",
-    "scripts"
+    "src"
   ],
   "type": "module",
   "sideEffects": false,
