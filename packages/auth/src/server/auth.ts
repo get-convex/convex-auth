@@ -33,6 +33,7 @@ import type {
   AuthMemberInspectResult,
   AuthProviderConfig,
   ConvexAuthConfig,
+  Doc,
   Grant,
   HasDeviceProvider,
   HasPasskeyProvider,
@@ -72,20 +73,38 @@ type MemberApiWithPermissions<TPermissions extends PermissionsConfig | undefined
       };
     },
   ) => Promise<string>;
-  list: (
+  list: <
+    O extends
+      | {
+          where?: {
+            groupId?: string;
+            userId?: string;
+            roleId?: RoleId<TPermissions>;
+            status?: string;
+          };
+          paginationOpts?: { numItems: number; cursor: string | null };
+          orderBy?: "_creationTime" | "status";
+          order?: "asc" | "desc";
+          /** Join each item's `group` document. */
+          withGroup?: true;
+          /** Resolve each item's `roleIds` + `grants`, capped to the caller's scope. */
+          withGrants?: true;
+        }
+      | undefined = undefined,
+  >(
     ctx: Parameters<ReturnType<typeof AuthFactory>["auth"]["member"]["list"]>[0],
-    opts?: {
-      where?: {
-        groupId?: string;
-        userId?: string;
-        roleId?: RoleId<TPermissions>;
-        status?: string;
-      };
-      paginationOpts: { numItems: number; cursor: string | null };
-      orderBy?: "_creationTime" | "status";
-      order?: "asc" | "desc";
-    },
-  ) => ReturnType<ReturnType<typeof AuthFactory>["auth"]["member"]["list"]>;
+    opts?: O,
+  ) => Promise<{
+    page: Array<
+      Doc<"GroupMember"> &
+        (O extends { withGroup: true } ? { group: Doc<"Group"> | null } : unknown) &
+        (O extends { withGrants: true }
+          ? { roleIds: RoleId<TPermissions>[]; grants: Grant<TPermissions>[] }
+          : unknown)
+    >;
+    isDone: boolean;
+    continueCursor: string;
+  }>;
   update: (
     ctx: Parameters<ReturnType<typeof AuthFactory>["auth"]["member"]["update"]>[0],
     args: {
