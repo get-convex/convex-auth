@@ -28,10 +28,10 @@ import { reserveSignInAttempt, resetSignInRateLimit } from "./limits";
 import { callSignIn, callVerifier } from "./mutations/calls";
 import { decryptSecret, encryptSecret } from "./secret";
 import {
+  consumeVerifierById,
   mutateTotpInsert,
   mutateTotpMarkVerified,
   mutateTotpUpdateLastUsed,
-  mutateVerifierRemove,
   queryTotpById,
   queryTotpVerifiedByUserId,
   queryUserById,
@@ -358,10 +358,16 @@ export const handleTotp = async (
       throw convexError(ErrorCode.TOTP_INVALID_CODE, "Invalid TOTP code.");
     }
     await resetSignInRateLimit(ctx, userId, ctx.auth.config);
+    // Atomically consume the verifier BEFORE minting a session: this runs in an
+    // action, so two concurrent confirmations that both passed the earlier read
+    // would otherwise each sign in (duplicate sessions). Only the single winner
+    // gets the doc back; a loser (null) aborts here.
+    if ((await consumeVerifierById(ctx, verifier)) === null) {
+      throw convexError(ErrorCode.TOTP_INVALID_VERIFIER, "Invalid or expired TOTP verifier.");
+    }
     let signInResult;
     try {
       await mutateTotpMarkVerified(ctx, totpId, Date.now());
-      await mutateVerifierRemove(ctx, verifier);
       signInResult = await callSignIn(ctx, {
         userId,
         generateTokens: true,
@@ -424,10 +430,14 @@ export const handleTotp = async (
     }
     await resetSignInRateLimit(ctx, userId, ctx.auth.config);
 
+    // Atomically consume the verifier BEFORE minting a session so two concurrent
+    // challenge completions carrying the same verifier cannot each sign in.
+    if ((await consumeVerifierById(ctx, verifier)) === null) {
+      throw convexError(ErrorCode.TOTP_INVALID_VERIFIER, "Invalid or expired TOTP verifier.");
+    }
     let signInResult;
     try {
       await mutateTotpUpdateLastUsed(ctx, totp._id, Date.now());
-      await mutateVerifierRemove(ctx, verifier);
       signInResult = await callSignIn(ctx, { userId, generateTokens: true });
     } catch (error) {
       throw asConvexError(error, ErrorCode.INTERNAL_ERROR, String(error));

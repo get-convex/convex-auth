@@ -56,14 +56,13 @@ import { reserveSignInAttempt, resetSignInRateLimit } from "./limits";
 import { LOG_LEVELS, log } from "./log";
 import { callSignIn, callVerifier } from "./mutations/calls";
 import {
+  consumeVerifierById,
   mutatePasskeyInsert,
   mutatePasskeyUpdateCounter,
-  mutateVerifierRemove,
   queryPasskeyByCredentialId,
   queryPasskeysByUserId,
   queryUserById,
   queryUserByVerifiedEmail,
-  queryVerifierById,
 } from "./component/factor/db";
 import {
   AuthDataModel,
@@ -210,20 +209,19 @@ async function verifyAndConsumeChallenge<T extends { challenge: Uint8Array }>(
   verifierValue: string,
 ): Promise<T> {
   const challengeHash = encodeBase64urlNoPadding(new Uint8Array(sha256(clientData.challenge)));
+  // Read-check-delete the challenge verifier in ONE component mutation: this runs
+  // in an action, so a separate `get` then `remove` let two concurrent
+  // assertions carrying the same challenge both pass before either delete landed,
+  // each minting its own session. `consume` matches the expected challenge hash
+  // and deletes atomically, so only the single winner gets the doc back.
   let doc;
   try {
-    doc = await queryVerifierById(ctx, verifierValue);
+    doc = await consumeVerifierById(ctx, verifierValue, challengeHash);
   } catch (err) {
     console.error("[auth] passkey error:", err);
     throw convexError(ErrorCode.PASSKEY_INVALID_CHALLENGE, "Invalid or expired passkey challenge.");
   }
-  if (!doc || doc.signature !== challengeHash) {
-    throw convexError(ErrorCode.PASSKEY_INVALID_CHALLENGE, "Invalid or expired passkey challenge.");
-  }
-  try {
-    await mutateVerifierRemove(ctx, verifierValue);
-  } catch (err) {
-    console.error("[auth] passkey error:", err);
+  if (!doc) {
     throw convexError(ErrorCode.PASSKEY_INVALID_CHALLENGE, "Invalid or expired passkey challenge.");
   }
   return clientData;

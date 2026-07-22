@@ -91,6 +91,26 @@ export async function mutateVerifierRemove(
   });
 }
 
+/**
+ * Atomically consume a PKCE verifier by ID across the component boundary,
+ * returning the consumed doc to the single winner and `null` otherwise (unknown
+ * / expired / signature mismatch / already consumed). Replaces the racy
+ * read-then-remove so concurrent passkey/TOTP ceremonies cannot each consume the
+ * same verifier and mint duplicate sessions. When `expectedSignature` is given,
+ * the row is consumed only if its signature matches (a mismatch leaves it
+ * intact).
+ */
+export async function consumeVerifierById(
+  ctx: ComponentCallCtx,
+  verifierId: string,
+  expectedSignature?: string,
+): Promise<VerifierDoc | null> {
+  return (await ctx.runMutation(ctx.auth.config.component.token.pkce.consume, {
+    id: verifierId,
+    ...(expectedSignature === undefined ? {} : { expectedSignature }),
+  })) as VerifierDoc | null;
+}
+
 /** Fetch a TOTP factor by ID across the component boundary. */
 export async function queryTotpById(
   ctx: ComponentCallCtx,

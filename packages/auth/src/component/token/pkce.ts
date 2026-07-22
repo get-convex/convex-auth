@@ -47,6 +47,51 @@ export const get = query({
   },
 });
 
+/**
+ * Atomically consume a verifier: read → validate → delete in ONE transaction,
+ * returning the consumed doc to the single winner and `null` to everyone else
+ * (unknown / expired / signature mismatch / already consumed).
+ *
+ * The passkey and TOTP ceremonies run in actions, where reading the verifier
+ * (`get`) and deleting it (`remove`) are two separate transactions: two
+ * concurrent requests carrying the same verifier could both pass the read +
+ * signature check before either delete landed, each then minting its own
+ * session (duplicate sign-in). Folding read + optional signature match + delete
+ * into this single mutation makes the row's transaction the serialization
+ * point — the first caller deletes and returns the doc; a racing caller retries
+ * under OCC, re-reads the now-absent row, and gets `null`.
+ *
+ * A signature mismatch does NOT delete the row (a wrong guess must not burn a
+ * legitimate pending verifier); an expired row IS deleted but reported as not
+ * consumed.
+ */
+export const consume = mutation({
+  args: {
+    id: v.optional(v.id("AuthVerifier")),
+    signature: v.optional(v.string()),
+    expectedSignature: v.optional(v.string()),
+  },
+  returns: v.union(vAuthVerifierDoc, v.null()),
+  handler: async (ctx, { id, signature, expectedSignature }) => {
+    const verifier =
+      signature !== undefined
+        ? await getOneFrom(ctx.db, "AuthVerifier", "signature", signature)
+        : id !== undefined
+          ? await ctx.db.get("AuthVerifier", id)
+          : null;
+    if (verifier === null) return null;
+    if (verifier.expirationTime !== undefined && verifier.expirationTime < Date.now()) {
+      await ctx.db.delete("AuthVerifier", verifier._id);
+      return null;
+    }
+    if (expectedSignature !== undefined && verifier.signature !== expectedSignature) {
+      return null;
+    }
+    await ctx.db.delete("AuthVerifier", verifier._id);
+    return verifier;
+  },
+});
+
 /** Create a PKCE verifier, defaulting `expirationTime` to 15 minutes out. */
 export const create = mutation({
   args: {

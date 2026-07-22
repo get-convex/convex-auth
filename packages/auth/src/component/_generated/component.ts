@@ -3500,6 +3500,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
   };
   token: {
     pkce: {
+      consume: FunctionReference<
+        "mutation",
+        "internal",
+        { expectedSignature?: string; id?: string; signature?: string },
+        {
+          _creationTime: number;
+          _id: string;
+          expirationTime?: number;
+          sessionId?: string;
+          signature?: string;
+        } | null,
+        Name
+      >;
       create: FunctionReference<
         "mutation",
         "internal",
