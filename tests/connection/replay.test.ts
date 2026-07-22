@@ -83,6 +83,53 @@ test("SAML pending request accept rejects unknown and expired requests", async (
   expect(expired).toBe(false);
 });
 
+test("SAML pending request accept rejects a mismatched connectionId (cross-connection defense-in-depth)", async () => {
+  const t = convexTest(schema);
+  const { groupId, connectionId } = await createConnection(t);
+  const now = Date.now();
+
+  // A second connection in the same group. A captured InResponseTo minted for
+  // `connectionId` must not be consumable while processing this connection.
+  const otherConnectionId = await t.run((ctx) =>
+    ctx.runMutation(components.auth.connection.create, {
+      groupId,
+      slug: "replay-saml-2",
+      name: "Replay SAML 2",
+      protocol: "saml",
+      status: "active",
+    }),
+  );
+
+  await t.run(async (ctx) => {
+    await ctx.runMutation(components.auth.connection.saml.request.create, {
+      connectionId,
+      requestId: "_authn_request_xc",
+      createdAt: now,
+      expiresAt: now + 60_000,
+    });
+  });
+
+  // The wrong connection cannot consume the pending request...
+  const wrong = await t.run((ctx) =>
+    ctx.runMutation(components.auth.connection.saml.request.accept, {
+      requestId: "_authn_request_xc",
+      now: now + 1_000,
+      connectionId: otherConnectionId,
+    }),
+  );
+  expect(wrong).toBe(false);
+
+  // ...and the mismatch does not burn it: the owning connection still accepts.
+  const right = await t.run((ctx) =>
+    ctx.runMutation(components.auth.connection.saml.request.accept, {
+      requestId: "_authn_request_xc",
+      now: now + 2_000,
+      connectionId,
+    }),
+  );
+  expect(right).toBe(true);
+});
+
 test("SAML seen-assertion record rejects a replayed assertion id per connection", async () => {
   const t = convexTest(schema);
   const { connectionId } = await createConnection(t);

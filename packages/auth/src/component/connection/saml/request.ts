@@ -33,19 +33,31 @@ export const create = mutation({
  * `true` only when a matching, unaccepted, unexpired row existed and was
  * stamped `acceptedAt`; a replayed, expired, or unknown request returns
  * `false`.
+ *
+ * When `connectionId` is supplied, the pending request must also belong to that
+ * connection. This is defense-in-depth for multi-tenant setups: a `SAMLResponse`
+ * captured under one connection carries an `InResponseTo` that must not be
+ * consumable while processing a *different* connection's ACS callback. A
+ * mismatch returns `false` *without* consuming the row, so the owning
+ * connection can still accept it (a wrong-connection probe cannot burn a
+ * legitimate pending request).
  */
 export const accept = mutation({
   args: {
     requestId: v.string(),
     now: v.number(),
+    connectionId: v.optional(v.id("GroupConnection")),
   },
   returns: v.boolean(),
-  handler: async (ctx, { requestId, now }) => {
+  handler: async (ctx, { requestId, now, connectionId }) => {
     const row = await ctx.db
       .query("SamlLoginRequest")
       .withIndex("request_id", (idx) => idx.eq("requestId", requestId))
       .first();
     if (row === null || row.acceptedAt !== undefined || row.expiresAt <= now) {
+      return false;
+    }
+    if (connectionId !== undefined && row.connectionId !== connectionId) {
       return false;
     }
     await ctx.db.patch("SamlLoginRequest", row._id, { acceptedAt: now });

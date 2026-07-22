@@ -398,6 +398,7 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
       const accepted = (await ctx.runMutation(config.component.connection.saml.request.accept, {
         requestId: inResponseTo,
         now: nowMs,
+        connectionId: connection._id,
       })) as boolean;
       if (!accepted) {
         await rejectReplay("SAML response replays or references an unknown login request.");

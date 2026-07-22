@@ -1,6 +1,10 @@
 import { decodeBase64urlIgnorePadding, encodeBase64urlNoPadding } from "@oslojs/encoding";
 import { createIdentityProvider, createServiceProvider, setSchemaValidator } from "./saml/index";
-import { BINDING_URI } from "./saml/constants";
+import {
+  BINDING_URI,
+  DEFAULT_MAX_SAML_METADATA_SIZE,
+  DEFAULT_MAX_SAML_RESPONSE_SIZE,
+} from "./saml/constants";
 import { safeParseXml } from "./saml/api";
 export { safeParseXml };
 
@@ -364,15 +368,18 @@ export function parseSamlIdpMetadata(metadata: string): ParsedSamlMetadata {
 /**
  * Throw if the IdP metadata XML exceeds the connection's configured
  * `maxMetadataSize`, bounding parser work against oversized payloads.
+ *
+ * When no limit is configured a generous default
+ * ({@link DEFAULT_MAX_SAML_METADATA_SIZE}) applies so the cap is never silently
+ * off; an operator may override it per connection or disable it entirely with a
+ * non-positive value.
  * @internal
  */
 export function enforceSamlMetadataSize(opts: { metadataXml: string; config: unknown }) {
-  const maxMetadataSize = getSamlSecurityConfig(opts.config).maxMetadataSize;
-  if (
-    typeof maxMetadataSize === "number" &&
-    maxMetadataSize > 0 &&
-    opts.metadataXml.length > maxMetadataSize
-  ) {
+  const configured = getSamlSecurityConfig(opts.config).maxMetadataSize;
+  const maxMetadataSize =
+    typeof configured === "number" ? configured : DEFAULT_MAX_SAML_METADATA_SIZE;
+  if (maxMetadataSize > 0 && opts.metadataXml.length > maxMetadataSize) {
     throw new Error("SAML metadata exceeds the configured size limit.");
   }
 }
@@ -390,11 +397,19 @@ export function parseSamlIdpMetadataChecked(opts: { metadataXml: string; config:
 /**
  * Throw if the encoded SAMLResponse exceeds the connection's configured
  * `maxResponseSize`, bounding decode/parse work against oversized payloads.
+ *
+ * The ACS handler base64-decodes and DOM-parses the response *before* verifying
+ * its signature, so this runs on unauthenticated input. When no limit is
+ * configured a generous default ({@link DEFAULT_MAX_SAML_RESPONSE_SIZE}) applies
+ * so the pre-auth parser can never be handed an unbounded document; an operator
+ * may override it per connection or disable it with a non-positive value.
  * @internal
  */
 export function enforceSamlResponseSize(opts: { request: GroupSamlHttpRequest; config: unknown }) {
-  const maxResponseSize = getSamlSecurityConfig(opts.config).maxResponseSize;
-  if (typeof maxResponseSize !== "number" || maxResponseSize <= 0) {
+  const configured = getSamlSecurityConfig(opts.config).maxResponseSize;
+  const maxResponseSize =
+    typeof configured === "number" ? configured : DEFAULT_MAX_SAML_RESPONSE_SIZE;
+  if (maxResponseSize <= 0) {
     return;
   }
   const encoded = opts.request.body.SAMLResponse ?? opts.request.query.SAMLResponse;
@@ -1199,6 +1214,23 @@ export function validateGroupConnectionSamlLoginRelayState(opts: {
 /**
  * Parse an inbound SAML single-logout message (request and/or response) for a
  * group connection, returning the parsed flow(s) alongside the runtime.
+ *
+ * SECURITY — SLO messages are treated as UNAUTHENTICATED. samlify only verifies
+ * an inbound `LogoutRequest`/`LogoutResponse` signature when the SP is built
+ * with `wantLogoutRequestSigned`/`wantLogoutResponseSigned`; both default to
+ * `false` and are intentionally left unset in {@link createSamlServiceProvider}
+ * (many IdPs do not sign logout messages, and requiring it would break those
+ * legitimate SLO flows). This is safe only because the sole caller,
+ * `handleSamlSlo` in the connection HTTP router, DOES NOT terminate any local
+ * session: for an inbound `LogoutRequest` it merely emits the protocol
+ * `LogoutResponse` acknowledgment, and for an inbound `LogoutResponse` it
+ * returns `204` and does nothing. A forged, replayed, or attacker-supplied
+ * logout message therefore cannot force-log-out a user.
+ *
+ * DO NOT wire session termination onto this parse result without FIRST requiring
+ * signed logout messages (via the `wantLogout*Signed` SP options above) and
+ * rejecting unsigned ones — otherwise an unauthenticated caller could trigger a
+ * logout-CSRF / denial-of-service.
  * @internal
  */
 export async function parseGroupConnectionSamlLogoutMessage(opts: {

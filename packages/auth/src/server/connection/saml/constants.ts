@@ -71,6 +71,27 @@ export const SigningOrder = {
   ENCRYPT_THEN_SIGN: "encrypt-then-sign",
 } as const;
 
+/**
+ * Default upper bound (in characters of the received payload) on an inbound
+ * `SAMLResponse`, applied when a connection sets no explicit
+ * `security.maxResponseSize`. The ACS handler base64-decodes and DOM-parses the
+ * response *before* any signature is verified, so an unauthenticated caller
+ * could otherwise feed an unbounded document into the parser; this generous cap
+ * (~500 KB, far above any legitimate assertion — even encrypted, multi-cert
+ * ones) bounds that pre-auth work while staying operator-overridable. A
+ * configured non-positive limit disables the cap.
+ */
+export const DEFAULT_MAX_SAML_RESPONSE_SIZE = 500_000;
+
+/**
+ * Default upper bound (in characters) on an IdP metadata XML document, applied
+ * when a connection sets no explicit `security.maxMetadataSize`. Mirrors
+ * {@link DEFAULT_MAX_SAML_RESPONSE_SIZE}: generous enough for any real IdP
+ * metadata while bounding parser work against an oversized payload. A configured
+ * non-positive limit disables the cap.
+ */
+export const DEFAULT_MAX_SAML_METADATA_SIZE = 500_000;
+
 /** Required child-element ordering of an SPSSODescriptor, per IdP vendor profile. */
 export const ElementsOrder: Record<"default" | "onelogin" | "shibboleth", string[]> = {
   default: ["KeyDescriptor", "NameIDFormat", "SingleLogoutService", "AssertionConsumerService"],

@@ -1,5 +1,7 @@
 import {
   enforceGroupConnectionSamlSecurity,
+  enforceSamlMetadataSize,
+  enforceSamlResponseSize,
   reconstructRedirectOctetString,
 } from "@robelest/convex-auth/server/connection/saml";
 import { verifySignature } from "@robelest/convex-auth/server/connection/saml/signature";
@@ -93,5 +95,60 @@ test("redirect-binding octet string omits an absent RelayState", () => {
 test("redirect-binding octet string is undefined without a SAML message", () => {
   expect(reconstructRedirectOctetString(new URL("https://sp.example/slo?RelayState=x"))).toBe(
     undefined,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Pre-auth payload size caps (enforceSamlResponseSize / enforceSamlMetadataSize)
+//
+// The ACS handler base64-decodes and DOM-parses SAMLResponse *before* verifying
+// its signature, so an unbounded unauthenticated payload could exhaust the
+// parser. A generous default cap applies when the connection configures none,
+// while remaining operator-overridable (and disable-able with a non-positive
+// limit).
+// ---------------------------------------------------------------------------
+
+test("SAML response over the default size cap is rejected before parsing (no config)", () => {
+  const oversized = "A".repeat(500_001);
+  expect(() =>
+    enforceSamlResponseSize({
+      request: { body: { SAMLResponse: oversized }, query: {} } as never,
+      config: {},
+    }),
+  ).toThrow("exceeds the configured size limit");
+});
+
+test("SAML response within the default size cap passes (no config)", () => {
+  expect(() =>
+    enforceSamlResponseSize({
+      request: { body: { SAMLResponse: "A".repeat(1_000) }, query: {} } as never,
+      config: {},
+    }),
+  ).not.toThrow();
+});
+
+test("SAML response size cap is operator-overridable to a tighter limit", () => {
+  expect(() =>
+    enforceSamlResponseSize({
+      request: { body: { SAMLResponse: "A".repeat(2_000) }, query: {} } as never,
+      config: { protocols: { saml: { security: { maxResponseSize: 1_000 } } } },
+    }),
+  ).toThrow("exceeds the configured size limit");
+});
+
+test("SAML response size cap can be disabled with a non-positive limit", () => {
+  const oversized = "A".repeat(500_001);
+  expect(() =>
+    enforceSamlResponseSize({
+      request: { body: { SAMLResponse: oversized }, query: {} } as never,
+      config: { protocols: { saml: { security: { maxResponseSize: 0 } } } },
+    }),
+  ).not.toThrow();
+});
+
+test("SAML metadata over the default size cap is rejected (no config)", () => {
+  const oversized = `<x>${"A".repeat(500_001)}</x>`;
+  expect(() => enforceSamlMetadataSize({ metadataXml: oversized, config: {} })).toThrow(
+    "exceeds the configured size limit",
   );
 });

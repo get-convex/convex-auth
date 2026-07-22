@@ -609,7 +609,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         accept: FunctionReference<
           "mutation",
           "internal",
-          { now: number; requestId: string },
+          { connectionId?: string; now: number; requestId: string },
           boolean,
           Name
         >;
