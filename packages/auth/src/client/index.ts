@@ -973,13 +973,15 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
 
     if (activeSignIn !== null) {
       if (activeSignIn.key === signInKey) {
-        const shared = await activeSignIn.promise;
-        return shared.kind === "redirect" ? launchOAuth(shared.redirect, shared.verifier) : shared;
+        // Share the entire in-flight flow — INCLUDING any OAuth launch — so a
+        // concurrent same-key signIn observes the single launch's outcome
+        // instead of opening a second browser / native auth session.
+        return await activeSignIn.promise;
       }
       throw new Error("Another sign-in flow is already in progress.");
     }
 
-    const signInPromise = (async () => {
+    const runSignInAction = async (): Promise<SignInResult> => {
       if (proxy) {
         const result = (await proxyFetch({
           action: "auth:signIn",
@@ -1020,21 +1022,28 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         }
         throw error;
       }
+    };
+
+    const signInPromise = (async (): Promise<SignInResult> => {
+      const result = await runSignInAction();
+      // Launch any OAuth redirect from WITHIN the shared promise. Deduping only
+      // the server action (as before) still let each concurrent caller run its
+      // own `launchOAuth` — double navigation on web, two auth sessions on
+      // native. Launching here means the single shared promise owns the one
+      // launch, and every awaiting caller resolves to its result.
+      return result.kind === "redirect"
+        ? await launchOAuth(result.redirect, result.verifier)
+        : result;
     })();
 
     activeSignIn = { key: signInKey, promise: signInPromise };
-    let result: SignInResult;
     try {
-      result = await signInPromise;
+      return await signInPromise;
     } finally {
       if (activeSignIn?.promise === signInPromise) {
         activeSignIn = null;
       }
     }
-    if (result.kind === "redirect") {
-      return launchOAuth(result.redirect, result.verifier);
-    }
-    return result;
   };
 
   /**

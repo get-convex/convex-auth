@@ -536,3 +536,55 @@ test("destroy rejects an in-flight sign-in handshake", async () => {
   auth.destroy();
   await rejection;
 });
+
+// ---------------------------------------------------------------------------
+// 12. concurrent same-provider signIn launches OAuth exactly once
+// ---------------------------------------------------------------------------
+
+test("concurrent same-provider signIn launches OAuth once (no double navigation)", async () => {
+  // The server sign-in action stays pending until we resolve it, holding the
+  // dedup window open so the second signIn joins the in-flight flow.
+  let resolveAction!: (value: unknown) => void;
+  const actionPromise = new Promise((resolve) => {
+    resolveAction = resolve;
+  });
+  const convex = createConvexMock();
+  convex.action = vi.fn(async () => await actionPromise);
+
+  // Native OAuth handler (Expo-style): opening a second auth session for the
+  // same flow is exactly the double-navigation bug. It resolves with no callback
+  // (user closed it / web-redirect style), so `launchOAuth` returns the redirect.
+  const open = vi.fn(async () => undefined);
+
+  const auth = client({
+    convex,
+    api: { signIn: {} as never, signOut: {} as never },
+    url: CONVEX_URL,
+    runtime: { oauth: { open } },
+  });
+
+  const first = auth.signIn("google");
+  // Let the first signIn create the shared flow and register it as active.
+  await flushMicrotasks();
+  const second = auth.signIn("google");
+  await flushMicrotasks();
+
+  // One server action ran for the shared flow (the second deduped onto it).
+  expect(convex.action).toHaveBeenCalledTimes(1);
+
+  resolveAction({
+    kind: "redirect",
+    redirect: "https://idp.example/authorize?client_id=demo",
+    verifier: "verifier-abc",
+  });
+  const [r1, r2] = await Promise.all([first, second]);
+
+  // The launch happened exactly once — the fix. Before it, each caller ran its
+  // own `launchOAuth`, opening two native auth sessions / navigating twice.
+  expect(open).toHaveBeenCalledTimes(1);
+  // Both callers resolve to the same shared outcome.
+  expect(r1.kind).toBe("redirect");
+  expect(r2).toEqual(r1);
+
+  auth.destroy();
+});
