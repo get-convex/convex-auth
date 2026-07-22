@@ -15,7 +15,7 @@ Run the example from its own directory.
 ```bash
 cd examples/react-minimal
 npx convex dev --once    # provisions a deployment, generates convex/_generated
-npx generate-auth-keys   # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
+npx @convex-dev/auth     # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
 ```
 
 ## Test usage
