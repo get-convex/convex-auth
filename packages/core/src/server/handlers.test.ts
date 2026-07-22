@@ -4,7 +4,8 @@ import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "./cookies";
 import { refreshHandler, signOutHandler } from "./handlers";
 
 // The handlers talk to Convex through a `ConvexHttpClient`; stub it so the
-// tests exercise cookie behavior without a backend.
+// tests exercise cookie behavior without a backend. This mutation mock stands
+// in for the refresh or sign-out mutations, depending on the test case.
 const { mutationMock } = vi.hoisted(() => ({ mutationMock: vi.fn() }));
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: class {
@@ -35,6 +36,7 @@ beforeEach(() => mutationMock.mockReset());
 
 describe("refreshHandler", () => {
   test("rotates the session and returns access-only tokens", async () => {
+    // Set up the refresh mutation to return new tokens.
     mutationMock.mockResolvedValue(bundle(2));
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
@@ -56,13 +58,14 @@ describe("refreshHandler", () => {
       refreshToken: "refresh-1",
     });
 
-    // Both cookies rewritten, refresh cookie httpOnly.
+    // Both cookies rewritten, both cookie httpOnly.
     const setCookies = res.headers.getSetCookie();
     const jwt = setCookies.find((c) => c.startsWith(`${AUTH_JWT_COOKIE}=`));
     const refresh = setCookies.find((c) =>
       c.startsWith(`${AUTH_REFRESH_COOKIE}=`),
     );
     expect(jwt).toContain("access-2");
+    expect(jwt).toContain("HttpOnly");
     expect(refresh).toContain("refresh-2");
     expect(refresh).toContain("HttpOnly");
   });
@@ -80,6 +83,7 @@ describe("refreshHandler", () => {
   });
 
   test("clears cookies when the refresh token is unknown", async () => {
+    // Set up the refresh mutation to not recognize the token and to return null.
     mutationMock.mockResolvedValue(null);
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
