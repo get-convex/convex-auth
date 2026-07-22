@@ -13,13 +13,14 @@
  */
 
 import { JWT_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from "../browser/storage";
+import type { TokenBundle } from "../lib/types";
 
 /** The cookie holding the current access token (a JWT). */
 export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;
 /** The cookie holding the current (rotating) refresh token. */
 export const AUTH_REFRESH_COOKIE = REFRESH_TOKEN_STORAGE_KEY;
 
-/** Attributes applied when writing a cookie. */
+/** Attributes applied when writing a cookie. The low-level shape, all optional. */
 export interface CookieOptions {
   /** Whether to hide the cookie from client JS. */
   httpOnly?: boolean;
@@ -36,6 +37,18 @@ export interface CookieOptions {
   /** Cookie domain. */
   domain?: string;
 }
+
+/**
+ * The cookie options a framework integration must supply for auth cookies.
+ *
+ * `secure` is required. Whether auth cookies are HTTPS-only depends on the
+ * deployment (HTTPS in production, plain http on localhost), so every
+ * integration has to decide it explicitly rather than inherit a default that
+ * would be wrong in one environment or the other.
+ */
+export type AuthCookieOptions = Omit<CookieOptions, "secure"> & {
+  secure: boolean;
+};
 
 /**
  * Read/write/delete cookies. Every method may be synchronous or return a
@@ -56,17 +69,54 @@ export interface CookieStore {
 }
 
 /**
- * The default attributes for auth cookies.
+ * The environment-independent attributes for auth cookies, merged under any
+ * caller-supplied options by {@link writeAuthCookies}.
  *
  *  * `httpOnly: true` (so the refresh token never reaches client JS)
  *  * `sameSite: "lax"` to aid in CSRF protection (see
  *     https://auth.pilcrowonpaper.com/csrf)
  *  * `path: "/"` so the cookies will be sent for all paths on the site
+ *
+ * `secure` is deliberately absent: it varies by environment and is supplied by
+ * the caller via {@link AuthCookieOptions}.
  */
-export function defaultCookieOptions(): CookieOptions {
+function invariantCookieOptions(): Omit<CookieOptions, "secure"> {
   return {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
   };
+}
+
+/**
+ * Write the tokens in a `bundle` as cookies.
+ *
+ * The access token is stored in in {@link AUTH_JWT_COOKIE} and the refresh
+ * token in {@link AUTH_REFRESH_COOKIE}. Both live as long as the refresh
+ * token, although the access token will likely expire sooner and need to be
+ * refreshed). The invariant attributes (httpOnly etc.) are merged in, so the
+ * refresh cookie is httpOnly and never reaches client JS.
+ *
+ * This is the one place that knows which cookies hold a session and how their
+ * lifetimes derive from the bundle, so refresh, middleware, and every provider's
+ * sign-in handler shape cookies identically.
+ */
+export async function writeAuthCookies(
+  cookies: CookieStore,
+  bundle: TokenBundle,
+  options: AuthCookieOptions,
+): Promise<void> {
+  const base = { ...invariantCookieOptions(), ...options };
+  const expires = new Date(bundle.refreshTokenExpiresAt);
+  await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, { ...base, expires });
+  await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
+    ...base,
+    expires,
+  });
+}
+
+/** Delete both auth cookies. The counterpart of {@link writeAuthCookies}. */
+export async function clearAuthCookies(cookies: CookieStore): Promise<void> {
+  await cookies.delete(AUTH_JWT_COOKIE);
+  await cookies.delete(AUTH_REFRESH_COOKIE);
 }

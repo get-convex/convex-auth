@@ -2,7 +2,7 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { AuthApi, AuthClient } from "../browser/sessionManager";
+import { SpaAuthApi, AuthClient } from "../browser/sessionManager";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
@@ -27,10 +27,11 @@ function bundle(n: number): TokenBundle {
 }
 
 function makeClient(
-  authApi: Partial<AuthApi> = {},
+  authApi: Partial<SpaAuthApi> = {},
   storage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
+    mode: "spa",
     authApi: {
       refreshSession: async () => null,
       signOut: async () => {},

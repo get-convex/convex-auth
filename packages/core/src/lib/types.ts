@@ -29,6 +29,58 @@ export const vTokenBundle = v.object({
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
 /**
+ * The token bundle that an SSR route hands back to the client. It is a slimmed
+ * down version of a {@link TokenBundle} with the refresh token (and its
+ * expiry) removed: under SSR the refresh token lives only in an httpOnly
+ * cookie and never reaches client JS.
+ */
+export type SlimTokenBundle = {
+  accessToken: string;
+  accessTokenExpiresAt: number;
+  userId: string;
+};
+
+/**
+ * Strip down a {@link TokenBundle} down to a {@link SlimTokenBundle},
+ * dropping the refresh token so it is never sent to the browser.
+ */
+export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
+  return {
+    accessToken: bundle.accessToken,
+    accessTokenExpiresAt: bundle.accessTokenExpiresAt,
+    userId: bundle.userId,
+  };
+}
+
+/** The app's `refreshSession` mutation reference: exchange a refresh token for a
+ * fresh {@link TokenBundle}, or `null` when the session is gone. */
+export type RefreshSessionFn = FunctionReference<
+  "mutation",
+  "public",
+  { refreshToken: string },
+  TokenBundle | null
+>;
+
+/** The app's `signOut` mutation reference: revoke the session for a refresh
+ * token. */
+export type SignOutFn = FunctionReference<
+  "mutation",
+  "public",
+  { refreshToken: string },
+  null
+>;
+
+/**
+ * The auth mutations the app exports from `setupCore(...).attachUserCallback`.
+ * Passed as references (not names) because an app may re-export them under any
+ * names. Consumed by both SPA and SSR implementations.
+ */
+export type ConvexAuthApi = {
+  refreshSession: RefreshSessionFn;
+  signOut: SignOutFn;
+};
+
+/**
  * Shared identity-claims contract between the *provider* components that
  * authenticate users and the *core* component.
  *

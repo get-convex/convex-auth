@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { TokenBundle } from "../lib/types";
-import { AuthClient, AuthApi } from "./sessionManager";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types";
+import { AuthClient, SpaAuthApi, SsrAuthApi } from "./sessionManager";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
@@ -22,10 +22,28 @@ function bundle(n: number): TokenBundle {
 }
 
 function makeClient(
-  authApi: Partial<AuthApi> = {},
+  authApi: Partial<SpaAuthApi> = {},
   storage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
+    mode: "spa",
+    authApi: {
+      refreshSession: async () => null,
+      signOut: async () => {},
+      ...authApi,
+    },
+    storage,
+    storageNamespace: NAMESPACE,
+  });
+  return { client, storage };
+}
+
+function makeSsrClient(
+  authApi: Partial<SsrAuthApi> = {},
+  storage = new InMemoryStorage(),
+) {
+  const client = new AuthClient({
+    mode: "ssr",
     authApi: {
       refreshSession: async () => null,
       signOut: async () => {},
@@ -228,5 +246,112 @@ describe("AuthClient", () => {
       isAuthenticated: false,
       token: null,
     });
+  });
+});
+
+/**
+ * Returns a {@link SlimTokenBundle} which is the typical auth response from
+ * an SSR integration.
+ */
+function ssrAuthResult(n: number): SlimTokenBundle {
+  return {
+    accessToken: `access-${n}`,
+    accessTokenExpiresAt: 0,
+    userId: "user-1",
+  };
+}
+
+describe("AuthClient (SSR)", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  test("setSession adopts an access-only session, storing no refresh token", async () => {
+    const { client, storage } = makeSsrClient();
+    await client.init();
+    await client.setSession(ssrAuthResult(1));
+
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
+    // The refresh token lives in a server-only cookie — never in JS storage.
+    expect(
+      storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`),
+    ).toBeNull();
+  });
+
+  test("hydrates a session from just the access token", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const { client } = makeSsrClient({}, storage);
+    await client.init();
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: true,
+      token: "access-1",
+    });
+  });
+
+  test("forced fetch refreshes via the token-less API call", async () => {
+    const refreshSession = vi.fn(async () => ssrAuthResult(2));
+    const { client, storage } = makeSsrClient({ refreshSession });
+    await client.init();
+    await client.setSession(ssrAuthResult(1));
+
+    const token = await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(token).toBe("access-2");
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    // No refresh token in JS, so the API is called with no arguments (it reads
+    // the cookie server-side).
+    expect(refreshSession).toHaveBeenCalledWith();
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-2");
+    expect(
+      storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`),
+    ).toBeNull();
+  });
+
+  test("a null refresh clears the session", async () => {
+    const { client, storage } = makeSsrClient({
+      refreshSession: async () => null,
+    });
+    await client.init();
+    await client.setSession(ssrAuthResult(1));
+
+    const token = await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(token).toBeNull();
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: false,
+      token: null,
+    });
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBeNull();
+  });
+
+  test("signOut calls the API with no arguments and clears locally", async () => {
+    const signOut = vi.fn(async () => {});
+    const { client } = makeSsrClient({ signOut });
+    await client.init();
+    await client.setSession(ssrAuthResult(1));
+
+    await client.signOut();
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith();
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: false,
+      token: null,
+    });
+  });
+
+  test("clears refresh token if present", async () => {
+    const refreshSession = vi.fn(async () => ssrAuthResult(2));
+    const storage = new InMemoryStorage();
+    storage.setItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`, "refresh-1");
+    const { client } = makeSsrClient({ refreshSession }, storage);
+    await client.init();
+    await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      null,
+    );
   });
 });

@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { INITIAL_AUTH_STATE, type AuthClient } from "../browser/sessionManager";
-import type { TokenBundle } from "../lib/types";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 
 // React calls this during SSR and initial hydration — before `init()` has read
 // storage — so it always reports the loading state. It lives here rather than
@@ -20,10 +20,14 @@ const getServerSnapshot = () => INITIAL_AUTH_STATE;
 /** The value exposed by {@link useAuthActions}. */
 export type ConvexAuthActionsContextType = {
   /**
-   * Adopt a session established by a provider. A provider's sign-in flow
-   * returns a {@link TokenBundle}; pass it here to authenticate the client.
+   * Initialize or refresh a session.
+   *
+   * A SPA client will receive a full {@link TokenBundle} so it can access the
+   * refresh token for direct session refreshing. An SSR client will receive a
+   * {@link SlimTokenBundle} which doesn't include the refresh token (that
+   * value is in an httpOnly cookie, not reachable by client JS code).
    */
-  setSession: (bundle: TokenBundle) => Promise<void>;
+  setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
   /** Sign out: revoke the session on the server and clear it locally. */
   signOut: () => Promise<void>;
 };

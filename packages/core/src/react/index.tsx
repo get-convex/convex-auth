@@ -17,11 +17,10 @@
 
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { FunctionReference } from "convex/server";
 import { ReactNode, useContext, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
-import type { TokenBundle } from "../lib/types";
+import type { ConvexAuthApi } from "../lib/types";
 import {
   AuthProvider,
   ConvexAuthActionsContext,
@@ -32,28 +31,8 @@ import {
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export type { TokenStorage } from "../browser/storage";
-export type { TokenBundle } from "../lib/types";
+export type { ConvexAuthApi, TokenBundle } from "../lib/types";
 export type { ConvexAuthActionsContextType } from "./client";
-
-/**
- * The auth mutations the app exports from `setupCore(...).attachUserCallback`.
- * Passed as references (not names) because an app may re-export them under any
- * names.
- */
-export type ConvexAuthApi = {
-  refreshSession: FunctionReference<
-    "mutation",
-    "public",
-    { refreshToken: string },
-    TokenBundle | null
-  >;
-  signOut: FunctionReference<
-    "mutation",
-    "public",
-    { refreshToken: string },
-    null
-  >;
-};
 
 /**
  * Replace your `ConvexProvider` with this to enable authentication.
@@ -110,6 +89,7 @@ export function ConvexAuthProvider({
       logger: client.logger,
     });
     return new AuthClient({
+      mode: "spa",
       authApi: {
         refreshSession: (refreshToken) =>
           httpClient.mutation(api.refreshSession, { refreshToken }),

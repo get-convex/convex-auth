@@ -1,40 +1,49 @@
 /**
  * The framework-agnostic owner of an auth session on the server (SSR).
  *
- * Where the browser {@link AuthClient} keeps the session in `localStorage` and
- * holds the refresh token in client JS, the server keeps it in cookies — the
- * refresh token in an httpOnly cookie that never reaches the browser. This
- * class orchestrates reading those cookies, refreshing the access token against
- * the server when it is missing or near expiry, and writing the rotated tokens
- * back as cookies.
+ * Whereas SPA clients keep the session tokens in `localStorage` and accesses
+ * the refresh token in client JS, an SSR client and host exchange the tokens
+ * via cookies. This code orchestrates reading those cookies, refreshing the
+ * access token against the server when it is missing or near expiry, and
+ * writing the rotated tokens back as cookies.
  *
- * Like {@link AuthClient} it takes an injected {@link AuthApi}, so it never
- * imports Convex: a framework binding supplies an `AuthApi` on top of an HTTP
- * client and a {@link CookieStore} built on its request/response cookies, and
- * tests supply fakes. The server can access the real refresh token (from the
- * cookie), so the existing `AuthApi.refreshSession(refreshToken)` shape fits
- * directly.
+ * The {@link ServerAuthSessionConfig} class takes an injected `refreshSession`
+ * callback, so it never imports Convex: a framework binding supplies one on
+ * top of an HTTP client and a {@link CookieStore} built on its
+ * request/response cookies, and tests supply a fake. The SSR host accesses the
+ * refresh token (from the cookie), passes it in a refresh request to the
+ * Convex backend and gets back a full {@link TokenBundle}. It uses that bundle
+ * to update the cookie values and communicate the refreshed access token to
+ * the client.
  *
  * @module
  */
 
-import type { AuthApi } from "../browser/sessionManager";
 import type { TokenBundle } from "../lib/types";
 import {
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
-  CookieOptions,
+  AuthCookieOptions,
   CookieStore,
-  defaultCookieOptions,
+  clearAuthCookies,
+  writeAuthCookies,
 } from "./cookies";
 import { isTokenExpiring } from "./jwt";
 
+/**
+ * Rotate a refresh token into a fresh {@link TokenBundle}, or `null` when the
+ * session is gone (unknown or expired refresh token). A framework binding
+ * usually implements this over a Convex HTTP client; tests pass a fake.
+ */
+export type RefreshSession = (
+  refreshToken: string,
+) => Promise<TokenBundle | null>;
+
 /** Configuration for a {@link ServerAuthSession}. */
 export interface ServerAuthSessionConfig {
-  /**
-   * The auth API (refresh/sign-out), typically based on a Convex HTTP client.
-   */
-  authApi: AuthApi;
+  /** Exchange the cookie's refresh token for a fresh session (typically over a
+   * Convex HTTP client). */
+  refreshSession: RefreshSession;
   /** Request/response cookies for this SSR request. */
   cookies: CookieStore;
   /**
@@ -43,23 +52,23 @@ export interface ServerAuthSessionConfig {
    */
   refreshSkewSeconds?: number;
   /**
-   * Base cookie attributes (httpOnly/sameSite/path). Per-cookie lifetime is
-   * derived from the token bundle. Defaults to {@link defaultCookieOptions}.
+   * Base cookie attributes. Per-cookie lifetime is derived from the token
+   * bundle. `secure` is required (see {@link AuthCookieOptions}).
    */
-  cookieOptions?: CookieOptions;
+  cookieOptions: AuthCookieOptions;
 }
 
 export class ServerAuthSession {
-  readonly #authApi: AuthApi;
+  readonly #refreshSession: RefreshSession;
   readonly #cookies: CookieStore;
   readonly #refreshSkewSeconds: number;
-  readonly #cookieOptions: CookieOptions;
+  readonly #cookieOptions: AuthCookieOptions;
 
   constructor(config: ServerAuthSessionConfig) {
-    this.#authApi = config.authApi;
+    this.#refreshSession = config.refreshSession;
     this.#cookies = config.cookies;
     this.#refreshSkewSeconds = config.refreshSkewSeconds ?? 10;
-    this.#cookieOptions = config.cookieOptions ?? defaultCookieOptions();
+    this.#cookieOptions = config.cookieOptions;
   }
 
   /**
@@ -86,7 +95,7 @@ export class ServerAuthSession {
     if (refreshToken === null) {
       return null;
     }
-    const bundle = await this.#authApi.refreshSession(refreshToken);
+    const bundle = await this.#refreshSession(refreshToken);
     if (bundle === null) {
       await this.#clear();
       return null;
@@ -102,31 +111,7 @@ export class ServerAuthSession {
    * the access token is refreshed on expiry via {@link getToken}.
    */
   async setTokens(bundle: TokenBundle): Promise<void> {
-    const expires = new Date(bundle.refreshTokenExpiresAt);
-    await this.#cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, {
-      ...this.#cookieOptions,
-      expires,
-    });
-    await this.#cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
-      ...this.#cookieOptions,
-      expires,
-    });
-  }
-
-  /**
-   * Revoke the session on the server (best effort) and clear both cookies.
-   * Idempotent.
-   */
-  async signOut(): Promise<void> {
-    const refreshToken = (await this.#cookies.get(AUTH_REFRESH_COOKIE)) ?? null;
-    if (refreshToken !== null) {
-      try {
-        await this.#authApi.signOut(refreshToken);
-      } catch {
-        // Usually means we were already signed out, which is fine.
-      }
-    }
-    await this.#clear();
+    await writeAuthCookies(this.#cookies, bundle, this.#cookieOptions);
   }
 
   /** Whether a non-expired access token is present in cookies. */
@@ -137,7 +122,6 @@ export class ServerAuthSession {
 
   /** Deletes the cookies. This will be reflected in the eventual response. */
   async #clear(): Promise<void> {
-    await this.#cookies.delete(AUTH_JWT_COOKIE);
-    await this.#cookies.delete(AUTH_REFRESH_COOKIE);
+    await clearAuthCookies(this.#cookies);
   }
 }

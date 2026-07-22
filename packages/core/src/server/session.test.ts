@@ -1,13 +1,12 @@
 import { describe, expect, test, vi } from "vitest";
 import type { TokenBundle } from "../lib/types";
-import type { AuthApi } from "../browser/sessionManager";
 import {
   CookieOptions,
   CookieStore,
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
 } from "./cookies";
-import { ServerAuthSession } from "./session";
+import { RefreshSession, ServerAuthSession } from "./session";
 
 /** Build an unsigned JWT whose payload has the given `exp` (seconds). `jose`'s
  * `decodeJwt` reads the payload without verifying the signature. */
@@ -54,16 +53,13 @@ class FakeCookies implements CookieStore {
 }
 
 function newSession(
-  authApi: Partial<AuthApi> = {},
+  refreshSession: RefreshSession = async () => null,
   cookies = new FakeCookies(),
 ) {
   const session = new ServerAuthSession({
-    authApi: {
-      refreshSession: async () => null,
-      signOut: async () => {},
-      ...authApi,
-    },
+    refreshSession,
     cookies,
+    cookieOptions: { secure: false },
   });
   return { session, cookies };
 }
@@ -75,7 +71,7 @@ describe("ServerAuthSession", () => {
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 60));
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession({ refreshSession }, cookies);
+    const { session } = newSession(refreshSession, cookies);
 
     expect(await session.getToken()).toBe(jwt(NOW + 60));
     expect(refreshSession).not.toHaveBeenCalled();
@@ -92,7 +88,7 @@ describe("ServerAuthSession", () => {
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5)); // within the 10s skew
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession({ refreshSession }, cookies);
+    const { session } = newSession(refreshSession, cookies);
 
     expect(await session.getToken()).toBe(next.accessToken);
     expect(refreshSession).toHaveBeenCalledTimes(1);
@@ -107,7 +103,7 @@ describe("ServerAuthSession", () => {
     const refreshSession = vi.fn(async () => newTokenBundle(2));
     const cookies = new FakeCookies();
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession({ refreshSession }, cookies);
+    const { session } = newSession(refreshSession, cookies);
 
     expect(await session.getToken()).toBe(newTokenBundle(2).accessToken);
     expect(refreshSession).toHaveBeenCalledTimes(1);
@@ -119,10 +115,7 @@ describe("ServerAuthSession", () => {
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5));
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession(
-      { refreshSession: async () => null },
-      cookies,
-    );
+    const { session } = newSession(async () => null, cookies);
 
     expect(await session.getToken()).toBeNull();
     expect(cookies.get(AUTH_JWT_COOKIE)).toBeUndefined();
@@ -135,7 +128,7 @@ describe("ServerAuthSession", () => {
     const refreshSession = vi.fn(async () => newTokenBundle(2));
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5)); // expiring, and nothing to refresh with
-    const { session } = newSession({ refreshSession }, cookies);
+    const { session } = newSession(refreshSession, cookies);
 
     expect(await session.getToken()).toBeNull();
     expect(refreshSession).not.toHaveBeenCalled();
@@ -144,7 +137,7 @@ describe("ServerAuthSession", () => {
 
   test("setTokens writes both cookies httpOnly", async () => {
     const cookies = new FakeCookies();
-    const { session } = newSession({}, cookies);
+    const { session } = newSession(undefined, cookies);
     await session.setTokens(newTokenBundle(1));
 
     expect(cookies.get(AUTH_JWT_COOKIE)).toBe(newTokenBundle(1).accessToken);
@@ -153,35 +146,10 @@ describe("ServerAuthSession", () => {
     expect(cookies.options.get(AUTH_REFRESH_COOKIE)?.httpOnly).toBe(true);
   });
 
-  test("signOut revokes on the server and clears cookies", async () => {
-    const signOut = vi.fn(async (rt: string) => {
-      expect(rt).toBe("refresh-1");
-    });
-    const cookies = new FakeCookies();
-    cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 60));
-    cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession({ signOut }, cookies);
-
-    await session.signOut();
-    expect(signOut).toHaveBeenCalledTimes(1);
-    expect(cookies.get(AUTH_JWT_COOKIE)).toBeUndefined();
-    expect(cookies.get(AUTH_REFRESH_COOKIE)).toBeUndefined();
-  });
-
-  test("signOut with no session is a no-op that still clears cookies", async () => {
-    const signOut = vi.fn(async () => {});
-    const cookies = new FakeCookies();
-    const { session } = newSession({ signOut }, cookies);
-
-    await session.signOut();
-    expect(signOut).not.toHaveBeenCalled();
-    expect(cookies.get(AUTH_REFRESH_COOKIE)).toBeUndefined();
-  });
-
   test("isAuthenticated reflects a non-expired JWT cookie", async () => {
     vi.spyOn(Date, "now").mockReturnValue(nowMs);
     const cookies = new FakeCookies();
-    const { session } = newSession({}, cookies);
+    const { session } = newSession(undefined, cookies);
     expect(await session.isAuthenticated()).toBe(false);
 
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 60));
