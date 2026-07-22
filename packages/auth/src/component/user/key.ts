@@ -147,6 +147,86 @@ export const update = mutation({
   },
 });
 
+/**
+ * Atomically enforce an API key's rate limit and refresh `lastUsedAt`, folding
+ * the read → check → decrement of the token bucket into a SINGLE transaction on
+ * the `ApiKey` row.
+ *
+ * The facade previously split that read (`key.get`) from the decrement
+ * (`key.update`) across two transactions, so two concurrent verifications could
+ * both read the same starting `rateLimitState`, both decide "not limited", and
+ * both persist a decrement of the *same* state — the true atomic decrement was
+ * lost and a burst could slip past the limit. Performing the whole
+ * check-and-decrement here closes that window: the row's transaction serializes
+ * concurrent callers, so each consumes its own token.
+ *
+ * Returns `{ limited: true }` WITHOUT writing when the bucket is empty (mirroring
+ * the facade's prior behavior of throwing before its update on the limited
+ * branch); otherwise decrements the bucket (when configured) and refreshes
+ * `lastUsedAt`. The token bucket refills linearly over the configured window
+ * (the same algorithm as sign-in rate limiting); the math is inlined here
+ * because component code cannot import from the server bundle.
+ *
+ * `lastUsedAt` is coarsened by the optional `coarsenMs` window: it is only
+ * rewritten when unset or older than the window, so read-only bearer traffic on
+ * a hot key stays read-only (no per-request write). When a rate-limit decrement
+ * forces a write anyway, a fresh `lastUsedAt` is simply left as-is. Omitting
+ * `coarsenMs` (or passing `0`) disables coarsening and refreshes every call.
+ */
+export const recordUse = mutation({
+  args: { id: v.id("ApiKey"), now: v.number(), coarsenMs: v.optional(v.number()) },
+  returns: v.object({ limited: v.boolean() }),
+  handler: async (ctx, { id: keyId, now, coarsenMs }) => {
+    const key = await ctx.db.get("ApiKey", keyId);
+    if (key === null) {
+      // Raced with a delete between the facade's read and this mutation; there
+      // is nothing left to enforce or stamp.
+      return { limited: false };
+    }
+    const patch: {
+      rateLimitState?: { attemptsLeft: number; lastAttemptTime: number };
+      lastUsedAt?: number;
+    } = {};
+    if (key.rateLimit) {
+      const state = key.rateLimitState;
+      if (!state) {
+        patch.rateLimitState = {
+          attemptsLeft: key.rateLimit.maxRequests - 1,
+          lastAttemptTime: now,
+        };
+      } else {
+        const elapsed = now - state.lastAttemptTime;
+        const refillRate = key.rateLimit.maxRequests / key.rateLimit.windowMs;
+        const refilled = Math.min(
+          key.rateLimit.maxRequests,
+          state.attemptsLeft + elapsed * refillRate,
+        );
+        if (refilled < 1) {
+          // Bucket empty: reject WITHOUT writing (matches the prior facade,
+          // which threw before its single `update`, leaving state untouched).
+          return { limited: true };
+        }
+        patch.rateLimitState = { attemptsLeft: refilled - 1, lastAttemptTime: now };
+      }
+    }
+    // Coarsen the `lastUsedAt` touch: only stamp it when unset or older than the
+    // caller's sampling window. With `coarsenMs` unset/0 the window is 0, so it
+    // refreshes every call.
+    const window = coarsenMs ?? 0;
+    const lastUsedAt = typeof key.lastUsedAt === "number" ? key.lastUsedAt : 0;
+    if (now - lastUsedAt >= window) {
+      patch.lastUsedAt = now;
+    }
+    // Nothing to persist — no rate-limit decrement and `lastUsedAt` still fresh:
+    // the hot path stays read-only.
+    if (patch.rateLimitState === undefined && patch.lastUsedAt === undefined) {
+      return { limited: false };
+    }
+    await ctx.db.patch("ApiKey", keyId, patch);
+    return { limited: false };
+  },
+});
+
 /** Delete an API key; throws `KEY_NOT_FOUND` if it does not exist. */
 const remove = mutation({
   args: { id: v.id("ApiKey") },

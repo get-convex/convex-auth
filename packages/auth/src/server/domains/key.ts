@@ -5,8 +5,8 @@ import { single } from "../component/api";
 import type { ComponentCtx, ComponentReadCtx } from "../component/context";
 import { configDefaults } from "../config";
 import { emitAuthEvent } from "../events";
-import { createScopeChecker, checkKeyRateLimit, generateApiKey, hashApiKey } from "../keys";
-import type { Doc, KeyDoc, KeyScope, ScopeChecker } from "../types";
+import { createScopeChecker, generateApiKey, hashApiKey } from "../keys";
+import type { KeyDoc, KeyRecord, KeyScope, ScopeChecker } from "../types";
 
 /** Convex-native `PaginationResult<T>` shape returned by the `*List` component queries. */
 type Paginated<T> = {
@@ -31,6 +31,19 @@ export type KeyDeps = {
  * skipped unless the stored value is unset or older than this window.
  */
 const LAST_USED_COARSEN_MS = 60_000;
+
+/**
+ * Public projection of a stored `ApiKey` document. Strips the sensitive
+ * `hashedKey` (the SHA-256 lookup hash) and the mutable `rateLimitState`
+ * (internal token-bucket counters) so `auth.key.get` / `auth.key.list` never
+ * leak them to callers — the returned shape matches {@link KeyRecord}.
+ * `auth.key.verify` reads the full component document directly and is
+ * unaffected.
+ */
+function redactKeyRecord(doc: KeyDoc): KeyRecord {
+  const { hashedKey: _hashedKey, rateLimitState: _rateLimitState, ...rest } = doc;
+  return rest as KeyRecord;
+}
 
 export function createKeyDomain(deps: KeyDeps) {
   const { config } = deps;
@@ -145,45 +158,27 @@ export function createKeyDomain(deps: KeyDeps) {
           message: "This API key has expired.",
         });
       }
-      const now = Date.now();
-      let patch: Record<string, unknown> | null = null;
-      // Rate-limit enforcement, when configured, must always persist the new
-      // token-bucket state (that is the whole point of the check).
+      // Enforce the rate limit and refresh `lastUsedAt` in ONE component
+      // mutation on the `ApiKey` row. Splitting the read (`key.get` above) from
+      // the decrement (`key.update`) across two transactions let two concurrent
+      // verifications both read the same `rateLimitState`, both decide "not
+      // limited", and both persist a decrement of the *same* starting state — so
+      // a burst could slip past the limit. `recordUse` folds the whole
+      // read → check → decrement into the row's transaction, closing that race.
       //
-      // NOTE: the rate-limit check is a read (via `key.get` above, its own
-      // transaction) → decide → write (`key.update`, a separate transaction)
-      // sequence. Because those are two transactions, two concurrent requests
-      // can both read the same `rateLimitState`, both decide "not limited", and
-      // both persist a decrement of the *same* starting state — so the true
-      // atomic decrement is lost and a burst can slip past the limit. Closing
-      // that window needs the read-check-decrement folded into a single
-      // component mutation on `ApiKey` (which owns the row's transaction);
-      // that mutation lives in `component/user/key.ts`, outside this file's
-      // edit scope, so it is left as a follow-up. The coarsening below does not
-      // affect the rate-limit path (its state is still written every request).
-      if (k.rateLimit) {
-        const { limited, newState } = checkKeyRateLimit(k.rateLimit, k.rateLimitState ?? undefined);
-        if (limited) {
-          throw new ConvexError({
-            code: ErrorCode.API_KEY_RATE_LIMITED,
-            message: "API key rate limit exceeded. Please try again later.",
-          });
-        }
-        patch = { rateLimitState: newState };
-      }
-      // Coarsen the `lastUsedAt` touch: only write when it is unset or older
-      // than the sampling window, so repeated verifications of the same key
-      // within the window do not each issue a write.
-      const lastUsedAt = typeof k.lastUsedAt === "number" ? k.lastUsedAt : 0;
-      if (now - lastUsedAt >= LAST_USED_COARSEN_MS) {
-        patch = { ...patch, lastUsedAt: now };
-      }
-      // Skip the write entirely in the common hot-path case: no rate limit
-      // configured and `lastUsedAt` still fresh — verification stays read-only.
-      if (patch !== null) {
-        await ctx.runMutation(config.component.user.key.update, {
-          id: k._id,
-          patch,
+      // `coarsenMs` keeps the hot-path optimization: `recordUse` skips the
+      // `lastUsedAt` write when it is still within the window (and no rate-limit
+      // decrement forces a write), so read-only bearer traffic on a hot key does
+      // not turn into a per-request write.
+      const { limited } = (await ctx.runMutation(config.component.user.key.recordUse, {
+        id: k._id,
+        now: Date.now(),
+        coarsenMs: LAST_USED_COARSEN_MS,
+      })) as { limited: boolean };
+      if (limited) {
+        throw new ConvexError({
+          code: ErrorCode.API_KEY_RATE_LIMITED,
+          message: "API key rate limit exceeded. Please try again later.",
         });
       }
       return {
@@ -227,12 +222,13 @@ export function createKeyDomain(deps: KeyDeps) {
         order?: "asc" | "desc";
       },
     ) => {
-      return (await ctx.runQuery(config.component.user.key.list, {
+      const result = (await ctx.runQuery(config.component.user.key.list, {
         where: opts?.where,
         paginationOpts: opts?.paginationOpts ?? { numItems: 50, cursor: null },
         orderBy: opts?.orderBy,
         order: opts?.order,
-      })) as Paginated<Doc<"ApiKey">>;
+      })) as Paginated<KeyDoc>;
+      return { ...result, page: result.page.map(redactKeyRecord) };
     },
     /**
      * Fetch an API key record by ID. Does not expose the raw key secret.
@@ -252,11 +248,11 @@ export function createKeyDomain(deps: KeyDeps) {
      * console.log(key.name, key.prefix);
      * ```
      */
-    get: async (ctx: ComponentReadCtx, opts: { id: string }): Promise<KeyDoc | null> => {
+    get: async (ctx: ComponentReadCtx, opts: { id: string }): Promise<KeyRecord | null> => {
       const doc = (await ctx.runQuery(config.component.user.key.get, {
         id: opts.id,
       })) as KeyDoc | null;
-      return doc ?? null;
+      return doc === null ? null : redactKeyRecord(doc);
     },
     /**
      * Update a key's name, scopes, or rate limit.

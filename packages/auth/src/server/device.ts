@@ -6,8 +6,10 @@ import { ConvexError } from "convex/values";
 
 import type { AuthTokens, SignInDeviceCodeResult, SignInSessionResult } from "../shared/results";
 import { AuthFlowError, authFlowError } from "../shared/errors";
+import { ErrorCode } from "../shared/codes";
 import { toConvexError } from "./errors";
 import { getAuthenticatedUserIdOrNull } from "./identity/claims";
+import { isSignInRateLimited, recordFailedSignIn, resetSignInRateLimit } from "./limits";
 import { callSignIn } from "./mutations/calls";
 import { generateRandomString, sha256 } from "./random";
 import { sessionExpirationTime } from "./session/lifecycle";
@@ -93,8 +95,22 @@ async function handlePoll(ctx: EnrichedActionCtx, params: DeviceParams): Promise
   }
 
   const hash = await sha256(params.deviceCode);
+  // Per-device-code rate limit on poll. A non-consuming check gates entry; only
+  // terminal "miss" outcomes (unknown / already-consumed code) record a failure,
+  // so legitimate polling of a still-pending code — which returns
+  // DEVICE_AUTHORIZATION_PENDING every interval — is never charged and cannot
+  // trip the limit. This bounds a client that hammers an invalid code and adds a
+  // hard cap on top of the existing interval slow-down.
+  const pollKey = `device:poll:${hash}`;
+  if (await isSignInRateLimited(ctx, pollKey, ctx.auth.config)) {
+    throw deviceError(
+      ErrorCode.RATE_LIMITED,
+      "Too many polling attempts for this device code. Please slow down.",
+    );
+  }
   const doc = await queryDeviceByCodeHash(ctx, hash);
   if (doc === null) {
+    await recordFailedSignIn(ctx, pollKey, ctx.auth.config);
     throw deviceError(
       "DEVICE_CODE_EXPIRED",
       "The device code has expired. Please start a new authorization request.",
@@ -138,6 +154,9 @@ async function handlePoll(ctx: EnrichedActionCtx, params: DeviceParams): Promise
     );
   }
 
+  // Successful acceptance: clear the per-code poll counter.
+  await resetSignInRateLimit(ctx, pollKey, ctx.auth.config);
+
   const signInResult = await callSignIn(ctx, {
     userId: accepted.userId,
     sessionId: accepted.sessionId,
@@ -158,8 +177,20 @@ async function handleDeviceVerify(
   if (userId === null) {
     throw deviceError("NOT_SIGNED_IN", "You must be signed in to authorize a device.");
   }
+  // Per-caller rate limit on the short, human-typed user code: bound
+  // brute-forcing of another device's pending user code by an authenticated
+  // caller. A wrong code records a failure below; enough failures trip this
+  // check, and a successful authorization clears the counter.
+  const verifyKey = `device:verify:${userId}`;
+  if (await isSignInRateLimited(ctx, verifyKey, ctx.auth.config)) {
+    throw deviceError(
+      ErrorCode.RATE_LIMITED,
+      "Too many device authorization attempts. Please try again later.",
+    );
+  }
   const doc = await queryDeviceByUserCode(ctx, params.userCode);
   if (doc === null) {
+    await recordFailedSignIn(ctx, verifyKey, ctx.auth.config);
     throw deviceError("DEVICE_INVALID_USER_CODE", "Invalid or expired user code.");
   }
   if (Date.now() > doc.expiresAt) {
@@ -187,6 +218,9 @@ async function handleDeviceVerify(
     userId,
     sessionExpirationTime: sessionExpirationTime(ctx.auth.config),
   })) as { sessionId: string };
+  // The authorization binds the session minted for the AUTHENTICATED caller
+  // (`userId` above), never a code- or request-supplied identity, so a device
+  // can only be claimed for the user who approved it.
   const { transitioned } = await ctx.runMutation(
     ctx.auth.config.component.factor.device.authorize,
     {
@@ -203,6 +237,9 @@ async function handleDeviceVerify(
     });
     throw deviceError("DEVICE_ALREADY_AUTHORIZED", "This device code has already been authorized.");
   }
+  // Approved: clear the failure counter so a user who mistyped the code a few
+  // times before succeeding is not left throttled.
+  await resetSignInRateLimit(ctx, verifyKey, ctx.auth.config);
   return { kind: "signedIn" as const, session: null };
 }
 

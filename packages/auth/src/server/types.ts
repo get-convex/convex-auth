@@ -1203,17 +1203,13 @@ export interface ScopeChecker {
 /**
  * An API key record as returned by `auth.key.list()` and `auth.key.get()`.
  *
- * This mirrors the stored `ApiKey` document (`Infer<vApiKeyDoc>`) as it
- * currently ships. The raw key is never stored, but the SHA-256 `hashedKey`
- * and the mutable `rateLimitState` ARE present on the returned document — the
- * field set is aligned to the true runtime shape here rather than claiming a
- * redaction that does not yet happen.
- *
- * TODO(redaction): `auth.key.get` / `auth.key.list` should return a public
- * projection that omits `hashedKey` and `rateLimitState` (in the facade at
- * `server/domains/key.ts`, kept distinct from `auth.key.verify`, which needs
- * the full document to enforce rate limiting). When that lands, drop those two
- * fields from this type.
+ * This is the PUBLIC projection of the stored `ApiKey` document
+ * (`Infer<vApiKeyDoc>`). The `auth.key.get` / `auth.key.list` facades
+ * (`server/domains/key.ts`) strip the sensitive SHA-256 `hashedKey` (the
+ * bearer-lookup hash) and the mutable `rateLimitState` (internal token-bucket
+ * counters) before returning, so neither is ever exposed to callers. This type
+ * reflects that redacted shape. `auth.key.verify` reads the full component
+ * document directly and is unaffected.
  */
 export interface KeyRecord {
   /** Document ID. */
@@ -1222,16 +1218,12 @@ export interface KeyRecord {
   userId: string;
   /** Display prefix (e.g. `"sk_abc1"`). Safe to show in UIs. */
   prefix: string;
-  /** SHA-256 hex hash of the full raw key. Not the raw secret. */
-  hashedKey: string;
   /** Human-readable name (e.g. "CI Pipeline"). */
   name: string;
   /** Resource:action permissions granted to this key. */
   scopes: KeyScope[];
   /** Per-key rate limit, if configured. */
   rateLimit?: { maxRequests: number; windowMs: number };
-  /** Mutable token-bucket counters tracked for rate limiting, if any. */
-  rateLimitState?: { attemptsLeft: number; lastAttemptTime: number };
   /** Expiration timestamp (ms since epoch), or `undefined` for no expiry. */
   expiresAt?: number;
   /** Timestamp of last successful verification, or `undefined` if never used. */

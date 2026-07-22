@@ -3841,6 +3841,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
+      recordUse: FunctionReference<
+        "mutation",
+        "internal",
+        { coarsenMs?: number; id: string; now: number },
+        { limited: boolean },
+        Name
+      >;
       remove: FunctionReference<"mutation", "internal", { id: string }, null, Name>;
       update: FunctionReference<
         "mutation",

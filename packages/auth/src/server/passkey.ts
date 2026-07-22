@@ -357,6 +357,40 @@ function verifyAssertionSignature(
 }
 
 /**
+ * Build a deterministic decoy `allowCredentials` list for a passkey `signIn`
+ * challenge when the given email has no real passkeys (unknown user, or a user
+ * without passkeys).
+ *
+ * A known email WITH passkeys returns a populated `allowCredentials`, so
+ * returning an absent/empty list for every other email would reveal, by the
+ * response shape, exactly which accounts exist — an account-enumeration oracle.
+ * The decoy ids are derived from a SHA-256 hash of the (trimmed, lowercased)
+ * email plus the relying-party id, so the same email always yields the same fake
+ * credentials and the response is indistinguishable from a real account.
+ *
+ * These ids reference no stored credential: the ceremony simply fails to produce
+ * an assertion (as it would for a real account whose authenticator is absent),
+ * and a forged assertion can never pass {@link verifyAssertionSignature} because
+ * no matching credential is ever looked up on `verify`.
+ */
+function deriveDecoyAllowCredentials(
+  email: string,
+  rpId: string,
+): Array<{ type: "public-key"; id: string; transports?: string[] }> {
+  const encoder = new TextEncoder();
+  const seed = `convex-auth:passkey-decoy:${rpId}:${email.trim().toLowerCase()}`;
+  const base = sha256(encoder.encode(seed));
+  // 1–2 decoys, chosen deterministically, mimicking a typical small credential set.
+  const count = (base[0] % 2) + 1;
+  const credentials: Array<{ type: "public-key"; id: string; transports?: string[] }> = [];
+  for (let i = 0; i < count; i++) {
+    const idBytes = sha256(encoder.encode(`${seed}:${i}`));
+    credentials.push({ type: "public-key" as const, id: encodeBase64urlNoPadding(idBytes) });
+  }
+  return credentials;
+}
+
+/**
  * Drive the passkey provider's `register` / `signIn` / `verify` flow.
  *
  * Dispatches on `args.params.flow`; for `verify` it auto-detects whether the
@@ -686,6 +720,12 @@ export async function handlePasskey(
               transports: pk.transports,
             }));
           }
+        }
+        if (allowCredentials === undefined) {
+          // No real passkeys for this email (unknown user, or a user without
+          // passkeys). Return deterministic decoys instead of an absent list so
+          // the response cannot be used to enumerate which accounts exist.
+          allowCredentials = deriveDecoyAllowCredentials(email, rp.rpId);
         }
       }
 
