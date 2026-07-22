@@ -27,7 +27,7 @@ Use the `connectionId` returned by
 
 | Method     | Signature                                                                                      | Returns                      | Description                                                                                                             |
 | ---------- | ---------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `set`      | `(ctx, { connectionId, metadata, domains?, request?, security?, serviceProvider?, profile? })` | `{ connectionId, groupId }`  | Configures SAML settings for a connection. Accepts a metadata URL or raw XML.                                           |
+| `upsert`   | `(ctx, { connectionId, metadata, domains?, request?, security?, serviceProvider?, profile? })` | `{ connectionId, groupId }`  | Configures SAML settings for a connection. Accepts a metadata URL or raw XML.                                           |
 | `get`      | `(ctx, { connectionId })`                                                                      | SAML config document         | Returns the current normalized SAML config for a connection.                                                            |
 | `status`   | `(ctx, { connectionId })`                                                                      | `{ configured, ready, ... }` | Returns a lightweight readiness summary for a connection.                                                               |
 | `metadata` | `(ctx, { connectionId, entityId?, acsUrl?, sloUrl? })`                                         | `string`                     | Returns the SP metadata XML for the connection via [`auth.connection.metadata(...)`](/connection/rpc/).                 |
@@ -39,7 +39,7 @@ Use the `connectionId` returned by
 ### Configure with a metadata URL
 
 ```ts
-await auth.connection.saml.set(ctx, {
+await auth.connection.saml.upsert(ctx, {
   connectionId,
   metadata: {
     url: "https://idp.acme.com/metadata.xml",
@@ -50,7 +50,7 @@ await auth.connection.saml.set(ctx, {
 ### Configure with raw XML
 
 ```ts
-await auth.connection.saml.set(ctx, {
+await auth.connection.saml.upsert(ctx, {
   connectionId,
   metadata: {
     xml: "<EntityDescriptor ...>...</EntityDescriptor>",
@@ -61,7 +61,7 @@ await auth.connection.saml.set(ctx, {
 ### Optional security settings
 
 ```ts
-await auth.connection.saml.set(ctx, {
+await auth.connection.saml.upsert(ctx, {
   connectionId,
   metadata: {
     url: "https://idp.acme.com/metadata.xml",

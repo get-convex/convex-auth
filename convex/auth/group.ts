@@ -329,7 +329,7 @@ export const createConnection = authMutation({
       status: args.status,
     });
     if (args.domain) {
-      await auth.connection.domain.set(ctx, {
+      await auth.connection.domain.upsert(ctx, {
         connectionId: created.connectionId,
         domains: [{ domain: args.domain, isPrimary: true }],
       });
@@ -458,11 +458,11 @@ export const setDomains = authMutation({
     connectionId: v.string(),
     domains: v.array(vDomainInput),
   },
-  returns: auth.v.connection.domain.set,
+  returns: auth.v.connection.domain.upsert,
   handler: async (ctx, args) => {
     const groupId = await resolveConnectionGroup(ctx, args.connectionId);
     await requireGroupAdmin(ctx, groupId);
-    return auth.connection.domain.set(ctx, {
+    return auth.connection.domain.upsert(ctx, {
       connectionId: args.connectionId,
       domains: args.domains,
     });
@@ -495,7 +495,7 @@ export const setOidc = authMutation({
   handler: async (ctx, args) => {
     const groupId = await resolveConnectionGroup(ctx, args.connectionId);
     await requireGroupAdmin(ctx, groupId);
-    return auth.connection.oidc.set(ctx, args);
+    return auth.connection.oidc.upsert(ctx, args);
   },
 });
 
@@ -525,7 +525,7 @@ export const setSaml = authAction({
   handler: async (ctx, args) => {
     const groupId = await resolveConnectionGroup(ctx, args.connectionId);
     await requireGroupAdmin(ctx, groupId);
-    return auth.connection.saml.set(ctx, args);
+    return auth.connection.saml.upsert(ctx, args);
   },
 });
 
@@ -667,17 +667,17 @@ export const disableWebhookEndpoint = authMutation({
       });
     }
     await requireGroupAdmin(ctx, endpoint.groupId);
-    return auth.connection.webhook.endpoint.disable(ctx, { id: args.id });
+    return auth.connection.webhook.endpoint.revoke(ctx, { id: args.id });
   },
 });
 
 export const setScim = authMutation({
   args: vScimConfigure,
-  returns: auth.v.connection.scim.set,
+  returns: auth.v.connection.scim.upsert,
   handler: async (ctx, args) => {
     const groupId = await resolveConnectionGroup(ctx, args.connectionId);
     await requireGroupAdmin(ctx, groupId);
-    return auth.connection.scim.set(ctx, args);
+    return auth.connection.scim.upsert(ctx, args);
   },
 });
 

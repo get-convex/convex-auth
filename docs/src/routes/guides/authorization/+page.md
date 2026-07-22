@@ -270,7 +270,7 @@ export const setScim = authMutation({
       groupId: connection!.groupId,
       grants: ["connection.protocol.manage"],
     });
-    return auth.connection.scim.set(ctx, args);
+    return auth.connection.scim.upsert(ctx, args);
   },
 });
 ```

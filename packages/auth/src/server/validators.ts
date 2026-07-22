@@ -333,7 +333,7 @@ const connectionValidators = {
     doc: vConnectionDomainDoc,
     summary: vConnectionDomainSummary,
     validation: vConnectionDomainValidation,
-    set: vConnectionDomainSet,
+    upsert: vConnectionDomainSet,
     verificationRequest: vConnectionDomainVerificationRequest,
     verificationConfirm: vConnectionDomainVerificationConfirm,
   },
@@ -351,7 +351,7 @@ const connectionValidators = {
   },
   scim: {
     config: vConnectionScimConfig,
-    set: vConnectionScimSet,
+    upsert: vConnectionScimSet,
     validation: vConnectionScimValidation,
   },
   audit: {

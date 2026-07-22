@@ -351,7 +351,7 @@ type PublicGroupConnectionApi = InternalConnectionApi["connection"] & {
     list: InternalConnectionApi["domain"]["list"];
     validate: InternalConnectionApi["domain"]["validate"];
     status: InternalConnectionApi["domain"]["status"];
-    set: (
+    upsert: (
       ctx: Parameters<InternalConnectionApi["connection"]["create"]>[0],
       args: {
         connectionId: string;
@@ -526,12 +526,12 @@ export function defineAuth<
     ...restConnection
   } = authResult.auth.connection as InternalConnectionApi;
 
-  type SetGroupConnectionDomains = PublicGroupConnectionApi["domain"]["set"];
+  type SetGroupConnectionDomains = PublicGroupConnectionApi["domain"]["upsert"];
   type GroupConnectionDomainInput = Array<{
     domain: string;
     isPrimary?: boolean;
   }>;
-  const setGroupConnectionDomains: PublicGroupConnectionApi["domain"]["set"] = async (
+  const setGroupConnectionDomains: PublicGroupConnectionApi["domain"]["upsert"] = async (
     ctx: Parameters<SetGroupConnectionDomains>[0],
     args: Parameters<SetGroupConnectionDomains>[1],
   ) => {
@@ -646,7 +646,7 @@ export function defineAuth<
       list: domainApi.list,
       validate: domainApi.validate,
       status: domainApi.status,
-      set: setGroupConnectionDomains,
+      upsert: setGroupConnectionDomains,
       verification: {
         request: domainApi.verification.request,
         confirm: domainApi.verification.confirm,
@@ -663,7 +663,7 @@ export function defineAuth<
       },
     },
     scim: {
-      set: scimApi.set,
+      upsert: scimApi.upsert,
       get: scimApi.get,
       status: scimApi.status,
       validate: scimApi.validate,

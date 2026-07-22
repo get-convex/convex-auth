@@ -28,14 +28,14 @@ Use the `connectionId` returned by
 
 | Method                          | Signature                                                                   | Returns                      | Description                                                                                                      |
 | ------------------------------- | --------------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `auth.connection.oidc.set`      | `(ctx, { connectionId, discovery, client, request?, security?, profile? })` | OIDC config document         | Configures OIDC settings for a connection and stores the normalized config.                                      |
+| `auth.connection.oidc.upsert`   | `(ctx, { connectionId, discovery, client, request?, security?, profile? })` | OIDC config document         | Configures OIDC settings for a connection and stores the normalized config.                                      |
 | `auth.connection.oidc.get`      | `(ctx, { connectionId })`                                                   | OIDC config document         | Returns the current OIDC configuration for a connection.                                                         |
 | `auth.connection.oidc.status`   | `(ctx, { connectionId })`                                                   | `{ configured, ready, ... }` | Returns a lightweight readiness summary for a connection.                                                        |
 | `auth.connection.oidc.validate` | `(ctx, { connectionId })`                                                   | `{ checks: [...] }`          | Validates that the OIDC configuration is complete and the IdP is reachable. Each check has its own `ok` field.   |
 | `auth.connection.signIn`        | `(ctx, { connectionId?, email?, domain?, redirectTo?, loginHint? })`        | Sign-in route description    | Resolves the client-facing OIDC sign-in route for a connection. Domain/email routing requires a verified domain. |
 
 `clientSecret` is write-only. Configure it through
-[`auth.connection.oidc.set(...)`](/connection/oidc/), but expect
+[`auth.connection.oidc.upsert(...)`](/connection/oidc/), but expect
 [`auth.connection.oidc.get(...)`](/connection/oidc/) and other public reads to return a
 redacted view of the OIDC config.
 
@@ -43,10 +43,10 @@ If you use `connection({ redirectURI })`, multiple OIDC connections can share a 
 callback URL while still routing back to the correct connection via the encoded
 OIDC state.
 
-## `set` shape
+## `upsert` shape
 
 ```ts
-await auth.connection.oidc.set(ctx, {
+await auth.connection.oidc.upsert(ctx, {
   connectionId,
   discovery: {
     issuer: "https://login.example.com",
@@ -89,7 +89,7 @@ Use `profile.mapping` to override the core OIDC claims used for the built-in
 profile:
 
 ```ts
-await auth.connection.oidc.set(ctx, {
+await auth.connection.oidc.upsert(ctx, {
   connectionId,
   discovery: {
     issuer: "https://login.example.com",
@@ -111,7 +111,7 @@ await auth.connection.oidc.set(ctx, {
 Use `profile.extraFields` to map additional IdP claims to `user.extend` fields:
 
 ```ts
-await auth.connection.oidc.set(ctx, {
+await auth.connection.oidc.upsert(ctx, {
   connectionId,
   discovery: {
     issuer: "https://login.microsoftonline.com/tenant-id/v2.0",

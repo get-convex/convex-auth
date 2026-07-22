@@ -43,7 +43,7 @@ domains owned by the connection.
 | `list`                 | `(ctx, { connectionId })`          | Domain list                 | Lists domains attached to the connection.                                       |
 | `status`               | `(ctx, { connectionId })`          | Onboarding status           | Returns trust status, pending challenges, warnings, and recommended next steps. |
 | `validate`             | `(ctx, { connectionId })`          | Status info                 | Returns onboarding diagnostics for domains.                                     |
-| `set`                  | `(ctx, { connectionId, domains })` | `{ connectionId, domains }` | Replaces the connection's full domain set and returns the canonical result.     |
+| `upsert`               | `(ctx, { connectionId, domains })` | `{ connectionId, domains }` | Replaces the connection's full domain set and returns the canonical result.     |
 | `verification.request` | `(ctx, { connectionId, domain })`  | Verification challenge      | Issues a DNS TXT verification challenge for an attached domain.                 |
 | `verification.confirm` | `(ctx, { connectionId, domain })`  | Confirmation result         | Resolves the TXT record and marks the domain verified on success.               |
 
@@ -59,7 +59,7 @@ const { connectionId } = await auth.connection.create(ctx, {
 });
 
 // Replace the attached group connection domains
-const domainResult = await auth.connection.domain.set(ctx, {
+const domainResult = await auth.connection.domain.upsert(ctx, {
   connectionId,
   domains: [{ domain: "acme.com", isPrimary: true }, { domain: "login.acme.com" }],
 });

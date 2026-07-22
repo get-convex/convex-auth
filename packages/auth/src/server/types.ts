@@ -167,7 +167,7 @@ export type ConvexAuthConfig<TExtend = {}> = {
    * HTTP path where Convex Auth mounts its protocol routes.
    *
    * Defaults to `/auth`. Provider callbacks, the JWT issuer, OAuth discovery,
-   * and `auth.request.add(http)` all use this same path.
+   * and `auth.request.mount(http)` all use this same path.
    */
   path?: string;
   connection?: {

@@ -772,7 +772,7 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
       },
     },
     saml: {
-      set: async <DataModel extends GenericDataModel>(
+      upsert: async <DataModel extends GenericDataModel>(
         ctx: GenericActionCtx<DataModel>,
         data: {
           connectionId: string;
@@ -1329,7 +1329,7 @@ export function createGroupConnectionDomain<TDeps extends DomainDeps>(deps: TDep
        * Persists protocol config under `connection.config.protocols.oidc` and
        * emits a `connection.oidc.set` auth event.
        */
-      set: async (
+      upsert: async (
         ctx: ComponentCtx,
         data: {
           connectionId: string;

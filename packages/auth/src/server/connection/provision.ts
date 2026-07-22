@@ -189,7 +189,7 @@ export function createGroupScimDomain(deps: ScimDeps) {
   };
 
   return {
-    set: async (
+    upsert: async (
       ctx: ComponentCtx,
       data: {
         connectionId: string;

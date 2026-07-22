@@ -184,7 +184,7 @@ test("group connection domain validation reports onboarding diagnostics", async 
   expect(connectionId).toBeTruthy();
 
   await t.run(async (ctx) => {
-    await auth.connection.domain.set(ctx as any, {
+    await auth.connection.domain.upsert(ctx as any, {
       connectionId,
       domains: [{ domain: "acme.example", isPrimary: true }],
     });
@@ -444,7 +444,7 @@ test("group connection component stores scim config, audit events, and webhook d
   });
 
   const configured = await t.run(async (ctx) => {
-    return await auth.connection.scim.set(ctx, {
+    return await auth.connection.scim.upsert(ctx, {
       connectionId,
       profile: {
         mapping: {
@@ -766,7 +766,7 @@ test("group saml.register persists config directly on group connection", async (
       "  </IDPSSODescriptor>",
       "</EntityDescriptor>",
     ].join("\n");
-    return await auth.connection.saml.set(ctx as any, {
+    return await auth.connection.saml.upsert(ctx as any, {
       connectionId,
       metadata: { xml: metadataXml },
       domains: ["register.example.com"],
@@ -906,7 +906,7 @@ test("group connection domain status exposes trust and next steps", async () => 
   });
 
   await t.run(async (ctx) => {
-    await auth.connection.domain.set(ctx as any, {
+    await auth.connection.domain.upsert(ctx as any, {
       connectionId,
       domains: [{ domain: "status.example.com", isPrimary: true }],
     });
@@ -970,7 +970,7 @@ test("group oidc.register merges config and client.signIn requires verified doma
   });
 
   const oidcConfig = await t.run(async (ctx) => {
-    return await auth.connection.oidc.set(ctx as any, {
+    return await auth.connection.oidc.upsert(ctx as any, {
       connectionId,
       discovery: {
         issuer: "https://issuer.example.com",
@@ -1277,7 +1277,7 @@ test("removing a connection cascades scim config, identities, webhook endpoints 
   });
 
   const configured = await t.run(async (ctx) => {
-    return await auth.connection.scim.set(ctx as any, {
+    return await auth.connection.scim.upsert(ctx as any, {
       connectionId,
       profile: { mapping: { email: "emails.primary" } },
     });
@@ -1560,7 +1560,7 @@ test("Connection hooks can transform normalized profiles", async () => {
   };
 
   await t.run(async (ctx) => {
-    await auth.connection.scim.set(ctx as any, {
+    await auth.connection.scim.upsert(ctx as any, {
       connectionId,
       profile: {
         mapping: {
@@ -1763,7 +1763,7 @@ test("group connection scim.configure stores hashed token and enqueues subscribe
   });
 
   const configured = await t.run(async (ctx) => {
-    return await auth.connection.scim.set(ctx as any, {
+    return await auth.connection.scim.upsert(ctx as any, {
       connectionId,
       security: { maxRequestSize: 200_000 },
       profile: {

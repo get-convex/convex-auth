@@ -102,7 +102,7 @@ export const setOidc = authMutation({
       groupId: connection!.groupId,
       grants: ["connection.protocol.manage"],
     });
-    return auth.connection.oidc.set(ctx, args);
+    return auth.connection.oidc.upsert(ctx, args);
   },
 });
 
@@ -110,7 +110,7 @@ export const setOidc = authMutation({
 export const setSaml = authAction({
   args: { connectionId: v.string(), metadata: v.any(), profile: v.optional(v.any()) },
   handler: async (ctx, args) => {
-    return auth.connection.saml.set(ctx, args);
+    return auth.connection.saml.upsert(ctx, args);
   },
 });
 

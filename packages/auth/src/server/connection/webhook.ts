@@ -123,7 +123,7 @@ export function createGroupWebhookDomain(deps: WebhookDeps) {
         );
         return endpoints.map((endpoint) => getPublicWebhookEndpoint(endpoint)!);
       },
-      disable: async (ctx: ComponentCtx, args: { id: string }) => {
+      revoke: async (ctx: ComponentCtx, args: { id: string }) => {
         const endpoint = await getWebhookEndpoint(ctx, config.component.connection, args.id);
         await updateWebhookEndpoint(ctx, config.component.connection, {
           endpointId: args.id,

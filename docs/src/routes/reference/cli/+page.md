@@ -92,7 +92,7 @@ export const setScim = authMutation({
       groupId,
       roleIds: [roles.orgAdmin.id],
     });
-    return auth.connection.scim.set(ctx, args);
+    return auth.connection.scim.upsert(ctx, args);
   },
 });
 ```

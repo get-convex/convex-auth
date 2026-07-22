@@ -21,11 +21,11 @@ SSO-related events.
 
 ## Endpoint methods
 
-| Method             | Signature                                                               | Returns          | Description                                                                               |
-| ------------------ | ----------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------- |
-| `endpoint.create`  | `(ctx, { connectionId, url, secret, subscriptions, createdByUserId? })` | `{ endpointId }` | Creates a webhook endpoint that listens for specific events.                              |
-| `endpoint.list`    | `(ctx, { connectionId })`                                               | Endpoint[]       | Lists all webhook endpoints for a connection.                                             |
-| `endpoint.disable` | `(ctx, { id })`                                                         | `{ endpointId }` | Disables a webhook endpoint (stops delivery). Throws `ConvexError` if endpoint not found. |
+| Method            | Signature                                                               | Returns          | Description                                                                               |
+| ----------------- | ----------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------- |
+| `endpoint.create` | `(ctx, { connectionId, url, secret, subscriptions, createdByUserId? })` | `{ endpointId }` | Creates a webhook endpoint that listens for specific events.                              |
+| `endpoint.list`   | `(ctx, { connectionId })`                                               | Endpoint[]       | Lists all webhook endpoints for a connection.                                             |
+| `endpoint.revoke` | `(ctx, { id })`                                                         | `{ endpointId }` | Disables a webhook endpoint (stops delivery). Throws `ConvexError` if endpoint not found. |
 
 ## Example
 
@@ -43,7 +43,7 @@ const { endpointId } = await auth.connection.webhook.endpoint.create(ctx, {
 ### Disable an endpoint
 
 ```ts
-await auth.connection.webhook.endpoint.disable(ctx, { id: endpointId });
+await auth.connection.webhook.endpoint.revoke(ctx, { id: endpointId });
 ```
 
 ## Delivery worker
