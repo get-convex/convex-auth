@@ -80,10 +80,20 @@ export const list = query({
   handler: async (ctx, args) => {
     const where = args.where ?? {};
     const order = args.order ?? "desc";
+    const orderBy = args.orderBy ?? "_creationTime";
 
     const base = stream(ctx.db, schema).query("GroupMember");
     let q;
-    if (where.groupId !== undefined && where.userId !== undefined) {
+    // Choose the index whose sort suffix matches `orderBy`. `.order()` sorts by
+    // the index's trailing column(s), so `orderBy: "status"` needs an index that
+    // ends in `status` (`group_id_status`, with `groupId` pinned) — otherwise the
+    // `orderBy` is silently ignored and results come back in `_creationTime` order.
+    if (orderBy === "status" && where.groupId !== undefined) {
+      // group_id_status keys on (groupId, status, _creationTime); pinning groupId
+      // orders the page by status. A `status` filter is applied via filterWith so
+      // the ordering column is still status (not collapsed to one value).
+      q = base.withIndex("group_id_status", (idx) => idx.eq("groupId", where.groupId!));
+    } else if (where.groupId !== undefined && where.userId !== undefined) {
       q = base.withIndex("group_id_user_id", (idx) =>
         idx.eq("groupId", where.groupId!).eq("userId", where.userId!),
       );
@@ -100,7 +110,8 @@ export const list = query({
     }
 
     const needStatusFilter =
-      where.status !== undefined && !(where.groupId !== undefined && where.userId === undefined);
+      where.status !== undefined &&
+      !(where.groupId !== undefined && where.userId === undefined && orderBy !== "status");
 
     return await q
       .order(order)
