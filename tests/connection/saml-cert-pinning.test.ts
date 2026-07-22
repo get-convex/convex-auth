@@ -14,7 +14,6 @@
  */
 
 import { verifySignature } from "@robelest/convex-auth/server/connection/saml/signature";
-import { verifyTime } from "@robelest/convex-auth/server/connection/saml/validator";
 import type { SamlMetadata } from "@robelest/convex-auth/server/connection/saml/metadata";
 import { expect, test } from "vite-plus/test";
 
