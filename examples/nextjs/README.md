@@ -22,9 +22,11 @@ access token.
 ## Run it
 
 ```sh
-npx convex dev      # push functions + generate convex/_generated (one terminal)
-npm run dev         # next dev (another terminal)
+cd examples/nextjs
+npx convex dev --once   # provisions a deployment, generates convex/_generated
+npx @convex-dev/auth    # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
+npx convex dev          # push functions + keep them in sync (one terminal)
+npm run dev             # next dev (another terminal)
 ```
 
-Set `AUTH_PRIVATE_KEY` / `AUTH_JWKS` on the deployment (see the Convex Auth
-docs). Then open http://localhost:3000 — you'll be redirected to `/signin`.
+Then open http://localhost:3000 — you'll be redirected to `/signin`.
