@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api";
 export const {
   convexAuthNextjsMiddleware,
   nextjsMiddlewareRedirect,
-  convexAuthNextjsToken,
+  convexAuthNextjsAccessToken,
   isAuthenticatedNextjs,
   ConvexAuthNextjsServerProvider,
 } = setupConvexAuthNextjs({
