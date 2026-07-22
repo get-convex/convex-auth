@@ -41,6 +41,7 @@ function makeClient(
 function makeSsrClient(
   authApi: Partial<SsrAuthApi> = {},
   storage = new InMemoryStorage(),
+  extra: { initialAccessToken?: string | null } = {},
 ) {
   const client = new AuthClient({
     mode: "ssr",
@@ -51,6 +52,7 @@ function makeSsrClient(
     },
     storage,
     storageNamespace: NAMESPACE,
+    ...extra,
   });
   return { client, storage };
 }
@@ -341,6 +343,23 @@ describe("AuthClient (SSR)", () => {
       isAuthenticated: false,
       token: null,
     });
+  });
+
+  test("initialAccessToken wins over a persisted token and is stored", async () => {
+    // The SSR host may have refreshed on the client's behalf, so its token is
+    // fresher than anything already in storage — it should win and persist.
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "stale-access");
+    const { client } = makeSsrClient({}, storage, {
+      initialAccessToken: "access-ssr",
+    });
+    await client.init();
+
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: true,
+      token: "access-ssr",
+    });
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-ssr");
   });
 
   test("clears refresh token if present", async () => {

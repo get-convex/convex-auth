@@ -27,12 +27,7 @@
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useCallback, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager";
-import {
-  JWT_STORAGE_KEY,
-  NamespacedStorage,
-  TokenStorage,
-  defaultStorage,
-} from "../browser/storage";
+import { TokenStorage, defaultStorage } from "../browser/storage";
 import type { SlimTokenBundle } from "../lib/types";
 import { useAuthActions } from "../react";
 import { AuthProvider, useAuth } from "../react/client";
@@ -97,16 +92,8 @@ export function ConvexAuthNextjsProvider({
     const convex =
       client ??
       new ConvexReactClient(convexUrl ?? process.env.NEXT_PUBLIC_CONVEX_URL!);
-    const tokenStorage = storage ?? defaultStorage();
-    const namespace = convex.url;
-    // Make the access token available under the expected storage key.
-    if (initialToken) {
-      void new NamespacedStorage(tokenStorage, namespace).set(
-        JWT_STORAGE_KEY,
-        initialToken,
-      );
-    }
     const authClient = new AuthClient({
+      mode: "ssr",
       authApi: {
         // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
         refreshSession: async () => (await postAuth(refreshRoute, {})).tokens,
@@ -114,8 +101,11 @@ export function ConvexAuthNextjsProvider({
           await postAuth(signOutRoute, {});
         },
       },
-      storage: tokenStorage,
-      storageNamespace: namespace,
+      storage: storage ?? defaultStorage(),
+      storageNamespace: convex.url,
+      // The SSR host may have refreshed on our behalf, so this is the freshest
+      // access token; the client adopts it on init.
+      initialAccessToken: initialToken,
     });
     return { authClient, convex };
     // `client`/`convexUrl` identity is what matters; other props are read once.

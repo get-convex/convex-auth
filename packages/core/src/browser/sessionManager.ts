@@ -45,6 +45,11 @@ interface AuthClientConfigBase {
   storage: TokenStorage;
   /** Namespace for storage keys; typically the deployment URL. */
   storageNamespace: string;
+  /**
+   * An access token to adopt on {@link AuthClient.init}, typically provided by
+   * an SSR host.
+   */
+  initialAccessToken?: string | null;
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
 }
@@ -110,6 +115,7 @@ export class AuthClient {
   readonly #storage: NamespacedStorage;
   readonly #verbose: boolean;
   readonly #lockKey: string;
+  readonly #initialAccessToken: string | null;
 
   #accessToken: string | null = null;
   /**
@@ -131,6 +137,7 @@ export class AuthClient {
     );
     this.#verbose = config.verbose ?? false;
     this.#lockKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
+    this.#initialAccessToken = config.initialAccessToken ?? null;
 
     // Bind the mode-specific refresh/sign-out behavior.
     if (config.mode === "spa") {
@@ -195,6 +202,12 @@ export class AuthClient {
     this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
+    // An initially provided token is considered to be the freshest value, so
+    // persist it before the load below reads it back (and so other tabs see
+    // it).
+    if (this.#initialAccessToken !== null) {
+      await this.#storage.set(JWT_STORAGE_KEY, this.#initialAccessToken);
+    }
     const [accessToken, refreshToken] = await Promise.all([
       this.#storage.get(JWT_STORAGE_KEY),
       this.#storage.get(REFRESH_TOKEN_STORAGE_KEY),
