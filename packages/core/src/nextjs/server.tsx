@@ -164,14 +164,14 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
 
   /** The current access token in a Server Component, or null. Never triggers a
    * refresh (the middleware does that); returns null for an expired token. */
-  async function convexAuthNextjsToken(): Promise<string | null> {
+  async function convexAuthNextjsAccessToken(): Promise<string | null> {
     // `cookies()` is sync on Next 14 and async on Next 15; `await` covers both.
     const token = (await nextCookies()).get(AUTH_JWT_COOKIE)?.value ?? null;
     return token !== null && !isTokenExpiring(token, 0) ? token : null;
   }
 
   async function isAuthenticatedNextjs(): Promise<boolean> {
-    return (await convexAuthNextjsToken()) !== null;
+    return (await convexAuthNextjsAccessToken()) !== null;
   }
 
   /** Server Component that reads the cookie token and renders the client
@@ -181,7 +181,7 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
   }: {
     children: ReactNode;
   }) {
-    const initialToken = await convexAuthNextjsToken();
+    const initialToken = await convexAuthNextjsAccessToken();
     const { ConvexAuthNextjsProvider } = await import("./index");
     return (
       <ConvexAuthNextjsProvider
@@ -196,7 +196,7 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
   return {
     convexAuthNextjsMiddleware,
     nextjsMiddlewareRedirect,
-    convexAuthNextjsToken,
+    convexAuthNextjsAccessToken,
     isAuthenticatedNextjs,
     ConvexAuthNextjsServerProvider,
   };
