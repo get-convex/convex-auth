@@ -49,6 +49,16 @@ export interface OAuthRefreshDomain {
   ): Promise<{ refreshToken: string; expiresAt: number }>;
 
   /**
+   * Generate a refresh secret + its lookup hash + expiry WITHOUT persisting it.
+   * Used by the authorization-code exchange so the grant/token rows can be
+   * inserted in the SAME component transaction that consumes the code (see
+   * `oauth.code.accept`'s `refresh` param), making code-consumption and
+   * refresh-creation atomic. The caller persists `tokenHash`; the returned
+   * `refreshToken` is the opaque secret handed to the client.
+   */
+  mint(): Promise<{ refreshToken: string; tokenHash: string; expiresAt: number }>;
+
+  /**
    * Rotate a refresh token (RFC 6749 §6). Returns the new opaque token plus the
    * granted user/scopes/resource, or `null` if the token is unknown, bound to a
    * different client, expired, or replayed after the client rotated past it
@@ -100,6 +110,13 @@ export function createOAuthRefreshDomain(deps: {
         expiresAt,
       });
       return { refreshToken, expiresAt };
+    },
+
+    async mint() {
+      const refreshToken = generateRefreshToken();
+      const tokenHash = await sha256(refreshToken);
+      const expiresAt = Date.now() + OAUTH_REFRESH_TOKEN_DURATION_S * 1000;
+      return { refreshToken, tokenHash, expiresAt };
     },
 
     async exchange(ctx, args) {

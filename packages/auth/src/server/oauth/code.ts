@@ -109,10 +109,22 @@ export interface OAuthCodeDomain {
    * Returns the grant, or `null` if the hash is unknown or any binding fails (the
    * code is NOT burned). Throws `OAUTH_CODE_ALREADY_USED` on replay /
    * `OAUTH_CODE_EXPIRED` if stale.
+   *
+   * When `refresh` is supplied, its grant + token are minted in the SAME
+   * transaction that consumes the code, so a refresh-creation failure rolls back
+   * the code consumption too (the caller can retry) instead of burning the code
+   * and returning an access token with no refresh token. The caller generates the
+   * refresh secret (CSPRNG requires an action); only its `tokenHash` is passed.
    */
   accept(
     ctx: ComponentCtx,
-    args: { codeHash: string; clientId: string; redirectUri: string; codeChallenge: string },
+    args: {
+      codeHash: string;
+      clientId: string;
+      redirectUri: string;
+      codeChallenge: string;
+      refresh?: { tokenHash: string; expiresAt: number };
+    },
   ): Promise<OAuthCodeRecord | null>;
 }
 
@@ -171,12 +183,13 @@ export function createOAuthCodeDomain(deps: {
       return { code: rawCode, redirectUri: args.redirectUri, state: args.state };
     },
 
-    async accept(ctx, { codeHash, clientId, redirectUri, codeChallenge }) {
+    async accept(ctx, { codeHash, clientId, redirectUri, codeChallenge, refresh }) {
       return (await ctx.runMutation(component.oauth.code.accept, {
         codeHash,
         clientId,
         redirectUri,
         codeChallenge,
+        ...(refresh === undefined ? {} : { refresh }),
       })) as OAuthCodeRecord | null;
     },
   };

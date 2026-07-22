@@ -55,9 +55,24 @@ export const accept = mutation({
     clientId: v.string(),
     redirectUri: v.string(),
     codeChallenge: v.string(),
+    // When present, mint the refresh grant + token in the SAME transaction that
+    // consumes the code. The token exchange runs in an action, so accepting the
+    // code (one mutation) and creating the refresh (another) were two separate
+    // transactions: if the second failed, the code was already burned and the
+    // client could not obtain a refresh token without a full re-authorization.
+    // Folding the insert here makes the code-consumption and refresh-creation
+    // atomic — a failure rolls back BOTH, leaving the code unused for retry. The
+    // secret is generated in the action (mutations have no CSPRNG); only its
+    // `tokenHash` crosses the boundary.
+    refresh: v.optional(
+      v.object({
+        tokenHash: v.string(),
+        expiresAt: v.number(),
+      }),
+    ),
   },
   returns: v.union(vOAuthCodeDoc, v.null()),
-  handler: async (ctx, { codeHash, clientId, redirectUri, codeChallenge }) => {
+  handler: async (ctx, { codeHash, clientId, redirectUri, codeChallenge, refresh }) => {
     const doc = await ctx.db
       .query("OAuthCode")
       .withIndex("code_hash", (q) => q.eq("codeHash", codeHash))
@@ -74,6 +89,20 @@ export const accept = mutation({
     }
     const usedAt = Date.now();
     await ctx.db.patch("OAuthCode", doc._id, { usedAt });
+    if (refresh !== undefined) {
+      const grantId = await ctx.db.insert("OAuthRefreshGrant", {
+        clientId: doc.clientId,
+        userId: doc.userId,
+        scopes: doc.scopes,
+        resource: doc.resource,
+        expiresAt: refresh.expiresAt,
+      });
+      await ctx.db.insert("OAuthRefreshToken", {
+        tokenHash: refresh.tokenHash,
+        grantId,
+        expiresAt: refresh.expiresAt,
+      });
+    }
     return { ...doc, usedAt };
   },
 });

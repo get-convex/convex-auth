@@ -356,9 +356,15 @@ export function Auth(config_: ConvexAuthConfig) {
             getClient: (ctx, clientId) => authBase.oauth.client.get(ctx, { clientId }),
             verifyClientSecret: (ctx, clientId, clientSecret) =>
               authBase.oauth.client.verify(ctx, { clientId, clientSecret }),
-            acceptCode: (ctx, codeHash, clientId, redirectUri, codeChallenge) =>
-              authBase.oauth.code.accept(ctx, { codeHash, clientId, redirectUri, codeChallenge }),
-            createRefresh: (ctx, args) => authBase.oauth.refresh.create(ctx, args),
+            acceptCode: (ctx, codeHash, clientId, redirectUri, codeChallenge, refresh) =>
+              authBase.oauth.code.accept(ctx, {
+                codeHash,
+                clientId,
+                redirectUri,
+                codeChallenge,
+                refresh,
+              }),
+            mintRefresh: () => authBase.oauth.refresh.mint(),
             exchangeRefresh: (ctx, args) => authBase.oauth.refresh.exchange(ctx, args),
             emitEvent: async (ctx, event) => await emitAuthEvent(ctx, config, event),
           }),

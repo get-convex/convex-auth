@@ -36,12 +36,14 @@ export interface OAuthTokenDeps {
     clientId: string,
     redirectUri: string,
     codeChallenge: string,
+    refresh?: { tokenHash: string; expiresAt: number },
   ) => Promise<OAuthCodeRecord | null>;
-  /** Issue a rotating refresh token bound to the client/user/scopes/resource. */
-  createRefresh: (
-    ctx: GenericActionCtx<GenericDataModel>,
-    args: { clientId: string; userId: string; scopes: string[]; resource?: string },
-  ) => Promise<{ refreshToken: string }>;
+  /**
+   * Generate a refresh secret + lookup hash + expiry without persisting it, so
+   * the token exchange can hand `{ tokenHash, expiresAt }` to `acceptCode` and
+   * have the refresh grant/token minted in the code-consumption transaction.
+   */
+  mintRefresh: () => Promise<{ refreshToken: string; tokenHash: string; expiresAt: number }>;
   /**
    * Rotate a presented refresh token; `null` if invalid/expired/replayed, or
    * `{ scopeExceeded: true }` (without rotating) if `requestedScopes` is broader
@@ -202,11 +204,30 @@ async function handleAuthorizationCode(
   const codeHash = await sha256Hex(code);
   const expectedChallenge = encodeBase64urlNoPadding(sha256(utf8Encoder.encode(codeVerifier)));
 
+  // Pre-mint the refresh secret (CSPRNG requires an action) BEFORE consuming the
+  // code, so `acceptCode` can persist the refresh grant + token in the SAME
+  // component transaction that burns the code. If the code is invalid the minted
+  // secret is simply discarded (never persisted); if the accept transaction
+  // fails, BOTH the code consumption and the refresh insert roll back and the
+  // client can retry — no more "code burned, but no refresh token" degradation.
+  const mintedRefresh = client.grantTypes.includes("refresh_token")
+    ? await deps.mintRefresh()
+    : null;
+
   // `redirect_uri` and PKCE are validated atomically inside `acceptCode`, so a
   // wrong value returns `null` WITHOUT consuming a legitimate code.
   let doc: OAuthCodeRecord | null;
   try {
-    doc = await deps.acceptCode(ctx, codeHash, clientId, redirectUri, expectedChallenge);
+    doc = await deps.acceptCode(
+      ctx,
+      codeHash,
+      clientId,
+      redirectUri,
+      expectedChallenge,
+      mintedRefresh === null
+        ? undefined
+        : { tokenHash: mintedRefresh.tokenHash, expiresAt: mintedRefresh.expiresAt },
+    );
   } catch (err: unknown) {
     const errCode =
       err instanceof Error && "data" in err
@@ -227,34 +248,9 @@ async function handleAuthorizationCode(
     issuer: deps.issuer(),
     resource: doc.resource,
   });
-  // `acceptCode` already consumed the single-use code in a SEPARATE component
-  // transaction (an action can't span the two mutations atomically), so if
-  // refresh-grant creation now fails we cannot re-run the code. Rather than throw
-  // — which returns 500 and forces the client through a full re-authorization even
-  // though a valid access token was just minted — degrade to an access-token-only
-  // response (`refresh_token` is optional per RFC 6749 §5.1); the client
-  // re-authorizes normally when the access token expires. The ideal fix folds code
-  // acceptance and refresh minting into ONE component mutation, which requires
-  // threading the refresh params through the refresh facade + runtime wiring.
-  let refreshToken: string | undefined;
-  if (client.grantTypes.includes("refresh_token")) {
-    try {
-      refreshToken = (
-        await deps.createRefresh(ctx, {
-          clientId,
-          userId: doc.userId,
-          scopes: doc.scopes,
-          resource: doc.resource,
-        })
-      ).refreshToken;
-    } catch (err) {
-      console.error(
-        "[auth] OAuth refresh-grant creation failed after authorization-code redemption; " +
-          "returning an access token without a refresh token",
-        err,
-      );
-    }
-  }
+  // The refresh grant + token were persisted atomically with the code inside
+  // `acceptCode`, so reaching here means the pre-minted secret is now valid.
+  const refreshToken: string | undefined = mintedRefresh?.refreshToken;
   await deps.emitEvent?.(ctx, {
     kind: "oauth.token.exchanged",
     actor: { type: "oauth_client", id: clientId },

@@ -3331,6 +3331,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           codeChallenge: string;
           codeHash: string;
           redirectUri: string;
+          refresh?: { expiresAt: number; tokenHash: string };
         },
         {
           _creationTime: number;
