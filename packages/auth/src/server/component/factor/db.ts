@@ -211,19 +211,20 @@ export async function mutatePasskeyInsert(
 }
 
 /**
- * Update a passkey's signature counter (anti-cloning) and `lastUsedAt` across
- * the component boundary.
+ * Atomically accept a passkey signature counter (anti-cloning) and update
+ * `lastUsedAt` across the component boundary.
  */
 export async function mutatePasskeyUpdateCounter(
   ctx: ComponentCallCtx,
   passkeyId: string,
   counter: number,
   lastUsedAt: number,
-): Promise<void> {
-  await ctx.runMutation(ctx.auth.config.component.factor.passkey.update, {
+): Promise<boolean> {
+  return (await ctx.runMutation(ctx.auth.config.component.factor.passkey.acceptAssertion, {
     id: passkeyId,
-    patch: { counter, lastUsedAt },
-  });
+    counter,
+    lastUsedAt,
+  })) as boolean;
 }
 
 /** Insert a device-authorization record across the component boundary; returns its ID. */

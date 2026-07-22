@@ -18,9 +18,8 @@ crons.daily(
 );
 
 /**
- * Hard-delete revoked OAuth clients (batch-limited, oldest-first) so dynamic
- * client registration (RFC 7591) does not grow the `OAuthClient` table without
- * bound. Revoked clients are already rejected at every use; this reclaims them.
+ * Hard-delete OAuth clients only after their audit-retention window. The
+ * mutation self-reschedules in bounded batches when a backlog remains.
  */
 crons.daily(
   "auth-prune-oauth-clients",

@@ -67,7 +67,8 @@ Other domain verbs: `exchange` (token→token, e.g. refresh rotation / OAuth
 code→token), `accept` (consume a one-time token — invites, OAuth codes),
 `revoke` (soft-delete / invalidate, incl. signing out a user's sessions),
 `assert` (assert the caller holds grants, throws), `dispatch` (webhook
-delivery), `promote` (raise one item in a set to a privileged role, e.g.
+delivery), `provision` (atomically materialize an externally managed identity),
+`promote` (raise one item in a set to a privileged role, e.g.
 `user.email.promote` making a verified address primary). Add to this list when
 introduced. **Not verbs** (cut from the
 lexicon — use the canonical above): `issue`→`create`, `archive`→`revoke`,
@@ -110,6 +111,12 @@ app + tests + docs), as hard cuts (no aliases/back-compat):
 uses `patch`. `exchange` (refresh-token rotation) and `accept` (invite + OAuth
 code acceptance — the facade unifies the paths under `accept`) remain as
 distinct domain verbs.
+
+User profile names use `name` for the formatted/display name and the explicit
+`firstName` / `lastName` fields for structured given/family names. Connection
+profile mappings (including SCIM) preserve all three through the User schema;
+they must not write undeclared keys or hide canonical profile fields in
+`extend`.
 
 **Read overloading:** prefer one overloaded `get` over multiple
 `getByX` functions. Accept all selectors as optional object fields and dispatch

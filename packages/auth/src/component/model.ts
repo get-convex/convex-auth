@@ -452,6 +452,8 @@ export const userFields = <F extends IdValidatorFn>(vId: F) => ({
   _id: vId(TABLES.User),
   _creationTime: v.number(),
   name: v.optional(v.string()),
+  firstName: v.optional(v.string()),
+  lastName: v.optional(v.string()),
   image: v.optional(v.string()),
   email: v.optional(v.string()),
   emailVerificationTime: v.optional(v.number()),
@@ -658,6 +660,7 @@ export const vOAuthClientDoc = v.object({
   registrationAccessTokenHash: v.optional(v.string()),
   createdBy: v.optional(v.id(TABLES.User)),
   revoked: v.boolean(),
+  revokedAt: v.optional(v.number()),
   extend: v.optional(v.any()),
 });
 
@@ -827,9 +830,10 @@ export const vGroupWebhookEndpointDoc = v.object({
   url: v.string(),
   status: vWebhookEndpointStatus,
   // Two-phase (0.1): `secretCiphertext` optional and legacy `secretHash`
-  // retained until the server-side re-encryption backfill runs; `subscriptions`
-  // widened to `string[]` so legacy subscription strings validate. Mirrors
-  // `schema.ts` GroupWebhookEndpoint; tighten in a later release.
+  // retained until `disableLegacyWebhookEndpoints` disables hash-only rows and
+  // clears the one-way hash; `subscriptions` is widened to `string[]` so legacy
+  // subscription strings validate. Mirrors `schema.ts` GroupWebhookEndpoint;
+  // tighten in a later release.
   secretCiphertext: v.optional(v.string()),
   secretHash: v.optional(v.string()),
   subscriptions: v.array(v.string()),

@@ -3,16 +3,13 @@ import { expect, test } from "vite-plus/test";
 import { getAuthContextForUser } from "../packages/auth/src/server/context";
 
 /**
- * Regression tests for the membership short-circuit in `getAuthContextForUser`
- * (perf/growth cluster, item 2). When the app configured no permissions, the
- * per-request membership read is skipped; the user read is always kept, and the
- * default (flag absent) must preserve full resolution so no authorization
- * behavior is weakened. These are pure unit tests over a stub resolver that
- * records which reads were issued — no Convex runtime required.
+ * Regression tests for active-group resolution in `getAuthContextForUser`.
+ * Group context is useful even when an app defines no grants or roles, so the
+ * resolver must never erase `groupId` / `role` merely because its permissions
+ * vocabulary is empty.
  */
 
 type StubOpts = {
-  permissionsConfigured?: boolean;
   user: unknown;
   memberGet?: { membership: unknown; roleIds: string[]; grants: string[] };
   memberList?: { page: Array<{ groupId: string; roleIds?: string[]; grants?: string[] }> };
@@ -38,36 +35,29 @@ function makeResolver(opts: StubOpts) {
       },
     },
   };
-  if (opts.permissionsConfigured !== undefined) {
-    resolver.permissionsConfigured = opts.permissionsConfigured;
-  }
   return { resolver, calls };
 }
 
-test("getAuthContextForUser skips the membership read when permissions are not configured", async () => {
+test("getAuthContextForUser preserves active group and role when no grants are configured", async () => {
   const { resolver, calls } = makeResolver({
-    permissionsConfigured: false,
     user: { _id: "u1", lastActiveGroup: "g1", email: "a@b.c" },
-    // A membership exists, but it must not be read on the no-permissions path.
-    memberGet: { membership: { _id: "m1" }, roleIds: ["admin"], grants: ["x"] },
+    memberGet: { membership: { _id: "m1" }, roleIds: ["member"], grants: [] },
   });
 
   const result = await getAuthContextForUser(resolver, {} as any, "u1");
 
   expect(calls.userGet).toBe(1); // user read kept
-  expect(calls.memberGet).toBe(0); // membership read skipped
+  expect(calls.memberGet).toBe(1);
   expect(calls.memberList).toBe(0);
-  expect(result.groupId).toBeNull();
-  expect(result.role).toBeNull();
+  expect(result.groupId).toBe("g1");
+  expect(result.role).toBe("member");
   expect(result.grants).toEqual([]);
   expect(result.user).toEqual({ _id: "u1", lastActiveGroup: "g1", email: "a@b.c" });
-  // No grants resolved → assert throws, consistent with "nothing to authorize".
   expect(() => result.assert("x")).toThrow();
 });
 
 test("getAuthContextForUser resolves membership when permissions are configured", async () => {
   const { resolver, calls } = makeResolver({
-    permissionsConfigured: true,
     user: { _id: "u1", lastActiveGroup: "g1" },
     memberGet: { membership: { _id: "m1" }, roleIds: ["admin"], grants: ["issues.read"] },
   });
@@ -80,48 +70,32 @@ test("getAuthContextForUser resolves membership when permissions are configured"
   expect(result.grants).toEqual(["issues.read"]);
 });
 
-test("getAuthContextForUser defaults to full resolution when the flag is absent", async () => {
+test("getAuthContextForUser falls back to the first membership", async () => {
   const { resolver, calls } = makeResolver({
-    // No permissionsConfigured property at all — must NOT short-circuit.
-    user: { _id: "u1", lastActiveGroup: "g1" },
-    memberGet: { membership: { _id: "m1" }, roleIds: ["admin"], grants: ["issues.read"] },
+    user: { _id: "u1" },
+    memberList: { page: [{ groupId: "g2", roleIds: ["viewer"], grants: [] }] },
   });
 
   const result = await getAuthContextForUser(resolver, {} as any, "u1");
 
-  expect(calls.memberGet).toBe(1); // unknown → resolve (no regression)
+  expect(calls.memberGet).toBe(0);
+  expect(calls.memberList).toBe(1);
+  expect(result.groupId).toBe("g2");
+  expect(result.role).toBe("viewer");
+});
+
+test("OAuth scopes still cap resolved grants", async () => {
+  const { resolver } = makeResolver({
+    user: { _id: "u1", lastActiveGroup: "g1" },
+    memberGet: {
+      membership: { _id: "m1" },
+      roleIds: ["admin"],
+      grants: ["issues.read", "issues.write"],
+    },
+  });
+
+  const result = await getAuthContextForUser(resolver, {} as any, "u1", ["issues.read"]);
+
+  expect(result.groupId).toBe("g1");
   expect(result.grants).toEqual(["issues.read"]);
-});
-
-test("getAuthContextForUser lets an explicit option override the resolver property", async () => {
-  const { resolver, calls } = makeResolver({
-    permissionsConfigured: true, // resolver reports configured...
-    user: { _id: "u1", lastActiveGroup: "g1" },
-    memberGet: { membership: { _id: "m1" }, roleIds: ["admin"], grants: ["x"] },
-  });
-
-  // ...but the explicit option wins and skips the membership read.
-  const result = await getAuthContextForUser(resolver, {} as any, "u1", undefined, {
-    permissionsConfigured: false,
-  });
-
-  expect(calls.memberGet).toBe(0);
-  expect(result.groupId).toBeNull();
-  expect(result.grants).toEqual([]);
-});
-
-test("no-permissions short-circuit keeps OAuth-scoped callers at empty grants", async () => {
-  const { resolver, calls } = makeResolver({
-    permissionsConfigured: false,
-    user: { _id: "u1", lastActiveGroup: "g1" },
-    memberGet: { membership: { _id: "m1" }, roleIds: ["admin"], grants: ["x"] },
-  });
-
-  // Even with OAuth scopes present, the intersection with (absent) grants is [].
-  const result = await getAuthContextForUser(resolver, {} as any, "u1", ["x", "y"], {
-    permissionsConfigured: false,
-  });
-
-  expect(calls.memberGet).toBe(0);
-  expect(result.grants).toEqual([]);
 });

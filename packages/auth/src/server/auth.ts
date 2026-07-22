@@ -79,7 +79,6 @@ type MemberApiWithPermissions<TPermissions extends PermissionsConfig | undefined
           where?: {
             groupId?: string;
             userId?: string;
-            roleId?: RoleId<TPermissions>;
             status?: string;
           };
           paginationOpts?: { numItems: number; cursor: string | null };

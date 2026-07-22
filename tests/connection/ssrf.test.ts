@@ -34,9 +34,17 @@ test("unsafeFetchUrlReason allows public https and rejects internal fetch target
     "https://172.16.4.4/",
     "https://192.168.1.1/",
     "https://169.254.169.254/latest/meta-data/",
+    "https://192.0.0.1/",
+    "https://198.18.0.1/",
+    "https://198.51.100.1/",
+    "https://203.0.113.1/",
+    "https://224.0.0.1/",
+    "https://255.255.255.255/",
     "https://[::1]/",
     "https://[fd00::1]/",
     "https://[fe80::1]/",
+    "https://[fec0::1]/",
+    "https://[ff02::1]/",
     "https://[::ffff:a9fe:a9fe]/",
   ]) {
     expect(unsafeFetchUrlReason(blocked), blocked).toMatch(/not allowed/);

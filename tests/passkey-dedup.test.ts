@@ -112,3 +112,41 @@ test("registering an existing credential for a different user is rejected", asyn
   });
   expect((found as { userId: string }).userId).toBe(alice);
 });
+
+test("passkey assertion counter acceptance rejects a stale concurrent counter", async () => {
+  const t = convexTest(schema);
+  const { userId, passkeyId } = await t.run(async (ctx) => {
+    const userId = (await ctx.runMutation(components.auth.user.create, {
+      data: { email: "counter-race@example.com" },
+    })) as string;
+    const passkeyId = (await ctx.runMutation(components.auth.factor.passkey.create, {
+      ...passkeyArgs(userId),
+      credentialId: "counter-race-credential",
+      counter: 10,
+    })) as string;
+    return { userId, passkeyId };
+  });
+
+  const first = await t.run((ctx) =>
+    ctx.runMutation(components.auth.factor.passkey.acceptAssertion, {
+      id: passkeyId as never,
+      counter: 11,
+      lastUsedAt: Date.now(),
+    }),
+  );
+  const stale = await t.run((ctx) =>
+    ctx.runMutation(components.auth.factor.passkey.acceptAssertion, {
+      id: passkeyId as never,
+      counter: 11,
+      lastUsedAt: Date.now() + 1,
+    }),
+  );
+
+  expect(first).toBe(true);
+  expect(stale).toBe(false);
+  const stored = await t.run((ctx) =>
+    ctx.runQuery(components.auth.factor.passkey.get, { id: passkeyId as never }),
+  );
+  expect(stored?.counter).toBe(11);
+  expect(stored?.userId).toBe(userId);
+});

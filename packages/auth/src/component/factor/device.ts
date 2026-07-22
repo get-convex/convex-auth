@@ -60,31 +60,38 @@ export const create = mutation({
 });
 
 /**
- * Approve a device code with a `pending → authorized` compare-and-set, binding
- * the approving `userId`/`sessionId` so the polling device can exchange it for
- * a token. The transition is atomic: only a still-`pending` record flips, and
- * the result reports whether this call won. A retried or concurrent verify
- * observes `transitioned: false` instead of clobbering an already-authorized
- * record, so at most one authorization (and its session) binds to the code.
+ * Approve a device code with a `pending → authorized` compare-and-set and
+ * create the polling device's Session in the SAME transaction. A retried or
+ * concurrent verify that loses the transition creates no session, so an action
+ * failure cannot strand the optimistic orphan the former create-then-CAS flow
+ * had to clean up in a second mutation.
  */
 export const authorize = mutation({
   args: {
     id: v.id("DeviceCode"),
     userId: v.id("User"),
-    sessionId: v.id("Session"),
+    now: v.number(),
+    sessionExpirationTime: v.number(),
   },
-  returns: v.object({ transitioned: v.boolean() }),
-  handler: async (ctx, { id: deviceId, userId, sessionId }) => {
+  returns: v.object({
+    transitioned: v.boolean(),
+    sessionId: v.optional(v.id("Session")),
+  }),
+  handler: async (ctx, { id: deviceId, userId, now, sessionExpirationTime }) => {
     const doc = await ctx.db.get("DeviceCode", deviceId);
-    if (doc === null || doc.status !== "pending") {
+    if (doc === null || doc.status !== "pending" || doc.expiresAt <= now) {
       return { transitioned: false };
     }
+    const sessionId = await ctx.db.insert("Session", {
+      userId,
+      expirationTime: sessionExpirationTime,
+    });
     await ctx.db.patch("DeviceCode", deviceId, {
       status: "authorized",
       userId,
       sessionId,
     });
-    return { transitioned: true };
+    return { transitioned: true, sessionId };
   },
 });
 

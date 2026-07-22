@@ -27,6 +27,7 @@ import { createAuthorizeHandler } from "./oauth/authorize";
 import { createOAuthHttpHandlers } from "./oauth/handlers";
 import { createClientManagementHandler } from "./oauth/manage";
 import { createRegisterHandler } from "./oauth/register";
+import type { OAuthCodeRecord } from "./oauth/code";
 import { createTokenHandler } from "./oauth/token";
 import { verifyOAuthToken } from "./tokens";
 import { wellKnown } from "./wellknown";
@@ -354,6 +355,10 @@ export function Auth(config_: ConvexAuthConfig) {
           handleToken: createTokenHandler({
             issuer: authSiteUrl,
             getClient: (ctx, clientId) => authBase.oauth.client.get(ctx, { clientId }),
+            getCode: async (ctx, codeHash) =>
+              (await ctx.runQuery(config.component.oauth.code.get, {
+                codeHash,
+              })) as OAuthCodeRecord | null,
             verifyClientSecret: (ctx, clientId, clientSecret) =>
               authBase.oauth.client.verify(ctx, { clientId, clientSecret }),
             acceptCode: (ctx, codeHash, clientId, redirectUri, codeChallenge, refresh) =>

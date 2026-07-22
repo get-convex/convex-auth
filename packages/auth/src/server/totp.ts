@@ -357,7 +357,6 @@ export const handleTotp = async (
       // double-record.
       throw convexError(ErrorCode.TOTP_INVALID_CODE, "Invalid TOTP code.");
     }
-    await resetSignInRateLimit(ctx, userId, ctx.auth.config);
     // Atomically consume the verifier BEFORE minting a session: this runs in an
     // action, so two concurrent confirmations that both passed the earlier read
     // would otherwise each sign in (duplicate sessions). Only the single winner
@@ -365,6 +364,8 @@ export const handleTotp = async (
     if ((await consumeVerifierById(ctx, verifier)) === null) {
       throw convexError(ErrorCode.TOTP_INVALID_VERIFIER, "Invalid or expired TOTP verifier.");
     }
+    // Only the verifier-consumption winner may refund the reserved attempt.
+    await resetSignInRateLimit(ctx, userId, ctx.auth.config);
     let signInResult;
     try {
       await mutateTotpMarkVerified(ctx, totpId, Date.now());
@@ -428,13 +429,13 @@ export const handleTotp = async (
       // double-record.
       throw convexError(ErrorCode.TOTP_INVALID_CODE, "Invalid TOTP code.");
     }
-    await resetSignInRateLimit(ctx, userId, ctx.auth.config);
-
     // Atomically consume the verifier BEFORE minting a session so two concurrent
     // challenge completions carrying the same verifier cannot each sign in.
     if ((await consumeVerifierById(ctx, verifier)) === null) {
       throw convexError(ErrorCode.TOTP_INVALID_VERIFIER, "Invalid or expired TOTP verifier.");
     }
+    // Only the verifier-consumption winner may refund the reserved attempt.
+    await resetSignInRateLimit(ctx, userId, ctx.auth.config);
     let signInResult;
     try {
       await mutateTotpUpdateLastUsed(ctx, totp._id, Date.now());

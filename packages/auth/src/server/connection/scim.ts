@@ -3,6 +3,8 @@ import { SCIM_GROUP_SCHEMA_ID, SCIM_USER_SCHEMA_ID } from "./shared";
 
 type ScimUserRecord = {
   name?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
 } & Record<string, unknown>;
@@ -127,7 +129,16 @@ export function serializeScimUser(args: {
     },
     userName: args.user.email ?? args.user.phone ?? args.user.name ?? args.id,
     active: args.active ?? true,
-    name: args.user.name !== undefined ? { formatted: args.user.name } : undefined,
+    name:
+      args.user.name !== undefined ||
+      args.user.firstName !== undefined ||
+      args.user.lastName !== undefined
+        ? {
+            formatted: args.user.name,
+            givenName: args.user.firstName,
+            familyName: args.user.lastName,
+          }
+        : undefined,
     emails:
       typeof args.user.email === "string" ? [{ value: args.user.email, primary: true }] : undefined,
     phoneNumbers:

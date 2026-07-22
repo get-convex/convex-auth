@@ -30,10 +30,6 @@ async function seedPendingDevice(t: ReturnType<typeof convexTest>, email: string
     const userId = (await ctx.runMutation(components.auth.user.create, {
       data: { email },
     })) as string;
-    const sessionId = (await ctx.runMutation(components.auth.session.create, {
-      userId: userId as never,
-      sessionExpirationTime: Date.now() + 60_000,
-    })) as { sessionId: string };
     const deviceCodeHash = await sha256Hex("device-code-" + email);
     const deviceId = await ctx.runMutation(components.auth.factor.device.create, {
       deviceCodeHash,
@@ -42,48 +38,58 @@ async function seedPendingDevice(t: ReturnType<typeof convexTest>, email: string
       interval: 5,
       status: "pending",
     });
-    return { userId, sessionId: sessionId.sessionId, deviceId, deviceCodeHash };
+    return { userId, deviceId, deviceCodeHash };
   });
 }
 
 test("device authorize is a pending->authorized compare-and-set", async () => {
   const t = convexTest(schema);
-  const { userId, sessionId, deviceId } = await seedPendingDevice(t, "device-cas@example.com");
+  const { userId, deviceId } = await seedPendingDevice(t, "device-cas@example.com");
 
   const first = await t.run((ctx) =>
     ctx.runMutation(components.auth.factor.device.authorize, {
       id: deviceId,
       userId: userId as never,
-      sessionId: sessionId as never,
+      now: Date.now(),
+      sessionExpirationTime: Date.now() + 60_000,
     }),
   );
-  expect(first).toEqual({ transitioned: true });
+  expect(first.transitioned).toBe(true);
+  expect(first.sessionId).toBeDefined();
 
   // A concurrent / retried verify must NOT clobber the already-authorized code.
   const second = await t.run((ctx) =>
     ctx.runMutation(components.auth.factor.device.authorize, {
       id: deviceId,
       userId: userId as never,
-      sessionId: sessionId as never,
+      now: Date.now(),
+      sessionExpirationTime: Date.now() + 60_000,
     }),
   );
   expect(second).toEqual({ transitioned: false });
+
+  const sessions = await t.run((ctx) =>
+    ctx.runQuery(components.auth.session.list, { userId: userId as never }),
+  );
+  expect(sessions).toHaveLength(1);
 });
 
 test("device accept returns the binding exactly once", async () => {
   const t = convexTest(schema);
-  const { userId, sessionId, deviceId, deviceCodeHash } = await seedPendingDevice(
+  const { userId, deviceId, deviceCodeHash } = await seedPendingDevice(
     t,
     "device-accept@example.com",
   );
 
-  await t.run((ctx) =>
+  const authorized = await t.run((ctx) =>
     ctx.runMutation(components.auth.factor.device.authorize, {
       id: deviceId,
       userId: userId as never,
-      sessionId: sessionId as never,
+      now: Date.now(),
+      sessionExpirationTime: Date.now() + 60_000,
     }),
   );
+  const sessionId = authorized.sessionId!;
 
   const first = await t.run((ctx) =>
     ctx.runMutation(components.auth.factor.device.accept, {
@@ -118,7 +124,7 @@ test("device accept rejects a still-pending code", async () => {
 
 test("device accept rejects an expired authorized code", async () => {
   const t = convexTest(schema);
-  const { userId, sessionId, deviceId, deviceCodeHash } = await seedPendingDevice(
+  const { userId, deviceId, deviceCodeHash } = await seedPendingDevice(
     t,
     "device-expired@example.com",
   );
@@ -126,7 +132,8 @@ test("device accept rejects an expired authorized code", async () => {
     ctx.runMutation(components.auth.factor.device.authorize, {
       id: deviceId,
       userId: userId as never,
-      sessionId: sessionId as never,
+      now: Date.now(),
+      sessionExpirationTime: Date.now() + 60_000,
     }),
   );
 

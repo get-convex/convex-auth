@@ -11,6 +11,7 @@ import { ConvexError, v } from "convex/values";
 import { paginator } from "convex-helpers/server/pagination";
 import { ErrorCode } from "../../shared/codes";
 
+import { internal } from "../_generated/api";
 import { internalMutation, mutation, query } from "../functions";
 import { vOAuthClientDoc, vPaginated, vTokenEndpointAuthMethod } from "../model";
 import schema from "../schema";
@@ -152,7 +153,10 @@ export const revoke = mutation({
     if (doc === null) {
       throw new ConvexError({ code: ErrorCode.OAUTH_CLIENT_NOT_FOUND, clientId });
     }
-    await ctx.db.patch("OAuthClient", doc._id, { revoked: true });
+    await ctx.db.patch("OAuthClient", doc._id, {
+      revoked: true,
+      revokedAt: doc.revokedAt ?? Date.now(),
+    });
     return null;
   },
 });
@@ -183,22 +187,22 @@ export { remove };
 /** Default (and hard cap) batch size for {@link prune}. */
 const OAUTH_CLIENT_PRUNE_BATCH = 100;
 
+/** Keep revoked registrations for audit before hard deletion. */
+const OAUTH_CLIENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
 /**
  * Retention GC for revoked OAuth clients: hard-deletes a bounded batch of
- * revoked registrations created before `before` (defaults to now), oldest
- * first. RFC 7591 dynamic client registration is self-service and otherwise
+ * revoked registrations whose `revokedAt` is before `before` (defaults to the
+ * 90-day audit-retention cutoff), oldest first. RFC 7591 dynamic client
+ * registration is self-service and otherwise
  * unbounded, so a soft {@link revoke} alone lets dead rows accumulate forever;
- * a cron should call this with `before = Date.now() - RETENTION` and reschedule
- * while `deleted === limit`.
+ * the mutation self-reschedules while eligible rows remain.
  *
  * Internal (cron-driven): kept off the public component surface so a mounting
  * app cannot invoke a bulk delete, mirroring `maintenance.pruneExpired`.
  *
- * NOTE: retention is keyed on `_creationTime`, not revocation time — the schema
- * has no `revokedAt` field and adding one is outside this file's edit scope. For
- * a fixed retention window this is a safe over-approximation of "revoked and
- * old"; a precise "revoked N days ago" policy would need a `revokedAt` column
- * and an index on it.
+ * Legacy revoked rows without `revokedAt` fail closed (they are retained) until
+ * `backfillOAuthClientRevokedAt` stamps them, starting their retention clock.
  */
 export const prune = internalMutation({
   args: {
@@ -207,25 +211,24 @@ export const prune = internalMutation({
   },
   returns: v.object({ deleted: v.number() }),
   handler: async (ctx, args) => {
-    const before = args.before ?? Date.now();
+    const before = args.before ?? Date.now() - OAUTH_CLIENT_RETENTION_MS;
     const limit = Math.max(
       1,
       Math.min(args.limit ?? OAUTH_CLIENT_PRUNE_BATCH, OAUTH_CLIENT_PRUNE_BATCH),
     );
-    // The `revoked` index is really `["revoked", "_creationTime"]`, so this
-    // scans revoked clients oldest-first; once one is not old enough, none after
-    // it are either.
     const revokedClients = await ctx.db
       .query("OAuthClient")
-      .withIndex("revoked", (q) => q.eq("revoked", true))
+      .withIndex("revoked_at", (q) =>
+        q.eq("revoked", true).gt("revokedAt", undefined).lt("revokedAt", before),
+      )
       .take(limit + 1);
-    let deleted = 0;
-    for (const doc of revokedClients) {
-      if (deleted >= limit) break;
-      if (doc._creationTime >= before) break;
+    const toDelete = revokedClients.slice(0, limit);
+    for (const doc of toDelete) {
       await ctx.db.delete("OAuthClient", doc._id);
-      deleted += 1;
     }
-    return { deleted };
+    if (revokedClients.length > limit) {
+      await ctx.scheduler.runAfter(0, internal.oauth.client.prune, { before, limit });
+    }
+    return { deleted: toDelete.length };
   },
 });

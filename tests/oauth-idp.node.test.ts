@@ -224,6 +224,86 @@ test("authorization_code: valid PKCE issues a signed at+jwt for the user", async
   expect((claims as { client_id?: string }).client_id).toBe("oc_test");
 });
 
+test("authorization_code signs before atomically consuming the one-time code", async () => {
+  const verifier = "preflight-verifier-1234567890";
+  let accepted = false;
+  const handler = createTokenHandler({
+    ...tokenDeps,
+    getClient: async () => publicClient as never,
+    getCode: async (_ctx, _codeHash) =>
+      ({
+        userId: "user1",
+        clientId: "oc_test",
+        redirectUri: REDIRECT_URI,
+        scopes: ["workspace:read"],
+        codeChallenge: challengeFor(verifier),
+        expiresAt: Date.now() + 60_000,
+      }) as never,
+    generateAccessToken: async () => {
+      throw new Error("signing unavailable");
+    },
+    verifyClientSecret: async () => null,
+    acceptCode: async () => {
+      accepted = true;
+      return null;
+    },
+    ...refreshStubs,
+  });
+  await expect(
+    handler(
+      {} as never,
+      tokenRequest({
+        grant_type: "authorization_code",
+        code: "rawcode",
+        redirect_uri: REDIRECT_URI,
+        client_id: "oc_test",
+        code_verifier: verifier,
+      }),
+    ),
+  ).rejects.toThrow("signing unavailable");
+  expect(accepted).toBe(false);
+});
+
+test("authorization_code still returns committed tokens when audit emission fails", async () => {
+  const verifier = "audit-failure-verifier-1234567890";
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  try {
+    const handler = createTokenHandler({
+      ...tokenDeps,
+      getClient: async () => publicClient as never,
+      verifyClientSecret: async () => null,
+      acceptCode: async (_ctx, _codeHash, clientId) =>
+        ({
+          userId: "user1",
+          clientId,
+          redirectUri: REDIRECT_URI,
+          scopes: ["workspace:read"],
+          codeChallenge: challengeFor(verifier),
+          expiresAt: Date.now() + 60_000,
+        }) as never,
+      emitEvent: async () => {
+        throw new Error("audit unavailable");
+      },
+      ...refreshStubs,
+    });
+    const response = await handler(
+      {} as never,
+      tokenRequest({
+        grant_type: "authorization_code",
+        code: "rawcode",
+        redirect_uri: REDIRECT_URI,
+        client_id: "oc_test",
+        code_verifier: verifier,
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).access_token).toBeTruthy();
+    expect(consoleError).toHaveBeenCalled();
+  } finally {
+    consoleError.mockRestore();
+  }
+});
+
 test("authorization_code: a public (none) client presenting a secret is rejected", async () => {
   const noneClient = { ...publicClient, tokenEndpointAuthMethod: "none" };
   const verifier = "test-verifier-1234567890";

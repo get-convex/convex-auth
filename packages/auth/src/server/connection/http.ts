@@ -7,9 +7,9 @@ import {
   getScimIdentity,
   getScimIdentityByConnectionAndUser,
   getScimIdentityByMappedGroup,
-  insertAccount,
   insertUser,
   listScimIdentitiesByConnection,
+  provisionScimUser,
   removeScimIdentity,
   updateUser,
   upsertScimIdentity,
@@ -1171,8 +1171,8 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
           displayName: (item) => item.user.name,
           name: (item) => item.user.name,
           "name.formatted": (item) => item.user.name,
-          "name.givenName": (item) => item.user.name,
-          "name.familyName": (item) => item.user.name,
+          "name.givenName": (item) => item.user.firstName,
+          "name.familyName": (item) => item.user.lastName,
           "emails.value": (item) => item.user.email,
           "phoneNumbers.value": (item) => item.user.phone,
           active: (item) => item.identity?.active ?? item.member.status === "active",
@@ -1231,78 +1231,51 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
           state.connection.protocol === "oidc"
             ? groupOidcProviderId(state.connection._id)
             : groupSamlProviderId(state.connection._id);
-        const existingIdentity = externalId
-          ? await getScimIdentity(state.ctx, config.component.connection, {
-              connectionId: state.connection._id,
-              resourceType: "user",
-              externalId,
-            })
-          : null;
-        // Resolve the already-provisioned user from the SCIM identity, falling
-        // back to the linked Account when the identity row is absent. This
-        // handler runs across several transactions (it is an action, not one
-        // mutation), so a prior POST for the same externalId can have created
-        // the User + Account but not yet written the identity; without this
-        // fallback a retry would insert a SECOND User and a duplicate Account
-        // sharing (providerId, externalId), and that duplicate makes
-        // `account.get(...).unique()` throw on every future SSO login
-        // (permanent lockout). Fully serializing a *simultaneous* double-POST
-        // additionally needs a component-side resolve-or-create keyed on the
-        // identity index — see selfAssessment.
-        const linkedAccount =
-          externalId && !existingIdentity?.userId
-            ? ((await state.ctx.runQuery(config.component.account.get, {
-                provider: providerId,
-                providerAccountId: externalId,
-              })) as { _id: string; userId: string } | null)
-            : null;
-        const resolvedUserId = existingIdentity?.userId ?? linkedAccount?.userId;
-        const existingUser = resolvedUserId
-          ? await auth.user.get(state.ctx, { id: resolvedUserId })
-          : null;
-        const created = existingUser === null;
         const provisionedRoleIds = resolveProvisionedRoleIds({
           policy: state.policy,
           groups: provisionProfile.groups,
           roles: provisionProfile.roles,
         });
-        const userId = existingUser?._id
-          ? existingUser._id
-          : await insertUser(state.ctx, config.component.user, {
-              name: provisionProfile.name,
-              ...(typeof provisionProfile.firstName === "string"
-                ? { firstName: provisionProfile.firstName }
-                : {}),
-              ...(typeof provisionProfile.lastName === "string"
-                ? { lastName: provisionProfile.lastName }
-                : {}),
-              email: provisionProfile.email,
-              ...(typeof provisionProfile.email === "string"
-                ? { emailVerificationTime: Date.now() }
-                : {}),
-              phone: provisionProfile.phone,
-              ...(typeof provisionProfile.phone === "string"
-                ? { phoneVerificationTime: Date.now() }
-                : {}),
-              ...(provisionProfile.extend ? { extend: provisionProfile.extend } : {}),
-            });
-        if (created && externalId) {
-          // New user: link the SSO Account, but only when one does not already
-          // exist for (providerId, externalId). Re-checking immediately before
-          // the insert dedups against a racing or retried POST so two Accounts
-          // can never share the key and break `account.get(...).unique()` at
-          // login.
-          const priorAccount = (await state.ctx.runQuery(config.component.account.get, {
-            provider: providerId,
-            providerAccountId: externalId,
-          })) as { _id: string } | null;
-          if (priorAccount === null) {
-            await insertAccount(state.ctx, config.component.account, {
-              userId,
+        const userData = {
+          name: provisionProfile.name,
+          ...(typeof provisionProfile.firstName === "string"
+            ? { firstName: provisionProfile.firstName }
+            : {}),
+          ...(typeof provisionProfile.lastName === "string"
+            ? { lastName: provisionProfile.lastName }
+            : {}),
+          email: provisionProfile.email,
+          ...(typeof provisionProfile.email === "string"
+            ? { emailVerificationTime: Date.now() }
+            : {}),
+          phone: provisionProfile.phone,
+          ...(typeof provisionProfile.phone === "string"
+            ? { phoneVerificationTime: Date.now() }
+            : {}),
+          ...(provisionProfile.extend ? { extend: provisionProfile.extend } : {}),
+        };
+        const provisioned = externalId
+          ? await provisionScimUser(state.ctx, config.component.connection, {
+              connectionId: state.connection._id,
+              groupId: state.connection.groupId,
+              externalId,
               provider: providerId,
-              providerAccountId: externalId,
-            });
-          }
+              userData,
+              active: provisionProfile.active !== false,
+              raw: body,
+              lastProvisionedAt: Date.now(),
+            })
+          : {
+              userId: await insertUser(state.ctx, config.component.user, userData),
+              created: true,
+            };
+        const { userId, created } = provisioned;
+        const existingUser = created ? null : await auth.user.get(state.ctx, { id: userId });
+        if (!created && existingUser === null) {
+          throw new ConvexError({
+            code: ErrorCode.ACCOUNT_NOT_FOUND,
+            message: "The SCIM identity references a user that no longer exists.",
+          });
         }
         if (existingUser) {
           const nextUserData: Record<string, unknown> = {
@@ -1349,18 +1322,6 @@ export function addGroupHttpRuntime(deps: GroupHttpRuntimeDeps) {
               roleIds: provisionedRoleIds,
               status: provisionProfile.active === false ? "inactive" : "active",
             },
-          });
-        }
-        if (externalId) {
-          await upsertScimIdentity(state.ctx, config.component.connection, {
-            connectionId: state.connection._id,
-            groupId: state.connection.groupId,
-            resourceType: "user",
-            externalId,
-            userId,
-            active: provisionProfile.active !== false,
-            raw: body,
-            lastProvisionedAt: Date.now(),
           });
         }
         await state.recordScimEvent(

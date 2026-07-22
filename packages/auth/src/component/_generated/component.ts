@@ -169,6 +169,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   name?: string;
                   passkeyId?: string;
                   prefix?: string;
+                  reason?: string;
                   totpId?: string;
                 }
               | { email?: string; phone?: string; userId?: string }
@@ -184,6 +185,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 }
               | {
                   audience?: string | Array<string>;
+                  changed?: Array<string>;
                   connectionId?: string;
                   discoveryUrl?: string;
                   domain?: string;
@@ -196,6 +198,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   protocol?: "oidc" | "saml";
                   recordName?: string;
                   tokenEndpointAuthMethod?: string;
+                  userId?: string;
                   verifiedAt?: number;
                   version?: number;
                 }
@@ -738,6 +741,35 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           },
           Name
         >;
+        provision: FunctionReference<
+          "mutation",
+          "internal",
+          {
+            active?: boolean;
+            connectionId: string;
+            externalId: string;
+            groupId: string;
+            lastProvisionedAt?: number;
+            provider: string;
+            raw?: any;
+            userData: {
+              email?: string;
+              emailVerificationTime?: number;
+              extend?: any;
+              firstName?: string;
+              hasTotp?: boolean;
+              image?: string;
+              isAnonymous?: boolean;
+              lastActiveGroup?: string;
+              lastName?: string;
+              name?: string;
+              phone?: string;
+              phoneVerificationTime?: number;
+            };
+          },
+          { created: boolean; userId: string },
+          Name
+        >;
         remove: FunctionReference<"mutation", "internal", { id: string }, null, Name>;
         upsert: FunctionReference<
           "mutation",
@@ -889,10 +921,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             _creationTime: number;
             _id: string;
             attemptCount: number;
+            auditEventId?: string;
             connectionId: string;
             endpointId: string;
-            eventId: string;
-            kind:
+            eventId?: string;
+            eventType?: string;
+            kind?:
               | "user.created"
               | "user.updated"
               | "session.signed_in"
@@ -950,8 +984,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             lastResponseStatus?: number;
             nextAttemptAt: number;
             payload: any;
-            signature: string;
-            signedAt: number;
+            signature?: string;
+            signedAt?: number;
             status: "pending" | "processing" | "delivered" | "failed";
           }>,
           Name
@@ -979,8 +1013,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               attemptCount: number;
               connectionId: string;
               endpointId: string;
-              eventId: string;
-              kind:
+              eventId?: string;
+              kind?:
                 | "user.created"
                 | "user.updated"
                 | "session.signed_in"
@@ -1037,7 +1071,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               lastError?: string;
               lastResponseStatus?: number;
               nextAttemptAt: number;
-              signedAt: number;
+              signedAt?: number;
               status: "pending" | "processing" | "delivered" | "failed";
             }>;
             pageStatus?: "SplitRecommended" | "SplitRequired" | null;
@@ -1147,62 +1181,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             groupId: string;
             lastFailureAt?: number;
             lastSuccessAt?: number;
-            secretCiphertext: string;
+            secretCiphertext?: string;
+            secretHash?: string;
             status: "active" | "disabled";
-            subscriptions: Array<
-              | "user.created"
-              | "user.updated"
-              | "session.signed_in"
-              | "session.signed_out"
-              | "session.invalidated"
-              | "session.refresh_exchanged"
-              | "session.refresh_reuse_detected"
-              | "account.linked"
-              | "account.unlinked"
-              | "password.changed"
-              | "passkey.added"
-              | "passkey.removed"
-              | "totp.enrolled"
-              | "totp.removed"
-              | "email.verified"
-              | "phone.verified"
-              | "api_key.created"
-              | "api_key.revoked"
-              | "oauth.client.created"
-              | "oauth.client.revoked"
-              | "oauth.code.created"
-              | "oauth.token.created"
-              | "oauth.token.exchanged"
-              | "oauth.refresh.reuse_detected"
-              | "oauth.refresh.revoked"
-              | "connection.created"
-              | "connection.updated"
-              | "connection.removed"
-              | "connection.login.succeeded"
-              | "connection.login.failed"
-              | "connection.domain.verification_requested"
-              | "connection.domain.verified"
-              | "connection.policy.updated"
-              | "connection.saml.set"
-              | "connection.saml.refreshed"
-              | "connection.oidc.set"
-              | "connection.scim.set"
-              | "connection.scim.read"
-              | "connection.scim.user.provisioned"
-              | "connection.scim.user.updated"
-              | "connection.scim.user.deactivated"
-              | "connection.scim.user.reactivated"
-              | "connection.scim.group.provisioned"
-              | "connection.scim.group.updated"
-              | "connection.scim.group.deactivated"
-              | "connection.scim.group.reactivated"
-              | "webhook.endpoint.created"
-              | "webhook.endpoint.disabled"
-              | "webhook.delivery.created"
-              | "webhook.delivery.attempted"
-              | "webhook.delivery.succeeded"
-              | "webhook.delivery.failed"
-            >;
+            subscriptions: Array<string>;
             url: string;
           } | null,
           Name
@@ -1221,62 +1203,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             groupId: string;
             lastFailureAt?: number;
             lastSuccessAt?: number;
-            secretCiphertext: string;
+            secretCiphertext?: string;
+            secretHash?: string;
             status: "active" | "disabled";
-            subscriptions: Array<
-              | "user.created"
-              | "user.updated"
-              | "session.signed_in"
-              | "session.signed_out"
-              | "session.invalidated"
-              | "session.refresh_exchanged"
-              | "session.refresh_reuse_detected"
-              | "account.linked"
-              | "account.unlinked"
-              | "password.changed"
-              | "passkey.added"
-              | "passkey.removed"
-              | "totp.enrolled"
-              | "totp.removed"
-              | "email.verified"
-              | "phone.verified"
-              | "api_key.created"
-              | "api_key.revoked"
-              | "oauth.client.created"
-              | "oauth.client.revoked"
-              | "oauth.code.created"
-              | "oauth.token.created"
-              | "oauth.token.exchanged"
-              | "oauth.refresh.reuse_detected"
-              | "oauth.refresh.revoked"
-              | "connection.created"
-              | "connection.updated"
-              | "connection.removed"
-              | "connection.login.succeeded"
-              | "connection.login.failed"
-              | "connection.domain.verification_requested"
-              | "connection.domain.verified"
-              | "connection.policy.updated"
-              | "connection.saml.set"
-              | "connection.saml.refreshed"
-              | "connection.oidc.set"
-              | "connection.scim.set"
-              | "connection.scim.read"
-              | "connection.scim.user.provisioned"
-              | "connection.scim.user.updated"
-              | "connection.scim.user.deactivated"
-              | "connection.scim.user.reactivated"
-              | "connection.scim.group.provisioned"
-              | "connection.scim.group.updated"
-              | "connection.scim.group.deactivated"
-              | "connection.scim.group.reactivated"
-              | "webhook.endpoint.created"
-              | "webhook.endpoint.disabled"
-              | "webhook.delivery.created"
-              | "webhook.delivery.attempted"
-              | "webhook.delivery.succeeded"
-              | "webhook.delivery.failed"
-            >;
+            subscriptions: Array<string>;
             url: string;
           }>,
           Name
@@ -1407,6 +1337,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 name?: string;
                 passkeyId?: string;
                 prefix?: string;
+                reason?: string;
                 totpId?: string;
               }
             | { email?: string; phone?: string; userId?: string }
@@ -1422,6 +1353,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               }
             | {
                 audience?: string | Array<string>;
+                changed?: Array<string>;
                 connectionId?: string;
                 discoveryUrl?: string;
                 domain?: string;
@@ -1434,6 +1366,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 protocol?: "oidc" | "saml";
                 recordName?: string;
                 tokenEndpointAuthMethod?: string;
+                userId?: string;
                 verifiedAt?: number;
                 version?: number;
               }
@@ -1664,6 +1597,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 name?: string;
                 passkeyId?: string;
                 prefix?: string;
+                reason?: string;
                 totpId?: string;
               }
             | { email?: string; phone?: string; userId?: string }
@@ -1679,6 +1613,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               }
             | {
                 audience?: string | Array<string>;
+                changed?: Array<string>;
                 connectionId?: string;
                 discoveryUrl?: string;
                 domain?: string;
@@ -1691,6 +1626,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 protocol?: "oidc" | "saml";
                 recordName?: string;
                 tokenEndpointAuthMethod?: string;
+                userId?: string;
                 verifiedAt?: number;
                 version?: number;
               }
@@ -1912,6 +1848,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               name?: string;
               passkeyId?: string;
               prefix?: string;
+              reason?: string;
               totpId?: string;
             }
           | { email?: string; phone?: string; userId?: string }
@@ -1927,6 +1864,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             }
           | {
               audience?: string | Array<string>;
+              changed?: Array<string>;
               connectionId?: string;
               discoveryUrl?: string;
               domain?: string;
@@ -1939,6 +1877,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               protocol?: "oidc" | "saml";
               recordName?: string;
               tokenEndpointAuthMethod?: string;
+              userId?: string;
               verifiedAt?: number;
               version?: number;
             }
@@ -2283,6 +2222,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 name?: string;
                 passkeyId?: string;
                 prefix?: string;
+                reason?: string;
                 totpId?: string;
               }
             | { email?: string; phone?: string; userId?: string }
@@ -2298,6 +2238,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               }
             | {
                 audience?: string | Array<string>;
+                changed?: Array<string>;
                 connectionId?: string;
                 discoveryUrl?: string;
                 domain?: string;
@@ -2310,6 +2251,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 protocol?: "oidc" | "saml";
                 recordName?: string;
                 tokenEndpointAuthMethod?: string;
+                userId?: string;
                 verifiedAt?: number;
                 version?: number;
               }
@@ -2489,8 +2431,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       authorize: FunctionReference<
         "mutation",
         "internal",
-        { id: string; sessionId: string; userId: string },
-        { transitioned: boolean },
+        {
+          id: string;
+          now: number;
+          sessionExpirationTime: number;
+          userId: string;
+        },
+        { sessionId?: string; transitioned: boolean },
         Name
       >;
       create: FunctionReference<
@@ -2542,6 +2489,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     passkey: {
+      acceptAssertion: FunctionReference<
+        "mutation",
+        "internal",
+        { counter: number; id: string; lastUsedAt: number },
+        boolean,
+        Name
+      >;
       create: FunctionReference<
         "mutation",
         "internal",
@@ -3232,6 +3186,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
+          allowedScopes?: Array<string>;
           clientId: string;
           clientSecretHash?: string;
           createdBy?: string;
@@ -3262,6 +3217,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           redirectUris: Array<string>;
           registrationAccessTokenHash?: string;
           revoked: boolean;
+          revokedAt?: number;
           scopes: Array<string>;
           tokenEndpointAuthMethod?: "client_secret_basic" | "client_secret_post" | "none";
         } | null,
@@ -3296,6 +3252,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             redirectUris: Array<string>;
             registrationAccessTokenHash?: string;
             revoked: boolean;
+            revokedAt?: number;
             scopes: Array<string>;
             tokenEndpointAuthMethod?: "client_secret_basic" | "client_secret_post" | "none";
           }>;
@@ -3304,6 +3261,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
+      remove: FunctionReference<"mutation", "internal", { clientId: string }, null, Name>;
       revoke: FunctionReference<"mutation", "internal", { clientId: string }, null, Name>;
       update: FunctionReference<
         "mutation",
@@ -3666,10 +3624,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email?: string;
           emailVerificationTime?: number;
           extend?: any;
+          firstName?: string;
           hasTotp?: boolean;
           image?: string;
           isAnonymous?: boolean;
           lastActiveGroup?: string;
+          lastName?: string;
           name?: string;
           phone?: string;
           phoneVerificationTime?: number;
@@ -3743,10 +3703,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email?: string;
           emailVerificationTime?: number;
           extend?: any;
+          firstName?: string;
           hasTotp?: boolean;
           image?: string;
           isAnonymous?: boolean;
           lastActiveGroup?: string;
+          lastName?: string;
           name?: string;
           phone?: string;
           phoneVerificationTime?: number;
@@ -3758,10 +3720,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email?: string;
           emailVerificationTime?: number;
           extend?: any;
+          firstName?: string;
           hasTotp?: boolean;
           image?: string;
           isAnonymous?: boolean;
           lastActiveGroup?: string;
+          lastName?: string;
           name?: string;
           phone?: string;
           phoneVerificationTime?: number;
@@ -3859,10 +3823,35 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         { coarsenMs?: number; id: string; now: number },
-        { limited: boolean },
+        | { status: "invalid" }
+        | { status: "revoked" }
+        | { status: "expired" }
+        | { status: "limited" }
+        | {
+            keyId: string;
+            scopes: Array<{ actions: Array<string>; resource: string }>;
+            status: "verified";
+            userId: string;
+          },
         Name
       >;
       remove: FunctionReference<"mutation", "internal", { id: string }, null, Name>;
+      rotate: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          expiresAt?: number;
+          hashedKey: string;
+          id: string;
+          name?: string;
+          prefix: string;
+        },
+        | { status: "invalid" }
+        | { status: "revoked" }
+        | { status: "invalid_rate_limit" }
+        | { id: string; name: string; status: "rotated"; userId: string },
+        Name
+      >;
       update: FunctionReference<
         "mutation",
         "internal",
@@ -3914,10 +3903,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email?: string;
           emailVerificationTime?: number;
           extend?: any;
+          firstName?: string;
           hasTotp?: boolean;
           image?: string;
           isAnonymous?: boolean;
           lastActiveGroup?: string;
+          lastName?: string;
           name?: string;
           phone?: string;
           phoneVerificationTime?: number;
@@ -3943,10 +3934,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email?: string;
           emailVerificationTime?: number;
           extend?: any;
+          firstName?: string;
           hasTotp?: boolean;
           image?: string;
           isAnonymous?: boolean;
           lastActiveGroup?: string;
+          lastName?: string;
           name?: string;
           phone?: string;
           phoneVerificationTime?: number;
@@ -3963,10 +3956,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           email?: string;
           emailVerificationTime?: number;
           extend?: any;
+          firstName?: string;
           hasTotp?: boolean;
           image?: string;
           isAnonymous?: boolean;
           lastActiveGroup?: string;
+          lastName?: string;
           name?: string;
           phone?: string;
           phoneVerificationTime?: number;

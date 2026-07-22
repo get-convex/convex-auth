@@ -116,6 +116,31 @@ export const update = mutation({
   },
 });
 
+/**
+ * Atomically accept a cryptographically verified assertion's signature
+ * counter. For authenticators that support counters (`counter > 0`), only a
+ * value strictly greater than the latest stored value is accepted; a racing
+ * assertion that verified against a stale read returns `false` instead of
+ * minting another session. Counterless authenticators (`0`) remain supported.
+ */
+export const acceptAssertion = mutation({
+  args: {
+    id: v.id("Passkey"),
+    counter: v.number(),
+    lastUsedAt: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, { id: passkeyId, counter, lastUsedAt }) => {
+    const current = await ctx.db.get("Passkey", passkeyId);
+    if (current === null) return false;
+    if (current.counter !== 0 && counter !== 0 && counter <= current.counter) {
+      return false;
+    }
+    await ctx.db.patch("Passkey", passkeyId, { counter, lastUsedAt });
+    return true;
+  },
+});
+
 /** Delete a passkey credential. */
 const remove = mutation({
   args: { id: v.id("Passkey") },

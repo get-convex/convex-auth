@@ -119,13 +119,6 @@ export type OptionalAuthContext = {
  * existing consumers that reference the low-level context helpers.
  */
 export type AuthLike = {
-  /**
-   * Whether the app configured any permissions (grants/roles). When explicitly
-   * `false`, {@link getAuthContextForUser} skips the per-request membership
-   * read (see there). Absent/`true` preserves full resolution. The runtime
-   * that builds the concrete domains object sets this from `config.permissions`.
-   */
-  permissionsConfigured?: boolean;
   user: {
     get: (...args: never[]) => Promise<UserDoc | null>;
     [key: string]: unknown;
@@ -198,8 +191,6 @@ type ResolvedMembership = {
 type MembershipListItem = { groupId: string; roleIds?: string[]; grants?: string[] };
 
 type AuthContextResolverLike = {
-  /** See {@link AuthLike.permissionsConfigured}. */
-  permissionsConfigured?: boolean;
   user: {
     get: (ctx: AuthQueryCtx, args: { id: string }) => Promise<UserDoc | null>;
   };
@@ -320,32 +311,8 @@ export async function getAuthContextForUser(
   ctx: AuthQueryCtx,
   userId: string,
   oauthScopes?: readonly string[],
-  options?: { permissionsConfigured?: boolean },
 ): Promise<AuthContext> {
   const user = await auth.user.get(ctx, { id: userId });
-  // Short-circuit the membership resolution when the app configured no
-  // permissions (grants/roles): there is nothing to authorize against, so
-  // `grants` is always empty and the extra per-request membership read is pure
-  // overhead on every authenticated request. The user read above is always
-  // kept. This defaults to full resolution (safe) and only skips when the
-  // caller (or the domains object) explicitly reports permissions are absent,
-  // so no existing authorization behavior is weakened.
-  //
-  // Threading: the flag rides on the resolver object (set by the runtime from
-  // `config.permissions`) and can also be passed explicitly. Because it defaults
-  // to full resolution, apps that DO use groups without grants keep `groupId`/
-  // `role`; only apps that opt in (no permissions/groups) get the fast path.
-  const permissionsConfigured = options?.permissionsConfigured ?? auth.permissionsConfigured;
-  if (permissionsConfigured === false) {
-    return {
-      userId: userId as AuthContext["userId"],
-      user: user as UserDoc,
-      groupId: null,
-      role: null,
-      grants: [],
-      assert: makeAssert(null, []),
-    };
-  }
   const lastActiveGroup = typeof user?.lastActiveGroup === "string" ? user.lastActiveGroup : null;
   const resolved = await resolveActiveMembership(auth, ctx, userId, lastActiveGroup);
   const groupId = resolved.groupId;

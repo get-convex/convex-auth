@@ -20,21 +20,24 @@
  * npx convex run auth/migrations:runDropHasTotp '{}'
  * # OAuth: backfill tokenEndpointAuthMethod from the legacy secret-hash inference.
  * npx convex run auth/migrations:runBackfillOAuthClientAuthMethod '{}'
+ * # OAuth: start the retention clock for legacy revoked client rows.
+ * vp exec convex run auth/migrations:runBackfillOAuthClientRevokedAt '{}'
  * # Events/webhooks: rename connection/SCIM kinds AND backfill legacy webhook
  * # delivery rows (eventType/auditEventId -> kind/eventId).
  * npx convex run auth/migrations:runRenameConnectionEventKinds '{}'
+ * # Webhook secrets: disable hash-only endpoints and erase the obsolete hash.
+ * vp exec convex run auth/migrations:runDisableLegacyWebhookEndpoints '{}'
  * # API keys: copy the renamed metadata blob into extend.
  * npx convex run auth/migrations:runBackfillApiKeyExtend '{}'
  * # Groups: clear the removed faceted-tags field.
  * npx convex run auth/migrations:runDropGroupTags '{}'
  * ```
  *
- * Two backfills CANNOT run from here and must run SERVER-SIDE (they need the
- * `AUTH_SECRET_ENCRYPTION_KEY` / crypto only available outside a component
- * mutation): re-encrypting `GroupWebhookEndpoint.secretHash` into
- * `secretCiphertext`, and any secret re-keying. Until they run, pre-existing
- * webhook-endpoint rows deploy fine but fail the strict read validator in
- * `model.ts`. See `schema.ts` for the per-field deprecation notes.
+ * A historical `GroupWebhookEndpoint.secretHash` is one-way and MUST NOT be
+ * encrypted as though it were the original signing secret. The webhook-secret
+ * migration below disables hash-only endpoints and erases the hash. Operators
+ * then provide a new secret through `auth.connection.webhook.endpoint.update`
+ * before re-enabling delivery.
  *
  * @module
  */
@@ -90,6 +93,23 @@ export const backfillOAuthClientAuthMethod = migrations.define({
 /** CLI/dashboard runner: `npx convex run auth/migrations:runBackfillOAuthClientAuthMethod`. */
 export const runBackfillOAuthClientAuthMethod = migrations.runner(
   internal.migrations.backfillOAuthClientAuthMethod,
+);
+
+/**
+ * Stamp legacy revoked OAuth clients with a revocation time. The old schema did
+ * not record when revocation happened, so the migration conservatively starts
+ * the 90-day retention clock when it runs instead of guessing from creation
+ * time and immediately deleting audit history.
+ */
+export const backfillOAuthClientRevokedAt = migrations.define({
+  table: "OAuthClient",
+  migrateOne: (_ctx, doc) =>
+    doc.revoked && doc.revokedAt === undefined ? { revokedAt: Date.now() } : undefined,
+});
+
+/** CLI/dashboard runner: `vp exec convex run auth/migrations:runBackfillOAuthClientRevokedAt`. */
+export const runBackfillOAuthClientRevokedAt = migrations.runner(
+  internal.migrations.backfillOAuthClientRevokedAt,
 );
 
 /**
@@ -226,6 +246,58 @@ export const runRenameConnectionEventKinds = migrations.runner([
   internal.migrations.renameWebhookEndpointSubscriptions,
   internal.migrations.renameWebhookDeliveryKinds,
 ]);
+
+type LegacyWebhookEndpoint = {
+  status: "active" | "disabled";
+  secretCiphertext?: string;
+  secretHash?: string;
+};
+
+type LegacyWebhookEndpointPatch = {
+  status?: "disabled";
+  secretHash?: undefined;
+};
+
+/**
+ * Compute the safe compatibility patch for a legacy webhook endpoint.
+ *
+ * A SHA-256 hash cannot recover the original HMAC signing secret. Hash-only
+ * endpoints are therefore disabled, not "re-encrypted". Any obsolete hash is
+ * also erased so it cannot leak through raw component reads after migration.
+ * Idempotent: a disabled, ciphertext-free row with no hash needs no patch.
+ *
+ * @internal
+ */
+export function getLegacyWebhookEndpointPatch(
+  doc: LegacyWebhookEndpoint,
+): LegacyWebhookEndpointPatch | undefined {
+  const patch: LegacyWebhookEndpointPatch = {};
+  if (doc.secretCiphertext === undefined && doc.status !== "disabled") {
+    patch.status = "disabled";
+  }
+  if (doc.secretHash !== undefined) {
+    patch.secretHash = undefined;
+  }
+  return Object.keys(patch).length === 0 ? undefined : patch;
+}
+
+/**
+ * Disable endpoints whose only legacy credential is the one-way `secretHash`
+ * and erase every obsolete hash. Supplying a new secret through the server
+ * facade writes `secretCiphertext` and permits an explicit re-enable.
+ */
+export const disableLegacyWebhookEndpoints = migrations.define({
+  table: "GroupWebhookEndpoint",
+  migrateOne: (_ctx, doc) => getLegacyWebhookEndpointPatch(doc),
+});
+
+/**
+ * CLI/dashboard runner:
+ * `vp exec convex run auth/migrations:runDisableLegacyWebhookEndpoints`.
+ */
+export const runDisableLegacyWebhookEndpoints = migrations.runner(
+  internal.migrations.disableLegacyWebhookEndpoints,
+);
 
 /**
  * Copy the renamed `ApiKey.metadata` blob into `extend` (the app-extension

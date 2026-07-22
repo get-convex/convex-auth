@@ -204,37 +204,21 @@ async function handleDeviceVerify(
     throw deviceError("DEVICE_ALREADY_AUTHORIZED", "This device code has already been authorized.");
   }
 
-  // Mint the session the polling device will later adopt, then let the
-  // `authorize` compare-and-set decide the winner. The CAS is the
-  // serialization point: only a still-`pending` code transitions, so a
-  // concurrent or retried verify that loses the race is rolled back below and
-  // never leaves an orphan Session.
-  //
-  // The session is created directly (not via `callSignIn`) on purpose: the
-  // device must receive its OWN fresh session rather than have the approving
-  // user's current session replaced out from under them, and the session must
-  // not become durable unless this call wins the CAS.
-  const deviceSession = (await ctx.runMutation(ctx.auth.config.component.session.create, {
-    userId,
-    sessionExpirationTime: sessionExpirationTime(ctx.auth.config),
-  })) as { sessionId: string };
-  // The authorization binds the session minted for the AUTHENTICATED caller
-  // (`userId` above), never a code- or request-supplied identity, so a device
-  // can only be claimed for the user who approved it.
+  // Create the device's own session and bind it in the SAME component mutation
+  // that wins the pending→authorized CAS. A losing concurrent/retried verify
+  // therefore has no optimistic session to clean up (and no cleanup failure can
+  // strand an orphan). The userId is the authenticated caller, never request
+  // input, so a device can only be claimed for its approver.
   const { transitioned } = await ctx.runMutation(
     ctx.auth.config.component.factor.device.authorize,
     {
       id: doc._id,
       userId,
-      sessionId: deviceSession.sessionId,
+      now: Date.now(),
+      sessionExpirationTime: sessionExpirationTime(ctx.auth.config),
     },
   );
   if (!transitioned) {
-    // Lost the race (or a retry of an already-authorized code): drop the
-    // session we optimistically minted so it cannot survive as an orphan.
-    await ctx.runMutation(ctx.auth.config.component.session.remove, {
-      id: deviceSession.sessionId,
-    });
     throw deviceError("DEVICE_ALREADY_AUTHORIZED", "This device code has already been authorized.");
   }
   // Approved: clear the failure counter so a user who mistyped the code a few

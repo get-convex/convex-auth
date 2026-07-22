@@ -21,6 +21,29 @@ async function createUser(t: any, email = "test@example.com") {
   });
 }
 
+/** Inject a component mutation after key.verify's hash lookup but before recordUse. */
+async function verifyAfterInterveningMutation(
+  t: any,
+  secret: string,
+  intervene: (ctx: any) => Promise<void>,
+  project: (verified: any) => any = (verified) => verified,
+) {
+  return await t.run(async (ctx: any) => {
+    let intervened = false;
+    const verificationCtx = {
+      runQuery: ctx.runQuery.bind(ctx),
+      runMutation: async (reference: any, args: any) => {
+        if (!intervened) {
+          intervened = true;
+          await intervene(ctx);
+        }
+        return await ctx.runMutation(reference, args);
+      },
+    };
+    return project(await auth.key.verify(verificationCtx as any, { secret }));
+  });
+}
+
 test("key.create returns secret starting with sk_", async () => {
   const t = convexTest(schema);
   const userId = await createUser(t);
@@ -153,6 +176,52 @@ test("key.create with per-key rateLimit stores it", async () => {
   expect(expectKey(rateResult).rateLimit).toEqual(rateLimit);
 });
 
+test("key.create rejects malformed rate limits", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const invalidRateLimits = [
+    { maxRequests: 0, windowMs: 60_000 },
+    { maxRequests: -1, windowMs: 60_000 },
+    { maxRequests: 1.5, windowMs: 60_000 },
+    { maxRequests: Number.NaN, windowMs: 60_000 },
+    { maxRequests: 1, windowMs: 0 },
+    { maxRequests: 1, windowMs: Number.POSITIVE_INFINITY },
+  ];
+
+  for (const rateLimit of invalidRateLimits) {
+    await expect(
+      t.run(async (ctx) => {
+        return await auth.key.create(ctx, {
+          data: { userId, name: "Invalid Limit", scopes: [], rateLimit },
+        });
+      }),
+    ).rejects.toThrow("positive integer maxRequests");
+  }
+});
+
+test("key.update rejects malformed rate limits and preserves the previous limit", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const original = { maxRequests: 10, windowMs: 60_000 };
+  const { id: keyId } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: { userId, name: "Valid Limit", scopes: [], rateLimit: original },
+    });
+  });
+
+  await expect(
+    t.run(async (ctx) => {
+      return await auth.key.update(ctx, {
+        id: keyId,
+        patch: { rateLimit: { maxRequests: 0, windowMs: 60_000 } },
+      });
+    }),
+  ).rejects.toThrow("positive integer maxRequests");
+
+  const key = await t.run(async (ctx) => auth.key.get(ctx, { id: keyId }));
+  expect(expectKey(key).rateLimit).toEqual(original);
+});
+
 test("key.verify with valid secret returns userId keyId and scopes", async () => {
   const t = convexTest(schema);
   const userId = await createUser(t);
@@ -243,6 +312,104 @@ test("key.verify after expiry throws ConvexError", async () => {
   vi.useRealTimers();
 });
 
+test("key usage transaction does not trust a caller-supplied timestamp", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.setSystemTime(10_000);
+    const t = convexTest(schema);
+    const userId = await createUser(t);
+    const { id: keyId } = await t.run(async (ctx) => {
+      return await auth.key.create(ctx, {
+        data: {
+          userId,
+          name: "Expired Timestamp",
+          scopes: [],
+          expiresAt: 9_999,
+        },
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await ctx.runMutation((components.auth.user.key as any).recordUse, {
+        id: keyId,
+        now: 0,
+        coarsenMs: 60_000,
+      });
+    });
+
+    expect(result).toEqual({ status: "expired" });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("key.verify rejects a key deleted after its hash lookup", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const { secret, id: keyId } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: { userId, name: "Delete Race", scopes: [] },
+    });
+  });
+
+  await expect(
+    verifyAfterInterveningMutation(t, secret, async (ctx) => {
+      await ctx.runMutation(components.auth.user.key.remove, { id: keyId });
+    }),
+  ).rejects.toThrow("Invalid API key");
+});
+
+test("key.verify rejects a key revoked after its hash lookup", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const { secret, id: keyId } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: { userId, name: "Revoke Race", scopes: [] },
+    });
+  });
+
+  await expect(
+    verifyAfterInterveningMutation(t, secret, async (ctx) => {
+      await ctx.runMutation(components.auth.user.key.update, {
+        id: keyId,
+        patch: { revoked: true },
+      });
+    }),
+  ).rejects.toThrow("revoked");
+});
+
+test("key.verify returns scopes current at the usage transaction", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const { secret, id: keyId } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: {
+        userId,
+        name: "Scope Race",
+        scopes: [{ resource: "data", actions: ["read", "write"] }],
+      },
+    });
+  });
+
+  const permissions = await verifyAfterInterveningMutation(
+    t,
+    secret,
+    async (ctx) => {
+      await ctx.runMutation(components.auth.user.key.update, {
+        id: keyId,
+        patch: { scopes: [{ resource: "data", actions: ["read"] }] },
+      });
+    },
+    (verified) => ({
+      canRead: verified.scopes.can("data", "read"),
+      canWrite: verified.scopes.can("data", "write"),
+    }),
+  );
+
+  expect(permissions.canRead).toBe(true);
+  expect(permissions.canWrite).toBe(false);
+});
+
 test("key.verify rate limiting triggers after threshold", async () => {
   vi.useFakeTimers();
   const t = convexTest(schema);
@@ -273,6 +440,36 @@ test("key.verify rate limiting triggers after threshold", async () => {
   ).rejects.toThrow(ConvexError);
 
   vi.useRealTimers();
+});
+
+test("key.verify fails closed on malformed legacy bucket state", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const { id: keyId, secret } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: {
+        userId,
+        name: "Malformed Bucket",
+        scopes: [],
+        rateLimit: { maxRequests: 10, windowMs: 60_000 },
+      },
+    });
+  });
+  await t.run(async (ctx) => {
+    await ctx.runMutation(components.auth.user.key.update, {
+      id: keyId,
+      patch: {
+        rateLimitState: {
+          attemptsLeft: Number.NaN,
+          lastAttemptTime: Date.now(),
+        },
+      },
+    });
+  });
+
+  await expect(t.run(async (ctx) => auth.key.verify(ctx, { secret }))).rejects.toThrow(
+    "rate limit exceeded",
+  );
 });
 
 test("key.list returns only keys for the given userId", async () => {
@@ -795,6 +992,66 @@ test("key.rotate returns new secret starting with sk_", async () => {
 
   expect(secret).toMatch(/^sk_/);
   expect(newKeyId).not.toBe(oldKeyId);
+});
+
+test("key.rotate atomically permits only one concurrent replacement", async () => {
+  const t = convexTest(schema);
+  const userId = await createUser(t);
+  const { id: oldKeyId } = await t.run(async (ctx) => {
+    return await auth.key.create(ctx, {
+      data: {
+        userId,
+        name: "Concurrent Rotate",
+        scopes: [{ resource: "data", actions: ["read"] }],
+      },
+    });
+  });
+
+  const race = await t.run(async (ctx: any) => {
+    let intervened = false;
+    let winner: { id: string; secret: string } | null = null;
+    const racingCtx = {
+      runQuery: ctx.runQuery.bind(ctx),
+      runMutation: async (reference: any, args: any) => {
+        if (!intervened) {
+          intervened = true;
+          winner = await auth.key.rotate(ctx, { id: oldKeyId });
+        }
+        return await ctx.runMutation(reference, args);
+      },
+    };
+
+    let loserError: string | null = null;
+    try {
+      await auth.key.rotate(racingCtx as any, { id: oldKeyId });
+    } catch (error) {
+      loserError = error instanceof Error ? error.message : String(error);
+    }
+    return {
+      winner: winner as { id: string; secret: string } | null,
+      loserError,
+    };
+  });
+
+  expect(race.winner).not.toBeNull();
+  expect(race.loserError).toContain("revoked");
+  if (race.winner === null) {
+    throw new Error("Expected one concurrent rotation to succeed");
+  }
+  const listed = await t.run(async (ctx) => {
+    return await auth.key.list(ctx, {
+      where: { userId },
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+  });
+  expect(listed.page).toHaveLength(2);
+  expect(listed.page.filter((key) => !key.revoked)).toHaveLength(1);
+
+  const winnerSecret = race.winner.secret;
+  const winnerId = await t.run(async (ctx) => {
+    return (await auth.key.verify(ctx, { secret: winnerSecret })).keyId;
+  });
+  expect(winnerId).toBe(race.winner.id);
 });
 
 test("key.rotate: old key verify throws ConvexError after rotation", async () => {

@@ -233,6 +233,42 @@ test("a handshake timeout resolves to signed-out, not a stuck loading state", as
   vi.useRealTimers();
 });
 
+test("a non-proxy handshake timeout drops the stale JWT but preserves refresh recovery", async () => {
+  vi.useFakeTimers();
+  const convex = createConvexMock();
+  const storage = createSyncStorage();
+  convex.action = vi.fn(async () => ({
+    kind: "signedIn" as const,
+    session: { token: "unconfirmed-token", refreshToken: "recoverable-refresh" },
+  }));
+  const auth = client({
+    convex,
+    api: { signIn: {} as never, signOut: {} as never },
+    url: CONVEX_URL,
+    storage,
+  });
+
+  const signInPromise = auth.signIn("password", {
+    email: "timeout@example.com",
+    password: "44448888",
+    flow: "signIn",
+  });
+  const rejection = expect(signInPromise).rejects.toSatisfy(
+    (error: unknown) =>
+      error instanceof ConvexError && error.data?.code === "AUTH_HANDSHAKE_TIMEOUT",
+  );
+
+  await vi.advanceTimersByTimeAsync(5001);
+  await rejection;
+
+  expect(auth.getSnapshot()).toEqual({ status: "signedOut", token: null });
+  expect(storage.map.get("__convexAuthJWT")).toBeUndefined();
+  expect(storage.map.get("__convexAuthRefreshToken")).toBe("recoverable-refresh");
+
+  auth.destroy();
+  vi.useRealTimers();
+});
+
 // ---------------------------------------------------------------------------
 // 2b. confirmed -> false: transient tolerated, real deauth signs out
 // ---------------------------------------------------------------------------

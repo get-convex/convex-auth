@@ -9,12 +9,15 @@
  */
 
 import { paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { paginator } from "convex-helpers/server/pagination";
 
+import { ErrorCode } from "../../../shared/codes";
 import { mutation, query } from "../../functions";
 import { vGroupConnectionScimIdentityDoc, vPaginated, vScimResourceType } from "../../model";
 import schema from "../../schema";
+
+const vScimUserData = v.object(schema.tables.User.validator.fields);
 
 /**
  * Read SCIM identities, overloaded by the args supplied. With
@@ -138,6 +141,98 @@ export const upsert = mutation({
       return existing._id;
     }
     return await ctx.db.insert("GroupConnectionScimIdentity", args);
+  },
+});
+
+/**
+ * Atomically provision or resolve a SCIM user by both of its durable natural
+ * keys: the connection-scoped SCIM external id and the provider Account id.
+ * A concurrent retry cannot commit a losing User because the identity and
+ * Account index reads participate in the same OCC transaction as the inserts.
+ * Existing ownership is preserved; conflicting owners are rejected.
+ */
+export const provision = mutation({
+  args: {
+    connectionId: v.id("GroupConnection"),
+    groupId: v.id("Group"),
+    externalId: v.string(),
+    provider: v.string(),
+    userData: vScimUserData,
+    lastProvisionedAt: v.optional(v.number()),
+    active: v.optional(v.boolean()),
+    raw: v.optional(v.any()),
+  },
+  returns: v.object({
+    userId: v.id("User"),
+    created: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const identity = await ctx.db
+      .query("GroupConnectionScimIdentity")
+      .withIndex("group_connection_id_resource_type_external_id", (idx) =>
+        idx
+          .eq("connectionId", args.connectionId)
+          .eq("resourceType", "user")
+          .eq("externalId", args.externalId),
+      )
+      .unique();
+    const account = await ctx.db
+      .query("Account")
+      .withIndex("provider_account_id", (idx) =>
+        idx.eq("provider", args.provider).eq("providerAccountId", args.externalId),
+      )
+      .unique();
+
+    if (identity?.userId !== undefined && account !== null && identity.userId !== account.userId) {
+      throw new ConvexError({
+        code: ErrorCode.ACCOUNT_ALREADY_LINKED,
+        message: "The SCIM identity and provider account belong to different users.",
+      });
+    }
+
+    const existingUserId = identity?.userId ?? account?.userId;
+    let userId = existingUserId;
+    let created = false;
+    if (userId !== undefined) {
+      const user = await ctx.db.get("User", userId);
+      if (user === null) {
+        throw new ConvexError({
+          code: ErrorCode.ACCOUNT_NOT_FOUND,
+          message: "The SCIM identity references a user that no longer exists.",
+        });
+      }
+    } else {
+      userId = await ctx.db.insert("User", args.userData);
+      created = true;
+    }
+
+    if (account === null) {
+      await ctx.db.insert("Account", {
+        userId,
+        provider: args.provider,
+        providerAccountId: args.externalId,
+      });
+    }
+
+    const identityData = {
+      connectionId: args.connectionId,
+      groupId: args.groupId,
+      resourceType: "user" as const,
+      externalId: args.externalId,
+      userId,
+      ...(args.lastProvisionedAt !== undefined
+        ? { lastProvisionedAt: args.lastProvisionedAt }
+        : {}),
+      ...(args.active !== undefined ? { active: args.active } : {}),
+      ...(args.raw !== undefined ? { raw: args.raw } : {}),
+    };
+    if (identity === null) {
+      await ctx.db.insert("GroupConnectionScimIdentity", identityData);
+    } else {
+      await ctx.db.patch("GroupConnectionScimIdentity", identity._id, identityData);
+    }
+
+    return { userId, created };
   },
 });
 

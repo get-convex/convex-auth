@@ -39,6 +39,8 @@ export default defineSchema({
    */
   User: defineTable({
     name: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
     image: v.optional(v.string()),
     email: v.optional(v.string()),
     emailVerificationTime: v.optional(v.number()),
@@ -287,6 +289,49 @@ export default defineSchema({
     .index("type_parent_group_id", ["type", "parentGroupId"]),
 
   /**
+   * Durable state for large group subtree removals and root-id re-stamps.
+   * These rows are component-internal implementation details; the public
+   * `Group` document stays free of workflow metadata.
+   */
+  GroupHierarchyOperation: defineTable({
+    groupId: v.id("Group"),
+    kind: v.union(v.literal("remove"), v.literal("restamp")),
+    phase: v.union(v.literal("planning"), v.literal("applying"), v.literal("cleaning")),
+    newRootGroupId: v.optional(v.id("Group")),
+    expectedParentGroupId: v.optional(v.id("Group")),
+  })
+    .index("group_id_kind", ["groupId", "kind"])
+    .index("group_id_kind_parent_root", [
+      "groupId",
+      "kind",
+      "expectedParentGroupId",
+      "newRootGroupId",
+    ]),
+
+  /**
+   * One durable queue row per group in a hierarchy operation. Keeping work as
+   * rows instead of a carried array avoids an unbounded scheduled-function
+   * argument/frontier and makes every continuation safe to retry.
+   */
+  GroupHierarchyWork: defineTable({
+    operationId: v.id("GroupHierarchyOperation"),
+    kind: v.union(v.literal("remove"), v.literal("restamp")),
+    groupId: v.id("Group"),
+    parentWorkId: v.optional(v.id("GroupHierarchyWork")),
+    expectedParentGroupId: v.optional(v.id("Group")),
+    depth: v.number(),
+    planned: v.boolean(),
+    applied: v.boolean(),
+    eligible: v.optional(v.boolean()),
+    scanCursor: v.optional(v.string()),
+  })
+    .index("operation_id_group_id", ["operationId", "groupId"])
+    .index("operation_id_planned", ["operationId", "planned"])
+    .index("operation_id_applied_depth", ["operationId", "applied", "depth"])
+    .index("group_id", ["groupId"])
+    .index("group_id_kind", ["groupId", "kind"]),
+
+  /**
    * Group membership. Links a user to a group with an application-defined
    * role (e.g. "owner", "admin", "member", "viewer"). A user can be a
    * member of multiple groups with different roles in each.
@@ -302,7 +347,9 @@ export default defineSchema({
     .index("group_id", ["groupId"])
     .index("group_id_user_id", ["groupId", "userId"])
     .index("group_id_status", ["groupId", "status"])
-    .index("user_id", ["userId"]),
+    .index("user_id", ["userId"])
+    .index("user_id_status", ["userId", "status"])
+    .index("status", ["status"]),
 
   /**
    * Invitations. Tracks pending, accepted, revoked, and expired
@@ -551,17 +598,18 @@ export default defineSchema({
      * `X-Auth-Signature`.
      *
      * Optional for the 0.1 two-phase upgrade: pre-existing rows carry the
-     * pre-encryption `secretHash` and have no `secretCiphertext` yet. A
-     * SERVER-SIDE backfill re-encrypts `secretHash` → `secretCiphertext` (the
-     * encryption primitive lives in `server/secret.ts`, outside this component,
-     * so it cannot run from a component mutation). Tighten back to required in a
-     * later release once every row is encrypted.
+     * one-way `secretHash` and have no `secretCiphertext` yet. The
+     * `disableLegacyWebhookEndpoints` migration disables those rows and erases
+     * the hash; an operator must provide a new secret before re-enabling them.
+     * Tighten back to required in a later release once every live row is
+     * encrypted.
      */
     secretCiphertext: v.optional(v.string()),
     /**
-     * @deprecated Pre-encryption endpoint secret (plaintext/hashed). Retained so
-     * pre-existing rows validate on deploy; the server-side backfill re-encrypts
-     * it into `secretCiphertext` and clears this. Removed in a later release.
+     * @deprecated One-way SHA-256 hash from the pre-encryption signing scheme.
+     * Retained only so pre-existing rows validate on deploy; the endpoint
+     * migration disables hash-only rows and clears this field. It cannot be
+     * converted into the original secret. Removed in a later release.
      */
     secretHash: v.optional(v.string()),
     /**
@@ -685,12 +733,15 @@ export default defineSchema({
     registrationAccessTokenHash: v.optional(v.string()),
     createdBy: v.optional(v.id("User")),
     revoked: v.boolean(),
+    /** Set when revoked; optional until the compatibility backfill runs. */
+    revokedAt: v.optional(v.number()),
     extend: v.optional(v.any()),
   })
     .index("client_id", ["clientId"])
     .index("created_by", ["createdBy"])
     .index("created_by_revoked", ["createdBy", "revoked"])
-    .index("revoked", ["revoked"]),
+    .index("revoked", ["revoked"])
+    .index("revoked_at", ["revoked", "revokedAt"]),
 
   OAuthCode: defineTable({
     codeHash: v.string(),

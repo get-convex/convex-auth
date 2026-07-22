@@ -101,8 +101,10 @@ type WebhookEndpointRecord = {
   groupId: string;
   url: string;
   status: "active" | "disabled";
-  secretCiphertext: string;
-  subscriptions: AuthEventKind[];
+  secretCiphertext?: string;
+  /** @deprecated One-way legacy hash; never expose through a public facade. */
+  secretHash?: string;
+  subscriptions: string[];
   createdByUserId?: string;
   lastSuccessAt?: number;
   lastFailureAt?: number;
@@ -534,6 +536,30 @@ export const upsertScimIdentity = (
   },
 ) => componentMutation<typeof args, string>(ctx, componentConnection.scim.identity.upsert, args);
 
+export const provisionScimUser = (
+  ctx: ComponentWriteCtx,
+  componentConnection: ComponentConnection,
+  args: {
+    connectionId: string;
+    groupId: string;
+    externalId: string;
+    provider: string;
+    userData: Record<string, unknown>;
+    active?: boolean;
+    raw?: Record<string, unknown>;
+    lastProvisionedAt?: number;
+  },
+) =>
+  componentMutation<typeof args, { userId: string; created: boolean }>(
+    ctx,
+    (
+      componentConnection.scim.identity as typeof componentConnection.scim.identity & {
+        provision: unknown;
+      }
+    ).provision,
+    args,
+  );
+
 export const removeScimIdentity = (
   ctx: ComponentWriteCtx,
   componentConnection: ComponentConnection,
@@ -542,16 +568,6 @@ export const removeScimIdentity = (
   componentMutation<{ id: string }, null>(ctx, componentConnection.scim.identity.remove, {
     id: identityId,
   });
-
-export const insertAccount = (
-  ctx: ComponentWriteCtx,
-  componentAccount: ConvexAuthMaterializedConfig["component"]["account"],
-  args: {
-    userId: string;
-    provider: string;
-    providerAccountId: string;
-  },
-) => componentMutation<typeof args, string>(ctx, componentAccount.create, args);
 
 export const insertUser = (
   ctx: ComponentWriteCtx,

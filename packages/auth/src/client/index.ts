@@ -359,6 +359,12 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
     set: storageSet,
     remove: storageRemove,
   } = createStorageHelpers({ storage, key });
+  const withAuthStorageMutex = async <T>(callback: () => Promise<T>): Promise<T> => {
+    const mutexKey = `__convexAuthStorage_${escapedNamespace}`;
+    return runtime.mutex
+      ? await runtime.mutex.withKey(mutexKey, callback)
+      : await localMutex(mutexKey, callback);
+  };
   const proxyFetch = async (body: Record<string, unknown>) => {
     if (!proxy) {
       throw new Error("Proxy fetch requested without proxyPath.");
@@ -567,12 +573,26 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
         );
         // Unstick the state machine: a never-confirmed handshake that times out
         // must not leave `handshakePending` set (which would spin the UI in
-        // `loading` forever). Drive the still-current, still-pending token to
-        // signed-out — but keep the persisted refresh token (shouldStore:false),
-        // since a 5s handshake timeout is only a latency signal, not a revoke:
-        // a later reload can still recover the session from storage.
+        // `loading` forever). Remove only the unconfirmed access token from
+        // storage, preserving the refresh credential so a later reload can
+        // recover. Keeping the stale JWT made the next client boot report
+        // signed-in synchronously, skip refresh hydration, and then discard the
+        // still-valid refresh token when Convex rejected that JWT.
         if (!destroyed && authEpoch === epoch && token !== null && handshakePending) {
-          void setToken({ shouldStore: false, tokens: null }).catch((error) => {
+          const timedOutToken = token;
+          void withAuthStorageMutex(async () => {
+            if (destroyed || authEpoch !== epoch || token !== timedOutToken || !handshakePending) {
+              return;
+            }
+            await storageRemove(JWT_STORAGE_KEY);
+            // Re-check after async storage I/O: a newer sign-in may have changed
+            // the in-memory epoch while waiting. Its queued storage write must
+            // win and its token must not be cleared here.
+            if (destroyed || authEpoch !== epoch || token !== timedOutToken || !handshakePending) {
+              return;
+            }
+            await setToken({ shouldStore: false, tokens: null });
+          }).catch((error) => {
             logMessage("convex-auth/client", LOG_LEVELS.ERROR, [
               "[convex-auth] Sign-out after handshake timeout failed:",
               error,
@@ -715,15 +735,17 @@ export function client<Api extends AuthApiRefs<boolean, boolean, boolean> = Auth
 
     if (args.tokens === null) {
       lastForcedRefreshTime = 0;
-      if (args.shouldStore) {
-        await storageRemove(JWT_STORAGE_KEY);
-        await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
-      }
-    } else {
-      if (args.shouldStore && "refreshToken" in args.tokens) {
-        await storageSet(JWT_STORAGE_KEY, args.tokens.token);
-        await storageSet(REFRESH_TOKEN_STORAGE_KEY, args.tokens.refreshToken);
-      }
+    }
+    if (args.shouldStore) {
+      await withAuthStorageMutex(async () => {
+        if (args.tokens === null) {
+          await storageRemove(JWT_STORAGE_KEY);
+          await storageRemove(REFRESH_TOKEN_STORAGE_KEY);
+        } else if ("refreshToken" in args.tokens) {
+          await storageSet(JWT_STORAGE_KEY, args.tokens.token);
+          await storageSet(REFRESH_TOKEN_STORAGE_KEY, args.tokens.refreshToken);
+        }
+      });
     }
 
     if (token === null) {

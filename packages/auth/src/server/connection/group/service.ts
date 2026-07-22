@@ -289,6 +289,15 @@ export function createGroupService(deps: {
       if (endpoint.status !== "active" || !endpoint.subscriptions.includes(data.kind)) {
         continue;
       }
+      if (!endpoint.secretCiphertext) {
+        // Compatibility guard for pre-migration hash-only rows. A one-way hash
+        // cannot be used as the HMAC secret, so the endpoint stays inert until
+        // an operator supplies a new secret.
+        console.error("[auth] webhook endpoint has no encrypted secret; skipping", {
+          endpointId: endpoint._id,
+        });
+        continue;
+      }
       const signedAt = Date.now();
       let secret: string;
       try {

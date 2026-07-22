@@ -286,13 +286,13 @@ export const dispatch = internalAction({
       _id: string;
       connectionId: string;
       endpointId: string;
-      eventId: string;
-      kind: Infer<typeof vAuthEventKind>;
+      eventId?: string;
+      kind?: Infer<typeof vAuthEventKind>;
       payload: unknown;
       status: Infer<typeof vWebhookDeliveryStatus>;
       attemptCount: number;
-      signature: string;
-      signedAt: number;
+      signature?: string;
+      signedAt?: number;
     } | null;
     if (!delivery) return null;
 
@@ -306,6 +306,25 @@ export const dispatch = internalAction({
     // at-least-once (not exactly-once) semantics and MUST dedup on the stable
     // `X-Auth-Delivery-Id` header sent below.
     if (delivery.status === "delivered" || delivery.status === "failed") {
+      return null;
+    }
+
+    if (
+      delivery.eventId === undefined ||
+      delivery.kind === undefined ||
+      delivery.signature === undefined ||
+      delivery.signedAt === undefined
+    ) {
+      const failedAt = Date.now();
+      await ctx.runMutation(api.connection.webhook.delivery.update, {
+        id: deliveryId,
+        patch: {
+          status: "failed",
+          lastError: "legacy delivery is missing signed event fields",
+          lastAttemptAt: failedAt,
+          attemptCount: delivery.attemptCount + 1,
+        },
+      });
       return null;
     }
 

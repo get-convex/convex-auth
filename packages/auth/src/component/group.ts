@@ -9,6 +9,7 @@
 
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
+import { paginator } from "convex-helpers/server/pagination";
 import { stream } from "convex-helpers/server/stream";
 import { ErrorCode } from "../shared/codes";
 
@@ -204,6 +205,7 @@ export const create = mutation({
     const isRoot = !args.parentGroupId;
     let rootGroupId: Id<"Group"> | undefined;
     if (!isRoot && args.parentGroupId) {
+      await assertGroupCanAcceptChild(ctx, args.parentGroupId);
       const parent = await ctx.db.get("Group", args.parentGroupId);
       rootGroupId = parent?.rootGroupId ?? args.parentGroupId;
     }
@@ -220,186 +222,341 @@ export const create = mutation({
 });
 
 // ---------------------------------------------------------------------------
-// Subtree cascade (delete + re-parent re-stamp)
-//
-// A group's subtree can be arbitrarily wide and deep, so a single mutation
-// cannot be trusted to visit the whole thing: `CASCADE_MAX` only bounds
-// per-node *width*, not the total subtree, and a large tree blows the
-// per-transaction read/write budget — the mutation rolls back and the group
-// becomes undeletable / un-re-parentable. Following the `connection.remove`
-// pattern, each transaction processes a budgeted batch of nodes and reschedules
-// a continuation (`internal.group.purgeGroupData` / `internal.group.restampGroupData`)
-// while work remains. The per-node `CASCADE_TOO_LARGE` guard is preserved for
-// pathological single-node fan-out; the migrations component remains the escape
-// hatch for genuinely huge trees.
+// Durable subtree operations (delete + re-parent re-stamp)
 // ---------------------------------------------------------------------------
 
-/** Max rows in one child/member/invite table for a single group node before we
- *  refuse (per-node width guard, preserved from the original cascade). */
-const CASCADE_MAX = 1000;
-/** Max group nodes fully processed in a single cascade transaction (keeps the
- *  per-tx index-range count well under budget: <= ~4 reads/node). */
-const CASCADE_NODES_PER_RUN = 256;
-/** Soft cap on rows scanned/written accumulated per cascade transaction, so one
- *  run stays well under the per-tx read/write limits even with wide nodes. */
-const CASCADE_ROWS_PER_RUN = 8192;
-/** Safety valve on the carried continuation frontier: beyond this the pending
- *  subtree is too wide to drain safely via scheduled continuations, so we refuse
- *  and point at the migrations component (bounds the continuation's arg size — an
- *  Id is ~36 bytes, so 16384 is well under Convex's argument-size limit). Only a
- *  genuinely enormous subgroup wavefront reaches this. */
-const CASCADE_FRONTIER_MAX = 16_384;
+/** Small subtrees keep the original synchronous, all-or-nothing behavior. */
+const INLINE_GROUP_LIMIT = 48;
+const INLINE_RELATION_LIMIT = 384;
+/** Durable jobs deliberately use small pages to leave transaction headroom. */
+const PLAN_ITEMS_PER_RUN = 4;
+const CHILDREN_PER_PAGE = 32;
+const APPLY_ITEMS_PER_RUN = 16;
+const RELATIONS_PER_RUN = 64;
+const CLEANUP_ITEMS_PER_RUN = 128;
 
-function refuseCascadeOverflow(id: Id<"Group">, table: string, count: number) {
-  if (count > CASCADE_MAX) {
-    throw new ConvexError({
-      code: ErrorCode.CASCADE_TOO_LARGE,
-      message: `Group ${id} has more than ${CASCADE_MAX} rows in ${table}; cascade is not safe in a single mutation. Drain via the migrations component first, then retry.`,
-    });
-  }
-}
-
-function refuseFrontierOverflow(remaining: number) {
-  if (remaining > CASCADE_FRONTIER_MAX) {
-    throw new ConvexError({
-      code: ErrorCode.CASCADE_TOO_LARGE,
-      message: `Group subtree pending frontier exceeds ${CASCADE_FRONTIER_MAX} nodes; cascade is not safe to continue in scheduled mutations. Drain via the migrations component first, then retry.`,
-    });
-  }
-}
+type InlineSubtree = {
+  groups: Array<Doc<"Group">>;
+  members: Array<Doc<"GroupMember">>;
+  invites: Array<Doc<"GroupInvite">>;
+};
 
 /**
- * Delete a budgeted slice of the group subtree seeded by `frontier`, draining as
- * far as the per-transaction budget allows within this one transaction. Newly
- * discovered child groups are appended to the same work queue and processed in
- * the same run until either the node or row budget is hit, so a normal (small)
- * subtree is fully deleted inline with no continuation. For each processed node
- * it deletes that node's memberships and invites, deletes the node itself, and
- * enqueues its child groups (captured before the node is deleted, so top-down
- * deletion never orphans a descendant). Returns the still-unprocessed queue tail
- * (unvisited seeds + discovered children); the caller reschedules a continuation
- * while it is non-empty.
- *
- * Cross-transaction cycle/duplicate safety: a node already deleted by an earlier
- * run is skipped (its `db.get` is `null`), so a `parentGroupId` cycle terminates.
+ * Collect a subtree only while it is known to fit comfortably in one
+ * transaction. Returning `null` is not an error: it selects the durable path,
+ * and no hierarchy row has been changed yet.
  */
-async function purgeGroupSubtree(
+async function collectInlineSubtree(
   ctx: MutationCtx,
-  frontier: Array<Id<"Group">>,
-): Promise<Array<Id<"Group">>> {
-  const queue: Array<Id<"Group">> = [...frontier];
-  let head = 0;
-  let processed = 0;
-  let rows = 0;
-  while (head < queue.length && processed < CASCADE_NODES_PER_RUN && rows < CASCADE_ROWS_PER_RUN) {
+  groupId: Id<"Group">,
+  includeRelations: boolean,
+): Promise<InlineSubtree | null> {
+  const queue = [groupId];
+  const seen = new Set<string>();
+  const groups: Array<Doc<"Group">> = [];
+  const members: Array<Doc<"GroupMember">> = [];
+  const invites: Array<Doc<"GroupInvite">> = [];
+
+  for (let head = 0; head < queue.length; head += 1) {
     const id = queue[head];
-    head += 1;
-    processed += 1;
-    const node = await ctx.db.get("Group", id);
-    if (node === null) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (seen.size > INLINE_GROUP_LIMIT) return null;
+
+    const group = await ctx.db.get("Group", id);
+    if (group === null) continue;
+    groups.push(group);
 
     const children = await ctx.db
       .query("Group")
       .withIndex("parent_group_id", (q) => q.eq("parentGroupId", id))
-      .take(CASCADE_MAX + 1);
-    refuseCascadeOverflow(id, "Group(children)", children.length);
-    for (const child of children) queue.push(child._id);
-    rows += children.length;
+      .take(INLINE_GROUP_LIMIT + 1);
+    if (children.length > INLINE_GROUP_LIMIT) return null;
+    queue.push(...children.map((child) => child._id));
+    if (queue.length > INLINE_GROUP_LIMIT * 2) return null;
+
+    if (!includeRelations) continue;
+    const groupMembers = await ctx.db
+      .query("GroupMember")
+      .withIndex("group_id", (q) => q.eq("groupId", id))
+      .take(INLINE_RELATION_LIMIT + 1);
+    const groupInvites = await ctx.db
+      .query("GroupInvite")
+      .withIndex("group_id", (q) => q.eq("groupId", id))
+      .take(INLINE_RELATION_LIMIT + 1);
+    members.push(...groupMembers);
+    invites.push(...groupInvites);
+    if (members.length + invites.length > INLINE_RELATION_LIMIT) return null;
+  }
+  return { groups, members, invites };
+}
+
+async function scheduleHierarchyOperation(
+  ctx: MutationCtx,
+  operationId: Id<"GroupHierarchyOperation">,
+) {
+  await ctx.scheduler.runAfter(0, internal.group.processGroupHierarchy, { operationId });
+}
+
+async function createHierarchyOperation(
+  ctx: MutationCtx,
+  args:
+    | { groupId: Id<"Group">; kind: "remove" }
+    | {
+        groupId: Id<"Group">;
+        kind: "restamp";
+        newRootGroupId: Id<"Group">;
+        expectedParentGroupId: Id<"Group">;
+      },
+) {
+  const operationId = await ctx.db.insert("GroupHierarchyOperation", {
+    ...args,
+    phase: "planning",
+  });
+  await ctx.db.insert("GroupHierarchyWork", {
+    operationId,
+    kind: args.kind,
+    groupId: args.groupId,
+    depth: 0,
+    planned: false,
+    applied: false,
+  });
+  await scheduleHierarchyOperation(ctx, operationId);
+  return operationId;
+}
+
+async function activeRemovalForGroup(ctx: MutationCtx, groupId: Id<"Group">) {
+  const work = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("group_id_kind", (q) => q.eq("groupId", groupId).eq("kind", "remove"))
+    .take(1);
+  for (const item of work) {
+    const operation = await ctx.db.get("GroupHierarchyOperation", item.operationId);
+    if (operation?.kind === "remove" && operation.phase !== "cleaning") return operation;
+  }
+  return null;
+}
+
+async function activeHierarchyOperationForGroup(ctx: MutationCtx, groupId: Id<"Group">) {
+  const work = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("group_id", (q) => q.eq("groupId", groupId))
+    .first();
+  return work === null ? null : await ctx.db.get("GroupHierarchyOperation", work.operationId);
+}
+
+async function assertGroupNotBeingRemoved(ctx: MutationCtx, groupId: Id<"Group">) {
+  if ((await activeRemovalForGroup(ctx, groupId)) !== null) {
+    throw new ConvexError({
+      code: ErrorCode.INVALID_PARAMETERS,
+      message: `Group ${groupId} is being removed and cannot be changed.`,
+    });
+  }
+}
+
+async function assertGroupCanAcceptChild(ctx: MutationCtx, groupId: Id<"Group">) {
+  if ((await activeHierarchyOperationForGroup(ctx, groupId)) !== null) {
+    throw new ConvexError({
+      code: ErrorCode.INVALID_PARAMETERS,
+      message: `Group ${groupId} has a hierarchy operation in progress and cannot accept a child.`,
+    });
+  }
+}
+
+async function planHierarchyOperation(ctx: MutationCtx, operation: Doc<"GroupHierarchyOperation">) {
+  const items = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_planned", (q) =>
+      q.eq("operationId", operation._id).eq("planned", false),
+    )
+    .take(PLAN_ITEMS_PER_RUN);
+
+  for (const item of items) {
+    const page = await paginator(ctx.db, schema)
+      .query("Group")
+      .withIndex("parent_group_id", (q) => q.eq("parentGroupId", item.groupId))
+      .paginate({ numItems: CHILDREN_PER_PAGE, cursor: item.scanCursor ?? null });
+    for (const child of page.page) {
+      const existing = await ctx.db
+        .query("GroupHierarchyWork")
+        .withIndex("operation_id_group_id", (q) =>
+          q.eq("operationId", operation._id).eq("groupId", child._id),
+        )
+        .unique();
+      if (existing === null) {
+        await ctx.db.insert("GroupHierarchyWork", {
+          operationId: operation._id,
+          kind: operation.kind,
+          groupId: child._id,
+          parentWorkId: item._id,
+          expectedParentGroupId: item.groupId,
+          depth: item.depth + 1,
+          planned: false,
+          applied: false,
+        });
+      }
+    }
+    await ctx.db.patch("GroupHierarchyWork", item._id, {
+      planned: page.isDone,
+      scanCursor: page.isDone ? undefined : page.continueCursor,
+    });
+  }
+
+  const pending = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_planned", (q) =>
+      q.eq("operationId", operation._id).eq("planned", false),
+    )
+    .first();
+  if (pending === null) {
+    await ctx.db.patch("GroupHierarchyOperation", operation._id, { phase: "applying" });
+  }
+  await scheduleHierarchyOperation(ctx, operation._id);
+}
+
+async function applyRemoval(ctx: MutationCtx, operation: Doc<"GroupHierarchyOperation">) {
+  const items = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_applied_depth", (q) =>
+      q.eq("operationId", operation._id).eq("applied", false),
+    )
+    .order("desc")
+    .take(APPLY_ITEMS_PER_RUN);
+
+  for (const item of items) {
+    const group = await ctx.db.get("Group", item.groupId);
+    if (group === null) {
+      await ctx.db.patch("GroupHierarchyWork", item._id, { applied: true });
+      continue;
+    }
+    const children = await ctx.db
+      .query("Group")
+      .withIndex("parent_group_id", (q) => q.eq("parentGroupId", item.groupId))
+      .take(2);
+    let hasBlockingChild = false;
+    for (const child of children) {
+      const childWork = await ctx.db
+        .query("GroupHierarchyWork")
+        .withIndex("operation_id_group_id", (q) =>
+          q.eq("operationId", operation._id).eq("groupId", child._id),
+        )
+        .unique();
+      // A valid tree always discovers a child at depth + 1. A child already
+      // discovered at this depth or shallower is the single back-edge of a
+      // malformed parent cycle; ignoring only that edge lets the removal break
+      // the cycle instead of scheduling forever.
+      if (childWork === null || childWork.depth > item.depth) {
+        hasBlockingChild = true;
+        break;
+      }
+    }
+    if (hasBlockingChild) continue;
 
     const members = await ctx.db
       .query("GroupMember")
-      .withIndex("group_id", (q) => q.eq("groupId", id))
-      .take(CASCADE_MAX + 1);
-    refuseCascadeOverflow(id, "GroupMember", members.length);
-    for (const member of members) await ctx.db.delete("GroupMember", member._id);
-    rows += members.length;
-
+      .withIndex("group_id", (q) => q.eq("groupId", item.groupId))
+      .take(RELATIONS_PER_RUN);
     const invites = await ctx.db
       .query("GroupInvite")
-      .withIndex("group_id", (q) => q.eq("groupId", id))
-      .take(CASCADE_MAX + 1);
-    refuseCascadeOverflow(id, "GroupInvite", invites.length);
+      .withIndex("group_id", (q) => q.eq("groupId", item.groupId))
+      .take(RELATIONS_PER_RUN);
+    for (const member of members) await ctx.db.delete("GroupMember", member._id);
     for (const invite of invites) await ctx.db.delete("GroupInvite", invite._id);
-    rows += invites.length;
+    if (members.length === RELATIONS_PER_RUN || invites.length === RELATIONS_PER_RUN) continue;
 
-    await ctx.db.delete("Group", id);
-    rows += 1;
+    await ctx.db.delete("Group", item.groupId);
+    await ctx.db.patch("GroupHierarchyWork", item._id, { applied: true });
   }
-  const remaining = queue.slice(head);
-  refuseFrontierOverflow(remaining.length);
-  return remaining;
+
+  const pending = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_applied_depth", (q) =>
+      q.eq("operationId", operation._id).eq("applied", false),
+    )
+    .first();
+  if (pending === null) {
+    await ctx.db.patch("GroupHierarchyOperation", operation._id, { phase: "cleaning" });
+  }
+  await scheduleHierarchyOperation(ctx, operation._id);
 }
 
-/**
- * Re-stamp `rootGroupId = newRootGroupId` across the subtree seeded by
- * `frontier`, draining as far as the per-transaction budget allows in this one
- * transaction (discovered children are appended to the same work queue), so a
- * normal subtree converges inline. A child that already carries `newRootGroupId`
- * is skipped (idempotent + cycle-safe), so the walk terminates. Returns the
- * still-unprocessed queue tail for the caller to reschedule.
- */
-async function restampGroupSubtree(
+async function applyRestamp(ctx: MutationCtx, operation: Doc<"GroupHierarchyOperation">) {
+  const newRootGroupId = operation.newRootGroupId;
+  if (newRootGroupId === undefined) {
+    await ctx.db.patch("GroupHierarchyOperation", operation._id, { phase: "cleaning" });
+    await scheduleHierarchyOperation(ctx, operation._id);
+    return;
+  }
+  const items = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_applied_depth", (q) =>
+      q.eq("operationId", operation._id).eq("applied", false),
+    )
+    .order("asc")
+    .take(APPLY_ITEMS_PER_RUN);
+
+  for (const item of items) {
+    const group = await ctx.db.get("Group", item.groupId);
+    let eligible = false;
+    if (group !== null) {
+      if (item.parentWorkId === undefined) {
+        eligible =
+          group.parentGroupId === operation.expectedParentGroupId &&
+          group.rootGroupId === newRootGroupId;
+      } else {
+        const parentWork = await ctx.db.get("GroupHierarchyWork", item.parentWorkId);
+        eligible =
+          parentWork?.eligible === true && group.parentGroupId === item.expectedParentGroupId;
+      }
+      if (eligible && group.rootGroupId !== newRootGroupId) {
+        await ctx.db.patch("Group", group._id, { rootGroupId: newRootGroupId });
+      }
+    }
+    await ctx.db.patch("GroupHierarchyWork", item._id, { eligible, applied: true });
+  }
+
+  const pending = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_applied_depth", (q) =>
+      q.eq("operationId", operation._id).eq("applied", false),
+    )
+    .first();
+  if (pending === null) {
+    await ctx.db.patch("GroupHierarchyOperation", operation._id, { phase: "cleaning" });
+  }
+  await scheduleHierarchyOperation(ctx, operation._id);
+}
+
+async function cleanupHierarchyOperation(
   ctx: MutationCtx,
-  frontier: Array<Id<"Group">>,
-  newRootGroupId: Id<"Group">,
-): Promise<Array<Id<"Group">>> {
-  const queue: Array<Id<"Group">> = [...frontier];
-  let head = 0;
-  let processed = 0;
-  let rows = 0;
-  while (head < queue.length && processed < CASCADE_NODES_PER_RUN && rows < CASCADE_ROWS_PER_RUN) {
-    const parentId = queue[head];
-    head += 1;
-    processed += 1;
-    const children = await ctx.db
-      .query("Group")
-      .withIndex("parent_group_id", (q) => q.eq("parentGroupId", parentId))
-      .take(CASCADE_MAX + 1);
-    refuseCascadeOverflow(parentId, "Group(children)", children.length);
-    rows += children.length;
-    for (const child of children) {
-      if (child.rootGroupId === newRootGroupId) continue;
-      await ctx.db.patch("Group", child._id, { rootGroupId: newRootGroupId });
-      queue.push(child._id);
-      rows += 1;
-    }
+  operation: Doc<"GroupHierarchyOperation">,
+) {
+  const work = await ctx.db
+    .query("GroupHierarchyWork")
+    .withIndex("operation_id_group_id", (q) => q.eq("operationId", operation._id))
+    .take(CLEANUP_ITEMS_PER_RUN);
+  for (const item of work) await ctx.db.delete("GroupHierarchyWork", item._id);
+  if (work.length === 0) {
+    await ctx.db.delete("GroupHierarchyOperation", operation._id);
+  } else {
+    await scheduleHierarchyOperation(ctx, operation._id);
   }
-  const remaining = queue.slice(head);
-  refuseFrontierOverflow(remaining.length);
-  return remaining;
 }
 
-/**
- * Continuation for {@link remove}: drains the remaining delete frontier a
- * budgeted batch at a time, rescheduling itself until the subtree is gone.
- */
-export const purgeGroupData = internalMutation({
-  args: { frontier: v.array(v.id("Group")) },
+/** Durable, idempotent continuation for large hierarchy operations. */
+export const processGroupHierarchy = internalMutation({
+  args: { operationId: v.id("GroupHierarchyOperation") },
   returns: v.null(),
-  handler: async (ctx, { frontier }) => {
-    const remaining = await purgeGroupSubtree(ctx, frontier);
-    if (remaining.length > 0) {
-      await ctx.scheduler.runAfter(0, internal.group.purgeGroupData, { frontier: remaining });
-    }
-    return null;
-  },
-});
-
-/**
- * Continuation for {@link update}'s re-parent re-stamp: drains the remaining
- * frontier a budgeted batch at a time, rescheduling until every descendant
- * carries the new `rootGroupId`.
- */
-export const restampGroupData = internalMutation({
-  args: { frontier: v.array(v.id("Group")), newRootGroupId: v.id("Group") },
-  returns: v.null(),
-  handler: async (ctx, { frontier, newRootGroupId }) => {
-    const remaining = await restampGroupSubtree(ctx, frontier, newRootGroupId);
-    if (remaining.length > 0) {
-      await ctx.scheduler.runAfter(0, internal.group.restampGroupData, {
-        frontier: remaining,
-        newRootGroupId,
-      });
+  handler: async (ctx, { operationId }) => {
+    const operation = await ctx.db.get("GroupHierarchyOperation", operationId);
+    if (operation === null) return null;
+    if (operation.phase === "planning") await planHierarchyOperation(ctx, operation);
+    else if (operation.phase === "applying" && operation.kind === "remove") {
+      await applyRemoval(ctx, operation);
+    } else if (operation.phase === "applying") {
+      await applyRestamp(ctx, operation);
+    } else {
+      await cleanupHierarchyOperation(ctx, operation);
     }
     return null;
   },
@@ -408,10 +565,9 @@ export const restampGroupData = internalMutation({
 /**
  * Patch fields on a group. Re-parenting (a `patch.parentGroupId`) recomputes
  * `isRoot`/`rootGroupId` and cascades the new `rootGroupId` to every
- * descendant in the moved subtree. The re-stamp is paginated across scheduled
- * continuations, so a large subtree no longer overflows a single mutation
- * (see the subtree-cascade note above); descendants converge on the new
- * `rootGroupId` asynchronously.
+ * descendant in the moved subtree. Small subtrees update atomically. Large
+ * subtrees use a durable planned work queue; stale continuations verify their
+ * target and parent lineage before writing, so a newer move always wins.
  */
 export const update = mutation({
   args: {
@@ -429,7 +585,9 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { id: groupId, patch }) => {
+    await assertGroupNotBeingRemoved(ctx, groupId);
     if (patch.parentGroupId !== undefined) {
+      await assertGroupCanAcceptChild(ctx, patch.parentGroupId);
       const oldGroup = await ctx.db.get("Group", groupId);
       const oldRootGroupId = oldGroup?.rootGroupId;
       const newParentGroupId = patch.parentGroupId as Id<"Group"> | undefined;
@@ -443,13 +601,33 @@ export const update = mutation({
       }
       patch.isRoot = newIsRoot;
       patch.rootGroupId = newRootGroupId;
-      if (oldRootGroupId && oldRootGroupId !== newRootGroupId) {
-        const remaining = await restampGroupSubtree(ctx, [groupId], newRootGroupId);
-        if (remaining.length > 0) {
-          await ctx.scheduler.runAfter(0, internal.group.restampGroupData, {
-            frontier: remaining,
+      const existingRestamp = await ctx.db
+        .query("GroupHierarchyOperation")
+        .withIndex("group_id_kind_parent_root", (q) =>
+          q
+            .eq("groupId", groupId)
+            .eq("kind", "restamp")
+            .eq("expectedParentGroupId", newParentGroupId!)
+            .eq("newRootGroupId", newRootGroupId),
+        )
+        .first();
+      if (existingRestamp !== null) {
+        await scheduleHierarchyOperation(ctx, existingRestamp._id);
+      } else if (oldRootGroupId && oldRootGroupId !== newRootGroupId) {
+        const inline = await collectInlineSubtree(ctx, groupId, false);
+        if (inline === null) {
+          await createHierarchyOperation(ctx, {
+            groupId,
+            kind: "restamp",
             newRootGroupId,
+            expectedParentGroupId: newParentGroupId!,
           });
+        } else {
+          for (const group of inline.groups) {
+            if (group._id !== groupId && group.rootGroupId !== newRootGroupId) {
+              await ctx.db.patch("Group", group._id, { rootGroupId: newRootGroupId });
+            }
+          }
         }
       }
     }
@@ -460,20 +638,37 @@ export const update = mutation({
 
 /**
  * Delete a group and cascade-delete its descendant groups, memberships, and
- * invites. The subtree is drained a budgeted batch at a time, rescheduling a
- * `purgeGroupData` continuation while nodes remain (see the subtree-cascade note
- * above), so a large tree no longer overflows a single mutation and is left
- * undeletable. The per-node `CASCADE_TOO_LARGE` guard is preserved for
- * pathological single-node fan-out.
+ * invites. Small subtrees delete atomically. Large subtrees are fully planned
+ * before application begins, then drained bottom-up through durable,
+ * idempotent continuations. Retrying `remove` resumes the same operation.
  */
 const remove = mutation({
   args: { id: v.id("Group") },
   returns: v.null(),
   handler: async (ctx, { id: groupId }) => {
-    const remaining = await purgeGroupSubtree(ctx, [groupId]);
-    if (remaining.length > 0) {
-      await ctx.scheduler.runAfter(0, internal.group.purgeGroupData, { frontier: remaining });
+    const exactOperation = await ctx.db
+      .query("GroupHierarchyOperation")
+      .withIndex("group_id_kind", (q) => q.eq("groupId", groupId).eq("kind", "remove"))
+      .first();
+    if (exactOperation !== null) {
+      await scheduleHierarchyOperation(ctx, exactOperation._id);
+      return null;
     }
+    const ancestorOperation = await activeRemovalForGroup(ctx, groupId);
+    if (ancestorOperation !== null) {
+      await scheduleHierarchyOperation(ctx, ancestorOperation._id);
+      return null;
+    }
+    if ((await ctx.db.get("Group", groupId)) === null) return null;
+
+    const inline = await collectInlineSubtree(ctx, groupId, true);
+    if (inline === null) {
+      await createHierarchyOperation(ctx, { groupId, kind: "remove" });
+      return null;
+    }
+    for (const member of inline.members) await ctx.db.delete("GroupMember", member._id);
+    for (const invite of inline.invites) await ctx.db.delete("GroupInvite", invite._id);
+    for (const group of [...inline.groups].reverse()) await ctx.db.delete("Group", group._id);
     return null;
   },
 });

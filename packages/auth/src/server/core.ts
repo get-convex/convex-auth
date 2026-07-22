@@ -106,13 +106,6 @@ export function createCoreDomains(deps: CoreDeps) {
     { label?: string; grants: string[] }
   >;
 
-  // Whether the app declared any grants or roles. When it did not, there is
-  // nothing to authorize against, so `getAuthContextForUser` can skip the
-  // per-request membership read entirely (it always keeps the user read). This
-  // rides on the resolver object; it defaults to full resolution when absent.
-  const permissionsConfigured =
-    (config.permissions.grants?.length ?? 0) > 0 || Object.keys(roleDefinitions).length > 0;
-
   const getRoleDefinition = (roleId: string) => {
     return roleDefinitions[roleId] ?? null;
   };
@@ -352,6 +345,5 @@ export function createCoreDomains(deps: CoreDeps) {
     key,
     active,
     oauth,
-    permissionsConfigured,
   };
 }

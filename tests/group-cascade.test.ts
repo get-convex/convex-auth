@@ -1,6 +1,6 @@
 import { components } from "@convex/_generated/api";
 import schema from "@convex/schema";
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 
 import { convexTest } from "./convex/setup";
 
@@ -147,4 +147,103 @@ test("group.update re-parent re-stamps rootGroupId across the moved subtree", as
   expect(childDoc.rootGroupId).toBe(root2);
   expect(childDoc.parentGroupId).toBe(root2);
   expect(grandchildDoc.rootGroupId).toBe(root2); // re-stamped through the cascade
+});
+
+test("large group removal is durable and duplicate continuations are idempotent", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema);
+    const { root, children } = await t.run(async (ctx: any) => {
+      const root = await ctx.runMutation(components.auth.group.create, {
+        name: "Large removal root",
+      });
+      const children: string[] = [];
+      for (let index = 0; index < 49; index += 1) {
+        children.push(
+          await ctx.runMutation(components.auth.group.create, {
+            name: `Large removal child ${index}`,
+            parentGroupId: root,
+          }),
+        );
+      }
+      return { root, children };
+    });
+
+    await t.run(async (ctx: any) => {
+      await ctx.runMutation(components.auth.group.remove, { id: root });
+      // A caller retry may enqueue the same operation again. Both jobs must be
+      // harmless and converge on one deletion.
+      await ctx.runMutation(components.auth.group.remove, { id: root });
+    });
+
+    const beforeContinuation = await t.run(async (ctx: any) =>
+      ctx.runQuery(components.auth.group.get, { id: root }),
+    );
+    expect(beforeContinuation).not.toBeNull();
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const remaining = await t.run(async (ctx: any) =>
+      Promise.all([root, ...children].map((id) => ctx.runQuery(components.auth.group.get, { id }))),
+    );
+    expect(remaining.every((group) => group === null)).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("stale large re-parent continuations cannot overwrite a newer move", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema);
+    const { root2, root3, moved, descendants } = await t.run(async (ctx: any) => {
+      const root1 = await ctx.runMutation(components.auth.group.create, { name: "Root 1" });
+      const root2 = await ctx.runMutation(components.auth.group.create, { name: "Root 2" });
+      const root3 = await ctx.runMutation(components.auth.group.create, { name: "Root 3" });
+      const moved = await ctx.runMutation(components.auth.group.create, {
+        name: "Moved subtree",
+        parentGroupId: root1,
+      });
+      const descendants: string[] = [];
+      for (let index = 0; index < 49; index += 1) {
+        descendants.push(
+          await ctx.runMutation(components.auth.group.create, {
+            name: `Moved descendant ${index}`,
+            parentGroupId: moved,
+          }),
+        );
+      }
+      return { root1, root2, root3, moved, descendants };
+    });
+
+    await t.run(async (ctx: any) => {
+      await ctx.runMutation(components.auth.group.update, {
+        id: moved,
+        patch: { parentGroupId: root2 },
+      });
+      await ctx.runMutation(components.auth.group.update, {
+        id: moved,
+        patch: { parentGroupId: root3 },
+      });
+      // Retrying the winning move must resume its durable operation even though
+      // the target group's own root stamp was already committed.
+      await ctx.runMutation(components.auth.group.update, {
+        id: moved,
+        patch: { parentGroupId: root3 },
+      });
+    });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const [movedDoc, ...descendantDocs] = await t.run(async (ctx: any) =>
+      Promise.all(
+        [moved, ...descendants].map((id) => ctx.runQuery(components.auth.group.get, { id })),
+      ),
+    );
+    expect(movedDoc.parentGroupId).toBe(root3);
+    expect(movedDoc.rootGroupId).toBe(root3);
+    expect(descendantDocs.every((group) => group.rootGroupId === root3)).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -22,6 +22,27 @@ import {
   vPaginated,
 } from "../model";
 
+type ApiKeyRateLimit = { maxRequests: number; windowMs: number };
+
+function isValidRateLimit(rateLimit: ApiKeyRateLimit): boolean {
+  return (
+    Number.isSafeInteger(rateLimit.maxRequests) &&
+    rateLimit.maxRequests > 0 &&
+    Number.isFinite(rateLimit.windowMs) &&
+    rateLimit.windowMs > 0
+  );
+}
+
+function assertValidRateLimit(rateLimit: ApiKeyRateLimit | undefined): void {
+  if (rateLimit !== undefined && !isValidRateLimit(rateLimit)) {
+    throw new ConvexError({
+      code: ErrorCode.INVALID_PARAMETERS,
+      message:
+        "API key rate limits require a positive integer maxRequests and positive finite windowMs.",
+    });
+  }
+}
+
 /**
  * Read an API key by id, or by `hashedKey` when given. Returns `null` when no
  * selector matches.
@@ -111,6 +132,7 @@ export const create = mutation({
   },
   returns: v.id("ApiKey"),
   handler: async (ctx, args) => {
+    assertValidRateLimit(args.rateLimit);
     return await ctx.db.insert("ApiKey", {
       ...args,
       createdAt: Date.now(),
@@ -134,6 +156,7 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, { id: keyId, patch }) => {
+    assertValidRateLimit(patch.rateLimit);
     const key = await ctx.db.get("ApiKey", keyId);
     if (key === null) {
       throw new ConvexError({
@@ -160,12 +183,19 @@ export const update = mutation({
  * check-and-decrement here closes that window: the row's transaction serializes
  * concurrent callers, so each consumes its own token.
  *
- * Returns `{ limited: true }` WITHOUT writing when the bucket is empty (mirroring
- * the facade's prior behavior of throwing before its update on the limited
- * branch); otherwise decrements the bucket (when configured) and refreshes
- * `lastUsedAt`. The token bucket refills linearly over the configured window
- * (the same algorithm as sign-in rate limiting); the math is inlined here
- * because component code cannot import from the server bundle.
+ * The verification decision is made from the same transactional snapshot as
+ * the rate-limit update. In particular, the mutation re-checks deletion,
+ * revocation, expiration, and the current scopes instead of trusting the
+ * facade's earlier hash lookup. A successful result returns the current owner
+ * and scopes so a concurrent scope reduction cannot authenticate with stale
+ * permissions.
+ *
+ * Returns `{ status: "limited" }` WITHOUT writing when the bucket is empty
+ * (mirroring the facade's prior behavior of throwing before its update on the
+ * limited branch); otherwise decrements the bucket (when configured) and
+ * refreshes `lastUsedAt`. The token bucket refills linearly over the configured
+ * window (the same algorithm as sign-in rate limiting); the math is inlined
+ * here because component code cannot import from the server bundle.
  *
  * `lastUsedAt` is coarsened by the optional `coarsenMs` window: it is only
  * rewritten when unset or older than the window, so read-only bearer traffic on
@@ -175,19 +205,45 @@ export const update = mutation({
  */
 export const recordUse = mutation({
   args: { id: v.id("ApiKey"), now: v.number(), coarsenMs: v.optional(v.number()) },
-  returns: v.object({ limited: v.boolean() }),
-  handler: async (ctx, { id: keyId, now, coarsenMs }) => {
+  returns: v.union(
+    v.object({ status: v.literal("invalid") }),
+    v.object({ status: v.literal("revoked") }),
+    v.object({ status: v.literal("expired") }),
+    v.object({ status: v.literal("limited") }),
+    v.object({
+      status: v.literal("verified"),
+      keyId: v.id("ApiKey"),
+      userId: v.id("User"),
+      scopes: v.array(vApiKeyScope),
+    }),
+  ),
+  handler: async (ctx, { id: keyId, coarsenMs }) => {
+    // Use the mutation's trusted transaction clock for validity and bucket
+    // math. `now` remains in the argument shape for compatibility with the
+    // existing component reference, but callers cannot use it to bypass
+    // expiration or refill a bucket from an arbitrary timestamp.
+    const now = Date.now();
     const key = await ctx.db.get("ApiKey", keyId);
     if (key === null) {
-      // Raced with a delete between the facade's read and this mutation; there
-      // is nothing left to enforce or stamp.
-      return { limited: false };
+      return { status: "invalid" as const };
+    }
+    if (key.revoked) {
+      return { status: "revoked" as const };
+    }
+    if (key.expiresAt !== undefined && key.expiresAt < now) {
+      return { status: "expired" as const };
     }
     const patch: {
       rateLimitState?: { attemptsLeft: number; lastAttemptTime: number };
       lastUsedAt?: number;
     } = {};
     if (key.rateLimit) {
+      // Legacy rows may predate write-time validation. Treat malformed
+      // configuration or bucket state as exhausted instead of letting NaN,
+      // infinity, or a non-positive limit authenticate a request.
+      if (!isValidRateLimit(key.rateLimit)) {
+        return { status: "limited" as const };
+      }
       const state = key.rateLimitState;
       if (!state) {
         patch.rateLimitState = {
@@ -195,16 +251,30 @@ export const recordUse = mutation({
           lastAttemptTime: now,
         };
       } else {
-        const elapsed = now - state.lastAttemptTime;
+        if (
+          !Number.isFinite(state.attemptsLeft) ||
+          state.attemptsLeft < 0 ||
+          !Number.isFinite(state.lastAttemptTime) ||
+          state.lastAttemptTime < 0
+        ) {
+          return { status: "limited" as const };
+        }
+        const elapsed = Math.max(0, now - state.lastAttemptTime);
         const refillRate = key.rateLimit.maxRequests / key.rateLimit.windowMs;
+        if (!Number.isFinite(refillRate)) {
+          return { status: "limited" as const };
+        }
         const refilled = Math.min(
           key.rateLimit.maxRequests,
           state.attemptsLeft + elapsed * refillRate,
         );
+        if (!Number.isFinite(refilled)) {
+          return { status: "limited" as const };
+        }
         if (refilled < 1) {
           // Bucket empty: reject WITHOUT writing (matches the prior facade,
           // which threw before its single `update`, leaving state untouched).
-          return { limited: true };
+          return { status: "limited" as const };
         }
         patch.rateLimitState = { attemptsLeft: refilled - 1, lastAttemptTime: now };
       }
@@ -220,10 +290,83 @@ export const recordUse = mutation({
     // Nothing to persist — no rate-limit decrement and `lastUsedAt` still fresh:
     // the hot path stays read-only.
     if (patch.rateLimitState === undefined && patch.lastUsedAt === undefined) {
-      return { limited: false };
+      return {
+        status: "verified" as const,
+        keyId: key._id,
+        userId: key.userId,
+        scopes: key.scopes,
+      };
     }
     await ctx.db.patch("ApiKey", keyId, patch);
-    return { limited: false };
+    return {
+      status: "verified" as const,
+      keyId: key._id,
+      userId: key.userId,
+      scopes: key.scopes,
+    };
+  },
+});
+
+/**
+ * Atomically revoke an active API key and create its replacement.
+ *
+ * The caller pre-generates the replacement secret and passes only its hash and
+ * display prefix. Reading the old row, validating its state, revoking it, and
+ * inserting the replacement happen in one transaction, so concurrent rotations
+ * cannot both mint a usable successor and an insert failure cannot strand the
+ * caller with a revoked key and no replacement.
+ */
+export const rotate = mutation({
+  args: {
+    id: v.id("ApiKey"),
+    prefix: v.string(),
+    hashedKey: v.string(),
+    name: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+  },
+  returns: v.union(
+    v.object({ status: v.literal("invalid") }),
+    v.object({ status: v.literal("revoked") }),
+    v.object({ status: v.literal("invalid_rate_limit") }),
+    v.object({
+      status: v.literal("rotated"),
+      id: v.id("ApiKey"),
+      userId: v.id("User"),
+      name: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get("ApiKey", args.id);
+    if (existing === null) {
+      return { status: "invalid" as const };
+    }
+    if (existing.revoked) {
+      return { status: "revoked" as const };
+    }
+    if (existing.rateLimit !== undefined && !isValidRateLimit(existing.rateLimit)) {
+      return { status: "invalid_rate_limit" as const };
+    }
+
+    const name = args.name ?? existing.name;
+    await ctx.db.patch("ApiKey", existing._id, { revoked: true });
+    const id = await ctx.db.insert("ApiKey", {
+      userId: existing.userId,
+      prefix: args.prefix,
+      hashedKey: args.hashedKey,
+      name,
+      scopes: existing.scopes,
+      rateLimit: existing.rateLimit,
+      expiresAt: args.expiresAt,
+      createdAt: Date.now(),
+      revoked: false,
+      extend: existing.extend,
+    });
+    return {
+      status: "rotated" as const,
+      id,
+      userId: existing.userId,
+      name,
+    };
   },
 });
 

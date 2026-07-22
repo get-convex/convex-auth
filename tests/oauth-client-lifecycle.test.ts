@@ -96,3 +96,17 @@ test("client.prune respects `before`: too-recent revoked clients are kept", asyn
   expect(result.deleted).toBe(0);
   expect(await getClient(t, "oc_recent")).not.toBeNull();
 });
+
+test("client.prune default preserves newly revoked clients for audit retention", async () => {
+  const t = convexTest(schema);
+  await createClient(t, { clientId: "oc_audit", name: "Audit", scopes: [] });
+  await t.run(async (ctx: any) =>
+    ctx.runMutation(components.auth.oauth.client.revoke, { clientId: "oc_audit" }),
+  );
+
+  const result: any = await t.run(async (ctx: any) => ctx.runMutation(clientApi().prune, {}));
+  expect(result.deleted).toBe(0);
+  const retained: any = await getClient(t, "oc_audit");
+  expect(retained).not.toBeNull();
+  expect(retained.revokedAt).toEqual(expect.any(Number));
+});

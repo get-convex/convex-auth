@@ -26,7 +26,7 @@
  * @module
  */
 
-type Ipv4Kind = "public" | "private" | "loopback" | "linkLocal";
+type Ipv4Kind = "public" | "private" | "loopback" | "linkLocal" | "nonRoutable";
 
 /**
  * Single canonical rejection reason for internal SSRF targets. Kept as one
@@ -45,7 +45,7 @@ function classifyIpv4(host: string): Ipv4Kind | null {
   if (octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
     return null;
   }
-  const [a, b] = octets;
+  const [a, b, c] = octets;
   if (a === 127 || a === 0) {
     return "loopback";
   }
@@ -62,6 +62,20 @@ function classifyIpv4(host: string): Ipv4Kind | null {
   // 100.64.0.0/10 — RFC 6598 carrier-grade NAT / shared address space.
   if (a === 100 && b >= 64 && b <= 127) {
     return "private";
+  }
+  // Protocol assignments, documentation/test networks, benchmarking space,
+  // multicast, and reserved IPv4 are not public-unicast fetch targets. Some
+  // private platforms route these ranges internally, so treating them as
+  // public leaves an SSRF path even though they are not RFC1918.
+  if (
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 192 && b === 88 && c === 99) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224
+  ) {
+    return "nonRoutable";
   }
   return "public";
 }
@@ -81,7 +95,9 @@ function ipv4KindFromMappedIpv6(inner: string): Ipv4Kind | null {
 
 /** True when an IPv4 classification is a blocked (non-public) SSRF target. */
 function isBlockedIpv4Kind(kind: Ipv4Kind | null): boolean {
-  return kind === "loopback" || kind === "linkLocal" || kind === "private";
+  return (
+    kind === "loopback" || kind === "linkLocal" || kind === "private" || kind === "nonRoutable"
+  );
 }
 
 /**
@@ -222,6 +238,11 @@ function unsafeHostReason(
   if (/^f[cd][0-9a-f]{2}:/.test(hostname)) {
     return INTERNAL_TARGET_REASON;
   }
+  // Deprecated site-local unicast (`fec0::/10`) and multicast (`ff00::/8`)
+  // are likewise never valid public HTTP destinations.
+  if (/^fe[c-f][0-9a-f]:/.test(hostname) || /^ff[0-9a-f]{2}:/.test(hostname)) {
+    return INTERNAL_TARGET_REASON;
+  }
 
   // Wildcard-DNS hostnames that embed a private IPv4 in the label (nip.io /
   // sslip.io). Best-effort literal scan only; see the module note on the
@@ -257,9 +278,10 @@ function unsafeFetchUrlReasonWithPolicy(url: string, policy: FetchUrlPolicy): st
  * single-label hosts plus hostnames that are obviously internal targets:
  * `localhost` and `*.localhost`, `*.internal`, `*.local`, IP literals in
  * loopback/private/link-local/CGNAT ranges (`127.0.0.0/8`, `0.0.0.0/8`, `10/8`,
- * `172.16/12`, `192.168/16`, `100.64/10`, `169.254/16` including the
+ * `172.16/12`, `192.168/16`, `100.64/10`, `169.254/16`, protocol/test,
+ * benchmarking, multicast, and reserved ranges including the
  * `169.254.169.254` cloud-metadata address, `::1`, `fc00::/7`, `fe80::/10`, and
- * `::ffff:`-mapped IPv4), and IPv4 addresses embedded in wildcard-DNS hostnames
+ * `::ffff:`-mapped IPv4, site-local and multicast IPv6), and IPv4 addresses embedded in wildcard-DNS hostnames
  * (e.g. `169-254-169-254.nip.io`).
  *
  * This is literal validation only; see the module note for the residual

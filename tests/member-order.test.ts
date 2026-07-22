@@ -52,3 +52,39 @@ test("member.list honors orderBy: 'status' (group-scoped)", async () => {
   expect(statusesInOrder).toEqual([...statusesInOrder].sort());
   expect(statusesInOrder).toEqual(["active", "invited", "suspended"]);
 });
+
+test("member.list honors orderBy: 'status' globally and when user-scoped", async () => {
+  const t = convexTest(schema);
+  const { userId } = await t.run(async (ctx) => {
+    const userId = await ctx.runMutation(components.auth.user.create, {
+      data: { email: "status-order@example.com" },
+    });
+    for (const [index, status] of ["suspended", "active", "invited"].entries()) {
+      const groupId = await ctx.runMutation(components.auth.group.create, {
+        name: `Group ${index}`,
+        slug: `status-group-${index}`,
+      });
+      await ctx.runMutation(components.auth.group.member.create, {
+        groupId,
+        userId,
+        status,
+        roleIds: [],
+      });
+    }
+    return { userId };
+  });
+
+  for (const where of [undefined, { userId }] as const) {
+    const result = (await t.run((ctx) =>
+      ctx.runQuery(components.auth.group.member.list, {
+        ...(where === undefined ? {} : { where }),
+        paginationOpts: { numItems: 10, cursor: null },
+        orderBy: "status",
+        order: "asc",
+      }),
+    )) as { page: Array<{ status?: string; userId: string }> };
+    const page =
+      where === undefined ? result.page.filter((member) => member.userId === userId) : result.page;
+    expect(page.map((member) => member.status)).toEqual(["active", "invited", "suspended"]);
+  }
+});

@@ -576,18 +576,28 @@ export async function handlePasskey(
       );
     }
 
-    await resetSignInRateLimit(ctx, passkey.userId, ctx.auth.config);
-
     try {
-      await mutatePasskeyUpdateCounter(
+      const counterAccepted = await mutatePasskeyUpdateCounter(
         ctx,
         passkey._id,
         authenticatorData.signatureCounter,
         Date.now(),
       );
+      if (!counterAccepted) {
+        throw convexError(
+          ErrorCode.PASSKEY_COUNTER_ERROR,
+          "Authenticator counter did not increase — possible credential cloning detected.",
+        );
+      }
     } catch (error) {
+      if (error instanceof ConvexError) throw error;
       throw asConvexError(error, ErrorCode.INTERNAL_ERROR, "Failed to update passkey counter.");
     }
+
+    // Only the assertion that won the atomic counter transition may refund the
+    // reserved attempt. A concurrent stale assertion must not clear the shared
+    // rate-limit bucket before it is rejected above.
+    await resetSignInRateLimit(ctx, passkey.userId, ctx.auth.config);
 
     let signInResult;
     try {
