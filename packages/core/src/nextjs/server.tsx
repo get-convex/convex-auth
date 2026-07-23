@@ -17,13 +17,14 @@ import { ConvexHttpClient } from "convex/browser";
 import { cookies as nextCookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ReactNode } from "react";
-import type { RefreshSessionFn } from "../lib/types";
+import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types";
 import {
   AUTH_JWT_COOKIE,
   AuthCookieOptions,
   CookieOptions,
   CookieStore,
 } from "../server/cookies";
+import { createServerAuthChecker } from "../server/isAuthenticated";
 import { isTokenExpiring } from "../server/jwt";
 import { ServerAuthSession } from "../server/session";
 
@@ -34,6 +35,10 @@ export interface ConvexAuthNextjsConfig {
   /** The app's `refreshSession` mutation reference. The middleware uses it for
    * its optimistic refresh. */
   refreshSession: RefreshSessionFn;
+  /** The app's `isAuthenticated` query reference. Used to verify the access
+   * token against the backend (which checks its signature) rather than trusting
+   * the cookie by decoding it. */
+  isAuthenticated: IsAuthenticatedFn;
   /** Overrides the default auth cookie attributes. */
   cookieOptions?: CookieOptions;
 }
@@ -138,6 +143,13 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
       cookieOptions,
     });
 
+  // Verifies an access token against the backend (which checks its signature),
+  // so a forged cookie can't fake authentication.
+  const checkAuthenticated = createServerAuthChecker({
+    convexUrl: config.convexUrl,
+    isAuthenticated: config.isAuthenticated,
+  });
+
   /** Wrap Next.js middleware to refresh the session up front (so downstream
    * Server Components see a fresh token) and optionally run redirect logic. */
   function convexAuthNextjsMiddleware(
@@ -151,7 +163,8 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
       let response: NextResponse | undefined;
       if (handler) {
         const result = await handler(request, {
-          isAuthenticated: () => session.isAuthenticated(),
+          isAuthenticated: async () =>
+            checkAuthenticated(await session.getToken()),
           getToken: () => session.getToken(),
         });
         if (result) response = result;
@@ -162,16 +175,29 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
     };
   }
 
-  /** The current access token in a Server Component, or null. Never triggers a
-   * refresh (the middleware does that); returns null for an expired token. */
+  /**
+   * The current access token in a Server Component, or null. Never triggers a
+   * refresh (the middleware does that); returns null for an expired token.
+   *
+   * The token is returned after only a local expiry check, not a signature
+   * check — that is safe because its only use is to authenticate a request to
+   * the Convex backend (e.g. `preloadQuery`), which verifies the signature
+   * itself. To decide *authentication state* server-side, use
+   * {@link isAuthenticatedNextjs} instead, which verifies against the backend.
+   */
   async function convexAuthNextjsAccessToken(): Promise<string | null> {
     // `cookies()` is sync on Next 14 and async on Next 15; `await` covers both.
     const token = (await nextCookies()).get(AUTH_JWT_COOKIE)?.value ?? null;
     return token !== null && !isTokenExpiring(token, 0) ? token : null;
   }
 
+  /**
+   * Whether the current request carries a valid, signed-in session. Verifies
+   * the cookie's access token against the backend (which checks its signature),
+   * so a forged cookie can't fake authentication.
+   */
   async function isAuthenticatedNextjs(): Promise<boolean> {
-    return (await convexAuthNextjsAccessToken()) !== null;
+    return checkAuthenticated(await convexAuthNextjsAccessToken());
   }
 
   /** Server Component that reads the cookie token and renders the client
