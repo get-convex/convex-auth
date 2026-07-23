@@ -71,6 +71,17 @@ export type SignOutFn = FunctionReference<
 >;
 
 /**
+ * The app's `isAuthenticated` query reference: reports whether the access token
+ * the query is called with identifies a signed-in user.
+ */
+export type IsAuthenticatedFn = FunctionReference<
+  "query",
+  "public",
+  Record<string, never>,
+  boolean
+>;
+
+/**
  * The auth mutations the app exports from `setupCore(...).attachUserCallback`.
  * Passed as references (not names) because an app may re-export them under any
  * names. Consumed by both SPA and SSR implementations.
