@@ -114,12 +114,6 @@ export class ServerAuthSession {
     await writeAuthCookies(this.#cookies, bundle, this.#cookieOptions);
   }
 
-  /** Whether a non-expired access token is present in cookies. */
-  async isAuthenticated(): Promise<boolean> {
-    const token = (await this.#cookies.get(AUTH_JWT_COOKIE)) ?? null;
-    return token !== null && !isTokenExpiring(token, 0);
-  }
-
   /** Deletes the cookies. This will be reflected in the eventual response. */
   async #clear(): Promise<void> {
     await clearAuthCookies(this.#cookies);

@@ -1,9 +1,11 @@
 /**
  * Framework-agnostic server (SSR) building blocks for Convex Auth: a cookie
  * abstraction, a WHATWG `Request`/`Response` cookie adapter, access-token
- * inspection, the {@link ServerAuthSession} that ties them together, the
- * provider-agnostic `(Request) => Response` refresh/sign-out handlers, and the
- * {@link setupConvexAuthServer} factory that configures them (and sign-in) once.
+ * inspection, the {@link ServerAuthSession} that owns the refresh lifecycle,
+ * the {@link createServerAuthChecker} that verifies an access token against the
+ * backend, the provider-agnostic `(Request) => Response` refresh/sign-out
+ * handlers, and the {@link setupConvexAuthServer} factory that configures them
+ * (and sign-in) once.
  *
  * @module
  */
@@ -41,8 +43,14 @@ export {
   type RefreshSession,
   type ServerAuthSessionConfig,
 } from "./session";
+export {
+  createServerAuthChecker,
+  type ServerAuthChecker,
+  type ServerAuthCheckerConfig,
+} from "./isAuthenticated";
 export type {
   ConvexAuthApi,
+  IsAuthenticatedFn,
   RefreshSessionFn,
   SignOutFn,
   SlimTokenBundle,

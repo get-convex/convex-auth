@@ -145,18 +145,4 @@ describe("ServerAuthSession", () => {
     expect(cookies.options.get(AUTH_JWT_COOKIE)?.httpOnly).toBe(true);
     expect(cookies.options.get(AUTH_REFRESH_COOKIE)?.httpOnly).toBe(true);
   });
-
-  test("isAuthenticated reflects a non-expired JWT cookie", async () => {
-    vi.spyOn(Date, "now").mockReturnValue(nowMs);
-    const cookies = new FakeCookies();
-    const { session } = newSession(undefined, cookies);
-    expect(await session.isAuthenticated()).toBe(false);
-
-    cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 60));
-    expect(await session.isAuthenticated()).toBe(true);
-
-    cookies.set(AUTH_JWT_COOKIE, jwt(NOW - 1));
-    expect(await session.isAuthenticated()).toBe(false);
-    vi.restoreAllMocks();
-  });
 });

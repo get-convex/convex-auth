@@ -1,7 +1,9 @@
 import {
   mutationGeneric,
+  queryGeneric,
   createFunctionHandle,
   RegisteredMutation,
+  RegisteredQuery,
 } from "convex/server";
 import { v } from "convex/values";
 import type { ComponentApi } from "./_generated/component";
@@ -63,6 +65,20 @@ type AuthApi<T extends readonly ProviderWithOptions[]> = {
     "public",
     { refreshToken: string },
     Promise<TokenBundle | null>
+  >;
+  /**
+   * Reports whether the caller's access token identifies a signed-in user.
+   *
+   * Convex verifies the token's signature (against the deployment's JWKS)
+   * before this query runs, so the result is a trustworthy authentication
+   * verdict. SSR hosts call it with the token from the auth cookie to decide
+   * authentication state, rather than trusting the (client-controlled) cookie
+   * by merely decoding it.
+   */
+  isAuthenticated: RegisteredQuery<
+    "public",
+    Record<string, never>,
+    Promise<boolean>
   >;
   /**
    * The auth APIs that each provider exposes.
@@ -251,9 +267,22 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
       },
     });
 
+    // Runs at the app deployment level (not inside the component) because only
+    // there does `ctx.auth` reflect the caller's verified identity: Convex
+    // checks the access token's signature against the deployment JWKS before
+    // the handler runs, so a forged/unsigned token yields no identity here.
+    const isAuthenticated = queryGeneric({
+      args: {},
+      returns: v.boolean(),
+      handler: async (ctx): Promise<boolean> => {
+        return (await ctx.auth.getUserIdentity()) !== null;
+      },
+    });
+
     return {
       refreshSession,
       signOut,
+      isAuthenticated,
       providers: result as ProviderApis<T>,
     };
   };
