@@ -8,6 +8,7 @@ import { Anonymous } from "@convex-dev/auth/providers/anonymous/setup";
 export const {
   signOut,
   refreshSession,
+  isAuthenticated,
   providers: {
     anonymous: { signInAnonymous },
   },
