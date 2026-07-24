@@ -24,7 +24,7 @@ import { useAuthActions } from "../../react";
 import type { SignInResult, SignUpResult } from "./setup";
 
 /** The `(username, password)` pair both flows accept. */
-type Credentials = { username: string; password: string };
+export type Credentials = { username: string; password: string };
 
 /**
  * The `signInWithPassword` mutation the app re-exports from its `setupCore`.

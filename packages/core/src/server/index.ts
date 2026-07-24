@@ -25,6 +25,7 @@ export { isTrustedOrigin } from "./origin";
 export {
   type RefreshHandlerConfig,
   type RequestHandler,
+  type SignInOutcome,
   type SignOutHandlerConfig,
   refreshHandler,
   signInResponse,

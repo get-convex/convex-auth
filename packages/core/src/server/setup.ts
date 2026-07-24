@@ -14,15 +14,18 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import type { RefreshSessionFn, SignOutFn, TokenBundle } from "../lib/types";
+import type { RefreshSessionFn, SignOutFn } from "../lib/types";
 import type { AuthCookieOptions } from "./cookies";
 import {
   type RequestHandler,
+  type SignInOutcome,
   refreshHandler,
   signInResponse,
   signOutHandler,
 } from "./handlers";
 import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
+
+export type { SignInOutcome } from "./handlers";
 
 /**
  * A provider's server-side sign-in descriptor: how to execute its sign-in
@@ -30,9 +33,10 @@ import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
  * setupConvexAuthServer}'s `signInHandler` wraps it into a route.
  *
  * `run` owns the whole provider-specific half — reading any input off the
- * request and making the mutation call that mints the {@link TokenBundle}. The
- * handler stays provider-agnostic: it writes the bundle's tokens into cookies,
- * never letting the refresh token reach the response body.
+ * request and making the Convex call (mutation or action), mapping its result
+ * into a {@link SignInOutcome}. The handler stays provider-agnostic: it writes
+ * the outcome's tokens into cookies (never letting the refresh token reach the
+ * response body) and echoes the outcome's `userError`, if any, to the client.
  *
  * A request that isn't even shaped like the provider's input is the caller's
  * error, not a failed sign-in attempt — signal it by throwing {@link
@@ -40,10 +44,7 @@ import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
  */
 export type SignInProvider = {
   /** Execute the provider's sign-in against the deployment. */
-  run: (
-    client: ConvexHttpClient,
-    request: Request,
-  ) => Promise<TokenBundle | null>;
+  run: (client: ConvexHttpClient, request: Request) => Promise<SignInOutcome>;
 };
 
 const INVALID_SIGN_IN_REQUEST_MARKER = "ConvexAuthInvalidSignInRequest";
@@ -124,14 +125,14 @@ export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
         if (!isTrustedOrigin(request, allowedOrigins)) {
           return forbiddenOriginResponse();
         }
-        let bundle: TokenBundle | null;
+        let outcome: SignInOutcome;
         try {
-          bundle = await provider.run(client, request);
+          outcome = await provider.run(client, request);
         } catch (error) {
           if (!isInvalidSignInRequestError(error)) throw error;
           return Response.json({ tokens: null }, { status: 400 });
         }
-        return signInResponse(request, bundle, cookieOptions);
+        return signInResponse(request, outcome, cookieOptions);
       };
     },
   };
