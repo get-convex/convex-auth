@@ -25,9 +25,11 @@
 "use client";
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { ReactNode, useCallback, useMemo } from "react";
+import { ReactNode, useCallback, useMemo, useState } from "react";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
+import type { Credentials } from "../components/password/react";
+import type { SignInResult, SignUpResult } from "../components/password/setup";
 import type { SlimTokenBundle } from "../lib/types";
 import { useAuthActions } from "../react";
 import { AuthProvider, useAuth } from "../react/client";
@@ -37,13 +39,15 @@ export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export { useAuthActions, useAuthToken } from "../react";
 
 /**
- * POST JSON to an auth route and read back the result with the access token.
+ * POST JSON to an auth route and read back the result: the access-only tokens
+ * on success, or `tokens: null` with the provider's `userError`, if it gave
+ * one, on failure.
  *
- * The auth routes reply with the same JSON shape on failure as on success —
- * a failed sign-in or refresh is a 401 carrying `{ tokens: null }` plus any
+ * The auth routes reply with the same JSON shape on failure as on success — a
+ * failed sign-in or refresh is a 401 carrying `{ tokens: null }` plus any
  * provider `userError` — so parse the body regardless of status. Anything
  * without a JSON body (a proxy 5xx, a network-level error page) degrades to
- * `{ tokens: null }`.
+ * `{ tokens: null }`; network errors propagate to the caller.
  */
 async function postAuth(
   route: string,
@@ -148,4 +152,129 @@ export function useAnonymousAuth(options?: { route?: string }) {
     if (tokens) await setSession(tokens);
   }, [setSession, route]);
   return { signInAnonymous };
+}
+
+/** The password provider's failure arm for a given flow's result. */
+type PasswordFailure<Result> = Extract<Result, { success: false }>;
+
+/**
+ * A failure the client produces that the server never returns: the POST to the
+ * sign-in route threw or came back with neither tokens nor a `userError`.
+ * Folding it into the result as `OTHER_ERROR` keeps every failure on the one
+ * `userError` switch, exactly like the client-direct password hooks.
+ */
+type UnexpectedFailure = {
+  success: false;
+  userError: { error: "OTHER_ERROR"; cause: unknown };
+};
+
+/**
+ * The result of the `signIn` callback from {@link useSignInWithPassword}.
+ *
+ * Unlike the client-direct result, success carries no tokens: under SSR the
+ * refresh token stays in the httpOnly cookie and the hook has already adopted
+ * the access-only session.
+ */
+export type SignInWithPasswordResult =
+  | { success: true }
+  | PasswordFailure<SignInResult>
+  | UnexpectedFailure;
+
+/** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
+export type SignUpWithPasswordResult =
+  | { success: true }
+  | PasswordFailure<SignUpResult>
+  | UnexpectedFailure;
+
+/**
+ * Shared internals for the two password flows: POST the credentials to the
+ * flow's route, adopt the access-only session on success, and surface the
+ * route's `userError` (or fold an unexpected failure into `OTHER_ERROR`).
+ */
+function usePasswordRoute<Failure extends { success: false }>(route: string) {
+  const { setSession } = useAuthActions();
+  const [pending, setPending] = useState(false);
+
+  const run = useCallback(
+    async (
+      credentials: Credentials,
+    ): Promise<{ success: true } | Failure | UnexpectedFailure> => {
+      setPending(true);
+      try {
+        const { tokens, userError } = await postAuth(route, credentials);
+        if (tokens) {
+          await setSession(tokens);
+          return { success: true };
+        }
+        if (userError !== undefined) {
+          // The route echoes the password action's `userError` verbatim; the
+          // cast trusts that `route` mounts the matching password handler.
+          return { success: false, userError } as unknown as Failure;
+        }
+        return {
+          success: false,
+          userError: {
+            error: "OTHER_ERROR",
+            cause: new Error(
+              `sign-in route ${route} returned neither tokens nor a userError`,
+            ),
+          },
+        };
+      } catch (cause) {
+        return { success: false, userError: { error: "OTHER_ERROR", cause } };
+      } finally {
+        setPending(false);
+      }
+    },
+    [route, setSession],
+  );
+
+  return { run, pending };
+}
+
+/**
+ * SSR sibling of the password provider's client-direct `useSignInWithPassword`
+ * (`@convex-dev/auth/providers/password/react`).
+ *
+ * Sign-in runs on the SSR host: this POSTs the credentials to the password
+ * sign-in route (where the `passwordSignIn` descriptor is mounted via
+ * `signInHandler`) and adopts the access-only session it returns. The result
+ * mirrors the client-direct hook's, so error-mapping UI ports over unchanged —
+ * except that success carries no tokens.
+ *
+ * ```tsx
+ * const { signIn, pending } = useSignInWithPassword();
+ * const result = await signIn({ username, password });
+ * if (!result.success) {
+ *   // map result.userError to a message
+ * }
+ * ```
+ */
+export function useSignInWithPassword(options?: { route?: string }) {
+  const { run, pending } = usePasswordRoute<PasswordFailure<SignInResult>>(
+    options?.route ?? "/auth/signin/password",
+  );
+  return {
+    /** POST the credentials to the sign-in route; see {@link SignInWithPasswordResult}. */
+    signIn: run,
+    /** `true` while the sign-in attempt is being validated. */
+    pending,
+  };
+}
+
+/**
+ * SSR sibling of the password provider's client-direct `useSignUpWithPassword`
+ * (`@convex-dev/auth/providers/password/react`); the sign-up counterpart of
+ * {@link useSignInWithPassword}, POSTing to the `passwordSignUp` route.
+ */
+export function useSignUpWithPassword(options?: { route?: string }) {
+  const { run, pending } = usePasswordRoute<PasswordFailure<SignUpResult>>(
+    options?.route ?? "/auth/signup/password",
+  );
+  return {
+    /** POST the credentials to the sign-up route; see {@link SignUpWithPasswordResult}. */
+    signUp: run,
+    /** `true` while the sign-up attempt is being validated. */
+    pending,
+  };
 }
