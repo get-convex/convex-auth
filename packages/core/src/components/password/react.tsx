@@ -24,12 +24,12 @@ import { useAuthActions } from "../../react";
 import type { SignInResult, SignUpResult } from "./setup";
 
 /** The `(username, password)` pair both flows accept. */
-type Credentials = { username: string; password: string };
+export type Credentials = { username: string; password: string };
 
 /**
  * The `signInWithPassword` action the app re-exports from its `setupCore`.
  */
-type SignInWithPasswordAction = FunctionReference<
+export type SignInWithPasswordAction = FunctionReference<
   "action",
   "public",
   Credentials,
@@ -39,7 +39,7 @@ type SignInWithPasswordAction = FunctionReference<
 /**
  * The `signUpWithPassword` action the app re-exports from its `setupCore`.
  */
-type SignUpWithPasswordAction = FunctionReference<
+export type SignUpWithPasswordAction = FunctionReference<
   "action",
   "public",
   Credentials,

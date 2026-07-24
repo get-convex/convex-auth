@@ -15,8 +15,9 @@
  * cookie write) by checking the `Origin` header via {@link isTrustedOrigin}.
  *
  * A provider's *sign-in* handler is the per-provider counterpart (see e.g.
- * `@convex-dev/auth/providers/anonymous/server`); it mints a bundle and
- * delegates to {@link signInResponse} to properly build the response.
+ * `@convex-dev/auth/providers/anonymous/server`); it produces a
+ * {@link SignInOutcome} and delegates to {@link signInResponse} to properly
+ * build the response.
  *
  * @module
  */
@@ -118,26 +119,47 @@ export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
 }
 
 /**
+ * What a provider's server-side sign-in produced: the minted {@link TokenBundle}
+ * on success, or `tokens: null` with an optional provider-specific `userError`.
+ *
+ * `userError` is echoed to the browser verbatim, so it is part of the
+ * provider's public contract — providers must put only detail they would
+ * return from a public Convex function in it (e.g. the password provider's
+ * `{ error: "INVALID_CREDENTIALS" }`), never internal diagnostics.
+ */
+export type SignInOutcome = {
+  /** The minted session tokens, or `null` when sign-in failed. */
+  tokens: TokenBundle | null;
+  /** Provider-specific failure detail, echoed to the client verbatim. */
+  userError?: unknown;
+};
+
+/**
  * Build the response for a completed server-side sign-in: move the minted
  * refresh token into an httpOnly cookie (and the access token into its cookie),
  * and reply with the access-only {@link SlimTokenBundle} the browser may hold. A
- * `null` bundle (sign-in failed) writes no cookies and replies `{ tokens: null }`.
+ * failed outcome (`tokens: null`) writes no cookies and replies
+ * `{ tokens: null }`, plus the outcome's `userError` when the provider gave one.
  *
- * Every provider's sign-in handler mints its bundle, then defers to this, so the
- * refresh token reaches only the cookie and the response is uniformly shaped.
+ * Every provider's sign-in handler produces its {@link SignInOutcome}, then
+ * defers to this, so the refresh token reaches only the cookie and the response
+ * is uniformly shaped.
  */
 export async function signInResponse(
   request: Request,
-  bundle: TokenBundle | null,
+  outcome: SignInOutcome,
   cookieOptions: AuthCookieOptions,
 ): Promise<Response> {
+  const { tokens, userError } = outcome;
   const cookies = httpCookies(request);
   // Sign-in only writes cookies — it never refreshes or revokes — so it uses the
   // cookie primitive directly rather than a `ServerAuthSession`.
-  if (bundle !== null) await writeAuthCookies(cookies, bundle, cookieOptions);
-  const res = Response.json({
-    tokens: bundle === null ? null : makeSlimBundle(bundle),
-  });
+  if (tokens !== null) await writeAuthCookies(cookies, tokens, cookieOptions);
+  const res = Response.json(
+    tokens !== null
+      ? { tokens: makeSlimBundle(tokens) }
+      : { tokens: null, ...(userError !== undefined && { userError }) },
+  );
   cookies.applyTo(res.headers);
   return res;
 }
