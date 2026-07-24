@@ -1,8 +1,8 @@
 # Convex Auth — Next.js (App Router) SSR example
 
-Server-side sign-in with Convex Auth: the refresh token is minted straight into
-an httpOnly cookie and **never reaches client JS**. The browser holds only the
-access token.
+Server-side sign-in with Convex Auth — username/password or anonymous: the
+refresh token is minted straight into an httpOnly cookie and **never reaches
+client JS**. The browser holds only the access token.
 
 ## How it works
 
@@ -26,6 +26,13 @@ access token.
   `proxy.ts`), the Server-Component token accessor
   `convexAuthNextjsAccessToken`, and `ConvexAuthNextjsServerProvider`
   (hydrates the client from the cookie).
+- **`app/signin/page.tsx` / `app/signup/page.tsx`** use the password provider's
+  own `useSignInWithPassword` / `useSignUpWithPassword` from
+  `@convex-dev/auth/providers/password/react`, the same hooks a SPA uses. The
+  proxy forwards the call and adopts the access-only session it returns. On
+  failure the action's `userError` (e.g. `INVALID_CREDENTIALS`,
+  `USERNAME_TAKEN`) comes back fully typed, so the form can show a specific
+  message. The sign-in page also offers one-click anonymous sign-in.
 
 ## Run it
 
@@ -36,4 +43,5 @@ npx @convex-dev/auth    # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
 npm run dev             # runs Convex and next dev together
 ```
 
-Then open <http://localhost:3000> — you'll be redirected to `/signin`.
+Then open <http://localhost:3000> — you'll be redirected to `/signin`; create an
+account at `/signup`.

@@ -11,6 +11,10 @@ export const auth = setupConvexAuthServer({
   // The sign-in functions reachable through the sign-in route. This allowlist is
   // that route's whole API surface, and adding a function to it is all the
   // wiring an auth method needs.
-  signIn: [api.auth.signInAnonymous],
+  signIn: [
+    api.auth.signInAnonymous,
+    api.auth.signInWithPassword,
+    api.auth.signUpWithPassword,
+  ],
   cookieOptions: { secure: process.env.NODE_ENV === "production" },
 });
