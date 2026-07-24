@@ -33,9 +33,15 @@ function getHostname(host?: string) {
 }
 
 function isPrivateIpv4Address(hostname: string) {
-  const octets = hostname.split(".").map(Number);
+  const octetStrings = hostname.split(".");
   if (
-    octets.length !== 4 ||
+    octetStrings.length !== 4 ||
+    octetStrings.some((octet) => !/^\d{1,3}$/.test(octet))
+  ) {
+    return false;
+  }
+  const octets = octetStrings.map(Number);
+  if (
     octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
   ) {
     return false;
