@@ -21,6 +21,7 @@ import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types";
 import {
   AUTH_JWT_COOKIE,
   AuthCookieOptions,
+  CookieDeleteOptions,
   CookieOptions,
   CookieStore,
 } from "../server/cookies";
@@ -77,7 +78,7 @@ class MiddlewareCookieStore implements CookieStore {
   readonly #overlay = new Map<string, string | null>();
   readonly #ops: Array<
     | { type: "set"; name: string; value: string; options?: CookieOptions }
-    | { type: "delete"; name: string }
+    | { type: "delete"; name: string; options?: CookieDeleteOptions }
   > = [];
 
   constructor(request: NextRequest) {
@@ -92,16 +93,17 @@ class MiddlewareCookieStore implements CookieStore {
     this.#overlay.set(name, value);
     this.#ops.push({ type: "set", name, value, options });
   }
-  delete(name: string): void {
+  delete(name: string, options?: CookieDeleteOptions): void {
     this.#overlay.set(name, null);
-    this.#ops.push({ type: "delete", name });
+    this.#ops.push({ type: "delete", name, options });
   }
   applyTo(response: NextResponse): void {
     for (const op of this.#ops) {
       if (op.type === "set") {
         response.cookies.set(op.name, op.value, op.options as never);
       } else {
-        response.cookies.delete(op.name);
+        // Spread path/domain so the deletion matches the cookie it targets.
+        response.cookies.delete({ name: op.name, ...op.options });
       }
     }
   }
