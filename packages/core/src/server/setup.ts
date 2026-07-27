@@ -23,6 +23,7 @@ import {
   signInResponse,
   signOutHandler,
 } from "./handlers";
+import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
 
 /**
  * A provider's server-side sign-in descriptor: the mutation that mints a
@@ -49,6 +50,10 @@ export interface ConvexAuthServerConfig {
   signOut: SignOutFn;
   /** Auth cookie attributes for every handler; `secure` is required. */
   cookieOptions: AuthCookieOptions;
+  /** Origins beyond the request's own `Host` trusted by every handler's CSRF
+   * origin check, for deployments where the two differ (e.g. a proxy that
+   * rewrites `Host`). See {@link isTrustedOrigin}. */
+  allowedOrigins?: string[];
 }
 
 /**
@@ -67,18 +72,20 @@ export interface ConvexAuthServerConfig {
  * ```
  */
 export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
-  const { convexUrl, cookieOptions } = config;
+  const { convexUrl, cookieOptions, allowedOrigins } = config;
   const client = new ConvexHttpClient(convexUrl);
   return {
     refreshHandler: refreshHandler({
       convexUrl,
       refreshSession: config.refreshSession,
       cookieOptions,
+      allowedOrigins,
     }),
     signOutHandler: signOutHandler({
       convexUrl,
       signOut: config.signOut,
       cookieOptions,
+      allowedOrigins,
     }),
     /** Build a sign-in route from a provider descriptor. */
     signInHandler<Args extends Record<string, unknown>>(
@@ -95,6 +102,12 @@ export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
         parseArgs?: (request: Request) => Args | Promise<Args>;
       };
       return async (request) => {
+        // The CSRF guard, before the provider even parses the request: a
+        // cross-site sign-in would store the minted session in the victim's
+        // browser (login CSRF), so it must be refused up front.
+        if (!isTrustedOrigin(request, allowedOrigins)) {
+          return forbiddenOriginResponse();
+        }
         const args = parseArgs ? await parseArgs(request) : ({} as Args);
         // The descriptor type-checks the args; erase the reference's arg type
         // here so the positional mutation call type-checks for any Args.

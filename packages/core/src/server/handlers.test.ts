@@ -23,10 +23,18 @@ function bundle(n: number): TokenBundle {
   };
 }
 
-const requestWithRefresh = (token?: string) =>
+// Same-origin by default: the CSRF guard refuses any request whose Origin
+// doesn't match the Host, so a matching pair is the precondition for reaching
+// the handler logic under test. Cross-site tests override both headers.
+const requestWithRefresh = (token?: string, headers?: Record<string, string>) =>
   new Request("https://app.test/auth/refresh", {
     method: "POST",
-    headers: token ? { cookie: `${AUTH_REFRESH_COOKIE}=${token}` } : {},
+    headers: {
+      origin: "https://app.test",
+      host: "app.test",
+      ...(token ? { cookie: `${AUTH_REFRESH_COOKIE}=${token}` } : {}),
+      ...headers,
+    },
   });
 
 // A placeholder function reference; the mocked client ignores it.
@@ -45,6 +53,7 @@ describe("refreshHandler", () => {
     });
 
     const res = await handler(requestWithRefresh("refresh-1"));
+    expect(res.status).toBe(200);
     const body = await res.json();
 
     // Access-only: no refresh token in the response body.
@@ -78,6 +87,7 @@ describe("refreshHandler", () => {
     });
 
     const res = await handler(requestWithRefresh());
+    expect(res.status).toBe(200);
     expect((await res.json()).tokens).toBeNull();
     expect(mutationMock).not.toHaveBeenCalled();
   });
@@ -92,6 +102,7 @@ describe("refreshHandler", () => {
     });
 
     const res = await handler(requestWithRefresh("stale"));
+    expect(res.status).toBe(200);
     expect((await res.json()).tokens).toBeNull();
     const setCookies = res.headers.getSetCookie();
     expect(setCookies.some((c) => c.includes("Max-Age=0"))).toBe(true);
@@ -108,6 +119,7 @@ describe("signOutHandler", () => {
     });
 
     const res = await handler(requestWithRefresh("refresh-1"));
+    expect(res.status).toBe(200);
     expect((await res.json()).tokens).toBeNull();
     expect(mutationMock).toHaveBeenCalledWith(fnRef, {
       refreshToken: "refresh-1",
@@ -127,11 +139,79 @@ describe("signOutHandler", () => {
     });
 
     const res = await handler(requestWithRefresh());
+    expect(res.status).toBe(200);
     expect((await res.json()).tokens).toBeNull();
     expect(mutationMock).not.toHaveBeenCalled();
     const setCookies = res.headers.getSetCookie();
     expect(
       setCookies.filter((c) => c.includes("Max-Age=0")).length,
     ).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// CSRF: both handlers must refuse a cross-site request before touching Convex
+// or the cookies. Sign-out is the interesting victim — it clears cookies
+// unconditionally, so without the guard a cross-site POST could force-logout.
+describe("cross-site requests", () => {
+  const crossSite = { origin: "https://evil.test", host: "app.test" };
+  const sameSite = { origin: "https://app.test", host: "app.test" };
+
+  test("refreshHandler refuses without calling Convex or writing cookies", async () => {
+    const handler = refreshHandler({
+      convexUrl: "https://x.convex.cloud",
+      refreshSession: fnRef,
+      cookieOptions: { secure: false },
+    });
+
+    const res = await handler(requestWithRefresh("refresh-1", crossSite));
+    expect(res.status).toBe(403);
+    expect((await res.json()).tokens).toBeNull();
+    expect(mutationMock).not.toHaveBeenCalled();
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  test("signOutHandler refuses without revoking or clearing cookies", async () => {
+    const handler = signOutHandler({
+      convexUrl: "https://x.convex.cloud",
+      signOut: fnRef,
+      cookieOptions: { secure: false },
+    });
+
+    const res = await handler(requestWithRefresh("refresh-1", crossSite));
+    expect(res.status).toBe(403);
+    expect(mutationMock).not.toHaveBeenCalled();
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  test("a same-site Origin is served", async () => {
+    mutationMock.mockResolvedValue(bundle(2));
+    const handler = refreshHandler({
+      convexUrl: "https://x.convex.cloud",
+      refreshSession: fnRef,
+      cookieOptions: { secure: false },
+    });
+
+    const res = await handler(requestWithRefresh("refresh-1", sameSite));
+    expect(res.status).toBe(200);
+    expect((await res.json()).tokens).not.toBeNull();
+  });
+
+  test("allowedOrigins admits a cross-host but trusted Origin", async () => {
+    mutationMock.mockResolvedValue(bundle(2));
+    const handler = refreshHandler({
+      convexUrl: "https://x.convex.cloud",
+      refreshSession: fnRef,
+      cookieOptions: { secure: false },
+      allowedOrigins: ["https://public.test"],
+    });
+
+    const res = await handler(
+      requestWithRefresh("refresh-1", {
+        origin: "https://public.test",
+        host: "internal:8080",
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).tokens).not.toBeNull();
   });
 });

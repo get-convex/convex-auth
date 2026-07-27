@@ -11,6 +11,9 @@
  * Each handler takes only the one mutation reference it calls:
  * `refreshHandler` the app's `refreshSession`, `signOutHandler` its `signOut`.
  *
+ * Both refuse cross-site requests up front (403, before any Convex call or
+ * cookie write) by checking the `Origin` header via {@link isTrustedOrigin}.
+ *
  * A provider's *sign-in* handler is the per-provider counterpart (see e.g.
  * `@convex-dev/auth/providers/anonymous/server`); it mints a bundle and
  * delegates to {@link signInResponse} to properly build the response.
@@ -28,6 +31,7 @@ import {
   writeAuthCookies,
 } from "./cookies";
 import { httpCookies } from "./httpCookies";
+import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
 import { ServerAuthSession } from "./session";
 
 /** A WHATWG request handler. */
@@ -41,6 +45,10 @@ export interface RefreshHandlerConfig {
   refreshSession: RefreshSessionFn;
   /** Auth cookie attributes; `secure` is required. */
   cookieOptions: AuthCookieOptions;
+  /** Origins beyond the request's own `Host` trusted by the CSRF origin
+   * check, for deployments where the two differ (e.g. a proxy that rewrites
+   * `Host`). See {@link isTrustedOrigin}. */
+  allowedOrigins?: string[];
 }
 
 /**
@@ -50,6 +58,9 @@ export interface RefreshHandlerConfig {
 export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
   return async (request) => {
+    if (!isTrustedOrigin(request, config.allowedOrigins)) {
+      return forbiddenOriginResponse();
+    }
     const cookies = httpCookies(request);
     const session = new ServerAuthSession({
       refreshSession: (refreshToken) =>
@@ -74,6 +85,10 @@ export interface SignOutHandlerConfig {
   signOut: SignOutFn;
   /** Auth cookie attributes; `secure` is required. */
   cookieOptions: AuthCookieOptions;
+  /** Origins beyond the request's own `Host` trusted by the CSRF origin
+   * check, for deployments where the two differ (e.g. a proxy that rewrites
+   * `Host`). See {@link isTrustedOrigin}. */
+  allowedOrigins?: string[];
 }
 
 /**
@@ -83,6 +98,9 @@ export interface SignOutHandlerConfig {
 export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
   return async (request) => {
+    if (!isTrustedOrigin(request, config.allowedOrigins)) {
+      return forbiddenOriginResponse();
+    }
     const cookies = httpCookies(request);
     const refreshToken = (await cookies.get(AUTH_REFRESH_COOKIE)) ?? null;
     if (refreshToken !== null) {

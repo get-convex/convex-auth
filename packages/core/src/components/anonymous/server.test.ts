@@ -31,6 +31,15 @@ const signInHandler = (secure: boolean) =>
     cookieOptions: { secure },
   }).signInHandler(anonymous(fnRef));
 
+// Same-origin by default: the CSRF guard refuses any request whose Origin
+// doesn't match the Host, so a matching pair is the precondition for reaching
+// the sign-in logic under test.
+const signInRequest = (headers?: Record<string, string>) =>
+  new Request("https://app.test/auth/signin/anonymous", {
+    method: "POST",
+    headers: { origin: "https://app.test", host: "app.test", ...headers },
+  });
+
 beforeEach(() => signInMutationMock.mockReset());
 
 describe("anonymous sign-in via signInHandler", () => {
@@ -38,9 +47,8 @@ describe("anonymous sign-in via signInHandler", () => {
     signInMutationMock.mockResolvedValue(bundle);
     const handler = signInHandler(true);
 
-    const res = await handler(
-      new Request("https://app.test/auth/signin/anonymous", { method: "POST" }),
-    );
+    const res = await handler(signInRequest());
+    expect(res.status).toBe(200);
     const body = await res.json();
 
     // The response is a SlimTokenBundle with the access token.
@@ -72,10 +80,22 @@ describe("anonymous sign-in via signInHandler", () => {
     signInMutationMock.mockResolvedValue(bundle);
     const handler = signInHandler(false);
 
-    const res = await handler(
-      new Request("https://app.test/auth/signin/anonymous", { method: "POST" }),
-    );
+    const res = await handler(signInRequest());
+    expect(res.status).toBe(200);
     const setCookies = res.headers.getSetCookie();
+    expect(setCookies.length).toBeGreaterThan(0);
     expect(setCookies.every((c) => !c.includes("Secure"))).toBe(true);
+  });
+
+  // Login CSRF: a cross-site POST must not mint a session, or the response's
+  // Set-Cookie would store the attacker's session in the victim's browser.
+  test("refuses a cross-site request without signing in", async () => {
+    const handler = signInHandler(true);
+
+    const res = await handler(signInRequest({ origin: "https://evil.test" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).tokens).toBeNull();
+    expect(signInMutationMock).not.toHaveBeenCalled();
+    expect(res.headers.getSetCookie()).toEqual([]);
   });
 });

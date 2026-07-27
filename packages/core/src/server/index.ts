@@ -20,6 +20,7 @@ export {
   writeAuthCookies,
 } from "./cookies";
 export { type HttpCookies, httpCookies, serializeCookie } from "./httpCookies";
+export { isTrustedOrigin } from "./origin";
 export {
   type RefreshHandlerConfig,
   type RequestHandler,
