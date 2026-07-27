@@ -176,15 +176,11 @@ type UnexpectedFailure = {
  * the access-only session.
  */
 export type SignInWithPasswordResult =
-  | { success: true }
-  | PasswordFailure<SignInResult>
-  | UnexpectedFailure;
+  { success: true } | PasswordFailure<SignInResult> | UnexpectedFailure;
 
 /** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
 export type SignUpWithPasswordResult =
-  | { success: true }
-  | PasswordFailure<SignUpResult>
-  | UnexpectedFailure;
+  { success: true } | PasswordFailure<SignUpResult> | UnexpectedFailure;
 
 /**
  * Shared internals for the two password flows: POST the credentials to the

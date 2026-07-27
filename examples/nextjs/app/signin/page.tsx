@@ -1,6 +1,9 @@
 "use client";
 
-import { useAnonymousAuth, useSignInWithPassword } from "@convex-dev/auth/nextjs";
+import {
+  useAnonymousAuth,
+  useSignInWithPassword,
+} from "@convex-dev/auth/nextjs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

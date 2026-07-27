@@ -20,7 +20,9 @@ export function Dashboard({
       <h1>Next.js SSR + Convex Auth</h1>
       <p>
         Signed in as{" "}
-        <strong>{user ? (user.username ?? "an anonymous user") : "(loading)"}</strong>{" "}
+        <strong>
+          {user ? (user.username ?? "an anonymous user") : "(loading)"}
+        </strong>{" "}
         (user <code>{user?.id ?? "…"}</code>).
       </p>
       <p style={{ color: "#666" }}>
