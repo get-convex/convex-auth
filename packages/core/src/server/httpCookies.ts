@@ -72,11 +72,12 @@ export function httpCookies(request: Request): HttpCookies {
       overlay.set(name, value);
       pending.push(serializeCookie(name, value, options));
     },
-    delete(name) {
+    delete(name, options) {
       overlay.set(name, null);
       pending.push(
         serializeCookie(name, "", {
-          path: "/",
+          path: options?.path ?? "/",
+          domain: options?.domain,
           maxAge: 0,
           expires: new Date(0),
         }),

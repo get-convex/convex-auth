@@ -1,6 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 import type { TokenBundle } from "../lib/types";
 import {
+  AuthCookieOptions,
+  CookieDeleteOptions,
   CookieOptions,
   CookieStore,
   AUTH_JWT_COOKIE,
@@ -35,10 +37,11 @@ function newTokenBundle(
 }
 
 /** An in-memory {@link CookieStore} that also records the options each cookie
- * was written with, so tests can assert httpOnly etc. */
+ * was written or deleted with, so tests can assert httpOnly, path, etc. */
 class FakeCookies implements CookieStore {
   values = new Map<string, string>();
   options = new Map<string, CookieOptions | undefined>();
+  deletions = new Map<string, CookieDeleteOptions | undefined>();
   get(name: string) {
     return this.values.get(name);
   }
@@ -46,20 +49,22 @@ class FakeCookies implements CookieStore {
     this.values.set(name, value);
     this.options.set(name, options);
   }
-  delete(name: string) {
+  delete(name: string, options?: CookieDeleteOptions) {
     this.values.delete(name);
     this.options.delete(name);
+    this.deletions.set(name, options);
   }
 }
 
 function newSession(
   refreshSession: RefreshSession = async () => null,
   cookies = new FakeCookies(),
+  cookieOptions: AuthCookieOptions = { secure: false },
 ) {
   const session = new ServerAuthSession({
     refreshSession,
     cookies,
-    cookieOptions: { secure: false },
+    cookieOptions,
   });
   return { session, cookies };
 }
@@ -120,6 +125,27 @@ describe("ServerAuthSession", () => {
     expect(await session.getToken()).toBeNull();
     expect(cookies.get(AUTH_JWT_COOKIE)).toBeUndefined();
     expect(cookies.get(AUTH_REFRESH_COOKIE)).toBeUndefined();
+    vi.restoreAllMocks();
+  });
+
+  test("clearing on a failed refresh deletes with the configured path and domain", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(nowMs);
+    const cookies = new FakeCookies();
+    cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5));
+    cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
+    const { session } = newSession(async () => null, cookies, {
+      secure: false,
+      path: "/app",
+      domain: "example.com",
+    });
+
+    expect(await session.getToken()).toBeNull();
+    for (const name of [AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE]) {
+      expect(cookies.deletions.get(name)).toEqual({
+        path: "/app",
+        domain: "example.com",
+      });
+    }
     vi.restoreAllMocks();
   });
 

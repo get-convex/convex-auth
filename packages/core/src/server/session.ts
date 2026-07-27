@@ -116,6 +116,6 @@ export class ServerAuthSession {
 
   /** Deletes the cookies. This will be reflected in the eventual response. */
   async #clear(): Promise<void> {
-    await clearAuthCookies(this.#cookies);
+    await clearAuthCookies(this.#cookies, this.#cookieOptions);
   }
 }

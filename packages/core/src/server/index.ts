@@ -12,6 +12,7 @@
 
 export {
   type AuthCookieOptions,
+  type CookieDeleteOptions,
   type CookieOptions,
   type CookieStore,
   AUTH_JWT_COOKIE,

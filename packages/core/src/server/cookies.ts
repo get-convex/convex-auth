@@ -51,6 +51,13 @@ export type AuthCookieOptions = Omit<CookieOptions, "secure"> & {
 };
 
 /**
+ * The attributes that identify which cookie a deletion targets: browsers only
+ * remove a cookie when the deletion's `path` and `domain` match the ones it
+ * was written with. No other attribute takes part in matching.
+ */
+export type CookieDeleteOptions = Pick<CookieOptions, "path" | "domain">;
+
+/**
  * Read/write/delete cookies. Every method may be synchronous or return a
  * promise, so request/response cookie APIs that are async (e.g. `next/headers`
  * `cookies()`) work without ceremony.
@@ -64,8 +71,12 @@ export interface CookieStore {
     value: string,
     options?: CookieOptions,
   ) => void | Promise<void>;
-  /** Delete a cookie. */
-  delete: (name: string) => void | Promise<void>;
+  /** Delete a cookie. Must be given the same `path`/`domain` the cookie was
+   * written with, or the deletion won't match it. */
+  delete: (
+    name: string,
+    options?: CookieDeleteOptions,
+  ) => void | Promise<void>;
 }
 
 /**
@@ -115,8 +126,17 @@ export async function writeAuthCookies(
   });
 }
 
-/** Delete both auth cookies. The counterpart of {@link writeAuthCookies}. */
-export async function clearAuthCookies(cookies: CookieStore): Promise<void> {
-  await cookies.delete(AUTH_JWT_COOKIE);
-  await cookies.delete(AUTH_REFRESH_COOKIE);
+/**
+ * Delete both auth cookies. The counterpart of {@link writeAuthCookies}: it
+ * takes the same options so the deletions match the cookies the writes
+ * produced (a deletion only removes a cookie whose `path`/`domain` match).
+ */
+export async function clearAuthCookies(
+  cookies: CookieStore,
+  options: AuthCookieOptions,
+): Promise<void> {
+  // Mirror writeAuthCookies' merge, where path defaults to "/".
+  const { path = "/", domain } = options;
+  await cookies.delete(AUTH_JWT_COOKIE, { path, domain });
+  await cookies.delete(AUTH_REFRESH_COOKIE, { path, domain });
 }

@@ -110,7 +110,7 @@ export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
         // Usually means we were already signed out, which is fine.
       }
     }
-    await clearAuthCookies(cookies);
+    await clearAuthCookies(cookies, config.cookieOptions);
     const res = Response.json({ tokens: null });
     cookies.applyTo(res.headers);
     return res;

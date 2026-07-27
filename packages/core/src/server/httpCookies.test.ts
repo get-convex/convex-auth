@@ -78,6 +78,20 @@ describe("httpCookies", () => {
     expect(cookies.get("a")).toBeUndefined();
   });
 
+  test("delete emits the path and domain it is given, matching the write", () => {
+    const cookies = httpCookies(requestWith("a=1"));
+    cookies.delete("a", { path: "/app", domain: "example.com" });
+
+    const headers = new Headers();
+    cookies.applyTo(headers);
+    const [setCookie] = headers.getSetCookie();
+
+    expect(setCookie).toContain("a=");
+    expect(setCookie).toContain("Path=/app");
+    expect(setCookie).toContain("Domain=example.com");
+    expect(setCookie).toContain("Max-Age=0");
+  });
+
   test("applyTo appends a Set-Cookie per write and delete", () => {
     const cookies = httpCookies(requestWith());
     cookies.set("tok", "abc", { httpOnly: true, path: "/" });
