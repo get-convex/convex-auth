@@ -14,7 +14,6 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import type { FunctionReference } from "convex/server";
 import type { RefreshSessionFn, SignOutFn, TokenBundle } from "../lib/types";
 import type { AuthCookieOptions } from "./cookies";
 import {
@@ -26,19 +25,48 @@ import {
 import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
 
 /**
- * A provider's server-side sign-in descriptor: the mutation that mints a
- * {@link TokenBundle} and, when the sign-in takes args, how to read them off the
- * request. {@link setupConvexAuthServer}'s `signInHandler` wraps it into a route.
+ * A provider's server-side sign-in descriptor: how to execute its sign-in
+ * against the deployment, given the incoming {@link Request}. {@link
+ * setupConvexAuthServer}'s `signInHandler` wraps it into a route.
  *
- * A `parseArgs` function that extracts args from the {@link Request} is
- * required if the mutation takes arguments.
+ * `run` owns the whole provider-specific half — reading any input off the
+ * request and making the mutation call that mints the {@link TokenBundle}. The
+ * handler stays provider-agnostic: it writes the bundle's tokens into cookies,
+ * never letting the refresh token reach the response body.
+ *
+ * A request that isn't even shaped like the provider's input is the caller's
+ * error, not a failed sign-in attempt — signal it by throwing {@link
+ * InvalidSignInRequestError}, which the handler turns into a 400.
  */
-export type SignInProvider<Args extends Record<string, unknown>> = {
-  /** The provider's sign-in mutation reference. */
-  signIn: FunctionReference<"mutation", "public", Args, TokenBundle | null>;
-} & (Args extends Record<string, never>
-  ? { parseArgs?: (request: Request) => Args | Promise<Args> }
-  : { parseArgs: (request: Request) => Args | Promise<Args> });
+export type SignInProvider = {
+  /** Execute the provider's sign-in against the deployment. */
+  run: (
+    client: ConvexHttpClient,
+    request: Request,
+  ) => Promise<TokenBundle | null>;
+};
+
+const INVALID_SIGN_IN_REQUEST_MARKER = "ConvexAuthInvalidSignInRequest";
+
+/**
+ * Thrown by a {@link SignInProvider}'s `run` when the request doesn't carry
+ * the input the provider expects (e.g. a body that isn't credentials-shaped).
+ * `signInHandler` replies 400 to it; any other error from `run` propagates as
+ * the server failure it is.
+ */
+export class InvalidSignInRequestError extends Error {
+  /** Marker consulted instead of `instanceof`, so detection survives
+   * duplicated copies of this package in one app. */
+  readonly [INVALID_SIGN_IN_REQUEST_MARKER] = true;
+}
+
+function isInvalidSignInRequestError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as Record<string, unknown>)[INVALID_SIGN_IN_REQUEST_MARKER] === true
+  );
+}
 
 /** Configuration for {@link setupConvexAuthServer}. */
 export interface ConvexAuthServerConfig {
@@ -88,31 +116,21 @@ export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
       allowedOrigins,
     }),
     /** Build a sign-in route from a provider descriptor. */
-    signInHandler<Args extends Record<string, unknown>>(
-      provider: SignInProvider<Args>,
-    ): RequestHandler {
-      // Widen the conditionally-required descriptor so parseArgs reads uniformly.
-      const { signIn, parseArgs } = provider as {
-        signIn: FunctionReference<
-          "mutation",
-          "public",
-          Args,
-          TokenBundle | null
-        >;
-        parseArgs?: (request: Request) => Args | Promise<Args>;
-      };
+    signInHandler(provider: SignInProvider): RequestHandler {
       return async (request) => {
-        // The CSRF guard, before the provider even parses the request: a
+        // The CSRF guard, before the provider even reads the request: a
         // cross-site sign-in would store the minted session in the victim's
         // browser (login CSRF), so it must be refused up front.
         if (!isTrustedOrigin(request, allowedOrigins)) {
           return forbiddenOriginResponse();
         }
-        const args = parseArgs ? await parseArgs(request) : ({} as Args);
-        // The descriptor type-checks the args; erase the reference's arg type
-        // here so the positional mutation call type-checks for any Args.
-        const ref = signIn as FunctionReference<"mutation", "public">;
-        const bundle: TokenBundle | null = await client.mutation(ref, args);
+        let bundle: TokenBundle | null;
+        try {
+          bundle = await provider.run(client, request);
+        } catch (error) {
+          if (!isInvalidSignInRequestError(error)) throw error;
+          return Response.json({ tokens: null }, { status: 400 });
+        }
         return signInResponse(request, bundle, cookieOptions);
       };
     },

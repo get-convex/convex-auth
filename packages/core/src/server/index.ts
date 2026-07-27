@@ -33,6 +33,7 @@ export {
 export {
   type ConvexAuthServerConfig,
   type SignInProvider,
+  InvalidSignInRequestError,
   setupConvexAuthServer,
 } from "./setup";
 export {
