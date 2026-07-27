@@ -40,8 +40,9 @@ export interface ConvexAuthNextjsConfig {
    * token against the backend (which checks its signature) rather than trusting
    * the cookie by decoding it. */
   isAuthenticated: IsAuthenticatedFn;
-  /** Overrides the default auth cookie attributes. */
-  cookieOptions?: CookieOptions;
+  /** Overrides the default auth cookie attributes. Unlike the base config,
+   * `secure` may be omitted here; it defaults from NODE_ENV. */
+  cookieOptions?: Partial<AuthCookieOptions>;
 }
 
 /** Context handed to a middleware handler. */
