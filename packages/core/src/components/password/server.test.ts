@@ -106,15 +106,20 @@ describe("password sign-in via signInHandler", () => {
       "non-string credentials",
       JSON.stringify({ username: "Alice", password: 42 }),
     ],
-  ])("replies 400 to a malformed body (%s) without running the action", async (_name, body) => {
-    const handler = server.signInHandler(passwordSignIn(fnRef));
+  ])(
+    "replies 400 to a malformed body (%s) without running the action",
+    async (_name, body) => {
+      const handler = server.signInHandler(passwordSignIn(fnRef));
 
-    const res = await handler(credentialsRequest("/auth/signin/password", body));
+      const res = await handler(
+        credentialsRequest("/auth/signin/password", body),
+      );
 
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ tokens: null });
-    expect(actionMock).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ tokens: null });
+      expect(actionMock).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("password sign-up via signInHandler", () => {
