@@ -73,10 +73,7 @@ export interface CookieStore {
   ) => void | Promise<void>;
   /** Delete a cookie. Must be given the same `path`/`domain` the cookie was
    * written with, or the deletion won't match it. */
-  delete: (
-    name: string,
-    options?: CookieDeleteOptions,
-  ) => void | Promise<void>;
+  delete: (name: string, options?: CookieDeleteOptions) => void | Promise<void>;
 }
 
 /**

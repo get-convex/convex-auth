@@ -32,7 +32,9 @@ describe("isTrustedOrigin", () => {
 
   test("refuses a cross-site Origin", () => {
     expect(
-      isTrustedOrigin(request({ origin: "https://evil.test", host: "app.test" })),
+      isTrustedOrigin(
+        request({ origin: "https://evil.test", host: "app.test" }),
+      ),
     ).toBe(false);
   });
 
@@ -49,9 +51,9 @@ describe("isTrustedOrigin", () => {
   });
 
   test('refuses the literal "null" origin (sandboxed iframe)', () => {
-    expect(
-      isTrustedOrigin(request({ origin: "null", host: "app.test" })),
-    ).toBe(false);
+    expect(isTrustedOrigin(request({ origin: "null", host: "app.test" }))).toBe(
+      false,
+    );
   });
 
   test("refuses an unparseable Origin", () => {
