@@ -39,23 +39,29 @@ export interface CookieOptions {
 }
 
 /**
- * The cookie options a framework integration must supply for auth cookies.
- *
- * `secure` is required. Whether auth cookies are HTTPS-only depends on the
- * deployment (HTTPS in production, plain http on localhost), so every
- * integration has to decide it explicitly rather than inherit a default that
- * would be wrong in one environment or the other.
- */
-export type AuthCookieOptions = Omit<CookieOptions, "secure"> & {
-  secure: boolean;
-};
-
-/**
  * The attributes that identify which cookie a deletion targets: browsers only
  * remove a cookie when the deletion's `path` and `domain` match the ones it
  * was written with. No other attribute takes part in matching.
  */
 export type CookieDeleteOptions = Pick<CookieOptions, "path" | "domain">;
+
+/**
+ * The cookie options a framework integration may supply for auth cookies:
+ * only the attributes that legitimately vary by deployment.
+ *
+ * `secure` is required. Whether auth cookies are HTTPS-only depends on the
+ * deployment (HTTPS in production, plain http on localhost), so every
+ * integration has to decide it explicitly rather than inherit a default that
+ * would be wrong in one environment or the other.
+ *
+ * The security-relevant attributes (`httpOnly`, `sameSite`) and the token
+ * lifetimes (`maxAge`, `expires`, which derive from the token bundle) are
+ * deliberately not configurable; {@link writeAuthCookies} always applies the
+ * invariant values.
+ */
+export type AuthCookieOptions = CookieDeleteOptions & {
+  secure: boolean;
+};
 
 /**
  * Read/write/delete cookies. Every method may be synchronous or return a
@@ -114,7 +120,14 @@ export async function writeAuthCookies(
   bundle: TokenBundle,
   options: AuthCookieOptions,
 ): Promise<void> {
-  const base = { ...invariantCookieOptions(), ...options };
+  // Pick the allowed fields rather than spreading, so a wider object
+  // (e.g. from untyped JS) cannot override the invariant attributes.
+  const base = {
+    ...invariantCookieOptions(),
+    path: options.path ?? "/",
+    domain: options.domain,
+    secure: options.secure,
+  };
   const expires = new Date(bundle.refreshTokenExpiresAt);
   await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, { ...base, expires });
   await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
