@@ -14,7 +14,8 @@ import {
   vTokenBundle,
   type TokenBundle,
 } from "../../lib/types";
-import { signJwt, generateRefreshToken, hashToken } from "./crypto";
+import { signJwt, generateRefreshToken } from "./crypto";
+import { sha256Hex } from "../../lib/crypto";
 import { CreateOrUpdateUserFn } from "../../lib/types";
 
 // --- Configuration ---------------------------------------------------------
@@ -120,7 +121,7 @@ async function issueSession(
   ttl: TtlConfig,
 ): Promise<TokenBundle> {
   const refreshToken = generateRefreshToken();
-  const refreshTokenHash = await hashToken(refreshToken);
+  const refreshTokenHash = await sha256Hex(refreshToken);
   const refreshTokenExpiresAt = Date.now() + ttl.refreshTokenTtlSeconds * 1000;
   await ctx.db.insert("sessions", {
     userId,
@@ -154,9 +155,9 @@ type CreateOrUpdateUserFunctionHandle = FunctionHandle<
  * behind it) the first time the identity is seen. The app's user callback runs
  * on *every* sign-in: with no `userId` the first time (it mints/returns the
  * user id), and with the known `userId` on every return (so it can sync the
- * user record from the latest claims). The profile the core holds for the
- * account is refreshed to match. Returns just what minting a session needs: the
- * account id and its app user id.
+ * user record from the latest claims — the core stores no profile itself, the
+ * claims pass through and are otherwise discarded). Returns just what minting a
+ * session needs: the account id and its app user id.
  */
 async function resolveAccount(
   ctx: MutationCtx,
@@ -278,7 +279,7 @@ export const refresh = mutation({
   handler: async (ctx, args): Promise<TokenBundle | null> => {
     const ttl = resolveTtlConfig(args);
     const now = Date.now();
-    const hash = await hashToken(args.refreshToken);
+    const hash = await sha256Hex(args.refreshToken);
 
     // Accept either the current hash or a recently-rotated one still inside its
     // grace window (the concurrent-refresh case).
@@ -308,7 +309,7 @@ export const refresh = mutation({
     }
 
     const newRefreshToken = generateRefreshToken();
-    const newRefreshTokenHash = await hashToken(newRefreshToken);
+    const newRefreshTokenHash = await sha256Hex(newRefreshToken);
     const refreshTokenExpiresAt = now + ttl.refreshTokenTtlSeconds * 1000;
     // Retain the hash we're replacing as the previous one, valid for the grace
     // window, then swap in the freshly-minted token as current.
@@ -342,7 +343,7 @@ export const signOut = mutation({
   handler: async (ctx, args) => {
     const session = await sessionByHash(
       ctx,
-      await hashToken(args.refreshToken),
+      await sha256Hex(args.refreshToken),
     );
     if (session) await ctx.db.delete("sessions", session._id);
     return null;

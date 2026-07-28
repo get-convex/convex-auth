@@ -35,14 +35,3 @@ export function generateRefreshToken(): string {
     .replace(/\//g, "_")
     .replace(/=+$/, "");
 }
-
-/** SHA-256 hex hash, used so raw refresh tokens are never persisted. */
-export async function hashToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(token),
-  );
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
