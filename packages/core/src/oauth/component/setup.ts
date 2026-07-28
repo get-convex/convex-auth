@@ -1,9 +1,44 @@
 import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
-import type { ProviderHelpers } from "../../lib/types";
+import {
+  vTokenBundle,
+  type ProviderHelpers,
+  type TokenBundle,
+} from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
-import { generateRandomToken, sha256Base64Url } from "./crypto";
+import {
+  decryptTicketPayload,
+  generateRandomToken,
+  sha256Base64Url,
+} from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
+
+/**
+ * Standard OIDC id_token claims, loosely typed: the well-known ones are
+ * named, everything else comes through the index signature.
+ */
+export type OidcClaims = {
+  sub: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  picture?: string;
+  [claim: string]: unknown;
+};
+
+/**
+ * Map what the provider told us about the user — id_token claims
+ * (`undefined` for non-OIDC providers) and userinfo responses keyed as
+ * configured (`undefined` unless the catalog sets `userInfoEndpoints`) — to the
+ * account identity used at redemption. `id` becomes the provider account id.
+ * Supplied by each provider's catalog.
+ */
+export type OauthProfile = (
+  claims: OidcClaims | undefined,
+  // `any` so mappings can dig into responses without casting.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  userInfoResponses: Record<string, any> | undefined,
+) => { id: string; [key: string]: unknown };
 
 /**
  * Provider-defined config for interacting with an individual OAuth provider.
@@ -28,8 +63,8 @@ export type OauthCatalog = {
   issuer?: string;
   /**
    * Endpoints (full URLs) the callback fetches with the access token (GET
-   * with a bearer token), keyed by the name the profile mapping reads each
-   * response under. Present for providers whose identity comes from
+   * with a bearer token), keyed by the name the `profile` mapping reads
+   * each response under. Present for providers whose identity comes from
    * userinfo (GitHub).
    */
   userInfoEndpoints?: Record<string, string>;
@@ -40,6 +75,8 @@ export type OauthCatalog = {
    * providers that support PKCE alongside the client secret.
    */
   pkce: boolean;
+  /** Map the provider's attested identity to the account profile. */
+  profile: OauthProfile;
 };
 
 /**
@@ -98,6 +135,9 @@ const PROTOCOL_PARAMS = [
  * 2. The provider redirects back to the mount's HTTP callback
  *    (`<site><httpPrefix>/callback`), which claims the request, exchanges
  *    the code, and mints a one-time ticket.
+ * 3. `completeSignIn` (here): the client presents the one-time code from the
+ *    callback redirect plus its original state, and gets back the session
+ *    token bundle.
  *
  * The callback only accepts GET redirects. Providers that POST it
  * (`response_mode=form_post`, notably Apple when name/email scopes are
@@ -205,5 +245,63 @@ export function setupOauth(
     },
   });
 
-  return { startSignIn };
+  /**
+   * Complete an OAuth sign-in by redeeming the one-time `code` from
+   * the callback redirect together with the state held since
+   * `startSignIn`. The state must be the value stored at sign-in
+   * time, never one read from a URL. Returns the session token
+   * bundle, or null when the code is unknown, already redeemed,
+   * expired, or the state doesn't match: all indistinguishable to
+   * the caller, like a failed `refreshSession`.
+   *
+   * The component calls are subtransactions of this mutation, so a
+   * failure anywhere (including the app rejecting the sign-in from
+   * `createOrUpdateUser`) rolls back the ticket claim; only a
+   * successful redemption consumes the ticket.
+   */
+  const completeSignIn = mutationGeneric({
+    args: {
+      code: v.string(),
+      state: v.string(),
+    },
+    returns: v.union(vTokenBundle, v.null()),
+    handler: async (ctx, args): Promise<TokenBundle | null> => {
+      const ticket = await ctx.runMutation(
+        options.component.provider.claimTicket,
+        {
+          providerName,
+          ticketCodeHash: await sha256Hex(args.code),
+          stateHash: await sha256Hex(args.state),
+        },
+      );
+      if (ticket === null) {
+        return null;
+      }
+
+      // Finding the ticket by hash proves `code` is the value the
+      // payload was encrypted under, so decryption only fails on
+      // corruption.
+      const { claims, userInfoResponses } = JSON.parse(
+        await decryptTicketPayload(args.code, ticket.payload),
+      ) as {
+        claims: OidcClaims | undefined;
+        userInfoResponses: Record<string, unknown> | undefined;
+      };
+
+      const profile = catalog.profile(claims, userInfoResponses);
+      if (typeof profile.id !== "string" || profile.id === "") {
+        throw new Error(
+          `Profile mapping for provider "${providerName}" returned no id`,
+        );
+      }
+
+      return await helpers.completeSignIn(ctx, {
+        provider: providerName,
+        providerAccountId: profile.id,
+        profile,
+      });
+    },
+  });
+
+  return { startSignIn, completeSignIn };
 }
