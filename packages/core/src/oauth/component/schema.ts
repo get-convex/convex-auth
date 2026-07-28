@@ -36,4 +36,39 @@ export default defineSchema({
     /** The callback rejects requests older than this. */
     expiresAt: v.number(),
   }).index("stateHash", ["stateHash"]),
+
+  /**
+   * One-time redeemable proof that provider authentication succeeded. Minted
+   * by the callback after the code exchange, redeemed exactly once by a
+   * caller presenting the raw one-time token plus the original client state.
+   * Nothing user-visible (accounts, users, sessions) is created until
+   * redemption.
+   */
+  tickets: defineTable({
+    /** Provider that authenticated the user, e.g. "google". */
+    providerName: v.string(),
+    /**
+     * Carried over from the authorization request. Redemption re-checks the
+     * caller-presented state against it, binding completion to the browser
+     * or server that initiated the flow.
+     */
+    stateHash: v.string(),
+    /**
+     * sha256 of the server-minted one-time token. The raw value appears only
+     * in the callback redirect URL and is never stored.
+     */
+    ottHash: v.string(),
+    /** Tickets expire quickly (~2 minutes). */
+    expiresAt: v.number(),
+    /**
+     * The identity the provider attested: JSON of
+     * `{ claims, userInfoResponses }` (id_token claims when the provider
+     * returned one, userinfo responses keyed by the configured endpoint
+     * names; at least one is present), AES-GCM encrypted with a key derived
+     * from the raw one-time token. The raw token is never stored, so
+     * database access alone cannot read the payload, and provider-chosen
+     * JSON keys never become Convex field names.
+     */
+    payload: v.string(),
+  }).index("ottHash", ["ottHash"]),
 });
