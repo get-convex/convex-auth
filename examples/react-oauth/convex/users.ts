@@ -1,5 +1,5 @@
 import { internalMutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { vGoogleProfile } from "@convex-dev/auth/providers/oauth/google";
 import { vGithubProfile } from "@convex-dev/auth/providers/oauth/github";
 
@@ -35,8 +35,21 @@ export const me = query({
 /**
  * The app's create-or-update-user callback (see `attachUserCallback`). The core
  * invokes it on every sign-in — without a `userId` the first time an identity is
- * seen, and with the resolved `userId` thereafter. On the first sign-in we mint
- * a users row from the profile's username; on later sign-ins we echo the id.
+ * seen (this is the one moment the identity→user association is decided), and
+ * with the resolved `userId` thereafter.
+ *
+ * First sign-ins link by verified email: an identity whose email already
+ * belongs to a user attaches to that user, otherwise a new user is minted — so
+ * signing in with Google and GitHub under one email yields one user, and email
+ * stays unique. Sign-ins without a verified email are rejected outright,
+ * including GitHub accounts with no verified email: this example ships no
+ * email-verification flow, so an unverified row would be an unrecoverable dead
+ * end that blocks the email's verified owner from signing in. The thrown
+ * `ConvexError` copy surfaces in the sign-in card through the client's
+ * `flowError` (code `"rejected"`). A real app with a
+ * verification mechanism can instead allow unverified sign-ups (keeping the
+ * verified flag on the user row) and refuse, or require verification, only when
+ * an email collides.
  */
 export const createOrUpdateUser = internalMutation({
   args: {
@@ -48,15 +61,26 @@ export const createOrUpdateUser = internalMutation({
   returns: v.id("users"),
   handler: async (ctx, args) => {
     if (args.userId !== null) {
+      // Repeat sign-in: the identity already resolves to this user. Profile
+      // changes (e.g. an email changed at the provider) are not synced — that
+      // needs an update policy plus a collision rule against the unique email
+      // index, out of scope for a reference example.
       const existing = ctx.db.normalizeId("users", args.userId);
       if (existing === null) {
         throw new Error(`Unknown user id: ${args.userId}`);
       }
       return existing;
     }
-    const email = args.profile?.email;
-    if (email === undefined) {
-      throw new Error("Profile email is required");
+    const { email, emailVerified } = args.profile;
+    if (email === undefined || !emailVerified) {
+      throw new ConvexError("A verified email is required to sign in");
+    }
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", email))
+      .unique();
+    if (existingUser !== null) {
+      return existingUser._id;
     }
     return await ctx.db.insert("users", { email });
   },

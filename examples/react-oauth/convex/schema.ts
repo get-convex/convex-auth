@@ -6,5 +6,9 @@ import { v } from "convex/values";
 export default defineSchema({
   users: defineTable({
     email: v.string(),
-  }),
+  })
+    // Email is unique. Convex has no declarative unique constraints; every
+    // insert goes through `createOrUpdateUser`, which checks this index first
+    // (safe because mutations are serializable transactions).
+    .index("email", ["email"]),
 });
