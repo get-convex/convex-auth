@@ -34,6 +34,17 @@ Fix direction: keyed pending flows selected by a non-secret flow id carried
 in the redirect URL. The state itself must still never be read from the URL,
 preserving the login-CSRF property.
 
+## The framework-agnostic OAuth client isn't exported
+
+`oauth()` and the flow client (`packages/core/src/oauth/client.ts`) are only
+reachable through `@convex-dev/auth/providers/oauth/react`, deliberately —
+deferred until there's a non-React consumer. The `./providers/oauth/*`
+wildcard export (`packages/core/package.json`) maps the plausible
+`providers/oauth/client` path to a nonexistent component file.
+
+Fix when needed: one explicit export line above the wildcard,
+`"./providers/oauth/client": "./src/oauth/client.ts"`.
+
 ## Support for custom url schemes (eg., React Native)
 
 `allowedRedirectOrigins` entries must be http(s) origins - custom schemes

@@ -24,6 +24,7 @@ import type {
 } from "../browser/providerSetup";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
+import { oauth } from "../oauth/client";
 import type { ConvexAuthApi } from "../lib/types";
 import {
   AuthProvider,
@@ -51,26 +52,16 @@ export type { ConvexAuthActionsContextType } from "./client";
  *
  * function Root({ children }: { children: React.ReactNode }) {
  *   return (
- *     <ConvexAuthProvider
- *       client={convex}
- *       api={{ refreshSession: api.auth.refreshSession, signOut: api.auth.signOut }}
- *     >
+ *     <ConvexAuthProvider client={convex} api={api.auth}>
  *       {children}
  *     </ConvexAuthProvider>
  *   );
  * }
  * ```
  *
- * Auth methods that need registration or mount-time work plug in via the
- * `use` prop, e.g. OAuth:
- *
- * ```tsx
- * <ConvexAuthProvider
- *   client={convex}
- *   api={{ refreshSession: api.auth.refreshSession, signOut: api.auth.signOut }}
- *   use={[oauth({ providers })]}
- * >
- * ```
+ * OAuth works with no extra setup: sign in with
+ * `useSignInWithGoogle(api.auth)` (from `@convex-dev/auth/providers/oauth/react`),
+ * which picks the provider's functions off the module you hand it.
  */
 export function ConvexAuthProvider({
   client,
@@ -82,7 +73,11 @@ export function ConvexAuthProvider({
 }: {
   /** Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). */
   client: ConvexReactClient;
-  /** The app's `refreshSession` and `signOut` mutation references. */
+  /**
+   * The core auth mutations, passed as references (usually just `api.auth`).
+   * Only `refreshSession` and `signOut` are read here; provider sign-in
+   * functions reach their hooks directly (e.g. `useSignInWithGoogle(api.auth)`).
+   */
   api: ConvexAuthApi;
   /**
    * A custom {@link TokenStorage}. Defaults to `localStorage` in the browser
@@ -96,10 +91,10 @@ export function ConvexAuthProvider({
    */
   storageNamespace?: string;
   /**
-   * Provider client setups, one per auth method that needs registration or
-   * mount-time work (e.g. `oauth(...)` from
-   * `@convex-dev/auth/providers/oauth/react`). Read once when the client is
-   * created and not expected to change.
+   * Advanced. Provider client setups to register, replacing the default
+   * (`[oauth()]`) entirely rather than adding to it — pass `[]` to register
+   * nothing, or include `oauth()` yourself to keep it alongside a custom setup.
+   * Read once when the client is created and not expected to change.
    */
   use?: AuthProviderClientSetup[];
   children: ReactNode;
@@ -132,7 +127,11 @@ export function ConvexAuthProvider({
     // plain second argument through an unresolved generic.
     const mutation: MutationCaller = (reference, args) =>
       client.mutation(reference, args as never);
-    const onMounts = (use ?? []).flatMap((setup) => {
+    // Default registration is oauth alone; a provided `use` replaces it
+    // entirely (it's an override, not a merge), so an app can opt out of the
+    // built-ins or compose its own set.
+    const setups = use ?? [oauth()];
+    const onMounts = setups.flatMap((setup) => {
       const registration = setup({ client: authClient, mutation });
       return registration?.onMount === undefined ? [] : [registration.onMount];
     });
