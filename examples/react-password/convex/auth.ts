@@ -12,6 +12,7 @@ export const {
   component: components.core,
   providers: [
     provider(UsernamePassword, {
+      mode: "username",
       component: components.authPasswordProvider,
     }),
   ],

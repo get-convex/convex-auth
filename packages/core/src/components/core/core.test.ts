@@ -310,6 +310,40 @@ describe("token lifetime configuration", () => {
   });
 });
 
+describe("existingUserId (deferred account binding)", () => {
+  test("binds a first-time account to the supplied existing user id", async () => {
+    const t = setup();
+    const bundle = await t.mutation(api.public.signIn, {
+      claims: claims(),
+      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+      issuer: ISSUER,
+      existingUserId: "alice",
+    });
+    // The stub echoes the userId it is handed, so the bound user is "alice".
+    expect(bundle.userId).toBe("alice");
+    const userId = await t.query(api.public.getUserIdByAccount, {
+      provider: "password",
+      providerAccountId: "alice",
+    });
+    expect(userId).toBe("alice");
+  });
+
+  test("throws when the identity already belongs to a different user", async () => {
+    const t = setup();
+    // First bind the identity to "alice".
+    await signIn(t, claims());
+    // A later attempt to bind the same identity to a different user must fail.
+    await expect(
+      t.mutation(api.public.signIn, {
+        claims: claims(),
+        createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+        issuer: ISSUER,
+        existingUserId: "someone-else",
+      }),
+    ).rejects.toThrow(/different user/i);
+  });
+});
+
 describe("getUserIdByAccount", () => {
   test("returns null for an unknown identity", async () => {
     const t = setup();
