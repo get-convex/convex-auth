@@ -16,6 +16,7 @@ const CATALOG: OauthCatalog = {
   tokenEndpoint: "https://provider.example/token",
   scopes: [],
   pkce: false,
+  profile: () => ({ id: "account-1" }),
 };
 
 /**
@@ -43,6 +44,7 @@ describe("setupOauth validation", () => {
       ],
     });
     expect(api.startSignIn).toBeDefined();
+    expect(api.completeSignIn).toBeDefined();
   });
 
   test.each([
