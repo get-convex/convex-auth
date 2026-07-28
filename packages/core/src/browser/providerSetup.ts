@@ -14,6 +14,14 @@
  *    `withSignInPending` latch set synchronously in `onMount` holds the
  *    loading state through session load.
  *
+ * Adapters may register setups the app didn't explicitly opt into (the React
+ * binding registers `oauth()` by default), so `onMount` work must be
+ * **self-gating**: it may only do expensive work (a storage read, a network
+ * call) when it finds local evidence that a flow it owns is actually in
+ * progress, such as a namespaced URL param or a storage key the setup itself
+ * wrote. Absent that evidence it must return cheaply, so an app that never
+ * uses the provider pays nothing on mount.
+ *
  * The Convex imports are type-only: like `SpaAuthApi`, this contract keeps
  * provider client logic free of any particular Convex client class, so
  * non-React bindings can drive the same setups.

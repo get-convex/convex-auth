@@ -20,5 +20,5 @@
 /** Carries the one-time code the client redeems for a session. */
 export const OAUTH_CODE_PARAM = "convexAuthCode";
 
-/** Carries a normalized {@link OAuthFlowError} code when the flow failed. */
+/** Carries a normalized {@link OauthFlowError} code when the flow failed. */
 export const OAUTH_ERROR_PARAM = "convexAuthError";
