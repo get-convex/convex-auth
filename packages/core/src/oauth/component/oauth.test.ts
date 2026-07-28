@@ -1,6 +1,11 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api.js";
+import {
+  decryptWithToken,
+  encryptWithToken,
+  generateRandomToken,
+} from "./crypto.js";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -99,5 +104,117 @@ describe("oauth", () => {
       const requests = await ctx.db.query("authorizationRequests").collect();
       expect(requests).toHaveLength(0);
     });
+  });
+
+  test("createTicket stores hashed one-time token with expiry", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      providerName: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      payload: "encrypted-payload",
+    });
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(1);
+      expect(tickets[0].ottHash).toBe("a".repeat(64));
+      expect(tickets[0].payload).toBe("encrypted-payload");
+      expect(tickets[0].expiresAt).toBeGreaterThan(Date.now());
+    });
+  });
+
+  test("claimTicket returns the ticket exactly once", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      providerName: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      payload: "encrypted-payload",
+    });
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: "google",
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(claimed).toEqual({ payload: "encrypted-payload" });
+    const second = await t.mutation(api.provider.claimTicket, {
+      providerName: "google",
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(second).toBeNull();
+  });
+
+  test("claimTicket returns null on state mismatch and preserves the ticket", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      providerName: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      payload: "encrypted-payload",
+    });
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: "google",
+      ottHash: "a".repeat(64),
+      stateHash: "f".repeat(64),
+    });
+    expect(claimed).toBeNull();
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(1);
+    });
+  });
+
+  test("claimTicket returns null on provider mismatch and preserves the ticket", async () => {
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      providerName: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      payload: "encrypted-payload",
+    });
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: "github",
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(claimed).toBeNull();
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(1);
+    });
+  });
+
+  test("claimTicket deletes but does not return an expired ticket", async () => {
+    vi.useFakeTimers();
+    const t = setup();
+    await t.mutation(internal.provider.createTicket, {
+      providerName: "google",
+      stateHash: "0".repeat(64),
+      ottHash: "a".repeat(64),
+      payload: "encrypted-payload",
+    });
+    vi.advanceTimersByTime(3 * 60 * 1000);
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: "google",
+      ottHash: "a".repeat(64),
+      stateHash: "0".repeat(64),
+    });
+    expect(claimed).toBeNull();
+    await t.run(async (ctx) => {
+      const tickets = await ctx.db.query("tickets").collect();
+      expect(tickets).toHaveLength(0);
+    });
+  });
+
+  test("ticket payload encryption round-trips only with the right token", async () => {
+    const token = generateRandomToken();
+    const payload = JSON.stringify({ claims: { sub: "user-123" } });
+    const encrypted = await encryptWithToken(token, payload);
+    expect(encrypted).not.toContain("user-123");
+    expect(await decryptWithToken(token, encrypted)).toBe(payload);
+    await expect(
+      decryptWithToken(generateRandomToken(), encrypted),
+    ).rejects.toThrow();
   });
 });
