@@ -7,7 +7,11 @@ import { getFunctionName, makeFunctionReference } from "convex/server";
 import { vi } from "vitest";
 import type { AuthSignInApi } from "../browser/ambientSignInClient.js";
 import { AuthClient } from "../browser/sessionManager.js";
-import { InMemoryStorage, NamespacedStorage } from "../browser/storage.js";
+import {
+  InMemoryStorage,
+  NamespacedStorage,
+  type TokenStorage,
+} from "../browser/storage.js";
 import type { TokenBundle } from "../lib/types.js";
 import {
   OAUTH_ACTIONS_KEY,
@@ -45,15 +49,15 @@ export const ACME_REFS: OauthProviderRefs = {
 };
 
 /** The oauth setup's scoped storage view over `storage`. */
-export function flowStorage(storage: InMemoryStorage) {
+export function flowStorage(storage: TokenStorage) {
   return new NamespacedStorage(storage, NAMESPACE).forSignIn(OAUTH_SETUP_ID);
 }
 
 /**
- * The pending flow as stored, or null. `InMemoryStorage` reads synchronously,
- * unlike the async stores the storage type also allows.
+ * The pending flow as stored, or null. Only for the synchronous stores, since
+ * the storage type also allows ones that return promises.
  */
-export function readFlow(storage: InMemoryStorage): PendingFlow | null {
+export function readFlow(storage: TokenStorage): PendingFlow | null {
   const raw = flowStorage(storage).get("flow") as string | null | undefined;
   if (raw === null || raw === undefined) {
     return null;
@@ -63,7 +67,7 @@ export function readFlow(storage: InMemoryStorage): PendingFlow | null {
 
 /** Store a pending flow the way `signIn` would before navigating away. */
 export function seedPendingFlow(
-  storage: InMemoryStorage,
+  storage: TokenStorage,
   refs: OauthProviderRefs = ACME_REFS,
   state = "state-1",
 ): void {
@@ -82,7 +86,7 @@ export function seedPendingFlow(
  * standing in for the Convex call. The mock records the function reference it
  * was called with, so tests can assert which function ran.
  */
-export function oauthClient(storage: InMemoryStorage): {
+export function oauthClient(storage: TokenStorage): {
   client: AuthClient;
   signInApi: AuthSignInApi;
   mutation: ReturnType<typeof vi.fn>;
@@ -100,7 +104,9 @@ export function oauthClient(storage: InMemoryStorage): {
 }
 
 /** {@link oauthClient} plus the values the oauth setup published. */
-export function setupOAuth({ storage = new InMemoryStorage() } = {}) {
+export function setupOAuth({
+  storage = new InMemoryStorage() as TokenStorage,
+} = {}) {
   const { client, mutation } = oauthClient(storage);
   const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
   const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;

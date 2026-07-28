@@ -14,6 +14,7 @@ import {
   getFunctionName,
   makeFunctionReference,
 } from "convex/server";
+import { ConvexError } from "convex/values";
 import type { AmbientSignInClient } from "../browser/ambientSignInClient.js";
 import { retryOnNetworkError } from "../browser/retry.js";
 import type { SignInStorage } from "../browser/storage.js";
@@ -53,17 +54,30 @@ export type OauthProviderRefs = {
  *
  * - `"access_denied"`: the user cancelled at the identity provider.
  * - `"expired"`: the flow took too long, or the code was already redeemed.
- * - `"oauth_error"`: something else went wrong during the provider handshake.
+ * - `"rejected"`: the app's own backend refused the sign-in by throwing a
+ *   `ConvexError` (e.g. from `createOrUpdateUser`); `message` carries the
+ *   error's `data` when it is a string.
+ * - `"oauth_error"`: something else went wrong during the provider handshake,
+ *   including failing to start it.
  * - `"invalid_flow"`: the callback arrived but this client has no saved flow,
  *   so it never started this sign-in or already finished it.
  */
 export type OauthFlowErrorCode =
-  "access_denied" | "expired" | "oauth_error" | "invalid_flow";
+  "access_denied" | "expired" | "rejected" | "oauth_error" | "invalid_flow";
 
-/** Why a sign-in failed. */
+/**
+ * Why a sign-in failed. A `"rejected"` error can carry the app's own copy for
+ * the user.
+ */
 export type OauthFlowError = {
   /** Why the sign-in failed. */
   code: OauthFlowErrorCode;
+  /**
+   * The app's own copy for the user, taken from the `ConvexError` its backend
+   * threw. Only set for a `"rejected"` error, and only when that error carried
+   * a string.
+   */
+  message?: string;
 };
 
 /** Options accepted by {@link OauthActions.signIn}. */
@@ -191,6 +205,19 @@ async function takePendingFlow(
 }
 
 /**
+ * Best-effort removal of the pending sign-in flow, for flows that already
+ * ended. Failures are swallowed: the flow error the caller sets is the
+ * signal, and a rejecting storage must not become an unhandled rejection.
+ */
+async function dropPendingFlow(storage: SignInStorage): Promise<void> {
+  try {
+    await storage.remove(OAUTH_FLOW_STORAGE_KEY);
+  } catch {
+    // The flow was already over; a failed cleanup changes nothing.
+  }
+}
+
+/**
  * Client setup for the OAuth providers. It owns the flow's storage and the
  * startup work that finishes a flow. Provider mutations arrive with each
  * {@link OauthActions.signIn} call, so the setup takes no configuration.
@@ -203,27 +230,56 @@ export function oauth(): AmbientSignInClient {
     signInApi,
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
-    const setFlowError = (code: OauthFlowErrorCode | null): void => {
-      values.set(OAUTH_FLOW_ERROR_KEY, code === null ? null : { code });
+    const setFlowError = (
+      code: OauthFlowErrorCode | null,
+      message?: string,
+    ): void => {
+      if (code === null) {
+        values.set(OAUTH_FLOW_ERROR_KEY, null);
+        return;
+      }
+      values.set(OAUTH_FLOW_ERROR_KEY, { code, message });
+    };
+
+    /**
+     * Map a thrown sign-in failure to its flow error. An app rejects a
+     * sign-in by throwing a `ConvexError` (the channel the core setup's
+     * `attachUserCallback` documents); its `data`, when a string, is the
+     * app's own user-facing copy. Anything else is a generic handshake
+     * failure.
+     */
+    const setThrownFlowError = (error: unknown): void => {
+      if (error instanceof ConvexError) {
+        setFlowError(
+          "rejected",
+          typeof error.data === "string" ? error.data : undefined,
+        );
+        return;
+      }
+      setFlowError("oauth_error");
     };
 
     /**
      * Redeem a callback `code` against the saved flow and adopt the session.
      * The whole thing runs inside `withSignInPending`, including
      * `setSession`, so the auth state stays on loading until the client is
-     * signed in rather than flickering through signed out.
+     * signed in rather than flickering through signed out. Never rejects:
+     * every failure becomes a flow error, so the fire-and-forget startup call
+     * is safe.
      */
     const completeFlow = async (code: string): Promise<boolean> =>
       await client.withSignInPending(async () => {
-        const pending = await takePendingFlow(storage);
-        if (pending === null) {
-          setFlowError("invalid_flow");
-          return false;
-        }
-        const completeSignIn = makeFunctionReference<"mutation">(
-          pending.completeSignIn,
-        ) as OauthProviderApi["completeSignIn"];
+        // The storage read sits inside the try so a rejecting custom storage
+        // is a flow error like any other completion failure.
         try {
+          const pending = await takePendingFlow(storage);
+          if (pending === null) {
+            setFlowError("invalid_flow");
+            return false;
+          }
+          const completeSignIn = makeFunctionReference<"mutation">(
+            pending.completeSignIn,
+          ) as OauthProviderApi["completeSignIn"];
           const bundle = await retryOnNetworkError(() =>
             signInApi.mutation(completeSignIn, { code, state: pending.state }),
           );
@@ -235,8 +291,8 @@ export function oauth(): AmbientSignInClient {
           }
           await client.setSession(bundle);
           return true;
-        } catch {
-          setFlowError("oauth_error");
+        } catch (error) {
+          setThrownFlowError(error);
           return false;
         }
       });
@@ -269,7 +325,7 @@ export function oauth(): AmbientSignInClient {
         // The server ended the flow with an error, so the saved state can
         // never be used. Drop it now so a stray code arriving later still
         // reports `invalid_flow`.
-        void storage.remove(OAUTH_FLOW_STORAGE_KEY);
+        void dropPendingFlow(storage);
         setFlowError(
           SERVER_ERRORS.has(errorParam)
             ? (errorParam as OauthFlowErrorCode)
@@ -300,25 +356,32 @@ export function oauth(): AmbientSignInClient {
       // Cleared here rather than at the top, so a call that throws above
       // leaves any error the app is showing alone.
       setFlowError(null);
-      const { redirect, state } = await signInApi.mutation(refs.startSignIn, {
-        redirectTo,
-      });
-      await storage.set(
-        OAUTH_FLOW_STORAGE_KEY,
-        JSON.stringify({
-          providerName: refs.providerName,
-          state,
-          completeSignIn: getFunctionName(refs.completeSignIn),
-        } satisfies PendingFlow),
-      );
-      const url = new URL(redirect);
-      // Don't navigate where there's no page URL to leave. React Native has
-      // none, so it gets the url back, opens it in an in-app browser, and
-      // finishes with `signIn(refs, { code })`.
-      if (href !== null && navigator.product !== "ReactNative") {
-        window.location.href = url.toString();
+      try {
+        const { redirect, state } = await signInApi.mutation(refs.startSignIn, {
+          redirectTo,
+        });
+        await storage.set(
+          OAUTH_FLOW_STORAGE_KEY,
+          JSON.stringify({
+            providerName: refs.providerName,
+            state,
+            completeSignIn: getFunctionName(refs.completeSignIn),
+          } satisfies PendingFlow),
+        );
+        const url = new URL(redirect);
+        // Don't navigate where there's no page URL to leave. React Native has
+        // none, so it gets the url back, opens it in an in-app browser, and
+        // finishes with `signIn(refs, { code })`.
+        if (href !== null && navigator.product !== "ReactNative") {
+          window.location.href = url.toString();
+        }
+        return { redirect: url };
+      } catch (error) {
+        // Failing to start still publishes the flow error, so UI bound to it
+        // shows feedback even when the caller ignores the rejection.
+        setThrownFlowError(error);
+        throw error;
       }
-      return { redirect: url };
     };
 
     values.set(OAUTH_ACTIONS_KEY, { signIn } satisfies OauthActions);
