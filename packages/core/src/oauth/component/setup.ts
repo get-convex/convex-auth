@@ -70,11 +70,18 @@ function parseUrl(value: string): URL | null {
 /**
  * Set up OAuth sign-in against a single upstream identity provider.
  *
- * This is the first leg of the flow: `startSignIn` validates, mints `state`,
- * stores an authorization request record in the component, and returns the provider
- * authorization URL for the client to navigate to plus the state it must hold
- * onto. The provider later redirects back to the component's HTTP callback
- * (`<site><httpPrefix>/callback`), which claims the request by state hash.
+ * The flow:
+ *
+ * 1. `startSignIn` (here): validate, mint `state`, record an authorization
+ *    request in the component, and return the provider authorization URL for
+ *    the client to navigate to plus the state it must hold onto.
+ * 2. The provider redirects back to the component's HTTP callback
+ *    (`<site><httpPrefix>/callback`), which claims the request, exchanges
+ *    the code, and mints a one-time ticket.
+ *
+ * The callback only accepts GET redirects. Providers that POST it
+ * (`response_mode=form_post`, notably Apple when name/email scopes are
+ * requested) are not supported yet.
  */
 export function setupOauth(
   providerName: string,

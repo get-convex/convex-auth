@@ -8,9 +8,9 @@ Probably all public routes need rate limiting of some sort.
 
 ## OAuth component rows are never cleaned up, and `startSignIn` is unauthenticated
 
-Expired authorization requests are only deleted when their state is later
-presented (`packages/core/src/oauth/component/provider.ts`), so abandoned
-flows accumulate forever.
+Expired authorization requests and tickets are only deleted when their
+secret is later presented (`packages/core/src/oauth/component/provider.ts`),
+so abandoned flows accumulate forever.
 
 ## OAuth sign-in requires a backend with system env vars in components
 
