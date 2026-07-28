@@ -34,6 +34,7 @@ import {
   getFunctionName,
   makeFunctionReference,
 } from "convex/server";
+import { ConvexError } from "convex/values";
 import type { AuthProviderClientSetup } from "../browser/providerSetup";
 import { retryOnNetworkError } from "../browser/retry";
 import type { NamespacedStorage } from "../browser/storage";
@@ -79,19 +80,24 @@ export type OauthProviderRefs = {
  *
  * - `"access_denied"`: the user cancelled at the identity provider.
  * - `"expired"`: the flow took too long, or the code was already redeemed.
- * - `"oauth_error"`: something else went wrong during the provider handshake.
+ * - `"rejected"`: the app's own backend refused the sign-in by throwing a
+ *   `ConvexError` (e.g. from `createOrUpdateUser`); `message` carries the
+ *   error's `data` when it is a string.
+ * - `"oauth_error"`: something else went wrong during the provider handshake,
+ *   including failing to start it.
  * - `"invalid_flow"`: the callback arrived without a matching pending flow —
  *   this client never started the sign-in (or already completed it).
  */
 export type OauthFlowErrorCode =
-  "access_denied" | "expired" | "oauth_error" | "invalid_flow";
+  "access_denied" | "expired" | "rejected" | "oauth_error" | "invalid_flow";
 
 /**
  * A sign-in flow error: the normalized {@link OauthFlowErrorCode} plus a
  * default, English, user-facing `message`. The message is a convenience so
  * apps can render something without writing their own copy — it is *not* a
  * stable string. Localize or rebrand by switching on `code` and ignoring
- * `message`.
+ * `message`. Exception: a `"rejected"` error's message is usually the app's
+ * own copy — the string its backend threw in a `ConvexError`.
  */
 export type OauthFlowError = {
   /** The normalized reason the sign-in failed. */
@@ -104,6 +110,7 @@ export type OauthFlowError = {
 const FLOW_ERROR_MESSAGES: Record<OauthFlowErrorCode, string> = {
   access_denied: "Sign-in was cancelled.",
   expired: "Sign-in took too long. Please try again.",
+  rejected: "Sign-in was declined.",
   oauth_error: "Something went wrong during sign-in. Please try again.",
   invalid_flow: "This sign-in can't be completed here. Please try again.",
 };
@@ -228,6 +235,19 @@ async function takePendingFlow(
 }
 
 /**
+ * Best-effort removal of the pending sign-in flow, for flows that already
+ * ended. Failures are swallowed: the flow error the caller sets is the
+ * signal, and a rejecting storage must not become an unhandled rejection.
+ */
+async function dropPendingFlow(storage: NamespacedStorage): Promise<void> {
+  try {
+    await storage.remove(OAUTH_FLOW_STORAGE_KEY);
+  } catch {
+    // The flow was already over; a failed cleanup changes nothing.
+  }
+}
+
+/**
  * Client setup for the OAuth providers. It owns the flow's storage and
  * mount-time completion; the provider functions themselves arrive as
  * references with each {@link OauthActions.signIn} call (the React hooks pick
@@ -250,30 +270,56 @@ export function oauth(): AuthProviderClientSetup {
       );
     }
 
-    const setFlowError = (code: OauthFlowErrorCode | null): void => {
+    const setFlowError = (
+      code: OauthFlowErrorCode | null,
+      message?: string,
+    ): void => {
       client.store.set(
         OAUTH_FLOW_ERROR_STORE_KEY,
-        code === null ? null : { code, message: FLOW_ERROR_MESSAGES[code] },
+        code === null
+          ? null
+          : { code, message: message ?? FLOW_ERROR_MESSAGES[code] },
       );
+    };
+
+    /**
+     * Map a thrown sign-in failure to its flow error. An app rejects a
+     * sign-in by throwing a `ConvexError` (the channel the core setup's
+     * `attachUserCallback` documents); its `data`, when a string, is the
+     * app's own user-facing copy. Anything else is a generic handshake
+     * failure.
+     */
+    const setThrownFlowError = (error: unknown): void => {
+      if (error instanceof ConvexError) {
+        setFlowError(
+          "rejected",
+          typeof error.data === "string" ? error.data : undefined,
+        );
+        return;
+      }
+      setFlowError("oauth_error");
     };
 
     /**
      * Redeem a callback `code` against the pending flow and adopt the
      * session. Wrapped in `withSignInPending` end to end — including
      * `setSession` — so the auth state reports loading until the client is
-     * authenticated.
+     * authenticated. Never rejects: every failure becomes a flow error, so
+     * the fire-and-forget mount call is safe.
      */
     const completeFlow = async (code: string): Promise<boolean> =>
       await client.withSignInPending(async () => {
-        const pending = await takePendingFlow(client.storage);
-        if (pending === null) {
-          setFlowError("invalid_flow");
-          return false;
-        }
-        const completeSignIn = makeFunctionReference<"mutation">(
-          pending.completeSignIn,
-        ) as OauthProviderApi["completeSignIn"];
+        // The storage read sits inside the try so a rejecting custom storage
+        // is a flow error like any other completion failure.
         try {
+          const pending = await takePendingFlow(client.storage);
+          if (pending === null) {
+            setFlowError("invalid_flow");
+            return false;
+          }
+          const completeSignIn = makeFunctionReference<"mutation">(
+            pending.completeSignIn,
+          ) as OauthProviderApi["completeSignIn"];
           const bundle = await retryOnNetworkError(() =>
             mutation(completeSignIn, { code, state: pending.state }),
           );
@@ -285,8 +331,8 @@ export function oauth(): AuthProviderClientSetup {
           }
           await client.setSession(bundle);
           return true;
-        } catch {
-          setFlowError("oauth_error");
+        } catch (error) {
+          setThrownFlowError(error);
           return false;
         }
       });
@@ -317,7 +363,7 @@ export function oauth(): AuthProviderClientSetup {
         // The server ended the flow with an error, so the stored state can
         // never complete — drop it, keeping `invalid_flow` meaningful if a
         // stray code arrives later.
-        void client.storage.remove(OAUTH_FLOW_STORAGE_KEY);
+        void dropPendingFlow(client.storage);
         setFlowError(
           SERVER_ERRORS.has(errorParam)
             ? (errorParam as OauthFlowErrorCode)
@@ -336,24 +382,32 @@ export function oauth(): AuthProviderClientSetup {
       if (options?.code !== undefined) {
         return { signedIn: await completeFlow(options.code) };
       }
-      const { redirect, state } = await mutation(refs.startSignIn, {
-        redirectTo: options?.redirectTo ?? window.location.href,
-      });
-      await client.storage.set(
-        OAUTH_FLOW_STORAGE_KEY,
-        JSON.stringify({
-          providerName: refs.providerName,
-          state,
-          completeSignIn: getFunctionName(refs.completeSignIn),
-        } satisfies PendingFlow),
-      );
-      const url = new URL(redirect);
-      // Don't navigate in React Native: the app opens the returned URL in an
-      // in-app browser and completes with `signIn(refs, { code })`.
-      if (navigator.product !== "ReactNative") {
-        window.location.href = url.toString();
+      try {
+        const { redirect, state } = await mutation(refs.startSignIn, {
+          redirectTo: options?.redirectTo ?? window.location.href,
+        });
+        await client.storage.set(
+          OAUTH_FLOW_STORAGE_KEY,
+          JSON.stringify({
+            providerName: refs.providerName,
+            state,
+            completeSignIn: getFunctionName(refs.completeSignIn),
+          } satisfies PendingFlow),
+        );
+        const url = new URL(redirect);
+        // Don't navigate in React Native: the app opens the returned URL in an
+        // in-app browser and completes with `signIn(refs, { code })`.
+        if (navigator.product !== "ReactNative") {
+          window.location.href = url.toString();
+        }
+        return { redirect: url };
+      } catch (error) {
+        // Failing to start still surfaces through the store, so UI bound to
+        // the flow error shows feedback even when the caller ignores the
+        // rejection.
+        setThrownFlowError(error);
+        throw error;
       }
-      return { redirect: url };
     };
 
     client.store.set(

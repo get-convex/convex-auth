@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { getFunctionName, makeFunctionReference } from "convex/server";
+import { ConvexError } from "convex/values";
 import type { MutationCaller } from "../browser/providerSetup";
 import { AuthClient } from "../browser/sessionManager";
-import { InMemoryStorage, NamespacedStorage } from "../browser/storage";
+import {
+  InMemoryStorage,
+  NamespacedStorage,
+  type TokenStorage,
+} from "../browser/storage";
 import type { TokenBundle } from "../lib/types";
 import {
   OAUTH_ACTIONS_STORE_KEY,
@@ -40,7 +45,7 @@ const GOOGLE_REFS: OauthProviderRefs = {
 
 /** Store a pending flow the way `signIn` would before navigating away. */
 function seedPendingFlow(
-  storage: InMemoryStorage,
+  storage: TokenStorage,
   {
     providerName = "google",
     state = "state-1",
@@ -57,7 +62,7 @@ function seedPendingFlow(
  * Run the oauth setup against a real AuthClient and a fake mutation caller,
  * the way `ConvexAuthProvider` would at client construction.
  */
-function setupOAuth({ storage = new InMemoryStorage() } = {}) {
+function setupOAuth({ storage = new InMemoryStorage() as TokenStorage } = {}) {
   const client = new AuthClient({
     mode: "spa",
     authApi: { refreshSession: async () => null, signOut: async () => {} },
@@ -292,6 +297,80 @@ describe("OAuth client", () => {
     expect(client.getSnapshot().isLoading).toBe(false);
   });
 
+  test("an app rejection surfaces its ConvexError copy as rejected", async () => {
+    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage);
+    const { client, mutation, onMount, flowError } = setupOAuth({ storage });
+    mutation.mockRejectedValueOnce(
+      new ConvexError("A verified email is required to sign in"),
+    );
+
+    onMount();
+    await client.init();
+
+    await vi.waitFor(() =>
+      expect(flowError()).toEqual({
+        code: "rejected",
+        message: "A verified email is required to sign in",
+      }),
+    );
+    expect(client.getSnapshot().isAuthenticated).toBe(false);
+  });
+
+  test("an app rejection with non-string data gets the default copy", async () => {
+    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage);
+    const { mutation, onMount, flowError } = setupOAuth({ storage });
+    mutation.mockRejectedValueOnce(new ConvexError({ reason: "policy" }));
+
+    onMount();
+
+    await vi.waitFor(() => expect(flowError()?.code).toBe("rejected"));
+    expect(flowError()?.message).toBe("Sign-in was declined.");
+  });
+
+  test("a rejecting storage during redemption sets oauth_error", async () => {
+    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+    // Reject only the pending-flow read (an RN-style async storage failing);
+    // the client's own token reads stay healthy.
+    const storage: TokenStorage = {
+      getItem: (key) =>
+        key.startsWith("__convexAuthOauthFlow")
+          ? Promise.reject(new Error("storage broken"))
+          : null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+    const { client, mutation, onMount, flowError } = setupOAuth({ storage });
+
+    onMount();
+    await client.init();
+
+    await vi.waitFor(() => expect(flowError()?.code).toBe("oauth_error"));
+    expect(mutation).not.toHaveBeenCalled();
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
+  test("a rejecting storage during error cleanup keeps the flow error", async () => {
+    window.history.replaceState(null, "", "/?convexAuthError=access_denied");
+    const storage: TokenStorage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => Promise.reject(new Error("storage broken")),
+    };
+    const { onMount, flowError } = setupOAuth({ storage });
+
+    onMount();
+
+    expect(flowError()?.code).toBe("access_denied");
+    // Give the voided cleanup a beat to settle — a rejection escaping it
+    // would fail the run as unhandled.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(flowError()?.code).toBe("access_denied");
+  });
+
   test("signIn starts a flow, persists it, and returns the redirect", async () => {
     // The React Native branch returns the URL instead of navigating, which
     // also keeps jsdom (no navigation support) happy.
@@ -363,6 +442,32 @@ describe("OAuth client", () => {
     await actions.signIn(GOOGLE_REFS);
 
     expect(flowError()).toBeNull();
+  });
+
+  test("a failed start sets the flow error and rejects", async () => {
+    const { mutation, actions, flowError, storage } = setupOAuth();
+    mutation.mockRejectedValueOnce(new Error("boom"));
+
+    await expect(actions.signIn(GOOGLE_REFS)).rejects.toThrow("boom");
+
+    // The store carries the feedback even when the caller ignores the
+    // rejection (the fire-and-forget click handler case).
+    expect(flowError()?.code).toBe("oauth_error");
+    expect(
+      new NamespacedStorage(storage, NAMESPACE).get("__convexAuthOauthFlow"),
+    ).toBeNull();
+  });
+
+  test("a rejected start surfaces the app's copy and rejects", async () => {
+    const { mutation, actions, flowError } = setupOAuth();
+    mutation.mockRejectedValueOnce(new ConvexError("Sign-ups are closed"));
+
+    await expect(actions.signIn(GOOGLE_REFS)).rejects.toThrow();
+
+    expect(flowError()).toEqual({
+      code: "rejected",
+      message: "Sign-ups are closed",
+    });
   });
 
   test("a foreign code/error param is ignored and left in the URL", () => {
