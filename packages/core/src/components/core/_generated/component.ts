@@ -31,6 +31,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         string | null,
         Name
       >;
+      link: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          claims: { profile: any; provider: string; providerAccountId: string };
+          createOrUpdateUserHandle: string;
+          userId: string;
+        },
+        | { status: "linked" }
+        | { status: "alreadyLinked" }
+        | { status: "conflict" },
+        Name
+      >;
       refresh: FunctionReference<
         "mutation",
         "internal",

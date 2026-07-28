@@ -146,6 +146,34 @@ export type CompleteSignInFunc = (
 ) => Promise<TokenBundle>;
 
 /**
+ * The result of linking a provider account to an existing app user.
+ *
+ * - `linked`: the account was created and attached to the user.
+ * - `alreadyLinked`: the identity is already attached to this user; nothing
+ *   was changed.
+ * - `conflict`: the identity is attached to a *different* user. Linking never
+ *   merges users, so the caller must surface this as a failure.
+ */
+export const vLinkAccountResult = v.union(
+  v.object({ status: v.literal("linked") }),
+  v.object({ status: v.literal("alreadyLinked") }),
+  v.object({ status: v.literal("conflict") }),
+);
+
+export type LinkAccountResult = Infer<typeof vLinkAccountResult>;
+
+/**
+ * Attaches the provider account described by `claims` to the existing app user
+ * `userId`, without minting a session. The user keeps their current session;
+ * the new account is an additional way to sign in.
+ */
+export type LinkAccountFunc = (
+  ctx: RunMutationCtx,
+  claims: AuthClaims,
+  userId: string,
+) => Promise<LinkAccountResult>;
+
+/**
  * A function that finds the user ID a provider account ID is associated with
  * (bound to a particular provider).
  *
@@ -159,6 +187,7 @@ export type ResolveUserIdFunc = (
 export type ProviderHelpers = {
   completeSignIn: CompleteSignInFunc;
   resolveUserId: ResolveUserIdFunc;
+  linkAccount: LinkAccountFunc;
 };
 
 type ProviderSetupFunc<O, P> = (helpers: ProviderHelpers, options: O) => P;
@@ -188,7 +217,10 @@ export type ProviderConfig<N extends string, O, P> = {
    * completes an authentication flow should call it once it has authenticated
    * an account and return the result. `resolveUserId` looks up the app user id
    * behind one of this provider's account identifiers without minting a session
-   * (e.g. to find the user a password should be verified against).
+   * (e.g. to find the user a password should be verified against). `linkAccount`
+   * attaches a newly authenticated account to an existing, already signed-in
+   * user instead of signing in; providers that support account linking should
+   * call it in place of `completeSignIn`.
    *
    * It will also receive any `options` that the provider defined.
    */

@@ -24,6 +24,13 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      hasPassword: FunctionReference<
+        "query",
+        "internal",
+        { userId: string },
+        boolean,
+        Name
+      >;
       setPassword: FunctionReference<
         "mutation",
         "internal",

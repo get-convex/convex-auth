@@ -10,6 +10,7 @@ import {
   type TokenBundle,
   ProviderConfig,
   CompleteSignInFunc,
+  LinkAccountFunc,
   ResolveUserIdFunc,
   CreateOrUpdateUserFn,
 } from "../../lib/types";
@@ -214,6 +215,16 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
       });
     };
 
+    const linkAccount: LinkAccountFunc = async (ctx, claims, userId) => {
+      const createOrUpdateUserHandle =
+        await createFunctionHandle(createOrUpdateUser);
+      return await ctx.runMutation(component.public.link, {
+        claims,
+        userId,
+        createOrUpdateUserHandle,
+      });
+    };
+
     const result: Record<string, unknown> = {};
     for (const [config, options] of providers) {
       const resolveUserId: ResolveUserIdFunc = (ctx, providerAccountId) =>
@@ -222,7 +233,7 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
           providerAccountId,
         });
       result[config.name] = config.setup(
-        { completeSignIn, resolveUserId },
+        { completeSignIn, resolveUserId, linkAccount },
         options,
       );
     }

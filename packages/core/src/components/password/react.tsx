@@ -6,9 +6,11 @@
  * resulting {@link TokenBundle} to the core client's `setSession` (see {@link
  * useAuthActions}).
  *
- * The password provider has two flows and provides a hook for each:
+ * The password provider has three flows and provides a hook for each:
  *  1. signing in to an existing account ({@link useSignInWithPassword})
  *  2. signing up a new one ({@link useSignUpWithPassword})
+ *  3. linking a username/password account to the signed-in user
+ *     ({@link useLinkWithPassword})
  *
  * Each hook returns a function for sending up the credentials and a `pending`
  * value that is flipped to `true` while the credentials are being validated.
@@ -21,7 +23,7 @@ import { useAction } from "convex/react";
 import { FunctionReference } from "convex/server";
 import { useCallback, useState } from "react";
 import { useAuthActions } from "../../react";
-import type { SignInResult, SignUpResult } from "./setup";
+import type { LinkResult, SignInResult, SignUpResult } from "./setup";
 
 /** The `(username, password)` pair both flows accept. */
 type Credentials = { username: string; password: string };
@@ -47,6 +49,16 @@ type SignUpWithPasswordAction = FunctionReference<
 >;
 
 /**
+ * The `linkWithPassword` action the app re-exports from its `setupCore`.
+ */
+type LinkWithPasswordAction = FunctionReference<
+  "action",
+  "public",
+  Credentials,
+  LinkResult
+>;
+
+/**
  * A failure the client produces that the server never returns: the action
  * threw (a network blip, a bug, an unexpected server error) rather than
  * resolving to a `userError`. The flow hooks fold that into the result as
@@ -64,6 +76,9 @@ export type SignInWithPasswordResult = SignInResult | UnexpectedFailure;
 
 /** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
 export type SignUpWithPasswordResult = SignUpResult | UnexpectedFailure;
+
+/** The result of the `link` callback from {@link useLinkWithPassword}. */
+export type LinkWithPasswordResult = LinkResult | UnexpectedFailure;
 
 /**
  * Client for the password provider's sign-in flow: wire the backend's
@@ -163,6 +178,63 @@ export function useSignUpWithPassword(signUpAction: SignUpWithPasswordAction) {
      */
     signUp: run,
     /** `true` if the sign-up attempt is being validated. */
+    pending,
+  };
+}
+
+/**
+ * Client for the password provider's linking flow: wire the backend's
+ * `linkWithPassword` action to the client.
+ *
+ * The returned `link` adds a username/password account to the currently
+ * signed-in user, so they can also sign in with those credentials later.
+ * Unlike the sign-in and sign-up hooks it does not touch the session: the
+ * user is already authenticated and their session stays as-is, so nothing is
+ * handed to `setSession`.
+ *
+ * ```tsx
+ * import { useLinkWithPassword } from "@convex-dev/auth/providers/password/react";
+ * import { api } from "../convex/_generated/api";
+ *
+ * function LinkAccount() {
+ *   const { link, pending } = useLinkWithPassword(api.auth.linkWithPassword);
+ *   // ...same shape as useSignInWithPassword, minus the session change
+ * }
+ * ```
+ *
+ * @param linkAction The app's `linkWithPassword` action reference.
+ */
+export function useLinkWithPassword(linkAction: LinkWithPasswordAction) {
+  const runAction = useAction(linkAction);
+  const [pending, setPending] = useState(false);
+
+  const link = useCallback(
+    async (credentials: Credentials): Promise<LinkWithPasswordResult> => {
+      setPending(true);
+      try {
+        return await runAction(credentials);
+      } catch (cause) {
+        // Fold a thrown error into the result as OTHER_ERROR, matching the
+        // sign-in and sign-up hooks.
+        return { success: false, userError: { error: "OTHER_ERROR", cause } };
+      } finally {
+        setPending(false);
+      }
+    },
+    [runAction],
+  );
+
+  return {
+    /**
+     * Links a username/password account with the given credentials to the
+     * currently signed-in user.
+     *
+     * Returns an object with a `success` boolean flag. If it is `false` the
+     * returned object will have a `userError` field with additional details
+     * about why linking failed.
+     */
+    link,
+    /** `true` if the link attempt is being validated. */
     pending,
   };
 }

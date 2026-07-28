@@ -1,4 +1,4 @@
-import { mutation, QueryCtx } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { components } from "./_generated/api";
 import { Infer, v } from "convex/values";
@@ -129,6 +129,21 @@ export const verifyPassword = mutation({
       return { success: false, userError: { error: "INVALID_CREDENTIALS" } };
     }
     return { success: true };
+  },
+});
+
+/**
+ * Whether a password is stored for the given user.
+ *
+ * The password provider allows one password per user, so recipes use this to
+ * refuse flows that would silently replace an existing password (e.g. linking
+ * a second username/password account to the same user).
+ */
+export const hasPassword = query({
+  args: { userId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { userId }): Promise<boolean> => {
+    return (await passwordByUserId(ctx, userId)) !== null;
   },
 });
 
