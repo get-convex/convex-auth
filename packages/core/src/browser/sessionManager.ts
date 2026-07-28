@@ -1,17 +1,13 @@
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
+import { KeyedStore } from "./keyedStore";
 import { runWithMutex } from "./mutex";
+import { retryOnNetworkError } from "./retry";
 import {
   JWT_STORAGE_KEY,
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   TokenStorage,
 } from "./storage";
-
-// Retry a failed refresh this long (ms) after the Nth network error. A refresh
-// commonly fails transiently on mobile when the app is backgrounded mid-call
-// and succeeds once it returns to the foreground.
-const RETRY_BACKOFF = [500, 2000];
-const RETRY_JITTER = 100;
 
 /**
  * The refresh and sign-out API for a **SPA** client, where JS holds the
@@ -81,13 +77,6 @@ export const INITIAL_AUTH_STATE: AuthState = Object.freeze({
   token: null,
 });
 
-function isNetworkError(error: unknown): boolean {
-  return (
-    error instanceof TypeError &&
-    /network|failed to fetch|load failed/i.test(error.message)
-  );
-}
-
 /**
  * Framework-agnostic owner of the auth session on the client.
  *
@@ -118,6 +107,7 @@ export class AuthClient {
    */
   #refreshToken: string | null = null;
   #isLoading = true;
+  #pendingSignIns = 0;
   #initialized = false;
 
   #snapshot: AuthState = INITIAL_AUTH_STATE;
@@ -178,6 +168,23 @@ export class AuthClient {
     return this.#accessToken;
   }
 
+  // --- Provider client surface ----------------------------------------------
+
+  /**
+   * Client-scoped shared state for provider clients: setups register their
+   * actions and flow state here, and provider hooks read it back (in React
+   * via `useAuthClientValue`).
+   */
+  readonly store = new KeyedStore();
+
+  /**
+   * The deployment-namespaced storage tokens are persisted in. Provider
+   * clients persist their own flow state here under their own keys.
+   */
+  get storage(): NamespacedStorage {
+    return this.#storage;
+  }
+
   // --- Lifecycle -----------------------------------------------------------
 
   /**
@@ -234,6 +241,26 @@ export class AuthClient {
   };
 
   /**
+   * Run a sign-in completion while reporting `isLoading`. Provider clients
+   * wrap out-of-band completions — work that establishes a session without a
+   * user action in the current page, like redeeming an OAuth callback code
+   * after a redirect — so the UI shows a loading state instead of flashing
+   * unauthenticated while the session is adopted. The wrapped function should
+   * include its {@link setSession} call, so the loading state holds until the
+   * client is authenticated.
+   */
+  withSignInPending = async <T>(fn: () => Promise<T>): Promise<T> => {
+    this.#pendingSignIns++;
+    this.#notify();
+    try {
+      return await fn();
+    } finally {
+      this.#pendingSignIns--;
+      this.#notify();
+    }
+  };
+
+  /**
    * Revoke the current session on the server and clear it locally.
    */
   signOut = async (): Promise<void> => {
@@ -268,7 +295,10 @@ export class AuthClient {
         this.#log(`using token refreshed by another tab`);
         return this.#accessToken;
       }
-      const result = await this.#withRetry(() => this.#refresh());
+      const result = await retryOnNetworkError(
+        () => this.#refresh(),
+        (message) => this.#log(`refresh: ${message}`),
+      );
       await this.#adopt(result);
       return this.#accessToken;
     });
@@ -281,27 +311,6 @@ export class AuthClient {
     return (
       (await this.#storage.get(REFRESH_TOKEN_STORAGE_KEY)) ?? this.#refreshToken
     );
-  }
-
-  /**
-   * Run a refresh `op`, retrying only on transient network errors (backoff +
-   * jitter). Shared by both refresh modes — the caller supplies the actual
-   * refresh call so this stays agnostic to whether a token is passed.
-   */
-  async #withRetry<T>(op: () => Promise<T>): Promise<T> {
-    let lastError: unknown;
-    for (let retry = 0; retry < RETRY_BACKOFF.length; retry++) {
-      try {
-        return await op();
-      } catch (error) {
-        lastError = error;
-        if (!isNetworkError(error)) break;
-        const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
-        this.#log(`refresh network error, retry ${retry + 1} in ${wait}ms`);
-        await new Promise((resolve) => setTimeout(resolve, wait));
-      }
-    }
-    throw lastError;
   }
 
   /**
@@ -382,7 +391,9 @@ export class AuthClient {
 
   #notify(): void {
     this.#snapshot = {
-      isLoading: this.#isLoading,
+      // Loading until the persisted session has been read, and again while a
+      // sign-in completion is pending (see withSignInPending).
+      isLoading: this.#isLoading || this.#pendingSignIns > 0,
       isAuthenticated: this.#accessToken !== null,
       token: this.#accessToken,
     };

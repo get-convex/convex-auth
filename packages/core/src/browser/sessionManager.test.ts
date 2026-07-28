@@ -211,6 +211,74 @@ describe("AuthClient", () => {
     });
   });
 
+  test("withSignInPending reports loading while a completion runs", async () => {
+    const { client } = makeClient();
+    await client.init();
+    expect(client.getSnapshot().isLoading).toBe(false);
+
+    const { promise, resolve } = Promise.withResolvers<string>();
+    const pending = client.withSignInPending(() => promise);
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    resolve("done");
+    await expect(pending).resolves.toBe("done");
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
+  test("withSignInPending holds loading across init resolving", async () => {
+    // The real mount ordering: a provider client's effect latches before the
+    // core's init() even runs, and init resolving must not drop the latch.
+    const { client } = makeClient();
+    const { promise, resolve } = Promise.withResolvers<void>();
+    const pending = client.withSignInPending(async () => {
+      await promise;
+      await client.setSession(bundle(1));
+    });
+
+    await client.init();
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    resolve();
+    await pending;
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+  });
+
+  test("withSignInPending clears loading when the completion throws", async () => {
+    const { client } = makeClient();
+    await client.init();
+
+    await expect(
+      client.withSignInPending(async () => {
+        throw new Error("redemption failed");
+      }),
+    ).rejects.toThrow("redemption failed");
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
+  test("overlapping completions keep loading until the last settles", async () => {
+    const { client } = makeClient();
+    await client.init();
+
+    const first = Promise.withResolvers<void>();
+    const second = Promise.withResolvers<void>();
+    const pending = [
+      client.withSignInPending(() => first.promise),
+      client.withSignInPending(() => second.promise),
+    ];
+
+    first.resolve();
+    await pending[0];
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    second.resolve();
+    await pending[1];
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
   test("re-attaches the storage listener when init runs after dispose", async () => {
     const listeners = new Set<(event: StorageEvent) => void>();
     const storage = new InMemoryStorage();

@@ -42,7 +42,8 @@
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",
     "./server": "./src/server/index.ts",
-    "./react": "./src/react/index.tsx"
+    "./react": "./src/react/index.tsx",
+    "./react/providers": "./src/react/providers.ts"
   },
   "scripts": {
     "build:cli": "tsc -p tsconfig.cli.json",

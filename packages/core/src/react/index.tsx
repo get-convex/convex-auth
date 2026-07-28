@@ -18,6 +18,10 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
+import type {
+  AuthProviderClientSetup,
+  MutationCaller,
+} from "../browser/providerSetup";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
 import type { ConvexAuthApi } from "../lib/types";
@@ -30,6 +34,7 @@ import {
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+export type { AuthProviderClientSetup } from "../browser/providerSetup";
 export type { TokenStorage } from "../browser/storage";
 export type { ConvexAuthApi, TokenBundle } from "../lib/types";
 export type { ConvexAuthActionsContextType } from "./client";
@@ -55,12 +60,24 @@ export type { ConvexAuthActionsContextType } from "./client";
  *   );
  * }
  * ```
+ *
+ * Auth methods that need registration or mount-time work plug in via the
+ * `use` prop, e.g. OAuth:
+ *
+ * ```tsx
+ * <ConvexAuthProvider
+ *   client={convex}
+ *   api={{ refreshSession: api.auth.refreshSession, signOut: api.auth.signOut }}
+ *   use={[oauth({ providers })]}
+ * >
+ * ```
  */
 export function ConvexAuthProvider({
   client,
   api,
   storage,
   storageNamespace,
+  use,
   children,
 }: {
   /** Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). */
@@ -78,9 +95,16 @@ export function ConvexAuthProvider({
    * Non-alphanumeric characters are ignored. Defaults to the deployment URL.
    */
   storageNamespace?: string;
+  /**
+   * Provider client setups, one per auth method that needs registration or
+   * mount-time work (e.g. `oauth(...)` from
+   * `@convex-dev/auth/providers/oauth/react`). Read once when the client is
+   * created and not expected to change.
+   */
+  use?: AuthProviderClientSetup[];
   children: ReactNode;
 }) {
-  const authClient = useMemo(() => {
+  const { authClient, onMounts } = useMemo(() => {
     // Refresh and sign-out go over a *separate* HTTP client, not the websocket
     // `client`. A refresh happens while `client` is paused waiting for a token,
     // so calling it through `client` would deadlock on the very handshake the
@@ -88,7 +112,7 @@ export function ConvexAuthProvider({
     const httpClient = new ConvexHttpClient(client.url, {
       logger: client.logger,
     });
-    return new AuthClient({
+    const authClient = new AuthClient({
       mode: "spa",
       authApi: {
         refreshSession: (refreshToken) =>
@@ -100,12 +124,25 @@ export function ConvexAuthProvider({
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
     });
-    // `client` identity is what matters; the api/storage props are read once at
-    // construction and are not expected to change.
+    // Provider setups run while the client is constructed, so anything they
+    // register in its store exists before the first render reads it. Sign-in
+    // mutations are safe on the websocket `client` (it isn't paused pre-auth,
+    // unlike the refresh path above). The cast bridges `mutation`'s
+    // conditional rest-tuple parameter, which TypeScript can't relate to a
+    // plain second argument through an unresolved generic.
+    const mutation: MutationCaller = (reference, args) =>
+      client.mutation(reference, args as never);
+    const onMounts = (use ?? []).flatMap((setup) => {
+      const registration = setup({ client: authClient, mutation });
+      return registration?.onMount === undefined ? [] : [registration.onMount];
+    });
+    return { authClient, onMounts };
+    // `client` identity is what matters; the api/storage/use props are read
+    // once at construction and are not expected to change.
   }, [client]);
 
   return (
-    <AuthProvider authClient={authClient}>
+    <AuthProvider authClient={authClient} onMounts={onMounts}>
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
@@ -117,11 +154,13 @@ export function ConvexAuthProvider({
  * Access the auth actions:
  *
  * ```ts
- * const { setSession, signOut } = useAuthActions();
+ * const { setSession, signOut, withSignInPending } = useAuthActions();
  * ```
  *
  * `setSession` adopts a {@link TokenBundle} produced by a provider's sign-in;
- * `signOut` revokes and clears the session.
+ * `signOut` revokes and clears the session; `withSignInPending` reports the
+ * auth state as loading while a provider client completes an out-of-band
+ * sign-in (e.g. redeeming an OAuth callback code).
  */
 export function useAuthActions() {
   const actions = useContext(ConvexAuthActionsContext);

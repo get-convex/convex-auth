@@ -30,11 +30,29 @@ export type ConvexAuthActionsContextType = {
   setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
   /** Sign out: revoke the session on the server and clear it locally. */
   signOut: () => Promise<void>;
+  /**
+   * Run a sign-in completion while the auth state reports loading. Provider
+   * clients wrap out-of-band completions — work that establishes a session
+   * without a user action in the current page, like redeeming an OAuth
+   * callback code after a redirect — so the UI shows `<AuthLoading>` instead
+   * of flashing `<Unauthenticated>` mid-completion. Include the `setSession`
+   * call in the wrapped function so the loading state holds until the client
+   * is authenticated.
+   */
+  withSignInPending: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
 export const ConvexAuthActionsContext = createContext<
   ConvexAuthActionsContextType | undefined
 >(undefined);
+
+/**
+ * The bound {@link AuthClient}. Consumed by the provider-author surface
+ * (`useAuthClientValue` in `react/providers.ts`), not by apps.
+ */
+export const AuthClientContext = createContext<AuthClient | undefined>(
+  undefined,
+);
 
 /** The current access token (a JWT), or null when signed out. */
 export const ConvexAuthTokenContext = createContext<string | null>(null);
@@ -67,6 +85,11 @@ export function useAuth() {
   return auth;
 }
 
+// onMount callbacks run once per client instance — the same semantics as
+// init()'s internal one-time guard — so a StrictMode remount doesn't replay
+// them.
+const onMountsRan = new WeakSet<AuthClient>();
+
 /**
  * Binds an {@link AuthClient} to React and provides the auth, actions, and
  * token contexts. Rendered by `ConvexAuthProvider` around
@@ -74,9 +97,17 @@ export function useAuth() {
  */
 export function AuthProvider({
   authClient,
+  onMounts,
   children,
 }: {
   authClient: AuthClient;
+  /**
+   * Provider clients' mount-time work, collected from their setups. Run in
+   * order, once per client, before `init()`. An onMount that starts a sign-in
+   * completion (via `withSignInPending`) marks the state as loading before
+   * `init()` runs, so it never briefly reports signed-out.
+   */
+  onMounts?: ReadonlyArray<() => void>;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -90,8 +121,13 @@ export function AuthProvider({
     // client instance, so it is init'd, disposed, then init'd again. That's
     // fine: init()/dispose() are symmetric, and the second init() re-attaches
     // the cross-tab listener the dispose() removed.
+    if (!onMountsRan.has(authClient)) {
+      onMountsRan.add(authClient);
+      onMounts?.forEach((onMount) => onMount());
+    }
     void authClient.init();
     return () => authClient.dispose();
+    // `onMounts` is read once per client, like the props that construct it.
   }, [authClient]);
 
   const fetchAccessToken = useCallback(
@@ -112,17 +148,20 @@ export function AuthProvider({
     () => ({
       setSession: authClient.setSession,
       signOut: authClient.signOut,
+      withSignInPending: authClient.withSignInPending,
     }),
     [authClient],
   );
 
   return (
-    <ConvexAuthInternalContext.Provider value={authState}>
-      <ConvexAuthActionsContext.Provider value={actions}>
-        <ConvexAuthTokenContext.Provider value={state.token}>
-          {children}
-        </ConvexAuthTokenContext.Provider>
-      </ConvexAuthActionsContext.Provider>
-    </ConvexAuthInternalContext.Provider>
+    <AuthClientContext.Provider value={authClient}>
+      <ConvexAuthInternalContext.Provider value={authState}>
+        <ConvexAuthActionsContext.Provider value={actions}>
+          <ConvexAuthTokenContext.Provider value={state.token}>
+            {children}
+          </ConvexAuthTokenContext.Provider>
+        </ConvexAuthActionsContext.Provider>
+      </ConvexAuthInternalContext.Provider>
+    </AuthClientContext.Provider>
   );
 }

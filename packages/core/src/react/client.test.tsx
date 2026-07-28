@@ -147,6 +147,53 @@ describe("React bindings", () => {
     expect(token).toBe("access-1");
   });
 
+  test("withSignInPending from the actions context reports loading", async () => {
+    const { client } = makeClient();
+    const { result } = renderAuth(client);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    const { promise, resolve } = Promise.withResolvers<void>();
+    // Not awaited yet: assert the loading state while the completion runs.
+    const pending = result.current.actions.withSignInPending(async () => {
+      await promise;
+      await client.setSession(bundle(1));
+    });
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(true));
+
+    resolve();
+    await act(async () => {
+      await pending;
+    });
+    expect(result.current.auth.isLoading).toBe(false);
+    expect(result.current.auth.isAuthenticated).toBe(true);
+  });
+
+  test("runs onMounts before init, once per client", async () => {
+    const { client } = makeClient();
+    const calls: string[] = [];
+    vi.spyOn(client, "init").mockImplementation(async () => {
+      calls.push("init");
+    });
+    const onMounts = [() => calls.push("onMount")];
+
+    const first = render(
+      <AuthProvider authClient={client} onMounts={onMounts}>
+        hi
+      </AuthProvider>,
+    );
+    expect(calls).toEqual(["onMount", "init"]);
+
+    // A remount of the same client (StrictMode, moving the provider) re-inits
+    // but must not replay the one-time mount work.
+    first.unmount();
+    render(
+      <AuthProvider authClient={client} onMounts={onMounts}>
+        hi
+      </AuthProvider>,
+    );
+    expect(calls).toEqual(["onMount", "init", "init"]);
+  });
+
   test("signOut revokes on the server and clears consumers", async () => {
     const signOut = vi.fn(async (rt: string) => {
       expect(rt).toBe("refresh-1");

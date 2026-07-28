@@ -14,6 +14,12 @@ export {
   REFRESH_TOKEN_STORAGE_KEY,
 } from "./storage";
 export { runWithMutex } from "./mutex";
+export { KeyedStore } from "./keyedStore";
+export type {
+  AuthProviderClientContext,
+  AuthProviderClientSetup,
+  MutationCaller,
+} from "./providerSetup";
 export {
   AuthClient,
   type SpaAuthApi,
