@@ -20,7 +20,7 @@
     "next-env.d.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
-    "middleware.ts",
+    "proxy.ts",
     "next.config.ts",
     "convexAuth.tsx",
     ".next/types/**/*.ts"

@@ -12,9 +12,10 @@ access token.
   - `app/auth/refresh/route.ts` → `refreshHandler`
   - `app/auth/signout/route.ts` → `signOutHandler`
 - **`convexAuth.tsx`** wires the Next-specific helpers via
-  `setupConvexAuthNextjs`: middleware (up-front refresh + redirects), the
-  Server-Component token accessor `convexAuthNextjsToken`, and
-  `ConvexAuthNextjsServerProvider` (hydrates the client from the cookie).
+  `setupConvexAuthNextjs`: the proxy (up-front refresh + redirects, mounted in
+  `proxy.ts`), the Server-Component token accessor
+  `convexAuthNextjsAccessToken`, and `ConvexAuthNextjsServerProvider`
+  (hydrates the client from the cookie).
 - **`app/signin/page.tsx`** uses the SSR sibling hook `useAnonymousAuth()` from
   `@convex-dev/auth/nextjs`, which POSTs to the sign-in route and adopts the
   access-only session it returns.
