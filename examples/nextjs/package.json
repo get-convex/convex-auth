@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "convex dev --start 'next dev'",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc -p convex --noEmit"
@@ -12,7 +12,7 @@
     "@convex-dev/auth": "workspace:*",
     "convex": "^1.41.0",
     "jose": "^5.10.0",
-    "next": "^15.0.0",
+    "next": "^16.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
