@@ -66,7 +66,7 @@
     "convex-test": "^0.0.53",
     "hash-wasm": "^4.12.0",
     "jsdom": "^29.1.1",
-    "next": "^15.0.0",
+    "next": "^16.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^6.0.3",
@@ -75,7 +75,7 @@
   },
   "peerDependencies": {
     "convex": "^1.41.0",
-    "next": "^14.0.0 || ^15.0.0",
+    "next": "^16.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {

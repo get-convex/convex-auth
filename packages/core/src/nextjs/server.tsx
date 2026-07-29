@@ -189,7 +189,6 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
    * {@link isAuthenticatedNextjs} instead, which verifies against the backend.
    */
   async function convexAuthNextjsAccessToken(): Promise<string | null> {
-    // `cookies()` is sync on Next 14 and async on Next 15; `await` covers both.
     const token = (await nextCookies()).get(AUTH_JWT_COOKIE)?.value ?? null;
     return token !== null && !isTokenExpiring(token, 0) ? token : null;
   }
