@@ -6,7 +6,7 @@
  * (per-provider sign-in, plus refresh/sign-out) are framework-agnostic
  * `(Request) => Response` functions mounted directly as route handlers (see
  * `@convex-dev/auth/server` and each provider's `/server` entry). What remains
- * Next-specific is the middleware (up-front refresh + redirects), reading the
+ * Next-specific is the proxy (up-front refresh + redirects), reading the
  * access token in Server Components, and the server-side provider that hydrates
  * the client.
  *
@@ -33,7 +33,7 @@ import { ServerAuthSession } from "../server/session";
 export interface ConvexAuthNextjsConfig {
   /** The Convex deployment URL used server-side. */
   convexUrl: string;
-  /** The app's `refreshSession` mutation reference. The middleware uses it for
+  /** The app's `refreshSession` mutation reference. The proxy uses it for
    * its optimistic refresh. */
   refreshSession: RefreshSessionFn;
   /** The app's `isAuthenticated` query reference. Used to verify the access
@@ -45,23 +45,23 @@ export interface ConvexAuthNextjsConfig {
   cookieOptions?: Partial<AuthCookieOptions>;
 }
 
-/** Context handed to a middleware handler. */
-export interface ConvexAuthNextjsMiddlewareCtx {
+/** Context handed to a proxy handler. */
+export interface ConvexAuthNextjsProxyCtx {
   /** Whether the request carries a non-expired session. */
   isAuthenticated: () => Promise<boolean>;
   /** The (possibly just-refreshed) access token, or null. */
   getToken: () => Promise<string | null>;
 }
 
-/** A middleware handler: inspect the request, optionally return a response
+/** A proxy handler: inspect the request, optionally return a response
  * (e.g. a redirect) to short-circuit. */
-export type ConvexAuthNextjsMiddlewareHandler = (
+export type ConvexAuthNextjsProxyHandler = (
   request: NextRequest,
-  ctx: ConvexAuthNextjsMiddlewareCtx,
+  ctx: ConvexAuthNextjsProxyCtx,
 ) => Promise<NextResponse | undefined | void> | NextResponse | undefined | void;
 
-/** Redirect helper for use inside a middleware handler. */
-export function nextjsMiddlewareRedirect(
+/** Redirect helper for use inside a proxy handler. */
+export function nextjsProxyRedirect(
   request: NextRequest,
   path: string,
 ): NextResponse {
@@ -72,9 +72,9 @@ export function nextjsMiddlewareRedirect(
  * A {@link CookieStore} implemented on an HTTP request/response model.
  *
  * Reads come from the cookies on the request; writes are buffered and applied
- * to the response via {@link MiddlewareCookieStore.applyTo}.
+ * to the response via {@link ProxyCookieStore.applyTo}.
  */
-class MiddlewareCookieStore implements CookieStore {
+class ProxyCookieStore implements CookieStore {
   readonly #request: NextRequest;
   readonly #overlay = new Map<string, string | null>();
   readonly #ops: Array<
@@ -115,9 +115,9 @@ class MiddlewareCookieStore implements CookieStore {
  *
  * ```ts
  * export const {
- *   convexAuthNextjsMiddleware,
- *   nextjsMiddlewareRedirect,
- *   convexAuthNextjsToken,
+ *   convexAuthNextjsProxy,
+ *   nextjsProxyRedirect,
+ *   convexAuthNextjsAccessToken,
  *   isAuthenticatedNextjs,
  *   ConvexAuthNextjsServerProvider,
  * } = setupConvexAuthNextjs({
@@ -153,13 +153,12 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
     isAuthenticated: config.isAuthenticated,
   });
 
-  /** Wrap Next.js middleware to refresh the session up front (so downstream
-   * Server Components see a fresh token) and optionally run redirect logic. */
-  function convexAuthNextjsMiddleware(
-    handler?: ConvexAuthNextjsMiddlewareHandler,
-  ) {
+  /** Build a Next.js proxy (`proxy.ts`) that refreshes the session up front
+   * (so downstream Server Components see a fresh token) and optionally runs
+   * redirect logic. */
+  function convexAuthNextjsProxy(handler?: ConvexAuthNextjsProxyHandler) {
     return async (request: NextRequest): Promise<NextResponse> => {
-      const cookies = new MiddlewareCookieStore(request);
+      const cookies = new ProxyCookieStore(request);
       const session = newSession(cookies);
       await session.getToken(); // refresh if near expiry, rewriting cookies
 
@@ -180,7 +179,7 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
 
   /**
    * The current access token in a Server Component, or null. Never triggers a
-   * refresh (the middleware does that); returns null for an expired token.
+   * refresh (the proxy does that); returns null for an expired token.
    *
    * The token is returned after only a local expiry check, not a signature
    * check — that is safe because its only use is to authenticate a request to
@@ -224,8 +223,8 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
   }
 
   return {
-    convexAuthNextjsMiddleware,
-    nextjsMiddlewareRedirect,
+    convexAuthNextjsProxy,
+    nextjsProxyRedirect,
     convexAuthNextjsAccessToken,
     isAuthenticatedNextjs,
     ConvexAuthNextjsServerProvider,
