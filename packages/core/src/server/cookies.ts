@@ -2,7 +2,7 @@
  * A framework-agnostic cookie abstraction for server-side (SSR) auth.
  *
  * SSR frameworks each expose cookies differently — Next.js has `NextRequest`/
- * `NextResponse` cookies in middleware and `next/headers` `cookies()` in route
+ * `NextResponse` cookies in the proxy and `next/headers` `cookies()` in route
  * handlers and server components; other frameworks have their own. This module
  * defines the small interface the shared {@link ServerAuthSession} needs, so a
  * framework binding only has to adapt its cookies to {@link CookieStore}.
@@ -112,7 +112,7 @@ function invariantCookieOptions(): Omit<CookieOptions, "secure"> {
  * refresh cookie is httpOnly and never reaches client JS.
  *
  * This is the one place that knows which cookies hold a session and how their
- * lifetimes derive from the bundle, so refresh, middleware, and every provider's
+ * lifetimes derive from the bundle, so refresh, the proxy, and every provider's
  * sign-in handler shape cookies identically.
  */
 export async function writeAuthCookies(
