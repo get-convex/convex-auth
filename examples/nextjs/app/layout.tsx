@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ConvexAuthNextjsServerProvider } from "@/convexAuth";
+import { ConvexAuthNextjsServerProvider } from "@/src/lib/convexAuth";
 
 export const metadata = {
   title: "Convex Auth — Next.js SSR",

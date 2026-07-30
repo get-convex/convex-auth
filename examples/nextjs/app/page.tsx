@@ -1,6 +1,6 @@
 import { preloadQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
-import { convexAuthNextjsAccessToken } from "@/convexAuth";
+import { convexAuthNextjsAccessToken } from "@/src/lib/convexAuth";
 import { Dashboard } from "./Dashboard";
 
 // Server Component: read the access token from the cookie and preload the

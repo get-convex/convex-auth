@@ -1,4 +1,4 @@
-import { convexAuthNextjsProxy, nextjsProxyRedirect } from "@/convexAuth";
+import { convexAuthNextjsProxy, nextjsProxyRedirect } from "@/src/lib/convexAuth";
 
 // Uses the provided convexAuthNextjsProxy function to build a custom proxy handler
 // for this example application. As seen here, you supply a custom function that makes

@@ -28,7 +28,8 @@
     "app/**/*.tsx",
     "proxy.ts",
     "next.config.ts",
-    "convexAuth.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

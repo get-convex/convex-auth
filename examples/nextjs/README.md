@@ -11,7 +11,7 @@ access token.
   - `app/auth/signin/anonymous/route.ts` → `anonymousSignInHandler`
   - `app/auth/refresh/route.ts` → `refreshHandler`
   - `app/auth/signout/route.ts` → `signOutHandler`
-- **`convexAuth.tsx`** wires the Next-specific helpers via
+- **`src/lib/convexAuth.tsx`** wires the Next-specific helpers via
   `setupConvexAuthNextjs`: the proxy (up-front refresh + redirects, mounted in
   `proxy.ts`), the Server-Component token accessor
   `convexAuthNextjsAccessToken`, and `ConvexAuthNextjsServerProvider`
