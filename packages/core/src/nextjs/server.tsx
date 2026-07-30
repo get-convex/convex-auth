@@ -60,11 +60,12 @@ export type ConvexAuthNextjsProxyHandler = (
   ctx: ConvexAuthNextjsProxyCtx,
 ) => Promise<NextResponse | undefined | void> | NextResponse | undefined | void;
 
-/** Redirect helper for use inside a proxy handler. */
-export function nextjsProxyRedirect(
-  request: NextRequest,
-  path: string,
-): NextResponse {
+/**
+ * Redirect helper for use inside a proxy handler.
+ *
+ * Part of the API returned from {@link setupConvexAuthNextjs}.
+ */
+function nextjsProxyRedirect(request: NextRequest, path: string): NextResponse {
   return NextResponse.redirect(new URL(path, request.url));
 }
 
@@ -123,6 +124,7 @@ class ProxyCookieStore implements CookieStore {
  * } = setupConvexAuthNextjs({
  *   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
  *   refreshSession: api.auth.refreshSession,
+ *   isAuthenticated: api.auth.isAuthenticated,
  * });
  * ```
  */
