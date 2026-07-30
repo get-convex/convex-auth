@@ -55,10 +55,15 @@ async function defaultCreateOrUpdateUser(
     args,
   });
   const existingUserId = existingAccount?.userId ?? null;
+  const authUserId =
+    existingSessionId !== null
+      ? (await ctx.db.get(existingSessionId))?.userId ?? null
+      : null;
   if (config.callbacks?.createOrUpdateUser !== undefined) {
     logWithLevel(LOG_LEVELS.DEBUG, "Using custom createOrUpdateUser callback");
     return await config.callbacks.createOrUpdateUser(ctx, {
       existingUserId,
+      authUserId,
       ...args,
     });
   }
