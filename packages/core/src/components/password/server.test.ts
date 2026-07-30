@@ -81,7 +81,7 @@ describe("password sign-in via signInHandler", () => {
     expect(jwt).toContain("HttpOnly");
   });
 
-  test("echoes the action's userError on failure and writes no cookies", async () => {
+  test("replies 401 echoing the action's userError and writes no cookies", async () => {
     actionMock.mockResolvedValue({
       success: false,
       userError: { error: "INVALID_CREDENTIALS" },
@@ -91,7 +91,7 @@ describe("password sign-in via signInHandler", () => {
     const res = await handler(credentialsRequest("/auth/signin/password"));
     const body = await res.json();
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     expect(body).toEqual({
       tokens: null,
       userError: { error: "INVALID_CREDENTIALS" },
@@ -142,7 +142,7 @@ describe("password sign-up via signInHandler", () => {
     expect(refresh).toContain("refresh-1");
   });
 
-  test("echoes USERNAME_TAKEN on failure", async () => {
+  test("replies 401 echoing USERNAME_TAKEN on failure", async () => {
     actionMock.mockResolvedValue({
       success: false,
       userError: { error: "USERNAME_TAKEN" },
@@ -151,6 +151,7 @@ describe("password sign-up via signInHandler", () => {
 
     const res = await handler(credentialsRequest("/auth/signup/password"));
 
+    expect(res.status).toBe(401);
     expect(await res.json()).toEqual({
       tokens: null,
       userError: { error: "USERNAME_TAKEN" },

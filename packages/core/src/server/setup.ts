@@ -36,7 +36,8 @@ export type { SignInOutcome } from "./handlers";
  * request and making the Convex call (mutation or action), mapping its result
  * into a {@link SignInOutcome}. The handler stays provider-agnostic: it writes
  * the outcome's tokens into cookies (never letting the refresh token reach the
- * response body) and echoes the outcome's `userError`, if any, to the client.
+ * response body); a failed outcome replies 401, echoing the outcome's
+ * `userError`, if any, to the client.
  *
  * A request that isn't even shaped like the provider's input is the caller's
  * error, not a failed sign-in attempt — signal it by throwing {@link

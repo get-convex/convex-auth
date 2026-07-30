@@ -54,7 +54,9 @@ export interface RefreshHandlerConfig {
 
 /**
  * A handler that rotates the session from the httpOnly refresh-token cookie and
- * rewrites both cookies, replying `{ tokens: SlimTokenBundle | null }`.
+ * rewrites both cookies, replying `{ tokens: SlimTokenBundle }`. When there is
+ * no session to rotate (missing or unrecognized refresh cookie) it replies 401
+ * with `{ tokens: null }`.
  */
 export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
@@ -70,9 +72,10 @@ export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
       cookieOptions: config.cookieOptions,
     });
     const bundle = await session.refresh();
-    const res = Response.json({
-      tokens: bundle === null ? null : makeSlimBundle(bundle),
-    });
+    const res =
+      bundle === null
+        ? Response.json({ tokens: null }, { status: 401 })
+        : Response.json({ tokens: makeSlimBundle(bundle) });
     cookies.applyTo(res.headers);
     return res;
   };
@@ -127,18 +130,23 @@ export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
  * return from a public Convex function in it (e.g. the password provider's
  * `{ error: "INVALID_CREDENTIALS" }`), never internal diagnostics.
  */
-export type SignInOutcome = {
-  /** The minted session tokens, or `null` when sign-in failed. */
-  tokens: TokenBundle | null;
-  /** Provider-specific failure detail, echoed to the client verbatim. */
-  userError?: unknown;
-};
+export type SignInOutcome =
+  | {
+      /** The minted session tokens. */
+      tokens: TokenBundle;
+    }
+  | {
+      /** `null`: sign-in failed. */
+      tokens: null;
+      /** Provider-specific failure detail, echoed to the client verbatim. */
+      userError?: unknown;
+    };
 
 /**
  * Build the response for a completed server-side sign-in: move the minted
  * refresh token into an httpOnly cookie (and the access token into its cookie),
  * and reply with the access-only {@link SlimTokenBundle} the browser may hold. A
- * failed outcome (`tokens: null`) writes no cookies and replies
+ * failed outcome (`tokens: null`) writes no cookies and replies 401 with
  * `{ tokens: null }`, plus the outcome's `userError` when the provider gave one.
  *
  * Every provider's sign-in handler produces its {@link SignInOutcome}, then
@@ -150,16 +158,20 @@ export async function signInResponse(
   outcome: SignInOutcome,
   cookieOptions: AuthCookieOptions,
 ): Promise<Response> {
-  const { tokens, userError } = outcome;
   const cookies = httpCookies(request);
   // Sign-in only writes cookies — it never refreshes or revokes — so it uses the
   // cookie primitive directly rather than a `ServerAuthSession`.
-  if (tokens !== null) await writeAuthCookies(cookies, tokens, cookieOptions);
-  const res = Response.json(
-    tokens !== null
-      ? { tokens: makeSlimBundle(tokens) }
-      : { tokens: null, ...(userError !== undefined && { userError }) },
-  );
+  let res: Response;
+  if (outcome.tokens !== null) {
+    await writeAuthCookies(cookies, outcome.tokens, cookieOptions);
+    res = Response.json({ tokens: makeSlimBundle(outcome.tokens) });
+  } else {
+    const { userError } = outcome;
+    res = Response.json(
+      { tokens: null, ...(userError !== undefined && { userError }) },
+      { status: 401 },
+    );
+  }
   cookies.applyTo(res.headers);
   return res;
 }

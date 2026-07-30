@@ -36,20 +36,27 @@ export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export { useAuthActions, useAuthToken } from "../react";
 
-/** POST JSON to an auth route and read back the result with the access token. */
-// TODO: dowski - what sort of error handling/guarantees do we want here?
+/**
+ * POST JSON to an auth route and read back the result with the access token.
+ *
+ * The auth routes reply with the same JSON shape on failure as on success —
+ * a failed sign-in or refresh is a 401 carrying `{ tokens: null }` plus any
+ * provider `userError` — so parse the body regardless of status. Anything
+ * without a JSON body (a proxy 5xx, a network-level error page) degrades to
+ * `{ tokens: null }`.
+ */
 async function postAuth(
   route: string,
   body: Record<string, unknown>,
-): Promise<{ tokens: SlimTokenBundle | null }> {
+): Promise<{ tokens: SlimTokenBundle | null; userError?: unknown }> {
   const res = await fetch(route, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) return { tokens: null };
   return (await res.json().catch(() => ({ tokens: null }))) as {
     tokens: SlimTokenBundle | null;
+    userError?: unknown;
   };
 }
 
