@@ -4,14 +4,27 @@
  *
  * The password provider has two flows, so it has two descriptors: {@link
  * passwordSignIn} for signing in to an existing account and {@link
- * passwordSignUp} for creating a new one. Feed each to the auth server's
- * `signInHandler` to mount its route:
+ * passwordSignUp} for creating a new one. {@link passwordRoutes} bundles both
+ * at their conventional subpaths for the auth server's catch-all `handler`:
+ *
+ * ```ts
+ * setupConvexAuthServer({
+ *   // ...
+ *   providers: [
+ *     passwordRoutes({
+ *       signIn: api.auth.signInWithPassword,
+ *       signUp: api.auth.signUpWithPassword,
+ *     }),
+ *   ],
+ * });
+ * ```
+ *
+ * To mount a flow at a custom path, feed its descriptor to `signInHandler`
+ * instead:
  *
  * ```ts
  * // app/auth/signin/password/route.ts
  * export const POST = auth.signInHandler(passwordSignIn(api.auth.signInWithPassword));
- * // app/auth/signup/password/route.ts
- * export const POST = auth.signInHandler(passwordSignUp(api.auth.signUpWithPassword));
  * ```
  *
  * Both flows read `{ username, password }` off the request's JSON body and run
@@ -29,7 +42,9 @@ import {
   InvalidSignInRequestError,
   type SignInOutcome,
   type SignInProvider,
+  type SignInRoutes,
 } from "../../server/setup";
+import { PASSWORD_SIGN_IN_PATH, PASSWORD_SIGN_UP_PATH } from "./routes";
 import type {
   Credentials,
   SignInWithPasswordAction,
@@ -83,5 +98,20 @@ export function passwordSignUp(
   return {
     run: async (client, request) =>
       toOutcome(await client.action(signUp, await parseCredentials(request))),
+  };
+}
+
+/**
+ * Both password flows at their conventional subpaths, for the `providers`
+ * config of `setupConvexAuthServer`. The catch-all `handler` then serves them
+ * at the paths the SSR password hooks POST to by default.
+ */
+export function passwordRoutes(actions: {
+  signIn: SignInWithPasswordAction;
+  signUp: SignUpWithPasswordAction;
+}): SignInRoutes {
+  return {
+    [PASSWORD_SIGN_IN_PATH]: passwordSignIn(actions.signIn),
+    [PASSWORD_SIGN_UP_PATH]: passwordSignUp(actions.signUp),
   };
 }

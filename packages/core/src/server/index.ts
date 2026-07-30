@@ -34,9 +34,11 @@ export {
 export {
   type ConvexAuthServerConfig,
   type SignInProvider,
+  type SignInRoutes,
   InvalidSignInRequestError,
   setupConvexAuthServer,
 } from "./setup";
+export { AUTH_BASE_PATH, REFRESH_PATH, SIGN_OUT_PATH } from "../lib/routes";
 export {
   type DecodedAccessToken,
   decodeAccessToken,

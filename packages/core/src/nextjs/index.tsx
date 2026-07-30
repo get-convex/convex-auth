@@ -28,8 +28,14 @@ import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useCallback, useMemo, useState } from "react";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
+import { ANONYMOUS_SIGN_IN_PATH } from "../components/anonymous/routes";
 import type { Credentials } from "../components/password/react";
+import {
+  PASSWORD_SIGN_IN_PATH,
+  PASSWORD_SIGN_UP_PATH,
+} from "../components/password/routes";
 import type { SignInResult, SignUpResult } from "../components/password/setup";
+import { AUTH_BASE_PATH, REFRESH_PATH, SIGN_OUT_PATH } from "../lib/routes";
 import type { SlimTokenBundle } from "../lib/types";
 import { useAuthActions } from "../react";
 import { AuthProvider, useAuth } from "../react/client";
@@ -77,8 +83,8 @@ export function ConvexAuthNextjsProvider({
   client,
   convexUrl,
   initialToken = null,
-  refreshRoute = "/auth/refresh",
-  signOutRoute = "/auth/signout",
+  refreshRoute = `${AUTH_BASE_PATH}/${REFRESH_PATH}`,
+  signOutRoute = `${AUTH_BASE_PATH}/${SIGN_OUT_PATH}`,
   storage,
   children,
 }: {
@@ -146,7 +152,7 @@ export function ConvexAuthNextjsProvider({
  */
 export function useAnonymousAuth(options?: { route?: string }) {
   const { setSession } = useAuthActions();
-  const route = options?.route ?? "/auth/signin/anonymous";
+  const route = options?.route ?? `${AUTH_BASE_PATH}/${ANONYMOUS_SIGN_IN_PATH}`;
   const signInAnonymous = useCallback(async () => {
     const { tokens } = await postAuth(route, {});
     if (tokens) await setSession(tokens);
@@ -252,7 +258,7 @@ function usePasswordRoute<Failure extends { success: false }>(route: string) {
  */
 export function useSignInWithPassword(options?: { route?: string }) {
   const { run, pending } = usePasswordRoute<PasswordFailure<SignInResult>>(
-    options?.route ?? "/auth/signin/password",
+    options?.route ?? `${AUTH_BASE_PATH}/${PASSWORD_SIGN_IN_PATH}`,
   );
   return {
     /** POST the credentials to the sign-in route; see {@link SignInWithPasswordResult}. */
@@ -272,7 +278,7 @@ export function useSignInWithPassword(options?: { route?: string }) {
  */
 export function useSignUpWithPassword(options?: { route?: string }) {
   const { run, pending } = usePasswordRoute<PasswordFailure<SignUpResult>>(
-    options?.route ?? "/auth/signup/password",
+    options?.route ?? `${AUTH_BASE_PATH}/${PASSWORD_SIGN_UP_PATH}`,
   );
   return {
     /** POST the credentials to the sign-up route; see {@link SignUpWithPasswordResult}. */

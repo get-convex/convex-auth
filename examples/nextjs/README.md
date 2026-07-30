@@ -7,13 +7,12 @@ client JS**. The browser holds only the access token.
 ## How it works
 
 - **Sign-up / sign-in / refresh / sign-out run on the server** as
-  framework-agnostic `(Request) => Response` handlers, mounted under
-  `app/auth/`:
-  - `app/auth/signin/password/route.ts` → `signInHandler(passwordSignIn(…))`
-  - `app/auth/signup/password/route.ts` → `signInHandler(passwordSignUp(…))`
-  - `app/auth/signin/anonymous/route.ts` → `signInHandler(anonymous(…))`
-  - `app/auth/refresh/route.ts` → `refreshHandler`
-  - `app/auth/signout/route.ts` → `signOutHandler`
+  framework-agnostic `(Request) => Response` handlers, all served by one
+  catch-all route, `app/auth/[...convexAuth]/route.ts`. The route table is
+  configured once in `src/lib/serverAuth.ts`: `setupConvexAuthServer` mounts
+  the built-in `refresh` and `signout` routes plus each provider's sign-in
+  routes (`passwordRoutes` registers `signin/password` and `signup/password`,
+  `anonymousRoutes` registers `signin/anonymous`).
 - **`src/lib/convexAuth.tsx`** wires the Next-specific helpers via
   `setupConvexAuthNextjs`: the proxy (up-front refresh + redirects, mounted in
   `proxy.ts`), the Server-Component token accessor
