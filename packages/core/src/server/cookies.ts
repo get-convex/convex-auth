@@ -39,14 +39,27 @@ export interface CookieOptions {
 }
 
 /**
- * The cookie options a framework integration must supply for auth cookies.
+ * The attributes that identify which cookie a deletion targets: browsers only
+ * remove a cookie when the deletion's `path` and `domain` match the ones it
+ * was written with. No other attribute takes part in matching.
+ */
+export type CookieDeleteOptions = Pick<CookieOptions, "path" | "domain">;
+
+/**
+ * The cookie options a framework integration may supply for auth cookies:
+ * only the attributes that legitimately vary by deployment.
  *
  * `secure` is required. Whether auth cookies are HTTPS-only depends on the
  * deployment (HTTPS in production, plain http on localhost), so every
  * integration has to decide it explicitly rather than inherit a default that
  * would be wrong in one environment or the other.
+ *
+ * The security-relevant attributes (`httpOnly`, `sameSite`) and the token
+ * lifetimes (`maxAge`, `expires`, which derive from the token bundle) are
+ * deliberately not configurable; {@link writeAuthCookies} always applies the
+ * invariant values.
  */
-export type AuthCookieOptions = Omit<CookieOptions, "secure"> & {
+export type AuthCookieOptions = CookieDeleteOptions & {
   secure: boolean;
 };
 
@@ -64,8 +77,9 @@ export interface CookieStore {
     value: string,
     options?: CookieOptions,
   ) => void | Promise<void>;
-  /** Delete a cookie. */
-  delete: (name: string) => void | Promise<void>;
+  /** Delete a cookie. Must be given the same `path`/`domain` the cookie was
+   * written with, or the deletion won't match it. */
+  delete: (name: string, options?: CookieDeleteOptions) => void | Promise<void>;
 }
 
 /**
@@ -106,7 +120,14 @@ export async function writeAuthCookies(
   bundle: TokenBundle,
   options: AuthCookieOptions,
 ): Promise<void> {
-  const base = { ...invariantCookieOptions(), ...options };
+  // Pick the allowed fields rather than spreading, so a wider object
+  // (e.g. from untyped JS) cannot override the invariant attributes.
+  const base = {
+    ...invariantCookieOptions(),
+    path: options.path ?? "/",
+    domain: options.domain,
+    secure: options.secure,
+  };
   const expires = new Date(bundle.refreshTokenExpiresAt);
   await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, { ...base, expires });
   await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
@@ -115,8 +136,17 @@ export async function writeAuthCookies(
   });
 }
 
-/** Delete both auth cookies. The counterpart of {@link writeAuthCookies}. */
-export async function clearAuthCookies(cookies: CookieStore): Promise<void> {
-  await cookies.delete(AUTH_JWT_COOKIE);
-  await cookies.delete(AUTH_REFRESH_COOKIE);
+/**
+ * Delete both auth cookies. The counterpart of {@link writeAuthCookies}: it
+ * takes the same options so the deletions match the cookies the writes
+ * produced (a deletion only removes a cookie whose `path`/`domain` match).
+ */
+export async function clearAuthCookies(
+  cookies: CookieStore,
+  options: AuthCookieOptions,
+): Promise<void> {
+  // Mirror writeAuthCookies' merge, where path defaults to "/".
+  const { path = "/", domain } = options;
+  await cookies.delete(AUTH_JWT_COOKIE, { path, domain });
+  await cookies.delete(AUTH_REFRESH_COOKIE, { path, domain });
 }

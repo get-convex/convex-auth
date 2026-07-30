@@ -1,13 +1,18 @@
 /**
  * Framework-agnostic server (SSR) building blocks for Convex Auth: a cookie
- * abstraction, access-token inspection, and the {@link ServerAuthSession} that
- * ties them together.
+ * abstraction, a WHATWG `Request`/`Response` cookie adapter, access-token
+ * inspection, the {@link ServerAuthSession} that owns the refresh lifecycle,
+ * the {@link createServerAuthChecker} that verifies an access token against the
+ * backend, the provider-agnostic `(Request) => Response` refresh/sign-out
+ * handlers, and the {@link setupConvexAuthServer} factory that configures them
+ * (and sign-in) once.
  *
  * @module
  */
 
 export {
   type AuthCookieOptions,
+  type CookieDeleteOptions,
   type CookieOptions,
   type CookieStore,
   AUTH_JWT_COOKIE,
@@ -15,6 +20,22 @@ export {
   clearAuthCookies,
   writeAuthCookies,
 } from "./cookies";
+export { type HttpCookies, httpCookies, serializeCookie } from "./httpCookies";
+export { isTrustedOrigin } from "./origin";
+export {
+  type RefreshHandlerConfig,
+  type RequestHandler,
+  type SignOutHandlerConfig,
+  refreshHandler,
+  signInResponse,
+  signOutHandler,
+} from "./handlers";
+export {
+  type ConvexAuthServerConfig,
+  type SignInProvider,
+  InvalidSignInRequestError,
+  setupConvexAuthServer,
+} from "./setup";
 export {
   type DecodedAccessToken,
   decodeAccessToken,
@@ -25,8 +46,14 @@ export {
   type RefreshSession,
   type ServerAuthSessionConfig,
 } from "./session";
+export {
+  createServerAuthChecker,
+  type ServerAuthChecker,
+  type ServerAuthCheckerConfig,
+} from "./isAuthenticated";
 export type {
   ConvexAuthApi,
+  IsAuthenticatedFn,
   RefreshSessionFn,
   SignOutFn,
   SlimTokenBundle,

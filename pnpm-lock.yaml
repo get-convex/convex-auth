@@ -145,6 +145,9 @@ importers:
       commander:
         specifier: ^14.0.2
         version: 14.0.3
+      cookie:
+        specifier: 1.1.1
+        version: 1.1.1
       jose:
         specifier: ^5.2.2
         version: 5.10.0
