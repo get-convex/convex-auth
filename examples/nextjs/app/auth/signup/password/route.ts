@@ -1,5 +1,5 @@
 import { passwordSignUp } from "@convex-dev/auth/providers/password/server";
-import { auth } from "@/serverAuth";
+import { auth } from "@/src/lib/serverAuth";
 import { api } from "@/convex/_generated/api";
 
 // The sign-up counterpart of the sign-in route: creates the account, then

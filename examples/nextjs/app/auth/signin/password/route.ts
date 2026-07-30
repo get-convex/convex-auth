@@ -1,5 +1,5 @@
 import { passwordSignIn } from "@convex-dev/auth/providers/password/server";
-import { auth } from "@/serverAuth";
+import { auth } from "@/src/lib/serverAuth";
 import { api } from "@/convex/_generated/api";
 
 // Runs password sign-in on the server: reads the credentials off the JSON

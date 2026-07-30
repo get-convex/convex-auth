@@ -9,9 +9,7 @@ import {
 // checking to see if the browser request is currently authenticated and thus which
 // page should be rendered based on that state and the requested page.
 export default convexAuthNextjsProxy(async (request, { isAuthenticated }) => {
-  const isAuthPage = ["/signin", "/signup"].includes(
-    request.nextUrl.pathname,
-  );
+  const isAuthPage = ["/signin", "/signup"].includes(request.nextUrl.pathname);
   const authed = await isAuthenticated();
   if (!isAuthPage && !authed) {
     return nextjsProxyRedirect(request, "/signin");
