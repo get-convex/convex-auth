@@ -79,7 +79,7 @@ describe("refreshHandler", () => {
     expect(refresh).toContain("HttpOnly");
   });
 
-  test("with no refresh cookie returns null without calling Convex", async () => {
+  test("with no refresh cookie replies 401 without calling Convex", async () => {
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,
@@ -87,12 +87,12 @@ describe("refreshHandler", () => {
     });
 
     const res = await handler(requestWithRefresh());
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     expect((await res.json()).tokens).toBeNull();
     expect(mutationMock).not.toHaveBeenCalled();
   });
 
-  test("clears cookies when the refresh token is unknown", async () => {
+  test("replies 401 and clears cookies when the refresh token is unknown", async () => {
     // Set up the refresh mutation to not recognize the token and to return null.
     mutationMock.mockResolvedValue(null);
     const handler = refreshHandler({
@@ -102,7 +102,7 @@ describe("refreshHandler", () => {
     });
 
     const res = await handler(requestWithRefresh("stale"));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
     expect((await res.json()).tokens).toBeNull();
     const setCookies = res.headers.getSetCookie();
     expect(setCookies.some((c) => c.includes("Max-Age=0"))).toBe(true);

@@ -18,8 +18,9 @@
  * the corresponding *action*. On success the outcome carries the minted
  * bundle; on failure it carries the action's `userError` (e.g.
  * `INVALID_CREDENTIALS`, `USERNAME_TAKEN`), which the handler echoes to the
- * client so the UI can tell the failures apart. Those errors are already the
- * actions' public return values, so echoing them leaks nothing new.
+ * client in its 401 reply so the UI can tell the failures apart. Those errors
+ * are already the actions' public return values, so echoing them leaks nothing
+ * new.
  *
  * @module
  */
