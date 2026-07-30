@@ -1,0 +1,6 @@
+.env.local
+.next
+node_modules
+next-env.d.ts
+tsconfig.tsbuildinfo
+.convex
