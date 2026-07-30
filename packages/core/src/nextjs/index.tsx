@@ -238,12 +238,16 @@ function usePasswordRoute<Failure extends { success: false }>(route: string) {
  * mirrors the client-direct hook's, so error-mapping UI ports over unchanged —
  * except that success carries no tokens.
  *
+ * Upon a successful sign-in, client code should redirect to the desired
+ * authentication protected route.
+ *
  * ```tsx
  * const { signIn, pending } = useSignInWithPassword();
  * const result = await signIn({ username, password });
  * if (!result.success) {
  *   // map result.userError to a message
  * }
+ * // redirect to a signed in route destionation
  * ```
  */
 export function useSignInWithPassword(options?: { route?: string }) {
@@ -262,6 +266,9 @@ export function useSignInWithPassword(options?: { route?: string }) {
  * SSR sibling of the password provider's client-direct `useSignUpWithPassword`
  * (`@convex-dev/auth/providers/password/react`); the sign-up counterpart of
  * {@link useSignInWithPassword}, POSTing to the `passwordSignUp` route.
+ *
+ * Upon a successful sign-up, client code should redirect to the desired
+ * authentication protected route.
  */
 export function useSignUpWithPassword(options?: { route?: string }) {
   const { run, pending } = usePasswordRoute<PasswordFailure<SignUpResult>>(
