@@ -18,8 +18,15 @@
  * @module
  */
 
-/** An origin's host, tolerating a bare host (`"app.example.com"`) as input. */
+/**
+ * Extracts just the host portion from an `origin`.
+ *
+ * Handles `origin` URLs but also allows bare hosts (passing them through).
+ */
 function hostOf(origin: string): string {
+  if (!origin.includes("://")) {
+    return origin;
+  }
   try {
     return new URL(origin).host;
   } catch {

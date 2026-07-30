@@ -69,4 +69,15 @@ describe("isTrustedOrigin", () => {
     expect(isTrustedOrigin(req, ["public.test"])).toBe(true);
     expect(isTrustedOrigin(req, ["https://other.test"])).toBe(false);
   });
+
+  test("trusts a configured localhost allowed origin", () => {
+    const req = request({
+      origin: "http://localhost:3000",
+      host: "http://app.test",
+    });
+    expect(isTrustedOrigin(req, ["http://localhost:3000"])).toBe(true);
+    // A bare host works too.
+    expect(isTrustedOrigin(req, ["localhost:3000"])).toBe(true);
+    expect(isTrustedOrigin(req, ["http://localhost:5173"])).toBe(false);
+  });
 });
