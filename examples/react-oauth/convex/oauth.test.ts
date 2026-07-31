@@ -8,7 +8,7 @@ import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
 
-async function setup() {
+async function setup(provider: "google" | "github" = "google") {
   // The core signs JWTs from these env vars (see core/public.ts). Mint a real
   // RS256 key pair for each test and stub the env so Vitest can reset it.
   const { publicKey, privateKey } = await generateKeyPair("RS256", {
@@ -25,18 +25,17 @@ async function setup() {
       keys: [{ ...publicJwk, kid: "test-key", alg: "RS256", use: "sig" }],
     }),
   );
-  // convex-test doesn't emulate the mount's env binding renames (convex.config
-  // maps AUTH_GOOGLE_CLIENT_ID onto the component's GOOGLE_CLIENT_ID), so stub
-  // the component-side names directly, distinct per provider so the client_id
-  // assertions verify per-provider credential selection.
-  vi.stubEnv("GOOGLE_CLIENT_ID", "test-google-client-id");
-  vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-google-client-secret");
-  vi.stubEnv("GITHUB_CLIENT_ID", "test-github-client-id");
-  vi.stubEnv("GITHUB_CLIENT_SECRET", "test-github-client-secret");
+  // convex-test doesn't emulate mount env bindings, so all registered oauth
+  // instances read the same process.env. Each test exercises one provider,
+  // so stub that provider's mount env; values stay distinct per provider so
+  // the client_id assertions catch credential mixups.
+  vi.stubEnv("CLIENT_ID", `test-${provider}-client-id`);
+  vi.stubEnv("CLIENT_SECRET", `test-${provider}-client-secret`);
 
   const t = convexTest(schema, modules);
   registerCore(t);
-  registerOauth(t);
+  registerOauth(t, "oauthGoogle");
+  registerOauth(t, "oauthGithub");
   return t;
 }
 
@@ -89,7 +88,7 @@ describe("oauth", () => {
   });
 
   test("github startSignIn returns its own authorization URL", async () => {
-    const t = await setup();
+    const t = await setup("github");
     const { redirect, state } = await t.mutation(api.auth.startSignInGithub, {
       redirectTo: "http://localhost:5173/",
     });
@@ -108,7 +107,7 @@ describe("oauth", () => {
   });
 
   test("github completeSignIn returns null for an unknown code", async () => {
-    const t = await setup();
+    const t = await setup("github");
     const result = await t.mutation(api.auth.completeSignInGithub, {
       code: "not-a-real-code",
       state: "not-a-real-state",

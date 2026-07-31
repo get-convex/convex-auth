@@ -22,16 +22,25 @@ app.use(core, {
   },
 });
 
-// The oauth component mounts once for all identity providers; it serves a
-// callback per provider under `/oauth/<provider>/callback`. Bind each provider's
-// credentials — only the ones this app uses need binding.
+// The oauth component mounts once per identity provider; each mount serves
+// its callback at `<httpPrefix>/callback` and binds that provider's
+// credentials. Every binding is required, so a missing credential fails
+// at push. Mounts must not share an httpPrefix.
 app.use(oauth, {
-  httpPrefix: "/oauth",
+  name: "oauthGoogle",
+  httpPrefix: "/oauth/google",
   env: {
-    GOOGLE_CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
-    GITHUB_CLIENT_ID: app.env.AUTH_GITHUB_CLIENT_ID,
-    GITHUB_CLIENT_SECRET: app.env.AUTH_GITHUB_CLIENT_SECRET,
+    CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,
+    CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
+  },
+});
+
+app.use(oauth, {
+  name: "oauthGithub",
+  httpPrefix: "/oauth/github",
+  env: {
+    CLIENT_ID: app.env.AUTH_GITHUB_CLIENT_ID,
+    CLIENT_SECRET: app.env.AUTH_GITHUB_CLIENT_SECRET,
   },
 });
 

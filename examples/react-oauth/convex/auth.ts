@@ -5,8 +5,9 @@ import { OauthGithub } from "@convex-dev/auth/providers/oauth/github";
 
 // The core owns sessions, accounts, and JWT minting. It calls back into our
 // `createOrUpdateUser` on every sign-in. Each OAuth provider is a built-in
-// config (endpoints, scopes, profile mapping are internal) wired to the shared
-// oauth component; it exposes `startSignIn*`/`completeSignIn*` for the client.
+// config (endpoints, scopes, profile mapping are internal) wired to its own
+// oauth component mount; it exposes `startSignIn*`/`completeSignIn*` for the
+// client.
 
 export const {
   signOut,
@@ -19,13 +20,13 @@ export const {
   component: components.core,
   providers: [
     provider(OauthGoogle, {
-      component: components.oauth,
-      httpPrefix: "/oauth",
+      component: components.oauthGoogle,
+      httpPrefix: "/oauth/google",
       allowedRedirectOrigins: ["http://localhost:5173"],
     }),
     provider(OauthGithub, {
-      component: components.oauth,
-      httpPrefix: "/oauth",
+      component: components.oauthGithub,
+      httpPrefix: "/oauth/github",
       allowedRedirectOrigins: ["http://localhost:5173"],
     }),
   ],
