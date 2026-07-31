@@ -85,18 +85,20 @@ const githubCatalog: OauthCatalog = {
 };
 
 /**
- * Built-in GitHub OAuth provider. Register it with the shared oauth component:
+ * Built-in GitHub OAuth provider. Register it with its own oauth component
+ * mount:
  *
  * ```ts
  * provider(OauthGithub, {
- *   component: components.oauth,
- *   httpPrefix: "/oauth",
+ *   component: components.oauthGithub,
+ *   httpPrefix: "/oauth/github",
  *   allowedRedirectOrigins: ["https://app.example.com"],
  * })
  * ```
  *
- * Bind `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` on the oauth mount, and
- * register `<site-url>/oauth/github/callback` as the redirect URI with GitHub.
+ * Mount the component under `httpPrefix: "/oauth/github"` in
+ * convex.config.ts, binding GitHub's `CLIENT_ID`/`CLIENT_SECRET`, and register
+ * `<site-url>/oauth/github/callback` as the redirect URI with GitHub.
  *
  * Identity comes from the userinfo endpoints since GitHub returns no id_token.
  */
