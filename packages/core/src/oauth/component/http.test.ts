@@ -14,10 +14,16 @@ const DEFAULT_REDIRECT_TO = "https://app.example.com/after";
 
 function setup(providerName = "google") {
   // One instance serving one provider: the mount binds the provider's
-  // credentials. convex-test doesn't emulate mount env bindings, so the
-  // component-side names are stubbed directly.
+  // credentials. convex-test doesn't emulate mount env bindings or the
+  // backend's mount-prefixed CONVEX_SITE_URL override, so the component-side
+  // values are stubbed directly (CONVEX_SITE_URL with the prefix already
+  // applied, as the backend would present it).
   vi.stubEnv("CLIENT_ID", "test-client-id");
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
+  vi.stubEnv(
+    "CONVEX_SITE_URL",
+    `https://test.convex.site/oauth/${providerName}`,
+  );
   return convexTest(schema, modules);
 }
 
@@ -104,7 +110,6 @@ function googleClaims(overrides: Record<string, unknown> = {}) {
 type FlowOverrides = Partial<{
   providerName: string;
   redirectTo: string;
-  callbackUrl: string;
   codeVerifier: string;
   tokenEndpoint: string;
   userInfoEndpoints: Record<string, string>;
@@ -127,7 +132,6 @@ async function startFlow(
     providerName: "google",
     stateHash,
     redirectTo: DEFAULT_REDIRECT_TO,
-    callbackUrl: "https://test.convex.site/oauth/google/callback",
     tokenEndpoint: GOOGLE_TOKEN_ENDPOINT,
     issuer: "https://accounts.google.com" as string | undefined,
     ...overrides,
@@ -292,7 +296,6 @@ describe("oauth callback", () => {
     });
     const { state, stateHash } = await startFlow(t, {
       providerName: "github",
-      callbackUrl: "https://test.convex.site/oauth/github/callback",
       tokenEndpoint: GITHUB_TOKEN_ENDPOINT,
       issuer: undefined,
       userInfoEndpoints: {
@@ -473,7 +476,6 @@ describe("oauth callback", () => {
     });
     const { state } = await startFlow(t, {
       providerName: "github",
-      callbackUrl: "https://test.convex.site/oauth/github/callback",
       tokenEndpoint: GITHUB_TOKEN_ENDPOINT,
       issuer: undefined,
       userInfoEndpoints: {
@@ -496,7 +498,6 @@ describe("oauth callback", () => {
     });
     const { state } = await startFlow(t, {
       providerName: "github",
-      callbackUrl: "https://test.convex.site/oauth/github/callback",
       tokenEndpoint: GITHUB_TOKEN_ENDPOINT,
       issuer: undefined,
       userInfoEndpoints: { user: "https://api.github.com/user" },
