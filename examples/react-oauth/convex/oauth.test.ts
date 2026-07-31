@@ -30,7 +30,8 @@ async function setup(provider: "google" | "github" = "google") {
   // that provider's mount env (CONVEX_SITE_URL with the prefix already
   // applied, as the backend would present it to the oauth mount — no
   // exercised path reads the core's value); values stay distinct per
-  // provider so the client_id assertions catch credential mixups.
+  // provider so assertions pin the provider under test. They can't catch
+  // wrong-mount wiring: every mount reads this same process.env.
   vi.stubEnv("CLIENT_ID", `test-${provider}-client-id`);
   vi.stubEnv("CLIENT_SECRET", `test-${provider}-client-secret`);
   vi.stubEnv(
