@@ -24,8 +24,10 @@ app.use(core, {
 
 // The oauth component mounts once per identity provider; each mount serves
 // its callback at `<httpPrefix>/callback` and binds that provider's
-// credentials. Every binding is required, so a missing credential fails
-// at push. Mounts must not share an httpPrefix.
+// credentials. The httpPrefix here alone determines the callback URL
+// (the component derives it from its mount-prefixed CONVEX_SITE_URL). Every
+// binding is required, so a missing credential fails at push. Mounts must
+// not share an httpPrefix.
 app.use(oauth, {
   name: "oauthGoogle",
   httpPrefix: "/oauth/google",

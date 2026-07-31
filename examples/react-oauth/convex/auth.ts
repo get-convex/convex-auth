@@ -21,12 +21,10 @@ export const {
   providers: [
     provider(OauthGoogle, {
       component: components.oauthGoogle,
-      httpPrefix: "/oauth/google",
       allowedRedirectOrigins: ["http://localhost:5173"],
     }),
     provider(OauthGithub, {
       component: components.oauthGithub,
-      httpPrefix: "/oauth/github",
       allowedRedirectOrigins: ["http://localhost:5173"],
     }),
   ],

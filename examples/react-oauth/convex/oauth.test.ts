@@ -17,7 +17,6 @@ async function setup(provider: "google" | "github" = "google") {
   const pkcs8 = await exportPKCS8(privateKey);
   const publicJwk = await exportJWK(publicKey);
 
-  vi.stubEnv("CONVEX_SITE_URL", "https://example.convex.site");
   vi.stubEnv("AUTH_PRIVATE_KEY", btoa(pkcs8));
   vi.stubEnv(
     "AUTH_JWKS",
@@ -25,12 +24,19 @@ async function setup(provider: "google" | "github" = "google") {
       keys: [{ ...publicJwk, kid: "test-key", alg: "RS256", use: "sig" }],
     }),
   );
-  // convex-test doesn't emulate mount env bindings, so all registered oauth
-  // instances read the same process.env. Each test exercises one provider,
-  // so stub that provider's mount env; values stay distinct per provider so
-  // the client_id assertions catch credential mixups.
+  // convex-test doesn't emulate mount env bindings or the backend's
+  // mount-prefixed CONVEX_SITE_URL override, so all registered instances
+  // read the same process.env. Each test exercises one provider, so stub
+  // that provider's mount env (CONVEX_SITE_URL with the prefix already
+  // applied, as the backend would present it to the oauth mount — no
+  // exercised path reads the core's value); values stay distinct per
+  // provider so the client_id assertions catch credential mixups.
   vi.stubEnv("CLIENT_ID", `test-${provider}-client-id`);
   vi.stubEnv("CLIENT_SECRET", `test-${provider}-client-secret`);
+  vi.stubEnv(
+    "CONVEX_SITE_URL",
+    `https://example.convex.site/oauth/${provider}`,
+  );
 
   const t = convexTest(schema, modules);
   registerCore(t);
