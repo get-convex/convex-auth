@@ -14,9 +14,9 @@ export default defineSchema({
     /** Post-login destination, validated against allowed redirects at sign-in. */
     redirectTo: v.string(),
     /**
-     * The OAuth `redirect_uri`, built app-side at sign-in from
-     * `CONVEX_SITE_URL` plus the mount's `httpPrefix` (the component can't
-     * see system env vars). Stored so the code exchange presents the
+     * The OAuth `redirect_uri`, built at sign-in from the component's
+     * `CONVEX_SITE_URL` (which the backend prefixes with the mount's
+     * `httpPrefix`). Stored so the code exchange presents the
      * byte-identical value, as OAuth requires.
      */
     callbackUrl: v.string(),

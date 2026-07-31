@@ -2,7 +2,6 @@ import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
 import { defineProvider } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
-import { CALLBACK_PATH } from "./constants";
 import { generateRandomToken, sha256Base64Url } from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
 import { capitalize } from "../../lib/strings";
@@ -67,13 +66,6 @@ export type OauthProviderOptions = {
    * `{ access_type: "offline" }`. Must not include protocol params (listed below).
    */
   extraAuthorizationParams?: Record<string, string>;
-  /**
-   * The `httpPrefix` this provider's mount is given in convex.config.ts.
-   * The OAuth `redirect_uri` is `${CONVEX_SITE_URL}${httpPrefix}/callback`,
-   * so it must match the mount, and that URL must be registered with the
-   * identity provider.
-   */
-  httpPrefix: string;
 };
 
 /** `new URL` without the exception: returns null on unparseable input. */
@@ -105,7 +97,6 @@ const PROTOCOL_PARAMS = [
  * providers: [
  *   provider(OauthGoogle, {
  *     component: components.oauthGoogle,
- *     httpPrefix: "/oauth/google",
  *     allowedRedirectOrigins: [...],
  *   }),
  * ]
@@ -124,7 +115,9 @@ const PROTOCOL_PARAMS = [
  * The component is mounted once per provider in `convex.config.ts`, binding
  * that provider's `PROVIDER_NAME`, `CLIENT_ID`, and `CLIENT_SECRET`; register
  * `<site-url><httpPrefix>/callback` as the redirect URI with the identity
- * provider.
+ * provider. The mount's `httpPrefix` alone determines the callback URL — the
+ * component derives it from its mount-prefixed `CONVEX_SITE_URL`, so there's
+ * nothing to repeat in the provider options.
  */
 export function Oauth<const N extends string>(
   providerName: N,
@@ -148,12 +141,6 @@ export function Oauth<const N extends string>(
         }
         return url.origin;
       });
-      const httpPrefix = options.httpPrefix;
-      if (!/^\/\S*[^/\s]$/.test(httpPrefix)) {
-        throw new Error(
-          `httpPrefix for provider "${providerName}" must start with "/" and not end with "/", e.g. "/oauth/${providerName}"`,
-        );
-      }
       const scopes = options.scopes ?? catalog.scopes;
       // Per OIDC, requesting the `openid` scope makes the provider return an
       // id_token, which must be validated against an expected issuer. Catalogs
@@ -198,28 +185,18 @@ export function Oauth<const N extends string>(
           const state = generateRandomToken();
           const codeVerifier = catalog.pkce ? generateRandomToken() : undefined;
 
-          // The redirect_uri is built here, app-side, because the
-          // component can't see the system env var. It's stored on the
-          // request row so the code exchange presents the byte-identical
-          // value, as OAuth requires.
-          const siteUrl = process.env.CONVEX_SITE_URL;
-          if (siteUrl === undefined) {
-            throw new Error("CONVEX_SITE_URL is not set");
-          }
-          const callbackUrl = `${siteUrl}${httpPrefix}${CALLBACK_PATH}`;
-
           // Only the hash crosses the component boundary, so the raw state is
           // neither stored nor visible in function logs. Exchange config the
           // callback needs is stored on the request row; the provider's
-          // CLIENT_ID comes back for the authorization URL.
+          // CLIENT_ID and the mount-derived redirect_uri are returned to form
+          // the authorization URL.
           const stateHash = await sha256Hex(state);
-          const { clientId } = await ctx.runMutation(
+          const { clientId, callbackUrl } = await ctx.runMutation(
             options.component.provider.createAuthorizationRequest,
             {
               providerName,
               stateHash,
               redirectTo: args.redirectTo,
-              callbackUrl,
               tokenEndpoint: catalog.tokenEndpoint,
               codeVerifier,
               userInfoEndpoints: catalog.userInfoEndpoints,
