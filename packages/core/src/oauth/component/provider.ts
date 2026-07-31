@@ -1,6 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation } from "./_generated/server";
-import { getCredentials } from "./credentials";
+import { env, internalMutation, mutation } from "./_generated/server";
 
 /** How long an authorization request stays claimable by the callback. */
 const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
@@ -15,11 +14,16 @@ const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
  * component can't see app-side config or system env vars — a typed-env
  * component's `process.env` only contains its bound vars, so the caller
  * builds `callbackUrl` from `CONVEX_SITE_URL` app-side.
+ * TODO: once system env vars are visible inside components in an acceptable
+ * minimum convex version, build `callbackUrl` here instead of snapshotting.
  *
- * Returns the requested provider's `CLIENT_ID` binding, which the caller needs
- * for the authorization URL. Resolving credentials here also fails an unbound
- * or unsupported provider at the first sign-in rather than on the provider's
- * error page (see {@link getCredentials}).
+ * Each mount serves exactly one provider (its `PROVIDER_NAME` binding), so a
+ * `provider(...)` wired to the wrong mount fails here at the first sign-in —
+ * the one wiring mistake push-time env validation can't catch — rather than
+ * confusing the identity provider with another provider's credentials.
+ *
+ * Returns the mount's `CLIENT_ID`, which the caller needs for the
+ * authorization URL.
  */
 export const createAuthorizationRequest = mutation({
   args: {
@@ -36,21 +40,29 @@ export const createAuthorizationRequest = mutation({
     clientId: v.string(),
   }),
   handler: async (ctx, args) => {
-    const { clientId } = getCredentials(args.providerName);
+    if (args.providerName !== env.PROVIDER_NAME) {
+      throw new Error(
+        `Provider "${args.providerName}" is wired to an oauth mount bound to ` +
+          `PROVIDER_NAME "${env.PROVIDER_NAME}". Pass the "${args.providerName}" ` +
+          `mount as \`component\` in this provider's options.`,
+      );
+    }
     await ctx.db.insert("authorizationRequests", {
       ...args,
       expiresAt: Date.now() + AUTHORIZATION_REQUEST_TTL_MS,
     });
-    return { clientId };
+    return { clientId: env.CLIENT_ID };
   },
 });
 
 /**
- * Claim an authorization request by state hash: find, delete, and return it
- * in one transaction, so a replayed or raced callback finds nothing. An
- * expired row is also deleted, but only its `redirectTo` is returned so the
- * callback can send the user back to the app instead of stranding them on
- * an error page.
+ * The second half of the OAuth flow: after the user authenticates, the
+ * provider redirects back to this component's HTTP callback route, which
+ * calls this to claim the matching request by state hash — find, delete,
+ * and return it in one transaction, so a replayed or raced callback finds
+ * nothing. An expired row is also deleted, but only its `redirectTo` is
+ * returned so the callback can send the user back to the app instead of
+ * stranding them on an error page.
  */
 export const claimAuthorizationRequest = internalMutation({
   args: {

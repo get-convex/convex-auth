@@ -9,7 +9,6 @@
  */
 
 import type * as constants from "../constants.js";
-import type * as credentials from "../credentials.js";
 import type * as crypto from "../crypto.js";
 import type * as provider from "../provider.js";
 import type * as setup from "../setup.js";
@@ -23,7 +22,6 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   constants: typeof constants;
-  credentials: typeof credentials;
   crypto: typeof crypto;
   provider: typeof provider;
   setup: typeof setup;

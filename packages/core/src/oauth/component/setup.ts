@@ -11,20 +11,28 @@ import { capitalize } from "../../lib/strings";
  * Provider-defined config for interacting with an individual OAuth provider.
  */
 export type OauthCatalog = {
-  /** The provider's authorization endpoint, e.g. Google's `https://accounts.google.com/o/oauth2/v2/auth`. */
+  /**
+   * The provider's authorization endpoint (a full URL), e.g. Google's
+   * `https://accounts.google.com/o/oauth2/v2/auth`.
+   */
   authorizationEndpoint: string;
-  /** The provider's token endpoint, e.g. Google's `https://oauth2.googleapis.com/token`. */
+  /**
+   * The provider's token endpoint (a full URL), e.g. Google's
+   * `https://oauth2.googleapis.com/token`.
+   */
   tokenEndpoint: string;
   /**
-   * Expected `iss` of the provider's id_tokens, e.g. Google's
-   * `https://accounts.google.com`. Present for OIDC providers; absent for
-   * plain-OAuth providers (e.g., GitHub), where identity comes from userinfo.
+   * Expected `iss` (the OIDC issuer claim) of the provider's id_tokens, e.g.
+   * Google's `https://accounts.google.com`. Present for OIDC providers;
+   * absent for plain-OAuth providers (e.g., GitHub), where identity comes from
+   * userinfo.
    */
   issuer?: string;
   /**
-   * Endpoints the callback fetches with the access token (GET with a bearer
-   * token), keyed by the name the profile mapping reads each response under.
-   * Present for providers whose identity comes from userinfo (GitHub).
+   * Endpoints (full URLs) the callback fetches with the access token (GET
+   * with a bearer token), keyed by the name the profile mapping reads each
+   * response under. Present for providers whose identity comes from
+   * userinfo (GitHub).
    */
   userInfoEndpoints?: Record<string, string>;
   /** Default scopes to request; overridable via {@link OauthProviderOptions.scopes}. */
@@ -41,8 +49,8 @@ export type OauthCatalog = {
  */
 export type OauthProviderOptions = {
   /**
-   * The oauth component mount, i.e. `components.oauth`. Mounted once for all
-   * providers (see the component's convex.config.ts).
+   * This provider's oauth component mount, e.g. `components.oauthGoogle`.
+   * The component is mounted once per provider.
    */
   component: ComponentApi;
   /**
@@ -60,10 +68,10 @@ export type OauthProviderOptions = {
    */
   extraAuthorizationParams?: Record<string, string>;
   /**
-   * The `httpPrefix` the component is mounted under in convex.config.ts. The
-   * OAuth `redirect_uri` is
-   * `${CONVEX_SITE_URL}${httpPrefix}/${provider}/callback`, so it must match
-   * the mount, and that URL must be registered with the identity provider.
+   * The `httpPrefix` this provider's mount is given in convex.config.ts.
+   * The OAuth `redirect_uri` is `${CONVEX_SITE_URL}${httpPrefix}/callback`,
+   * so it must match the mount, and that URL must be registered with the
+   * identity provider.
    */
   httpPrefix: string;
 };
@@ -96,8 +104,8 @@ const PROTOCOL_PARAMS = [
  * ```ts
  * providers: [
  *   provider(OauthGoogle, {
- *     component: components.oauth,
- *     httpPrefix: "/oauth",
+ *     component: components.oauthGoogle,
+ *     httpPrefix: "/oauth/google",
  *     allowedRedirectOrigins: [...],
  *   }),
  * ]
@@ -106,22 +114,24 @@ const PROTOCOL_PARAMS = [
  * This is the first leg of the flow: `startSignIn` validates, mints `state`,
  * records an authorization request in the component, and returns the provider
  * authorization URL for the client to navigate to plus the state it must hold
- * onto. The provider later redirects back to the component's HTTP callback
- * (`<site><httpPrefix>/<provider>/callback`), which claims the request by
- * state hash.
+ * onto. The provider later redirects back to the mount's HTTP callback
+ * (`<site><httpPrefix>/callback`), which claims the request by state hash.
  *
  * The function is returned with the provider name embedded in the key
  * (`startSignInGoogle` for `Oauth("google", ...)`), so multiple providers can
  * be re-exported side by side without renaming.
  *
- * The component is mounted once in `convex.config.ts` with each provider's
- * `<PROVIDER>_CLIENT_ID`/`_SECRET` bindings; register
- * `<site-url><httpPrefix>/<provider>/callback` as the redirect URI with each
+ * The component is mounted once per provider in `convex.config.ts`, binding
+ * that provider's `PROVIDER_NAME`, `CLIENT_ID`, and `CLIENT_SECRET`; register
+ * `<site-url><httpPrefix>/callback` as the redirect URI with the identity
  * provider.
  */
-export function Oauth<const N extends string>(name: N, catalog: OauthCatalog) {
+export function Oauth<const N extends string>(
+  providerName: N,
+  catalog: OauthCatalog,
+) {
   return defineProvider({
-    name,
+    name: providerName,
     setup: (helpers, options: OauthProviderOptions) => {
       // Validate the app-supplied options up front so mistakes fail at deploy
       // time, not on the first sign-in.
@@ -141,7 +151,7 @@ export function Oauth<const N extends string>(name: N, catalog: OauthCatalog) {
       const httpPrefix = options.httpPrefix;
       if (!/^\/\S*[^/\s]$/.test(httpPrefix)) {
         throw new Error(
-          `httpPrefix for provider "${name}" must start with "/" and not end with "/", e.g. "/oauth"`,
+          `httpPrefix for provider "${providerName}" must start with "/" and not end with "/", e.g. "/oauth/${providerName}"`,
         );
       }
       const scopes = options.scopes ?? catalog.scopes;
@@ -151,18 +161,18 @@ export function Oauth<const N extends string>(name: N, catalog: OauthCatalog) {
       // no issuer.
       if (scopes.includes("openid") && catalog.issuer === undefined) {
         throw new Error(
-          `Provider "${name}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
+          `Provider "${providerName}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
         );
       }
       for (const key of Object.keys(options.extraAuthorizationParams ?? {})) {
         if (PROTOCOL_PARAMS.includes(key)) {
           throw new Error(
-            `extraAuthorizationParams for provider "${name}" must not set protocol param "${key}"`,
+            `extraAuthorizationParams for provider "${providerName}" must not set protocol param "${key}"`,
           );
         }
       }
 
-      const suffix = capitalize(name);
+      const suffix = capitalize(providerName);
 
       /**
        * Start an OAuth sign-in. The server mints `state` and returns it;
@@ -196,7 +206,7 @@ export function Oauth<const N extends string>(name: N, catalog: OauthCatalog) {
           if (siteUrl === undefined) {
             throw new Error("CONVEX_SITE_URL is not set");
           }
-          const callbackUrl = `${siteUrl}${httpPrefix}/${name}${CALLBACK_PATH}`;
+          const callbackUrl = `${siteUrl}${httpPrefix}${CALLBACK_PATH}`;
 
           // Only the hash crosses the component boundary, so the raw state is
           // neither stored nor visible in function logs. Exchange config the
@@ -206,7 +216,7 @@ export function Oauth<const N extends string>(name: N, catalog: OauthCatalog) {
           const { clientId } = await ctx.runMutation(
             options.component.provider.createAuthorizationRequest,
             {
-              providerName: name,
+              providerName,
               stateHash,
               redirectTo: args.redirectTo,
               callbackUrl,

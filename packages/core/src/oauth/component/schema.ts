@@ -26,21 +26,23 @@ export default defineSchema({
      */
     codeVerifier: v.optional(v.string()),
     /**
-     * The provider's token endpoint, copied from app-side config at
-     * sign-in: the callback runs inside the component, which can't see app
-     * config, so non-secret exchange config is stored on the row.
+     * The provider's token endpoint (a full URL), copied from app-side
+     * config at sign-in: the callback runs inside the component, which
+     * can't see app config, so non-secret exchange config is stored on the
+     * row.
      */
     tokenEndpoint: v.string(),
     /**
-     * Profile endpoints to fetch with the access token after the exchange,
-     * keyed by the name the app's `profile` mapping receives each response
-     * under. Copied from app-side config like `tokenEndpoint`.
+     * Profile endpoints (full URLs) to fetch with the access token after
+     * the exchange, keyed by the name the app's `profile` mapping receives
+     * each response under. Copied from app-side config like `tokenEndpoint`.
      */
     userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     /**
-     * Expected `iss` of the provider's id_tokens, copied from app-side
-     * config. Absent only for plain-OAuth providers; the callback rejects
-     * any returned id_token unless this is present and matches.
+     * Expected `iss` (the OIDC issuer claim) of the provider's id_tokens,
+     * copied from app-side config. Absent only for plain-OAuth providers;
+     * the callback rejects any returned id_token unless this is present
+     * and matches.
      */
     issuer: v.optional(v.string()),
     /** The callback rejects requests older than this. */
