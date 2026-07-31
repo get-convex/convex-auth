@@ -25,7 +25,6 @@ function setup(
 ) {
   return Oauth("acme", catalog).setup({} as ProviderHelpers, {
     component: {} as ComponentApi,
-    httpPrefix: "/oauth/acme",
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
   });
@@ -78,15 +77,4 @@ describe("Oauth setup validation", () => {
       setup({ extraAuthorizationParams: { access_type: "offline" } }),
     ).not.toThrow();
   });
-
-  test("a single-character httpPrefix is accepted", () => {
-    expect(() => setup({ httpPrefix: "/a" })).not.toThrow();
-  });
-
-  test.each(["/", "/oauth/", "oauth", "/oa uth"])(
-    "httpPrefix %s is rejected",
-    (httpPrefix) => {
-      expect(() => setup({ httpPrefix })).toThrow(/httpPrefix/);
-    },
-  );
 });

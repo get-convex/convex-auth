@@ -28,7 +28,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          callbackUrl: string;
           codeVerifier?: string;
           issuer?: string;
           providerName: string;
@@ -37,7 +36,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           tokenEndpoint: string;
           userInfoEndpoints?: Record<string, string>;
         },
-        { clientId: string },
+        { callbackUrl: string; clientId: string },
         Name
       >;
     };

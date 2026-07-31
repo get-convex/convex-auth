@@ -7,11 +7,14 @@ const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
   // One instance serving one provider: the mount binds the provider's name
-  // and credentials. convex-test doesn't emulate mount env bindings, so the
-  // component-side names are stubbed directly.
+  // and credentials. convex-test doesn't emulate mount env bindings or the
+  // backend's mount-prefixed CONVEX_SITE_URL override, so the component-side
+  // values are stubbed directly (CONVEX_SITE_URL with the prefix already
+  // applied, as the backend would present it).
   vi.stubEnv("PROVIDER_NAME", "google");
   vi.stubEnv("CLIENT_ID", "test-client-id");
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
+  vi.stubEnv("CONVEX_SITE_URL", "https://test.convex.site/oauth/google");
   const t = convexTest(schema, modules);
   return t;
 }
@@ -21,7 +24,6 @@ const requestArgs = {
   providerName: "google",
   stateHash: "0".repeat(64),
   redirectTo: "https://app.example.com/after",
-  callbackUrl: "https://test.convex.site/oauth/google/callback",
   tokenEndpoint: "https://oauth2.googleapis.com/token",
 };
 
@@ -31,7 +33,7 @@ afterEach(() => {
 });
 
 describe("oauth", () => {
-  test("createAuthorizationRequest stores the request and returns the mount's client id", async () => {
+  test("createAuthorizationRequest stores the request and returns the mount's client id and callback URL", async () => {
     const t = setup();
     const result = await t.mutation(
       api.provider.createAuthorizationRequest,
@@ -39,11 +41,20 @@ describe("oauth", () => {
     );
     expect(result).toEqual({
       clientId: "test-client-id",
+      callbackUrl: "https://test.convex.site/oauth/google/callback",
     });
     await t.run(async (ctx) => {
       const requests = await ctx.db.query("authorizationRequests").collect();
       expect(requests).toHaveLength(1);
     });
+  });
+
+  test("createAuthorizationRequest throws when CONVEX_SITE_URL is not visible", async () => {
+    const t = setup();
+    vi.stubEnv("CONVEX_SITE_URL", undefined);
+    await expect(
+      t.mutation(api.provider.createAuthorizationRequest, requestArgs),
+    ).rejects.toThrow(/CONVEX_SITE_URL is not visible/);
   });
 
   test("createAuthorizationRequest throws when the provider doesn't match the mount", async () => {
