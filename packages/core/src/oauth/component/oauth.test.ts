@@ -6,11 +6,12 @@ import schema from "./schema.js";
 const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
-  // The single mount binds each provider's client credentials.
-  vi.stubEnv("GOOGLE_CLIENT_ID", "test-google-client-id");
-  vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-google-client-secret");
-  vi.stubEnv("GITHUB_CLIENT_ID", "test-github-client-id");
-  vi.stubEnv("GITHUB_CLIENT_SECRET", "test-github-client-secret");
+  // One instance serving one provider: the mount binds the provider's name
+  // and credentials. convex-test doesn't emulate mount env bindings, so the
+  // component-side names are stubbed directly.
+  vi.stubEnv("PROVIDER_NAME", "google");
+  vi.stubEnv("CLIENT_ID", "test-client-id");
+  vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   const t = convexTest(schema, modules);
   return t;
 }
@@ -30,14 +31,14 @@ afterEach(() => {
 });
 
 describe("oauth", () => {
-  test("createAuthorizationRequest stores the request and returns the provider's client id", async () => {
+  test("createAuthorizationRequest stores the request and returns the mount's client id", async () => {
     const t = setup();
     const result = await t.mutation(
       api.provider.createAuthorizationRequest,
       requestArgs,
     );
     expect(result).toEqual({
-      clientId: "test-google-client-id",
+      clientId: "test-client-id",
     });
     await t.run(async (ctx) => {
       const requests = await ctx.db.query("authorizationRequests").collect();
@@ -45,30 +46,14 @@ describe("oauth", () => {
     });
   });
 
-  test("createAuthorizationRequest throws for an unsupported provider", async () => {
+  test("createAuthorizationRequest throws when the provider doesn't match the mount", async () => {
     const t = setup();
     await expect(
       t.mutation(api.provider.createAuthorizationRequest, {
         ...requestArgs,
-        providerName: "myspace",
-      }),
-    ).rejects.toThrow(/Unsupported OAuth provider "myspace"/);
-  });
-
-  test("createAuthorizationRequest throws when the provider's credentials aren't bound", async () => {
-    // Bind only Google; GitHub's pair is empty (unbound).
-    vi.stubEnv("GOOGLE_CLIENT_ID", "test-google-client-id");
-    vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-google-client-secret");
-    vi.stubEnv("GITHUB_CLIENT_ID", "");
-    vi.stubEnv("GITHUB_CLIENT_SECRET", "");
-    const t = convexTest(schema, modules);
-    await expect(
-      t.mutation(api.provider.createAuthorizationRequest, {
-        ...requestArgs,
         providerName: "github",
-        callbackUrl: "https://test.convex.site/oauth/github/callback",
       }),
-    ).rejects.toThrow(/Bind GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET/);
+    ).rejects.toThrow(/oauth mount bound to PROVIDER_NAME "google"/);
   });
 
   test("claimAuthorizationRequest returns the request exactly once", async () => {

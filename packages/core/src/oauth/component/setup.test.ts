@@ -25,7 +25,7 @@ function setup(
 ) {
   return Oauth("acme", catalog).setup({} as ProviderHelpers, {
     component: {} as ComponentApi,
-    httpPrefix: "/oauth",
+    httpPrefix: "/oauth/acme",
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
   });
