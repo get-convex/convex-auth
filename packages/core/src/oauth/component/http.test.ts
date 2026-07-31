@@ -12,12 +12,12 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GITHUB_TOKEN_ENDPOINT = "https://github.com/login/oauth/access_token";
 const DEFAULT_REDIRECT_TO = "https://app.example.com/after";
 
-function setup() {
-  // The single mount binds each provider's client credentials.
-  vi.stubEnv("GOOGLE_CLIENT_ID", "test-google-client-id");
-  vi.stubEnv("GOOGLE_CLIENT_SECRET", "test-google-client-secret");
-  vi.stubEnv("GITHUB_CLIENT_ID", "test-github-client-id");
-  vi.stubEnv("GITHUB_CLIENT_SECRET", "test-github-client-secret");
+function setup(providerName = "google") {
+  // One instance serving one provider: the mount binds the provider's
+  // credentials. convex-test doesn't emulate mount env bindings, so the
+  // component-side names are stubbed directly.
+  vi.stubEnv("CLIENT_ID", "test-client-id");
+  vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   return convexTest(schema, modules);
 }
 
@@ -92,7 +92,7 @@ function unsignedJwt(claims: Record<string, unknown>): string {
 function googleClaims(overrides: Record<string, unknown> = {}) {
   return {
     iss: "https://accounts.google.com",
-    aud: "test-google-client-id",
+    aud: "test-client-id",
     exp: Math.floor(Date.now() / 1000) + 3600,
     sub: "google-sub-1",
     email: "ada@example.com",
@@ -142,13 +142,12 @@ async function startFlow(
   return { state, stateHash };
 }
 
-/** GET the provider's callback route the way the identity provider redirect would. */
+/** GET the mount's callback route the way the identity provider redirect would. */
 function callback(
   t: ReturnType<typeof setup>,
-  provider: string,
   params: Record<string, string>,
 ): Promise<Response> {
-  return t.fetch(`/${provider}/callback?${new URLSearchParams(params)}`);
+  return t.fetch(`/callback?${new URLSearchParams(params)}`);
 }
 
 /**
@@ -178,14 +177,14 @@ afterEach(() => {
 describe("oauth callback", () => {
   test("a request without state gets a bare 400", async () => {
     const t = setup();
-    const response = await t.fetch("/google/callback");
+    const response = await t.fetch("/callback");
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("This sign-in link is invalid");
   });
 
   test("an unknown state gets a 400: the flow is gone entirely", async () => {
     const t = setup();
-    const response = await callback(t, "google", {
+    const response = await callback(t, {
       state: "never-issued",
       code: "code-1",
     });
@@ -198,26 +197,15 @@ describe("oauth callback", () => {
     const t = setup();
     const { state } = await startFlow(t);
     vi.advanceTimersByTime(11 * 60 * 1000);
-    const response = await callback(t, "google", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("expired");
-  });
-
-  test("a request claimed via the wrong provider's route is refused before any exchange", async () => {
-    const t = setup();
-    const errors = spyConsoleError();
-    const calls = stubFetch({});
-    const { state } = await startFlow(t); // a google flow...
-    const response = await callback(t, "github", { state, code: "code-1" }); // ...on the github route
-    expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
-    expect(loggedText(errors)).toContain("provider mismatch");
-    expect(calls).toHaveLength(0);
   });
 
   test("a provider error of access_denied passes through normalized", async () => {
     const t = setup();
     spyConsoleError();
     const { state } = await startFlow(t);
-    const response = await callback(t, "google", {
+    const response = await callback(t, {
       state,
       error: "access_denied",
     });
@@ -230,7 +218,7 @@ describe("oauth callback", () => {
     const t = setup();
     spyConsoleError();
     const { state } = await startFlow(t);
-    const response = await callback(t, "google", {
+    const response = await callback(t, {
       state,
       error: "temporarily_unavailable",
     });
@@ -241,7 +229,7 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     const { state } = await startFlow(t);
-    const response = await callback(t, "google", { state });
+    const response = await callback(t, { state });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain("missing code");
   });
@@ -257,7 +245,7 @@ describe("oauth callback", () => {
       codeVerifier: "verifier-1",
     });
 
-    const response = await callback(t, "google", {
+    const response = await callback(t, {
       state,
       code: "auth-code-1",
     });
@@ -267,8 +255,8 @@ describe("oauth callback", () => {
     const body = calls[0].init.body as URLSearchParams;
     expect(body.get("grant_type")).toBe("authorization_code");
     expect(body.get("code")).toBe("auth-code-1");
-    expect(body.get("client_id")).toBe("test-google-client-id");
-    expect(body.get("client_secret")).toBe("test-google-client-secret");
+    expect(body.get("client_id")).toBe("test-client-id");
+    expect(body.get("client_secret")).toBe("test-client-secret");
     expect(body.get("redirect_uri")).toBe(
       "https://test.convex.site/oauth/google/callback",
     );
@@ -292,7 +280,7 @@ describe("oauth callback", () => {
   });
 
   test("a userinfo flow fetches each endpoint with the access token", async () => {
-    const t = setup();
+    const t = setup("github");
     const user = { id: 42, login: "octocat" };
     const emails = [
       { email: "ada@example.com", primary: true, verified: true },
@@ -313,7 +301,7 @@ describe("oauth callback", () => {
       },
     });
 
-    const response = await callback(t, "github", {
+    const response = await callback(t, {
       state,
       code: "auth-code-2",
     });
@@ -342,7 +330,7 @@ describe("oauth callback", () => {
     });
     const { state } = await startFlow(t, { redirectTo });
 
-    const response = await callback(t, "google", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
 
     const params = redirectParams(response, redirectTo);
     expect(params.get(OAUTH_ERROR_PARAM)).toBeNull();
@@ -359,7 +347,7 @@ describe("oauth callback", () => {
     });
     const { state } = await startFlow(t);
 
-    const response = await callback(t, "google", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
 
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain("Token exchange failed with 400");
@@ -380,7 +368,7 @@ describe("oauth callback", () => {
     });
     const { state } = await startFlow(t);
 
-    const response = await callback(t, "google", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
 
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain("responded with a redirect");
@@ -398,7 +386,7 @@ describe("oauth callback", () => {
           jsonResponse({ id_token: idToken, access_token: "at-1" }),
       });
       const { state } = await startFlow(t, overrides);
-      return await callback(t, "google", { state, code: "code-1" });
+      return await callback(t, { state, code: "code-1" });
     }
 
     test("an id_token with no configured issuer is refused", async () => {
@@ -475,7 +463,7 @@ describe("oauth callback", () => {
   });
 
   test("a failed userinfo request redirects with oauth_error", async () => {
-    const t = setup();
+    const t = setup("github");
     const errors = spyConsoleError();
     stubFetch({
       [GITHUB_TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "gh-at-1" }),
@@ -494,14 +482,14 @@ describe("oauth callback", () => {
       },
     });
 
-    const response = await callback(t, "github", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
 
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain('Userinfo request "user" failed');
   });
 
   test("userinfo endpoints without an access_token are refused", async () => {
-    const t = setup();
+    const t = setup("github");
     const errors = spyConsoleError();
     stubFetch({
       [GITHUB_TOKEN_ENDPOINT]: () => jsonResponse({}),
@@ -514,7 +502,7 @@ describe("oauth callback", () => {
       userInfoEndpoints: { user: "https://api.github.com/user" },
     });
 
-    const response = await callback(t, "github", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
 
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain(
@@ -531,7 +519,7 @@ describe("oauth callback", () => {
     // No id_token comes back and no userinfo endpoints are configured.
     const { state } = await startFlow(t, { issuer: undefined });
 
-    const response = await callback(t, "google", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
 
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain(
@@ -558,7 +546,7 @@ describe("oauth callback", () => {
     });
     const { state } = await startFlow(t);
 
-    const response = await callback(t, "google", { state, code: "code-1" });
+    const response = await callback(t, { state, code: "code-1" });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain("aborted");
   });

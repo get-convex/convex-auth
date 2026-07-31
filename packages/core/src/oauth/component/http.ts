@@ -1,8 +1,7 @@
 import { GenericActionCtx, GenericDataModel, httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
+import { env, httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { CALLBACK_PATH } from "./constants";
-import { getCredentials, SUPPORTED_PROVIDERS } from "./credentials";
 import {
   decodeJwtPayloadUnverified,
   encryptWithToken,
@@ -11,9 +10,10 @@ import {
 import { sha256Hex } from "../../lib/crypto";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams";
 
-// The component is mounted once (`app.use(oauth, { httpPrefix: "/oauth", ... })`)
-// and serves one callback per supported provider under
-// <prefix>/<provider>/callback — the redirect URI registered with that identity provider.
+// Each per-provider mount (`app.use(oauth, { name: "oauthGoogle",
+// httpPrefix: "/oauth/google", ... })`) serves one callback at
+// <prefix>/callback — the redirect URI registered with that identity
+// provider.
 const http = httpRouter();
 
 /** Outbound requests fail after this instead of pinning the callback to the platform limit. */
@@ -202,15 +202,13 @@ async function fetchUserInfo(
 }
 
 /**
- * Handle a provider callback. `pathProvider` is the provider whose route served
- * this request (`/google/callback` → `"google"`); it must match the provider
- * the claimed authorization request was issued for, or the flow is treated as a
- * mix-up and sent back to the app as a normalized error.
+ * Handle the provider callback. The mount serves exactly one provider, so
+ * any claimed authorization request was issued by this instance for the
+ * mount's provider; there's no cross-provider routing to check.
  */
 async function handleCallback(
   ctx: GenericActionCtx<GenericDataModel>,
   request: Request,
-  pathProvider: string,
 ): Promise<Response> {
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
@@ -250,19 +248,6 @@ async function handleCallback(
     });
   }
 
-  // The route that served this callback must match the provider the request
-  // was issued for. A mismatch means the redirect URI registered with an identity provider
-  // points at the wrong provider's route (or a forged flow); don't run the
-  // exchange under the wrong credentials.
-  if (authRequest.providerName !== pathProvider) {
-    console.error(
-      `OAuth callback provider mismatch: "${pathProvider}" route served a "${authRequest.providerName}" request`,
-    );
-    return redirectToApp(authRequest.redirectTo, {
-      [OAUTH_ERROR_PARAM]: "oauth_error",
-    });
-  }
-
   // From here on the flow is legitimate, so failures go back to the app
   // as a normalized error param; raw detail goes to logs only.
   if (error !== null || code === null) {
@@ -279,20 +264,19 @@ async function handleCallback(
   }
 
   try {
-    const { clientId, clientSecret } = getCredentials(authRequest.providerName);
     const { idToken, accessToken } = await exchangeCode({
       tokenEndpoint: authRequest.tokenEndpoint,
       code,
       callbackUrl: authRequest.callbackUrl,
       codeVerifier: authRequest.codeVerifier,
-      clientId,
-      clientSecret,
+      clientId: env.CLIENT_ID,
+      clientSecret: env.CLIENT_SECRET,
     });
 
     const claims =
       idToken === undefined
         ? undefined
-        : validateIdToken(idToken, authRequest.issuer, clientId);
+        : validateIdToken(idToken, authRequest.issuer, env.CLIENT_ID);
 
     if (
       authRequest.userInfoEndpoints !== undefined &&
@@ -341,17 +325,12 @@ async function handleCallback(
   }
 }
 
-// One callback route per supported provider, under <mount prefix>/<provider>.
-// The provider name is captured from the route so the handler can match it
-// against the claimed request and select that provider's credentials.
-for (const provider of SUPPORTED_PROVIDERS) {
-  http.route({
-    path: `/${provider}${CALLBACK_PATH}`,
-    method: "GET",
-    handler: httpAction((ctx, request) =>
-      handleCallback(ctx, request, provider),
-    ),
-  });
-}
+// The mount's single callback route; the instance's credentials come from
+// its env bindings.
+http.route({
+  path: CALLBACK_PATH,
+  method: "GET",
+  handler: httpAction(handleCallback),
+});
 
 export default http;
