@@ -7,8 +7,9 @@ const modules = import.meta.glob("../../oauth/component/**/*.ts");
  * Register the OAuth component with a `convex-test` instance.
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
- * @param name - The name of the component, as registered in convex.config.ts.
- *   Defaults to `"oauth"`, the single mount name.
+ * @param name - The mount name of this component instance, as registered in
+ *   convex.config.ts (e.g. `"oauthGoogle"` - the component mounts once per
+ *   provider). Defaults to `"oauth"`.
  */
 export function registerOauth(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,

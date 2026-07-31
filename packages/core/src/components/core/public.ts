@@ -33,9 +33,9 @@ const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
 
 // The issuer (CONVEX_SITE_URL) is passed in by the app rather than read here:
-// a typed-env component's process.env only contains its bound vars, so the
-// system var CONVEX_SITE_URL isn't visible inside the component. It isn't
-// secret, so threading it through as an argument is clean and explicit.
+// inside a component the system var arrives prefixed with the mount's
+// httpPrefix, so this mount would see `<site-url>/auth`, not the bare site URL
+// that auth.config.ts names as the issuer.
 
 // --- Internal helpers ------------------------------------------------------
 
