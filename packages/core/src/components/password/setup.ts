@@ -63,6 +63,27 @@ const signUpResult = v.union(
  */
 export type SignUpResult = Infer<typeof signUpResult>;
 
+const linkResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(
+      setPasswordUserError,
+      v.object({ error: v.literal("NOT_AUTHENTICATED") }),
+      v.object({ error: v.literal("USERNAME_TAKEN") }),
+      v.object({ error: v.literal("ALREADY_LINKED") }),
+    ),
+  }),
+);
+
+/**
+ * The result of `linkWithPassword`.
+ *
+ * No tokens on success: the caller is already signed in and keeps its
+ * session. Otherwise a user-facing `userError`.
+ */
+export type LinkResult = Infer<typeof linkResult>;
+
 /**
  * The simplest password recipe: every account is a `(username, password)` pair,
  * with no email or email verification. Wire it into `setupCore`:
@@ -88,7 +109,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
 export const UsernamePassword = defineProvider({
   name: PROVIDER_NAME,
   setup: (
-    { completeSignIn, resolveUserId },
+    { completeSignIn, resolveUserId, linkAccount },
     options: UsernamePasswordOptions,
   ) => {
     const { component } = options;
@@ -182,6 +203,103 @@ export const UsernamePassword = defineProvider({
             profile: { username },
           });
           return { success: true, tokens };
+        },
+      }),
+
+      /**
+       * Add a username/password account to the currently signed-in user, so
+       * they can also sign in with these credentials. The caller must be
+       * authenticated; no session is minted and the current session stays
+       * valid.
+       *
+       * Because the password component stores one password per user, linking
+       * is refused with `ALREADY_LINKED` when the user already has one
+       * (a second link would silently replace it).
+       */
+      linkWithPassword: actionGeneric({
+        args: { username: v.string(), password: v.string() },
+        returns: linkResult,
+        handler: async (ctx, { username, password }): Promise<LinkResult> => {
+          const userError = validatePasswordInputFormat(password);
+          if (userError !== null) {
+            return { success: false, userError };
+          }
+
+          // The JWT subject is the app user id (see the core's session
+          // minting), so the identity tells us who to link to.
+          const identity = await ctx.auth.getUserIdentity();
+          if (identity === null) {
+            return {
+              success: false,
+              userError: { error: "NOT_AUTHENTICATED" },
+            };
+          }
+          const userId = identity.subject;
+
+          const alreadyHasPassword = await ctx.runQuery(
+            component.public.hasPassword,
+            { userId },
+          );
+          if (alreadyHasPassword) {
+            return { success: false, userError: { error: "ALREADY_LINKED" } };
+          }
+
+          const normalizedUsername = normalizeUsername(username);
+          const existing = await resolveUserId(ctx, normalizedUsername);
+          if (existing !== null) {
+            return {
+              success: false,
+              userError: {
+                error:
+                  existing === userId ? "ALREADY_LINKED" : "USERNAME_TAKEN",
+              },
+            };
+          }
+
+          const linked = await linkAccount(
+            ctx,
+            {
+              provider: PROVIDER_NAME,
+              providerAccountId: normalizedUsername,
+              profile: { username },
+            },
+            userId,
+          );
+          if (linked.status !== "linked") {
+            // Lost a race with a concurrent sign-up or link; map the outcome
+            // to the same user-facing errors as the pre-checks above.
+            return {
+              success: false,
+              userError: {
+                error:
+                  linked.status === "conflict"
+                    ? "USERNAME_TAKEN"
+                    : "ALREADY_LINKED",
+              },
+            };
+          }
+
+          const setResult = await ctx.runMutation(
+            component.public.setPassword,
+            {
+              userId,
+              password,
+            },
+          );
+          if (!setResult.success) {
+            // Unexpected: we pre-validated the password above, so this call
+            // should not fail. Same caveat as in signUpWithPassword: the link
+            // has already committed by this point.
+            //
+            // TODO(nicolas) can we improve this?
+            throw new Error(
+              "Unexpected error when setting the password: " +
+                setResult.userError.error,
+              { cause: setResult.userError },
+            );
+          }
+
+          return { success: true };
         },
       }),
     };

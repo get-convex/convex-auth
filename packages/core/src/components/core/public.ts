@@ -13,6 +13,8 @@ import {
   type AuthClaims,
   vTokenBundle,
   type TokenBundle,
+  vLinkAccountResult,
+  type LinkAccountResult,
 } from "../../lib/types";
 import { signJwt, generateRefreshToken, hashToken } from "./crypto";
 import { CreateOrUpdateUserFn } from "../../lib/types";
@@ -150,15 +152,16 @@ type CreateOrUpdateUserFunctionHandle = FunctionHandle<
 >;
 
 /**
- * Resolve a provider identity to its account, creating one (and the app user
- * behind it) the first time the identity is seen. The app's user callback runs
- * on *every* sign-in: with no `userId` the first time (it mints/returns the
- * user id), and with the known `userId` on every return (so it can sync the
- * user record from the latest claims). The profile the core holds for the
- * account is refreshed to match. Returns just what minting a session needs: the
- * account id and its app user id.
+ * Takes the given `claims` and either resolves them to an existing account or creates
+ * an account based on the `claims`.
+ *
+ * The app's user callback runs on *every* sign-in: with no `userId` the first
+ * time (it mints/returns the user id), and with the known `userId` on every
+ * return (so it can sync the user record from the latest claims).
+ *
+ * Returns an object containing the `accountId` and its app `userId`.
  */
-async function resolveAccount(
+async function createOrResolveAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
   createOrUpdateUser: CreateOrUpdateUserFunctionHandle,
@@ -228,12 +231,65 @@ export const signIn = mutation({
   returns: vTokenBundle,
   handler: async (ctx, args): Promise<TokenBundle> => {
     const ttl = resolveTtlConfig(args);
-    const { accountId, userId } = await resolveAccount(
+    const { accountId, userId } = await createOrResolveAccount(
       ctx,
       args.claims,
       args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
     );
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
+  },
+});
+
+/**
+ * Attach a provider identity to an existing app user without minting a
+ * session (account linking). The caller is responsible for having resolved
+ * `userId` from an authenticated session; the identity in `claims` must
+ * already be verified by the provider.
+ *
+ * Unlike `signIn`, an identity that is already attached to a different user
+ * is reported as a `conflict` rather than resolving to that user: linking
+ * never merges users. On a successful link the app's user callback runs with
+ * the existing `userId` so the app can fold the new profile into its user
+ * record; it must return that same `userId`.
+ */
+export const link = mutation({
+  args: {
+    claims: vAuthClaims,
+    userId: v.string(),
+    createOrUpdateUserHandle: v.string(),
+  },
+  returns: vLinkAccountResult,
+  handler: async (ctx, args): Promise<LinkAccountResult> => {
+    const account = await accountByIdentity(
+      ctx,
+      args.claims.provider,
+      args.claims.providerAccountId,
+    );
+    if (account) {
+      return account.userId === args.userId
+        ? { status: "alreadyLinked" }
+        : { status: "conflict" };
+    }
+    const returnedUserId = await ctx.runMutation(
+      args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
+      {
+        provider: args.claims.provider,
+        providerAccountId: args.claims.providerAccountId,
+        profile: args.claims.profile,
+        userId: args.userId,
+      },
+    );
+    if (returnedUserId !== args.userId) {
+      throw new Error(
+        "createOrUpdateUser may not return a new userId when linking",
+      );
+    }
+    await ctx.db.insert("accounts", {
+      provider: args.claims.provider,
+      providerAccountId: args.claims.providerAccountId,
+      userId: args.userId,
+    });
+    return { status: "linked" };
   },
 });
 
