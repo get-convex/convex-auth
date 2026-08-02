@@ -2,8 +2,8 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api.js";
 import {
-  decryptWithToken,
-  encryptWithToken,
+  decryptTicketPayload,
+  encryptTicketPayload,
   generateRandomToken,
 } from "./crypto.js";
 import schema from "./schema.js";
@@ -210,11 +210,11 @@ describe("oauth", () => {
   test("ticket payload encryption round-trips only with the right token", async () => {
     const token = generateRandomToken();
     const payload = JSON.stringify({ claims: { sub: "user-123" } });
-    const encrypted = await encryptWithToken(token, payload);
+    const encrypted = await encryptTicketPayload(token, payload);
     expect(encrypted).not.toContain("user-123");
-    expect(await decryptWithToken(token, encrypted)).toBe(payload);
+    expect(await decryptTicketPayload(token, encrypted)).toBe(payload);
     await expect(
-      decryptWithToken(generateRandomToken(), encrypted),
+      decryptTicketPayload(generateRandomToken(), encrypted),
     ).rejects.toThrow();
   });
 });

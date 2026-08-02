@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { CALLBACK_PATH } from "./constants";
 import {
   decodeJwtPayloadUnverified,
-  encryptWithToken,
+  encryptTicketPayload,
   generateRandomToken,
 } from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
@@ -49,17 +49,22 @@ function redirectToApp(
 }
 
 /**
- * Fetch that enforces a timeout and treats any HTTP redirect as an error.
- * Token and userinfo endpoints never legitimately redirect; following one
- * could forward credentials to an unintended host. The body is consumed
- * while the timeout is still armed, so an endpoint that stalls before or
- * after sending headers becomes a normal failure that redirects the user
- * back to the app instead of pinning the callback until the platform limit.
+ * Fetch that requires https, enforces a timeout, and treats any HTTP
+ * redirect as an error. Token and userinfo endpoints never legitimately
+ * redirect; following one could forward credentials to an unintended host,
+ * and a non-https endpoint would expose them in transit. The body is
+ * consumed while the timeout is still armed, so an endpoint that stalls
+ * before or after sending headers becomes a normal failure that redirects
+ * the user back to the app instead of pinning the callback until the
+ * platform limit.
  */
 async function fetchRefusingRedirects(
   url: string,
   init: RequestInit,
 ): Promise<{ ok: boolean; status: number; bodyText: string }> {
+  if (new URL(url).protocol !== "https:") {
+    throw new Error(`Refusing non-https request to ${url}`);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -235,6 +240,9 @@ async function handleCallback(
   // No row means the flow is gone entirely (already claimed, or forged);
   // there is nowhere left to redirect to.
   if (authRequest === null) {
+    console.warn(
+      `OAuth callback at "${url.pathname}": unknown or already-used state`,
+    );
     return new Response(
       "This sign-in link has expired or was already used. Return to the app and try signing in again.",
       { status: 400 },
@@ -243,6 +251,9 @@ async function handleCallback(
   // An expired request still knows where the user came from; send them
   // back to the app instead of stranding them here.
   if (authRequest.expired) {
+    console.warn(
+      `OAuth callback at "${url.pathname}": expired authorization request`,
+    );
     return redirectToApp(authRequest.redirectTo, {
       [OAUTH_ERROR_PARAM]: "expired",
     });
@@ -307,7 +318,7 @@ async function handleCallback(
       providerName: authRequest.providerName,
       stateHash: authRequest.stateHash,
       ottHash: await sha256Hex(ott),
-      payload: await encryptWithToken(
+      payload: await encryptTicketPayload(
         ott,
         JSON.stringify({ claims, userInfoResponses }),
       ),

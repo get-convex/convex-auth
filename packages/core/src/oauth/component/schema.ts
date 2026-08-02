@@ -58,7 +58,10 @@ export default defineSchema({
      * in the callback redirect URL and is never stored.
      */
     ottHash: v.string(),
-    /** Tickets expire quickly (~2 minutes). */
+    /**
+     * Redemption rejects tickets past this. Set at mint from
+     * `TICKET_TTL_MS` in provider.ts (2 minutes).
+     */
     expiresAt: v.number(),
     /**
      * The identity the provider attested: JSON of
