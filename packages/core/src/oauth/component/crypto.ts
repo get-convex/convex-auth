@@ -53,9 +53,11 @@ export function decodeJwtPayloadUnverified(
 /**
  * Derive an AES-256-GCM key from a raw one-time token. A domain-separated
  * SHA-256 suffices as the KDF: the token is itself 256 bits of CSPRNG
- * output, so no stretching is needed.
+ * output, so no stretching is needed. The `convex-auth-ticket-payload`
+ * context string binds derived keys to exactly this use — these helpers are
+ * ticket-specific by construction, not general-purpose encryption.
  */
-async function deriveTokenKey(encodedToken: string): Promise<CryptoKey> {
+async function deriveTicketKey(encodedToken: string): Promise<CryptoKey> {
   const keyBytes = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(`convex-auth-ticket-payload:${encodedToken}`),
@@ -68,16 +70,21 @@ async function deriveTokenKey(encodedToken: string): Promise<CryptoKey> {
 
 /**
  * Encrypt a ticket payload with a key derived from the raw one-time token.
- * Only the token's hash is persisted, and the raw token — the only value the
- * key can be derived from — travels solely in the callback redirect URL, so
- * database access alone cannot decrypt the result. Returns the random nonce
- * followed by the ciphertext, base64url-encoded.
+ *
+ * A ticket is the short-lived, one-time record the callback mints after a
+ * successful code exchange (the `tickets` table in schema.ts); its payload
+ * is the provider-attested identity JSON (`{ claims, userInfoResponses }`)
+ * that redemption decrypts. Only the token's hash is persisted, and the raw
+ * token — the only value the key can be derived from — travels solely in
+ * the callback redirect URL, so database access alone cannot decrypt the
+ * result. Returns the random nonce followed by the ciphertext,
+ * base64url-encoded.
  */
-export async function encryptWithToken(
+export async function encryptTicketPayload(
   encodedToken: string,
   plaintext: string,
 ): Promise<string> {
-  const key = await deriveTokenKey(encodedToken);
+  const key = await deriveTicketKey(encodedToken);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt(
@@ -93,14 +100,14 @@ export async function encryptWithToken(
 }
 
 /**
- * Decrypt {@link encryptWithToken} output. Throws when the token is wrong
- * or the payload was tampered with (AES-GCM authenticates).
+ * Decrypt {@link encryptTicketPayload} output. Throws when the token is
+ * wrong or the payload was tampered with (AES-GCM authenticates).
  */
-export async function decryptWithToken(
+export async function decryptTicketPayload(
   encodedToken: string,
   encrypted: string,
 ): Promise<string> {
-  const key = await deriveTokenKey(encodedToken);
+  const key = await deriveTicketKey(encodedToken);
   const combined = base64UrlDecode(encrypted);
   const plaintext = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: combined.slice(0, 12) },

@@ -102,6 +102,7 @@ const PROTOCOL_PARAMS = [
  * The callback only accepts GET redirects. Providers that POST it
  * (`response_mode=form_post`, notably Apple when name/email scopes are
  * requested) are not supported yet.
+ * TODO: support response_mode=form_post (Apple) before launch.
  */
 export function setupOauth(
   providerName: string,
