@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.js";
-import { decryptWithToken } from "./crypto.js";
+import { decryptTicketPayload } from "./crypto.js";
 import schema from "./schema.js";
 import { sha256Hex } from "../../lib/crypto.js";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.js";
@@ -34,7 +34,13 @@ type FetchCall = { url: string; init: RequestInit };
  * Stub global `fetch` with an exact-URL routing table. `t.fetch` dispatches
  * to the component's router directly without touching global `fetch`, so the
  * stub only ever sees the handler's outbound token/userinfo requests. An
- * unrouted URL throws, failing the test loudly.
+ * unrouted URL throws, failing the test loudly. The returned array records
+ * every outbound request so tests can assert the exact shape of the token
+ * exchange (body params, auth style).
+ *
+ * Intercepting outbound requests is required (the callback really calls the
+ * provider's endpoints and convex-test doesn't intercept network access); we
+ * stub global fetch, per convex-test's own guidance.
  */
 function stubFetch(
   routes: Record<string, (init: RequestInit) => Response | Promise<Response>>,
@@ -74,7 +80,12 @@ function spyConsoleError() {
   return vi.spyOn(console, "error").mockImplementation(() => {});
 }
 
-/** Everything a spied `console.error` logged, flattened to one string. */
+/** Like {@link spyConsoleError}, for the flow-level `console.warn` paths. */
+function spyConsoleWarn() {
+  return vi.spyOn(console, "warn").mockImplementation(() => {});
+}
+
+/** Everything a spied console method logged, flattened to one string. */
 function loggedText(spy: ReturnType<typeof spyConsoleError>): string {
   return spy.mock.calls.flat().map(String).join("\n");
 }
@@ -188,21 +199,25 @@ describe("oauth callback", () => {
 
   test("an unknown state gets a 400: the flow is gone entirely", async () => {
     const t = setup();
+    const warnSpy = spyConsoleWarn();
     const response = await callback(t, {
       state: "never-issued",
       code: "code-1",
     });
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("expired or was already used");
+    expect(loggedText(warnSpy)).toContain("unknown or already-used state");
   });
 
   test("an expired request redirects back to the app with expired", async () => {
     vi.useFakeTimers();
     const t = setup();
+    const warnSpy = spyConsoleWarn();
     const { state } = await startFlow(t);
     vi.advanceTimersByTime(11 * 60 * 1000);
     const response = await callback(t, { state, code: "code-1" });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("expired");
+    expect(loggedText(warnSpy)).toContain("expired authorization request");
   });
 
   test("a provider error of access_denied passes through normalized", async () => {
@@ -270,7 +285,9 @@ describe("oauth callback", () => {
 
     // The redirect carries a one-time token that redeems (with the flow's
     // state) into the encrypted identity payload — the full contract the
-    // app-side completeSignIn depends on.
+    // app-side completeSignIn depends on. This leg only mints the ticket;
+    // claiming it here directly stands in for the app-side redemption
+    // covered by the redemption leg's tests.
     const ott = redirectParams(response).get(OAUTH_CODE_PARAM)!;
     expect(ott).toEqual(expect.any(String));
     const claimed = await t.mutation(api.provider.claimTicket, {
@@ -279,7 +296,9 @@ describe("oauth callback", () => {
       stateHash,
     });
     expect(claimed).not.toBeNull();
-    const payload = JSON.parse(await decryptWithToken(ott, claimed!.payload));
+    const payload = JSON.parse(
+      await decryptTicketPayload(ott, claimed!.payload),
+    );
     expect(payload).toEqual({ claims });
   });
 
@@ -320,11 +339,15 @@ describe("oauth callback", () => {
       ottHash: await sha256Hex(ott),
       stateHash,
     });
-    const payload = JSON.parse(await decryptWithToken(ott, claimed!.payload));
+    const payload = JSON.parse(
+      await decryptTicketPayload(ott, claimed!.payload),
+    );
     expect(payload).toEqual({ userInfoResponses: { user, emails } });
   });
 
   test("stale outcome params on redirectTo are replaced, app params kept", async () => {
+    // A retry after a failed attempt: the page URL the new flow snapshots as
+    // redirectTo still carries the previous attempt's outcome param.
     const t = setup();
     const redirectTo = `${DEFAULT_REDIRECT_TO}?${OAUTH_ERROR_PARAM}=expired&tab=settings`;
     stubFetch({
