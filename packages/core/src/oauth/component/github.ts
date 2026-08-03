@@ -65,15 +65,15 @@ export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
     throw new Error("GitHub userinfo response is missing the `user` entry");
   }
   const emails = userInfoResponses?.emails ?? [];
-  const best =
+  const verifiedEmail =
     emails.find((entry) => entry.primary && entry.verified) ??
     emails.find((entry) => entry.verified);
   return {
     id: String(user.id),
     login: user.login,
     name: user.name ?? user.login,
-    email: best?.email ?? user.email ?? undefined,
-    emailVerified: best !== undefined,
+    email: verifiedEmail?.email ?? user.email ?? undefined,
+    emailVerified: verifiedEmail !== undefined,
     avatarUrl: user.avatar_url,
   };
 };
@@ -98,7 +98,7 @@ const githubCatalog: OauthCatalog<GithubUserInfo> = {
  * ```ts
  * provider(OauthGithub, {
  *   component: components.oauthGithub,
- *   allowedRedirectOrigins: ["https://app.example.com"],
+ *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * })
  * ```
  *
