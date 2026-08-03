@@ -14,8 +14,8 @@ import {
 import { sha256Hex } from "../../lib/crypto";
 
 /**
- * Standard OIDC id_token claims, loosely typed: the well-known ones are
- * named, everything else comes through the index signature.
+ * Standard OIDC id_token claims. The well-known ones are typed; any other
+ * claim the provider includes is present but untyped (`unknown`).
  */
 export type OidcClaims = {
   sub: string;
@@ -32,18 +32,33 @@ export type OidcClaims = {
  * configured (`undefined` unless the catalog sets `userInfoEndpoints`) — to the
  * account identity used at redemption. `id` becomes the provider account id.
  * Supplied by each provider's catalog.
+ *
+ * `UserInfo` is the catalog's declared shape for the userinfo responses,
+ * keyed like `userInfoEndpoints`. It types what the provider is trusted to
+ * return — the responses are provider-attested JSON and are not validated
+ * against it at runtime.
  */
-export type OauthProfile = (
-  claims: OidcClaims | undefined,
-  // `any` so mappings can dig into responses without casting.
+export type OauthProfile<
+  // `any` default so unparameterized mappings can dig into responses
+  // without casting.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  userInfoResponses: Record<string, any> | undefined,
+  UserInfo extends Record<string, unknown> = Record<string, any>,
+> = (
+  claims: OidcClaims | undefined,
+  userInfoResponses: UserInfo | undefined,
 ) => { id: string; [key: string]: unknown };
 
 /**
  * Provider-defined config for interacting with an individual OAuth provider.
+ *
+ * `UserInfo` declares the shape of the userinfo responses, tying
+ * `userInfoEndpoints` keys to what `profile` receives (see
+ * {@link OauthProfile}).
  */
-export type OauthCatalog = {
+export type OauthCatalog<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  UserInfo extends Record<string, unknown> = Record<string, any>,
+> = {
   /**
    * The provider's authorization endpoint (a full URL), e.g. Google's
    * `https://accounts.google.com/o/oauth2/v2/auth`.
@@ -65,9 +80,9 @@ export type OauthCatalog = {
    * Endpoints (full URLs) the callback fetches with the access token (GET
    * with a bearer token), keyed by the name the `profile` mapping reads
    * each response under. Present for providers whose identity comes from
-   * userinfo (GitHub).
+   * userinfo (GitHub). The keys must match `UserInfo`'s.
    */
-  userInfoEndpoints?: Record<string, string>;
+  userInfoEndpoints?: { [K in keyof UserInfo & string]: string };
   /** Scopes to request. */
   scopes: string[];
   /**
@@ -76,7 +91,7 @@ export type OauthCatalog = {
    */
   pkce: boolean;
   /** Map the provider's attested identity to the account profile. */
-  profile: OauthProfile;
+  profile: OauthProfile<UserInfo>;
 };
 
 /**
@@ -124,9 +139,12 @@ function parseUrl(value: string): URL | null {
  * requested) are not supported yet.
  * TODO: support response_mode=form_post (Apple) before launch.
  */
-export function setupOauth(
+export function setupOauth<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  UserInfo extends Record<string, unknown> = Record<string, any>,
+>(
   providerName: string,
-  catalog: OauthCatalog,
+  catalog: OauthCatalog<UserInfo>,
   helpers: ProviderHelpers,
   options: OauthProviderOptions,
 ) {
@@ -256,7 +274,7 @@ export function setupOauth(
         await decryptTicketPayload(args.code, ticket.payload),
       ) as {
         claims: OidcClaims | undefined;
-        userInfoResponses: Record<string, unknown> | undefined;
+        userInfoResponses: UserInfo | undefined;
       };
 
       const profile = catalog.profile(claims, userInfoResponses);
