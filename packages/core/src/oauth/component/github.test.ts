@@ -1,12 +1,19 @@
 import { describe, expect, test } from "vitest";
 import { normalizeGithubProfile } from "./github";
 
-/** Call the mapping with the userinfo responses the callback would pass. */
+type GithubUserInfo = NonNullable<Parameters<typeof normalizeGithubProfile>[1]>;
+
+/**
+ * Call the mapping with the userinfo responses the callback would pass. The
+ * cast lets tests feed loose and partial responses: the mapping's declared
+ * shape is trusted typing, and these tests exercise the defensive paths
+ * behind it.
+ */
 function normalize(
   user: Record<string, unknown>,
   emails?: Array<{ email: string; primary: boolean; verified: boolean }>,
 ) {
-  return normalizeGithubProfile(undefined, { user, emails });
+  return normalizeGithubProfile(undefined, { user, emails } as GithubUserInfo);
 }
 
 describe("normalizeGithubProfile", () => {
@@ -57,8 +64,8 @@ describe("normalizeGithubProfile", () => {
   });
 
   test("throws when the user response is missing", () => {
-    expect(() => normalizeGithubProfile(undefined, {})).toThrow(
-      /missing the `user` entry/,
-    );
+    expect(() =>
+      normalizeGithubProfile(undefined, {} as GithubUserInfo),
+    ).toThrow(/missing the `user` entry/);
   });
 });

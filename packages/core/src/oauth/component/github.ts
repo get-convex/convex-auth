@@ -43,21 +43,28 @@ type GithubUser = {
 };
 
 /**
+ * The userinfo responses the catalog's endpoints produce, keyed like its
+ * `userInfoEndpoints`. Trusted typing over what GitHub returns, not runtime
+ * validation (see {@link OauthProfile}).
+ */
+type GithubUserInfo = { user: GithubUser; emails: GithubEmail[] };
+
+/**
  * Map GitHub's userinfo responses to {@link GithubProfile}. `user` comes from
  * `/user` and `emails` from `/user/emails` (the endpoints the catalog fetches).
  * Email prefers the primary verified address, then any verified one, then
  * whatever `/user` returned — `emailVerified` reports whether the chosen
  * address came from a verified entry; `name` falls back to the login handle.
  */
-export const normalizeGithubProfile: OauthProfile = (
+export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
   _claims,
   userInfoResponses,
 ) => {
-  const user = userInfoResponses?.user as GithubUser | undefined;
+  const user = userInfoResponses?.user;
   if (user === undefined) {
     throw new Error("GitHub userinfo response is missing the `user` entry");
   }
-  const emails = (userInfoResponses?.emails ?? []) as GithubEmail[];
+  const emails = userInfoResponses?.emails ?? [];
   const best =
     emails.find((entry) => entry.primary && entry.verified) ??
     emails.find((entry) => entry.verified);
@@ -72,7 +79,7 @@ export const normalizeGithubProfile: OauthProfile = (
 };
 
 /** How to talk to GitHub: endpoints, scopes, and the profile mapping. */
-const githubCatalog: OauthCatalog = {
+const githubCatalog: OauthCatalog<GithubUserInfo> = {
   authorizationEndpoint: "https://github.com/login/oauth/authorize",
   tokenEndpoint: "https://github.com/login/oauth/access_token",
   scopes: ["read:user", "user:email"],
