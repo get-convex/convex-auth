@@ -82,6 +82,21 @@ test("redirectTo with oauth", async () => {
   );
 });
 
+test("custom scope with oauth", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  await signInViaGitHub(
+    t,
+    "github",
+    {
+      email: "tom@gmail.com",
+      name: "Tom",
+      id: "someGitHubId",
+    },
+    { scope: "read:user repo" },
+  );
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;
