@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
 import type { ProviderHelpers } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
-import { Oauth, type OauthCatalog, type OauthProviderOptions } from "./setup";
+import {
+  setupOauth,
+  type OauthCatalog,
+  type OauthProviderOptions,
+} from "./setup";
 
 /**
  * A minimal plain-OAuth catalog: no issuer or openid scope, no PKCE. Tests
@@ -23,14 +27,14 @@ function setup(
   options: Partial<OauthProviderOptions> = {},
   catalog: OauthCatalog = CATALOG,
 ) {
-  return Oauth("acme", catalog).setup({} as ProviderHelpers, {
+  return setupOauth("acme", catalog, {} as ProviderHelpers, {
     component: {} as ComponentApi,
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
   });
 }
 
-describe("Oauth setup validation", () => {
+describe("setupOauth validation", () => {
   test("http(s) redirect origins are accepted", () => {
     const api = setup({
       allowedRedirectOrigins: [
@@ -38,7 +42,7 @@ describe("Oauth setup validation", () => {
         "http://localhost:5173",
       ],
     });
-    expect(api.startSignInAcme).toBeDefined();
+    expect(api.startSignIn).toBeDefined();
   });
 
   test.each([
