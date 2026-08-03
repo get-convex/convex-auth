@@ -62,7 +62,7 @@ const googleCatalog: OauthCatalog = {
  * ```ts
  * provider(OauthGoogle, {
  *   component: components.oauthGoogle,
- *   allowedRedirectOrigins: ["https://app.example.com"],
+ *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * })
  * ```
  *
