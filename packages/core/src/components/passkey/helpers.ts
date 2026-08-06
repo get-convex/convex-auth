@@ -1,6 +1,5 @@
 import { Doc } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
-import { constantTimeEqual } from "@oslojs/crypto/subtle";
 
 // How long a stored challenge stays valid. The WebAuthn spec recommends
 // ceremony timeouts of 5–10 minutes to leave room for user interaction

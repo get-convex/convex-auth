@@ -7,9 +7,9 @@ import {
   coseEllipticCurveP256,
   parseAttestationObject,
   parseClientDataJSON,
-} from "@oslojs/webauthn";
-import { ECDSAPublicKey, p256 } from "@oslojs/crypto/ecdsa";
-import { RSAPublicKey } from "@oslojs/crypto/rsa";
+} from "../../vendor/oslo/webauthn";
+import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa";
+import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
 import {
   finishRegistrationUserError,
   deletePasskeyUserError,

@@ -5,19 +5,19 @@ import {
   createAssertionSignatureMessage,
   parseAuthenticatorData,
   parseClientDataJSON,
-} from "@oslojs/webauthn";
+} from "../../vendor/oslo/webauthn";
 import {
   decodePKIXECDSASignature,
   decodeSEC1PublicKey,
   p256,
   verifyECDSASignature,
-} from "@oslojs/crypto/ecdsa";
+} from "../../vendor/oslo/crypto/ecdsa";
 import {
   decodePKCS1RSAPublicKey,
   sha256ObjectIdentifier,
   verifyRSASSAPKCS1v15Signature,
-} from "@oslojs/crypto/rsa";
-import { sha256 } from "@oslojs/crypto/sha2";
+} from "../../vendor/oslo/crypto/rsa";
+import { sha256 } from "../../vendor/oslo/crypto/sha2";
 import { finishAuthenticationUserError } from "./validation";
 import { consumeChallenge, randomChallenge } from "./helpers";
 

@@ -53,8 +53,6 @@
   },
   "dependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
-    "@oslojs/crypto": "^1.0.1",
-    "@oslojs/webauthn": "^1.0.0",
     "argon2id-wasm": "0.0.0-alpha.1",
     "commander": "^14.0.2",
     "cookie": "1.1.1",
