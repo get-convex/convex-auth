@@ -7,9 +7,9 @@ import {
   coseEllipticCurveP256,
   parseAttestationObject,
   parseClientDataJSON,
-} from "../../vendor/oslo/webauthn";
-import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa";
-import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
+} from "@oslojs/webauthn";
+import { ECDSAPublicKey, p256 } from "@oslojs/crypto/ecdsa";
+import { RSAPublicKey } from "@oslojs/crypto/rsa";
 import {
   finishRegistrationUserError,
   deletePasskeyUserError,
@@ -61,7 +61,10 @@ export const startRegistration = mutation({
 
 const finishRegistrationResult = v.union(
   v.object({ success: v.literal(true), passkeyId: v.string() }),
-  v.object({ success: v.literal(false), userError: finishRegistrationUserError }),
+  v.object({
+    success: v.literal(false),
+    userError: finishRegistrationUserError,
+  }),
 );
 type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
 
@@ -93,8 +96,8 @@ type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
  */
 export const finishRegistration = mutation({
   args: {
-    rpId: v.string(),
-    origin: v.string(),
+    expectedRpId: v.string(),
+    expectedOrigin: v.string(),
     verifiedUserId: v.string(),
     name: v.optional(v.string()),
     attestationObject: v.bytes(),
@@ -106,7 +109,7 @@ export const finishRegistration = mutation({
     if (clientData.type !== ClientDataType.Create) {
       throw new Error("Unexpected client data type.");
     }
-    if (clientData.origin !== args.origin) {
+    if (clientData.origin !== args.expectedOrigin) {
       // We could allow this verification to be less strict in the future
       // (see the comment in `finishAuthentication`).
       throw new Error("Unexpected WebAuthn origin.");
@@ -128,7 +131,7 @@ export const finishRegistration = mutation({
       new Uint8Array(args.attestationObject),
     );
     const authenticatorData = attestationObject.authenticatorData;
-    if (!authenticatorData.verifyRelyingPartyIdHash(args.rpId)) {
+    if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
       throw new Error("Relying party ID hash mismatch.");
     }
     if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
@@ -147,7 +150,11 @@ export const finishRegistration = mutation({
       if (ec2.curve !== coseEllipticCurveP256) {
         throw new Error("Unsupported elliptic curve (expected P-256).");
       }
-      publicKey = new ECDSAPublicKey(p256, ec2.x, ec2.y).encodeSEC1Uncompressed();
+      publicKey = new ECDSAPublicKey(
+        p256,
+        ec2.x,
+        ec2.y,
+      ).encodeSEC1Uncompressed();
       algorithm = "ES256";
     } else if (cosePublicKey.algorithm() === coseAlgorithmRS256) {
       const rsa = cosePublicKey.rsa();
@@ -202,7 +209,7 @@ export const listPasskeys = query({
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .collect();
     return rows.map((row) => ({
-      passkeyId: row._id as string,
+      passkeyId: row._id,
       name: row.name,
       credentialId: row.credentialId,
       createdAt: row._creationTime,

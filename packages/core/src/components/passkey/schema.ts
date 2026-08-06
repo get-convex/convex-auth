@@ -6,7 +6,7 @@ export default defineSchema({
   // app `userId` string. It does not see usernames or email addresses.
   passkeys: defineTable({
     userId: v.string(),
-    // A label that the caller sets for this passkey. An app can show it in
+    // A label that the user sets for this passkey. An app can show it in
     // a passkey list (for example, "MacBook Touch ID").
     name: v.optional(v.string()),
     // The raw credential ID bytes (the WebAuthn `rawId`).
@@ -16,7 +16,9 @@ export default defineSchema({
     // uncompressed point for ES256, and PKCS#1 DER for RS256.
     publicKey: v.bytes(),
     // The signature counter. The value is 0 if the authenticator does not
-    // use a counter.
+    // use a counter. When the authenticator supports the counter, it is
+    // expected to be always increasing. This component doesn’t enforce it,
+    // but in theory this property could be used to detect cloned passkeys.
     counter: v.number(),
   })
     .index("by_credentialId", ["credentialId"])

@@ -5,19 +5,19 @@ import {
   createAssertionSignatureMessage,
   parseAuthenticatorData,
   parseClientDataJSON,
-} from "../../vendor/oslo/webauthn";
+} from "@oslojs/webauthn";
 import {
   decodePKIXECDSASignature,
   decodeSEC1PublicKey,
   p256,
   verifyECDSASignature,
-} from "../../vendor/oslo/crypto/ecdsa";
+} from "@oslojs/crypto/ecdsa";
 import {
   decodePKCS1RSAPublicKey,
   sha256ObjectIdentifier,
   verifyRSASSAPKCS1v15Signature,
-} from "../../vendor/oslo/crypto/rsa";
-import { sha256 } from "../../vendor/oslo/crypto/sha2";
+} from "@oslojs/crypto/rsa";
+import { sha256 } from "@oslojs/crypto/sha2";
 import { finishAuthenticationUserError } from "./validation";
 import { consumeChallenge, randomChallenge } from "./helpers";
 
@@ -33,14 +33,16 @@ const startAuthenticationResult = v.object({
 /**
  * Start an authentication ceremony.
  *
- * Set `userId` for the identifier-first flow. The function then attaches
- * the challenge to that user and returns the credential IDs of the user.
- * Pass them to the browser as `allowCredentials`.
+ * If `userId` is set, it will force the authentication ceremony to be
+ * tied to this particular user. This is necessary in flows where the
+ * user is being asked to authenticate to a particular account
+ * (e.g. flows where the user enters their username/email, and then
+ * is asked to use a passkey for that account).
  *
- * Do not set `userId` for a discoverable-credential ceremony ("conditional
- * UI" / autocomplete). The challenge then has no identity and
- * `allowCredentials` is empty. The browser offers each resident passkey for
- * the relying party, and the assertion identifies the user.
+ * Leaving `userId` unset is useful for ceremonies where the user provides
+ * a passkey directly (e.g. “conditional mediation” where the user selects
+ * an account in the browser autocompletion list, and it authenticates
+ * directly to this account).
  */
 export const startAuthentication = mutation({
   args: { userId: v.optional(v.string()) },
@@ -82,10 +84,9 @@ const finishAuthenticationResult = v.union(
 type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
 
 /**
- * Finish an authentication ceremony, as
- * https://webauthn.oslojs.dev/examples/authentication shows.
+ * Finish an authentication ceremony.
  *
- * The app supplies `rpId` and `origin`; see `finishRegistration`.
+ * The app supplies `expectedRpId` and `expectedOrigin`; see `finishRegistration`.
  *
  * The function finds the credential. Then it examines the authenticator
  * data, the client data, and the assertion signature. It deletes the
@@ -94,8 +95,8 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
  */
 export const finishAuthentication = mutation({
   args: {
-    rpId: v.string(),
-    origin: v.string(),
+    expectedRpId: v.string(),
+    expectedOrigin: v.string(),
     credentialId: v.bytes(),
     authenticatorData: v.bytes(),
     clientDataJSON: v.bytes(),
@@ -115,7 +116,7 @@ export const finishAuthentication = mutation({
 
     const authenticatorDataBytes = new Uint8Array(args.authenticatorData);
     const authenticatorData = parseAuthenticatorData(authenticatorDataBytes);
-    if (!authenticatorData.verifyRelyingPartyIdHash(args.rpId)) {
+    if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
       throw new Error("Relying party ID hash mismatch.");
     }
     if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
@@ -127,7 +128,14 @@ export const finishAuthentication = mutation({
     if (clientData.type !== ClientDataType.Get) {
       throw new Error("Unexpected client data type.");
     }
-    if (clientData.origin !== args.origin) {
+    if (clientData.origin !== args.expectedOrigin) {
+      // Note: This forces the app to provide a single accepted origin.
+      // In some cases, the server might need to accept multiple origins, for instance:
+      // - a dev server running on localhost might want to accept all ports
+      //   (RP ID = localhost, allowed origin = localhost:*)
+      // - an app might want to use origin verification to only allow a specific list
+      //   of subdomains (RP ID = example.com, allowed origins =
+      //   [auth.example.com, dashboard.example.com] but NOT marketing.example.com)
       // For these reasons, we will probably want to offer more customization options
       // for this check in the future.
       throw new Error("Unexpected WebAuthn origin.");
@@ -184,16 +192,17 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
 
-    // TODO: Compare the signature counter with the stored value to find
-    // cloned authenticators. Many platform authenticators report 0, so we
-    // only store the most recent value here.
+    // Here we could compare the signature counter with the stored value to find
+    // cloned authenticators. But this would require the app to detect this
+    // and using it appropriately, and most authenticators will always set it to 0 anyway.
+    // https://www.imperialviolet.org/2023/08/05/signature-counters.html
     await ctx.db.patch("passkeys", passkey._id, {
       counter: authenticatorData.signatureCounter,
     });
     return {
       success: true,
       userId: passkey.userId,
-      passkeyId: passkey._id as string,
+      passkeyId: passkey._id,
     };
   },
 });

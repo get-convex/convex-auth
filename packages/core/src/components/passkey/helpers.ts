@@ -1,10 +1,12 @@
 import { Doc } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
-import { constantTimeEqual } from "../../vendor/oslo/crypto/subtle";
+import { constantTimeEqual } from "@oslojs/crypto/subtle";
 
-// The time for which a stored challenge stays valid. A WebAuthn ceremony
-// completes in seconds. An older challenge shows a stale tab or a replay
-// attempt.
+// How long a stored challenge stays valid. The WebAuthn spec recommends
+// ceremony timeouts of 5–10 minutes to leave room for user interaction
+// (PIN entry, cross-device flows); we match the upper bound. Expiring
+// challenges bounds the window for replay of an intercepted challenge.
+// https://www.w3.org/TR/webauthn-3/#sctn-timeout-recommended-range
 const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -35,7 +37,12 @@ export async function consumeChallenge(
 ): Promise<Doc<"challenges"> | null> {
   const row = await ctx.db
     .query("challenges")
-    .withIndex("by_challenge", (q) => q.eq("challenge", toArrayBuffer(challenge)))
+    .withIndex("by_challenge", (q) =>
+      // It’s okay for this lookup to not be guaranteed to be constant-time:
+      // knowing the challenge doesn’t prove anything, issuing a valid
+      // assertion for that challenge does.
+      q.eq("challenge", toArrayBuffer(challenge)),
+    )
     .first();
   if (row === null || row.kind !== kind) {
     return null;
