@@ -1,5 +1,12 @@
 import { Infer, v } from "convex/values";
 
+// How long a stored challenge stays valid. The WebAuthn spec recommends
+// ceremony timeouts of 5–10 minutes to leave room for user interaction
+// (PIN entry, cross-device flows); we match the upper bound. Expiring
+// challenges bounds the window for replay of an intercepted challenge.
+// https://www.w3.org/TR/webauthn-3/#sctn-timeout-recommended-range
+export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 /**
  * The user-facing errors for `finishRegistration`. An app can show these
  * errors to the end user. The `error` field is a machine-readable code and

@@ -43,6 +43,13 @@ export default defineSchema({
         createdAt: v.number(),
       }),
     ),
-    // TODO(nicolas) Automatically erase expired challenges in the background
-  ).index("by_challenge", ["challenge"]),
+  )
+    .index("by_challenge", ["challenge"])
+    // Used by the background cleanup loop (see cleanup.ts) to find the
+    // challenges that are expired, oldest first.
+    .index("by_createdAt", ["createdAt"])
+    // Used by `deleteUser` to erase the authentication challenges that are
+    // bound to a user. Registration rows have no `userId` field, so a probe
+    // with a user ID string never matches them.
+    .index("by_userId", ["userId"]),
 });

@@ -15,6 +15,7 @@ import {
   deletePasskeyUserError,
 } from "./validation";
 import { consumeChallenge, randomChallenge, toArrayBuffer } from "./helpers";
+import { scheduleChallengeCleanup } from "./cleanup";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
 // `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
@@ -47,6 +48,7 @@ export const startRegistration = mutation({
       challenge,
       createdAt: Date.now(),
     });
+    await scheduleChallengeCleanup(ctx);
     let excludeCredentials: ArrayBuffer[] = [];
     if (userId !== undefined) {
       const rows = await ctx.db

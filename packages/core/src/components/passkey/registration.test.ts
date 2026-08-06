@@ -1,9 +1,9 @@
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
 import { api } from "./_generated/api";
 import { toArrayBuffer } from "./helpers";
-import schema from "./schema";
+import { CHALLENGE_TTL_MS } from "./validation";
+import { setup } from "../passkeyTestSetup";
 import {
   ORIGIN,
   RP_ID,
@@ -15,14 +15,6 @@ import {
   generateRS256Credential,
   register,
 } from "./testAuthenticator";
-
-const modules = import.meta.glob("./**/*.ts");
-
-const CHALLENGE_TTL_MS = 10 * 60 * 1000;
-
-function setup() {
-  return convexTest(schema, modules);
-}
 
 /** Build valid `finishRegistration` args, with overridable pieces. */
 async function registrationArgs(

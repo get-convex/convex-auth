@@ -57,6 +57,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@convex-dev/batch-worker": "^0.2.0",
     "@convex-dev/rate-limiter": "^0.3.2",
     "argon2id-wasm": "0.0.0-alpha.1",
     "commander": "^14.0.2",

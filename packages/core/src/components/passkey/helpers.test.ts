@@ -132,7 +132,7 @@ describe("consumeChallenge", () => {
     });
   });
 
-  test("accepts a challenge exactly at the TTL boundary", async () => {
+  test("rejects a challenge exactly at the TTL boundary", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
     const t = setup();
@@ -142,6 +142,24 @@ describe("consumeChallenge", () => {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
         createdAt: Date.now() - CHALLENGE_TTL_MS,
+      });
+      // A challenge is valid for strictly less than the TTL: at exactly
+      // the TTL, it is expired. This is the same boundary that the cleanup
+      // loop uses.
+      expect(await consumeChallenge(ctx, "registration", challenge)).toBe(null);
+    });
+  });
+
+  test("accepts a challenge one millisecond before the TTL boundary", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000);
+    const t = setup();
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    await t.run(async (ctx) => {
+      await ctx.db.insert("challenges", {
+        kind: "registration",
+        challenge: toArrayBuffer(challenge),
+        createdAt: Date.now() - CHALLENGE_TTL_MS + 1,
       });
       expect(await consumeChallenge(ctx, "registration", challenge)).not.toBe(
         null,
