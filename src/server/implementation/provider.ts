@@ -35,4 +35,16 @@ export type GetProviderOrThrowFunc = (
   allowExtraProviders?: boolean,
 ) => AuthProviderMaterializedConfig;
 
+export function getProviderOrNull(
+  getProviderOrThrow: GetProviderOrThrowFunc,
+  id: string,
+  allowExtraProviders?: boolean,
+): AuthProviderMaterializedConfig | null {
+  try {
+    return getProviderOrThrow(id, allowExtraProviders);
+  } catch {
+    return null;
+  }
+}
+
 export type Config = any;

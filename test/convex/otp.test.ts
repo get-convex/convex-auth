@@ -22,7 +22,7 @@ test("sign in with otp", async () => {
   expect(tokens).not.toBeNull();
 });
 
-test("make sure OTP requires email check", async () => {
+test("a valid OTP code returns null instead of throwing without the email", async () => {
   setupEnv();
   const t = convexTest(schema);
 
@@ -36,14 +36,37 @@ test("make sure OTP requires email check", async () => {
       }),
   );
 
-  await expect(
+  const valid = await t.action(api.auth.signIn, { params: { code } });
+  const invalid = await t.action(api.auth.signIn, {
+    params: { code: "00000000" },
+  });
+
+  expect(valid).toEqual({ tokens: null });
+  expect(invalid).toEqual(valid);
+});
+
+test("a failed redemption does not consume the code", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  const { code } = await mockResendOTP(
     async () =>
       await t.action(api.auth.signIn, {
-        params: { code },
+        provider: "resend-otp",
+        params: {
+          email: "tom@gmail.com",
+        },
       }),
-  ).rejects.toThrowError(
-    "Token verification requires an `email` in params of `signIn`",
   );
+
+  await t.action(api.auth.signIn, { params: { code } });
+
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "resend-otp",
+    params: { code, email: "tom@gmail.com" },
+  });
+
+  expect(tokens).not.toBeNull();
 });
 
 function setupEnv() {

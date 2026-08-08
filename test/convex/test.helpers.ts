@@ -19,6 +19,33 @@ export async function signInViaGitHub(
     redirectTo?: string;
   } = {},
 ) {
+  const { code, verifier, url } = await startSignInViaGitHub(
+    t,
+    provider,
+    githubProfile,
+    params,
+  );
+
+  const { tokens } = await t.action(api.auth.signIn, {
+    params: { code },
+    verifier,
+  });
+  return { tokens, url };
+}
+
+/**
+ * Runs the OAuth flow up to the point where the client holds a `code` and its
+ * `verifier`, without redeeming them. Lets tests assert on how a code that is
+ * still in flight behaves.
+ */
+export async function startSignInViaGitHub(
+  t: TestConvexForDataModel<DataModel>,
+  provider: string,
+  githubProfile: Record<string, unknown>,
+  params: {
+    redirectTo?: string;
+  } = {},
+) {
   const { redirect, verifier } = await t.action(api.auth.signIn, {
     provider,
     params,
@@ -99,11 +126,7 @@ export async function signInViaGitHub(
   expect(finalRedirectedTo).not.toBeNull();
   const code = new URL(finalRedirectedTo!).searchParams.get("code");
 
-  const { tokens } = await t.action(api.auth.signIn, {
-    params: { code },
-    verifier,
-  });
-  return { tokens, url: finalRedirectedTo! };
+  return { code, verifier, url: finalRedirectedTo! };
 }
 
 export async function signInViaMagicLink(

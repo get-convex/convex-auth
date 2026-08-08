@@ -1,11 +1,13 @@
 import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
+import { api } from "./_generated/api";
 import schema from "./schema";
 import {
   CONVEX_SITE_URL,
   JWKS,
   JWT_PRIVATE_KEY,
   signInViaGitHub,
+  startSignInViaGitHub,
 } from "./test.helpers";
 
 test("sign up with oauth", async () => {
@@ -61,6 +63,25 @@ test("sign in with oauth", async () => {
     const users = await ctx.db.query("users").collect();
     expect(users).toMatchObject([{ email: "tom@gmail.com", name: "Thomas" }]);
   });
+});
+
+test("an oauth code redeemed without its verifier is not consumed", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { code, verifier } = await startSignInViaGitHub(t, "github", {
+    email: "tom@gmail.com",
+    name: "Tom",
+    id: "someGitHubId",
+  });
+
+  const result = await t.action(api.auth.signIn, { params: { code } });
+  expect(result).toEqual({ tokens: null });
+
+  const { tokens } = await t.action(api.auth.signIn, {
+    params: { code },
+    verifier,
+  });
+  expect(tokens).not.toBeNull();
 });
 
 test("redirectTo with oauth", async () => {
