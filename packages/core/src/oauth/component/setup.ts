@@ -119,9 +119,7 @@ export function setupOauth(
   });
   const scopes = options.scopes ?? catalog.scopes;
   // Per OIDC, requesting the `openid` scope makes the provider return an
-  // id_token, which must be validated against an expected issuer. Catalogs
-  // pair the two, but a scopes override can add `openid` to a catalog with
-  // no issuer.
+  // id_token, which must be validated against an expected issuer.
   if (scopes.includes("openid") && catalog.issuer === undefined) {
     throw new Error(
       `Provider "${providerName}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
@@ -159,11 +157,6 @@ export function setupOauth(
       const state = generateRandomToken();
       const codeVerifier = catalog.pkce ? generateRandomToken() : undefined;
 
-      // Only the hash crosses the component boundary, so the raw state is
-      // neither stored nor visible in function logs. Exchange config the
-      // callback needs is stored on the request row; the provider's
-      // CLIENT_ID and the mount-derived redirect_uri are returned to form
-      // the authorization URL.
       const stateHash = await sha256Hex(state);
       const { clientId, callbackUrl } = await ctx.runMutation(
         options.component.provider.createAuthorizationRequest,

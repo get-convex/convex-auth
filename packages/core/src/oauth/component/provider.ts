@@ -10,14 +10,6 @@ const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
  * `signIn` before it redirects the user to the provider; the provider
  * callback later claims the request by state hash.
  *
- * The OAuth `redirect_uri` is built here: inside an http-mounted component,
- * `CONVEX_SITE_URL` is the site URL with the mount's `httpPrefix` appended,
- * so the mount in convex.config.ts is the single source of truth for the
- * callback URL. It's stored on the row so the code exchange presents the
- * byte-identical value, as OAuth requires. Other exchange config the
- * callback needs (`tokenEndpoint`, `userInfoEndpoints`) is snapshotted from
- * the caller because the component can't see app-side config.
- *
  * Returns the mount's `CLIENT_ID` and the callback URL, which the caller
  * needs for the authorization URL.
  */
@@ -61,9 +53,9 @@ export const createAuthorizationRequest = mutation({
 /**
  * The second half of the OAuth flow: after the user authenticates, the
  * provider redirects back to this component's HTTP callback route, which
- * calls this to claim the matching request by state hash — find, delete,
- * and return it in one transaction, so a replayed or raced callback finds
- * nothing. An expired row is also deleted, but only its `redirectTo` is
+ * calls this to claim the matching request by state hash.
+ *
+ * If the request record has expired, it is deleted and its `redirectTo` is
  * returned so the callback can send the user back to the app instead of
  * stranding them on an error page.
  */

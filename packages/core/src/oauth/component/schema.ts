@@ -13,36 +13,24 @@ export default defineSchema({
     stateHash: v.string(),
     /** Post-login destination, validated against allowed redirects at sign-in. */
     redirectTo: v.string(),
-    /**
-     * The OAuth `redirect_uri`, built at sign-in from the component's
-     * `CONVEX_SITE_URL` (which the backend prefixes with the mount's
-     * `httpPrefix`). Stored so the code exchange presents the
-     * byte-identical value, as OAuth requires.
-     */
+    /** The OAuth `redirect_uri`. */
     callbackUrl: v.string(),
     /**
      * PKCE code verifier, present only when the provider config enables PKCE.
      * Stored raw because it must be sent to the provider at code exchange.
      */
     codeVerifier: v.optional(v.string()),
-    /**
-     * The provider's token endpoint (a full URL), copied from app-side
-     * config at sign-in: the callback runs inside the component, which
-     * can't see app config, so non-secret exchange config is stored on the
-     * row.
-     */
+    /** The provider's token endpoint URL. */
     tokenEndpoint: v.string(),
     /**
-     * Profile endpoints (full URLs) to fetch with the access token after
+     * Profile endpoints URLs to fetch with the access token after
      * the exchange, keyed by the name the app's `profile` mapping receives
-     * each response under. Copied from app-side config like `tokenEndpoint`.
+     * each response under.
      */
     userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     /**
      * Expected `iss` (the OIDC issuer claim) of the provider's id_tokens,
-     * copied from app-side config. Absent only for plain-OAuth providers;
-     * the callback rejects any returned id_token unless this is present
-     * and matches.
+     * copied from app-side config. Absent for non-oidc providers.
      */
     issuer: v.optional(v.string()),
     /** The callback rejects requests older than this. */

@@ -6,11 +6,6 @@ import schema from "./schema.js";
 const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
-  // One instance serving one provider: the mount binds the provider's
-  // credentials. convex-test doesn't emulate mount env bindings or the
-  // backend's mount-prefixed CONVEX_SITE_URL override, so the component-side
-  // values are stubbed directly (CONVEX_SITE_URL with the prefix already
-  // applied, as the backend would present it).
   vi.stubEnv("CLIENT_ID", "test-client-id");
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   vi.stubEnv("CONVEX_SITE_URL", "https://test.convex.site/oauth/google");
@@ -48,7 +43,7 @@ describe("oauth", () => {
     });
   });
 
-  test("createAuthorizationRequest throws when CONVEX_SITE_URL is not visible", async () => {
+  test("createAuthorizationRequest throws when CONVEX_SITE_URL is not defined", async () => {
     const t = setup();
     vi.stubEnv("CONVEX_SITE_URL", undefined);
     await expect(
