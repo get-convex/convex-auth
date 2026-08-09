@@ -36,7 +36,6 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CLIENT_ID: string;
   readonly CLIENT_SECRET: string;
-  readonly PROVIDER_NAME: string;
 };
 
 /**
