@@ -18,11 +18,6 @@ const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
  * callback needs (`tokenEndpoint`, `userInfoEndpoints`) is snapshotted from
  * the caller because the component can't see app-side config.
  *
- * Each mount serves exactly one provider (its `PROVIDER_NAME` binding), so a
- * `provider(...)` wired to the wrong mount fails here at the first sign-in —
- * the one wiring mistake push-time env validation can't catch — rather than
- * confusing the identity provider with another provider's credentials.
- *
  * Returns the mount's `CLIENT_ID` and the callback URL, which the caller
  * needs for the authorization URL.
  */
@@ -41,13 +36,6 @@ export const createAuthorizationRequest = mutation({
     callbackUrl: v.string(),
   }),
   handler: async (ctx, args) => {
-    if (args.providerName !== env.PROVIDER_NAME) {
-      throw new Error(
-        `Provider "${args.providerName}" is wired to an oauth mount bound to ` +
-          `PROVIDER_NAME "${env.PROVIDER_NAME}". Pass the "${args.providerName}" ` +
-          `mount as \`component\` in this provider's options.`,
-      );
-    }
     // System env vars are only visible inside components on backends with
     // get-convex/convex-backend@64c163a (July 2026); cloud always has it,
     // self-hosted may not.
