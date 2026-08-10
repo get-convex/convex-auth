@@ -40,7 +40,7 @@ export default defineSchema({
   /**
    * One-time redeemable proof that provider authentication succeeded. Minted
    * by the callback after the code exchange, redeemed exactly once by a
-   * caller presenting the raw one-time token plus the original client state.
+   * caller presenting the raw ticket code plus the original client state.
    * Nothing user-visible (accounts, users, sessions) is created until
    * redemption.
    */
@@ -54,10 +54,10 @@ export default defineSchema({
      */
     stateHash: v.string(),
     /**
-     * sha256 of the server-minted one-time token. The raw value appears only
+     * sha256 of the server-minted ticket code. The raw value appears only
      * in the callback redirect URL and is never stored.
      */
-    ottHash: v.string(),
+    ticketCodeHash: v.string(),
     /**
      * Redemption rejects tickets past this. Set at mint from
      * `TICKET_TTL_MS` in provider.ts (2 minutes).
@@ -68,10 +68,10 @@ export default defineSchema({
      * `{ claims, userInfoResponses }` (id_token claims when the provider
      * returned one, userinfo responses keyed by the configured endpoint
      * names; at least one is present), AES-GCM encrypted with a key derived
-     * from the raw one-time token. The raw token is never stored, so
+     * from the raw ticket code. The raw code is never stored, so
      * database access alone cannot read the payload, and provider-chosen
      * JSON keys never become Convex field names.
      */
     payload: v.string(),
-  }).index("ottHash", ["ottHash"]),
+  }).index("ticketCodeHash", ["ticketCodeHash"]),
 });

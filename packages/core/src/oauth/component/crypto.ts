@@ -49,16 +49,15 @@ export function decodeJwtPayloadUnverified(
 }
 
 /**
- * Derive an AES-256-GCM key from a raw one-time token. A domain-separated
- * SHA-256 suffices as the KDF: the token is itself 256 bits of CSPRNG
- * output, so no stretching is needed. The `convex-auth-ticket-payload`
- * context string binds derived keys to exactly this use — these helpers are
- * ticket-specific by construction, not general-purpose encryption.
+ * AES-256-GCM key for a ticket payload. The key is only as strong as the
+ * ticket code, which is 256 bits of randomness. The prefix is load-bearing:
+ * the ticket row stores SHA-256(code) as its lookup hash, so without it the
+ * stored hash would be the key.
  */
-async function deriveTicketKey(encodedToken: string): Promise<CryptoKey> {
+async function deriveTicketPayloadKey(ticketCode: string): Promise<CryptoKey> {
   const keyBytes = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(`convex-auth-ticket-payload:${encodedToken}`),
+    new TextEncoder().encode(`convex-auth-ticket-payload:${ticketCode}`),
   );
   return await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, [
     "encrypt",
@@ -67,22 +66,22 @@ async function deriveTicketKey(encodedToken: string): Promise<CryptoKey> {
 }
 
 /**
- * Encrypt a ticket payload with a key derived from the raw one-time token.
+ * Encrypt a ticket payload with a key derived from the raw ticket code.
  *
  * A ticket is the short-lived, one-time record the callback mints after a
  * successful code exchange (the `tickets` table in schema.ts); its payload
  * is the provider-attested identity JSON (`{ claims, userInfoResponses }`)
- * that redemption decrypts. Only the token's hash is persisted, and the raw
- * token — the only value the key can be derived from — travels solely in
- * the callback redirect URL, so database access alone cannot decrypt the
+ * that redemption decrypts. Only the code's hash is persisted, and the raw
+ * code (the only value the key can be derived from) travels solely in the
+ * callback redirect URL, so database access alone cannot decrypt the
  * result. Returns the random nonce followed by the ciphertext,
  * base64url-encoded.
  */
 export async function encryptTicketPayload(
-  encodedToken: string,
+  ticketCode: string,
   plaintext: string,
 ): Promise<string> {
-  const key = await deriveTicketKey(encodedToken);
+  const key = await deriveTicketPayloadKey(ticketCode);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt(
@@ -98,14 +97,14 @@ export async function encryptTicketPayload(
 }
 
 /**
- * Decrypt {@link encryptTicketPayload} output. Throws when the token is
- * wrong or the payload was tampered with (AES-GCM authenticates).
+ * Decrypt {@link encryptTicketPayload} output. Throws when the ticket code
+ * is wrong or the payload was tampered with (AES-GCM authenticates).
  */
 export async function decryptTicketPayload(
-  encodedToken: string,
+  ticketCode: string,
   encrypted: string,
 ): Promise<string> {
-  const key = await deriveTicketKey(encodedToken);
+  const key = await deriveTicketPayloadKey(ticketCode);
   const combined = base64UrlDecode(encrypted);
   const plaintext = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: combined.slice(0, 12) },
