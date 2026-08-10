@@ -10,20 +10,28 @@ import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
 
+// The component never branches on which provider it serves, so the fixtures
+// name none.
+const PROVIDER_NAME = "test-provider";
+const TOKEN_ENDPOINT = "https://provider.example.com/token";
+
 function setup() {
   vi.stubEnv("CLIENT_ID", "test-client-id");
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
-  vi.stubEnv("CONVEX_SITE_URL", "https://test.convex.site/oauth/google");
+  vi.stubEnv(
+    "CONVEX_SITE_URL",
+    `https://test.convex.site/oauth/${PROVIDER_NAME}`,
+  );
   const t = convexTest(schema, modules);
   return t;
 }
 
 /** Args for a valid authorization request, overridable per test. */
 const requestArgs = {
-  providerName: "google",
+  providerName: PROVIDER_NAME,
   stateHash: "0".repeat(64),
   redirectTo: "https://app.example.com/after",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
+  tokenEndpoint: TOKEN_ENDPOINT,
 };
 
 afterEach(() => {
@@ -40,7 +48,7 @@ describe("oauth", () => {
     );
     expect(result).toEqual({
       clientId: "test-client-id",
-      callbackUrl: "https://test.convex.site/oauth/google/callback",
+      callbackUrl: "https://test.convex.site/oauth/test-provider/callback",
     });
     await t.run(async (ctx) => {
       const requests = await ctx.db.query("authorizationRequests").collect();
@@ -65,11 +73,11 @@ describe("oauth", () => {
     );
     expect(claimed).toEqual({
       expired: false,
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       stateHash: requestArgs.stateHash,
       redirectTo: "https://app.example.com/after",
-      callbackUrl: "https://test.convex.site/oauth/google/callback",
-      tokenEndpoint: "https://oauth2.googleapis.com/token",
+      callbackUrl: "https://test.convex.site/oauth/test-provider/callback",
+      tokenEndpoint: TOKEN_ENDPOINT,
     });
     const second = await t.mutation(
       internal.provider.claimAuthorizationRequest,
@@ -109,7 +117,7 @@ describe("oauth", () => {
   test("createTicket stores hashed ticket code with expiry", async () => {
     const t = setup();
     await t.mutation(internal.provider.createTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
@@ -126,19 +134,19 @@ describe("oauth", () => {
   test("claimTicket returns the ticket exactly once", async () => {
     const t = setup();
     await t.mutation(internal.provider.createTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
     expect(claimed).toEqual({ payload: "encrypted-payload" });
     const second = await t.mutation(api.provider.claimTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
@@ -148,13 +156,13 @@ describe("oauth", () => {
   test("claimTicket returns null on state mismatch and preserves the ticket", async () => {
     const t = setup();
     await t.mutation(internal.provider.createTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       ticketCodeHash: "a".repeat(64),
       stateHash: "f".repeat(64),
     });
@@ -168,13 +176,13 @@ describe("oauth", () => {
   test("claimTicket returns null on provider mismatch and preserves the ticket", async () => {
     const t = setup();
     await t.mutation(internal.provider.createTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
-      providerName: "github",
+      providerName: "other-provider",
       ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
@@ -189,14 +197,14 @@ describe("oauth", () => {
     vi.useFakeTimers();
     const t = setup();
     await t.mutation(internal.provider.createTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     vi.advanceTimersByTime(3 * 60 * 1000);
     const claimed = await t.mutation(api.provider.claimTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
