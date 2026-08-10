@@ -8,5 +8,9 @@ export const auth = setupConvexAuthServer({
   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
   refreshSession: api.auth.refreshSession,
   signOut: api.auth.signOut,
+  // The sign-in functions reachable through the auth proxy. This allowlist is
+  // the proxy's whole API surface, and adding a function to it is all the wiring
+  // an auth method needs.
+  signIn: [api.auth.signInAnonymous],
   cookieOptions: { secure: process.env.NODE_ENV === "production" },
 });

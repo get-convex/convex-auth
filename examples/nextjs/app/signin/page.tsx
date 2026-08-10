@@ -1,12 +1,15 @@
 "use client";
 
-import { useAnonymousAuth } from "@convex-dev/auth/nextjs";
+import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import { useRouter } from "next/navigation";
+import { api } from "@/convex/_generated/api";
 
 export default function SignIn() {
-  // SSR sibling of the client-direct hook: sign-in runs on the server (POST to
-  // /auth/signin/anonymous), so the refresh token never reaches JS.
-  const { signInAnonymous } = useAnonymousAuth();
+  // The provider's own hook, with no SSR-specific variant. The surrounding
+  // ConvexAuthNextjsProvider routes this call through the auth proxy, which
+  // moves the minted refresh token into an httpOnly cookie so it never reaches
+  // JS.
+  const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymous);
   const router = useRouter();
   return (
     <main style={{ padding: 24, maxWidth: 640 }}>

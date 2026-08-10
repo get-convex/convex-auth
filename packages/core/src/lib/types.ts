@@ -29,6 +29,22 @@ export const vTokenBundle = v.object({
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
 /**
+ * The success arm of every provider's sign-in result.
+ *
+ * Providers compose this into their result union rather than declaring the
+ * success arm themselves. Fixing where the minted bundle sits is what lets the
+ * SSR auth proxy find the refresh token without knowing which provider produced
+ * the response, and lets it reject a shape it doesn't recognize instead of
+ * forwarding tokens to the browser.
+ */
+export const vSignInSuccess = v.object({
+  success: v.literal(true),
+  tokens: vTokenBundle,
+});
+
+export type SignInSuccess = Infer<typeof vSignInSuccess>;
+
+/**
  * The token bundle that an SSR route hands back to the client. It is a slimmed
  * down version of a {@link TokenBundle} with the refresh token (and its
  * expiry) removed: under SSR the refresh token lives only in an httpOnly
@@ -51,6 +67,26 @@ export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
     userId: bundle.userId,
   };
 }
+
+/**
+ * A provider result as clients see it, with the token bundle narrowed to what
+ * every session model delivers.
+ *
+ * Under SSR the auth proxy strips the refresh token before the response reaches
+ * the browser, so the slim bundle is all the two models have in common.
+ * Declaring that here makes the stripping a widening of the value rather than a
+ * broken contract: a {@link TokenBundle} is assignable to a
+ * {@link SlimTokenBundle}, so one type stays true for both.
+ *
+ * It also stops callers depending on the refresh token. Handing the bundle to
+ * `setSession` is the only supported use; an app that needs the raw token can
+ * call its Convex function with the generated reference and get the full type.
+ *
+ * Distributes over a result union, leaving failure arms untouched.
+ */
+export type ClientView<T> = T extends { tokens: TokenBundle }
+  ? Omit<T, "tokens"> & { tokens: SlimTokenBundle }
+  : T;
 
 /** The app's `refreshSession` mutation reference: exchange a refresh token for a
  * fresh {@link TokenBundle}, or `null` when the session is gone. */

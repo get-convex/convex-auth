@@ -13,20 +13,22 @@
  */
 "use client";
 
-import { useMutation } from "convex/react";
 import { FunctionReference } from "convex/server";
 import { useCallback } from "react";
-import type { TokenBundle } from "../../lib/types";
-import { useAuthActions } from "../../react";
+import type { ClientView, SignInSuccess } from "../../lib/types";
+import { useAuthActions, useAuthRunner } from "../../react";
 
 /**
  * The `signInAnonymous` mutation the anonymous provider adds to the app's API.
+ *
+ * Its bundle is the access-only {@link ClientView}, which is what both session
+ * models have in common. Hand it to `setSession`, the only supported consumer.
  */
 export type SignInAnonymousMutation = FunctionReference<
   "mutation",
   "public",
   Record<string, never>,
-  TokenBundle
+  ClientView<SignInSuccess>
 >;
 
 /**
@@ -58,9 +60,12 @@ export type SignInAnonymousMutation = FunctionReference<
  */
 export function useAnonymousAuth(signInMutation: SignInAnonymousMutation) {
   const { setSession } = useAuthActions();
-  const runSignIn = useMutation(signInMutation);
+  // Running through the runner rather than `useMutation` is what lets this one
+  // hook serve both session models. See {@link AuthRunner}.
+  const runner = useAuthRunner();
   const signInAnonymous = useCallback(async () => {
-    await setSession(await runSignIn());
-  }, [runSignIn, setSession]);
+    const result = await runner.mutation(signInMutation, {});
+    await setSession(result.tokens);
+  }, [runner, signInMutation, setSession]);
   return { signInAnonymous };
 }

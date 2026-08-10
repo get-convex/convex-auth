@@ -26,6 +26,7 @@ import {
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
+  type AuthRunner,
 } from "./client";
 
 export { useConvexAuth } from "convex/react";
@@ -33,6 +34,7 @@ export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export type { TokenStorage } from "../browser/storage";
 export type { ConvexAuthApi, TokenBundle } from "../lib/types";
 export type { ConvexAuthActionsContextType } from "./client";
+export { useAuthRunner, type AuthRunner } from "./client";
 
 /**
  * Replace your `ConvexProvider` with this to enable authentication.
@@ -104,8 +106,19 @@ export function ConvexAuthProvider({
     // construction and are not expected to change.
   }, [client]);
 
+  // Sign-in functions run against the deployment over the same websocket client
+  // as the rest of the app, so the response carries the full token bundle for
+  // `setSession` to persist.
+  const runner = useMemo<AuthRunner>(
+    () => ({
+      mutation: (fn, args) => client.mutation(fn, args),
+      action: (fn, args) => client.action(fn, args),
+    }),
+    [client],
+  );
+
   return (
-    <AuthProvider authClient={authClient}>
+    <AuthProvider authClient={authClient} runner={runner}>
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
