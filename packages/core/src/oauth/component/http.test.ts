@@ -283,21 +283,21 @@ describe("oauth callback", () => {
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers.Accept).toBe("application/json");
 
-    // The redirect carries a one-time token that redeems (with the flow's
-    // state) into the encrypted identity payload — the full contract the
+    // The redirect carries a ticket code that redeems (with the flow's
+    // state) into the encrypted identity payload, the full contract the
     // app-side completeSignIn depends on. This leg only mints the ticket;
     // claiming it here directly stands in for the app-side redemption
     // covered by the redemption leg's tests.
-    const ott = redirectParams(response).get(OAUTH_CODE_PARAM)!;
-    expect(ott).toEqual(expect.any(String));
+    const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
+    expect(ticketCode).toEqual(expect.any(String));
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "google",
-      ottHash: await sha256Hex(ott),
+      ticketCodeHash: await sha256Hex(ticketCode),
       stateHash,
     });
     expect(claimed).not.toBeNull();
     const payload = JSON.parse(
-      await decryptTicketPayload(ott, claimed!.payload),
+      await decryptTicketPayload(ticketCode, claimed!.payload),
     );
     expect(payload).toEqual({ claims });
   });
@@ -333,14 +333,14 @@ describe("oauth callback", () => {
     expect(headers.Authorization).toBe("Bearer gh-at-1");
     expect(headers["User-Agent"]).toBe("convex-auth");
 
-    const ott = redirectParams(response).get(OAUTH_CODE_PARAM)!;
+    const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "github",
-      ottHash: await sha256Hex(ott),
+      ticketCodeHash: await sha256Hex(ticketCode),
       stateHash,
     });
     const payload = JSON.parse(
-      await decryptTicketPayload(ott, claimed!.payload),
+      await decryptTicketPayload(ticketCode, claimed!.payload),
     );
     expect(payload).toEqual({ userInfoResponses: { user, emails } });
   });
