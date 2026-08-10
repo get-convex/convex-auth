@@ -8,21 +8,28 @@ import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.js";
 
 const modules = import.meta.glob("./**/*.ts");
 
-const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
-const GITHUB_TOKEN_ENDPOINT = "https://github.com/login/oauth/access_token";
+// The component never branches on which provider it serves, so the fixtures
+// name none. What the handler does branch on is which identity sources a flow
+// has: id_token claims, userinfo responses, or both.
+const CLIENT_ID = "test-client-id";
+const PROVIDER_NAME = "test-provider";
+const ISSUER = "https://provider.example.com";
+const TOKEN_ENDPOINT = "https://provider.example.com/token";
+const PROFILE_ENDPOINT = "https://provider.example.com/profile";
+const EMAILS_ENDPOINT = "https://provider.example.com/emails";
 const DEFAULT_REDIRECT_TO = "https://app.example.com/after";
 
-function setup(providerName = "google") {
+function setup() {
   // One instance serving one provider: the mount binds the provider's
   // credentials. convex-test doesn't emulate mount env bindings or the
   // backend's mount-prefixed CONVEX_SITE_URL override, so the component-side
   // values are stubbed directly (CONVEX_SITE_URL with the prefix already
   // applied, as the backend would present it).
-  vi.stubEnv("CLIENT_ID", "test-client-id");
+  vi.stubEnv("CLIENT_ID", CLIENT_ID);
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   vi.stubEnv(
     "CONVEX_SITE_URL",
-    `https://test.convex.site/oauth/${providerName}`,
+    `https://test.convex.site/oauth/${PROVIDER_NAME}`,
   );
   return convexTest(schema, modules);
 }
@@ -105,13 +112,13 @@ function unsignedJwt(claims: Record<string, unknown>): string {
   return `${header}.${payload}.signature`;
 }
 
-/** Valid google-style id_token claims, overridable per test. */
-function googleClaims(overrides: Record<string, unknown> = {}) {
+/** Valid id_token claims, overridable per test. */
+function idTokenClaims(overrides: Record<string, unknown> = {}) {
   return {
-    iss: "https://accounts.google.com",
-    aud: "test-client-id",
+    iss: ISSUER,
+    aud: CLIENT_ID,
     exp: Math.floor(Date.now() / 1000) + 3600,
-    sub: "google-sub-1",
+    sub: "sub-1",
     email: "ada@example.com",
     email_verified: true,
     ...overrides,
@@ -131,7 +138,8 @@ type FlowOverrides = Partial<{
  * Record an authorization request the way the app-side `startSignIn` would,
  * returning the raw `state` the provider echoes back to the callback plus
  * its hash (which binds redemption to the initiating client). Defaults model
- * the google catalog; override for github-style (userinfo) flows.
+ * an id_token flow; override `userInfoEndpoints` (and drop `issuer`) for a
+ * userinfo flow.
  */
 async function startFlow(
   t: ReturnType<typeof setup>,
@@ -140,11 +148,11 @@ async function startFlow(
   const state = "state-raw-1";
   const stateHash = await sha256Hex(state);
   const args = {
-    providerName: "google",
+    providerName: PROVIDER_NAME,
     stateHash,
     redirectTo: DEFAULT_REDIRECT_TO,
-    tokenEndpoint: GOOGLE_TOKEN_ENDPOINT,
-    issuer: "https://accounts.google.com" as string | undefined,
+    tokenEndpoint: TOKEN_ENDPOINT,
+    issuer: ISSUER as string | undefined,
     ...overrides,
   };
   await t.mutation(
@@ -255,10 +263,13 @@ describe("oauth callback", () => {
 
   test("an id_token flow exchanges the code and mints a redeemable ticket", async () => {
     const t = setup();
-    const claims = googleClaims();
+    const claims = idTokenClaims();
     const calls = stubFetch({
-      [GOOGLE_TOKEN_ENDPOINT]: () =>
-        jsonResponse({ id_token: unsignedJwt(claims), access_token: "at-1" }),
+      [TOKEN_ENDPOINT]: () =>
+        jsonResponse({
+          id_token: unsignedJwt(claims),
+          access_token: "access-token-1",
+        }),
     });
     const { state, stateHash } = await startFlow(t, {
       codeVerifier: "verifier-1",
@@ -274,10 +285,10 @@ describe("oauth callback", () => {
     const body = calls[0].init.body as URLSearchParams;
     expect(body.get("grant_type")).toBe("authorization_code");
     expect(body.get("code")).toBe("auth-code-1");
-    expect(body.get("client_id")).toBe("test-client-id");
+    expect(body.get("client_id")).toBe(CLIENT_ID);
     expect(body.get("client_secret")).toBe("test-client-secret");
     expect(body.get("redirect_uri")).toBe(
-      "https://test.convex.site/oauth/google/callback",
+      "https://test.convex.site/oauth/test-provider/callback",
     );
     expect(body.get("code_verifier")).toBe("verifier-1");
     const headers = calls[0].init.headers as Record<string, string>;
@@ -291,7 +302,7 @@ describe("oauth callback", () => {
     const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
     expect(ticketCode).toEqual(expect.any(String));
     const claimed = await t.mutation(api.provider.claimTicket, {
-      providerName: "google",
+      providerName: PROVIDER_NAME,
       ticketCodeHash: await sha256Hex(ticketCode),
       stateHash,
     });
@@ -303,23 +314,24 @@ describe("oauth callback", () => {
   });
 
   test("a userinfo flow fetches each endpoint with the access token", async () => {
-    const t = setup("github");
-    const user = { id: 42, login: "octocat" };
+    // No id_token; identity comes from several endpoints instead, which is
+    // GitHub's shape. The asserted headers are provider-driven too: http.ts
+    // documents why Accept and User-Agent are sent at all.
+    const t = setup();
+    const profile = { id: "user-1", name: "Ada" };
     const emails = [
       { email: "ada@example.com", primary: true, verified: true },
     ];
     const calls = stubFetch({
-      [GITHUB_TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "gh-at-1" }),
-      "https://api.github.com/user": () => jsonResponse(user),
-      "https://api.github.com/user/emails": () => jsonResponse(emails),
+      [TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "access-token-1" }),
+      [PROFILE_ENDPOINT]: () => jsonResponse(profile),
+      [EMAILS_ENDPOINT]: () => jsonResponse(emails),
     });
     const { state, stateHash } = await startFlow(t, {
-      providerName: "github",
-      tokenEndpoint: GITHUB_TOKEN_ENDPOINT,
       issuer: undefined,
       userInfoEndpoints: {
-        user: "https://api.github.com/user",
-        emails: "https://api.github.com/user/emails",
+        profile: PROFILE_ENDPOINT,
+        emails: EMAILS_ENDPOINT,
       },
     });
 
@@ -328,21 +340,56 @@ describe("oauth callback", () => {
       code: "auth-code-2",
     });
 
-    const userCall = calls.find((c) => c.url === "https://api.github.com/user");
-    const headers = userCall!.init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer gh-at-1");
+    const profileCall = calls.find((c) => c.url === PROFILE_ENDPOINT);
+    const headers = profileCall!.init.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer access-token-1");
     expect(headers["User-Agent"]).toBe("convex-auth");
 
     const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
     const claimed = await t.mutation(api.provider.claimTicket, {
-      providerName: "github",
+      providerName: PROVIDER_NAME,
       ticketCodeHash: await sha256Hex(ticketCode),
       stateHash,
     });
     const payload = JSON.parse(
       await decryptTicketPayload(ticketCode, claimed!.payload),
     );
-    expect(payload).toEqual({ userInfoResponses: { user, emails } });
+    expect(payload).toEqual({ userInfoResponses: { profile, emails } });
+  });
+
+  test("a flow with both identity sources carries each into one payload", async () => {
+    // The two sources are independent, so a provider can supply both. This is
+    // the only case where both halves of the handler contribute to a payload.
+    const t = setup();
+    const claims = idTokenClaims();
+    const profile = { id: "user-1", name: "Ada" };
+    stubFetch({
+      [TOKEN_ENDPOINT]: () =>
+        jsonResponse({
+          id_token: unsignedJwt(claims),
+          access_token: "access-token-1",
+        }),
+      [PROFILE_ENDPOINT]: () => jsonResponse(profile),
+    });
+    const { state, stateHash } = await startFlow(t, {
+      userInfoEndpoints: { profile: PROFILE_ENDPOINT },
+    });
+
+    const response = await callback(t, {
+      state,
+      code: "auth-code-3",
+    });
+
+    const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: PROVIDER_NAME,
+      ticketCodeHash: await sha256Hex(ticketCode),
+      stateHash,
+    });
+    const payload = JSON.parse(
+      await decryptTicketPayload(ticketCode, claimed!.payload),
+    );
+    expect(payload).toEqual({ claims, userInfoResponses: { profile } });
   });
 
   test("stale outcome params on redirectTo are replaced, app params kept", async () => {
@@ -351,8 +398,8 @@ describe("oauth callback", () => {
     const t = setup();
     const redirectTo = `${DEFAULT_REDIRECT_TO}?${OAUTH_ERROR_PARAM}=expired&tab=settings`;
     stubFetch({
-      [GOOGLE_TOKEN_ENDPOINT]: () =>
-        jsonResponse({ id_token: unsignedJwt(googleClaims()) }),
+      [TOKEN_ENDPOINT]: () =>
+        jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
     });
     const { state } = await startFlow(t, { redirectTo });
 
@@ -368,8 +415,7 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [GOOGLE_TOKEN_ENDPOINT]: () =>
-        new Response("bad request", { status: 400 }),
+      [TOKEN_ENDPOINT]: () => new Response("bad request", { status: 400 }),
     });
     const { state } = await startFlow(t);
 
@@ -386,7 +432,7 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [GOOGLE_TOKEN_ENDPOINT]: () =>
+      [TOKEN_ENDPOINT]: () =>
         new Response(null, {
           status: 302,
           headers: { Location: "https://elsewhere.example.com/token" },
@@ -401,15 +447,15 @@ describe("oauth callback", () => {
   });
 
   describe("id_token validation", () => {
-    /** Run a google-style flow whose token endpoint returns `idToken`. */
+    /** Run a flow whose token endpoint returns `idToken`. */
     async function callbackWithIdToken(
       t: ReturnType<typeof setup>,
       idToken: string,
       overrides: FlowOverrides = {},
     ): Promise<Response> {
       stubFetch({
-        [GOOGLE_TOKEN_ENDPOINT]: () =>
-          jsonResponse({ id_token: idToken, access_token: "at-1" }),
+        [TOKEN_ENDPOINT]: () =>
+          jsonResponse({ id_token: idToken, access_token: "access-token-1" }),
       });
       const { state } = await startFlow(t, overrides);
       return await callback(t, { state, code: "code-1" });
@@ -420,7 +466,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
-        unsignedJwt(googleClaims()),
+        unsignedJwt(idTokenClaims()),
         { issuer: undefined },
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
@@ -434,7 +480,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
-        unsignedJwt(googleClaims({ iss: "https://evil.example.com" })),
+        unsignedJwt(idTokenClaims({ iss: "https://evil.example.com" })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
         "oauth_error",
@@ -449,9 +495,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
-        unsignedJwt(
-          googleClaims({ aud: ["test-google-client-id", "other-client"] }),
-        ),
+        unsignedJwt(idTokenClaims({ aud: [CLIENT_ID, "other-client"] })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
         "oauth_error",
@@ -466,7 +510,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
-        unsignedJwt(googleClaims({ azp: "other-client" })),
+        unsignedJwt(idTokenClaims({ azp: "other-client" })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
         "oauth_error",
@@ -479,7 +523,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
-        unsignedJwt(googleClaims({ exp: Math.floor(Date.now() / 1000) - 60 })),
+        unsignedJwt(idTokenClaims({ exp: Math.floor(Date.now() / 1000) - 60 })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
         "oauth_error",
@@ -489,41 +533,36 @@ describe("oauth callback", () => {
   });
 
   test("a failed userinfo request redirects with oauth_error", async () => {
-    const t = setup("github");
+    const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [GITHUB_TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "gh-at-1" }),
-      "https://api.github.com/user": () =>
-        new Response("server error", { status: 500 }),
-      "https://api.github.com/user/emails": () => jsonResponse([]),
+      [TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "access-token-1" }),
+      [PROFILE_ENDPOINT]: () => new Response("server error", { status: 500 }),
+      [EMAILS_ENDPOINT]: () => jsonResponse([]),
     });
     const { state } = await startFlow(t, {
-      providerName: "github",
-      tokenEndpoint: GITHUB_TOKEN_ENDPOINT,
       issuer: undefined,
       userInfoEndpoints: {
-        user: "https://api.github.com/user",
-        emails: "https://api.github.com/user/emails",
+        profile: PROFILE_ENDPOINT,
+        emails: EMAILS_ENDPOINT,
       },
     });
 
     const response = await callback(t, { state, code: "code-1" });
 
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
-    expect(loggedText(errors)).toContain('Userinfo request "user" failed');
+    expect(loggedText(errors)).toContain('Userinfo request "profile" failed');
   });
 
   test("userinfo endpoints without an access_token are refused", async () => {
-    const t = setup("github");
+    const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [GITHUB_TOKEN_ENDPOINT]: () => jsonResponse({}),
+      [TOKEN_ENDPOINT]: () => jsonResponse({}),
     });
     const { state } = await startFlow(t, {
-      providerName: "github",
-      tokenEndpoint: GITHUB_TOKEN_ENDPOINT,
       issuer: undefined,
-      userInfoEndpoints: { user: "https://api.github.com/user" },
+      userInfoEndpoints: { profile: PROFILE_ENDPOINT },
     });
 
     const response = await callback(t, { state, code: "code-1" });
@@ -538,7 +577,7 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [GOOGLE_TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "at-1" }),
+      [TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "access-token-1" }),
     });
     // No id_token comes back and no userinfo endpoints are configured.
     const { state } = await startFlow(t, { issuer: undefined });
@@ -556,7 +595,7 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [GOOGLE_TOKEN_ENDPOINT]: (init) => {
+      [TOKEN_ENDPOINT]: (init) => {
         const stalled = new Promise<Response>((_resolve, reject) => {
           init.signal?.addEventListener("abort", () =>
             reject(new DOMException("The operation was aborted", "AbortError")),
