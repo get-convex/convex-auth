@@ -1,4 +1,5 @@
 import { convexTest } from "convex-test";
+import { FunctionArgs } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.js";
 import { decryptTicketPayload } from "./crypto.js";
@@ -8,16 +9,52 @@ import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.js";
 
 const modules = import.meta.glob("./**/*.ts");
 
-// The component never branches on which provider it serves, so the fixtures
-// name none. What the handler does branch on is which identity sources a flow
-// has: id_token claims, userinfo responses, or both.
+/** Bound to the mount, so they can't come off a per-flow fixture. */
 const CLIENT_ID = "test-client-id";
 const PROVIDER_NAME = "test-provider";
-const ISSUER = "https://provider.example.com";
-const TOKEN_ENDPOINT = "https://provider.example.com/token";
-const PROFILE_ENDPOINT = "https://provider.example.com/profile";
-const EMAILS_ENDPOINT = "https://provider.example.com/emails";
-const DEFAULT_REDIRECT_TO = "https://app.example.com/after";
+
+/** Everything `createAuthorizationRequest` takes except the state hash. */
+type FlowRequest = Omit<
+  FunctionArgs<typeof api.provider.createAuthorizationRequest>,
+  "stateHash"
+>;
+
+/**
+ * The component never branches on which provider it serves, so no fixture
+ * names a real one. What the callback does branch on is where a flow's
+ * identity comes from, and these are the shapes that produces: an id_token,
+ * userinfo responses, both, or (as {@link BASE_REQUEST} alone) neither, which
+ * is a misconfiguration two tests exercise.
+ *
+ * These carry every field the real app-side `setupOauth` would send, so a test
+ * declares its whole flow and {@link startFlow} adds no defaults of its own.
+ */
+const BASE_REQUEST = {
+  providerName: PROVIDER_NAME,
+  redirectTo: "https://app.example.com/after",
+  tokenEndpoint: "https://provider.example.com/token",
+} satisfies FlowRequest;
+
+/** Identity from validated id_token claims. */
+const ID_TOKEN_REQUEST = {
+  ...BASE_REQUEST,
+  issuer: "https://provider.example.com",
+} satisfies FlowRequest;
+
+/** No id_token; identity spread across two endpoints. */
+const USERINFO_REQUEST = {
+  ...BASE_REQUEST,
+  userInfoEndpoints: {
+    profile: "https://provider.example.com/profile",
+    emails: "https://provider.example.com/emails",
+  },
+} satisfies FlowRequest;
+
+/** Both sources at once. */
+const COMBINED_REQUEST = {
+  ...ID_TOKEN_REQUEST,
+  ...USERINFO_REQUEST,
+} satisfies FlowRequest;
 
 function setup() {
   // One instance serving one provider: the mount binds the provider's
@@ -44,6 +81,9 @@ type FetchCall = { url: string; init: RequestInit };
  * unrouted URL throws, failing the test loudly. The returned array records
  * every outbound request so tests can assert the exact shape of the token
  * exchange (body params, auth style).
+ *
+ * Route keys come off the flow fixtures rather than repeating a URL, so a
+ * route can't drift from the endpoint the flow was configured with.
  *
  * Intercepting outbound requests is required (the callback really calls the
  * provider's endpoints and convex-test doesn't intercept network access); we
@@ -115,7 +155,7 @@ function unsignedJwt(claims: Record<string, unknown>): string {
 /** Valid id_token claims, overridable per test. */
 function idTokenClaims(overrides: Record<string, unknown> = {}) {
   return {
-    iss: ISSUER,
+    iss: ID_TOKEN_REQUEST.issuer,
     aud: CLIENT_ID,
     exp: Math.floor(Date.now() / 1000) + 3600,
     sub: "sub-1",
@@ -125,43 +165,21 @@ function idTokenClaims(overrides: Record<string, unknown> = {}) {
   };
 }
 
-type FlowOverrides = Partial<{
-  providerName: string;
-  redirectTo: string;
-  codeVerifier: string;
-  tokenEndpoint: string;
-  userInfoEndpoints: Record<string, string>;
-  issuer: string | undefined;
-}>;
-
 /**
  * Record an authorization request the way the app-side `startSignIn` would,
  * returning the raw `state` the provider echoes back to the callback plus
- * its hash (which binds redemption to the initiating client). Defaults model
- * an id_token flow; override `userInfoEndpoints` (and drop `issuer`) for a
- * userinfo flow.
+ * its hash (which binds redemption to the initiating client).
  */
 async function startFlow(
   t: ReturnType<typeof setup>,
-  overrides: FlowOverrides = {},
-) {
+  request: FlowRequest,
+): Promise<{ state: string; stateHash: string }> {
   const state = "state-raw-1";
   const stateHash = await sha256Hex(state);
-  const args = {
-    providerName: PROVIDER_NAME,
+  await t.mutation(api.provider.createAuthorizationRequest, {
+    ...request,
     stateHash,
-    redirectTo: DEFAULT_REDIRECT_TO,
-    tokenEndpoint: TOKEN_ENDPOINT,
-    issuer: ISSUER as string | undefined,
-    ...overrides,
-  };
-  await t.mutation(
-    api.provider.createAuthorizationRequest,
-    // An optional arg must be absent, not `undefined` (not a Convex value).
-    Object.fromEntries(
-      Object.entries(args).filter(([, value]) => value !== undefined),
-    ) as typeof args,
-  );
+  });
   return { state, stateHash };
 }
 
@@ -179,7 +197,7 @@ function callback(
  */
 function redirectParams(
   response: Response,
-  redirectTo = DEFAULT_REDIRECT_TO,
+  redirectTo = BASE_REQUEST.redirectTo,
 ): URLSearchParams {
   expect(response.status).toBe(302);
   const location = new URL(response.headers.get("Location")!);
@@ -221,7 +239,7 @@ describe("oauth callback", () => {
     vi.useFakeTimers();
     const t = setup();
     const warnSpy = spyConsoleWarn();
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
     vi.advanceTimersByTime(11 * 60 * 1000);
     const response = await callback(t, { state, code: "code-1" });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("expired");
@@ -231,7 +249,7 @@ describe("oauth callback", () => {
   test("a provider error of access_denied passes through normalized", async () => {
     const t = setup();
     spyConsoleError();
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
     const response = await callback(t, {
       state,
       error: "access_denied",
@@ -244,7 +262,7 @@ describe("oauth callback", () => {
   test("any other provider error normalizes to oauth_error", async () => {
     const t = setup();
     spyConsoleError();
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
     const response = await callback(t, {
       state,
       error: "temporarily_unavailable",
@@ -255,7 +273,7 @@ describe("oauth callback", () => {
   test("a callback with neither code nor error normalizes to oauth_error", async () => {
     const t = setup();
     const errors = spyConsoleError();
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
     const response = await callback(t, { state });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain("missing code");
@@ -265,13 +283,14 @@ describe("oauth callback", () => {
     const t = setup();
     const claims = idTokenClaims();
     const calls = stubFetch({
-      [TOKEN_ENDPOINT]: () =>
+      [ID_TOKEN_REQUEST.tokenEndpoint]: () =>
         jsonResponse({
           id_token: unsignedJwt(claims),
           access_token: "access-token-1",
         }),
     });
     const { state, stateHash } = await startFlow(t, {
+      ...ID_TOKEN_REQUEST,
       codeVerifier: "verifier-1",
     });
 
@@ -314,33 +333,29 @@ describe("oauth callback", () => {
   });
 
   test("a userinfo flow fetches each endpoint with the access token", async () => {
-    // No id_token; identity comes from several endpoints instead, which is
-    // GitHub's shape. The asserted headers are provider-driven too: http.ts
-    // documents why Accept and User-Agent are sent at all.
+    // The asserted headers are provider-driven: http.ts documents why Accept
+    // and User-Agent are sent at all (GitHub needs both).
     const t = setup();
+    const { profile: profileUrl, emails: emailsUrl } =
+      USERINFO_REQUEST.userInfoEndpoints;
     const profile = { id: "user-1", name: "Ada" };
     const emails = [
       { email: "ada@example.com", primary: true, verified: true },
     ];
     const calls = stubFetch({
-      [TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "access-token-1" }),
-      [PROFILE_ENDPOINT]: () => jsonResponse(profile),
-      [EMAILS_ENDPOINT]: () => jsonResponse(emails),
+      [USERINFO_REQUEST.tokenEndpoint]: () =>
+        jsonResponse({ access_token: "access-token-1" }),
+      [profileUrl]: () => jsonResponse(profile),
+      [emailsUrl]: () => jsonResponse(emails),
     });
-    const { state, stateHash } = await startFlow(t, {
-      issuer: undefined,
-      userInfoEndpoints: {
-        profile: PROFILE_ENDPOINT,
-        emails: EMAILS_ENDPOINT,
-      },
-    });
+    const { state, stateHash } = await startFlow(t, USERINFO_REQUEST);
 
     const response = await callback(t, {
       state,
       code: "auth-code-2",
     });
 
-    const profileCall = calls.find((c) => c.url === PROFILE_ENDPOINT);
+    const profileCall = calls.find((c) => c.url === profileUrl);
     const headers = profileCall!.init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer access-token-1");
     expect(headers["User-Agent"]).toBe("convex-auth");
@@ -361,19 +376,23 @@ describe("oauth callback", () => {
     // The two sources are independent, so a provider can supply both. This is
     // the only case where both halves of the handler contribute to a payload.
     const t = setup();
+    const { profile: profileUrl, emails: emailsUrl } =
+      COMBINED_REQUEST.userInfoEndpoints;
     const claims = idTokenClaims();
     const profile = { id: "user-1", name: "Ada" };
+    const emails = [
+      { email: "ada@example.com", primary: true, verified: true },
+    ];
     stubFetch({
-      [TOKEN_ENDPOINT]: () =>
+      [COMBINED_REQUEST.tokenEndpoint]: () =>
         jsonResponse({
           id_token: unsignedJwt(claims),
           access_token: "access-token-1",
         }),
-      [PROFILE_ENDPOINT]: () => jsonResponse(profile),
+      [profileUrl]: () => jsonResponse(profile),
+      [emailsUrl]: () => jsonResponse(emails),
     });
-    const { state, stateHash } = await startFlow(t, {
-      userInfoEndpoints: { profile: PROFILE_ENDPOINT },
-    });
+    const { state, stateHash } = await startFlow(t, COMBINED_REQUEST);
 
     const response = await callback(t, {
       state,
@@ -389,19 +408,22 @@ describe("oauth callback", () => {
     const payload = JSON.parse(
       await decryptTicketPayload(ticketCode, claimed!.payload),
     );
-    expect(payload).toEqual({ claims, userInfoResponses: { profile } });
+    expect(payload).toEqual({
+      claims,
+      userInfoResponses: { profile, emails },
+    });
   });
 
   test("stale outcome params on redirectTo are replaced, app params kept", async () => {
     // A retry after a failed attempt: the page URL the new flow snapshots as
     // redirectTo still carries the previous attempt's outcome param.
     const t = setup();
-    const redirectTo = `${DEFAULT_REDIRECT_TO}?${OAUTH_ERROR_PARAM}=expired&tab=settings`;
+    const redirectTo = `${BASE_REQUEST.redirectTo}?${OAUTH_ERROR_PARAM}=expired&tab=settings`;
     stubFetch({
-      [TOKEN_ENDPOINT]: () =>
+      [ID_TOKEN_REQUEST.tokenEndpoint]: () =>
         jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
     });
-    const { state } = await startFlow(t, { redirectTo });
+    const { state } = await startFlow(t, { ...ID_TOKEN_REQUEST, redirectTo });
 
     const response = await callback(t, { state, code: "code-1" });
 
@@ -415,9 +437,10 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [TOKEN_ENDPOINT]: () => new Response("bad request", { status: 400 }),
+      [ID_TOKEN_REQUEST.tokenEndpoint]: () =>
+        new Response("bad request", { status: 400 }),
     });
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
 
     const response = await callback(t, { state, code: "code-1" });
 
@@ -432,13 +455,13 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [TOKEN_ENDPOINT]: () =>
+      [ID_TOKEN_REQUEST.tokenEndpoint]: () =>
         new Response(null, {
           status: 302,
           headers: { Location: "https://elsewhere.example.com/token" },
         }),
     });
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
 
     const response = await callback(t, { state, code: "code-1" });
 
@@ -447,17 +470,17 @@ describe("oauth callback", () => {
   });
 
   describe("id_token validation", () => {
-    /** Run a flow whose token endpoint returns `idToken`. */
+    /** Run `request`'s flow against a token endpoint returning `idToken`. */
     async function callbackWithIdToken(
       t: ReturnType<typeof setup>,
+      request: FlowRequest,
       idToken: string,
-      overrides: FlowOverrides = {},
     ): Promise<Response> {
       stubFetch({
-        [TOKEN_ENDPOINT]: () =>
+        [request.tokenEndpoint]: () =>
           jsonResponse({ id_token: idToken, access_token: "access-token-1" }),
       });
-      const { state } = await startFlow(t, overrides);
+      const { state } = await startFlow(t, request);
       return await callback(t, { state, code: "code-1" });
     }
 
@@ -466,8 +489,8 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
+        BASE_REQUEST,
         unsignedJwt(idTokenClaims()),
-        { issuer: undefined },
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
         "oauth_error",
@@ -480,6 +503,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
+        ID_TOKEN_REQUEST,
         unsignedJwt(idTokenClaims({ iss: "https://evil.example.com" })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
@@ -495,6 +519,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
+        ID_TOKEN_REQUEST,
         unsignedJwt(idTokenClaims({ aud: [CLIENT_ID, "other-client"] })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
@@ -510,6 +535,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
+        ID_TOKEN_REQUEST,
         unsignedJwt(idTokenClaims({ azp: "other-client" })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
@@ -523,6 +549,7 @@ describe("oauth callback", () => {
       const errors = spyConsoleError();
       const response = await callbackWithIdToken(
         t,
+        ID_TOKEN_REQUEST,
         unsignedJwt(idTokenClaims({ exp: Math.floor(Date.now() / 1000) - 60 })),
       );
       expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
@@ -535,18 +562,15 @@ describe("oauth callback", () => {
   test("a failed userinfo request redirects with oauth_error", async () => {
     const t = setup();
     const errors = spyConsoleError();
+    const { profile: profileUrl, emails: emailsUrl } =
+      USERINFO_REQUEST.userInfoEndpoints;
     stubFetch({
-      [TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "access-token-1" }),
-      [PROFILE_ENDPOINT]: () => new Response("server error", { status: 500 }),
-      [EMAILS_ENDPOINT]: () => jsonResponse([]),
+      [USERINFO_REQUEST.tokenEndpoint]: () =>
+        jsonResponse({ access_token: "access-token-1" }),
+      [profileUrl]: () => new Response("server error", { status: 500 }),
+      [emailsUrl]: () => jsonResponse([]),
     });
-    const { state } = await startFlow(t, {
-      issuer: undefined,
-      userInfoEndpoints: {
-        profile: PROFILE_ENDPOINT,
-        emails: EMAILS_ENDPOINT,
-      },
-    });
+    const { state } = await startFlow(t, USERINFO_REQUEST);
 
     const response = await callback(t, { state, code: "code-1" });
 
@@ -558,12 +582,9 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [TOKEN_ENDPOINT]: () => jsonResponse({}),
+      [USERINFO_REQUEST.tokenEndpoint]: () => jsonResponse({}),
     });
-    const { state } = await startFlow(t, {
-      issuer: undefined,
-      userInfoEndpoints: { profile: PROFILE_ENDPOINT },
-    });
+    const { state } = await startFlow(t, USERINFO_REQUEST);
 
     const response = await callback(t, { state, code: "code-1" });
 
@@ -574,13 +595,15 @@ describe("oauth callback", () => {
   });
 
   test("a response with nothing to identify the user is refused", async () => {
+    // BASE_REQUEST configures neither identity source, and the exchange
+    // returns no id_token, so there is nothing to build an account from.
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [TOKEN_ENDPOINT]: () => jsonResponse({ access_token: "access-token-1" }),
+      [BASE_REQUEST.tokenEndpoint]: () =>
+        jsonResponse({ access_token: "access-token-1" }),
     });
-    // No id_token comes back and no userinfo endpoints are configured.
-    const { state } = await startFlow(t, { issuer: undefined });
+    const { state } = await startFlow(t, BASE_REQUEST);
 
     const response = await callback(t, { state, code: "code-1" });
 
@@ -595,7 +618,7 @@ describe("oauth callback", () => {
     const t = setup();
     const errors = spyConsoleError();
     stubFetch({
-      [TOKEN_ENDPOINT]: (init) => {
+      [ID_TOKEN_REQUEST.tokenEndpoint]: (init) => {
         const stalled = new Promise<Response>((_resolve, reject) => {
           init.signal?.addEventListener("abort", () =>
             reject(new DOMException("The operation was aborted", "AbortError")),
@@ -607,7 +630,7 @@ describe("oauth callback", () => {
         return stalled;
       },
     });
-    const { state } = await startFlow(t);
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
 
     const response = await callback(t, { state, code: "code-1" });
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
