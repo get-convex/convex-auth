@@ -114,15 +114,15 @@ export const claimAuthorizationRequest = internalMutation({
 
 /**
  * Mint a one-time redeemable ticket after a successful code exchange. The
- * caller (the callback) holds the raw one-time token; only its hash is
+ * caller (the callback) holds the raw ticket code; only its hash is
  * stored, and the identity payload arrives already encrypted with a key
- * derived from that token.
+ * derived from that code.
  */
 export const createTicket = internalMutation({
   args: {
     providerName: v.string(),
     stateHash: v.string(),
-    ottHash: v.string(),
+    ticketCodeHash: v.string(),
     payload: v.string(),
   },
   returns: v.null(),
@@ -136,7 +136,7 @@ export const createTicket = internalMutation({
 });
 
 /**
- * Claim a ticket by one-time token hash: find, check, delete, and return it
+ * Claim a ticket by ticket code hash: find, check, delete, and return it
  * in one transaction, so a replayed or raced redemption finds nothing.
  *
  * The caller must also present the hash of the state minted at sign-in,
@@ -144,14 +144,14 @@ export const createTicket = internalMutation({
  * name it expects, so a misconfigured or renamed provider instance can't
  * redeem a ticket into the wrong account namespace. A state or provider
  * mismatch returns null *without* deleting: someone holding a stolen
- * one-time token but not the state must not be able to burn the real
+ * ticket code but not the state must not be able to burn the real
  * client's ticket. An expired row is deleted but not returned. All failures
  * are indistinguishable to the caller.
  */
 export const claimTicket = mutation({
   args: {
     providerName: v.string(),
-    ottHash: v.string(),
+    ticketCodeHash: v.string(),
     stateHash: v.string(),
   },
   returns: v.union(
@@ -163,7 +163,9 @@ export const claimTicket = mutation({
   handler: async (ctx, args) => {
     const ticket = await ctx.db
       .query("tickets")
-      .withIndex("ottHash", (q) => q.eq("ottHash", args.ottHash))
+      .withIndex("ticketCodeHash", (q) =>
+        q.eq("ticketCodeHash", args.ticketCodeHash),
+      )
       .unique();
     if (ticket === null) {
       return null;

@@ -310,21 +310,23 @@ async function handleCallback(
 
     // Nothing user-visible exists yet; the ticket is a short-lived,
     // one-time proof that provider authentication succeeded. Only the
-    // hash of the one-time token is stored, and the identity payload is
-    // encrypted with a key derived from the raw token, so database access
+    // hash of the ticket code is stored, and the identity payload is
+    // encrypted with a key derived from the raw code, so database access
     // alone can read neither.
-    const ott = generateRandomToken();
+    const ticketCode = generateRandomToken();
     await ctx.runMutation(internal.provider.createTicket, {
       providerName: authRequest.providerName,
       stateHash: authRequest.stateHash,
-      ottHash: await sha256Hex(ott),
+      ticketCodeHash: await sha256Hex(ticketCode),
       payload: await encryptTicketPayload(
-        ott,
+        ticketCode,
         JSON.stringify({ claims, userInfoResponses }),
       ),
     });
 
-    return redirectToApp(authRequest.redirectTo, { [OAUTH_CODE_PARAM]: ott });
+    return redirectToApp(authRequest.redirectTo, {
+      [OAUTH_CODE_PARAM]: ticketCode,
+    });
   } catch (exchangeError) {
     console.error(
       `OAuth exchange failed for provider "${authRequest.providerName}":`,

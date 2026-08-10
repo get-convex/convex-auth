@@ -27,7 +27,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       claimTicket: FunctionReference<
         "mutation",
         "internal",
-        { ottHash: string; providerName: string; stateHash: string },
+        { providerName: string; stateHash: string; ticketCodeHash: string },
         null | { payload: string },
         Name
       >;

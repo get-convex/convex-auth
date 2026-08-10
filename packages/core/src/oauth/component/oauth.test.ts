@@ -106,18 +106,18 @@ describe("oauth", () => {
     });
   });
 
-  test("createTicket stores hashed one-time token with expiry", async () => {
+  test("createTicket stores hashed ticket code with expiry", async () => {
     const t = setup();
     await t.mutation(internal.provider.createTicket, {
       providerName: "google",
       stateHash: "0".repeat(64),
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     await t.run(async (ctx) => {
       const tickets = await ctx.db.query("tickets").collect();
       expect(tickets).toHaveLength(1);
-      expect(tickets[0].ottHash).toBe("a".repeat(64));
+      expect(tickets[0].ticketCodeHash).toBe("a".repeat(64));
       expect(tickets[0].payload).toBe("encrypted-payload");
       expect(tickets[0].expiresAt).toBeGreaterThan(Date.now());
     });
@@ -128,18 +128,18 @@ describe("oauth", () => {
     await t.mutation(internal.provider.createTicket, {
       providerName: "google",
       stateHash: "0".repeat(64),
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "google",
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
     expect(claimed).toEqual({ payload: "encrypted-payload" });
     const second = await t.mutation(api.provider.claimTicket, {
       providerName: "google",
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
     expect(second).toBeNull();
@@ -150,12 +150,12 @@ describe("oauth", () => {
     await t.mutation(internal.provider.createTicket, {
       providerName: "google",
       stateHash: "0".repeat(64),
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "google",
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       stateHash: "f".repeat(64),
     });
     expect(claimed).toBeNull();
@@ -170,12 +170,12 @@ describe("oauth", () => {
     await t.mutation(internal.provider.createTicket, {
       providerName: "google",
       stateHash: "0".repeat(64),
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "github",
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
     expect(claimed).toBeNull();
@@ -191,13 +191,13 @@ describe("oauth", () => {
     await t.mutation(internal.provider.createTicket, {
       providerName: "google",
       stateHash: "0".repeat(64),
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       payload: "encrypted-payload",
     });
     vi.advanceTimersByTime(3 * 60 * 1000);
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "google",
-      ottHash: "a".repeat(64),
+      ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
     expect(claimed).toBeNull();
