@@ -10,6 +10,8 @@ This is a pnpm monorepo:
   directory:
   - `react-minimal` wires up the core with the anonymous provider.
   - `react-password` wires up the core with the password provider.
+  - `react-passkey` wires up the core with the passkey provider
+    (username + passkey, no password). It has no frontend yet.
 
 Use `pnpm install` at the root. Common tasks:
 

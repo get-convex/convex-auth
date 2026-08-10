@@ -110,22 +110,35 @@ export const vAuthClaims = v.object({
 
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
+/**
+ * The arguments for the app's `createOrUpdateUser` mutation.
+ *
+ * The mutation accepts two call shapes:
+ *
+ * 1. A sign-in call. All the fields are set. The `userId` field is `null`
+ *    for the first sign-in of an account, and the app user id after that.
+ * 2. A call with no arguments. The app must create a new empty user row
+ *    and return its id. A provider makes this call when it must create a
+ *    user before an account exists. For example, the passkey provider
+ *    creates the user row before the WebAuthn ceremony, because the row id
+ *    is the WebAuthn user handle.
+ */
 export const vCreateOrUpdateUser = v.object({
-  provider: v.string(),
-  providerAccountId: v.string(),
-  profile: v.any(),
-  userId: v.union(v.string(), v.null()),
+  provider: v.optional(v.string()),
+  providerAccountId: v.optional(v.string()),
+  profile: v.optional(v.any()),
+  userId: v.optional(v.union(v.string(), v.null())),
 });
 
 export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
   "mutation",
   "internal",
   {
-    provider: Provider;
-    providerAccountId: string;
+    provider?: Provider;
+    providerAccountId?: string;
     // TODO: dowski - investigate type safety for provider profile data.
-    profile: unknown;
-    userId: string | null;
+    profile?: unknown;
+    userId?: string | null;
   },
   GenericId<"users">
 >;
@@ -138,9 +151,10 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
 type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
 
 /**
- * The subset of a Convex `ctx` that {@link ResolveUserIdFunc} needs. It only
- * calls `runQuery`, so accepting this structural type lets a provider resolve
- * a user id from either a mutation or an action.
+ * The subset of a Convex `ctx` that the read-only provider helpers (for
+ * example {@link ResolveUserIdFunc}) need. They only call `runQuery`, so
+ * accepting this structural type lets a provider use them from a query, a
+ * mutation, or an action.
  */
 type RunQueryCtx = Pick<GenericActionCtx<GenericDataModel>, "runQuery">;
 
@@ -163,9 +177,65 @@ export type ResolveUserIdFunc = (
   providerAccountId: string,
 ) => Promise<string | null>;
 
+/**
+ * A function that finds the provider account ID (bound to a particular
+ * provider) that is associated with a user ID. This is the reverse of
+ * {@link ResolveUserIdFunc}.
+ *
+ * It returns `null` when the user has no account for the provider. It
+ * throws when the user has more than one account for the provider, so use
+ * it only with providers that keep at most one account for each user.
+ */
+export type ResolveProviderAccountIdFunc = (
+  ctx: RunQueryCtx,
+  userId: string,
+) => Promise<string | null>;
+
+/**
+ * A function that changes the provider account ID of a user's account
+ * (bound to a particular provider). A provider that keys its accounts by a
+ * user-visible identifier can use it when that identifier changes.
+ *
+ * The change fails when a different account of the same provider already
+ * uses the new account ID. Sessions stay valid across the change.
+ */
+export type RenameProviderAccountFunc = (
+  ctx: RunMutationCtx,
+  args: { userId: string; newProviderAccountId: string },
+) => Promise<
+  { success: true } | { success: false; reason: "ACCOUNT_ID_TAKEN" }
+>;
+
+/**
+ * The full argument set of a sign-in call to the app's `createOrUpdateUser`
+ * mutation. See {@link vCreateOrUpdateUser} for the two call shapes.
+ */
+export type CreateOrUpdateUserArgs = {
+  provider: string;
+  providerAccountId: string;
+  profile: unknown;
+  userId: string | null;
+};
+
+/**
+ * A function that runs the app's `createOrUpdateUser` mutation directly.
+ * It does not create an account row and it does not mint a session.
+ *
+ * Call it without `args` to make the app create a new empty user row and
+ * return its id. Call it with the full `args` to make the app update its
+ * user record, for example after a username change.
+ */
+export type RunCreateOrUpdateUserFunc = (
+  ctx: RunMutationCtx,
+  args?: CreateOrUpdateUserArgs,
+) => Promise<string>;
+
 export type ProviderHelpers = {
   completeSignIn: CompleteSignInFunc;
   resolveUserId: ResolveUserIdFunc;
+  resolveProviderAccountId: ResolveProviderAccountIdFunc;
+  renameProviderAccount: RenameProviderAccountFunc;
+  createOrUpdateUser: RunCreateOrUpdateUserFunc;
 };
 
 type ProviderSetupFunc<O, P> = (helpers: ProviderHelpers, options: O) => P;

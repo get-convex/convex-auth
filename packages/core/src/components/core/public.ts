@@ -262,6 +262,95 @@ export const getUserIdByAccount = query({
 });
 
 /**
+ * Find the single account of `provider` that belongs to `userId`.
+ *
+ * Returns `null` when the user has no account for the provider. Throws when
+ * the user has more than one account for the provider: callers use this for
+ * providers that keep at most one account for each user, so more than one
+ * account shows corrupted data.
+ */
+async function singleAccountByUser(
+  ctx: QueryCtx,
+  provider: string,
+  userId: string,
+): Promise<Doc<"accounts"> | null> {
+  const accounts = await ctx.db
+    .query("accounts")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  const matches = accounts.filter((account) => account.provider === provider);
+  if (matches.length > 1) {
+    throw new Error(`User ${userId} has more than one "${provider}" account.`);
+  }
+  return matches[0] ?? null;
+}
+
+/**
+ * Resolve an app user id to its provider account id. This is the reverse of
+ * `getUserIdByAccount`.
+ *
+ * Providers use this (via the `resolveProviderAccountId` helper) when they
+ * know the user but not the account. For example, the passkey provider
+ * finds the username of an authenticated credential this way. Returns
+ * `null` when no account exists. Throws when the user has more than one
+ * account for the provider, so use it only with providers that keep at
+ * most one account for each user.
+ */
+export const getProviderAccountId = query({
+  args: { provider: v.string(), userId: v.string() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, { provider, userId }): Promise<string | null> => {
+    const account = await singleAccountByUser(ctx, provider, userId);
+    return account?.providerAccountId ?? null;
+  },
+});
+
+const renameAccountResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    reason: v.literal("ACCOUNT_ID_TAKEN"),
+  }),
+);
+
+/**
+ * Change the provider account id of a user's account. For example, the
+ * passkey provider stores the username as the account id, so a username
+ * change is a rename of the account.
+ *
+ * The rename fails with `ACCOUNT_ID_TAKEN` when a different account of the
+ * same provider already uses the new id. A rename to the current id is a
+ * no-op that succeeds. Sessions point at the account row by id, so they
+ * stay valid across the rename. Throws when the user has no account for
+ * the provider, because that shows a caller bug, not a user error.
+ */
+export const renameAccount = mutation({
+  args: {
+    provider: v.string(),
+    userId: v.string(),
+    newProviderAccountId: v.string(),
+  },
+  returns: renameAccountResult,
+  handler: async (ctx, { provider, userId, newProviderAccountId }) => {
+    const account = await singleAccountByUser(ctx, provider, userId);
+    if (account === null) {
+      throw new Error(`User ${userId} has no "${provider}" account.`);
+    }
+    if (account.providerAccountId === newProviderAccountId) {
+      return { success: true as const };
+    }
+    const taken = await accountByIdentity(ctx, provider, newProviderAccountId);
+    if (taken !== null) {
+      return { success: false as const, reason: "ACCOUNT_ID_TAKEN" as const };
+    }
+    await ctx.db.patch("accounts", account._id, {
+      providerAccountId: newProviderAccountId,
+    });
+    return { success: true as const };
+  },
+});
+
+/**
  * Rotate a refresh token and mint a fresh access token. Returns `null` when the
  * session can't be refreshed. That can happen with an unknown token, or one
  * past its refresh-token lifetime. A dead session is a normal outcome the
