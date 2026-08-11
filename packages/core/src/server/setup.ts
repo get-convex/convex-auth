@@ -29,6 +29,7 @@ export interface ConvexAuthServerConfig {
   signOut: SignOutFn;
   /**
    * The provider sign-in functions to expose through the auth proxy.
+   * This should include all the Convex backend functions in your app that can issue auth sessions (e.g. account creation, log in with existing account…).
    *
    * Anything not listed is refused, so this allowlist is the proxy's entire API
    * surface. Listing a function here is all the wiring an auth method needs.
