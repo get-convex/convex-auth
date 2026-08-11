@@ -18,6 +18,8 @@
  * @module
  */
 
+import type { AuthSessionResponse } from "../lib/types";
+
 /**
  * Extracts just the host portion from an `origin`.
  *
@@ -61,9 +63,11 @@ export function isTrustedOrigin(
 }
 
 /**
- * The uniform reply for a refused cross-site request: 403, `{ tokens: null }`
- * (the handlers' response shape), and no cookie headers.
+ * The uniform reply for a refused cross-site request: 403, an
+ * {@link AuthSessionResponse} carrying `tokens: null`, and no cookie headers.
  */
 export function forbiddenOriginResponse(): Response {
-  return Response.json({ tokens: null }, { status: 403 });
+  return Response.json({ tokens: null } satisfies AuthSessionResponse, {
+    status: 403,
+  });
 }

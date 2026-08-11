@@ -7,10 +7,16 @@ import {
 import { GenericId, Infer, v } from "convex/values";
 
 /**
- * Shared contracts that cross the core/app boundary. That includes validators (and
- * their inferred types) for what the core's session functions accept and return
- * and any function references. Each is declared once here and reused wherever the
- * core or the app needs it, so the shapes can never drift between declaration sites.
+ * Shared contracts that cross a module boundary within Convex Auth. That includes
+ * validators (and their inferred types) for what the core's session functions
+ * accept and return, any function references, and the wire shapes an SSR host's
+ * auth routes exchange with the browser. Each is declared once here and reused
+ * wherever the core, the app, the server handlers or the client needs it, so the
+ * shapes can never drift between declaration sites.
+ *
+ * This module deliberately depends on nothing else in the package, which is what
+ * lets both the server and the browser halves import from it without either
+ * reaching into the other's tree.
  */
 
 /**
@@ -67,6 +73,17 @@ export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
     userId: bundle.userId,
   };
 }
+
+/**
+ * The JSON body of every SSR auth session response: the refresh handler, the
+ * sign-out handler, and the cross-site refusal all reply with this shape, and
+ * the client parses it without looking at the status. `tokens` is null whenever
+ * there is no live session to report (a dead or missing refresh cookie, a
+ * completed sign-out, a refused origin).
+ */
+export type AuthSessionResponse = {
+  tokens: SlimTokenBundle | null;
+};
 
 /**
  * A provider result as clients see it, with the token bundle narrowed to what

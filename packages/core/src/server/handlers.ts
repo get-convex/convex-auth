@@ -21,7 +21,11 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import type { RefreshSessionFn, SignOutFn } from "../lib/types";
+import type {
+  AuthSessionResponse,
+  RefreshSessionFn,
+  SignOutFn,
+} from "../lib/types";
 import { makeSlimBundle } from "../lib/types";
 import {
   AUTH_REFRESH_COOKIE,
@@ -51,9 +55,9 @@ export interface RefreshHandlerConfig {
 
 /**
  * A handler that rotates the session from the httpOnly refresh-token cookie and
- * rewrites both cookies, replying `{ tokens: SlimTokenBundle }`. When there is
- * no session to rotate (missing or unrecognized refresh cookie) it replies 401
- * with `{ tokens: null }`.
+ * rewrites both cookies, replying with an {@link AuthSessionResponse} carrying
+ * the fresh bundle. When there is no session to rotate (missing or unrecognized
+ * refresh cookie) it replies 401 with `tokens: null`.
  */
 export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
@@ -71,8 +75,12 @@ export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
     const bundle = await session.refresh();
     const res =
       bundle === null
-        ? Response.json({ tokens: null }, { status: 401 })
-        : Response.json({ tokens: makeSlimBundle(bundle) });
+        ? Response.json({ tokens: null } satisfies AuthSessionResponse, {
+            status: 401,
+          })
+        : Response.json({
+            tokens: makeSlimBundle(bundle),
+          } satisfies AuthSessionResponse);
     cookies.applyTo(res.headers);
     return res;
   };
@@ -94,7 +102,8 @@ export interface SignOutHandlerConfig {
 
 /**
  * A handler that revokes the session from the httpOnly refresh-token cookie
- * (best effort) and clears both cookies, replying `{ tokens: null }`.
+ * (best effort) and clears both cookies, replying with an
+ * {@link AuthSessionResponse} carrying `tokens: null`.
  */
 export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
@@ -112,7 +121,7 @@ export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
       }
     }
     await clearAuthCookies(cookies, config.cookieOptions);
-    const res = Response.json({ tokens: null });
+    const res = Response.json({ tokens: null } satisfies AuthSessionResponse);
     cookies.applyTo(res.headers);
     return res;
   };

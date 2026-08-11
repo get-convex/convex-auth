@@ -15,7 +15,7 @@
  * than talking to Convex directly.
  *
  * Sign-in likewise runs on the server, but providers need no SSR-specific hook
- * for it. {@link ConvexAuthNextjsProvider} supplies an {@link AuthRunner} backed
+ * for it. {@link ConvexAuthNextjsProvider} supplies an {@link AuthSignInApi} backed
  * by a `ConvexHttpClient` aimed at the SSR host's auth proxy, so a provider's
  * normal client hook works unchanged: the proxy mints the session, stashes the
  * refresh token in the cookie, and returns an access-only
@@ -30,7 +30,7 @@ import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
-import type { SlimTokenBundle } from "../lib/types";
+import type { AuthSessionResponse } from "../lib/types";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client";
 
 export { useConvexAuth } from "convex/react";
@@ -42,22 +42,20 @@ export { useAuthActions, useAuthToken } from "../react";
  *
  * These two have their own handlers rather than going through the auth proxy,
  * because the refresh token they need is in the cookie rather than in any
- * argument the client could pass. Both reply with the same JSON shape on
- * failure as on success (a dead session is a 401 carrying `{ tokens: null }`),
- * so the body is parsed regardless of status. Anything without a JSON body
- * degrades to `{ tokens: null }`.
+ * argument the client could pass. Both reply with an
+ * {@link AuthSessionResponse} on failure as on success (a dead session is a 401
+ * carrying `tokens: null`), so the body is parsed regardless of status. Anything
+ * without a JSON body degrades to `tokens: null`.
  */
-async function postAuth(
-  route: string,
-): Promise<{ tokens: SlimTokenBundle | null }> {
+async function postAuth(route: string): Promise<AuthSessionResponse> {
   const res = await fetch(route, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: "{}",
   });
-  return (await res.json().catch(() => ({ tokens: null }))) as {
-    tokens: SlimTokenBundle | null;
-  };
+  return (await res
+    .json()
+    .catch(() => ({ tokens: null }))) as AuthSessionResponse;
 }
 
 /**

@@ -51,6 +51,7 @@ export {
   type ServerAuthCheckerConfig,
 } from "./isAuthenticated";
 export type {
+  AuthSessionResponse,
   ClientView,
   ConvexAuthApi,
   IsAuthenticatedFn,
