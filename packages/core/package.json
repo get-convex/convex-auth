@@ -37,6 +37,8 @@
     "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
     "./providers/password/react": "./src/components/password/react.tsx",
     "./providers/password/*": "./src/components/password/*.ts",
+    "./providers/passkey/convex.config.js": "./src/components/passkey/convex.config.ts",
+    "./providers/passkey/*": "./src/components/passkey/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",
     "./server": "./src/server/index.ts",
@@ -51,6 +53,8 @@
   },
   "dependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
+    "@oslojs/crypto": "^1.0.1",
+    "@oslojs/webauthn": "^1.0.0",
     "argon2id-wasm": "0.0.0-alpha.1",
     "commander": "^14.0.2",
     "cookie": "1.1.1",
