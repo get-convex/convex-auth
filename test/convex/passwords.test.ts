@@ -127,11 +127,12 @@ test("password reset flow", async () => {
   });
 
   // Request password reset
-  const { code } = await mockResendOTP(async () =>
-    await t.action(api.auth.signIn, {
-      provider: "password-with-reset",
-      params: { email: "sarah@gmail.com", flow: "reset" },
-    }),
+  const { code } = await mockResendOTP(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "password-with-reset",
+        params: { email: "sarah@gmail.com", flow: "reset" },
+      }),
   );
 
   // Complete reset with new password
@@ -172,6 +173,43 @@ test("password reset flow", async () => {
   expect(tokens2).not.toBeNull();
 });
 
+test("a reset code redeemed without its provider is not consumed", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+
+  await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "sarah@gmail.com",
+      password: "44448888",
+      flow: "signUp",
+    },
+  });
+
+  const { code } = await mockResendOTP(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "password-with-reset",
+        params: { email: "sarah@gmail.com", flow: "reset" },
+      }),
+  );
+
+  const result = await t.action(api.auth.signIn, { params: { code } });
+  expect(result).toEqual({ tokens: null });
+
+  const { tokens } = await t.action(api.auth.signIn, {
+    provider: "password-with-reset",
+    params: {
+      email: "sarah@gmail.com",
+      code,
+      newPassword: "99991111",
+      flow: "reset-verification",
+    },
+  });
+
+  expect(tokens).not.toBeNull();
+});
+
 test("password reset code cannot be used for a different account", async () => {
   setupEnv();
   const t = convexTest(schema);
@@ -196,11 +234,12 @@ test("password reset code cannot be used for a different account", async () => {
   });
 
   // Attacker requests reset code for their own account
-  const { code } = await mockResendOTP(async () =>
-    await t.action(api.auth.signIn, {
-      provider: "password-with-reset",
-      params: { email: "attacker@gmail.com", flow: "reset" },
-    }),
+  const { code } = await mockResendOTP(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "password-with-reset",
+        params: { email: "attacker@gmail.com", flow: "reset" },
+      }),
   );
 
   // Attacker tries to use their code with victim's email
@@ -253,11 +292,12 @@ test("password reset code cannot be used for a different account (raw EmailConfi
   });
 
   // Attacker requests reset code for their own account
-  const { code } = await mockResendOTP(async () =>
-    await t.action(api.auth.signIn, {
-      provider: "password-raw-reset",
-      params: { email: "attacker@gmail.com", flow: "reset" },
-    }),
+  const { code } = await mockResendOTP(
+    async () =>
+      await t.action(api.auth.signIn, {
+        provider: "password-raw-reset",
+        params: { email: "attacker@gmail.com", flow: "reset" },
+      }),
   );
 
   // Attacker tries to use their code with victim's email.

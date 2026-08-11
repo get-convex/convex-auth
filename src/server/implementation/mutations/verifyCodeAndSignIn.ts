@@ -129,7 +129,6 @@ async function verifyCodeOnly(
     logWithLevel(LOG_LEVELS.INFO, "Invalid verification code");
     return null;
   }
-  await ctx.db.delete(verificationCode._id);
   if (verificationCode.verifier !== verifier) {
     // Expected: e.g. a magic link opened in a different browser than it was requested
     // from. Normal sign-in failure.
@@ -139,6 +138,7 @@ async function verifyCodeOnly(
   if (verificationCode.expirationTime < Date.now()) {
     // Expected: the user took too long, or followed a stale magic link.
     logWithLevel(LOG_LEVELS.INFO, "Expired verification code");
+    await ctx.db.delete(verificationCode._id);
     return null;
   }
   const { accountId, emailVerified, phoneVerified } = verificationCode;
@@ -163,21 +163,49 @@ async function verifyCodeOnly(
     );
     return null;
   }
-  // OTP providers perform an additional check against the provided
-  // params.
-  const methodProvider = getProviderOrThrow(
+  const methodProvider = Provider.getProviderOrNull(
+    getProviderOrThrow,
     verificationCode.provider,
     allowExtraProviders,
   );
+  if (methodProvider === null) {
+    logWithLevel(
+      LOG_LEVELS.WARN,
+      `Provider "${verificationCode.provider}" which generated this \`code\` ` +
+        `is not available here`,
+    );
+    return null;
+  }
+
   if (
-    methodProvider !== null &&
     (methodProvider.type === "email" || methodProvider.type === "phone") &&
     methodProvider.authorize !== undefined
   ) {
-    await methodProvider.authorize(args.params, account);
+    try {
+      await methodProvider.authorize(args.params, account);
+    } catch (error) {
+      logWithLevel(
+        LOG_LEVELS.WARN,
+        "Verification code failed the provider's `authorize` check",
+        error,
+      );
+      return null;
+    }
   }
+  const provider = Provider.getProviderOrNull(
+    getProviderOrThrow,
+    account.provider,
+  );
+  if (provider === null) {
+    logWithLevel(
+      LOG_LEVELS.WARN,
+      `Provider "${account.provider}" for this account is not configured`,
+    );
+    return null;
+  }
+  // Every check passed, so consume the code.
+  await ctx.db.delete(verificationCode._id);
   let userId = account.userId;
-  const provider = getProviderOrThrow(account.provider);
   if (!(provider.type === "oauth" || provider.type === "oidc")) {
     ({ userId } = await upsertUserAndAccount(
       ctx,
