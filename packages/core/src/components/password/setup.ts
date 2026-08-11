@@ -1,4 +1,4 @@
-import { actionGeneric } from "convex/server";
+import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import { defineProvider, vTokenBundle } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
@@ -77,7 +77,8 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
- * actions so its clients can call them.
+ * mutations so its clients can call them. Each flow is a single mutation, so
+ * all of its writes commit together or not at all.
  *
  * Account resolution (username → app user id) is owned by the core's `accounts`
  * table: the recipe uses the lowercased username as the provider account id, and
@@ -98,18 +99,23 @@ export const UsernamePassword = defineProvider({
        * Create a new account: reject a taken username or an invalid password,
        * otherwise create the user + session and store the password.
        */
-      signUpWithPassword: actionGeneric({
+      signUpWithPassword: mutationGeneric({
         args: { username: v.string(), password: v.string() },
         returns: signUpResult,
         handler: async (ctx, { username, password }): Promise<SignUpResult> => {
           // Validate the password *before* creating anything, so an invalid
-          // password never mints a session. (`setPassword` re-validates, but by
-          // then the account would already exist.)
+          // password never mints a session. (`setPassword` re-validates, but
+          // a failure there must throw to roll the transaction back, so this
+          // early check keeps the normal failure path a plain return.)
           const userError = validatePasswordInputFormat(password);
           if (userError !== null) {
             return { success: false, userError };
           }
 
+          // This check and the account creation below run in one transaction.
+          // Two concurrent sign-ups for the same username cannot interleave:
+          // both read and write the accounts table, so Convex serializes
+          // them, and the loser gets `USERNAME_TAKEN` here.
           const normalizedUsername = normalizeUsername(username);
           const existing = await resolveUserId(ctx, normalizedUsername);
           if (existing !== null) {
@@ -134,13 +140,14 @@ export const UsernamePassword = defineProvider({
           );
           if (!setResult.success) {
             // Unexpected: we pre-validated the password above,
-            // so this call should not fail.
-            // Throwing so that the transaction doesn’t commit.
-            //
-            // TODO(nicolas) can we improve this?
+            // so this call cannot fail here.
+            // Throw instead of returning the user error: a return would
+            // commit the user and account rows created above, a throw rolls
+            // the whole transaction back.
             throw new Error(
-              "Unexpected error when setting the password: " + userError,
-              { cause: userError },
+              "Unexpected error when setting the password: " +
+                setResult.userError.error,
+              { cause: setResult.userError },
             );
           }
 
@@ -155,7 +162,7 @@ export const UsernamePassword = defineProvider({
        * the two apart. (Account existence is already observable via sign-up's
        * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
        */
-      signInWithPassword: actionGeneric({
+      signInWithPassword: mutationGeneric({
         args: { username: v.string(), password: v.string() },
         returns: signInResult,
         handler: async (ctx, { username, password }): Promise<SignInResult> => {

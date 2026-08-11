@@ -138,6 +138,13 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
 type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
 
 /**
+ * The subset of a Convex `ctx` that {@link ResolveUserIdFunc} needs. It only
+ * calls `runQuery`, so accepting this structural type lets a provider resolve
+ * a user id from either a mutation or an action.
+ */
+type RunQueryCtx = Pick<GenericActionCtx<GenericDataModel>, "runQuery">;
+
+/**
  * Exchanges verified auth claims for a bundle.
  */
 export type CompleteSignInFunc = (
@@ -152,7 +159,7 @@ export type CompleteSignInFunc = (
  * This does not mint a session or edit any data.
  */
 export type ResolveUserIdFunc = (
-  ctx: GenericActionCtx<GenericDataModel>,
+  ctx: RunQueryCtx,
   providerAccountId: string,
 ) => Promise<string | null>;
 
