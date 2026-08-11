@@ -140,14 +140,13 @@ export const UsernamePassword = defineProvider({
           );
           if (!setResult.success) {
             // Unexpected: we pre-validated the password above,
-            // so this call cannot fail here.
-            // Throw instead of returning the user error: a return would
-            // commit the user and account rows created above, a throw rolls
-            // the whole transaction back.
+            // so this call should not fail.
+            // Throwing so that the transaction doesn’t commit.
+            //
+            // TODO(nicolas) can we improve this?
             throw new Error(
-              "Unexpected error when setting the password: " +
-                setResult.userError.error,
-              { cause: setResult.userError },
+              "Unexpected error when setting the password: " + userError,
+              { cause: userError },
             );
           }
 
