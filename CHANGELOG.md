@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.95
 
 - fix: a failed OTP/magic-link sign-in no longer consumes the verification code
   it rejected
