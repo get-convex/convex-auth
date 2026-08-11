@@ -28,23 +28,27 @@ const handler = authProxyHandler({
 });
 
 /**
- * A request shaped the way `ConvexHttpClient` shapes one. Same-origin by
- * default, since the CSRF guard refuses anything else before the body is read.
+ * A request shaped the way `ConvexHttpClient` shapes one, with the endpoint in
+ * the `path` parameter. Same-origin by default, since the CSRF guard refuses
+ * anything else before the body is read.
  */
 function call(
   body: unknown,
   opts: { kind?: string; headers?: Record<string, string> } = {},
 ) {
-  return new Request(`https://app.test/auth/api/${opts.kind ?? "action"}`, {
-    method: "POST",
-    headers: {
-      origin: "https://app.test",
-      host: "app.test",
-      "content-type": "application/json",
-      ...opts.headers,
+  return new Request(
+    `https://app.test/auth/proxy?path=/api/${opts.kind ?? "action"}`,
+    {
+      method: "POST",
+      headers: {
+        origin: "https://app.test",
+        host: "app.test",
+        "content-type": "application/json",
+        ...opts.headers,
+      },
+      body: typeof body === "string" ? body : JSON.stringify(body),
     },
-    body: typeof body === "string" ? body : JSON.stringify(body),
-  });
+  );
 }
 
 const envelope = (args: unknown = {}) => ({
@@ -160,6 +164,19 @@ describe("what the proxy refuses", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  test("a request that names no endpoint at all", async () => {
+    const fetchSpy = upstream({ status: "success", value: null });
+    const response = await handler(
+      new Request("https://app.test/auth/proxy", {
+        method: "POST",
+        headers: { origin: "https://app.test", host: "app.test" },
+        body: JSON.stringify(envelope()),
+      }),
+    );
+    expect(response.status).toBe(404);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   test("a malformed body", async () => {
     const fetchSpy = upstream({ status: "success", value: null });
     const response = await handler(call("not json"));
@@ -262,16 +279,18 @@ describe("ConvexHttpClient wire contract", () => {
   // deployment that are not part of convex's public API surface. If a convex
   // bump changes any of them, this fails here rather than silently in an app.
   test("a real client's request is one the proxy understands, and its reply parses", async () => {
-    const client = new ConvexHttpClient("/auth", {
+    const client = new ConvexHttpClient("/auth/proxy?path=", {
       skipConvexDeploymentUrlCheck: true,
       logger: false,
     });
 
     // Stand in for the browser: let the real client build the request, run it
     // through the proxy, and hand the proxy's response back to the client.
+    let posted: string | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
       if (url.startsWith("/auth")) {
+        posted = url;
         // The client posts a relative URL; give it an origin the guard accepts.
         return handler(
           new Request(`https://app.test${url}`, {
@@ -302,6 +321,10 @@ describe("ConvexHttpClient wire contract", () => {
       { username: "alice" },
     );
 
+    // The endpoint went into the query string, leaving the mount point static:
+    // this is what lets an app mount the handler without a catch-all route.
+    expect(posted).toBe("/auth/proxy?path=/api/action");
+
     // The client parsed the proxy's reply, and the refresh token is gone.
     expect(result).toEqual({
       success: true,
@@ -314,7 +337,7 @@ describe("ConvexHttpClient wire contract", () => {
   });
 
   test("a thrown function surfaces to a real client as an error", async () => {
-    const client = new ConvexHttpClient("/auth", {
+    const client = new ConvexHttpClient("/auth/proxy?path=", {
       skipConvexDeploymentUrlCheck: true,
       logger: false,
     });

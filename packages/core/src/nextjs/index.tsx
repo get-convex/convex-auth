@@ -75,7 +75,7 @@ export function ConvexAuthNextjsProvider({
   initialToken = null,
   refreshRoute = "/auth/refresh",
   signOutRoute = "/auth/signout",
-  proxyRoute = "/auth",
+  proxyRoute = "/auth/proxy",
   storage,
   children,
 }: {
@@ -91,8 +91,8 @@ export function ConvexAuthNextjsProvider({
   refreshRoute?: string;
   /** Route that revokes the session and clears cookies. */
   signOutRoute?: string;
-  /** Base route the auth proxy is mounted at, i.e. where `auth.proxyHandler`
-   * serves `/api/mutation` and `/api/action`. Provider sign-in calls go here. */
+  /** Route the auth proxy is mounted at, i.e. the single route file exporting
+   * `auth.proxyHandler`. Provider sign-in calls go here. */
   proxyRoute?: string;
   /** A custom {@link TokenStorage}. Defaults to `localStorage` in the browser.
    * Under SSR, it only stores the access token. */
@@ -124,8 +124,10 @@ export function ConvexAuthNextjsProvider({
     // `ConvexHttpClient` wire format, so this is a real Convex client pointed at
     // the SSR host: no bespoke request shape, and args and errors keep their
     // encoding. The address is relative, hence skipping the URL check, and
-    // same-origin fetch sends the auth cookies automatically.
-    const proxy = new ConvexHttpClient(proxyRoute, {
+    // same-origin fetch sends the auth cookies automatically. The trailing
+    // `?path=` puts the endpoint the client appends into the query string, so
+    // `proxyRoute` can be a static route rather than a catch-all.
+    const proxy = new ConvexHttpClient(`${proxyRoute}?path=`, {
       skipConvexDeploymentUrlCheck: true,
       logger: convex.logger,
     });

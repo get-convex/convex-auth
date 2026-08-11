@@ -8,7 +8,7 @@ access token.
 
 - **Sign-in / refresh / sign-out run on the server** as framework-agnostic
   `(Request) => Response` handlers, mounted under `app/auth/`:
-  - `app/auth/[...convex]/route.ts` → `proxyHandler`, the auth proxy for every
+  - `app/auth/proxy/route.ts` → `proxyHandler`, the auth proxy for every
     sign-in method
   - `app/auth/refresh/route.ts` → `refreshHandler`
   - `app/auth/signout/route.ts` → `signOutHandler`

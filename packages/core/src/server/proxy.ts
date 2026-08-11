@@ -70,8 +70,9 @@ export interface AuthProxyConfig {
 }
 
 /**
- * The `ConvexHttpClient` endpoints the proxy serves, matched against the tail of
- * the request path so the app can mount the handler at any prefix.
+ * The `ConvexHttpClient` endpoints the proxy serves. The client's address ends
+ * in `?path=`, so the endpoint it appends arrives as a query parameter
+ * (`/auth/proxy?path=/api/mutation`) and the handler mounts at a static route.
  *
  * `query_ts`/`query_at_ts` are deliberately absent: consistent-timestamp reads
  * have nothing to do with auth.
@@ -86,8 +87,10 @@ type UdfKind = (typeof UDF_KINDS)[number];
  */
 const UDF_FAILED_STATUS = 560;
 
-function udfKindOf(pathname: string): UdfKind | null {
-  return UDF_KINDS.find((kind) => pathname.endsWith(`/api/${kind}`)) ?? null;
+function udfKindOf(url: URL): UdfKind | null {
+  const path = url.searchParams.get("path");
+  if (path === null) return null;
+  return UDF_KINDS.find((kind) => path === `/api/${kind}`) ?? null;
 }
 
 /** The envelope `ConvexHttpClient` posts for a function call. */
@@ -159,12 +162,12 @@ function textError(status: number, message: string): Response {
 /**
  * Build the route that serves every allowlisted sign-in function.
  *
- * Mount it once, at any prefix; it matches the `/api/{query,mutation,action}`
- * tail itself. Adding an auth method means adding its function to
- * {@link AuthProxyConfig.signIn}, not adding another route.
+ * Mount it once, at a static path of your choosing. Adding an auth method means
+ * adding its function to {@link AuthProxyConfig.signIn}, not adding another
+ * route.
  *
  * ```ts
- * // app/auth/[...convex]/route.ts
+ * // app/auth/proxy/route.ts
  * export const POST = auth.proxyHandler;
  * ```
  */
@@ -179,7 +182,7 @@ export function authProxyHandler(config: AuthProxyConfig): RequestHandler {
       return forbiddenOriginResponse();
     }
 
-    const kind = udfKindOf(new URL(request.url).pathname);
+    const kind = udfKindOf(new URL(request.url));
     if (kind === null) return textError(404, "Not an auth proxy endpoint.");
 
     let envelope: CallEnvelope | null;

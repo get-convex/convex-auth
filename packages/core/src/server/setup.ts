@@ -55,7 +55,7 @@ export interface ConvexAuthServerConfig {
  *   cookieOptions: { secure: process.env.NODE_ENV === "production" },
  * });
  *
- * // app/auth/[...convex]/route.ts serves every method listed in `signIn`
+ * // app/auth/proxy/route.ts serves every method listed in `signIn`
  * export const POST = auth.proxyHandler;
  * ```
  */
@@ -75,13 +75,13 @@ export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
       allowedOrigins,
     }),
     /**
-     * The catch-all sign-in route.
+     * The sign-in route.
      *
-     * Mount it once and every function in `signIn` is reachable from its
-     * provider's normal client hook.
+     * Mount it once, at a static path, and every function in `signIn` is
+     * reachable from its provider's normal client hook.
      *
      * ```ts
-     * // app/auth/[...convex]/route.ts
+     * // app/auth/proxy/route.ts
      * export const POST = auth.proxyHandler;
      * ```
      */
