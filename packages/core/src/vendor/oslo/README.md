@@ -8,6 +8,8 @@ instead of coming in as npm dependencies.
 All of the code is MIT-licensed, Copyright (c) 2024 pilcrowOnPaper (see the
 `LICENSE` file in this directory).
 
+<!-- TODO(nicolas) Consider whether we should consider using another library instead of vendoring Oslo -->
+
 ## Sources
 
 Each directory mirrors one Oslo package, and the file layout follows the
