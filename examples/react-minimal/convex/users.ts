@@ -1,23 +1,22 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
-export const upsertFromAuth = internalMutation({
+export const createOrUpdateUser = internalMutation({
   args: {
-    provider: v.union(v.literal("anonymous")),
+    provider: v.literal("anonymous"),
     providerAccountId: v.string(),
-    profile: v.any(),
+    profile: v.object({}),
     userId: v.union(v.string(), v.null()),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
-    switch (args.provider) {
-      case "anonymous": {
-        return ctx.db.insert("users", {});
+    if (args.userId !== null) {
+      const existing = ctx.db.normalizeId("users", args.userId);
+      if (existing === null) {
+        throw new Error(`Unknown user id: ${args.userId}`);
       }
-      default: {
-        const _exhaustive: never = args.provider;
-        return _exhaustive;
-      }
+      return existing;
     }
+    return ctx.db.insert("users", {});
   },
 });

@@ -1,48 +1,84 @@
 import {
+  actionGeneric,
+  createFunctionHandle,
+  GenericActionCtx,
+  GenericDataModel,
+  GenericMutationCtx,
   mutationGeneric,
   queryGeneric,
-  createFunctionHandle,
+  RegisteredAction,
   RegisteredMutation,
   RegisteredQuery,
+  ReturnValueForOptionalValidator,
 } from "convex/server";
-import { v } from "convex/values";
+import { ObjectType, PropertyValidators, v, Validator } from "convex/values";
 import type { ComponentApi } from "./_generated/component";
 import {
   vTokenBundle,
   type TokenBundle,
-  ProviderConfig,
-  CompleteSignInFunc,
-  ResolveUserIdFunc,
-  CreateOrUpdateUserFn,
+  type ConvexAuthCtx,
+  type CreateOrUpdateUserFn,
 } from "../../lib/types";
 
-// Helper: pairs a `ProviderConfig` with its options, preserving `Name`, `Options` and `Api` individually.
-// TODO: dowski - consider whether this function should exist, or whether defineProvider
-// should return a function that's callable with the options.
-export function provider<Name extends string, Options, Api>(
-  config: ProviderConfig<Name, Options, Api>,
-  // `NoInfer` means we type error on extra properties as long as options are defined inline.
-  options: NoInfer<Options>,
-): readonly [ProviderConfig<Name, Options, Api>, Options] {
-  return [config, options] as const;
-}
+/**
+ * A type for a factory that returns a `RegisteredMutation` with a handler that
+ * has access to provider-bound auth helpers on `ctx.convexAuth`.
+ *
+ * The signature mirrors convex's own `MutationBuilder` inference, simplified
+ * where providers never need the generality: `args` is required (dropping the
+ * zero-arg/function shorthand machinery) and there is no app data model
+ * (providers are app-agnostic; their storage lives behind their own
+ * component's functions). `returns` keeps convex's exact optional-validator
+ * scheme: with a validator, the handler's return is constrained to (a promise
+ * of) its type; without one, it falls back to whatever the handler declares.
+ */
+export type AuthMutationBuilder<Profile> = <
+  ArgsValidator extends PropertyValidators,
+  ReturnsValidator extends
+    PropertyValidators | Validator<unknown, "required", string> | void,
+  ReturnValue extends ReturnValueForOptionalValidator<ReturnsValidator> =
+    ReturnValueForOptionalValidator<ReturnsValidator>,
+>(fn: {
+  args: ArgsValidator;
+  returns?: ReturnsValidator;
+  handler: (
+    ctx: GenericMutationCtx<GenericDataModel> & ConvexAuthCtx<Profile>,
+    args: ObjectType<ArgsValidator>,
+  ) => ReturnValue;
+}) => RegisteredMutation<"public", ObjectType<ArgsValidator>, ReturnValue>;
 
-// An explicitly loosely typed tuple of [ProviderConfig, Options]. The `any`s are
-// intentional: this is a constraint that concrete provider tuples must extend, and
-// `unknown` would break assignability via contravariance in `ProviderConfig.setup`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ProviderWithOptions = readonly [ProviderConfig<any, any, any>, any];
+/** The action flavor of {@link AuthMutationBuilder}. */
+export type AuthActionBuilder<Profile> = <
+  ArgsValidator extends PropertyValidators,
+  ReturnsValidator extends
+    PropertyValidators | Validator<unknown, "required", string> | void,
+  ReturnValue extends ReturnValueForOptionalValidator<ReturnsValidator> =
+    ReturnValueForOptionalValidator<ReturnsValidator>,
+>(fn: {
+  args: ArgsValidator;
+  returns?: ReturnsValidator;
+  handler: (
+    ctx: GenericActionCtx<GenericDataModel> & ConvexAuthCtx<Profile>,
+    args: ObjectType<ArgsValidator>,
+  ) => ReturnValue;
+}) => RegisteredAction<"public", ObjectType<ArgsValidator>, ReturnValue>;
 
-// Maps a tuple of entries to
-// { [ProviderConfig.name]: ReturnType<ProviderConfig.setup> } by distributing
-// over the tuple's union.
-type ProviderApis<T extends readonly ProviderWithOptions[]> = {
-  [K in T[number] as K[0]["name"]]: ReturnType<K[0]["setup"]>;
+/**
+ * The function builders a provider gets from {@link AuthCore.bindProvider}.
+ *
+ * Each builds a public Convex function whose handler receives the
+ * provider-bound helpers on `ctx.convexAuth` alongside the standard ctx.
+ */
+export type ProviderBuilders<Profile> = {
+  authMutation: AuthMutationBuilder<Profile>;
+  authAction: AuthActionBuilder<Profile>;
 };
 
-// The app-facing handlers that `attachUserCallback` produces once the
-// create-or-update-user callback is supplied.
-type AuthApi<T extends readonly ProviderWithOptions[]> = {
+/**
+ * The core auth API returned by {@link setupCore}: the session handlers the
+ * app re-exports, plus {@link AuthCore.bindProvider} for wiring up providers.
+ */
+export type AuthCore = {
   /**
    * Signs out of the current session.
    *
@@ -82,65 +118,51 @@ type AuthApi<T extends readonly ProviderWithOptions[]> = {
     Promise<boolean>
   >;
   /**
-   * The auth APIs that each provider exposes.
+   * Register a provider with the core and get the function builders its
+   * implementation uses.
    *
-   * Each provider is accessible on this object by its name.
+   * `name` identifies the provider in the core's `accounts` table: accounts
+   * are keyed by `(name, providerAccountId)`, so it must be unique among the
+   * providers bound to this core — a duplicate throws immediately (two
+   * providers sharing a name would silently share accounts).
+   *
+   * `createOrUpdateUser` is the app's user callback for this provider (see
+   * {@link CreateOrUpdateUserFn}); the core invokes it on every sign-in the
+   * returned builders complete.
+   *
+   * Provider setup functions call this from inside their `attachUserCallback`,
+   * once the app has supplied the callback — so the builders can simply close
+   * over it, and a provider with no callback cannot exist. It is not meant to
+   * be called by application code directly.
    */
-  // TODO: dowski - rather than a nested object of providers, see about
-  // folding their APIs in as peers to `signOut` and `refreshSession` for
-  // a cleaner developer experience.
-  providers: ProviderApis<T>;
-};
-
-// Intermediate builder returned by `setupCore` before the app's user callback
-// is known. Its sole method, `attachUserCallback`, is deliberately
-// *non-generic* in the provider tuple `T`: `T` is already fixed by the time
-// `attachUserCallback` is called, so its return type `AuthApi<T>` is fully
-// determined without typing the `createOrUpdateUser` argument. See the note
-// on `setupCore` for why that decoupling is required.
-type CoreBuilder<T extends readonly ProviderWithOptions[]> = {
-  /**
-   * The `createOrUpdateUser` function passed in here represents the core
-   * entrypoint for an application to integrate its user model with Convex Auth.
-   *
-   * It will be called in two scenarios, both associated with a user signing in:
-   *
-   *  1. The first time a user signs in with an account from a provider.
-   *    * The `userId` argument will not be present in this case.
-   *    * The application should do one of:
-   *      a. Create a new user record and return its `_id`
-   *      b. Use trusted information in the `profile` (e.g. a verified email)
-   *         to associate the account with an existing user, and return its
-   *         `_id`
-   *  2. Subsequent sign ins from a provider
-   *    * The `userId` argument will be present.
-   *    * The application may use the data in `profile` to update or otherwise
-   *      modify the stored user record.
-   *    * The existing `userId` must be the return value.
-   *
-   * The application keeps ownership of its users table — the core only holds a
-   * reference to this one mutation.
-   *
-   * If an application wants to reject a sign in, it can throw a `ConvexError`
-   * and the entire sign in attempt will be blocked.
-   */
-  attachUserCallback(
-    createOrUpdateUser: CreateOrUpdateUserFn<T[number][0]["name"]>,
-  ): AuthApi<T>;
+  bindProvider<Provider extends string, Profile>(options: {
+    name: Provider;
+    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile>;
+  }): ProviderBuilders<Profile>;
 };
 
 /**
  * Build the app-facing auth-core handlers from the mounted `core` component
- * reference and the auth providers that the app will use. Returns
- * ready-to-export `signOut`/`refreshSession` mutations plus a typesafe
- * `providers` object keyed by provider name and containing its API.
+ * reference. Returns ready-to-export `signOut`/`refreshSession`/
+ * `isAuthenticated` handlers plus `bindProvider`, which provider setup
+ * functions use to wire themselves to the core:
+ *
+ * ```ts
+ * const core = setupCore({ component: components.core });
+ * export const { signOut, refreshSession, isAuthenticated } = core;
+ *
+ * export const { signUpWithPassword, signInWithPassword } =
+ *   setupUsernamePassword(core, {
+ *     component: components.authPasswordProvider,
+ *     usernameComponent: components.authUsername,
+ *   }).attachUserCallback(internal.users.createOrUpdateUser);
+ * ```
  *
  * The core never triggers a sign-in itself: it has no idea how any given
- * provider authenticates a user. *Triggering `signIn` is each provider's
- * responsibility* and should be part of its returned API. A provider verifies
- * the user its own way (checking a password, say), produces the standard
- * claims, and then calls a `completeSignIn` function that the core makes
- * available to each provider to allow them to exchange claims for a session.
+ * provider authenticates a user. *Triggering sign-in is each provider's
+ * responsibility.* A provider verifies the user its own way (checking a
+ * password, say) and then calls the `completeSignIn` helper the core injects
+ * on `ctx.convexAuth` to exchange the verified identity for a session.
  *
  * Token lifetimes are configurable here and default to 1m (access) and 30d
  * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
@@ -149,36 +171,8 @@ type CoreBuilder<T extends readonly ProviderWithOptions[]> = {
  *
  * Changes to token TTLs impact newly minted tokens, not ones that have
  * already been issued.
- *
- * @returns a builder object with an `attachUserCallback` function that
- *          completes the configuration of Convex Auth.
  */
-// Why this is a two-step (`setupCore(...).attachUserCallback(...)`) API
-//
-// The app's `createOrUpdateUser` is a reference into the app's *own* `internal`
-// API. But the module that calls `setupCore` also exports the handlers this
-// returns (`signOut` etc.), so those exports are part of that same `internal`
-// API. If the `internal.*` reference were passed straight into this generic
-// call, TS would have to type it while inferring the provider tuple `T` — and
-// typing it forces resolving the module's own API type, which depends on these
-// exports, which depend on this call: a cycle, reported as
-// `TS7022: '…' implicitly has type 'any' because it … is referenced … in its
-// own initializer`.
-//
-// Splitting the call sidesteps that. `setupCore` is generic in `T` but never
-// sees the `internal.*` reference, so inferring `T` touches nothing circular.
-// `attachUserCallback` *does* take the reference, but by then `T` is fixed,
-// so it is a non-generic call whose return type `AuthApi<T>` is fully
-// determined by the signature alone. TS resolves the exported bindings' types
-// from that return type without eagerly typing the `internal.*` argument, so
-// the cycle never forms. (Inside the *single generic* call it did, because
-// inferring `T` required typing every argument, `internal.*` included.)
-export function setupCore<T extends readonly ProviderWithOptions[]>({
-  component,
-  accessTokenTtlSeconds,
-  refreshTokenTtlSeconds,
-  providers,
-}: {
+export function setupCore(options: {
   component: ComponentApi;
   /**
    * Access-token lifetime in seconds. Defaults to 60 (1 minute).
@@ -194,99 +188,131 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
    * already been issued.
    */
   refreshTokenTtlSeconds?: number;
-  /**
-   * A list of providers with options to configure them.
-   *
-   * Each one will be wired up to the core and produce an API that will be
-   * accessible on {@link AuthApi.providers} which is returned from
-   * {@link CoreBuilder.attachUserCallback}.
-   *
-   * Adding a provider and exporting the Convex API it defines will allow
-   * signing in via that provider. The core will create sessions
-   * when sign ins happen via the provider. Removing a provider does not
-   * revoke those sessions, but will prevent future sign ins.
-   */
-  providers: T;
-}): CoreBuilder<T> {
+}): AuthCore {
+  const { component, accessTokenTtlSeconds, refreshTokenTtlSeconds } = options;
+
   const issuer = (): string => {
     const url = process.env.CONVEX_SITE_URL;
     if (!url) throw new Error("CONVEX_SITE_URL is not available");
     return url;
   };
 
-  // Takes the `createOrUpdateUser` callback, wires it to sign in and returns the
-  // full auth API.
-  const buildFullApi = (
-    createOrUpdateUser: CreateOrUpdateUserFn<T[number][0]["name"]>,
-  ): AuthApi<T> => {
-    const completeSignIn: CompleteSignInFunc = async (ctx, claims) => {
-      const createOrUpdateUserHandle =
-        await createFunctionHandle(createOrUpdateUser);
-      return await ctx.runMutation(component.public.signIn, {
-        claims,
-        createOrUpdateUserHandle,
+  const refreshSession = mutationGeneric({
+    args: { refreshToken: v.string() },
+    returns: v.union(vTokenBundle, v.null()),
+    handler: async (ctx, args): Promise<TokenBundle | null> => {
+      return await ctx.runMutation(component.public.refresh, {
+        refreshToken: args.refreshToken,
         issuer: issuer(),
         accessTokenTtlSeconds,
         refreshTokenTtlSeconds,
       });
-    };
+    },
+  });
 
-    const result: Record<string, unknown> = {};
-    for (const [config, options] of providers) {
-      const resolveUserId: ResolveUserIdFunc = (ctx, providerAccountId) =>
-        ctx.runQuery(component.public.getUserIdByAccount, {
-          provider: config.name,
-          providerAccountId,
-        });
-      result[config.name] = config.setup(
-        { completeSignIn, resolveUserId },
-        options,
+  const signOut = mutationGeneric({
+    args: { refreshToken: v.string() },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+      await ctx.runMutation(component.public.signOut, {
+        refreshToken: args.refreshToken,
+      });
+      return null;
+    },
+  });
+
+  // Runs at the app deployment level (not inside the component) because only
+  // there does `ctx.auth` reflect the caller's verified identity: Convex
+  // checks the access token's signature against the deployment JWKS before
+  // the handler runs, so a forged/unsigned token yields no identity here.
+  const isAuthenticated = queryGeneric({
+    args: {},
+    returns: v.boolean(),
+    handler: async (ctx): Promise<boolean> => {
+      return (await ctx.auth.getUserIdentity()) !== null;
+    },
+  });
+
+  // Names of providers bound to this core, for duplicate detection. Scoped to
+  // this `setupCore` call (not module-global): the collision that matters is
+  // two providers on the same core, whose accounts would silently share rows.
+  const boundProviderNames = new Set<string>();
+
+  const bindProvider = <Provider extends string, Profile>({
+    name,
+    createOrUpdateUser,
+  }: {
+    name: Provider;
+    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile>;
+  }): ProviderBuilders<Profile> => {
+    if (boundProviderNames.has(name)) {
+      throw new Error(
+        `A provider named "${name}" is already bound to this auth core. ` +
+          `Provider names key the accounts table, so each provider must ` +
+          `have a unique name.`,
       );
     }
+    boundProviderNames.add(name);
 
-    const refreshSession = mutationGeneric({
-      args: { refreshToken: v.string() },
-      returns: v.union(vTokenBundle, v.null()),
-      handler: async (ctx, args): Promise<TokenBundle | null> => {
-        return await ctx.runMutation(component.public.refresh, {
-          refreshToken: args.refreshToken,
+    // The helpers close over the live ctx; both mutation and action ctxs
+    // expose the compatible `runMutation`/`runQuery` these need.
+    const makeHelpers = (
+      ctx:
+        | GenericActionCtx<GenericDataModel>
+        | GenericMutationCtx<GenericDataModel>,
+    ) => ({
+      completeSignIn: async (args: {
+        providerAccountId: string;
+        profile: Profile;
+      }): Promise<TokenBundle> => {
+        const createOrUpdateUserHandle =
+          await createFunctionHandle(createOrUpdateUser);
+        return await ctx.runMutation(component.public.signIn, {
+          claims: {
+            provider: name,
+            providerAccountId: args.providerAccountId,
+            profile: args.profile,
+          },
+          createOrUpdateUserHandle,
           issuer: issuer(),
           accessTokenTtlSeconds,
           refreshTokenTtlSeconds,
         });
       },
-    });
-
-    const signOut = mutationGeneric({
-      args: { refreshToken: v.string() },
-      returns: v.null(),
-      handler: async (ctx, args) => {
-        await ctx.runMutation(component.public.signOut, {
-          refreshToken: args.refreshToken,
+      resolveUserId: async (
+        providerAccountId: string,
+      ): Promise<string | null> => {
+        return await ctx.runQuery(component.public.getUserIdByAccount, {
+          provider: name,
+          providerAccountId,
         });
-        return null;
       },
     });
 
-    // Runs at the app deployment level (not inside the component) because only
-    // there does `ctx.auth` reflect the caller's verified identity: Convex
-    // checks the access token's signature against the deployment JWKS before
-    // the handler runs, so a forged/unsigned token yields no identity here.
-    const isAuthenticated = queryGeneric({
-      args: {},
-      returns: v.boolean(),
-      handler: async (ctx): Promise<boolean> => {
-        return (await ctx.auth.getUserIdentity()) !== null;
-      },
-    });
+    const authMutation: AuthMutationBuilder<Profile> = (fn) =>
+      mutationGeneric({
+        args: fn.args as PropertyValidators,
+        returns: fn.returns,
+        handler: (ctx, args) =>
+          fn.handler(
+            { ...ctx, convexAuth: makeHelpers(ctx) },
+            args as Parameters<typeof fn.handler>[1],
+          ),
+      });
 
-    return {
-      refreshSession,
-      signOut,
-      isAuthenticated,
-      providers: result as ProviderApis<T>,
-    };
+    const authAction: AuthActionBuilder<Profile> = (fn) =>
+      actionGeneric({
+        args: fn.args as PropertyValidators,
+        returns: fn.returns,
+        handler: (ctx, args) =>
+          fn.handler(
+            { ...ctx, convexAuth: makeHelpers(ctx) },
+            args as Parameters<typeof fn.handler>[1],
+          ),
+      });
+
+    return { authMutation, authAction };
   };
 
-  return { attachUserCallback: buildFullApi };
+  return { signOut, refreshSession, isAuthenticated, bindProvider };
 }

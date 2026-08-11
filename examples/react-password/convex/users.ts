@@ -5,7 +5,7 @@ export const createOrUpdateUser = internalMutation({
   args: {
     provider: v.literal("password"),
     providerAccountId: v.string(),
-    profile: v.any(),
+    profile: v.object({ username: v.string() }),
     userId: v.union(v.string(), v.null()),
   },
   returns: v.id("users"),
@@ -17,10 +17,6 @@ export const createOrUpdateUser = internalMutation({
       }
       return existing;
     }
-    const username =
-      typeof args.profile?.username === "string"
-        ? args.profile.username
-        : undefined;
-    return await ctx.db.insert("users", { username });
+    return await ctx.db.insert("users", { username: args.profile.username });
   },
 });

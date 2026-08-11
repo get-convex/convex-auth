@@ -75,12 +75,13 @@ Convex Auth will create a row for each account. You can also add application-spe
 
 ### Set up the public backend functions
 
-Add the `Anonymous` provider to `setupCore` and export its sign-in action in
-`convex/auth.ts`:
+Set up the anonymous provider with `setupAnonymous` and export the sign-in
+mutation it hands back once you attach the callback that creates your user
+rows, in `convex/auth.ts`:
 
 <include
   lang="ts"
-  meta='title="convex/auth.ts" highlight="import { Anonymous }" highlight="providers: {...}," highlight="providers: [...],"'
+  meta='title="convex/auth.ts" highlight="import { setupAnonymous }" highlight="export const { signInAnonymous } = setupAnonymous(core, {...}).attachUserCallback(internal.users.createOrUpdateUser);"'
 >
   ../../../../../examples/react-minimal/convex/auth.ts
 </include>

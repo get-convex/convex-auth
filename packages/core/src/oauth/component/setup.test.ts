@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import type { ProviderHelpers } from "../../lib/types";
+import { actionGeneric, mutationGeneric } from "convex/server";
+import type { AuthCore } from "../../components/core/setup";
 import type { ComponentApi } from "./_generated/component.js";
 import {
   setupOauth,
@@ -20,15 +21,26 @@ const CATALOG: OauthCatalog = {
 };
 
 /**
+ * A core that hands back plain function builders. Nothing here calls the
+ * built functions, so the injected `ctx.convexAuth` is never needed.
+ */
+const CORE = {
+  bindProvider: () => ({
+    authMutation: mutationGeneric,
+    authAction: actionGeneric,
+  }),
+} as unknown as AuthCore;
+
+/**
  * Run the provider's setup with the given options merged over a valid base.
- * Validation runs before the helpers or the component are touched, so
+ * Validation runs before the core or the component are touched, so
  * fakes suffice.
  */
 function setup(
   options: Partial<OauthProviderOptions> = {},
   catalog: OauthCatalog = CATALOG,
 ) {
-  return setupOauth("acme", catalog, {} as ProviderHelpers, {
+  return setupOauth(CORE, "acme", catalog, {} as never, {
     component: {} as ComponentApi,
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,

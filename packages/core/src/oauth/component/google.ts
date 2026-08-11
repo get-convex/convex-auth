@@ -1,5 +1,6 @@
 import { Infer, v } from "convex/values";
-import { defineProvider } from "../../lib/types";
+import type { CreateOrUpdateUserFn } from "../../lib/types";
+import type { AuthCore } from "../../components/core/setup";
 import {
   setupOauth,
   type OauthCatalog,
@@ -33,7 +34,7 @@ export type GoogleProfile = Infer<typeof vGoogleProfile>;
  * returns an id_token, so `claims` is always present here. A missing one is
  * a bug.
  */
-export const normalizeGoogleProfile: OauthProfile = (claims) => {
+export const normalizeGoogleProfile: OauthProfile<GoogleProfile> = (claims) => {
   if (claims === undefined) {
     throw new Error("Google returned no id_token to build a profile from");
   }
@@ -47,7 +48,7 @@ export const normalizeGoogleProfile: OauthProfile = (claims) => {
 };
 
 /** Google's endpoints, scopes, and profile mapping. */
-const googleCatalog: OauthCatalog = {
+const googleCatalog: OauthCatalog<GoogleProfile> = {
   authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
   tokenEndpoint: "https://oauth2.googleapis.com/token",
   // Google documents both forms, with or without the https prefix.
@@ -58,14 +59,14 @@ const googleCatalog: OauthCatalog = {
 };
 
 /**
- * Built-in Google OAuth provider. Register it with its own oauth component
+ * Built-in Google OAuth provider. Wire it up with its own oauth component
  * instance:
  *
  * ```ts
- * provider(OauthGoogle, {
+ * export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
  *   component: components.oauthGoogle,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
- * })
+ * }).attachUserCallback(internal.users.createOrUpdateGoogleUser);
  * ```
  *
  * Setup:
@@ -78,18 +79,27 @@ const googleCatalog: OauthCatalog = {
  *
  * The `httpPrefix` alone determines the callback URL.
  */
-export const OauthGoogle = defineProvider({
-  name: "google",
-  setup: (helpers, options: OauthProviderOptions) => {
-    const { startSignIn, completeSignIn } = setupOauth(
-      "google",
-      googleCatalog,
-      helpers,
-      options,
-    );
-    return {
-      startSignInGoogle: startSignIn,
-      completeSignInGoogle: completeSignIn,
-    };
-  },
-});
+export function setupGoogle(core: AuthCore, options: OauthProviderOptions) {
+  return {
+    /**
+     * Supply the app's create-or-update-user mutation (see
+     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
+     * get this provider's functions to export.
+     */
+    attachUserCallback(
+      createOrUpdateUser: CreateOrUpdateUserFn<"google", GoogleProfile>,
+    ) {
+      const { startSignIn, completeSignIn } = setupOauth(
+        core,
+        "google",
+        googleCatalog,
+        createOrUpdateUser,
+        options,
+      );
+      return {
+        startSignInGoogle: startSignIn,
+        completeSignInGoogle: completeSignIn,
+      };
+    },
+  };
+}
