@@ -16,7 +16,7 @@
 import { FunctionReference } from "convex/server";
 import { useCallback } from "react";
 import type { ClientView, SignInSuccess } from "../../lib/types";
-import { useAuthActions, useAuthRunner } from "../../react";
+import { useAuthActions, useAuthSignInApi } from "../../react";
 
 /**
  * The `signInAnonymous` mutation the anonymous provider adds to the app's API.
@@ -60,12 +60,12 @@ export type SignInAnonymousMutation = FunctionReference<
  */
 export function useAnonymousAuth(signInMutation: SignInAnonymousMutation) {
   const { setSession } = useAuthActions();
-  // Running through the runner rather than `useMutation` is what lets this one
-  // hook serve both session models. See {@link AuthRunner}.
-  const runner = useAuthRunner();
+  // Running through the signInApi rather than `useMutation` is what lets this one
+  // hook serve both session models. See {@link AuthSignInApi}.
+  const signInApi = useAuthSignInApi();
   const signInAnonymous = useCallback(async () => {
-    const result = await runner.mutation(signInMutation, {});
+    const result = await signInApi.mutation(signInMutation, {});
     await setSession(result.tokens);
-  }, [runner, signInMutation, setSession]);
+  }, [signInApi, signInMutation, setSession]);
   return { signInAnonymous };
 }

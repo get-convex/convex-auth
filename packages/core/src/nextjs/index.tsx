@@ -31,7 +31,7 @@ import { ReactNode, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
 import type { SlimTokenBundle } from "../lib/types";
-import { AuthProvider, useAuth, type AuthRunner } from "../react/client";
+import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
@@ -99,7 +99,7 @@ export function ConvexAuthNextjsProvider({
   storage?: TokenStorage;
   children: ReactNode;
 }) {
-  const { authClient, convex, runner } = useMemo(() => {
+  const { authClient, convex, signInApi } = useMemo(() => {
     const convex =
       client ??
       new ConvexReactClient(convexUrl ?? process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -140,17 +140,17 @@ export function ConvexAuthNextjsProvider({
       else proxy.clearAuth();
       return proxy;
     };
-    const runner: AuthRunner = {
+    const signInApi: AuthSignInApi = {
       mutation: (fn, args) => withAuth().mutation(fn, args),
       action: (fn, args) => withAuth().action(fn, args),
     };
 
-    return { authClient, convex, runner };
+    return { authClient, convex, signInApi };
     // `client`/`convexUrl` identity is what matters; other props are read once.
   }, [client, convexUrl]);
 
   return (
-    <AuthProvider authClient={authClient} runner={runner}>
+    <AuthProvider authClient={authClient} signInApi={signInApi}>
       <ConvexProviderWithAuth client={convex} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>

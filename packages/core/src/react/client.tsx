@@ -33,7 +33,7 @@ import type { SlimTokenBundle, TokenBundle } from "../lib/types";
  * A provider never sees which model it is running under. See
  * {@link ClientView} for why one declared type is honest for both.
  */
-export interface AuthRunner {
+export interface AuthSignInApi {
   mutation<F extends FunctionReference<"mutation", "public">>(
     fn: F,
     args: FunctionArgs<F>,
@@ -44,26 +44,26 @@ export interface AuthRunner {
   ): Promise<FunctionReturnType<F>>;
 }
 
-const ConvexAuthRunnerContext = createContext<AuthRunner | undefined>(
+const ConvexAuthSignInApiContext = createContext<AuthSignInApi | undefined>(
   undefined,
 );
 
 /**
- * The {@link AuthRunner} for the surrounding auth provider.
+ * The {@link AuthSignInApi} for the surrounding auth provider.
  *
  * Provider hooks call this to run their sign-in function instead of reaching
  * for `useMutation`/`useAction`, which is what keeps them working under either
  * session model. Throws when used outside an auth provider.
  */
-export function useAuthRunner(): AuthRunner {
-  const runner = useContext(ConvexAuthRunnerContext);
-  if (runner === undefined) {
+export function useAuthSignInApi(): AuthSignInApi {
+  const signInApi = useContext(ConvexAuthSignInApiContext);
+  if (signInApi === undefined) {
     throw new Error(
-      "useAuthRunner must be used within a <ConvexAuthProvider> (or, under " +
+      "useAuthSignInApi must be used within a <ConvexAuthProvider> (or, under " +
         "Next.js, a <ConvexAuthNextjsProvider>).",
     );
   }
-  return runner;
+  return signInApi;
 }
 
 // React calls this during SSR and initial hydration — before `init()` has read
@@ -128,12 +128,12 @@ export function useAuth() {
  */
 export function AuthProvider({
   authClient,
-  runner,
+  signInApi,
   children,
 }: {
   authClient: AuthClient;
-  /** How provider hooks execute their sign-in functions. See {@link AuthRunner}. */
-  runner: AuthRunner;
+  /** How provider hooks execute their sign-in functions. See {@link AuthSignInApi}. */
+  signInApi: AuthSignInApi;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -175,13 +175,13 @@ export function AuthProvider({
 
   return (
     <ConvexAuthInternalContext.Provider value={authState}>
-      <ConvexAuthRunnerContext.Provider value={runner}>
+      <ConvexAuthSignInApiContext.Provider value={signInApi}>
         <ConvexAuthActionsContext.Provider value={actions}>
           <ConvexAuthTokenContext.Provider value={state.token}>
             {children}
           </ConvexAuthTokenContext.Provider>
         </ConvexAuthActionsContext.Provider>
-      </ConvexAuthRunnerContext.Provider>
+      </ConvexAuthSignInApiContext.Provider>
     </ConvexAuthInternalContext.Provider>
   );
 }

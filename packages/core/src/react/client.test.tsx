@@ -10,7 +10,7 @@ import {
 } from "../browser/storage";
 import type { TokenBundle } from "../lib/types";
 import { AuthProvider, useAuth } from "./client";
-import { stubRunner } from "./testRunner";
+import { stubSignInApi } from "./testSignInApi";
 import { useAuthActions, useAuthToken } from "./index";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
@@ -47,7 +47,7 @@ function makeClient(
 /** Render the provider around a hook and expose every auth hook's value. */
 function renderAuth(client: AuthClient) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client} runner={stubRunner().runner}>
+    <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
       {children}
     </AuthProvider>
   );
@@ -90,7 +90,7 @@ describe("React bindings", () => {
     const dispose = vi.spyOn(client, "dispose");
 
     const { unmount } = render(
-      <AuthProvider authClient={client} runner={stubRunner().runner}>
+      <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
         hi
       </AuthProvider>,
     );
@@ -182,7 +182,7 @@ describe("React bindings", () => {
     // sign-out must still work afterward, which only holds if the re-init
     // re-attaches the window storage listener the dispose removed.
     render(
-      <AuthProvider authClient={client} runner={stubRunner().runner}>
+      <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
         hi
       </AuthProvider>,
     ).unmount();

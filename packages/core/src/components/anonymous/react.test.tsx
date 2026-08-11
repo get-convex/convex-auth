@@ -7,12 +7,12 @@ import { InMemoryStorage } from "../../browser/storage";
 import type { TokenBundle } from "../../lib/types";
 import { AuthProvider, useAuth } from "../../react/client";
 import { useAuthToken } from "../../react";
-import { stubRunner } from "../../react/testRunner";
+import { stubSignInApi } from "../../react/testSignInApi";
 import { SignInAnonymousMutation, useAnonymousAuth } from "./react";
 
-// The hook runs its sign-in mutation through the injected `AuthRunner`, so the
-// test substitutes a runner rather than mocking `convex/react`.
-const { runner, run: runSignIn } = stubRunner();
+// The hook runs its sign-in mutation through the injected `AuthSignInApi`, so the
+// test substitutes a signInApi rather than mocking `convex/react`.
+const { signInApi, run: runSignIn } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
@@ -24,7 +24,7 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
-// A stand-in for the app's `api.auth.signInAnonymous` reference. The stub runner
+// A stand-in for the app's `api.auth.signInAnonymous` reference. The stub signInApi
 // ignores it, so any value typed as the reference will do.
 const signInAnonymous = {} as SignInAnonymousMutation;
 
@@ -36,7 +36,7 @@ function renderAnonymousAuth() {
     storageNamespace: NAMESPACE,
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client} runner={runner}>
+    <AuthProvider authClient={client} signInApi={signInApi}>
       {children}
     </AuthProvider>
   );

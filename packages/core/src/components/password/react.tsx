@@ -20,7 +20,7 @@
 import { FunctionReference } from "convex/server";
 import { useCallback, useState } from "react";
 import type { ClientView } from "../../lib/types";
-import { useAuthActions, useAuthRunner } from "../../react";
+import { useAuthActions, useAuthSignInApi } from "../../react";
 import type { SignInResult, SignUpResult } from "./setup";
 
 /** The `(username, password)` pair both flows accept. */
@@ -187,16 +187,16 @@ function usePasswordFlow<
   Result extends ClientView<SignInResult> | ClientView<SignUpResult>,
 >(mutation: FunctionReference<"mutation", "public", Credentials, Result>) {
   const { setSession } = useAuthActions();
-  // Running through the runner rather than `useAction` is what lets these hooks
-  // serve both session models. See {@link AuthRunner}.
-  const runner = useAuthRunner();
+  // Running through the signInApi rather than `useAction` is what lets these hooks
+  // serve both session models. See {@link useAuthSignInApi}.
+  const signInApi = useAuthSignInApi();
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
     async (credentials: Credentials): Promise<Result | UnexpectedFailure> => {
       setPending(true);
       try {
-        const result = await runner.mutation(mutation, credentials);
+        const result = await signInApi.mutation(mutation, credentials);
         if (result.success) {
           await setSession(result.tokens);
         }
@@ -212,7 +212,7 @@ function usePasswordFlow<
         setPending(false);
       }
     },
-    [runner, mutation, setSession],
+    [signInApi, mutation, setSession],
   );
 
   return { run, pending };
