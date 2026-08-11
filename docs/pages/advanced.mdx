@@ -89,6 +89,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = {
         return args.existingUserId;
       }
 
+      if (args.authUserId) {
+        // During OAuth account linking, attach the new account to the
+        // currently authenticated user who started the flow.
+        return args.authUserId;
+      }
+
       // Implement your own account linking logic:
       const existingUser = await findUserByEmail(ctx, args.profile.email);
       if (existingUser) return existingUser._id;
@@ -101,6 +107,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = {
   },
 };
 ```
+
+`args.existingUserId` is the user already linked to the account being signed in,
+if one exists. `args.authUserId` identifies the currently authenticated user so
+you can link the new OAuth account to them. This is useful for OAuth flows started while signed in.
 
 When you provide this callback, the library doesn't create or update users at
 all. It is up to you to implement all the necessary logic for all providers you
@@ -123,7 +133,7 @@ import { MutationCtx } from "./_generated/server";
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [GitHub, Password],
   callbacks: {
-    // `args` are the same the as for `createOrUpdateUser` but include `userId`
+    // `args` are the same as for `createOrUpdateUser` but include `userId`
     async afterUserCreatedOrUpdated(ctx: MutationCtx, { userId }) {
       await ctx.db.insert("someTable", { userId, data: "some data" });
     },

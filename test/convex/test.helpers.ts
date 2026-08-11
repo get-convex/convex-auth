@@ -17,6 +17,7 @@ export async function signInViaGitHub(
   githubProfile: Record<string, unknown>,
   params: {
     redirectTo?: string;
+    scope?: string;
   } = {},
 ) {
   const { code, verifier, url } = await startSignInViaGitHub(
@@ -68,6 +69,9 @@ export async function startSignInViaGitHub(
   expect(cookies).not.toBeNull();
 
   const redirectedToParams = new URL(redirectedTo!).searchParams;
+  if (params.scope !== undefined) {
+    expect(redirectedToParams.get("scope")).toBe(params.scope);
+  }
 
   const callbackUrl = redirectedToParams.get("redirect_uri");
 
@@ -89,7 +93,7 @@ export async function startSignInViaGitHub(
             access_token: issuedAccessToken,
             token_type: "bearer",
           }),
-          { status: 200, headers: { "Content-Type": "application/json" }  },
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       } else if (
         input === "https://api.github.com/user" ||
