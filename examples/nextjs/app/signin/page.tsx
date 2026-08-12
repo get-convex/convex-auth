@@ -6,7 +6,7 @@ import { api } from "@/convex/_generated/api";
 
 export default function SignIn() {
   // The provider's own hook, with no SSR-specific variant. The surrounding
-  // ConvexAuthNextjsProvider routes this call through the auth proxy, which
+  // ConvexAuthNextjsProvider routes this call through the sign-in route, which
   // moves the minted refresh token into an httpOnly cookie so it never reaches
   // JS.
   const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymous);

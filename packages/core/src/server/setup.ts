@@ -5,8 +5,8 @@
  * {@link setupConvexAuthServer} takes the shared config once (deployment URL,
  * the session mutations, the exposed sign-in functions, and the cookie
  * attributes) and returns the WHATWG `(Request) => Response` handlers a
- * framework mounts as routes: refresh, sign-out, and the `proxyHandler` that
- * serves every sign-in method.
+ * framework mounts as routes: refresh, sign-out, and the `convexProxyHandler`
+ * that serves every sign-in method.
  *
  * The whole surface shares one {@link AuthCookieOptions}, so `secure` is decided
  * exactly once per integration and reaches every handler, including sign-in.
@@ -17,7 +17,7 @@
 import type { RefreshSessionFn, SignOutFn } from "../lib/types";
 import type { AuthCookieOptions } from "./cookies";
 import { refreshHandler, signOutHandler } from "./handlers";
-import { authProxyHandler, type ExposedSignInFn } from "./proxy";
+import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy";
 
 /** Configuration for {@link setupConvexAuthServer}. */
 export interface ConvexAuthServerConfig {
@@ -55,8 +55,8 @@ export interface ConvexAuthServerConfig {
  *   cookieOptions: { secure: process.env.NODE_ENV === "production" },
  * });
  *
- * // app/auth/proxy/route.ts serves every method listed in `signIn`
- * export const POST = auth.proxyHandler;
+ * // app/auth/signin/route.ts serves every method listed in `signIn`
+ * export const POST = auth.convexProxyHandler;
  * ```
  */
 export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
@@ -81,11 +81,11 @@ export function setupConvexAuthServer(config: ConvexAuthServerConfig) {
      * reachable from its provider's normal client hook.
      *
      * ```ts
-     * // app/auth/proxy/route.ts
-     * export const POST = auth.proxyHandler;
+     * // app/auth/signin/route.ts
+     * export const POST = auth.convexProxyHandler;
      * ```
      */
-    proxyHandler: authProxyHandler({
+    convexProxyHandler: convexProxyHandler({
       convexUrl,
       signIn: config.signIn,
       cookieOptions,

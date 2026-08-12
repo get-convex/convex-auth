@@ -8,18 +8,18 @@ access token.
 
 - **Sign-in / refresh / sign-out run on the server** as framework-agnostic
   `(Request) => Response` handlers, mounted under `app/auth/`:
-  - `app/auth/proxy/route.ts` → `proxyHandler`, the auth proxy for every
-    sign-in method
+  - `app/auth/signin/route.ts` → `convexProxyHandler`, the one route serving
+    every sign-in method
   - `app/auth/refresh/route.ts` → `refreshHandler`
   - `app/auth/signout/route.ts` → `signOutHandler`
-- **The auth proxy** speaks the same HTTP interface as `ConvexHttpClient` and
+- **The sign-in route** speaks the same HTTP interface as `ConvexHttpClient` and
   forwards calls to the deployment, intercepting only the minted refresh token
   on the way back to put it in the cookie. Because of that, a provider needs no
   SSR-specific client hook: `app/signin/page.tsx` imports the _same_
   `useAnonymousAuth` a SPA would, from
   `@convex-dev/auth/providers/anonymous/react`.
 - **Adding an auth method** means adding its function to `signIn` in
-  `src/lib/serverAuth.ts`. That allowlist is the proxy's entire API surface;
+  `src/lib/serverAuth.ts`. That allowlist is the route's entire API surface;
   there is no per-method route and no per-method client code.
 - **`src/lib/convexAuth.tsx`** wires the Next-specific helpers via
   `setupConvexAuthNextjs`: the proxy (up-front refresh + redirects, mounted in

@@ -73,7 +73,7 @@ export function ConvexAuthNextjsProvider({
   initialToken = null,
   refreshRoute = "/auth/refresh",
   signOutRoute = "/auth/signout",
-  proxyRoute = "/auth/proxy",
+  signInRoute = "/auth/signin",
   storage,
   children,
 }: {
@@ -90,8 +90,8 @@ export function ConvexAuthNextjsProvider({
   /** Route that revokes the session and clears cookies. */
   signOutRoute?: string;
   /** Route the auth proxy is mounted at, i.e. the single route file exporting
-   * `auth.proxyHandler`. Provider sign-in calls go here. */
-  proxyRoute?: string;
+   * `auth.convexProxyHandler`. Provider sign-in calls go here. */
+  signInRoute?: string;
   /** A custom {@link TokenStorage}. Defaults to `localStorage` in the browser.
    * Under SSR, it only stores the access token. */
   storage?: TokenStorage;
@@ -124,8 +124,8 @@ export function ConvexAuthNextjsProvider({
     // encoding. The address is relative, hence skipping the URL check, and
     // same-origin fetch sends the auth cookies automatically. The trailing
     // `?path=` puts the endpoint the client appends into the query string, so
-    // `proxyRoute` can be a static route rather than a catch-all.
-    const proxy = new ConvexHttpClient(`${proxyRoute}?path=`, {
+    // `signInRoute` can be a static route rather than a catch-all.
+    const proxy = new ConvexHttpClient(`${signInRoute}?path=`, {
       skipConvexDeploymentUrlCheck: true,
       logger: convex.logger,
     });

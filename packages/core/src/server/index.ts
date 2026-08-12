@@ -4,7 +4,7 @@
  * inspection, the {@link ServerAuthSession} that owns the refresh lifecycle,
  * the {@link createServerAuthChecker} that verifies an access token against the
  * backend, the provider-agnostic `(Request) => Response` refresh/sign-out
- * handlers, the {@link authProxyHandler} that serves sign-in, and the
+ * handlers, the {@link convexProxyHandler} that serves sign-in, and the
  * {@link setupConvexAuthServer} factory that configures them all once.
  *
  * @module
@@ -31,10 +31,10 @@ export {
 } from "./handlers";
 export { type ConvexAuthServerConfig, setupConvexAuthServer } from "./setup";
 export {
-  type AuthProxyConfig,
+  type ConvexProxyConfig,
   type ExposedSignInFn,
-  authProxyHandler,
-} from "./proxy";
+  convexProxyHandler,
+} from "./signInProxy";
 export {
   type DecodedAccessToken,
   decodeAccessToken,

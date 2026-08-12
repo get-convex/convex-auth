@@ -3,7 +3,7 @@ import { makeFunctionReference } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { TokenBundle } from "../lib/types";
 import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "./cookies";
-import { authProxyHandler, type ExposedSignInFn } from "./proxy";
+import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy";
 
 const CONVEX_URL = "https://happy-animal-123.convex.cloud";
 
@@ -21,7 +21,7 @@ function bundle(): TokenBundle {
   };
 }
 
-const handler = authProxyHandler({
+const handler = convexProxyHandler({
   convexUrl: CONVEX_URL,
   signIn: [signIn],
   cookieOptions: { secure: true },

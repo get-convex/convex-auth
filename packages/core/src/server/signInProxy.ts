@@ -53,8 +53,8 @@ export type ExposedSignInFn = FunctionReference<
   SignInSuccess | { success: false }
 >;
 
-/** Configuration for {@link authProxyHandler}. */
-export interface AuthProxyConfig {
+/** Configuration for {@link convexProxyHandler}. */
+export interface ConvexProxyConfig {
   /** The Convex deployment URL to forward to. */
   convexUrl: string;
   /**
@@ -72,7 +72,7 @@ export interface AuthProxyConfig {
 /**
  * The `ConvexHttpClient` endpoints the proxy serves. The client's address ends
  * in `?path=`, so the endpoint it appends arrives as a query parameter
- * (`/auth/proxy?path=/api/mutation`) and the handler mounts at a static route.
+ * (`/auth/signin?path=/api/mutation`) and the handler mounts at a static route.
  *
  * `query_ts`/`query_at_ts` are deliberately absent: consistent-timestamp reads
  * have nothing to do with auth.
@@ -163,15 +163,15 @@ function textError(status: number, message: string): Response {
  * Build the route that serves every allowlisted sign-in function.
  *
  * Mount it once, at a static path of your choosing. Adding an auth method means
- * adding its function to {@link AuthProxyConfig.signIn}, not adding another
+ * adding its function to {@link ConvexProxyConfig.signIn}, not adding another
  * route.
  *
  * ```ts
- * // app/auth/proxy/route.ts
- * export const POST = auth.proxyHandler;
+ * // app/auth/signin/route.ts
+ * export const POST = auth.convexProxyHandler;
  * ```
  */
-export function authProxyHandler(config: AuthProxyConfig): RequestHandler {
+export function convexProxyHandler(config: ConvexProxyConfig): RequestHandler {
   const allowed = new Set(config.signIn.map((fn) => getFunctionName(fn)));
 
   return async (request) => {
