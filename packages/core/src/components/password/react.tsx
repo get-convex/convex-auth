@@ -194,11 +194,10 @@ function usePasswordFlow<Result extends SignInResult | SignUpResult>(
         }
         return result;
       } catch (cause) {
-        // The mutation threw instead of resolving to a `userError`. Fold it
-        // into the same discriminated result as `OTHER_ERROR`, preserving the
-        // thrown value on `cause`, so the caller handles it alongside every
-        // other failure and can still inspect or log the original error if it
-        // wants.
+        // The mutation threw instead of resolving to a `userError`. Fold it into
+        // the same discriminated result as `OTHER_ERROR`, preserving the thrown
+        // value on `cause`, so the caller handles it alongside every other
+        // failure and can still inspect or log the original error if it wants.
         return { success: false, userError: { error: "OTHER_ERROR", cause } };
       } finally {
         // Reset even when the mutation throws.

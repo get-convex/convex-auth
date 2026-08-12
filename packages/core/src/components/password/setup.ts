@@ -77,8 +77,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
- * mutations so its clients can call them. Each flow is a single mutation, so
- * all of its writes commit together or not at all.
+ * mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the core's `accounts`
  * table: the recipe uses the lowercased username as the provider account id, and
@@ -104,18 +103,13 @@ export const UsernamePassword = defineProvider({
         returns: signUpResult,
         handler: async (ctx, { username, password }): Promise<SignUpResult> => {
           // Validate the password *before* creating anything, so an invalid
-          // password never mints a session. (`setPassword` re-validates, but
-          // a failure there must throw to roll the transaction back, so this
-          // early check keeps the normal failure path a plain return.)
+          // password never mints a session. (`setPassword` re-validates, but by
+          // then the account would already exist.)
           const userError = validatePasswordInputFormat(password);
           if (userError !== null) {
             return { success: false, userError };
           }
 
-          // This check and the account creation below run in one transaction.
-          // Two concurrent sign-ups for the same username cannot interleave:
-          // both read and write the accounts table, so Convex serializes
-          // them, and the loser gets `USERNAME_TAKEN` here.
           const normalizedUsername = normalizeUsername(username);
           const existing = await resolveUserId(ctx, normalizedUsername);
           if (existing !== null) {
