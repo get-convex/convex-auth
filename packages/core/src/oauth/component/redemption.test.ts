@@ -58,10 +58,11 @@ const fakeHelpers: ProviderHelpers = {
 
 /**
  * Provider options for every instance under test. The component's own
- * generated `api` stands in for the app-side mount reference
+ * generated `api` stands in for the app-side component reference
  * (`components.oauthAcme`): the harness root IS the component, so its
- * self-references resolve exactly like a mount's would. The cast bridges the
- * generated api's "public" visibility to the mount type's "internal".
+ * self-references resolve exactly like an installed component's would. The
+ * cast bridges the generated api's "public" visibility to the component
+ * type's "internal".
  */
 const OPTIONS = {
   component: api as unknown as ComponentApi,
