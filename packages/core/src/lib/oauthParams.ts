@@ -6,10 +6,10 @@
  * `code`/`error` an OAuth callback would normally use, so they can't collide
  * with URL params that an app may use for other reasons. The client's callback
  * handler is registered unconditionally (every app that uses Convex Auth runs
- * it on mount), so bare names would let it consume `?code=`/`?error=` params
- * from an unrelated flow the app runs. A `convexAuth`-prefixed param is proof
- * the redirect came from this component, which is also what keeps the client's
- * `invalid_flow` detection meaningful.
+ * it on every page load), so bare names would let it consume
+ * `?code=`/`?error=` params from an unrelated flow the app runs. A
+ * `convexAuth`-prefixed param is proof the redirect came from this component,
+ * which is also what keeps the client's `invalid_flow` detection meaningful.
  *
  * Shared by the component (which writes them) and the browser client (which
  * reads them) so the two ends can never drift.

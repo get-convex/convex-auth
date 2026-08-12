@@ -9,7 +9,7 @@ import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.js";
 
 const modules = import.meta.glob("./**/*.ts");
 
-/** Bound to the mount, so they can't come off a per-flow fixture. */
+/** Fixed per component instance, so they can't come off a per-flow fixture. */
 const CLIENT_ID = "test-client-id";
 const PROVIDER_NAME = "test-provider";
 
@@ -57,11 +57,11 @@ const COMBINED_REQUEST = {
 } satisfies FlowRequest;
 
 function setup() {
-  // One instance serving one provider: the mount binds the provider's
-  // credentials. convex-test doesn't emulate mount env bindings or the
-  // backend's mount-prefixed CONVEX_SITE_URL override, so the component-side
-  // values are stubbed directly (CONVEX_SITE_URL with the prefix already
-  // applied, as the backend would present it).
+  // One instance serving one provider: the component instance binds the
+  // provider's credentials. convex-test doesn't emulate component env
+  // bindings or the backend applying httpPrefix to CONVEX_SITE_URL, so the
+  // component-side values are stubbed directly (CONVEX_SITE_URL with the
+  // prefix already applied, as the backend would present it).
   vi.stubEnv("CLIENT_ID", CLIENT_ID);
   vi.stubEnv("CLIENT_SECRET", "test-client-secret");
   vi.stubEnv(
@@ -183,7 +183,7 @@ async function startFlow(
   return { state, stateHash };
 }
 
-/** GET the mount's callback route the way the identity provider redirect would. */
+/** GET the component's callback route the way the identity provider redirect would. */
 function callback(
   t: ReturnType<typeof setup>,
   params: Record<string, string>,
