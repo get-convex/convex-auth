@@ -10,16 +10,10 @@ import {
 import { sha256Hex } from "../../lib/crypto";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams";
 
-// Each per-provider mount (`app.use(oauth, { name: "oauthGoogle",
-// httpPrefix: "/oauth/google", ... })`) serves one callback at
-// <prefix>/callback — the redirect URI registered with that identity
-// provider.
 const http = httpRouter();
 
-/** Outbound requests fail after this instead of pinning the callback to the platform limit. */
 const FETCH_TIMEOUT_MS = 30 * 1000;
 
-/** A 302 redirect response. */
 function redirect(location: string): Response {
   return new Response(null, {
     status: 302,
@@ -30,10 +24,7 @@ function redirect(location: string): Response {
 /**
  * 302 back to the app's `redirectTo` with outcome params. Stale outcome params
  * from a previous attempt are removed first, so a `redirectTo` derived from the
- * app's current URL can't carry a contradictory outcome. The params are
- * namespaced ({@link OAUTH_CODE_PARAM}/{@link OAUTH_ERROR_PARAM}) so the app's
- * always-on client callback handler can tell this redirect apart from an
- * unrelated `?code=`/`?error=` the app uses for its own purposes.
+ * app's current URL can't carry a contradictory outcome.
  */
 function redirectToApp(
   redirectTo: string,
@@ -52,11 +43,7 @@ function redirectToApp(
  * Fetch that requires https, enforces a timeout, and treats any HTTP
  * redirect as an error. Token and userinfo endpoints never legitimately
  * redirect; following one could forward credentials to an unintended host,
- * and a non-https endpoint would expose them in transit. The body is
- * consumed while the timeout is still armed, so an endpoint that stalls
- * before or after sending headers becomes a normal failure that redirects
- * the user back to the app instead of pinning the callback until the
- * platform limit.
+ * and a non-https endpoint would expose them in transit.
  */
 async function fetchRefusingRedirects(
   url: string,
@@ -88,9 +75,8 @@ async function fetchRefusingRedirects(
 
 /**
  * Exchange an authorization code for tokens at the provider's token
- * endpoint. Client credentials are sent in the POST body — empirically the
- * most compatible style (HTTP Basic has a form-urlencoding ambiguity many
- * providers get wrong).
+ * endpoint. Credentials go in the POST body because HTTP Basic has a
+ * form-urlencoding ambiguity many providers get wrong.
  */
 async function exchangeCode(args: {
   tokenEndpoint: string;
@@ -177,9 +163,7 @@ function validateIdToken(
 }
 
 /**
- * Fetch each configured userinfo endpoint with the access token. All
- * popular providers accept the same shape — GET with a bearer token — with
- * provider variation living in the endpoint URL's query params.
+ * Fetch each configured userinfo endpoint with the access token.
  */
 async function fetchUserInfo(
   endpoints: Record<string, string>,
@@ -207,9 +191,7 @@ async function fetchUserInfo(
 }
 
 /**
- * Handle the provider callback. The mount serves exactly one provider, so
- * any claimed authorization request was issued by this instance for the
- * mount's provider; there's no cross-provider routing to check.
+ * Handle the provider callback.
  */
 async function handleCallback(
   ctx: GenericActionCtx<GenericDataModel>,
@@ -338,8 +320,6 @@ async function handleCallback(
   }
 }
 
-// The mount's single callback route; the instance's credentials come from
-// its env bindings.
 http.route({
   path: CALLBACK_PATH,
   method: "GET",

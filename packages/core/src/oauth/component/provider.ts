@@ -113,7 +113,7 @@ export const claimAuthorizationRequest = internalMutation({
 });
 
 /**
- * Mint a one-time redeemable ticket after a successful code exchange. The
+ * Store a one-time redeemable ticket after a successful code exchange. The
  * caller (the callback) holds the raw ticket code; only its hash is
  * stored, and the identity payload arrives already encrypted with a key
  * derived from that code.
@@ -142,11 +142,7 @@ export const createTicket = internalMutation({
  * The caller must also present the hash of the state minted at sign-in,
  * binding redemption to the client that initiated the flow, and the provider
  * name it expects, so a misconfigured or renamed provider instance can't
- * redeem a ticket into the wrong account namespace. A state or provider
- * mismatch returns null *without* deleting: someone holding a stolen
- * ticket code but not the state must not be able to burn the real
- * client's ticket. An expired row is deleted but not returned. All failures
- * are indistinguishable to the caller.
+ * redeem a ticket into the wrong account namespace.
  */
 export const claimTicket = mutation({
   args: {
