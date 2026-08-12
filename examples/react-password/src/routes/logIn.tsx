@@ -35,7 +35,7 @@ export function LogIn() {
               case "RATE_LIMITED":
                 return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
               case "OTHER_ERROR":
-                // The action threw unexpectedly; the original error is
+                // The mutation threw unexpectedly; the original error is
                 // available on `cause` if you want to log or inspect it.
                 console.error("Sign-in failed:", result.userError.cause);
                 return "Something went wrong. Please try again.";

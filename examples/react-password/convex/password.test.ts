@@ -42,13 +42,13 @@ const signUp = (
   t: Awaited<ReturnType<typeof setup>>,
   username: string,
   password: string,
-) => t.action(api.auth.signUpWithPassword, { username, password });
+) => t.mutation(api.auth.signUpWithPassword, { username, password });
 
 const signIn = (
   t: Awaited<ReturnType<typeof setup>>,
   username: string,
   password: string,
-) => t.action(api.auth.signInWithPassword, { username, password });
+) => t.mutation(api.auth.signInWithPassword, { username, password });
 
 type PasswordResult =
   Awaited<ReturnType<typeof signUp>> | Awaited<ReturnType<typeof signIn>>;

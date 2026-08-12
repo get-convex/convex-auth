@@ -1,4 +1,4 @@
-import { actionGeneric } from "convex/server";
+import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import { defineProvider, vTokenBundle } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
@@ -77,7 +77,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
- * actions so its clients can call them.
+ * mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the core's `accounts`
  * table: the recipe uses the lowercased username as the provider account id, and
@@ -98,7 +98,7 @@ export const UsernamePassword = defineProvider({
        * Create a new account: reject a taken username or an invalid password,
        * otherwise create the user + session and store the password.
        */
-      signUpWithPassword: actionGeneric({
+      signUpWithPassword: mutationGeneric({
         args: { username: v.string(), password: v.string() },
         returns: signUpResult,
         handler: async (ctx, { username, password }): Promise<SignUpResult> => {
@@ -155,7 +155,7 @@ export const UsernamePassword = defineProvider({
        * the two apart. (Account existence is already observable via sign-up's
        * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
        */
-      signInWithPassword: actionGeneric({
+      signInWithPassword: mutationGeneric({
         args: { username: v.string(), password: v.string() },
         returns: signInResult,
         handler: async (ctx, { username, password }): Promise<SignInResult> => {

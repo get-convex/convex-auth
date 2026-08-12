@@ -31,7 +31,7 @@ export function SignUp() {
               case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
                 return "Password can't start or end with whitespace.";
               case "OTHER_ERROR":
-                // The action threw unexpectedly; the original error is
+                // The mutation threw unexpectedly; the original error is
                 // available on `cause` if you want to log or inspect it.
                 console.error("Sign-up failed:", result.userError.cause);
                 return "Something went wrong. Please try again.";

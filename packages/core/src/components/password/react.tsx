@@ -17,7 +17,7 @@
  */
 "use client";
 
-import { useAction } from "convex/react";
+import { useMutation } from "convex/react";
 import { FunctionReference } from "convex/server";
 import { useCallback, useState } from "react";
 import { useAuthActions } from "../../react";
@@ -27,27 +27,27 @@ import type { SignInResult, SignUpResult } from "./setup";
 type Credentials = { username: string; password: string };
 
 /**
- * The `signInWithPassword` action the app re-exports from its `setupCore`.
+ * The `signInWithPassword` mutation the app re-exports from its `setupCore`.
  */
-type SignInWithPasswordAction = FunctionReference<
-  "action",
+type SignInWithPasswordMutation = FunctionReference<
+  "mutation",
   "public",
   Credentials,
   SignInResult
 >;
 
 /**
- * The `signUpWithPassword` action the app re-exports from its `setupCore`.
+ * The `signUpWithPassword` mutation the app re-exports from its `setupCore`.
  */
-type SignUpWithPasswordAction = FunctionReference<
-  "action",
+type SignUpWithPasswordMutation = FunctionReference<
+  "mutation",
   "public",
   Credentials,
   SignUpResult
 >;
 
 /**
- * A failure the client produces that the server never returns: the action
+ * A failure the client produces that the server never returns: the mutation
  * threw (a network blip, a bug, an unexpected server error) rather than
  * resolving to a `userError`. The flow hooks fold that into the result as
  * `OTHER_ERROR` so callers handle *every* failure through the one `userError`
@@ -67,9 +67,9 @@ export type SignUpWithPasswordResult = SignUpResult | UnexpectedFailure;
 
 /**
  * Client for the password provider's sign-in flow: wire the backend's
- * `signInWithPassword` action to the core client.
+ * `signInWithPassword` mutation to the core client.
  *
- * The returned `signIn` runs the action with the given credentials and, on
+ * The returned `signIn` runs the mutation with the given credentials and, on
  * success, establishes an authenticated session with your Convex backend.
  *
  * The `pending` flag returned will let you know if the credentials are
@@ -100,10 +100,12 @@ export type SignUpWithPasswordResult = SignUpResult | UnexpectedFailure;
  * }
  * ```
  *
- * @param signInAction The app's `signInWithPassword` action reference.
+ * @param signInMutation The app's `signInWithPassword` mutation reference.
  */
-export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
-  const { run, pending } = usePasswordFlow(signInAction);
+export function useSignInWithPassword(
+  signInMutation: SignInWithPasswordMutation,
+) {
+  const { run, pending } = usePasswordFlow(signInMutation);
   return {
     /**
      * Passes up the given crendentials to perform a username/password sign in.
@@ -124,9 +126,9 @@ export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
 
 /**
  * Client for the password provider's sign-up flow: wire the backend's
- * `signUpWithPassword` action to the core client.
+ * `signUpWithPassword` mutation to the core client.
  *
- * The returned `signUp` runs the action with the given credentials and, on
+ * The returned `signUp` runs the mutation with the given credentials and, on
  * success, establishes an authenticated session with your Convex backend.
  *
  * The `pending` flag returned will let you know if the credentials are
@@ -145,10 +147,12 @@ export function useSignInWithPassword(signInAction: SignInWithPasswordAction) {
  * }
  * ```
  *
- * @param signUpAction The backend's `signUpWithPassword` action reference.
+ * @param signUpMutation The backend's `signUpWithPassword` mutation reference.
  */
-export function useSignUpWithPassword(signUpAction: SignUpWithPasswordAction) {
-  const { run, pending } = usePasswordFlow(signUpAction);
+export function useSignUpWithPassword(
+  signUpMutation: SignUpWithPasswordMutation,
+) {
+  const { run, pending } = usePasswordFlow(signUpMutation);
   return {
     /**
      * Passes up the given crendentials to perform a username/password sign up.
@@ -168,39 +172,39 @@ export function useSignUpWithPassword(signUpAction: SignUpWithPasswordAction) {
 }
 
 /**
- * Shared internals for sign-in and sign-up: run the action, adopt the session
- * on success, and track in-flight state. The two flows are structurally
- * identical and differ only in the action they call and the name they expose
- * the callback under.
+ * Shared internals for sign-in and sign-up: run the mutation, adopt the
+ * session on success, and track in-flight state. The two flows are
+ * structurally identical and differ only in the mutation they call and the
+ * name they expose the callback under.
  */
 function usePasswordFlow<Result extends SignInResult | SignUpResult>(
-  action: FunctionReference<"action", "public", Credentials, Result>,
+  mutation: FunctionReference<"mutation", "public", Credentials, Result>,
 ) {
   const { setSession } = useAuthActions();
-  const runAction = useAction(action);
+  const runMutation = useMutation(mutation);
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
     async (credentials: Credentials): Promise<Result | UnexpectedFailure> => {
       setPending(true);
       try {
-        const result = await runAction(credentials);
+        const result = await runMutation(credentials);
         if (result.success) {
           await setSession(result.tokens);
         }
         return result;
       } catch (cause) {
-        // The action threw instead of resolving to a `userError`. Fold it into
+        // The mutation threw instead of resolving to a `userError`. Fold it into
         // the same discriminated result as `OTHER_ERROR`, preserving the thrown
         // value on `cause`, so the caller handles it alongside every other
         // failure and can still inspect or log the original error if it wants.
         return { success: false, userError: { error: "OTHER_ERROR", cause } };
       } finally {
-        // Reset even when the action throws.
+        // Reset even when the mutation throws.
         setPending(false);
       }
     },
-    [runAction, setSession],
+    [runMutation, setSession],
   );
 
   return { run, pending };
