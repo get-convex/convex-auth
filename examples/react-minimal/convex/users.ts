@@ -4,7 +4,7 @@ import { v } from "convex/values";
 export const upsertFromAuth = internalMutation({
   args: {
     provider: v.union(v.literal("anonymous")),
-    providerAccountId: v.string(),
+    providerAccountId: v.union(v.string(), v.null()),
     profile: v.any(),
     userId: v.union(v.string(), v.null()),
   },

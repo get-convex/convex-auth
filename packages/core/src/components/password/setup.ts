@@ -4,7 +4,6 @@ import { defineProvider, vTokenBundle } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
-  normalizeUsername,
   setUsernameUserError,
   validateUsernameFormat,
 } from "../username/validation";
@@ -129,15 +128,13 @@ export const UsernamePassword = defineProvider({
           }
 
           // Create the account + app user (via the app's createOrUpdateUser) and
-          // mint the session. `profile.username` keeps the original casing for
-          // display; the account is keyed by the normalized `id`.
-          //
-          // TODO(nicolas) The username component now owns the username → user
-          // id mapping, so the account no longer needs to be keyed by the
-          // username. Give the account a stable, opaque id instead.
+          // mint the session. The username component owns the username → user
+          // id mapping, so the account has no identifier of its own; the
+          // `profile.username` keeps the original casing for display.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: normalizeUsername(username),
+            providerAccountId: null,
+            userId: null,
             profile: { username },
           });
 
@@ -210,11 +207,13 @@ export const UsernamePassword = defineProvider({
             return { success: false, userError: verifyResult.userError };
           }
 
-          // TODO(nicolas) See the TODO in `signUpWithPassword`: the account
-          // no longer needs to be keyed by the username.
+          // The user is already known (the username component found them), so
+          // the claims carry the `userId`: it is what lets the core find the
+          // account of this user, which has no identifier of its own.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: normalizeUsername(username),
+            providerAccountId: null,
+            userId,
             profile: { username },
           });
           return { success: true, tokens };

@@ -52,6 +52,24 @@ function accountByIdentity(
     .unique();
 }
 
+/**
+ * Look up the account that a user has with a provider. This is how the core
+ * finds the account of a returning user of a provider that has no account
+ * identifier of its own (`providerAccountId: null`).
+ */
+function accountByUser(
+  ctx: QueryCtx,
+  provider: string,
+  userId: string,
+): Promise<Doc<"accounts"> | null> {
+  return ctx.db
+    .query("accounts")
+    .withIndex("by_user_provider", (q) =>
+      q.eq("userId", userId).eq("provider", provider),
+    )
+    .unique();
+}
+
 /** Look up a session by the (current) hash of its refresh token. */
 function sessionByHash(
   ctx: QueryCtx,
@@ -157,17 +175,24 @@ type CreateOrUpdateUserFunctionHandle = FunctionHandle<
  * user record from the latest claims). The profile the core holds for the
  * account is refreshed to match. Returns just what minting a session needs: the
  * account id and its app user id.
+ *
+ * The claims identify the account in one of two ways. Most providers give a
+ * `providerAccountId`, and the core finds the account with it. A provider that
+ * has no identifier of its own gives `providerAccountId: null` plus the
+ * `userId` of the user it authenticated, and the core finds the account of
+ * that user. Claims with neither always start a new user and a new account.
  */
 async function resolveAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
   createOrUpdateUser: CreateOrUpdateUserFunctionHandle,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
-  const account = await accountByIdentity(
-    ctx,
-    claims.provider,
-    claims.providerAccountId,
-  );
+  const account =
+    claims.providerAccountId !== null
+      ? await accountByIdentity(ctx, claims.provider, claims.providerAccountId)
+      : claims.userId !== null
+        ? await accountByUser(ctx, claims.provider, claims.userId)
+        : null;
   if (account) {
     // Returning identity: hand the app the latest claims with the known user id
     // so it can update its own user record.
@@ -193,8 +218,13 @@ async function resolveAccount(
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
-    userId: null,
+    userId: claims.userId,
   });
+  if (claims.userId !== null && userId !== claims.userId) {
+    throw new Error(
+      "createOrUpdateUser may not return a new userId for an existing user",
+    );
+  }
   const accountId = await ctx.db.insert("accounts", {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
@@ -242,8 +272,10 @@ export const signIn = mutation({
  *
  * Providers use this (via the `resolveUserId` helper the core hands them) to look
  * up the user behind a `(provider, providerAccountId)` pair before authenticating
- * — e.g. a password provider needs the user id to verify a stored password *before*
- * a session is issued. Returns `null` when no account exists for the identity.
+ * — a provider that must check a credential of a known user *before* a session is
+ * issued needs that user id. Returns `null` when no account exists for the
+ * identity. Only providers that have an account identifier of their own can use
+ * this function.
  *
  * This is a component-internal function (callable by the app, not by end-user
  * clients), so it does not expose account existence to the outside world; the

@@ -43,6 +43,7 @@ function claims(overrides: Partial<AuthClaims> = {}): AuthClaims {
   return {
     provider: "password",
     providerAccountId: "alice",
+    userId: null,
     profile: { name: "Alice" },
     ...overrides,
   };
@@ -130,6 +131,84 @@ describe("signIn", () => {
     expect(calls[0].profile).toEqual({ name: "Alice" });
     expect(calls[1].userId).toBe("alice");
     expect(calls[1].profile).toEqual({ name: "Alice 2.0" });
+  });
+
+  test("creates an account for a provider that has no account id", async () => {
+    const t = setup();
+    const bundle = await signIn(
+      t,
+      claims({ providerAccountId: null, userId: null }),
+    );
+
+    const accounts = await t.run((ctx) => ctx.db.query("accounts").collect());
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0].providerAccountId).toBeNull();
+    expect(accounts[0].userId).toBe(bundle.userId);
+  });
+
+  test("finds the account of a returning user with no account id", async () => {
+    const t = setup();
+    const first = await signIn(
+      t,
+      claims({ providerAccountId: null, userId: null }),
+    );
+    // A returning user: the provider knows the user id, and the claims carry
+    // it in place of an account id.
+    const second = await signIn(
+      t,
+      claims({ providerAccountId: null, userId: first.userId }),
+    );
+
+    expect(second.userId).toBe(first.userId);
+    const { accounts, sessions } = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+    }));
+    expect(accounts).toBe(1);
+    expect(sessions).toBe(2);
+  });
+
+  test("keeps the accounts of two users with no account id apart", async () => {
+    const t = setup();
+    const alice = await signIn(
+      t,
+      claims({ providerAccountId: null, userId: null }),
+    );
+    const bob = await signIn(
+      t,
+      claims({ providerAccountId: null, userId: null }),
+    );
+    expect(bob.userId).not.toBe(alice.userId);
+
+    const again = await signIn(
+      t,
+      claims({ providerAccountId: null, userId: alice.userId }),
+    );
+    expect(again.userId).toBe(alice.userId);
+    const accounts = await t.run((ctx) => ctx.db.query("accounts").collect());
+    expect(accounts).toHaveLength(2);
+  });
+
+  test("does not confuse the accounts of one user across providers", async () => {
+    const t = setup();
+    const first = await signIn(
+      t,
+      claims({ provider: "password", providerAccountId: null, userId: null }),
+    );
+    // The same user signs in with another provider that has no account id:
+    // that is a second account, not the first one.
+    await signIn(
+      t,
+      claims({
+        provider: "magiclink",
+        providerAccountId: null,
+        userId: first.userId,
+      }),
+    );
+
+    const accounts = await t.run((ctx) => ctx.db.query("accounts").collect());
+    expect(accounts).toHaveLength(2);
+    expect(accounts.every((a) => a.userId === first.userId)).toBe(true);
   });
 });
 

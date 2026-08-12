@@ -102,8 +102,21 @@ export type ConvexAuthApi = {
 export const vAuthClaims = v.object({
   /** Provider name, e.g. "password". */
   provider: v.string(),
-  /** Stable, provider-scoped account identifier (e.g. a username). */
-  providerAccountId: v.string(),
+  /**
+   * Stable, provider-scoped account identifier (e.g. an OAuth subject), or
+   * `null` for a provider that has no identifier of its own. A provider that
+   * gives `null` must give the `userId` of a returning user, because the core
+   * has no other way to find the account of that user.
+   */
+  providerAccountId: v.union(v.string(), v.null()),
+  /**
+   * The app user that this sign-in is for, when the provider already knows it
+   * (e.g. a password provider that found the user by their username and then
+   * verified their password). Give `null` when the provider does not know the
+   * user: the core then finds the account with `providerAccountId`, or creates
+   * a user and an account.
+   */
+  userId: v.union(v.string(), v.null()),
   /** Arbitrary profile data the provider learned about the user. */
   profile: v.any(),
 });
@@ -112,7 +125,7 @@ export type AuthClaims = Infer<typeof vAuthClaims>;
 
 export const vCreateOrUpdateUser = v.object({
   provider: v.string(),
-  providerAccountId: v.string(),
+  providerAccountId: v.union(v.string(), v.null()),
   profile: v.any(),
   userId: v.union(v.string(), v.null()),
 });
@@ -122,7 +135,7 @@ export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
   "internal",
   {
     provider: Provider;
-    providerAccountId: string;
+    providerAccountId: string | null;
     // TODO: dowski - investigate type safety for provider profile data.
     profile: unknown;
     userId: string | null;

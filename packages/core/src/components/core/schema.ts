@@ -4,13 +4,21 @@ import { v } from "convex/values";
 export default defineSchema({
   // Maps a provider-scoped identity to an opaque app user id. The app owns the
   // actual users table; we only store the id string it gives us back.
+  //
+  // `providerAccountId` is `null` for a provider that has no identifier of its
+  // own (the password provider, for example, finds its users through the
+  // username component). The core then finds the account of a returning user
+  // with the `by_user_provider` index, and never looks a `null` identifier up
+  // in `by_provider_account`.
   accounts: defineTable({
     provider: v.string(),
-    providerAccountId: v.string(),
+    providerAccountId: v.union(v.string(), v.null()),
     userId: v.string(),
   })
     .index("by_provider_account", ["provider", "providerAccountId"])
-    .index("by_user", ["userId"]),
+    // A user has one account per provider at most. Convex does not enforce
+    // unique indexes; the core keeps this property true.
+    .index("by_user_provider", ["userId", "provider"]),
 
   // One row per active refresh token (sessions). The raw refresh token is never
   // stored — only its SHA-256 hash.

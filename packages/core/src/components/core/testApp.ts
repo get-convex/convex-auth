@@ -15,6 +15,11 @@ import { Infer, v } from "convex/values";
 type CreateOrUpdateUserCall = Infer<typeof vCreateOrUpdateUser>;
 const createOrUpdateUserCalls: CreateOrUpdateUserCall[] = [];
 
+// Makes a distinct user id for each sign-in that gives neither a user id nor a
+// provider account id. A module-level counter (not the call log, which tests
+// reset) keeps the ids distinct for the whole suite.
+let mintedUserCount = 0;
+
 /** Read the recorded `createOrUpdateUser` calls (test-only). */
 export function getCreateOrUpdateUserCalls(): readonly CreateOrUpdateUserCall[] {
   return createOrUpdateUserCalls;
@@ -31,13 +36,16 @@ export function resetCreateOrUpdateUserCalls(): void {
  * every sign-in for an identity; like a minimal real app, it owns no users
  * table and just echoes the provider-scoped account id back as the app user id,
  * honoring an explicit `userId` when one is supplied (returning sign-in / link
- * path).
+ * path) and minting an id when the claims give neither.
  */
 export const createOrUpdateUser = internalMutation({
   args: vCreateOrUpdateUser,
   returns: v.string(),
   handler: async (_ctx, args) => {
     createOrUpdateUserCalls.push({ ...args });
-    return args.userId ?? args.providerAccountId;
+    if (args.userId !== null) {
+      return args.userId;
+    }
+    return args.providerAccountId ?? `user-${++mintedUserCount}`;
   },
 });

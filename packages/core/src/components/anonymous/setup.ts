@@ -26,6 +26,7 @@ export const Anonymous = defineProvider({
           return await completeSignIn(ctx, {
             provider: "anonymous",
             providerAccountId: anonymousId,
+            userId: null,
             profile: {},
           });
         },

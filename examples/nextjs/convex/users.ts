@@ -11,7 +11,7 @@ import { internalMutation, query } from "./_generated/server";
 export const createOrUpdateUser = internalMutation({
   args: {
     provider: v.literal("anonymous"),
-    providerAccountId: v.string(),
+    providerAccountId: v.union(v.string(), v.null()),
     profile: v.any(),
     userId: v.union(v.string(), v.null()),
   },

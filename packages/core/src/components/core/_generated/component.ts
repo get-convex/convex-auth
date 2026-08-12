@@ -54,7 +54,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           accessTokenTtlSeconds?: number;
-          claims: { profile: any; provider: string; providerAccountId: string };
+          claims: {
+            profile: any;
+            provider: string;
+            providerAccountId: string | null;
+            userId: string | null;
+          };
           createOrUpdateUserHandle: string;
           issuer: string;
           refreshTokenTtlSeconds?: number;
