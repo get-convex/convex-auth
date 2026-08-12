@@ -1,6 +1,6 @@
 import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
-import { defineProvider, vTokenBundle } from "../../lib/types";
+import { defineProvider, vSignInSuccess } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
@@ -38,7 +38,7 @@ const PROVIDER_NAME = "password";
 const EMPTY_PROVIDER_ACCOUNT_ID = "";
 
 const signInResult = v.union(
-  v.object({ success: v.literal(true), tokens: vTokenBundle }),
+  vSignInSuccess,
   v.object({
     success: v.literal(false),
     userError: v.union(
@@ -56,7 +56,7 @@ const signInResult = v.union(
 export type SignInResult = Infer<typeof signInResult>;
 
 const signUpResult = v.union(
-  v.object({ success: v.literal(true), tokens: vTokenBundle }),
+  vSignInSuccess,
   v.object({
     success: v.literal(false),
     userError: v.union(setPasswordUserError, setUsernameUserError),

@@ -17,23 +17,27 @@
  */
 "use client";
 
-import { useMutation } from "convex/react";
 import { FunctionReference } from "convex/server";
 import { useCallback, useState } from "react";
-import { useAuthActions } from "../../react";
+import type { ClientView } from "../../lib/types";
+import { useAuthActions, useAuthSignInApi } from "../../react";
 import type { SignInResult, SignUpResult } from "./setup";
 
 /** The `(username, password)` pair both flows accept. */
-type Credentials = { username: string; password: string };
+export type Credentials = { username: string; password: string };
 
 /**
  * The `signInWithPassword` mutation the app re-exports from its `setupCore`.
+ *
+ * Its return value is the access-only {@link ClientView}, which is what both
+ * session models have in common. Hand it to `setSession`, the only supported
+ * consumer.
  */
 type SignInWithPasswordMutation = FunctionReference<
   "mutation",
   "public",
   Credentials,
-  SignInResult
+  ClientView<SignInResult>
 >;
 
 /**
@@ -43,7 +47,7 @@ type SignUpWithPasswordMutation = FunctionReference<
   "mutation",
   "public",
   Credentials,
-  SignUpResult
+  ClientView<SignUpResult>
 >;
 
 /**
@@ -60,10 +64,12 @@ type UnexpectedFailure = {
 };
 
 /** The result of the `signIn` callback from {@link useSignInWithPassword}. */
-export type SignInWithPasswordResult = SignInResult | UnexpectedFailure;
+export type SignInWithPasswordResult =
+  ClientView<SignInResult> | UnexpectedFailure;
 
 /** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
-export type SignUpWithPasswordResult = SignUpResult | UnexpectedFailure;
+export type SignUpWithPasswordResult =
+  ClientView<SignUpResult> | UnexpectedFailure;
 
 /**
  * Client for the password provider's sign-in flow: wire the backend's
@@ -177,18 +183,20 @@ export function useSignUpWithPassword(
  * structurally identical and differ only in the mutation they call and the
  * name they expose the callback under.
  */
-function usePasswordFlow<Result extends SignInResult | SignUpResult>(
-  mutation: FunctionReference<"mutation", "public", Credentials, Result>,
-) {
+function usePasswordFlow<
+  Result extends ClientView<SignInResult> | ClientView<SignUpResult>,
+>(mutation: FunctionReference<"mutation", "public", Credentials, Result>) {
   const { setSession } = useAuthActions();
-  const runMutation = useMutation(mutation);
+  // Running through the signInApi rather than `useAction` is what lets these hooks
+  // serve both session models. See {@link useAuthSignInApi}.
+  const signInApi = useAuthSignInApi();
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
     async (credentials: Credentials): Promise<Result | UnexpectedFailure> => {
       setPending(true);
       try {
-        const result = await runMutation(credentials);
+        const result = await signInApi.mutation(mutation, credentials);
         if (result.success) {
           await setSession(result.tokens);
         }
@@ -204,7 +212,7 @@ function usePasswordFlow<Result extends SignInResult | SignUpResult>(
         setPending(false);
       }
     },
-    [runMutation, setSession],
+    [signInApi, mutation, setSession],
   );
 
   return { run, pending };

@@ -36,23 +36,28 @@ afterEach(() => {
 });
 
 describe("anonymous sign in", () => {
-  test("returns token bundle", async () => {
+  test("returns a token bundle in the shared sign-in envelope", async () => {
     const t = await setup();
     const result = await t.mutation(api.auth.signInAnonymous, {});
-    expect(result.userId).not.toBe(null);
-    expect(result.accessToken).not.toBe(null);
-    expect(result.accessTokenExpiresAt).not.toBe(null);
-    expect(result.refreshToken).not.toBe(null);
-    expect(result.refreshTokenExpiresAt).not.toBe(null);
-    expect(result.refreshTokenExpiresAt).toBeGreaterThan(
-      result.accessTokenExpiresAt,
+    // Every provider returns the same `{ success, tokens }` envelope. Fixing
+    // where the bundle sits is what lets the SSR auth proxy find the refresh
+    // token and move it into an httpOnly cookie.
+    expect(result.success).toBe(true);
+    const { tokens } = result;
+    expect(tokens.userId).not.toBe(null);
+    expect(tokens.accessToken).not.toBe(null);
+    expect(tokens.accessTokenExpiresAt).not.toBe(null);
+    expect(tokens.refreshToken).not.toBe(null);
+    expect(tokens.refreshTokenExpiresAt).not.toBe(null);
+    expect(tokens.refreshTokenExpiresAt).toBeGreaterThan(
+      tokens.accessTokenExpiresAt,
     );
   });
 
   test("returned access token is valid JWT", async () => {
     const t = await setup();
-    const result = await t.mutation(api.auth.signInAnonymous, {});
-    const jwt = decodeJwt(result.accessToken);
-    expect(jwt.sub).toBe(result.userId);
+    const { tokens } = await t.mutation(api.auth.signInAnonymous, {});
+    const jwt = decodeJwt(tokens.accessToken);
+    expect(jwt.sub).toBe(tokens.userId);
   });
 });

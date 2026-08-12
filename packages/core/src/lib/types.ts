@@ -7,10 +7,16 @@ import {
 import { GenericId, Infer, v } from "convex/values";
 
 /**
- * Shared contracts that cross the core/app boundary. That includes validators (and
- * their inferred types) for what the core's session functions accept and return
- * and any function references. Each is declared once here and reused wherever the
- * core or the app needs it, so the shapes can never drift between declaration sites.
+ * Shared contracts that cross a module boundary within Convex Auth. That includes
+ * validators (and their inferred types) for what the core's session functions
+ * accept and return, any function references, and the wire shapes an SSR host's
+ * auth routes exchange with the browser. Each is declared once here and reused
+ * wherever the core, the app, the server handlers or the client needs it, so the
+ * shapes can never drift between declaration sites.
+ *
+ * This module deliberately depends on nothing else in the package, which is what
+ * lets both the server and the browser halves import from it without either
+ * reaching into the other's tree.
  */
 
 /**
@@ -27,6 +33,22 @@ export const vTokenBundle = v.object({
 });
 
 export type TokenBundle = Infer<typeof vTokenBundle>;
+
+/**
+ * The success arm of every provider's sign-in result.
+ *
+ * Providers compose this into their result union rather than declaring the
+ * success arm themselves. Fixing where the minted bundle sits is what lets the
+ * SSR auth proxy find the refresh token without knowing which provider produced
+ * the response, and lets it reject a shape it doesn't recognize instead of
+ * forwarding tokens to the browser.
+ */
+export const vSignInSuccess = v.object({
+  success: v.literal(true),
+  tokens: vTokenBundle,
+});
+
+export type SignInSuccess = Infer<typeof vSignInSuccess>;
 
 /**
  * The token bundle that an SSR route hands back to the client. It is a slimmed
@@ -51,6 +73,37 @@ export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
     userId: bundle.userId,
   };
 }
+
+/**
+ * The JSON body of every SSR auth session response: the refresh handler, the
+ * sign-out handler, and the cross-site refusal all reply with this shape, and
+ * the client parses it without looking at the status. `tokens` is null whenever
+ * there is no live session to report (a dead or missing refresh cookie, a
+ * completed sign-out, a refused origin).
+ */
+export type AuthSessionResponse = {
+  tokens: SlimTokenBundle | null;
+};
+
+/**
+ * A provider result as clients see it, with the token bundle narrowed to what
+ * every session model delivers.
+ *
+ * Under SSR the auth proxy strips the refresh token before the response reaches
+ * the browser, so the slim bundle is all the two models have in common.
+ * Declaring that here makes the stripping a widening of the value rather than a
+ * broken contract: a {@link TokenBundle} is assignable to a
+ * {@link SlimTokenBundle}, so one type stays true for both.
+ *
+ * It also stops callers depending on the refresh token. Handing the bundle to
+ * `setSession` is the only supported use; an app that needs the raw token can
+ * call its Convex function with the generated reference and get the full type.
+ *
+ * Distributes over a result union, leaving failure arms untouched.
+ */
+export type ClientView<T> = T extends { tokens: TokenBundle }
+  ? Omit<T, "tokens"> & { tokens: SlimTokenBundle }
+  : T;
 
 /** The app's `refreshSession` mutation reference: exchange a refresh token for a
  * fresh {@link TokenBundle}, or `null` when the session is gone. */
