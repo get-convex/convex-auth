@@ -59,7 +59,7 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        userId: "user1",
+        userId: "j57ecdxq7j2yp8q3c31x7c54898bqyrk",
         createdAt: Date.now(),
       });
       const row = await consumeChallenge(ctx, "registration", challenge);
@@ -88,7 +88,7 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        userId: "user1",
+        userId: "j57ecdxq7j2yp8q3c31x7c54898bqyrk",
         createdAt: Date.now(),
       });
       const row = await consumeChallenge(ctx, "authentication", challenge);
@@ -125,7 +125,7 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        userId: "user1",
+        userId: "j57ecdxq7j2yp8q3c31x7c54898bqyrk",
         createdAt: Date.now() - CHALLENGE_TTL_MS - 1,
       });
       const row = await consumeChallenge(ctx, "registration", challenge);
@@ -144,7 +144,7 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        userId: "user1",
+        userId: "j57ecdxq7j2yp8q3c31x7c54898bqyrk",
         createdAt: Date.now() - CHALLENGE_TTL_MS,
       });
       expect(await consumeChallenge(ctx, "registration", challenge)).not.toBe(
