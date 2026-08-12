@@ -4,7 +4,6 @@ import { defineProvider, vTokenBundle } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
-  normalizeUsername,
   setUsernameUserError,
   validateUsernameFormat,
 } from "../username/validation";
@@ -33,6 +32,10 @@ export type UsernamePasswordOptions = {
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "password";
+
+// A given user has only zero or one “provider account ID”,
+// so there is no need for having a value here.
+const PROVIDER_ACCOUNT_ID = "";
 
 const signInResult = v.union(
   v.object({ success: v.literal(true), tokens: vTokenBundle }),
@@ -137,7 +140,7 @@ export const UsernamePassword = defineProvider({
           // username. Give the account a stable, opaque id instead.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: normalizeUsername(username),
+            providerAccountId: PROVIDER_ACCOUNT_ID,
             profile: { username },
           });
 
@@ -214,7 +217,7 @@ export const UsernamePassword = defineProvider({
           // no longer needs to be keyed by the username.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: normalizeUsername(username),
+            providerAccountId: PROVIDER_ACCOUNT_ID,
             profile: { username },
           });
           return { success: true, tokens };
