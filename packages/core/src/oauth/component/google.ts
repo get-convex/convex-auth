@@ -57,7 +57,7 @@ const googleCatalog: OauthCatalog = {
 
 /**
  * Built-in Google OAuth provider. Register it with its own oauth component
- * mount:
+ * instance:
  *
  * ```ts
  * provider(OauthGoogle, {
@@ -66,10 +66,10 @@ const googleCatalog: OauthCatalog = {
  * })
  * ```
  *
- * Mount the component under `httpPrefix: "/oauth/google"` in
+ * Install the component under `httpPrefix: "/oauth/google"` in
  * convex.config.ts, binding Google's `CLIENT_ID`/`CLIENT_SECRET`, and register
  * `<site-url>/oauth/google/callback` as the redirect URI with Google. The
- * mount's prefix alone determines the callback URL.
+ * `httpPrefix` alone determines the callback URL.
  */
 export const OauthGoogle = defineProvider({
   name: "google",

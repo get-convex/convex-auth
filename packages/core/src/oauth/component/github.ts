@@ -93,7 +93,7 @@ const githubCatalog: OauthCatalog<GithubUserInfo> = {
 
 /**
  * Built-in GitHub OAuth provider. Register it with its own oauth component
- * mount:
+ * instance:
  *
  * ```ts
  * provider(OauthGithub, {
@@ -102,10 +102,10 @@ const githubCatalog: OauthCatalog<GithubUserInfo> = {
  * })
  * ```
  *
- * Mount the component under `httpPrefix: "/oauth/github"` in
+ * Install the component under `httpPrefix: "/oauth/github"` in
  * convex.config.ts, binding GitHub's `CLIENT_ID`/`CLIENT_SECRET`, and register
  * `<site-url>/oauth/github/callback` as the redirect URI with GitHub. The
- * mount's prefix alone determines the callback URL.
+ * `httpPrefix` alone determines the callback URL.
  *
  * Identity comes from the userinfo endpoints since GitHub returns no id_token.
  */
