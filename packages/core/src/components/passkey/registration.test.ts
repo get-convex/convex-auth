@@ -378,17 +378,21 @@ describe("deletePasskey", () => {
 
   test("refuses to delete another user's passkey", async () => {
     const t = setup();
-    const { passkeyId } = await register(t, "user1");
+    const { passkeyId: user1PasskeyId } = await register(t, "user1");
+    const { passkeyId: user2PasskeyId } = await register(t, "user2");
     const result = await t.mutation(api.registration.deletePasskey, {
       userId: "user2",
-      passkeyId,
+      passkeyId: user1PasskeyId,
     });
     expect(result).toEqual({
       success: false,
       userError: { error: "PASSKEY_NOT_FOUND" },
     });
     const passkeys = await t.run((ctx) => ctx.db.query("passkeys").collect());
-    expect(passkeys).toHaveLength(1);
+    expect(passkeys).toHaveLength(2);
+    expect(passkeys.map((p) => p._id)).toEqual(
+      expect.arrayContaining([user1PasskeyId, user2PasskeyId]),
+    );
   });
 
   test("returns PASSKEY_NOT_FOUND for a malformed ID", async () => {
