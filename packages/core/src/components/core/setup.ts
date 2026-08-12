@@ -13,6 +13,9 @@ import {
   ProviderConfig,
   CompleteSignInFunc,
   ResolveUserIdFunc,
+  ResolveProviderAccountIdFunc,
+  RenameProviderAccountFunc,
+  RunCreateOrUpdateUserFunc,
   CreateOrUpdateUserFn,
 } from "../../lib/types";
 
@@ -230,6 +233,19 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
       });
     };
 
+    // Runs the app's `createOrUpdateUser` mutation directly, without an
+    // account row and without a session. A provider calls it with no `args`
+    // to make the app create a new empty user row (see the passkey
+    // provider), and with the full `args` to make the app update its user
+    // record. Provider code runs at the app level, so the reference is
+    // callable directly.
+    const runCreateOrUpdateUser: RunCreateOrUpdateUserFunc = async (
+      ctx,
+      args,
+    ) => {
+      return await ctx.runMutation(createOrUpdateUser, args ?? {});
+    };
+
     const result: Record<string, unknown> = {};
     for (const [config, options] of providers) {
       const resolveUserId: ResolveUserIdFunc = (ctx, providerAccountId) =>
@@ -237,8 +253,28 @@ export function setupCore<T extends readonly ProviderWithOptions[]>({
           provider: config.name,
           providerAccountId,
         });
+      const resolveProviderAccountId: ResolveProviderAccountIdFunc = (
+        ctx,
+        userId,
+      ) =>
+        ctx.runQuery(component.public.getProviderAccountId, {
+          provider: config.name,
+          userId,
+        });
+      const renameProviderAccount: RenameProviderAccountFunc = (ctx, args) =>
+        ctx.runMutation(component.public.renameAccount, {
+          provider: config.name,
+          userId: args.userId,
+          newProviderAccountId: args.newProviderAccountId,
+        });
       result[config.name] = config.setup(
-        { completeSignIn, resolveUserId },
+        {
+          completeSignIn,
+          resolveUserId,
+          resolveProviderAccountId,
+          renameProviderAccount,
+          createOrUpdateUser: runCreateOrUpdateUser,
+        },
         options,
       );
     }

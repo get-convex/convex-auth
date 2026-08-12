@@ -24,6 +24,13 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      getProviderAccountId: FunctionReference<
+        "query",
+        "internal",
+        { provider: string; userId: string },
+        string | null,
+        Name
+      >;
       getUserIdByAccount: FunctionReference<
         "query",
         "internal",
@@ -47,6 +54,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           refreshTokenExpiresAt: number;
           userId: string;
         } | null,
+        Name
+      >;
+      renameAccount: FunctionReference<
+        "mutation",
+        "internal",
+        { newProviderAccountId: string; provider: string; userId: string },
+        { success: true } | { reason: "ACCOUNT_ID_TAKEN"; success: false },
         Name
       >;
       signIn: FunctionReference<

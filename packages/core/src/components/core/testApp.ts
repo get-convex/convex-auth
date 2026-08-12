@@ -31,13 +31,14 @@ export function resetCreateOrUpdateUserCalls(): void {
  * every sign-in for an identity; like a minimal real app, it owns no users
  * table and just echoes the provider-scoped account id back as the app user id,
  * honoring an explicit `userId` when one is supplied (returning sign-in / link
- * path).
+ * path). A call with no arguments asks for a new empty user, so it returns a
+ * fresh random id (see `vCreateOrUpdateUser`).
  */
 export const createOrUpdateUser = internalMutation({
   args: vCreateOrUpdateUser,
   returns: v.string(),
   handler: async (_ctx, args) => {
     createOrUpdateUserCalls.push({ ...args });
-    return args.userId ?? args.providerAccountId;
+    return args.userId ?? args.providerAccountId ?? crypto.randomUUID();
   },
 });

@@ -11,6 +11,7 @@
 import type * as authentication from "../authentication.js";
 import type * as helpers from "../helpers.js";
 import type * as registration from "../registration.js";
+import type * as setup from "../setup.js";
 import type * as testAuthenticator from "../testAuthenticator.js";
 import type * as validation from "../validation.js";
 
@@ -25,6 +26,7 @@ const fullApi: ApiFromModules<{
   authentication: typeof authentication;
   helpers: typeof helpers;
   registration: typeof registration;
+  setup: typeof setup;
   testAuthenticator: typeof testAuthenticator;
   validation: typeof validation;
 }> = anyApi as any;

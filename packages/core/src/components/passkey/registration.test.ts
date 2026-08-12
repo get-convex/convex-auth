@@ -7,6 +7,7 @@ import schema from "./schema";
 import {
   ORIGIN,
   RP_ID,
+  buildAssertion,
   buildAttestationObject,
   buildAuthenticatorData,
   buildClientDataJSON,
@@ -371,6 +372,48 @@ describe("deletePasskey", () => {
   test("deletes the user's own passkey", async () => {
     const t = setup();
     const { passkeyId } = await register(t, "user1");
+    const result = await t.mutation(api.registration.deletePasskey, {
+      userId: "user1",
+      passkeyId,
+    });
+    expect(result).toEqual({ success: true });
+    const passkeys = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(passkeys).toEqual([]);
+  });
+
+  // The two tests below pin a documented pitfall: the component applies no
+  // deletion policy. The app must apply its own policy (see the function
+  // comment on `deletePasskey`).
+  test("deletes the last passkey of a user (the app owns the policy)", async () => {
+    const t = setup();
+    const { passkeyId } = await register(t, "user1");
+    // "user1" has exactly one passkey. The component still deletes it, and
+    // this can lock the user out of their account.
+    const result = await t.mutation(api.registration.deletePasskey, {
+      userId: "user1",
+      passkeyId,
+    });
+    expect(result).toEqual({ success: true });
+    const passkeys = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(passkeys).toEqual([]);
+  });
+
+  test("deletes the passkey that signed the most recent assertion (the app owns the policy)", async () => {
+    const t = setup();
+    const { credential, passkeyId } = await register(t, "user1");
+    // Authenticate with the passkey, then delete that same passkey. The
+    // component has no concept of "the passkey of the current session", so
+    // it accepts the deletion.
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { userId: "user1" },
+    );
+    const assertion = await buildAssertion(credential, challenge);
+    const authResult = await t.mutation(
+      api.authentication.finishAuthentication,
+      { expectedRpId: RP_ID, expectedOrigin: ORIGIN, ...assertion },
+    );
+    expect(authResult.success).toBe(true);
     const result = await t.mutation(api.registration.deletePasskey, {
       userId: "user1",
       passkeyId,

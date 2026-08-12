@@ -238,6 +238,14 @@ type DeletePasskeyResult = Infer<typeof deletePasskeyResult>;
  *
  * The `userId` check makes the function safe for an ID that comes directly
  * from the client: a user can only delete their own passkeys.
+ *
+ * Pitfall: the component applies no deletion policy. This function deletes
+ * the last passkey of a user, and it deletes the passkey that signed the
+ * most recent assertion. When the passkey is the only way to sign in, that
+ * can lock the user out of their account. The app must apply its own
+ * policy before it calls this function. For example, the username+passkey
+ * provider demands a fresh assertion from a *different* passkey of the
+ * same user.
  */
 export const deletePasskey = mutation({
   args: { userId: v.string(), passkeyId: v.string() },
