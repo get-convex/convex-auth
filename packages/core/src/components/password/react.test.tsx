@@ -60,7 +60,7 @@ const flows = [
 function renderFlow(useFlow: () => Flow) {
   const client = new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => { } },
+    authApi: { refreshSession: async () => null, signOut: async () => {} },
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
