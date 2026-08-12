@@ -1,7 +1,5 @@
-/**
- * Crypto helpers for the OAuth provider. Used by the app-side recipe to mint
- * flow secrets (the state, the PKCE verifier and its challenge).
- */
+// Crypto helpers for the OAuth provider. Used by the app-side recipe to mint
+// flow secrets (the state, the PKCE verifier and its challenge).
 
 function base64UrlEncode(bytes: Uint8Array): string {
   const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");

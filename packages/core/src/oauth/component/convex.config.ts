@@ -2,7 +2,7 @@ import { defineComponent } from "convex/server";
 import { v } from "convex/values";
 
 /**
- * The oauth component. Mounted once per identity provider, each instance
+ * The oauth component. Installed once per identity provider, each instance
  * with its own name and `httpPrefix`; the instance's callback is served at
  * `<httpPrefix>/callback`:
  *

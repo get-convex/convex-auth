@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe("oauth", () => {
-  test("createAuthorizationRequest stores the request and returns the mount's client id and callback URL", async () => {
+  test("createAuthorizationRequest stores the request and returns the provider's client id and callback URL", async () => {
     const t = setup();
     const result = await t.mutation(
       api.provider.createAuthorizationRequest,

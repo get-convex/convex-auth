@@ -47,8 +47,8 @@ export type OauthCatalog = {
  */
 export type OauthProviderOptions = {
   /**
-   * This provider's oauth component mount, e.g. `components.oauthGoogle`.
-   * The component is mounted once per provider.
+   * This provider's oauth component instance, e.g. `components.oauthGoogle`.
+   * The component is installed once per provider.
    */
   component: ComponentApi;
   /**
@@ -73,7 +73,7 @@ function parseUrl(value: string): URL | null {
  * This is the first leg of the flow: `startSignIn` validates, mints `state`,
  * stores an authorization request record in the component, and returns the provider
  * authorization URL for the client to navigate to plus the state it must hold
- * onto. The provider later redirects back to the mount's HTTP callback
+ * onto. The provider later redirects back to the component's HTTP callback
  * (`<site><httpPrefix>/callback`), which claims the request by state hash.
  */
 export function setupOauth(

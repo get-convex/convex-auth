@@ -20,7 +20,7 @@ const CATALOG: OauthCatalog = {
 
 /**
  * Run the provider's setup with the given options merged over a valid base.
- * Validation runs before the helpers or component mount are touched, so
+ * Validation runs before the helpers or the component are touched, so
  * fakes suffice.
  */
 function setup(

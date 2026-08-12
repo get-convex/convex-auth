@@ -10,7 +10,7 @@ const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
  * `signIn` before it redirects the user to the provider; the provider
  * callback later claims the request by state hash.
  *
- * Returns the mount's `CLIENT_ID` and the callback URL, which the caller
+ * Returns the provider's `CLIENT_ID` and the callback URL, which the caller
  * needs for the authorization URL.
  */
 export const createAuthorizationRequest = mutation({
