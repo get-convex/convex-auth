@@ -73,7 +73,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           name?: string;
           verifiedUserId: string;
         },
-        | { passkeyId: string; success: true }
+        | { passkeyId: string; success: true; userId: string }
         | {
             success: false;
             userError:
@@ -98,7 +98,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       startRegistration: FunctionReference<
         "mutation",
         "internal",
-        { userId?: string },
+        { userId: string },
         { challenge: ArrayBuffer; excludeCredentials: Array<ArrayBuffer> },
         Name
       >;
