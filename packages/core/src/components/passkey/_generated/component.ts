@@ -31,8 +31,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           authenticatorData: ArrayBuffer;
           clientDataJSON: ArrayBuffer;
           credentialId: ArrayBuffer;
-          origin: string;
-          rpId: string;
+          expectedOrigin: string;
+          expectedRpId: string;
           signature: ArrayBuffer;
         },
         | { passkeyId: string; success: true; userId: string }
@@ -68,10 +68,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           attestationObject: ArrayBuffer;
           clientDataJSON: ArrayBuffer;
+          expectedOrigin: string;
+          expectedRpId: string;
           name?: string;
-          origin: string;
-          rpId: string;
-          userId: string;
+          verifiedUserId: string;
         },
         | { passkeyId: string; success: true }
         | {
