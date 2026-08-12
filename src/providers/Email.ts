@@ -6,6 +6,7 @@
 
 import { GenericDataModel } from "convex/server";
 import { EmailConfig, EmailUserConfig } from "../server/types.js";
+import { normalizeEmail } from "../server/implementation/utils.js";
 
 /**
  * Email providers send a token to the user's email address
@@ -47,7 +48,10 @@ export function Email<DataModel extends GenericDataModel>(
           "Token verification requires an `email` in params of `signIn`.",
         );
       }
-      if (account.providerAccountId !== params.email) {
+      if (
+        normalizeEmail(account.providerAccountId as string) !==
+        normalizeEmail(params.email)
+      ) {
         throw new Error(
           "Short verification code requires a matching `email` " +
             "in params of `signIn`.",
