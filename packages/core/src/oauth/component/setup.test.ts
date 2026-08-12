@@ -62,23 +62,4 @@ describe("setupOauth validation", () => {
       /sets no issuer/,
     );
   });
-
-  test("a scopes override that adds openid without an issuer is rejected", () => {
-    expect(() => setup({ scopes: ["openid"] })).toThrow(/sets no issuer/);
-  });
-
-  test.each(["state", "redirect_uri", "code_challenge"])(
-    "extraAuthorizationParams protocol param %s is rejected",
-    (param) => {
-      expect(() =>
-        setup({ extraAuthorizationParams: { [param]: "value" } }),
-      ).toThrow(/must not set protocol param/);
-    },
-  );
-
-  test("benign extraAuthorizationParams are accepted", () => {
-    expect(() =>
-      setup({ extraAuthorizationParams: { access_type: "offline" } }),
-    ).not.toThrow();
-  });
 });

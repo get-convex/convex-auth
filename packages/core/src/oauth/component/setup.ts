@@ -33,7 +33,7 @@ export type OauthCatalog = {
    * userinfo (GitHub).
    */
   userInfoEndpoints?: Record<string, string>;
-  /** Default scopes to request; overridable via {@link OauthProviderOptions.scopes}. */
+  /** Scopes to request. */
   scopes: string[];
   /**
    * Send a PKCE `S256` challenge with the authorization request. Enable it for
@@ -56,15 +56,6 @@ export type OauthProviderOptions = {
    * for open-redirect prevention.
    */
   allowedRedirectOrigins: string[];
-  /**
-   * Override the provider's default scopes (e.g. to request extra scopes).
-   */
-  scopes?: string[];
-  /**
-   * Extra query params for the authorization URL, e.g. Google's
-   * `{ access_type: "offline" }`. Must not include protocol params (listed below).
-   */
-  extraAuthorizationParams?: Record<string, string>;
 };
 
 /** `new URL` without the exception: returns null on unparseable input. */
@@ -75,17 +66,6 @@ function parseUrl(value: string): URL | null {
     return null;
   }
 }
-
-/** Params `startSignIn` sets itself, these are not allowed in `extraAuthorizationParams`. */
-const PROTOCOL_PARAMS = [
-  "response_type",
-  "client_id",
-  "redirect_uri",
-  "state",
-  "scope",
-  "code_challenge",
-  "code_challenge_method",
-];
 
 /**
  * Set up OAuth sign-in against a single upstream identity provider.
@@ -117,20 +97,12 @@ export function setupOauth(
     }
     return url.origin;
   });
-  const scopes = options.scopes ?? catalog.scopes;
   // Per OIDC, requesting the `openid` scope makes the provider return an
   // id_token, which must be validated against an expected issuer.
-  if (scopes.includes("openid") && catalog.issuer === undefined) {
+  if (catalog.scopes.includes("openid") && catalog.issuer === undefined) {
     throw new Error(
       `Provider "${providerName}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
     );
-  }
-  for (const key of Object.keys(options.extraAuthorizationParams ?? {})) {
-    if (PROTOCOL_PARAMS.includes(key)) {
-      throw new Error(
-        `extraAuthorizationParams for provider "${providerName}" must not set protocol param "${key}"`,
-      );
-    }
   }
 
   /**
@@ -172,15 +144,14 @@ export function setupOauth(
       );
 
       const params: Record<string, string> = {
-        ...options.extraAuthorizationParams,
         response_type: "code",
         client_id: clientId,
         redirect_uri: callbackUrl,
         state,
       };
 
-      if (scopes.length > 0) {
-        params.scope = scopes.join(" ");
+      if (catalog.scopes.length > 0) {
+        params.scope = catalog.scopes.join(" ");
       }
 
       if (codeVerifier !== undefined) {
