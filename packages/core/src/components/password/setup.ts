@@ -35,7 +35,7 @@ const PROVIDER_NAME = "password";
 
 // A given user has only zero or one “provider account ID”,
 // so there is no need for having a value here.
-const PROVIDER_ACCOUNT_ID = "";
+const EMPTY_PROVIDER_ACCOUNT_ID = "";
 
 const signInResult = v.union(
   v.object({ success: v.literal(true), tokens: vTokenBundle }),
@@ -140,7 +140,7 @@ export const UsernamePassword = defineProvider({
           // username. Give the account a stable, opaque id instead.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: PROVIDER_ACCOUNT_ID,
+            providerAccountId: EMPTY_PROVIDER_ACCOUNT_ID,
             profile: { username },
           });
 
@@ -217,7 +217,7 @@ export const UsernamePassword = defineProvider({
           // no longer needs to be keyed by the username.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: PROVIDER_ACCOUNT_ID,
+            providerAccountId: EMPTY_PROVIDER_ACCOUNT_ID,
             profile: { username },
           });
           return { success: true, tokens };
