@@ -38,6 +38,6 @@ requested. And Apple has no static client secret: it requires a short-lived
 ES256 client-secret JWT, signed with a registered key and rotated, where the
 catalogs assume a static `CLIENT_SECRET` binding.
 
-Fix direction, wanted for launch: accept POST on the callback route
+Potential fix direction: accept POST on the callback route
 (`packages/core/src/oauth/component/http.ts`), and add a signed-secret
 mechanism to the catalog config (`packages/core/src/oauth/component/setup.ts`).
