@@ -636,4 +636,40 @@ describe("oauth callback", () => {
     expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
     expect(loggedText(errors)).toContain("aborted");
   });
+
+  test("a token endpoint that stalls mid-body is aborted", async () => {
+    // Simulates a provider that sends response headers but never sends the
+    // body. The callback must read the body while its fetch timeout is still
+    // armed. highWaterMark 0 keeps pull() from running until the body is
+    // read, so a callback that clears the timeout before reading the body
+    // hangs this test instead of passing it.
+    vi.useFakeTimers();
+    const t = setup();
+    const errors = spyConsoleError();
+    stubFetch({
+      [ID_TOKEN_REQUEST.tokenEndpoint]: (init) =>
+        new Response(
+          new ReadableStream(
+            {
+              start(controller) {
+                init.signal?.addEventListener("abort", () =>
+                  controller.error(
+                    new DOMException("The operation was aborted", "AbortError"),
+                  ),
+                );
+              },
+              pull() {
+                vi.advanceTimersByTime(30 * 1000);
+              },
+            },
+            { highWaterMark: 0 },
+          ),
+        ),
+    });
+    const { state } = await startFlow(t, ID_TOKEN_REQUEST);
+
+    const response = await callback(t, { state, code: "code-1" });
+    expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
+    expect(loggedText(errors)).toContain("aborted");
+  });
 });
