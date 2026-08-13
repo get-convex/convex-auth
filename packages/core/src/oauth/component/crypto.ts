@@ -33,13 +33,23 @@ function base64UrlDecode(value: string): Uint8Array {
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
 }
 
+declare const issuerDelivered: unique symbol;
+
+/**
+ * A JWT received directly from the issuer over TLS. Cast to this type only at
+ * the fetch that received it; transport is what stands in for a signature
+ * check.
+ */
+export type IssuerDeliveredJwt = string & { [issuerDelivered]: true };
+
 /**
  * Decode a JWT's payload without verifying its signature. Only safe for
  * tokens received directly from the issuer over TLS (e.g. an id_token from
- * the token exchange), where transport authenticates the issuer.
+ * the token exchange), where transport authenticates the issuer; the branded
+ * argument type is what holds callers to that.
  */
 export function decodeJwtPayloadUnverified(
-  jwt: string,
+  jwt: IssuerDeliveredJwt,
 ): Record<string, unknown> {
   const parts = jwt.split(".");
   if (parts.length !== 3) {
@@ -50,11 +60,11 @@ export function decodeJwtPayloadUnverified(
 
 /**
  * AES-256-GCM key for a ticket payload. The key is only as strong as the
- * ticket code, which is 256 bits of randomness. The prefix is load-bearing:
- * the ticket row stores SHA-256(code) as its lookup hash, so without it the
- * stored hash would be the key.
+ * ticket code, which is 256 bits of randomness.
  */
 async function deriveTicketPayloadKey(ticketCode: string): Promise<CryptoKey> {
+  // The prefix matters: the ticket row stores SHA-256(code) as its lookup
+  // hash, so hashing the bare code here would make the stored hash the key.
   const keyBytes = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(`convex-auth-ticket-payload:${ticketCode}`),

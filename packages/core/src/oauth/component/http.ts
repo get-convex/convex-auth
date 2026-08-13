@@ -6,13 +6,14 @@ import {
   decodeJwtPayloadUnverified,
   encryptTicketPayload,
   generateRandomToken,
+  type IssuerDeliveredJwt,
 } from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams";
 
 const http = httpRouter();
 
-const FETCH_TIMEOUT_MS = 30 * 1000;
+const FETCH_TIMEOUT_MS = 10 * 1000;
 
 function redirect(location: string): Response {
   return new Response(null, {
@@ -85,7 +86,10 @@ async function exchangeCode(args: {
   codeVerifier: string | undefined;
   clientId: string;
   clientSecret: string;
-}): Promise<{ idToken: string | undefined; accessToken: string | undefined }> {
+}): Promise<{
+  idToken: IssuerDeliveredJwt | undefined;
+  accessToken: string | undefined;
+}> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code: args.code,
@@ -114,7 +118,11 @@ async function exchangeCode(args: {
   }
   const tokens = JSON.parse(response.bodyText) as Record<string, unknown>;
   return {
-    idToken: typeof tokens.id_token === "string" ? tokens.id_token : undefined,
+    // Straight off the issuer's TLS response, which is what the brand attests.
+    idToken:
+      typeof tokens.id_token === "string"
+        ? (tokens.id_token as IssuerDeliveredJwt)
+        : undefined,
     accessToken:
       typeof tokens.access_token === "string" ? tokens.access_token : undefined,
   };
@@ -136,7 +144,7 @@ async function exchangeCode(args: {
  * place of checking the signature.
  */
 function validateIdToken(
-  idToken: string,
+  idToken: IssuerDeliveredJwt,
   expectedIssuer: string | undefined,
   clientId: string,
 ): Record<string, unknown> {
