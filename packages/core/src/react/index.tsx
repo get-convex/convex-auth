@@ -70,9 +70,27 @@ export function ConvexAuthProvider({
   /** The app's `refreshSession` and `signOut` mutation references. */
   api: ConvexAuthApi;
   /**
-   * A custom {@link TokenStorage}. Defaults to `localStorage` in the browser
-   * (in-memory under SSR). Set this for React Native, or to `sessionStorage`
-   * for per-tab sessions.
+   * A custom {@link TokenStorage} implementation.
+   *
+   * If none is supplied, the system defaults to `localStorage` in the browser
+   * and in-memory where there is no `localStorage` (SSR).
+   *
+   * Client runtimes with no `localStorage` like React Native are strongly
+   * advised to provide an implementation, because the in-memory default will
+   * cause users to get logged out each time the app closes.
+   *
+   * Here's an example of an implementation for Expo that could be passed in
+   * here:
+   *
+   * ```ts
+   * import * as SecureStore from "expo-secure-store";
+   *
+   * const secureStorage = {
+   *   getItem: SecureStore.getItemAsync,
+   *   setItem: SecureStore.setItemAsync,
+   *   removeItem: SecureStore.deleteItemAsync,
+   * };
+   * ```
    */
   storage?: TokenStorage;
   /**
