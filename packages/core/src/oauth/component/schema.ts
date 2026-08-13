@@ -72,6 +72,6 @@ export default defineSchema({
      * database access alone cannot read the payload, and provider-chosen
      * JSON keys never become Convex field names.
      */
-    payload: v.string(),
+    encryptedPayload: v.string(),
   }).index("ticketCodeHash", ["ticketCodeHash"]),
 });

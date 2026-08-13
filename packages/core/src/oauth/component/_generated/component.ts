@@ -28,7 +28,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         { providerName: string; stateHash: string; ticketCodeHash: string },
-        null | { payload: string },
+        null | { encryptedPayload: string },
         Name
       >;
       createAuthorizationRequest: FunctionReference<
