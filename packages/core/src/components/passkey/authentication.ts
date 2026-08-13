@@ -159,7 +159,6 @@ export const finishAuthentication = mutation({
     // discoverable-credential ceremony. In that flow, each registered
     // passkey is acceptable, and the passkey identifies the user.
     if (
-      challengeRow.kind === "authentication" &&
       challengeRow.userId !== undefined &&
       challengeRow.userId !== passkey.userId
     ) {

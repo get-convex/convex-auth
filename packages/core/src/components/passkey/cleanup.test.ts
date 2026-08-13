@@ -1,29 +1,48 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { WORKER_NAME } from "./cleanup";
 import { CHALLENGE_TTL_MS } from "./validation";
 import { setup } from "../passkeyTestSetup";
 
 const START = new Date("2026-01-01T00:00:00Z").getTime();
 
+// A handle row for a registration challenge. Unlinked (`userId: null`)
+// until a completed ceremony links it to a user.
+function handle(byte: number, userId: string | null = null) {
+  return {
+    handle: new Uint8Array(64).fill(byte).buffer,
+    userId,
+  };
+}
+
 /**
- * Insert a registration challenge, as `startRegistration` does. The age of a
- * challenge is the age of its `_creationTime`, thus the tests set the clock to
- * `createdAt` before the insert.
+ * Insert a handle and a registration challenge that points at it, as
+ * `startRegistration` does. The age of a challenge is the age of its
+ * `_creationTime`, thus the tests set the clock to `createdAt` before the
+ * insert. The handle goes in one millisecond earlier, in its own transaction,
+ * so that the challenge gets `createdAt` exactly.
  */
-function insertRegistration(
+async function insertRegistration(
   t: ReturnType<typeof setup>,
   byte: number,
   createdAt: number,
-) {
+  userId: string | null = null,
+): Promise<{ challengeId: Id<"challenges">; handleId: Id<"handles"> }> {
+  vi.setSystemTime(createdAt - 1);
+  const handleId = await t.run((ctx) =>
+    ctx.db.insert("handles", handle(byte, userId)),
+  );
   vi.setSystemTime(createdAt);
-  return t.run((ctx) =>
+  const challengeId = await t.run((ctx) =>
     ctx.db.insert("challenges", {
       // The `challenges` rows are a union, so the tests write a full row.
       kind: "registration" as const,
       challenge: new Uint8Array(32).fill(byte).buffer,
+      handleId,
     }),
   );
+  return { challengeId, handleId };
 }
 
 beforeEach(() => {
@@ -46,7 +65,7 @@ describe("getExpiredChallenges", () => {
 
   test("returns only the challenges that are expired", async () => {
     const t = setup();
-    const expiredId = await insertRegistration(
+    const { challengeId: expiredId } = await insertRegistration(
       t,
       1,
       START - CHALLENGE_TTL_MS - 1,
@@ -82,7 +101,7 @@ describe("getExpiredChallenges", () => {
     // A challenge at exactly the TTL is expired. A wake-up at the deadline
     // must find the row, or the loop would go idle with `timeoutMs: 0`
     // forever.
-    const challengeId = await insertRegistration(
+    const { challengeId } = await insertRegistration(
       t,
       1,
       START - CHALLENGE_TTL_MS,
@@ -99,12 +118,12 @@ describe("getExpiredChallenges", () => {
 describe("deleteExpiredChallenges", () => {
   test("erases the rows of the batch and keeps the others", async () => {
     const t = setup();
-    const expiredId = await insertRegistration(
+    const { challengeId: expiredId } = await insertRegistration(
       t,
       1,
       START - CHALLENGE_TTL_MS - 1,
     );
-    const freshId = await insertRegistration(t, 2, START);
+    const { challengeId: freshId } = await insertRegistration(t, 2, START);
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
       ids: [expiredId],
@@ -115,19 +134,52 @@ describe("deleteExpiredChallenges", () => {
     );
     expect(remaining.map((row) => row._id)).toEqual([freshId]);
   });
+
+  test("erases the unlinked handle of an expired registration", async () => {
+    const t = setup();
+    const { challengeId, handleId } = await insertRegistration(
+      t,
+      1,
+      START - CHALLENGE_TTL_MS - 1,
+    );
+
+    await t.mutation(internal.cleanup.deleteExpiredChallenges, {
+      ids: [challengeId],
+    });
+
+    const remaining = await t.run((ctx) => ctx.db.get("handles", handleId));
+    expect(remaining).toBeNull();
+  });
+
+  test("keeps a handle that a completed ceremony linked to a user", async () => {
+    const t = setup();
+    const { challengeId, handleId } = await insertRegistration(
+      t,
+      1,
+      START - CHALLENGE_TTL_MS - 1,
+      "user1",
+    );
+
+    await t.mutation(internal.cleanup.deleteExpiredChallenges, {
+      ids: [challengeId],
+    });
+
+    const remaining = await t.run((ctx) => ctx.db.get("handles", handleId));
+    expect(remaining).not.toBeNull();
+  });
 });
 
 describe("the cleanup loop", () => {
   test("starting a ceremony erases the challenges that expired", async () => {
     const t = setup();
-    const staleId = await insertRegistration(
+    const { challengeId: staleId } = await insertRegistration(
       t,
       1,
       START - CHALLENGE_TTL_MS - 1,
     );
 
     vi.setSystemTime(START);
-    await t.mutation(api.registration.startRegistration, {});
+    await t.mutation(api.registration.startRegistration, { userId: null });
     // The loop runs in scheduled functions; let them all complete.
     await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 
@@ -139,5 +191,8 @@ describe("the cleanup loop", () => {
     // the ceremony made, thus the loop erases that challenge too. The tests
     // above show that an unexpired challenge stays.
     expect(remaining).toEqual([]);
+    // The loop also erased the unlinked handles of both registrations.
+    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
+    expect(handles).toEqual([]);
   });
 });

@@ -94,7 +94,7 @@ describe("startRegistration", () => {
     await register(t, "user1");
     const { excludeCredentials } = await t.mutation(
       api.registration.startRegistration,
-      {},
+      { userId: null },
     );
     expect(excludeCredentials).toEqual([]);
   });
@@ -114,6 +114,30 @@ describe("startRegistration", () => {
     expect(ids).toHaveLength(2);
     expect(ids).toContain(first.credential.credentialId.join(","));
     expect(ids).toContain(second.credential.credentialId.join(","));
+  });
+
+  test("throws when a new handle collides with an existing handle", async () => {
+    const t = setup();
+    // Make each new handle the same bytes. Only the 64-byte values are
+    // handles: the challenges (32 bytes) stay random.
+    const getRandomValues = crypto.getRandomValues.bind(crypto);
+    const spy = vi
+      .spyOn(crypto, "getRandomValues")
+      .mockImplementation((array) =>
+        array !== null && array.byteLength === 64
+          ? (array as Uint8Array).fill(7)
+          : getRandomValues(array as Uint8Array),
+      );
+    try {
+      await t.mutation(api.registration.startRegistration, { userId: "user1" });
+      await expect(
+        t.mutation(api.registration.startRegistration, { userId: "user2" }),
+      ).rejects.toThrow("collides with an existing handle");
+    } finally {
+      spy.mockRestore();
+    }
+    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
+    expect(handles).toHaveLength(1);
   });
 });
 

@@ -4,6 +4,7 @@ import { components, internal } from "./_generated/api";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { CHALLENGE_TTL_MS } from "./validation";
+import { deleteDeadChallenge } from "./helpers";
 
 // The name of the batch worker loop that erases expired challenges. Only one
 // loop is necessary, so the name is constant.
@@ -76,7 +77,7 @@ export const getExpiredChallenges = internalQuery({
 });
 
 /**
- * Erase one batch of expired challenges.
+ * Erase one batch of expired challenges, together with their unlinked handles.
  *
  * The worker owns the cleanup of the rows that it processes. The query runs on
  * the snapshot of this transaction, and each delete takes a read dependency on
@@ -87,7 +88,10 @@ export const deleteExpiredChallenges = internalMutation({
   returns: v.null(),
   handler: async (ctx, { ids }) => {
     for (const id of ids) {
-      await ctx.db.delete("challenges", id);
+      const challenge = await ctx.db.get("challenges", id);
+      if (challenge !== null) {
+        await deleteDeadChallenge(ctx, challenge);
+      }
     }
     return null;
   },

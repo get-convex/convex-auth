@@ -62,6 +62,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | { success: false; userError: { error: "PASSKEY_NOT_FOUND" } },
         Name
       >;
+      deleteUser: FunctionReference<
+        "mutation",
+        "internal",
+        { userId: string },
+        null,
+        Name
+      >;
       finishRegistration: FunctionReference<
         "mutation",
         "internal",
@@ -98,8 +105,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       startRegistration: FunctionReference<
         "mutation",
         "internal",
-        { userId?: string },
-        { challenge: ArrayBuffer; excludeCredentials: Array<ArrayBuffer> },
+        { userId: string | null },
+        {
+          challenge: ArrayBuffer;
+          excludeCredentials: Array<ArrayBuffer>;
+          userHandle: ArrayBuffer;
+        },
         Name
       >;
     };

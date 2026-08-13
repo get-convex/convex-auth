@@ -24,6 +24,28 @@ export default defineSchema({
     .index("by_credentialId", ["credentialId"])
     .index("by_userId", ["userId"]),
 
+  // The WebAuthn user handle of each user. The handle is the `user.id` that
+  // the authenticator stores with a discoverable credential. A user has a
+  // maximum of ONE handle: the registration code reuses an existing handle.
+  //
+  // The handle exists because the app user id cannot be the WebAuthn user
+  // handle in the auth flows where the user is created transactionally with
+  // the passkey registration: the user row does not exist yet when
+  // the registration ceremony starts. The handle is created first, and
+  // `finishRegistration` links it to the user.
+  handles: defineTable({
+    // 64 random bytes (the WebAuthn maximum length for `user.id`).
+    handle: v.bytes(),
+    // The app user that owns the handle, or `null` until the account exists.
+    userId: v.union(v.string(), v.null()),
+  })
+    .index("by_userId", ["userId"])
+    // Used to make sure that a new handle does not collide with an existing
+    // one. A collision of 64 random bytes is not expected to happen, but the
+    // registration code checks for it because a shared handle might cause
+    // authenticators to delete passkeys incorrectly.
+    .index("by_handle", ["handle"]),
+
   // The WebAuthn challenges that are active. Each challenge is for one use
   // only: the finish step deletes it. A challenge expires a fixed time after
   // its creation (see CHALLENGE_TTL_MS), thus `_creationTime` is the age of
@@ -34,6 +56,8 @@ export default defineSchema({
       v.object({
         kind: v.literal("registration"),
         challenge: v.bytes(), // 32 random bytes
+        // The handle that this ceremony registers a credential for.
+        handleId: v.id("handles"),
       }),
       v.object({
         kind: v.literal("authentication"),
@@ -44,5 +68,10 @@ export default defineSchema({
         userId: v.optional(v.string()),
       }),
     ),
-  ).index("by_challenge", ["challenge"]),
+  )
+    .index("by_challenge", ["challenge"])
+    // Used by `deleteUser` to erase the authentication challenges that are
+    // bound to a user. Registration rows have no `userId` field, so a probe
+    // with a user ID string never matches them.
+    .index("by_userId", ["userId"]),
 });
