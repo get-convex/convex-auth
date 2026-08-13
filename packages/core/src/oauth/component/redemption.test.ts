@@ -194,7 +194,7 @@ async function mintTicket(
     providerName: args.providerName ?? "acme",
     stateHash: await sha256Hex(args.state ?? "state-1"),
     ticketCodeHash: await sha256Hex(ticketCode),
-    payload: await encryptTicketPayload(
+    encryptedPayload: await encryptTicketPayload(
       ticketCode,
       JSON.stringify(args.payload ?? { claims: CLAIMS }),
     ),

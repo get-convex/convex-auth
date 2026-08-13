@@ -271,7 +271,7 @@ export function setupOauth<
       // payload was encrypted under, so decryption only fails on
       // corruption.
       const { claims, userInfoResponses } = JSON.parse(
-        await decryptTicketPayload(args.code, ticket.payload),
+        await decryptTicketPayload(args.code, ticket.encryptedPayload),
       ) as {
         claims: OidcClaims | undefined;
         userInfoResponses: UserInfo | undefined;
