@@ -26,41 +26,48 @@ const startRegistrationResult = v.object({
 });
 
 /**
- * Start a registration ceremony.
+ * Start a registration ceremony for the passkey's future owner.
  *
  * The function stores a one-use `registration` challenge and returns the
- * challenge bytes. The challenge has no identity: it is simply a random
- * string used to avoid replay attacks.
+ * challenge bytes. The challenge records the `userId`, and the finish step
+ * reads the owner from the challenge. The app must pass a trusted id: the
+ * id of the signed-in user, or the id of a user row that the app created
+ * for this registration. A client-supplied id is not safe here, because
+ * `finishRegistration` attaches the new passkey to this user.
  *
- * Set `userId` when a known user adds a passkey to their account. The
- * function then also returns the existing credential IDs of the user.
- * This is used by the authenticator to ensure there isn’t already a
- * passkey that exists for the user.
+ * The function also returns the existing credential IDs of the user. The
+ * authenticator uses them to refuse a second registration of a passkey
+ * that the user already has.
  */
 export const startRegistration = mutation({
-  args: { userId: v.optional(v.string()) },
+  args: { userId: v.string() },
   returns: startRegistrationResult,
   handler: async (ctx, { userId }) => {
     const challenge = randomChallenge();
     await ctx.db.insert("challenges", {
       kind: "registration",
       challenge,
+      userId,
       createdAt: Date.now(),
     });
-    let excludeCredentials: ArrayBuffer[] = [];
-    if (userId !== undefined) {
-      const rows = await ctx.db
-        .query("passkeys")
-        .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .collect();
-      excludeCredentials = rows.map((row) => row.credentialId);
-    }
-    return { challenge, excludeCredentials };
+    const rows = await ctx.db
+      .query("passkeys")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    return {
+      challenge,
+      excludeCredentials: rows.map((row) => row.credentialId),
+    };
   },
 });
 
 const finishRegistrationResult = v.union(
-  v.object({ success: v.literal(true), passkeyId: v.string() }),
+  v.object({
+    success: v.literal(true),
+    passkeyId: v.string(),
+    // The owner of the new passkey, read from the challenge.
+    userId: v.string(),
+  }),
   v.object({
     success: v.literal(false),
     userError: finishRegistrationUserError,
@@ -79,12 +86,14 @@ type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
  *   See https://web.dev/articles/webauthn-rp-id
  * - `expectedOrigin`: the expected origin of the ceremony (for example,
  *   "https://app.example.com").
- * - `verifiedUserId`: the user that owns the new passkey. This must always be
- *   the user name of the current user (whether it is a user created in the
- *   same transaction, or the currently logged in user).
  * - `name`: an optional label for the credential. This can be automatically
  *   inferred by the client from the authenticator (e.g. “1Password”),
  *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
+ *
+ * The owner of the new passkey is not an argument. The function reads it
+ * from the challenge, where `startRegistration` stored it. This keeps the
+ * owner a server-side, trusted value: a client cannot attach its ceremony
+ * to a different user. The result contains the owner's `userId`.
  *
  * The function examines the attestation as
  * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
@@ -98,7 +107,6 @@ export const finishRegistration = mutation({
   args: {
     expectedRpId: v.string(),
     expectedOrigin: v.string(),
-    verifiedUserId: v.string(),
     name: v.optional(v.string()),
     attestationObject: v.bytes(),
     clientDataJSON: v.bytes(),
@@ -123,9 +131,11 @@ export const finishRegistration = mutation({
       "registration",
       clientData.challenge,
     );
-    if (challengeRow === null) {
+    if (challengeRow === null || challengeRow.kind !== "registration") {
       return { success: false, userError: { error: "CHALLENGE_EXPIRED" } };
     }
+    // The trusted owner of the new passkey (see the function comment).
+    const userId = challengeRow.userId;
 
     const attestationObject = parseAttestationObject(
       new Uint8Array(args.attestationObject),
@@ -177,14 +187,14 @@ export const finishRegistration = mutation({
     }
 
     const passkeyId = await ctx.db.insert("passkeys", {
-      userId: args.verifiedUserId,
+      userId,
       name: args.name,
       credentialId,
       algorithm,
       publicKey: toArrayBuffer(publicKey),
       counter: authenticatorData.signatureCounter,
     });
-    return { success: true, passkeyId };
+    return { success: true, passkeyId, userId };
   },
 });
 

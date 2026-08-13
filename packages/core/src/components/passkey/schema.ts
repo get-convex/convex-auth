@@ -31,6 +31,10 @@ export default defineSchema({
       v.object({
         kind: v.literal("registration"),
         challenge: v.bytes(), // 32 random bytes
+        // The user that will own the new passkey. The app supplies this id
+        // to `startRegistration`, so it is a trusted value. The finish step
+        // reads the owner from here, not from the client.
+        userId: v.string(),
         createdAt: v.number(), // challenges expire (see CHALLENGE_TTL_MS)
       }),
       v.object({

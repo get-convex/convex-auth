@@ -59,7 +59,6 @@ async function registrationArgs(
     args: {
       expectedRpId: RP_ID,
       expectedOrigin: ORIGIN,
-      verifiedUserId: userId,
       name: options.name,
       attestationObject: toArrayBuffer(buildAttestationObject(authData)),
       clientDataJSON: toArrayBuffer(
@@ -75,7 +74,7 @@ async function registrationArgs(
 }
 
 describe("startRegistration", () => {
-  test("returns a 32-byte challenge and stores an anonymous registration row", async () => {
+  test("returns a 32-byte challenge and stores a user-bound registration row", async () => {
     const t = setup();
     const { challenge } = await t.mutation(api.registration.startRegistration, {
       userId: "user1",
@@ -87,16 +86,16 @@ describe("startRegistration", () => {
     expect(new Uint8Array(rows[0].challenge)).toEqual(
       new Uint8Array(challenge),
     );
-    // Registration challenges carry no identity, even when a userId is given.
-    expect("userId" in rows[0]).toBe(false);
+    // The challenge records the future owner of the passkey.
+    expect(rows[0].kind === "registration" && rows[0].userId).toBe("user1");
   });
 
-  test("returns no excludeCredentials without a userId", async () => {
+  test("returns no excludeCredentials for a user with no passkeys", async () => {
     const t = setup();
     await register(t, "user1");
     const { excludeCredentials } = await t.mutation(
       api.registration.startRegistration,
-      {},
+      { userId: "user2" },
     );
     expect(excludeCredentials).toEqual([]);
   });
@@ -131,7 +130,12 @@ describe("finishRegistration", () => {
     const passkeys = await t.run((ctx) => ctx.db.query("passkeys").collect());
     expect(passkeys).toHaveLength(1);
     const row = passkeys[0];
-    expect(result).toEqual({ success: true, passkeyId: row._id });
+    // The owner comes from the challenge, and the result reports it.
+    expect(result).toEqual({
+      success: true,
+      passkeyId: row._id,
+      userId: "user1",
+    });
     expect(row.userId).toBe("user1");
     expect(row.algorithm).toBe("ES256");
     expect(new Uint8Array(row.credentialId)).toEqual(credential.credentialId);

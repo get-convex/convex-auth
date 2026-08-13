@@ -253,7 +253,6 @@ export async function register(
   const result = await t.mutation(api.registration.finishRegistration, {
     expectedRpId: RP_ID,
     expectedOrigin: ORIGIN,
-    verifiedUserId: userId,
     name: options.name,
     attestationObject: toArrayBuffer(buildAttestationObject(authData)),
     clientDataJSON: toArrayBuffer(
