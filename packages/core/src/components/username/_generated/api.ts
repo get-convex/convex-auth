@@ -8,9 +8,8 @@
  * @module
  */
 
-import type * as provider from "../provider.js";
-import type * as react from "../react.js";
-import type * as setup from "../setup.js";
+import type * as public_ from "../public.js";
+import type * as validation from "../validation.js";
 
 import type {
   ApiFromModules,
@@ -20,9 +19,8 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  provider: typeof provider;
-  react: typeof react;
-  setup: typeof setup;
+  public: typeof public_;
+  validation: typeof validation;
 }> = anyApi as any;
 
 /**

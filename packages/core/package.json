@@ -31,6 +31,8 @@
     "./lib/*": "./src/lib/*.ts",
     "./core/convex.config.js": "./src/components/core/convex.config.ts",
     "./core/*": "./src/components/core/*.ts",
+    "./username/convex.config.js": "./src/components/username/convex.config.ts",
+    "./username/*": "./src/components/username/*.ts",
     "./providers/anonymous/convex.config.js": "./src/components/anonymous/convex.config.ts",
     "./providers/anonymous/react": "./src/components/anonymous/react.tsx",
     "./providers/anonymous/*": "./src/components/anonymous/*.ts",

@@ -14,21 +14,23 @@
  * Both refuse cross-site requests up front (403, before any Convex call or
  * cookie write) by checking the `Origin` header via {@link isTrustedOrigin}.
  *
- * A provider's *sign-in* handler is the per-provider counterpart (see e.g.
- * `@convex-dev/auth/providers/anonymous/server`); it mints a bundle and
- * delegates to {@link signInResponse} to properly build the response.
+ * Sign-in has no counterpart here: it goes through the auth proxy (see
+ * `./proxy`), which needs no per-provider server code.
  *
  * @module
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import type { RefreshSessionFn, SignOutFn, TokenBundle } from "../lib/types";
+import type {
+  AuthSessionResponse,
+  RefreshSessionFn,
+  SignOutFn,
+} from "../lib/types";
 import { makeSlimBundle } from "../lib/types";
 import {
   AUTH_REFRESH_COOKIE,
   AuthCookieOptions,
   clearAuthCookies,
-  writeAuthCookies,
 } from "./cookies";
 import { httpCookies } from "./httpCookies";
 import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
@@ -53,7 +55,9 @@ export interface RefreshHandlerConfig {
 
 /**
  * A handler that rotates the session from the httpOnly refresh-token cookie and
- * rewrites both cookies, replying `{ tokens: SlimTokenBundle | null }`.
+ * rewrites both cookies, replying with an {@link AuthSessionResponse} carrying
+ * the fresh bundle. When there is no session to rotate (missing or unrecognized
+ * refresh cookie) it replies 401 with `tokens: null`.
  */
 export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
@@ -69,9 +73,14 @@ export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
       cookieOptions: config.cookieOptions,
     });
     const bundle = await session.refresh();
-    const res = Response.json({
-      tokens: bundle === null ? null : makeSlimBundle(bundle),
-    });
+    const res =
+      bundle === null
+        ? Response.json({ tokens: null } satisfies AuthSessionResponse, {
+            status: 401,
+          })
+        : Response.json({
+            tokens: makeSlimBundle(bundle),
+          } satisfies AuthSessionResponse);
     cookies.applyTo(res.headers);
     return res;
   };
@@ -93,7 +102,8 @@ export interface SignOutHandlerConfig {
 
 /**
  * A handler that revokes the session from the httpOnly refresh-token cookie
- * (best effort) and clears both cookies, replying `{ tokens: null }`.
+ * (best effort) and clears both cookies, replying with an
+ * {@link AuthSessionResponse} carrying `tokens: null`.
  */
 export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
@@ -111,33 +121,8 @@ export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
       }
     }
     await clearAuthCookies(cookies, config.cookieOptions);
-    const res = Response.json({ tokens: null });
+    const res = Response.json({ tokens: null } satisfies AuthSessionResponse);
     cookies.applyTo(res.headers);
     return res;
   };
-}
-
-/**
- * Build the response for a completed server-side sign-in: move the minted
- * refresh token into an httpOnly cookie (and the access token into its cookie),
- * and reply with the access-only {@link SlimTokenBundle} the browser may hold. A
- * `null` bundle (sign-in failed) writes no cookies and replies `{ tokens: null }`.
- *
- * Every provider's sign-in handler mints its bundle, then defers to this, so the
- * refresh token reaches only the cookie and the response is uniformly shaped.
- */
-export async function signInResponse(
-  request: Request,
-  bundle: TokenBundle | null,
-  cookieOptions: AuthCookieOptions,
-): Promise<Response> {
-  const cookies = httpCookies(request);
-  // Sign-in only writes cookies — it never refreshes or revokes — so it uses the
-  // cookie primitive directly rather than a `ServerAuthSession`.
-  if (bundle !== null) await writeAuthCookies(cookies, bundle, cookieOptions);
-  const res = Response.json({
-    tokens: bundle === null ? null : makeSlimBundle(bundle),
-  });
-  cookies.applyTo(res.headers);
-  return res;
 }

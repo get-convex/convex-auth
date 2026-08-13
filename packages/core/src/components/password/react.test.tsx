@@ -7,6 +7,7 @@ import { InMemoryStorage } from "../../browser/storage";
 import type { TokenBundle } from "../../lib/types";
 import { AuthProvider, useAuth } from "../../react/client";
 import { useAuthToken } from "../../react";
+import { stubSignInApi } from "../../react/testSignInApi";
 import {
   SignInWithPasswordResult,
   SignUpWithPasswordResult,
@@ -20,11 +21,9 @@ type Flow = {
   pending: boolean;
 };
 
-const { runMutation } = vi.hoisted(() => ({ runMutation: vi.fn() }));
-vi.mock("convex/react", async (importActual) => ({
-  ...(await importActual<typeof import("convex/react")>()),
-  useMutation: () => runMutation,
-}));
+// The hooks run their action through the injected `AuthSignInApi`, so the test
+// substitutes a signInApi rather than mocking `convex/react`.
+const { signInApi, run: runMutation } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
@@ -38,7 +37,7 @@ const bundle: TokenBundle = {
 
 const credentials = { username: "alice", password: "hunter2" };
 
-// The mocked `useMutation` ignores the reference, so any value will do.
+// The stub signInApi ignores the reference, so any value will do.
 const mutation = {} as never;
 
 const flows = [
@@ -66,7 +65,9 @@ function renderFlow(useFlow: () => Flow) {
     storageNamespace: NAMESPACE,
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client}>{children}</AuthProvider>
+    <AuthProvider authClient={client} signInApi={signInApi}>
+      {children}
+    </AuthProvider>
   );
   return renderHook(
     () => ({ auth: useAuth(), token: useAuthToken(), flow: useFlow() }),

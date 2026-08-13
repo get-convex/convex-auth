@@ -14,43 +14,48 @@
  * out by POSTing to the SSR host's auth routes (which read the cookie) rather
  * than talking to Convex directly.
  *
- * Sign-in likewise runs on the server. A provider's SSR sibling hook (e.g.
- * {@link useAnonymousAuth}) POSTs to that provider's sign-in route mounted on
- * the SSR host; the handler there mints the session, stashes the refresh token
- * in the cookie, and returns a {@link SlimTokenBundle} which only contains the
- * access token (for the client to authenticate to the Convex backend).
+ * Sign-in likewise runs on the server, but providers need no SSR-specific hook
+ * for it. {@link ConvexAuthNextjsProvider} supplies an {@link AuthSignInApi} backed
+ * by a `ConvexHttpClient` aimed at the SSR host's auth proxy, so a provider's
+ * normal client hook works unchanged: the proxy mints the session, stashes the
+ * refresh token in the cookie, and returns an access-only
+ * {@link SlimTokenBundle} for the client to authenticate to Convex with.
  *
  * @module
  */
 "use client";
 
+import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { ReactNode, useCallback, useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
-import type { SlimTokenBundle } from "../lib/types";
-import { useAuthActions } from "../react";
-import { AuthProvider, useAuth } from "../react/client";
+import type { AuthSessionResponse } from "../lib/types";
+import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export { useAuthActions, useAuthToken } from "../react";
 
-/** POST JSON to an auth route and read back the result with the access token. */
-// TODO: dowski - what sort of error handling/guarantees do we want here?
-async function postAuth(
-  route: string,
-  body: Record<string, unknown>,
-): Promise<{ tokens: SlimTokenBundle | null }> {
+/**
+ * POST to the refresh or sign-out route and read back the access-only bundle.
+ *
+ * These two have their own handlers rather than going through the auth proxy,
+ * because the refresh token they need is in the cookie rather than in any
+ * argument the client could pass. Both reply with an
+ * {@link AuthSessionResponse} on failure as on success (a dead session is a 401
+ * carrying `tokens: null`), so the body is parsed regardless of status. Anything
+ * without a JSON body degrades to `tokens: null`.
+ */
+async function postAuth(route: string): Promise<AuthSessionResponse> {
   const res = await fetch(route, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: "{}",
   });
-  if (!res.ok) return { tokens: null };
-  return (await res.json().catch(() => ({ tokens: null }))) as {
-    tokens: SlimTokenBundle | null;
-  };
+  return (await res
+    .json()
+    .catch(() => ({ tokens: null }))) as AuthSessionResponse;
 }
 
 /**
@@ -68,6 +73,7 @@ export function ConvexAuthNextjsProvider({
   initialToken = null,
   refreshRoute = "/auth/refresh",
   signOutRoute = "/auth/signout",
+  signInRoute = "/auth/signin",
   storage,
   children,
 }: {
@@ -83,12 +89,15 @@ export function ConvexAuthNextjsProvider({
   refreshRoute?: string;
   /** Route that revokes the session and clears cookies. */
   signOutRoute?: string;
+  /** Route the auth proxy is mounted at, i.e. the single route file exporting
+   * `auth.convexProxyHandler`. Provider sign-in calls go here. */
+  signInRoute?: string;
   /** A custom {@link TokenStorage}. Defaults to `localStorage` in the browser.
    * Under SSR, it only stores the access token. */
   storage?: TokenStorage;
   children: ReactNode;
 }) {
-  const { authClient, convex } = useMemo(() => {
+  const { authClient, convex, signInApi } = useMemo(() => {
     const convex =
       client ??
       new ConvexReactClient(convexUrl ?? process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -96,9 +105,9 @@ export function ConvexAuthNextjsProvider({
       mode: "ssr",
       authApi: {
         // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
-        refreshSession: async () => (await postAuth(refreshRoute, {})).tokens,
+        refreshSession: async () => (await postAuth(refreshRoute)).tokens,
         signOut: async () => {
-          await postAuth(signOutRoute, {});
+          await postAuth(signOutRoute);
         },
       },
       storage: storage ?? defaultStorage(),
@@ -107,38 +116,42 @@ export function ConvexAuthNextjsProvider({
       // access token; the client adopts it on init.
       initialAccessToken: initialToken,
     });
-    return { authClient, convex };
+
+    // Provider sign-in goes to the auth proxy so the minted refresh token can be
+    // moved into an httpOnly cookie server-side. The proxy speaks the
+    // `ConvexHttpClient` wire format, so this is a real Convex client pointed at
+    // the SSR host: no bespoke request shape, and args and errors keep their
+    // encoding. The address is relative, hence skipping the URL check, and
+    // same-origin fetch sends the auth cookies automatically. The trailing
+    // `?path=` puts the endpoint the client appends into the query string, so
+    // `signInRoute` can be a static route rather than a catch-all.
+    const proxy = new ConvexHttpClient(`${signInRoute}?path=`, {
+      skipConvexDeploymentUrlCheck: true,
+      logger: convex.logger,
+    });
+    // Attach the current access token per call: a sign-in typically runs
+    // unauthenticated, but a function may want the existing identity (e.g. to
+    // link an account to the signed-in user).
+    const withAuth = () => {
+      const token = authClient.getAccessToken();
+      if (token !== null) proxy.setAuth(token);
+      else proxy.clearAuth();
+      return proxy;
+    };
+    const signInApi: AuthSignInApi = {
+      mutation: (fn, args) => withAuth().mutation(fn, args),
+      action: (fn, args) => withAuth().action(fn, args),
+    };
+
+    return { authClient, convex, signInApi };
     // `client`/`convexUrl` identity is what matters; other props are read once.
   }, [client, convexUrl]);
 
   return (
-    <AuthProvider authClient={authClient}>
+    <AuthProvider authClient={authClient} signInApi={signInApi}>
       <ConvexProviderWithAuth client={convex} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
     </AuthProvider>
   );
-}
-
-/**
- * SSR sibling of the anonymous provider's client-direct
- * `useAnonymousAuth` (`@convex-dev/auth/providers/anonymous/react`).
- *
- * Sign-in runs on the SSR host: this POSTs to the anonymous sign-in route (where
- * the `anonymous` provider is mounted via `signInHandler`), and adopts the
- * access-only session it returns.
- *
- * ```tsx
- * const { signInAnonymous } = useAnonymousAuth();
- * <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
- * ```
- */
-export function useAnonymousAuth(options?: { route?: string }) {
-  const { setSession } = useAuthActions();
-  const route = options?.route ?? "/auth/signin/anonymous";
-  const signInAnonymous = useCallback(async () => {
-    const { tokens } = await postAuth(route, {});
-    if (tokens) await setSession(tokens);
-  }, [setSession, route]);
-  return { signInAnonymous };
 }

@@ -1,9 +1,10 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
-import { api } from "./_generated/api.js";
+import { api, components } from "./_generated/api.js";
 import { registerCore } from "@convex-dev/auth/providers/testing/core";
 import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password";
+import { registerUsername } from "@convex-dev/auth/providers/testing/username";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -31,6 +32,7 @@ async function setup() {
   const t = convexTest(schema, modules);
   registerCore(t);
   registerPasswordProvider(t);
+  registerUsername(t);
   return t;
 }
 
@@ -165,6 +167,26 @@ describe("setupUsernamePassword", () => {
       success: false,
       userError: { error: "USERNAME_TAKEN" },
     });
+  });
+
+  test("rejects an empty username at sign-up", async () => {
+    const t = await setup();
+    const up = await signUp(t, "", PASSWORD);
+    expect(up).toEqual({
+      success: false,
+      userError: { error: "USERNAME_TOO_SHORT", minimumLength: 1 },
+    });
+  });
+
+  test("stores the username in the username component", async () => {
+    const t = await setup();
+    const up = await signUp(t, "Alice", PASSWORD);
+    const rows = await t.run(async (ctx) =>
+      ctx.runQuery(components.authUsername.public.getUsername, {
+        userId: (up as PasswordSuccess).tokens.userId,
+      }),
+    );
+    expect(rows).toBe("Alice");
   });
 
   test("rejects a too-short password at sign-up without creating an account", async () => {

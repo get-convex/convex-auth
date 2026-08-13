@@ -7,15 +7,12 @@ import { InMemoryStorage } from "../../browser/storage";
 import type { TokenBundle } from "../../lib/types";
 import { AuthProvider, useAuth } from "../../react/client";
 import { useAuthToken } from "../../react";
+import { stubSignInApi } from "../../react/testSignInApi";
 import { SignInAnonymousMutation, useAnonymousAuth } from "./react";
 
-// The provider client only cares that `useMutation(signInAnonymous)` yields a
-// function returning a bundle; stub convex/react's `useMutation` to be that.
-const { runSignIn } = vi.hoisted(() => ({ runSignIn: vi.fn() }));
-vi.mock("convex/react", async (importActual) => ({
-  ...(await importActual<typeof import("convex/react")>()),
-  useMutation: () => runSignIn,
-}));
+// The hook runs its sign-in mutation through the injected `AuthSignInApi`, so the
+// test substitutes a signInApi rather than mocking `convex/react`.
+const { signInApi, run: runSignIn } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
@@ -27,8 +24,8 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
-// A stand-in for the app's `api.auth.signInAnonymous` reference. The mocked
-// `useMutation` ignores it, so any value typed as the reference will do.
+// A stand-in for the app's `api.auth.signInAnonymous` reference. The stub signInApi
+// ignores it, so any value typed as the reference will do.
 const signInAnonymous = {} as SignInAnonymousMutation;
 
 function renderAnonymousAuth() {
@@ -39,7 +36,9 @@ function renderAnonymousAuth() {
     storageNamespace: NAMESPACE,
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client}>{children}</AuthProvider>
+    <AuthProvider authClient={client} signInApi={signInApi}>
+      {children}
+    </AuthProvider>
   );
   return renderHook(
     () => ({
@@ -57,8 +56,8 @@ describe("useAnonymousAuth", () => {
     runSignIn.mockReset();
   });
 
-  test("signIn adopts the bundle from signInAnonymous into the core client", async () => {
-    runSignIn.mockResolvedValue(bundle);
+  test("signIn adopts the envelope's bundle from signInAnonymous into the core client", async () => {
+    runSignIn.mockResolvedValue({ success: true, tokens: bundle });
     const { result } = renderAnonymousAuth();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     expect(result.current.auth.isAuthenticated).toBe(false);

@@ -1,5 +1,10 @@
 "use client";
 
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+} from "convex/server";
 import {
   ReactNode,
   createContext,
@@ -11,6 +16,55 @@ import {
 } from "react";
 import { INITIAL_AUTH_STATE, type AuthClient } from "../browser/sessionManager";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
+
+/**
+ * How a provider's sign-in function gets executed.
+ *
+ * This is the only thing that differs between the two session models, so
+ * providers take it from context instead of picking a transport themselves.
+ * One client hook per provider then serves both:
+ *
+ *  - SPA: called against the deployment, returning the full
+ *    {@link TokenBundle} for client JS to persist.
+ *  - SSR: called through the auth proxy on the SSR host, which moves the
+ *    refresh token into an httpOnly cookie and returns an access-only
+ *    {@link SlimTokenBundle}.
+ *
+ * A provider never sees which model it is running under. See
+ * {@link ClientView} for why one declared type is honest for both.
+ */
+export interface AuthSignInApi {
+  mutation<F extends FunctionReference<"mutation", "public">>(
+    fn: F,
+    args: FunctionArgs<F>,
+  ): Promise<FunctionReturnType<F>>;
+  action<F extends FunctionReference<"action", "public">>(
+    fn: F,
+    args: FunctionArgs<F>,
+  ): Promise<FunctionReturnType<F>>;
+}
+
+const ConvexAuthSignInApiContext = createContext<AuthSignInApi | undefined>(
+  undefined,
+);
+
+/**
+ * The {@link AuthSignInApi} for the surrounding auth provider.
+ *
+ * Provider hooks call this to run their sign-in function instead of reaching
+ * for `useMutation`/`useAction`, which is what keeps them working under either
+ * session model. Throws when used outside an auth provider.
+ */
+export function useAuthSignInApi(): AuthSignInApi {
+  const signInApi = useContext(ConvexAuthSignInApiContext);
+  if (signInApi === undefined) {
+    throw new Error(
+      "useAuthSignInApi must be used within a <ConvexAuthProvider> (or, under " +
+        "Next.js, a <ConvexAuthNextjsProvider>).",
+    );
+  }
+  return signInApi;
+}
 
 // React calls this during SSR and initial hydration — before `init()` has read
 // storage — so it always reports the loading state. It lives here rather than
@@ -74,9 +128,12 @@ export function useAuth() {
  */
 export function AuthProvider({
   authClient,
+  signInApi,
   children,
 }: {
   authClient: AuthClient;
+  /** How provider hooks execute their sign-in functions. See {@link AuthSignInApi}. */
+  signInApi: AuthSignInApi;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -118,11 +175,13 @@ export function AuthProvider({
 
   return (
     <ConvexAuthInternalContext.Provider value={authState}>
-      <ConvexAuthActionsContext.Provider value={actions}>
-        <ConvexAuthTokenContext.Provider value={state.token}>
-          {children}
-        </ConvexAuthTokenContext.Provider>
-      </ConvexAuthActionsContext.Provider>
+      <ConvexAuthSignInApiContext.Provider value={signInApi}>
+        <ConvexAuthActionsContext.Provider value={actions}>
+          <ConvexAuthTokenContext.Provider value={state.token}>
+            {children}
+          </ConvexAuthTokenContext.Provider>
+        </ConvexAuthActionsContext.Provider>
+      </ConvexAuthSignInApiContext.Provider>
     </ConvexAuthInternalContext.Provider>
   );
 }

@@ -86,6 +86,21 @@ export const INITIAL_AUTH_STATE: AuthState = Object.freeze({
   token: null,
 });
 
+/**
+ * Whether a session carries the refresh token, i.e. is a full
+ * {@link TokenBundle} rather than an access-only {@link SlimTokenBundle}.
+ *
+ * A type predicate rather than an inline check so callers can both branch on it
+ * and narrow with it: TypeScript won't narrow a union through a plain boolean
+ * held in a variable, and narrowing here is what keeps a cast out of the one
+ * path that decides whether a refresh token gets persisted.
+ */
+function hasRefreshToken(
+  session: TokenBundle | SlimTokenBundle,
+): session is TokenBundle {
+  return "refreshToken" in session;
+}
+
 function isNetworkError(error: unknown): boolean {
   return (
     error instanceof TypeError &&
@@ -116,6 +131,8 @@ export class AuthClient {
   readonly #verbose: boolean;
   readonly #lockKey: string;
   readonly #initialAccessToken: string | null;
+  /** Which side owns the refresh token. Enforced in {@link AuthClient.#adopt}. */
+  readonly #mode: "spa" | "ssr";
 
   #accessToken: string | null = null;
   /**
@@ -138,6 +155,7 @@ export class AuthClient {
     this.#verbose = config.verbose ?? false;
     this.#lockKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
     this.#initialAccessToken = config.initialAccessToken ?? null;
+    this.#mode = config.mode;
 
     // Bind the mode-specific refresh/sign-out behavior.
     if (config.mode === "spa") {
@@ -326,9 +344,32 @@ export class AuthClient {
   async #adopt(result: TokenBundle | SlimTokenBundle | null): Promise<void> {
     if (result === null) {
       await this.#storeTokens(null);
-    } else if ("refreshToken" in result) {
+      return;
+    }
+    // Which shape arrives is a property of the session model, so a mismatch is
+    // a wiring bug. Both directions fail loudly rather than degrading, because
+    // both degrade in ways that are hard to trace back here.
+    if (hasRefreshToken(result)) {
+      // Storing this would put a long-lived credential in browser storage,
+      // which is the thing the SSR model exists to prevent.
+      if (this.#mode === "ssr") {
+        throw new Error(
+          "[convex-auth] Received a refresh token in an SSR response. The " +
+            "auth proxy did not move it into the httpOnly cookie; refusing " +
+            "to persist it in browser storage.",
+        );
+      }
       await this.#storeTokens(result);
     } else {
+      // Nothing could rotate the session, so it would die at the first
+      // access-token expiry and log the user out with no explanation.
+      if (this.#mode === "spa") {
+        throw new Error(
+          "[convex-auth] Received a session with no refresh token in SPA " +
+            "mode. Without one the session cannot be rotated and would " +
+            "expire silently.",
+        );
+      }
       await this.#storeAccessOnly(result);
     }
   }

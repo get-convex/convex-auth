@@ -4,8 +4,8 @@
  * inspection, the {@link ServerAuthSession} that owns the refresh lifecycle,
  * the {@link createServerAuthChecker} that verifies an access token against the
  * backend, the provider-agnostic `(Request) => Response` refresh/sign-out
- * handlers, and the {@link setupConvexAuthServer} factory that configures them
- * (and sign-in) once.
+ * handlers, the {@link convexProxyHandler} that serves sign-in, and the
+ * {@link setupConvexAuthServer} factory that configures them all once.
  *
  * @module
  */
@@ -27,15 +27,14 @@ export {
   type RequestHandler,
   type SignOutHandlerConfig,
   refreshHandler,
-  signInResponse,
   signOutHandler,
 } from "./handlers";
+export { type ConvexAuthServerConfig, setupConvexAuthServer } from "./setup";
 export {
-  type ConvexAuthServerConfig,
-  type SignInProvider,
-  InvalidSignInRequestError,
-  setupConvexAuthServer,
-} from "./setup";
+  type ConvexProxyConfig,
+  type ExposedSignInFn,
+  convexProxyHandler,
+} from "./signInProxy";
 export {
   type DecodedAccessToken,
   decodeAccessToken,
@@ -52,11 +51,14 @@ export {
   type ServerAuthCheckerConfig,
 } from "./isAuthenticated";
 export type {
+  AuthSessionResponse,
+  ClientView,
   ConvexAuthApi,
   IsAuthenticatedFn,
   RefreshSessionFn,
+  SignInSuccess,
   SignOutFn,
   SlimTokenBundle,
   TokenBundle,
 } from "../lib/types";
-export { makeSlimBundle } from "../lib/types";
+export { makeSlimBundle, vSignInSuccess } from "../lib/types";
