@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { ping } from "@convex-dev/batch-worker";
+import { ping, vBatchResult } from "@convex-dev/batch-worker";
 import { components, internal } from "./_generated/api";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
