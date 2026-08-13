@@ -40,10 +40,7 @@ export type OidcClaims = {
  * against it at runtime.
  */
 export type OauthProfile<
-  // `any` default so unparameterized mappings can dig into responses
-  // without casting.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  UserInfo extends Record<string, unknown> = Record<string, any>,
+  UserInfo extends Record<string, unknown> = Record<string, unknown>,
 > = (
   claims: OidcClaims | undefined,
   userInfoResponses: UserInfo | undefined,
@@ -57,8 +54,7 @@ export type OauthProfile<
  * {@link OauthProfile}).
  */
 export type OauthCatalog<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  UserInfo extends Record<string, unknown> = Record<string, any>,
+  UserInfo extends Record<string, unknown> = Record<string, unknown>,
 > = {
   /**
    * The provider's authorization endpoint (a full URL), e.g. Google's
@@ -141,8 +137,7 @@ function parseUrl(value: string): URL | null {
  * TODO: support response_mode=form_post (Apple) before launch.
  */
 export function setupOauth<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  UserInfo extends Record<string, unknown> = Record<string, any>,
+  UserInfo extends Record<string, unknown> = Record<string, unknown>,
 >(
   providerName: string,
   catalog: OauthCatalog<UserInfo>,
