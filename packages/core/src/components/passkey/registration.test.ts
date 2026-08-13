@@ -49,13 +49,16 @@ async function registrationArgs(
     // `finishRegistration` knows the verified user.
     isNewAccountFlow?: boolean;
     // The user that `startRegistration` receives. It is `userId` by default.
-    startUserId?: string;
+    // `null` starts the new-account flow, which makes an unlinked handle.
+    startUserId?: string | null;
   } = {},
 ) {
   const credential = options.credential ?? (await generateES256Credential());
   const startUserId = options.isNewAccountFlow
     ? null
-    : (options.startUserId ?? userId);
+    : options.startUserId !== undefined
+      ? options.startUserId
+      : userId;
   let challenge: ArrayBuffer;
   let userHandle: ArrayBuffer | null;
   if (options.challenge !== undefined) {
@@ -114,9 +117,7 @@ describe("startRegistration", () => {
     const rows = await t.run((ctx) => ctx.db.query("challenges").collect());
     expect(rows).toHaveLength(1);
     expect(rows[0].kind).toBe("registration");
-    expect(new Uint8Array(rows[0].challenge)).toEqual(
-      new Uint8Array(challenge),
-    );
+    expectSameBytes(rows[0].challenge, challenge);
     // Registration challenges carry no identity, even when a userId is given:
     // they point at a handle instead.
     expect("userId" in rows[0]).toBe(false);
@@ -276,7 +277,7 @@ describe("finishRegistration", () => {
     expect(result).toEqual({ success: true, passkeyId: row._id });
     expect(row.userId).toBe("user1");
     expect(row.algorithm).toBe("ES256");
-    expect(new Uint8Array(row.credentialId)).toEqual(credential.credentialId);
+    expectSameBytes(row.credentialId, credential.credentialId);
     expect(row.counter).toBe(5);
     // SEC1 uncompressed P-256 point: 0x04 || x || y.
     const publicKey = new Uint8Array(row.publicKey);
@@ -499,6 +500,19 @@ describe("finishRegistration", () => {
     });
   });
 
+  test("erases the unlinked handle when the user is not verified", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", {
+      startUserId: null,
+      userVerified: false,
+    });
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result.success).toBe(false);
+    // The failed attempt burned the challenge. The ceremony can never
+    // complete, thus its unlinked handle goes away too.
+    expect(await handleRows(t)).toEqual([]);
+  });
+
   test("keeps the linked handle when the user is not verified", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
@@ -625,6 +639,96 @@ describe("finishRegistration", () => {
   });
 });
 
+describe("checkRegistration", () => {
+  /** `checkRegistration` takes the finish arguments without the user fields. */
+  function checkArgs({
+    expectedRpId,
+    expectedOrigin,
+    attestationObject,
+    clientDataJSON,
+  }: Awaited<ReturnType<typeof registrationArgs>>["args"]) {
+    return { expectedRpId, expectedOrigin, attestationObject, clientDataJSON };
+  }
+
+  test("returns success for a valid attestation and writes nothing", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    const result = await t.query(
+      api.registration.checkRegistration,
+      checkArgs(args),
+    );
+    expect(result).toEqual({ success: true });
+    // A query cannot write: the challenge stays for the finish call.
+    const challenges = await t.run((ctx) =>
+      ctx.db.query("challenges").collect(),
+    );
+    expect(challenges).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+  });
+
+  test("returns CHALLENGE_EXPIRED for an expired challenge", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    expireChallenge();
+    const result = await t.query(
+      api.registration.checkRegistration,
+      checkArgs(args),
+    );
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "CHALLENGE_EXPIRED" },
+    });
+  });
+
+  test("returns VERIFICATION_FAILED when the user is not verified", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", {
+      userVerified: false,
+    });
+    const result = await t.query(
+      api.registration.checkRegistration,
+      checkArgs(args),
+    );
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "VERIFICATION_FAILED" },
+    });
+  });
+
+  test("throws for a duplicate credential ID", async () => {
+    const t = setup();
+    const { credential } = await register(t, "user1");
+    const { args } = await registrationArgs(t, "user2", { credential });
+    await expect(
+      t.query(api.registration.checkRegistration, checkArgs(args)),
+    ).rejects.toThrow("The credential is already registered.");
+  });
+
+  test("throws for an unexpected origin, like the finish call", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", {
+      origin: "https://evil.example.net",
+    });
+    await expect(
+      t.query(api.registration.checkRegistration, checkArgs(args)),
+    ).rejects.toThrow("Unexpected WebAuthn origin.");
+  });
+
+  test("a finish with the same arguments succeeds after a successful check", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", { startUserId: null });
+    const check = await t.query(
+      api.registration.checkRegistration,
+      checkArgs(args),
+    );
+    expect(check).toEqual({ success: true });
+    const finish = await t.mutation(api.registration.finishRegistration, args);
+    expect(finish.success).toBe(true);
+  });
+});
+
 describe("listPasskeys", () => {
   test("returns an empty array for an unknown user", async () => {
     const t = setup();
@@ -646,9 +750,7 @@ describe("listPasskeys", () => {
     expect(result).toHaveLength(1);
     expect(result[0].passkeyId).toBe(passkeyId);
     expect(result[0].name).toBe("MacBook");
-    expect(new Uint8Array(result[0].credentialId)).toEqual(
-      credential.credentialId,
-    );
+    expectSameBytes(result[0].credentialId, credential.credentialId);
     expect(typeof result[0].createdAt).toBe("number");
     // The key material never leaves the component.
     expect(result[0]).not.toHaveProperty("publicKey");

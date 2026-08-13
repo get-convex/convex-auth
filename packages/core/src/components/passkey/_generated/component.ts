@@ -54,6 +54,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     registration: {
+      checkRegistration: FunctionReference<
+        "query",
+        "internal",
+        {
+          attestationObject: ArrayBuffer;
+          clientDataJSON: ArrayBuffer;
+          expectedOrigin: string;
+          expectedRpId: string;
+        },
+        | { success: true }
+        | {
+            success: false;
+            userError:
+              { error: "CHALLENGE_EXPIRED" } | { error: "VERIFICATION_FAILED" };
+          },
+        Name
+      >;
       deletePasskey: FunctionReference<
         "mutation",
         "internal",
