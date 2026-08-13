@@ -12,21 +12,20 @@ import type { AuthClaims, ProviderHelpers, TokenBundle } from "../../lib/types";
 /**
  * Tests for the app-side `completeSignIn` mutation that `setupOauth`
  * produces, run against the real component (real `claimTicket`, real ticket
- * crypto). The seam into the core — `helpers.completeSignIn`, which turns
- * verified claims into a session — is faked and spied here; the real one is
+ * crypto). The helpers that turn verified claims into a session
+ * (`helpers.completeSignIn`) are faked and spied here. The real helpers are
  * covered by the core's own suite (components/core/core.test.ts).
  */
 
 /**
- * Test-only spy state for the fake helpers, mirroring the core suite's
- * testApp pattern: the suite runs in one process, so module-level state read
- * and reset directly is a stable spy.
+ * Claims recorded by the fake `helpers.completeSignIn`. The suite runs in
+ * one process, so tests read and reset this directly.
  */
 const completeSignInCalls: AuthClaims[] = [];
 
 /**
  * When set, the fake `helpers.completeSignIn` throws this instead of
- * returning a bundle — modeling the app rejecting the sign-in from its
+ * returning a bundle, modeling the app rejecting the sign-in from its
  * `createOrUpdateUser` callback.
  */
 const helperFailure = { error: undefined as Error | undefined };
@@ -41,9 +40,8 @@ const FAKE_BUNDLE: TokenBundle = {
 };
 
 /**
- * Fake {@link ProviderHelpers}: `completeSignIn` records the claims it was
- * handed and returns {@link FAKE_BUNDLE} (or throws per
- * {@link helperFailure}). `resolveUserId` is never reached by redemption.
+ * Fake {@link ProviderHelpers}. `resolveUserId` is never reached by
+ * redemption.
  */
 const fakeHelpers: ProviderHelpers = {
   completeSignIn: async (_ctx, claims) => {
@@ -59,8 +57,8 @@ const fakeHelpers: ProviderHelpers = {
 /**
  * Provider options for every instance under test. The component's own
  * generated `api` stands in for the app-side component reference
- * (`components.oauthAcme`): the harness root IS the component, so its
- * self-references resolve exactly like an installed component's would. The
+ * (`components.oauthAcme`): the harness root is the component itself, so its
+ * self-references resolve the same way an installed component's would. The
  * cast bridges the generated api's "public" visibility to the component
  * type's "internal".
  */
@@ -106,9 +104,9 @@ const EMPTY_ID_CATALOG = {
 };
 
 /**
- * A catalog whose profile mapping omits the id entirely — modeling an untyped
- * (plain JS) mapping, which the cast stands in for since `OauthProfile`'s
- * return type makes this unwritable directly.
+ * A catalog whose profile mapping omits the id entirely, modeling an untyped
+ * (plain JS) mapping. `OauthProfile`'s return type makes this unwritable
+ * directly, so the cast fakes it.
  */
 const MISSING_ID_CATALOG = {
   ...CLAIMS_CATALOG,
@@ -118,7 +116,7 @@ const MISSING_ID_CATALOG = {
 /**
  * The app-side functions under test, named statically the way a catalog
  * module names them. They aren't component modules (in a real deployment
- * they live in the app), so they can't come from the module glob; instead
+ * they live in the app), so they can't come from the module glob. Instead
  * they're injected below as a synthetic `testApp` module, which convex-test
  * invokes like any registered function (argument and return validation,
  * transactions, and all). A real testApp.ts in this directory would leak
@@ -177,9 +175,9 @@ const CLAIMS = {
 };
 
 /**
- * Mint a ticket the way the callback leg does after a successful exchange:
- * real ticket code, hashes, and payload encryption. Returns the raw code,
- * which is what the client presents at redemption.
+ * Mint a ticket with real crypto: real ticket code, hashes, and payload
+ * encryption. Returns the raw code, which is what the client presents at
+ * redemption.
  */
 async function mintTicket(
   t: ReturnType<typeof setup>,
@@ -220,7 +218,7 @@ describe("completeSignIn", () => {
 
     expect(bundle).toEqual(FAKE_BUNDLE);
     // The decrypted payload flowed through the catalog's profile mapping
-    // into the core seam.
+    // into the fake helpers.
     expect(completeSignInCalls).toEqual([
       {
         provider: "acme",
@@ -272,7 +270,7 @@ describe("completeSignIn", () => {
     });
     expect(mismatched).toBeNull();
 
-    // The ticket survives a mismatched attempt; the initiating client can
+    // The ticket survives a mismatched attempt, so the initiating client can
     // still complete.
     const bundle = await t.mutation(completeSignInAcme, {
       code,
@@ -303,7 +301,7 @@ describe("completeSignIn", () => {
     vi.useFakeTimers();
     const t = setup();
     const code = await mintTicket(t);
-    vi.advanceTimersByTime(3 * 60 * 1000); // past the 2-minute ticket TTL
+    vi.advanceTimersByTime(3 * 60 * 1000); // well past the ticket TTL
 
     const result = await t.mutation(completeSignInAcme, {
       code,
@@ -335,8 +333,7 @@ describe("completeSignIn", () => {
     const t = setup();
     const code = await mintTicket(t);
 
-    // The app rejects the sign-in (thrown from createOrUpdateUser, surfaced
-    // through the core seam)...
+    // The app rejects the sign-in...
     helperFailure.error = new Error("sign-ups are closed");
     await expect(
       t.mutation(completeSignInAcme, { code, state: "state-1" }),

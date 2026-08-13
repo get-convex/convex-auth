@@ -14,7 +14,7 @@ import {
 import { sha256Hex } from "../../lib/crypto";
 
 /**
- * Standard OIDC id_token claims. The well-known ones are typed; any other
+ * Standard OIDC id_token claims. The well-known ones are typed. Any other
  * claim the provider includes is present but untyped (`unknown`).
  */
 export type OidcClaims = {
@@ -27,15 +27,16 @@ export type OidcClaims = {
 };
 
 /**
- * Map what the provider told us about the user — id_token claims
- * (`undefined` for non-OIDC providers) and userinfo responses keyed as
- * configured (`undefined` unless the catalog sets `userInfoEndpoints`) — to the
- * account identity used at redemption. `id` becomes the provider account id.
- * Supplied by each provider's catalog.
+ * Map what the provider attested about the user to the account identity used
+ * at redemption. `claims` holds the id_token claims (`undefined` for
+ * non-OIDC providers). `userInfoResponses` holds the userinfo responses
+ * keyed as configured (`undefined` unless the catalog sets
+ * `userInfoEndpoints`). `id` becomes the provider account id. Supplied by
+ * each provider's catalog.
  *
  * `UserInfo` is the catalog's declared shape for the userinfo responses,
  * keyed like `userInfoEndpoints`. It types what the provider is trusted to
- * return — the responses are provider-attested JSON and are not validated
+ * return. The responses are provider-attested JSON and are not validated
  * against it at runtime.
  */
 export type OauthProfile<
@@ -237,15 +238,13 @@ export function setupOauth<
   /**
    * Complete an OAuth sign-in by redeeming the one-time `code` from
    * the callback redirect together with the state held since
-   * `startSignIn`. The state must be the value stored at sign-in
-   * time, never one read from a URL. Returns the session token
-   * bundle, or null when the code is unknown, already redeemed,
-   * expired, or the state doesn't match: all indistinguishable to
-   * the caller, like a failed `refreshSession`.
+   * `startSignIn`. Returns the session token bundle, or null when
+   * the code is unknown, already redeemed, expired, or the state
+   * doesn't match: all indistinguishable to the caller.
    *
    * The component calls are subtransactions of this mutation, so a
    * failure anywhere (including the app rejecting the sign-in from
-   * `createOrUpdateUser`) rolls back the ticket claim; only a
+   * `createOrUpdateUser`) rolls back the ticket claim. Only a
    * successful redemption consumes the ticket.
    */
   const completeSignIn = mutationGeneric({
