@@ -21,7 +21,8 @@ import {
 // should return a function that's callable with the options.
 export function provider<Name extends string, Options, Api>(
   config: ProviderConfig<Name, Options, Api>,
-  options: Options,
+  // `NoInfer` means we type error on extra properties as long as options are defined inline.
+  options: NoInfer<Options>,
 ): readonly [ProviderConfig<Name, Options, Api>, Options] {
   return [config, options] as const;
 }

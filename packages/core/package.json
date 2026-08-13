@@ -36,6 +36,8 @@
     "./providers/anonymous/convex.config.js": "./src/components/anonymous/convex.config.ts",
     "./providers/anonymous/react": "./src/components/anonymous/react.tsx",
     "./providers/anonymous/*": "./src/components/anonymous/*.ts",
+    "./providers/oauth/convex.config.js": "./src/oauth/component/convex.config.ts",
+    "./providers/oauth/*": "./src/oauth/component/*.ts",
     "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
     "./providers/password/react": "./src/components/password/react.tsx",
     "./providers/password/*": "./src/components/password/*.ts",
