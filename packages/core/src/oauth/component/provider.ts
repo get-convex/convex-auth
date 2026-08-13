@@ -5,6 +5,11 @@ import { CALLBACK_PATH } from "./constants";
 /** How long an authorization request stays claimable by the callback. */
 const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
 
+/** How long a minted ticket stays redeemable. Redemption is normally the
+ * page load right after the callback redirect, so this only needs slack
+ * for slow devices and networks. */
+const TICKET_TTL_MS = 2 * 60 * 1000;
+
 /**
  * Record an in-flight authorization request. Called by the app-side
  * `signIn` before it redirects the user to the provider; the provider
@@ -104,5 +109,74 @@ export const claimAuthorizationRequest = internalMutation({
       userInfoEndpoints: request.userInfoEndpoints,
       issuer: request.issuer,
     };
+  },
+});
+
+/**
+ * Store a one-time redeemable ticket after a successful code exchange. The
+ * caller (the callback) holds the raw ticket code; only its hash is
+ * stored, and the identity payload arrives already encrypted with a key
+ * derived from that code.
+ */
+export const createTicket = internalMutation({
+  args: {
+    providerName: v.string(),
+    stateHash: v.string(),
+    ticketCodeHash: v.string(),
+    encryptedPayload: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert("tickets", {
+      ...args,
+      expiresAt: Date.now() + TICKET_TTL_MS,
+    });
+    return null;
+  },
+});
+
+/**
+ * Claim a ticket by ticket code hash: find, check, delete, and return it
+ * in one transaction, so a replayed or raced redemption finds nothing.
+ *
+ * The caller must also present the hash of the state minted at sign-in,
+ * binding redemption to the client that initiated the flow, and the provider
+ * name it expects, so a misconfigured or renamed provider instance can't
+ * redeem a ticket into the wrong account namespace.
+ */
+export const claimTicket = mutation({
+  args: {
+    providerName: v.string(),
+    ticketCodeHash: v.string(),
+    stateHash: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      encryptedPayload: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const ticket = await ctx.db
+      .query("tickets")
+      .withIndex("ticketCodeHash", (q) =>
+        q.eq("ticketCodeHash", args.ticketCodeHash),
+      )
+      .unique();
+    if (ticket === null) {
+      return null;
+    }
+    if (ticket.expiresAt < Date.now()) {
+      await ctx.db.delete("tickets", ticket._id);
+      return null;
+    }
+    if (
+      ticket.stateHash !== args.stateHash ||
+      ticket.providerName !== args.providerName
+    ) {
+      return null;
+    }
+    await ctx.db.delete("tickets", ticket._id);
+    return { encryptedPayload: ticket.encryptedPayload };
   },
 });

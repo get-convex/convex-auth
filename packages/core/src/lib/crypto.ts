@@ -4,7 +4,7 @@
 
 /**
  * SHA-256 hex digest. Used wherever a secret (refresh token, OAuth state,
- * one-time token) must be looked up later without persisting the raw value.
+ * ticket code) must be looked up later without persisting the raw value.
  */
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest(
