@@ -123,7 +123,7 @@ export const createTicket = internalMutation({
     providerName: v.string(),
     stateHash: v.string(),
     ticketCodeHash: v.string(),
-    payload: v.string(),
+    encryptedPayload: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -153,7 +153,7 @@ export const claimTicket = mutation({
   returns: v.union(
     v.null(),
     v.object({
-      payload: v.string(),
+      encryptedPayload: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -177,6 +177,6 @@ export const claimTicket = mutation({
       return null;
     }
     await ctx.db.delete("tickets", ticket._id);
-    return { payload: ticket.payload };
+    return { encryptedPayload: ticket.encryptedPayload };
   },
 });

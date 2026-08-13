@@ -120,13 +120,13 @@ describe("oauth", () => {
       providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
-      payload: "encrypted-payload",
+      encryptedPayload: "encrypted-payload",
     });
     await t.run(async (ctx) => {
       const tickets = await ctx.db.query("tickets").collect();
       expect(tickets).toHaveLength(1);
       expect(tickets[0].ticketCodeHash).toBe("a".repeat(64));
-      expect(tickets[0].payload).toBe("encrypted-payload");
+      expect(tickets[0].encryptedPayload).toBe("encrypted-payload");
       expect(tickets[0].expiresAt).toBeGreaterThan(Date.now());
     });
   });
@@ -137,14 +137,14 @@ describe("oauth", () => {
       providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
-      payload: "encrypted-payload",
+      encryptedPayload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: PROVIDER_NAME,
       ticketCodeHash: "a".repeat(64),
       stateHash: "0".repeat(64),
     });
-    expect(claimed).toEqual({ payload: "encrypted-payload" });
+    expect(claimed).toEqual({ encryptedPayload: "encrypted-payload" });
     const second = await t.mutation(api.provider.claimTicket, {
       providerName: PROVIDER_NAME,
       ticketCodeHash: "a".repeat(64),
@@ -159,7 +159,7 @@ describe("oauth", () => {
       providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
-      payload: "encrypted-payload",
+      encryptedPayload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: PROVIDER_NAME,
@@ -179,7 +179,7 @@ describe("oauth", () => {
       providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
-      payload: "encrypted-payload",
+      encryptedPayload: "encrypted-payload",
     });
     const claimed = await t.mutation(api.provider.claimTicket, {
       providerName: "other-provider",
@@ -200,7 +200,7 @@ describe("oauth", () => {
       providerName: PROVIDER_NAME,
       stateHash: "0".repeat(64),
       ticketCodeHash: "a".repeat(64),
-      payload: "encrypted-payload",
+      encryptedPayload: "encrypted-payload",
     });
     vi.advanceTimersByTime(3 * 60 * 1000);
     const claimed = await t.mutation(api.provider.claimTicket, {

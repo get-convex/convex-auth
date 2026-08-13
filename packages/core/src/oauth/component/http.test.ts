@@ -327,7 +327,7 @@ describe("oauth callback", () => {
     });
     expect(claimed).not.toBeNull();
     const payload = JSON.parse(
-      await decryptTicketPayload(ticketCode, claimed!.payload),
+      await decryptTicketPayload(ticketCode, claimed!.encryptedPayload),
     );
     expect(payload).toEqual({ claims });
   });
@@ -367,7 +367,7 @@ describe("oauth callback", () => {
       stateHash,
     });
     const payload = JSON.parse(
-      await decryptTicketPayload(ticketCode, claimed!.payload),
+      await decryptTicketPayload(ticketCode, claimed!.encryptedPayload),
     );
     expect(payload).toEqual({ userInfoResponses: { profile, emails } });
   });
@@ -406,7 +406,7 @@ describe("oauth callback", () => {
       stateHash,
     });
     const payload = JSON.parse(
-      await decryptTicketPayload(ticketCode, claimed!.payload),
+      await decryptTicketPayload(ticketCode, claimed!.encryptedPayload),
     );
     expect(payload).toEqual({
       claims,

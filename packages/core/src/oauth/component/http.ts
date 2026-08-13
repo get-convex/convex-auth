@@ -300,7 +300,7 @@ async function handleCallback(
       providerName: authRequest.providerName,
       stateHash: authRequest.stateHash,
       ticketCodeHash: await sha256Hex(ticketCode),
-      payload: await encryptTicketPayload(
+      encryptedPayload: await encryptTicketPayload(
         ticketCode,
         JSON.stringify({ claims, userInfoResponses }),
       ),
