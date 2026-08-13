@@ -8,7 +8,7 @@
  * handler is registered unconditionally (every app that uses Convex Auth runs
  * it on every page load), so bare names would let it consume
  * `?code=`/`?error=` params from an unrelated flow the app runs. A
- * `convexAuth`-prefixed param is proof the redirect came from this component,
+ * `convexAuth`-prefixed param signals the redirect came from this component,
  * which is also what keeps the client's `invalid_flow` detection meaningful.
  *
  * Shared by the component (which writes them) and the browser client (which

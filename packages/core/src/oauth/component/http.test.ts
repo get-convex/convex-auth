@@ -626,7 +626,7 @@ describe("oauth callback", () => {
         });
         // The handler arms its timeout before calling fetch, so the timer is
         // live here; advancing past it fires the abort.
-        vi.advanceTimersByTime(30 * 1000);
+        vi.advanceTimersByTime(10 * 1000);
         return stalled;
       },
     });
@@ -659,7 +659,7 @@ describe("oauth callback", () => {
                 );
               },
               pull() {
-                vi.advanceTimersByTime(30 * 1000);
+                vi.advanceTimersByTime(10 * 1000);
               },
             },
             { highWaterMark: 0 },
