@@ -20,6 +20,8 @@ export default defineConfig([
       // Generated output in the docs package (Next.js build + Fumadocs MDX).
       "packages/docs/.next/**",
       "packages/docs/.source/**",
+      // Generated Next.js output in the examples.
+      "examples/**/.next/**",
     ],
   },
   js.configs.recommended,

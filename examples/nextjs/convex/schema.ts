@@ -1,7 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 
-// Anonymous sign-in carries no profile, so a user row is just its identity
-// (system fields). A real app would add its own columns here.
+// Password sign-ups carry a username in the provider's profile; anonymous
+// sign-ins carry no profile, so the column is optional.
 export default defineSchema({
-  users: defineTable({}),
+  users: defineTable({
+    username: v.optional(v.string()),
+  }),
 });

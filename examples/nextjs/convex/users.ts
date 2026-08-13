@@ -5,12 +5,13 @@ import { internalMutation, query } from "./_generated/server";
 /**
  * The app's create-or-update-user callback (see `attachUserCallback`). The core
  * invokes it on every sign-in — without a `userId` the first time an identity is
- * seen, and with the resolved `userId` thereafter. On the first anonymous
- * sign-in we mint a users row; on later sign-ins we echo the id.
+ * seen, and with the resolved `userId` thereafter. On the first sign-in we mint
+ * a users row (with the username from the password provider's profile, when
+ * there is one); on later sign-ins we echo the id.
  */
 export const createOrUpdateUser = internalMutation({
   args: {
-    provider: v.literal("anonymous"),
+    provider: v.union(v.literal("anonymous"), v.literal("password")),
     providerAccountId: v.string(),
     profile: v.any(),
     userId: v.union(v.string(), v.null()),
@@ -24,7 +25,11 @@ export const createOrUpdateUser = internalMutation({
       }
       return existing;
     }
-    return await ctx.db.insert("users", {});
+    const username =
+      typeof args.profile?.username === "string"
+        ? args.profile.username
+        : undefined;
+    return await ctx.db.insert("users", { username });
   },
 });
 
@@ -44,6 +49,6 @@ export const loggedInUser = query({
     if (user === null) {
       return null;
     }
-    return { id: user._id };
+    return { id: user._id, username: user.username ?? null };
   },
 });
