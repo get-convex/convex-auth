@@ -155,13 +155,25 @@ export type ConvexAuthApi = {
 export const vAuthClaims = v.object({
   /** Provider name, e.g. "password". */
   provider: v.string(),
-  /** Stable, provider-scoped account identifier (e.g. a username). */
+  /**
+   * Stable, provider-scoped account identifier (e.g. the Google account ID).
+   */
   providerAccountId: v.string(),
   /** Arbitrary profile data the provider learned about the user. */
   profile: v.any(),
 });
 
 export type AuthClaims = Infer<typeof vAuthClaims>;
+
+/**
+ * Pass this as `providerAccountId` to `completeSignIn` when the provider has
+ * no identifier of its own. The core then keys the new account by the app
+ * user id it mints during sign-in. On later sign-ins, pass that user id as
+ * the account identifier.
+ *
+ * @TODO(nicolas) Consider replacing this mechanism
+ */
+export const USE_USER_ID_AS_ACCOUNT_ID = "";
 
 export const vCreateOrUpdateUser = v.object({
   provider: v.string(),
