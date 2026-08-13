@@ -1,6 +1,10 @@
 import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
-import { defineProvider, vSignInSuccess } from "../../lib/types";
+import {
+  defineProvider,
+  vSignInSuccess,
+  USE_USER_ID_AS_ACCOUNT_ID,
+} from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
@@ -32,10 +36,6 @@ export type UsernamePasswordOptions = {
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "password";
-
-// A given user has only zero or one “provider account ID”,
-// so there is no need for having a value here.
-const EMPTY_PROVIDER_ACCOUNT_ID = "";
 
 const signInResult = v.union(
   vSignInSuccess,
@@ -131,16 +131,20 @@ export const UsernamePassword = defineProvider({
             return { success: false, userError: { error: "USERNAME_TAKEN" } };
           }
 
-          // Create the account + app user (via the app's createOrUpdateUser) and
-          // mint the session. `profile.username` keeps the original casing for
-          // display; the account is keyed by the normalized `id`.
+          // Create the account + app user (via the app's createOrUpdateUser)
+          // and mint the session. Password accounts are keyed by the app user
+          // id, which does not exist before this call mints it, hence the
+          // placeholder; sign-in passes the user id itself. `profile.username`
+          // keeps the original casing for display.
           //
-          // TODO(nicolas) The username component now owns the username → user
-          // id mapping, so the account no longer needs to be keyed by the
-          // username. Give the account a stable, opaque id instead.
+          // TODO(nicolas) The app's `createOrUpdateUser` callback should not
+          // receive a provider account ID for the password provider at all:
+          // the value is an internal key ("" at sign-up, the user id
+          // afterwards) with no meaning to the app. We will probably improve
+          // this when providers support typesafe profiles.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: EMPTY_PROVIDER_ACCOUNT_ID,
+            providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
             profile: { username },
           });
 
@@ -213,11 +217,9 @@ export const UsernamePassword = defineProvider({
             return { success: false, userError: verifyResult.userError };
           }
 
-          // TODO(nicolas) See the TODO in `signUpWithPassword`: the account
-          // no longer needs to be keyed by the username.
           const tokens = await completeSignIn(ctx, {
             provider: PROVIDER_NAME,
-            providerAccountId: EMPTY_PROVIDER_ACCOUNT_ID,
+            providerAccountId: userId,
             profile: { username },
           });
           return { success: true, tokens };

@@ -102,6 +102,27 @@ describe("setupUsernamePassword", () => {
     );
   });
 
+  test("two users get distinct accounts and sessions", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice", PASSWORD);
+    const bob = await signUp(t, "bob", "different horse battery staple");
+    expect(alice).toMatchObject({ success: true });
+    expect(bob).toMatchObject({ success: true });
+    expect((bob as PasswordSuccess).tokens.userId).not.toBe(
+      (alice as PasswordSuccess).tokens.userId,
+    );
+
+    // Each user signs in as themselves, not as the first user.
+    const aliceIn = await signIn(t, "alice", PASSWORD);
+    const bobIn = await signIn(t, "bob", "different horse battery staple");
+    expect((aliceIn as PasswordSuccess).tokens.userId).toBe(
+      (alice as PasswordSuccess).tokens.userId,
+    );
+    expect((bobIn as PasswordSuccess).tokens.userId).toBe(
+      (bob as PasswordSuccess).tokens.userId,
+    );
+  });
+
   test("rejects a wrong password with INVALID_CREDENTIALS", async () => {
     const t = await setup();
     await signUp(t, "alice", PASSWORD);

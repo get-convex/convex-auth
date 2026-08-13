@@ -13,6 +13,7 @@ import {
   type AuthClaims,
   vTokenBundle,
   type TokenBundle,
+  USE_USER_ID_AS_ACCOUNT_ID,
 } from "../../lib/types";
 import { signJwt, generateRefreshToken } from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
@@ -164,41 +165,66 @@ async function resolveAccount(
   claims: AuthClaims,
   createOrUpdateUser: CreateOrUpdateUserFunctionHandle,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
-  const account = await accountByIdentity(
-    ctx,
-    claims.provider,
-    claims.providerAccountId,
-  );
-  if (account) {
-    // Returning identity: hand the app the latest claims with the known user id
-    // so it can update its own user record.
-    if (
-      account.userId !==
-      (await ctx.runMutation(createOrUpdateUser, {
-        provider: claims.provider,
-        providerAccountId: claims.providerAccountId,
-        profile: claims.profile,
-        userId: account.userId,
-      }))
-    ) {
-      throw new Error(
-        "createOrUpdateUser may not return a new userId for an existing user",
-      );
+  // `USE_USER_ID_AS_ACCOUNT_ID` means the provider keys the account by the
+  // app user id, which does not exist before this sign-in mints it. Such
+  // claims can never match an existing account (accounts are never stored
+  // with an empty identifier): on later sign-ins the provider puts the user
+  // id in the claims itself.
+  if (claims.providerAccountId !== USE_USER_ID_AS_ACCOUNT_ID) {
+    const account = await accountByIdentity(
+      ctx,
+      claims.provider,
+      claims.providerAccountId,
+    );
+    if (account) {
+      // Returning identity: hand the app the latest claims with the known user
+      // id so it can update its own user record.
+      if (
+        account.userId !==
+        (await ctx.runMutation(createOrUpdateUser, {
+          provider: claims.provider,
+          providerAccountId: claims.providerAccountId,
+          profile: claims.profile,
+          userId: account.userId,
+        }))
+      ) {
+        throw new Error(
+          "createOrUpdateUser may not return a new userId for an existing user",
+        );
+      }
+      return { accountId: account._id, userId: account.userId };
     }
-    return { accountId: account._id, userId: account.userId };
   }
 
   // First sign-in for this identity: ask the app to mint/return its user id,
   // then record the provider-identity -> user mapping.
   const userId = await ctx.runMutation(createOrUpdateUser, {
     provider: claims.provider,
+    // With `USE_USER_ID_AS_ACCOUNT_ID` the user id is not minted yet, so
+    // there is no meaningful value to hand the app here.
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
     userId: null,
   });
+  const { provider } = claims;
+  const providerAccountId =
+    claims.providerAccountId === USE_USER_ID_AS_ACCOUNT_ID
+      ? userId
+      : claims.providerAccountId;
+  const existingAccount = await ctx.db
+    .query("accounts")
+    .withIndex("by_provider_account", (q) =>
+      q.eq("provider", provider).eq("providerAccountId", providerAccountId),
+    )
+    .first();
+  if (existingAccount !== null) {
+    throw new Error(
+      `Invariant violation: an account for provider = ${JSON.stringify(provider)} and provider account ID = ${JSON.stringify(providerAccountId)} already exists`,
+    );
+  }
   const accountId = await ctx.db.insert("accounts", {
-    provider: claims.provider,
-    providerAccountId: claims.providerAccountId,
+    provider,
+    providerAccountId,
     userId,
   });
   return { accountId, userId };
