@@ -4,10 +4,8 @@ import { normalizeGithubProfile } from "./github";
 type GithubUserInfo = NonNullable<Parameters<typeof normalizeGithubProfile>[1]>;
 
 /**
- * Call the mapping with the userinfo responses the callback would pass. The
- * cast lets tests feed loose and partial responses: the mapping's declared
- * shape is trusted typing, and these tests exercise the defensive paths
- * behind it.
+ * Call `normalizeGithubProfile` with fake userinfo responses. The cast lets
+ * tests feed loose and partial responses to exercise the defensive paths.
  */
 function normalize(
   user: Record<string, unknown>,

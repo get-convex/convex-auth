@@ -9,17 +9,17 @@ import {
 
 /**
  * The account profile the Google provider produces. Google is OIDC, so
- * identity comes from validated id_token claims; this is the exact shape the
+ * identity comes from validated id_token claims. This is the exact shape the
  * mapping emits, so the app can validate against it precisely.
  */
 export const vGoogleProfile = v.object({
-  /** Google's `sub` claim — the stable provider account id. */
+  /** Google's `sub` claim, the stable provider account id. */
   id: v.string(),
   email: v.optional(v.string()),
   /**
    * True when Google attested the email as verified (the `email_verified`
-   * claim). False means unverified *or* the claim was absent — either way,
-   * don't trust the email for account linking.
+   * claim). False means unverified or the claim was absent, so don't trust
+   * the email for account linking.
    */
   emailVerified: v.boolean(),
   name: v.optional(v.string()),
@@ -29,8 +29,9 @@ export const vGoogleProfile = v.object({
 export type GoogleProfile = Infer<typeof vGoogleProfile>;
 
 /**
- * Map validated Google id_token claims to {@link GoogleProfile}. Google returns
- * an id_token, so `claims` is always present here; a missing one is a bug.
+ * Map validated Google id_token claims to {@link GoogleProfile}. Google
+ * returns an id_token, so `claims` is always present here. A missing one is
+ * a bug.
  */
 export const normalizeGoogleProfile: OauthProfile = (claims) => {
   if (claims === undefined) {
@@ -45,7 +46,7 @@ export const normalizeGoogleProfile: OauthProfile = (claims) => {
   };
 };
 
-/** How to talk to Google: endpoints, scopes, and the profile mapping. */
+/** Google's endpoints, scopes, and profile mapping. */
 const googleCatalog: OauthCatalog = {
   authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
   tokenEndpoint: "https://oauth2.googleapis.com/token",
@@ -66,10 +67,15 @@ const googleCatalog: OauthCatalog = {
  * })
  * ```
  *
- * Install the component under `httpPrefix: "/oauth/google"` in
- * convex.config.ts, binding Google's `CLIENT_ID`/`CLIENT_SECRET`, and register
- * `<site-url>/oauth/google/callback` as the redirect URI with Google. The
- * `httpPrefix` alone determines the callback URL.
+ * Setup:
+ *
+ * 1. Install the component in convex.config.ts under
+ *    `httpPrefix: "/oauth/google"`, binding Google's `CLIENT_ID` and
+ *    `CLIENT_SECRET`.
+ * 2. Register `<site-url>/oauth/google/callback` as the redirect URI with
+ *    Google.
+ *
+ * The `httpPrefix` alone determines the callback URL.
  */
 export const OauthGoogle = defineProvider({
   name: "google",

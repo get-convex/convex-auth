@@ -8,21 +8,21 @@ import {
 } from "./setup";
 
 /**
- * The account profile the GitHub provider produces. GitHub is plain OAuth (no
- * id_token), so identity comes from its userinfo endpoints; this is the exact
- * shape the mapping emits, so the app can validate against it precisely.
+ * The account profile the GitHub provider produces. GitHub is plain OAuth
+ * (no id_token), so identity comes from its userinfo endpoints. This is the
+ * exact shape the mapping emits, so the app can validate against it
+ * precisely.
  */
 export const vGithubProfile = v.object({
-  /** GitHub's numeric user id, stringified — the stable provider account id. */
+  /** GitHub's numeric user id as a string, the stable provider account id. */
   id: v.string(),
   login: v.string(),
   name: v.optional(v.string()),
   email: v.optional(v.string()),
   /**
-   * True when the selected email came from a verified `/user/emails` entry.
-   * False means it fell back to the `/user` public profile email, whose
-   * verification status is unknown — either way, don't trust the email for
-   * account linking.
+   * True when the email came from a verified `/user/emails` entry. False
+   * means it fell back to the `/user` public profile email, whose
+   * verification status is unknown, so don't trust it for account linking.
    */
   emailVerified: v.boolean(),
   avatarUrl: v.optional(v.string()),
@@ -44,18 +44,11 @@ type GithubUser = {
 
 /**
  * The userinfo responses the catalog's endpoints produce, keyed like its
- * `userInfoEndpoints`. Trusted typing over what GitHub returns, not runtime
- * validation (see {@link OauthProfile}).
+ * `userInfoEndpoints` (see {@link OauthProfile}).
  */
 type GithubUserInfo = { user: GithubUser; emails: GithubEmail[] };
 
-/**
- * Map GitHub's userinfo responses to {@link GithubProfile}. `user` comes from
- * `/user` and `emails` from `/user/emails` (the endpoints the catalog fetches).
- * Email prefers the primary verified address, then any verified one, then
- * whatever `/user` returned — `emailVerified` reports whether the chosen
- * address came from a verified entry; `name` falls back to the login handle.
- */
+/** Map GitHub's userinfo responses to {@link GithubProfile}. */
 export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
   _claims,
   userInfoResponses,
@@ -78,7 +71,7 @@ export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
   };
 };
 
-/** How to talk to GitHub: endpoints, scopes, and the profile mapping. */
+/** GitHub's endpoints, scopes, and profile mapping. */
 const githubCatalog: OauthCatalog<GithubUserInfo> = {
   authorizationEndpoint: "https://github.com/login/oauth/authorize",
   tokenEndpoint: "https://github.com/login/oauth/access_token",
@@ -102,12 +95,15 @@ const githubCatalog: OauthCatalog<GithubUserInfo> = {
  * })
  * ```
  *
- * Install the component under `httpPrefix: "/oauth/github"` in
- * convex.config.ts, binding GitHub's `CLIENT_ID`/`CLIENT_SECRET`, and register
- * `<site-url>/oauth/github/callback` as the redirect URI with GitHub. The
- * `httpPrefix` alone determines the callback URL.
+ * Setup:
  *
- * Identity comes from the userinfo endpoints since GitHub returns no id_token.
+ * 1. Install the component in convex.config.ts under
+ *    `httpPrefix: "/oauth/github"`, binding GitHub's `CLIENT_ID` and
+ *    `CLIENT_SECRET`.
+ * 2. Register `<site-url>/oauth/github/callback` as the redirect URI with
+ *    GitHub.
+ *
+ * The `httpPrefix` alone determines the callback URL.
  */
 export const OauthGithub = defineProvider({
   name: "github",
