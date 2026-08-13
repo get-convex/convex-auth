@@ -11,6 +11,7 @@
 import type * as authentication from "../authentication.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
+import type * as react from "../react.js";
 import type * as registration from "../registration.js";
 import type * as setup from "../setup.js";
 import type * as testAuthenticator from "../testAuthenticator.js";
@@ -27,6 +28,7 @@ const fullApi: ApiFromModules<{
   authentication: typeof authentication;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
+  react: typeof react;
   registration: typeof registration;
   setup: typeof setup;
   testAuthenticator: typeof testAuthenticator;

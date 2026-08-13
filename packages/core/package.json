@@ -43,6 +43,7 @@
     "./providers/password/react": "./src/components/password/react.tsx",
     "./providers/password/*": "./src/components/password/*.ts",
     "./providers/passkey/convex.config.js": "./src/components/passkey/convex.config.ts",
+    "./providers/passkey/react": "./src/components/passkey/react.tsx",
     "./providers/passkey/*": "./src/components/passkey/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": "./src/browser/index.ts",
