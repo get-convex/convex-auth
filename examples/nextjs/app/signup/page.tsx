@@ -35,6 +35,10 @@ export default function SignUp() {
             switch (result.userError.error) {
               case "USERNAME_TAKEN":
                 return "That username is already taken.";
+              case "USERNAME_TOO_SHORT":
+              case "USERNAME_HAS_SURROUNDING_WHITESPACE":
+              case "USERNAME_HAS_INVALID_CHARACTERS":
+                return "That username is invalid";
               case "PASSWORD_TOO_SHORT":
                 return `Password must be at least ${result.userError.minimumLength} characters.`;
               case "PASSWORD_TOO_LONG":

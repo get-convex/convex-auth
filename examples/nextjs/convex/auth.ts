@@ -25,6 +25,7 @@ export const {
     }),
     provider(UsernamePassword, {
       component: components.authPasswordProvider,
+      usernameComponent: components.authUsername,
     }),
   ],
 }).attachUserCallback(internal.users.createOrUpdateUser);
