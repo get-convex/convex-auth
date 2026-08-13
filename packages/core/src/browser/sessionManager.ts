@@ -101,6 +101,26 @@ function hasRefreshToken(
   return "refreshToken" in session;
 }
 
+/**
+ * Returns the global `window` object when it supports DOM event listeners,
+ * otherwise `null`.
+ *
+ * It will be `null` on platforms like React Native.
+ */
+function domEventTarget(): Pick<
+  Window,
+  "addEventListener" | "removeEventListener"
+> | null {
+  if (typeof window === "undefined") return null;
+  if (
+    typeof window.addEventListener !== "function" ||
+    typeof window.removeEventListener !== "function"
+  ) {
+    return null;
+  }
+  return window;
+}
+
 function isNetworkError(error: unknown): boolean {
   return (
     error instanceof TypeError &&
@@ -207,7 +227,7 @@ export class AuthClient {
 
   /**
    * Load any persisted session from storage and start listening for cross-tab
-   * changes. Until this resolves, the client reports `isLoading`.
+   * changes (if applicable). Until this resolves, the client reports `isLoading`.
    *
    * Symmetric and repeatable with {@link dispose}: loading the session happens
    * once, but the cross-tab listener is (re)attached on every call, so an
@@ -238,16 +258,18 @@ export class AuthClient {
   }
 
   /**
-   * Detach the cross-tab storage listener. Call on teardown. Store subscribers
-   * are intentionally left in place — each is removed via the unsubscribe
-   * returned by {@link subscribe} — so a later {@link init} restores the client
-   * without losing its subscribers.
+   * Detach a registered cross-tab storage listener, if applicable.
+   *
+   * Call on teardown. Store subscribers are intentionally left in place — each
+   * is removed via the unsubscribe returned by {@link subscribe} — so a later
+   * {@link init} restores the client without losing its subscribers.
    */
   dispose(): void {
-    if (this.#storageListener !== null && typeof window !== "undefined") {
-      window.removeEventListener("storage", this.#storageListener);
-      this.#storageListener = null;
+    const target = domEventTarget();
+    if (this.#storageListener !== null && target !== null) {
+      target.removeEventListener("storage", this.#storageListener);
     }
+    this.#storageListener = null;
   }
 
   // --- Public actions ------------------------------------------------------
@@ -411,7 +433,9 @@ export class AuthClient {
   }
 
   #attachStorageListener(): void {
-    if (typeof window === "undefined") return;
+    const target = domEventTarget();
+    // This null check guards React Native, where cross-tab storage isn't a thing.
+    if (target === null) return;
     if (this.#storageListener !== null) return;
     const jwtKey = this.#storage.key(JWT_STORAGE_KEY);
     const refreshKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
@@ -430,7 +454,7 @@ export class AuthClient {
         this.#refreshToken = event.newValue;
       }
     };
-    window.addEventListener("storage", listener);
+    target.addEventListener("storage", listener);
     this.#storageListener = listener;
   }
 

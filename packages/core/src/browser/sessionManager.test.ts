@@ -11,6 +11,19 @@ const NAMESPACE = "https://happy-animal-123.convex.cloud";
 // Matches NamespacedStorage's `replace(/[^a-zA-Z0-9]/g, "")`.
 const SUFFIX = "httpshappyanimal123convexcloud";
 
+// Tests below swap in a stub `window` to simulate other runtimes. The
+// edge-runtime environment these tests run in supplies its own (`window ===
+// globalThis`, with working DOM event APIs), so we put that back afterwards.
+const ORIGINAL_WINDOW = Object.getOwnPropertyDescriptor(globalThis, "window");
+
+function restoreWindow(): void {
+  if (ORIGINAL_WINDOW === undefined) {
+    delete (globalThis as { window?: unknown }).window;
+  } else {
+    Object.defineProperty(globalThis, "window", ORIGINAL_WINDOW);
+  }
+}
+
 function bundle(n: number): TokenBundle {
   return {
     accessToken: `access-${n}`,
@@ -58,9 +71,7 @@ function makeSsrClient(
 }
 
 describe("AuthClient", () => {
-  afterEach(() => {
-    delete (globalThis as { window?: unknown }).window;
-  });
+  afterEach(restoreWindow);
 
   test("starts unauthenticated with an empty store", async () => {
     const { client } = makeClient();
@@ -213,6 +224,29 @@ describe("AuthClient", () => {
     });
   });
 
+  test("works where `window` exists without DOM event APIs (React Native)", async () => {
+    // React Native's global object *is* `window`, but it has no
+    // addEventListener/removeEventListener. Cross-tab sync is skipped rather
+    // than throwing when the provider mounts.
+    (globalThis as { window?: unknown }).window = { navigator: {} };
+
+    const { client } = makeClient();
+    await expect(client.init()).resolves.toBeUndefined();
+    await client.setSession(bundle(1));
+    expect(client.getSnapshot().isAuthenticated).toBe(true);
+    expect(() => client.dispose()).not.toThrow();
+  });
+
+  test("works where there is no `window` at all (server runtime)", async () => {
+    delete (globalThis as { window?: unknown }).window;
+
+    const { client } = makeClient();
+    await expect(client.init()).resolves.toBeUndefined();
+    await client.setSession(bundle(1));
+    expect(client.getSnapshot().isAuthenticated).toBe(true);
+    expect(() => client.dispose()).not.toThrow();
+  });
+
   test("re-attaches the storage listener when init runs after dispose", async () => {
     const listeners = new Set<(event: StorageEvent) => void>();
     const storage = new InMemoryStorage();
@@ -264,9 +298,7 @@ function ssrAuthResult(n: number): SlimTokenBundle {
 }
 
 describe("AuthClient (SSR)", () => {
-  afterEach(() => {
-    delete (globalThis as { window?: unknown }).window;
-  });
+  afterEach(restoreWindow);
 
   test("setSession adopts an access-only session, storing no refresh token", async () => {
     const { client, storage } = makeSsrClient();
