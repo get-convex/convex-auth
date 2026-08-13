@@ -206,12 +206,25 @@ async function resolveAccount(
     profile: claims.profile,
     userId: null,
   });
+  const { provider } = claims;
+  const providerAccountId =
+    claims.providerAccountId === USE_USER_ID_AS_ACCOUNT_ID
+      ? userId
+      : claims.providerAccountId;
+  const existingAccount = await ctx.db
+    .query("accounts")
+    .withIndex("by_provider_account", (q) =>
+      q.eq("provider", provider).eq("providerAccountId", providerAccountId),
+    )
+    .first();
+  if (existingAccount !== null) {
+    throw new Error(
+      `Invariant violation: an account for provider = ${JSON.stringify(provider)} and provider account ID = ${JSON.stringify(providerAccountId)} already exists`,
+    );
+  }
   const accountId = await ctx.db.insert("accounts", {
-    provider: claims.provider,
-    providerAccountId:
-      claims.providerAccountId === USE_USER_ID_AS_ACCOUNT_ID
-        ? userId
-        : claims.providerAccountId,
+    provider,
+    providerAccountId,
     userId,
   });
   return { accountId, userId };
