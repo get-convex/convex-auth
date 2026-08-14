@@ -66,4 +66,8 @@ describe("normalizeGithubProfile", () => {
       normalizeGithubProfile(undefined, {} as GithubUserInfo),
     ).toThrow(/missing the `user` entry/);
   });
+
+  test("throws when the user response has no id", () => {
+    expect(() => normalize({ login: "octocat" })).toThrow(/missing an id/);
+  });
 });

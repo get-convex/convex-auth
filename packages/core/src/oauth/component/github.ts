@@ -57,6 +57,12 @@ export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
   if (user === undefined) {
     throw new Error("GitHub userinfo response is missing the `user` entry");
   }
+  // The response is untrusted JSON, and String() would turn a missing id
+  // into the literal string "undefined", collapsing every affected user
+  // into one account.
+  if (typeof user.id !== "number" && typeof user.id !== "string") {
+    throw new Error("GitHub userinfo `user` entry is missing an id");
+  }
   const emails = userInfoResponses?.emails ?? [];
   const verifiedEmail =
     emails.find((entry) => entry.primary && entry.verified) ??
