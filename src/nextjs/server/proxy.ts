@@ -76,11 +76,12 @@ export async function proxyAuthActionToConvex(
     } catch (error) {
       console.error(`Hit error while running \`auth:signIn\`:`);
       console.error(error);
-      logVerbose(`Clearing auth cookies`, verbose);
+      logVerbose(`Leaving auth cookies unchanged`, verbose);
+      // A failed `auth:signIn` never minted tokens, so there is nothing to
+      // clear. Clearing here would sign out a session that is still valid,
+      // for example when the call failed because the network did.
       // Send raw error message to client, just like Convex Action would
-      const response = jsonResponse({ error: (error as Error).message }, 400);
-      await setAuthCookies(response, null, cookieConfig);
-      return response;
+      return jsonResponse({ error: (error as Error).message }, 400);
     }
     if (result.redirect !== undefined) {
       const { redirect } = result;
