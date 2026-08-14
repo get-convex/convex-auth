@@ -73,9 +73,9 @@ export function defaultStorage(): TokenStorage {
       console.warn(
         "[convex-auth] This runtime has no `localStorage`, so the session is " +
           "being kept in memory and will not survive an app restart. Pass a " +
-          "`storage` implementation to your auth provider to persist it." +
-          "For React Native, that would be one backed by `expo-secure-store` " +
-          "or `AsyncStorage`.",
+          "`storage` implementation to your auth provider to persist it. " +
+          "For React Native, that would be one backed by something like " +
+          "`expo-secure-store`.",
       );
     }
   }
