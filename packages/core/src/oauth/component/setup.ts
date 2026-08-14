@@ -68,11 +68,12 @@ export type OauthCatalog<
   tokenEndpoint: string;
   /**
    * Expected `iss` (the OIDC issuer claim) of the provider's id_tokens, e.g.
-   * Google's `https://accounts.google.com`. Present for OIDC providers;
-   * absent for plain-OAuth providers (e.g., GitHub), where identity comes from
-   * userinfo.
+   * Google's `https://accounts.google.com`. Some providers document more than
+   * one form (Google also uses `accounts.google.com`); an array accepts any
+   * of them. Present for OIDC providers; absent for plain-OAuth providers
+   * (e.g., GitHub), where identity comes from userinfo.
    */
-  issuer?: string;
+  issuer?: string | string[];
   /**
    * Endpoints (full URLs) the callback fetches with the access token (GET
    * with a bearer token), keyed by the name the `profile` mapping reads
@@ -168,9 +169,15 @@ export function setupOauth<
     }
     return url.origin;
   });
+  const issuers =
+    catalog.issuer === undefined
+      ? undefined
+      : Array.isArray(catalog.issuer)
+        ? catalog.issuer
+        : [catalog.issuer];
   // Per OIDC, requesting the `openid` scope makes the provider return an
   // id_token, which must be validated against an expected issuer.
-  if (catalog.scopes.includes("openid") && catalog.issuer === undefined) {
+  if (catalog.scopes.includes("openid") && (issuers?.length ?? 0) === 0) {
     throw new Error(
       `Provider "${providerName}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
     );
@@ -210,7 +217,7 @@ export function setupOauth<
           tokenEndpoint: catalog.tokenEndpoint,
           codeVerifier,
           userInfoEndpoints: catalog.userInfoEndpoints,
-          issuer: catalog.issuer,
+          issuers,
         },
       );
 

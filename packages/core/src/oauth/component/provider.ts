@@ -26,7 +26,7 @@ export const createAuthorizationRequest = mutation({
     codeVerifier: v.optional(v.string()),
     tokenEndpoint: v.string(),
     userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
-    issuer: v.optional(v.string()),
+    issuers: v.optional(v.array(v.string())),
   },
   returns: v.object({
     clientId: v.string(),
@@ -83,7 +83,7 @@ export const claimAuthorizationRequest = internalMutation({
       codeVerifier: v.optional(v.string()),
       tokenEndpoint: v.string(),
       userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
-      issuer: v.optional(v.string()),
+      issuers: v.optional(v.array(v.string())),
     }),
   ),
   handler: async (ctx, args) => {
@@ -107,7 +107,7 @@ export const claimAuthorizationRequest = internalMutation({
       codeVerifier: request.codeVerifier,
       tokenEndpoint: request.tokenEndpoint,
       userInfoEndpoints: request.userInfoEndpoints,
-      issuer: request.issuer,
+      issuers: request.issuers,
     };
   },
 });

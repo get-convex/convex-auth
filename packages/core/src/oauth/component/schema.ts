@@ -29,10 +29,10 @@ export default defineSchema({
      */
     userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
     /**
-     * Expected `iss` (the OIDC issuer claim) of the provider's id_tokens,
-     * copied from app-side config. Absent for non-oidc providers.
+     * Accepted `iss` (the OIDC issuer claim) values for the provider's
+     * id_tokens, copied from app-side config. Absent for non-oidc providers.
      */
-    issuer: v.optional(v.string()),
+    issuers: v.optional(v.array(v.string())),
     /** The callback rejects requests older than this. */
     expiresAt: v.number(),
   }).index("stateHash", ["stateHash"]),
