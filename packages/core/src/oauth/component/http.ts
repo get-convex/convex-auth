@@ -131,9 +131,9 @@ async function exchangeCode(args: {
 /**
  * Decode an id_token and check its claims:
  *
- * - `iss` must match the configured `issuer`, which is required whenever an
- *   id_token comes back: `sub` is only unique within an issuer, and a shared
- *   or multi-tenant token endpoint can serve several.
+ * - `iss` must match one of the configured `issuers`, which are required
+ *   whenever an id_token comes back: `sub` is only unique within an issuer,
+ *   and a shared or multi-tenant token endpoint can serve several.
  * - `aud` must be exactly CLIENT_ID. Multi-audience tokens are rejected
  *   because no other audience is trusted.
  * - `azp`, when present, must be CLIENT_ID.
@@ -145,16 +145,16 @@ async function exchangeCode(args: {
  */
 function validateIdToken(
   idToken: IssuerDeliveredJwt,
-  expectedIssuer: string | undefined,
+  expectedIssuers: string[] | undefined,
   clientId: string,
 ): Record<string, unknown> {
-  if (expectedIssuer === undefined) {
+  if (expectedIssuers === undefined) {
     throw new Error(
       "The provider returned an id_token but no issuer is configured; set `issuer` in the provider options so the token can be validated",
     );
   }
   const claims = decodeJwtPayloadUnverified(idToken);
-  if (claims.iss !== expectedIssuer) {
+  if (typeof claims.iss !== "string" || !expectedIssuers.includes(claims.iss)) {
     throw new Error("id_token issuer does not match the configured issuer");
   }
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
@@ -277,7 +277,7 @@ async function handleCallback(
     const claims =
       idToken === undefined
         ? undefined
-        : validateIdToken(idToken, authRequest.issuer, env.CLIENT_ID);
+        : validateIdToken(idToken, authRequest.issuers, env.CLIENT_ID);
 
     if (
       authRequest.userInfoEndpoints !== undefined &&

@@ -16,6 +16,7 @@ const CATALOG: OauthCatalog = {
   tokenEndpoint: "https://provider.example/token",
   scopes: [],
   pkce: false,
+  profile: () => ({ id: "account-1" }),
 };
 
 /**
@@ -43,6 +44,7 @@ describe("setupOauth validation", () => {
       ],
     });
     expect(api.startSignIn).toBeDefined();
+    expect(api.completeSignIn).toBeDefined();
   });
 
   test.each([
@@ -54,6 +56,23 @@ describe("setupOauth validation", () => {
   ])("redirect origin %s is rejected", (origin) => {
     expect(() => setup({ allowedRedirectOrigins: [origin] })).toThrow(
       /not a valid http\(s\) origin/,
+    );
+  });
+
+  test("a redirect origin with a trailing slash is accepted", () => {
+    const api = setup({
+      allowedRedirectOrigins: ["https://app.example.com/"],
+    });
+    expect(api.startSignIn).toBeDefined();
+  });
+
+  test.each([
+    "https://app.example.com/admin",
+    "https://app.example.com/?q=1",
+    "https://app.example.com/#section",
+  ])("redirect origin %s with extra URL parts is rejected", (origin) => {
+    expect(() => setup({ allowedRedirectOrigins: [origin] })).toThrow(
+      /must be a bare origin/,
     );
   });
 

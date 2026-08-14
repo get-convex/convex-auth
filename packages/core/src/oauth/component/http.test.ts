@@ -38,7 +38,7 @@ const BASE_REQUEST = {
 /** Identity from validated id_token claims. */
 const ID_TOKEN_REQUEST = {
   ...BASE_REQUEST,
-  issuer: "https://provider.example.com",
+  issuers: ["https://provider.example.com"],
 } satisfies FlowRequest;
 
 /** No id_token; identity spread across two endpoints. */
@@ -155,7 +155,7 @@ function unsignedJwt(claims: Record<string, unknown>): string {
 /** Valid id_token claims, overridable per test. */
 function idTokenClaims(overrides: Record<string, unknown> = {}) {
   return {
-    iss: ID_TOKEN_REQUEST.issuer,
+    iss: ID_TOKEN_REQUEST.issuers[0],
     aud: CLIENT_ID,
     exp: Math.floor(Date.now() / 1000) + 3600,
     sub: "sub-1",
@@ -496,6 +496,22 @@ describe("oauth callback", () => {
         "oauth_error",
       );
       expect(loggedText(errors)).toContain("no issuer is configured");
+    });
+
+    test("an id_token from any of the configured issuers is accepted", async () => {
+      const t = setup();
+      const request = {
+        ...BASE_REQUEST,
+        issuers: ["https://provider.example.com", "provider.example.com"],
+      } satisfies FlowRequest;
+      const response = await callbackWithIdToken(
+        t,
+        request,
+        unsignedJwt(idTokenClaims({ iss: "provider.example.com" })),
+      );
+      expect(redirectParams(response).get(OAUTH_CODE_PARAM)).toEqual(
+        expect.any(String),
+      );
     });
 
     test("an issuer mismatch is refused", async () => {
