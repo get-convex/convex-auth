@@ -59,6 +59,23 @@ describe("setupOauth validation", () => {
     );
   });
 
+  test("a redirect origin with a trailing slash is accepted", () => {
+    const api = setup({
+      allowedRedirectOrigins: ["https://app.example.com/"],
+    });
+    expect(api.startSignIn).toBeDefined();
+  });
+
+  test.each([
+    "https://app.example.com/admin",
+    "https://app.example.com/?q=1",
+    "https://app.example.com/#section",
+  ])("redirect origin %s with extra URL parts is rejected", (origin) => {
+    expect(() => setup({ allowedRedirectOrigins: [origin] })).toThrow(
+      /must be a bare origin/,
+    );
+  });
+
   test("an openid catalog scope without a catalog issuer is rejected", () => {
     expect(() => setup({}, { ...CATALOG, scopes: ["openid"] })).toThrow(
       /sets no issuer/,

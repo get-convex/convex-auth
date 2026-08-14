@@ -157,6 +157,15 @@ export function setupOauth<
           `"${allowed}" (custom schemes like "myapp://" are not supported yet)`,
       );
     }
+    // An entry with a path would silently allow the whole origin, which is
+    // broader than what the config appears to say. Require bare origins.
+    if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+      throw new Error(
+        `allowedRedirectOrigins entry must be a bare origin with no path, ` +
+          `query, or fragment: "${allowed}" (use "${url.origin}" to allow ` +
+          `the whole origin)`,
+      );
+    }
     return url.origin;
   });
   // Per OIDC, requesting the `openid` scope makes the provider return an
