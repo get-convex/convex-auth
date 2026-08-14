@@ -9,7 +9,7 @@ export const {
     password: { signUpWithPassword, signInWithPassword },
   },
 } = setupCore({
-  component: components.core,
+  component: components.auth,
   providers: [
     provider(UsernamePassword, {
       component: components.authPasswordProvider,

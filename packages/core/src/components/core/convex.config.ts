@@ -13,7 +13,7 @@ import { v } from "convex/values";
  * It does NOT know about any specific provider. Providers hand it identity
  * claims (see ../../lib/types) and the core turns that into a session + JWT.
  */
-const component = defineComponent("core", {
+const component = defineComponent("auth", {
   env: {
     AUTH_PRIVATE_KEY: v.string(),
     AUTH_JWKS: v.string(),

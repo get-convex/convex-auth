@@ -76,7 +76,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
  *
  * ```ts
  * setupCore({
- *   component: components.core,
+ *   component: components.auth,
  *   providers: [
  *     provider(UsernamePassword, {
  *       component: components.authPasswordProvider,

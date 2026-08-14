@@ -9,7 +9,7 @@ export const {
     anonymous: { signInAnonymous },
   },
 } = setupCore({
-  component: components.core,
+  component: components.auth,
   providers: [
     provider(Anonymous, {
       component: components.authAnonymous,

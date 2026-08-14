@@ -53,7 +53,7 @@ export default {
 `,
   "convex.config.ts": `import { defineApp } from "convex/server";
 import { v } from "convex/values";
-import core from "@convex-dev/auth/core/convex.config.js";
+import auth from "@convex-dev/auth/core/convex.config.js";
 
 const app = defineApp({
   env: {
@@ -62,7 +62,7 @@ const app = defineApp({
   },
 });
 
-app.use(core, {
+app.use(auth, {
   httpPrefix: "/auth",
   env: {
     AUTH_PRIVATE_KEY: app.env.AUTH_PRIVATE_KEY,
@@ -83,7 +83,7 @@ export const {
     // TODO
   },
 } = setupCore({
-  component: components.core,
+  component: components.auth,
   providers: [
     // TODO
   ],
