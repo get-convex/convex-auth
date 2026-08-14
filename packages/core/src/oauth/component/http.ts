@@ -154,10 +154,7 @@ function validateIdToken(
     );
   }
   const claims = decodeJwtPayloadUnverified(idToken);
-  if (
-    typeof claims.iss !== "string" ||
-    !expectedIssuers.includes(claims.iss)
-  ) {
+  if (typeof claims.iss !== "string" || !expectedIssuers.includes(claims.iss)) {
     throw new Error("id_token issuer does not match the configured issuer");
   }
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
