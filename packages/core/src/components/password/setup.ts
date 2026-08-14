@@ -1,16 +1,13 @@
 import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
-import {
-  defineProvider,
-  vSignInSuccess,
-  USE_USER_ID_AS_ACCOUNT_ID,
-} from "../../lib/types";
+import { defineProvider, vSignInSuccess } from "../../lib/types";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
   setUsernameUserError,
   validateUsernameFormat,
 } from "../username/validation";
+import { signUpWithUsername } from "../username/signUp";
 import {
   validatePasswordInputFormat,
   setPasswordUserError,
@@ -123,46 +120,21 @@ export const UsernamePassword = defineProvider({
             return { success: false, userError };
           }
 
-          const existing = await ctx.runQuery(
-            usernameComponent.public.getUserIdByUsername,
-            { username },
-          );
-          if (existing !== null) {
-            return { success: false, userError: { error: "USERNAME_TAKEN" } };
-          }
-
-          // Create the account + app user (via the app's createOrUpdateUser)
-          // and mint the session. Password accounts are keyed by the app user
-          // id, which does not exist before this call mints it, hence the
-          // placeholder; sign-in passes the user id itself. `profile.username`
-          // keeps the original casing for display.
-          //
-          // TODO(nicolas) The app's `createOrUpdateUser` callback should not
-          // receive a provider account ID for the password provider at all:
-          // the value is an internal key ("" at sign-up, the user id
-          // afterwards) with no meaning to the app. We will probably improve
-          // this when providers support typesafe profiles.
-          const tokens = await completeSignIn(ctx, {
+          // Claim the username: create the account + app user, mint the
+          // session, and store the username, or return `USERNAME_TAKEN`
+          // before anything is created. `profile.username` keeps the
+          // original casing for display.
+          const signUpResult = await signUpWithUsername(ctx, {
+            usernameComponent,
+            completeSignIn,
             provider: PROVIDER_NAME,
-            providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
+            username,
             profile: { username },
           });
-
-          const setUsernameResult = await ctx.runMutation(
-            usernameComponent.public.setUsername,
-            { userId: tokens.userId, username },
-          );
-          if (!setUsernameResult.success) {
-            // Unexpected: we validated the username above, and this handler
-            // is a mutation, thus the check for a conflict above and this
-            // call are in the same transaction.
-            // Throwing so that the transaction doesn’t commit.
-            throw new Error(
-              "Unexpected error when setting the username: " +
-                setUsernameResult.userError.error,
-              { cause: setUsernameResult.userError },
-            );
+          if (!signUpResult.success) {
+            return signUpResult;
           }
+          const { tokens } = signUpResult;
 
           const setResult = await ctx.runMutation(
             component.public.setPassword,
