@@ -12,6 +12,10 @@ import { v } from "convex/values";
  *
  * It does NOT know about any specific provider. Providers hand it identity
  * claims (see ../../lib/types) and the core turns that into a session + JWT.
+ *
+ * TODO Consider removing `/core/` from the import paths: apps import this
+ * component from `@convex-dev/auth/core/...`, which no longer matches the
+ * component name (`auth`).
  */
 const component = defineComponent("auth", {
   env: {
