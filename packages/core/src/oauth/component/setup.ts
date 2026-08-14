@@ -32,7 +32,7 @@ export type OidcClaims = {
  * non-OIDC providers). `userInfoResponses` holds the userinfo responses
  * keyed as configured (`undefined` unless the catalog sets
  * `userInfoEndpoints`). `id` becomes the provider account id. Supplied by
- * each provider's catalog.
+ * each provider's catalog (see `google.ts`, `github.ts`).
  *
  * `UserInfo` is the catalog's declared shape for the userinfo responses,
  * keyed like `userInfoEndpoints`. It types what the provider is trusted to
