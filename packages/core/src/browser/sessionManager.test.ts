@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
-import { AuthClient, SpaAuthApi, SsrAuthApi } from "./sessionManager";
+import {
+  AuthClient,
+  INITIAL_AUTH_STATE,
+  SpaAuthApi,
+  SsrAuthApi,
+} from "./sessionManager";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
+  type TokenStorage,
 } from "./storage";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
@@ -34,9 +40,11 @@ function bundle(n: number): TokenBundle {
   };
 }
 
+// `storage` is typed as the interface rather than the concrete default so the
+// async-store tests below can pass their own implementation.
 function makeClient(
   authApi: Partial<SpaAuthApi> = {},
-  storage = new InMemoryStorage(),
+  storage: TokenStorage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
     mode: "spa",
@@ -404,5 +412,91 @@ describe("AuthClient (SSR)", () => {
     expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
       null,
     );
+  });
+});
+
+/**
+ * A {@link TokenStorage} whose every method returns a promise, like in React
+ * Native.
+ */
+class AsyncTokenStorage implements TokenStorage {
+  readonly entries = new Map<string, string>();
+
+  async getItem(key: string): Promise<string | null> {
+    await Promise.resolve();
+    return this.entries.get(key) ?? null;
+  }
+  async setItem(key: string, value: string): Promise<void> {
+    await Promise.resolve();
+    this.entries.set(key, value);
+  }
+  async removeItem(key: string): Promise<void> {
+    await Promise.resolve();
+    this.entries.delete(key);
+  }
+}
+
+describe("AuthClient (async storage)", () => {
+  afterEach(restoreWindow);
+
+  test("hydrates a persisted session on init", async () => {
+    // The case that matters on React Native: a session survives an app
+    // restart, rather than the user landing on the sign-in screen every launch.
+    const storage = new AsyncTokenStorage();
+    storage.entries.set(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    storage.entries.set(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`, "refresh-1");
+
+    const { client } = makeClient({}, storage);
+    await client.init();
+
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+  });
+
+  test("reports loading until the store resolves", async () => {
+    const storage = new AsyncTokenStorage();
+    storage.entries.set(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+
+    const { client } = makeClient({}, storage);
+    const initialized = client.init();
+    // A store that answers asynchronously must not be reported as "signed out"
+    // in the meantime — that flash would bounce the user to a sign-in screen.
+    expect(client.getSnapshot()).toEqual(INITIAL_AUTH_STATE);
+
+    await initialized;
+    expect(client.getSnapshot()).toMatchObject({ isAuthenticated: true });
+  });
+
+  test("persists, rotates and clears through the async store", async () => {
+    const refreshSession = vi.fn(async (rt: string) => {
+      // The rotated token must be read back out of the async store, not just
+      // held in memory.
+      expect(rt).toBe("refresh-1");
+      return bundle(2);
+    });
+    const storage = new AsyncTokenStorage();
+    const { client } = makeClient({ refreshSession }, storage);
+    await client.init();
+
+    await client.setSession(bundle(1));
+    expect(storage.entries.get(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      "access-1",
+    );
+    expect(storage.entries.get(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      "refresh-1",
+    );
+
+    expect(await client.fetchAccessToken({ forceRefreshToken: true })).toBe(
+      "access-2",
+    );
+    expect(storage.entries.get(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      "refresh-2",
+    );
+
+    await client.signOut();
+    expect(storage.entries.size).toBe(0);
   });
 });

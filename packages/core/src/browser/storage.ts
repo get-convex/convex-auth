@@ -50,14 +50,34 @@ export class InMemoryStorage implements TokenStorage {
   }
 }
 
+let warnedAboutInMemoryFallback = false;
+
+/** Exposed for tests; the warning is otherwise once per process. */
+export function resetInMemoryFallbackWarning(): void {
+  warnedAboutInMemoryFallback = false;
+}
+
 /**
  * The default storage: the browser's `localStorage` when available, otherwise
  * an {@link InMemoryStorage}. Callers that need cross-tab sessions, React
  * Native, or per-tab sessions should pass their own storage instead.
  */
 export function defaultStorage(): TokenStorage {
-  if (typeof window !== "undefined" && window.localStorage) {
-    return window.localStorage;
+  if (typeof window !== "undefined") {
+    if (window.localStorage) return window.localStorage;
+    // React Native has a window with no `localStorage`. Warn once here that
+    // in-memory storage will be used until another storage implementation is
+    // supplied.
+    if (!warnedAboutInMemoryFallback) {
+      warnedAboutInMemoryFallback = true;
+      console.warn(
+        "[convex-auth] This runtime has no `localStorage`, so the session is " +
+          "being kept in memory and will not survive an app restart. Pass a " +
+          "`storage` implementation to your auth provider to persist it. " +
+          "For React Native, that would be one backed by something like " +
+          "`expo-secure-store`.",
+      );
+    }
   }
   return new InMemoryStorage();
 }
