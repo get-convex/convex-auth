@@ -50,7 +50,8 @@ export const normalizeGoogleProfile: OauthProfile = (claims) => {
 const googleCatalog: OauthCatalog = {
   authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
   tokenEndpoint: "https://oauth2.googleapis.com/token",
-  issuer: "https://accounts.google.com",
+  // Google documents both forms, with or without the https prefix.
+  issuer: ["https://accounts.google.com", "accounts.google.com"],
   scopes: ["openid", "email", "profile"],
   pkce: true,
   profile: normalizeGoogleProfile,
