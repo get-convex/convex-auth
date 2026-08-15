@@ -15,11 +15,10 @@ export {
 } from "./storage";
 export { runWithMutex } from "./mutex";
 export { KeyedStore, scopedKey, type ScopedKeyedStore } from "./keyedStore";
-export {
-  registerProviderClientSetups,
-  type AuthProviderClientContext,
-  type AuthProviderClientSetup,
-  type AuthSignInApi,
+export type {
+  AuthProviderClientContext,
+  AuthProviderClientSetup,
+  AuthSignInApi,
 } from "./providerSetup";
 export {
   AuthClient,

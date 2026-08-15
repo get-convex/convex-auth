@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
+import type { AuthProviderClientSetup, AuthSignInApi } from "./providerSetup";
 import {
   AuthClient,
   INITIAL_AUTH_STATE,
@@ -9,6 +10,7 @@ import {
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
+  NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   type TokenStorage,
 } from "./storage";
@@ -358,6 +360,174 @@ describe("AuthClient", () => {
     expect(client.getSnapshot()).toMatchObject({
       isAuthenticated: false,
       token: null,
+    });
+  });
+});
+
+/** A stub sign-in api. Setups receive it but these tests never call it. */
+const SIGN_IN_API = {
+  mutation: vi.fn(),
+  action: vi.fn(),
+} as unknown as AuthSignInApi;
+
+/** An {@link AuthClient} constructed with the given provider client setups. */
+function makeClientWithSetups(
+  setups: ReadonlyArray<AuthProviderClientSetup>,
+  storage: TokenStorage = new InMemoryStorage(),
+) {
+  const client = new AuthClient({
+    mode: "spa",
+    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    storage,
+    storageNamespace: NAMESPACE,
+    providerClients: { setups, signInApi: SIGN_IN_API },
+  });
+  return { client, storage };
+}
+
+describe("AuthClient provider client setups", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("throws when two setups share an id", () => {
+    expect(() =>
+      makeClientWithSetups([
+        { id: "oauth", setup: () => {} },
+        { id: "oauth", setup: () => {} },
+      ]),
+    ).toThrow(/"oauth" is registered twice/);
+  });
+
+  test("throws when a setup id is not alphanumeric", () => {
+    expect(() =>
+      makeClientWithSetups([{ id: "pass-key", setup: () => {} }]),
+    ).toThrow(/"pass-key" is invalid/);
+  });
+
+  test("scoped store writes land under the setup id", () => {
+    const { client } = makeClientWithSetups([
+      {
+        id: "oauth",
+        setup: (ctx) => {
+          ctx.store.set("actions", "registered");
+        },
+      },
+    ]);
+    expect(client.store.get<string>("oauth/actions")).toBe("registered");
+  });
+
+  test("scoped storage writes land under the provider prefix", () => {
+    const storage = new InMemoryStorage();
+    makeClientWithSetups(
+      [
+        {
+          id: "oauth",
+          setup: (ctx) => {
+            void ctx.storage.set("verifier", "v1");
+          },
+        },
+      ],
+      storage,
+    );
+    // Provider prefix first, then the client's deployment namespacing.
+    expect(
+      storage.getItem(
+        new NamespacedStorage(storage, NAMESPACE).key(
+          "__convexAuthProvider_oauth_verifier",
+        ),
+      ),
+    ).toBe("v1");
+  });
+
+  test("every setup receives the same sign-in api and client", () => {
+    const received: Array<{ signInApi: AuthSignInApi; client: AuthClient }> =
+      [];
+    const { client } = makeClientWithSetups([
+      {
+        id: "a",
+        setup: (ctx) => {
+          received.push({ signInApi: ctx.signInApi, client: ctx.client });
+        },
+      },
+      {
+        id: "b",
+        setup: (ctx) => {
+          received.push({ signInApi: ctx.signInApi, client: ctx.client });
+        },
+      },
+    ]);
+    expect(received[0].signInApi).toBe(SIGN_IN_API);
+    expect(received[1].signInApi).toBe(SIGN_IN_API);
+    expect(received[0].client).toBe(client);
+    expect(received[1].client).toBe(client);
+  });
+
+  test("onInit callbacks run during init in registration order, before the session loads", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const order: string[] = [];
+    const { client } = makeClientWithSetups(
+      [
+        {
+          id: "a",
+          setup: (ctx) => ({
+            // The persisted token isn't visible yet, proving the callback
+            // runs before the session loads.
+            onInit: () => order.push(`a:${ctx.client.getAccessToken()}`),
+          }),
+        },
+        { id: "b", setup: () => {} },
+        { id: "c", setup: () => ({ onInit: () => order.push("c") }) },
+      ],
+      storage,
+    );
+    expect(order).toEqual([]);
+    await client.init();
+    expect(order).toEqual(["a:null", "c"]);
+    expect(client.getAccessToken()).toBe("access-1");
+  });
+
+  test("a second init after dispose does not re-run onInit callbacks", async () => {
+    const onInit = vi.fn();
+    const { client } = makeClientWithSetups([
+      { id: "probe", setup: () => ({ onInit }) },
+    ]);
+    await client.init();
+    client.dispose();
+    await client.init();
+    expect(onInit).toHaveBeenCalledTimes(1);
+  });
+
+  test("a throwing onInit callback is logged and doesn't block the rest", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const order: string[] = [];
+    const { client } = makeClientWithSetups(
+      [
+        {
+          id: "broken",
+          setup: () => ({
+            onInit: () => {
+              throw new Error("boom");
+            },
+          }),
+        },
+        { id: "ok", setup: () => ({ onInit: () => order.push("ok") }) },
+      ],
+      storage,
+    );
+
+    await client.init();
+    expect(order).toEqual(["ok"]);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(consoleError.mock.calls[0][0]).toContain('"broken"');
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: true,
+      token: "access-1",
     });
   });
 });

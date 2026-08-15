@@ -18,10 +18,9 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
-import {
-  registerProviderClientSetups,
-  type AuthProviderClientSetup,
-  type AuthSignInApi,
+import type {
+  AuthProviderClientSetup,
+  AuthSignInApi,
 } from "../browser/providerSetup";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
@@ -124,7 +123,7 @@ export function ConvexAuthProvider({
   providerClients?: AuthProviderClientSetup[];
   children: ReactNode;
 }) {
-  const { authClient, signInApi, onStarts } = useMemo(() => {
+  const { authClient, signInApi } = useMemo(() => {
     // Refresh and sign-out go over a *separate* HTTP client, not the websocket
     // `client`. A refresh happens while `client` is paused waiting for a token,
     // so calling it through `client` would deadlock on the very handshake the
@@ -132,6 +131,15 @@ export function ConvexAuthProvider({
     const httpClient = new ConvexHttpClient(client.url, {
       logger: client.logger,
     });
+    // Sign-in functions run against the deployment over the same websocket
+    // client as the rest of the app (it isn't paused pre-auth, unlike the
+    // refresh path below), so the response carries the full token bundle for
+    // `setSession` to persist. The same object serves provider setups here
+    // and, via AuthProvider below, provider hooks.
+    const signInApi: AuthSignInApi = {
+      mutation: (fn, args) => client.mutation(fn, args),
+      action: (fn, args) => client.action(fn, args),
+    };
     const authClient = new AuthClient({
       mode: "spa",
       authApi: {
@@ -143,34 +151,17 @@ export function ConvexAuthProvider({
       },
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
+      // Setups run in the constructor, so anything they register in the store
+      // exists before the first render reads it.
+      providerClients: { setups: providerClients ?? [], signInApi },
     });
-    // Sign-in functions run against the deployment over the same websocket
-    // client as the rest of the app (it isn't paused pre-auth, unlike the
-    // refresh path above), so the response carries the full token bundle for
-    // `setSession` to persist. The same object serves provider setups here
-    // and, via AuthProvider below, provider hooks.
-    const signInApi: AuthSignInApi = {
-      mutation: (fn, args) => client.mutation(fn, args),
-      action: (fn, args) => client.action(fn, args),
-    };
-    // Setups run here rather than in an effect so anything they register in
-    // the store exists before the first render reads it.
-    const onStarts = registerProviderClientSetups({
-      client: authClient,
-      signInApi,
-      setups: providerClients ?? [],
-    });
-    return { authClient, signInApi, onStarts };
+    return { authClient, signInApi };
     // `client` identity is what matters. The other props are read once at
     // construction and are not expected to change.
   }, [client]);
 
   return (
-    <AuthProvider
-      authClient={authClient}
-      signInApi={signInApi}
-      onStarts={onStarts}
-    >
+    <AuthProvider authClient={authClient} signInApi={signInApi}>
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>

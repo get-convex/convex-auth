@@ -106,10 +106,6 @@ export function useAuth() {
   return auth;
 }
 
-// onStart callbacks run once per client instance, matching init()'s internal
-// one-time guard, so a StrictMode remount doesn't replay them.
-const onStartsRan = new WeakSet<AuthClient>();
-
 /**
  * Binds an {@link AuthClient} to React and provides the auth, actions, and
  * token contexts. Rendered by `ConvexAuthProvider` around
@@ -118,19 +114,11 @@ const onStartsRan = new WeakSet<AuthClient>();
 export function AuthProvider({
   authClient,
   signInApi,
-  onStarts,
   children,
 }: {
   authClient: AuthClient;
   /** How provider hooks execute their sign-in functions. See {@link AuthSignInApi}. */
   signInApi: AuthSignInApi;
-  /**
-   * Provider clients' startup work, collected from their setups. Run in
-   * order, once per client instance no matter how often the provider
-   * remounts, before `init()`. A callback that throws is logged and skipped,
-   * so the others still run and the client still initializes.
-   */
-  onStarts?: ReadonlyArray<{ id: string; onStart: () => void }>;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -142,25 +130,10 @@ export function AuthProvider({
   useEffect(() => {
     // In StrictMode (dev) React runs this mount → cleanup → mount on the same
     // client instance, so it is init'd, disposed, then init'd again. That's
-    // fine: init()/dispose() are symmetric, and the second init() re-attaches
-    // the cross-tab listener the dispose() removed.
-    if (!onStartsRan.has(authClient)) {
-      onStartsRan.add(authClient);
-      onStarts?.forEach(({ id, onStart }) => {
-        // One provider failing must not block the others or init() below.
-        try {
-          onStart();
-        } catch (error) {
-          console.error(
-            `[convex-auth] onStart for provider client "${id}" threw:`,
-            error,
-          );
-        }
-      });
-    }
+    // fine because init()/dispose() are symmetric, and the second init()
+    // re-attaches the cross-tab listener the dispose() removed.
     void authClient.init();
     return () => authClient.dispose();
-    // `onStarts` is read once per client, like the props that construct it.
   }, [authClient]);
 
   const fetchAccessToken = useCallback(

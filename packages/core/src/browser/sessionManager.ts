@@ -1,6 +1,7 @@
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 import { KeyedStore } from "./keyedStore";
 import { runWithMutex } from "./mutex";
+import type { AuthProviderClientSetup, AuthSignInApi } from "./providerSetup";
 import { retryOnNetworkError } from "./retry";
 import {
   JWT_STORAGE_KEY,
@@ -47,6 +48,15 @@ interface AuthClientConfigBase {
    * an SSR host.
    */
   initialAccessToken?: string | null;
+  /**
+   * Provider client setups to run while the client is constructed, along
+   * with the sign-in api handed to each setup. See
+   * {@link AuthProviderClientSetup}.
+   */
+  providerClients?: {
+    setups: ReadonlyArray<AuthProviderClientSetup>;
+    signInApi: AuthSignInApi;
+  };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
 }
@@ -188,6 +198,9 @@ export class AuthClient {
       this.#refresh = () => authApi.refreshSession();
       this.#signOutInternal = () => authApi.signOut();
     }
+
+    // Runs last so setups see a fully initialized client.
+    this.#registerProviderClients(config.providerClients);
   }
 
   // --- Observable store API ------------------------------------------------
@@ -230,15 +243,54 @@ export class AuthClient {
     return this.#storage.scoped(id);
   }
 
+  /** Provider client onInit callbacks, run once inside {@link init}. */
+  readonly #initCallbacks: Array<{ id: string; callback: () => void }> = [];
+
+  /**
+   * Run the configured provider client setups, handing each its scoped
+   * views, and collect their onInit callbacks for {@link init} to run.
+   * Throws when a setup id is invalid or registered twice.
+   */
+  #registerProviderClients(
+    providerClients: AuthClientConfig["providerClients"],
+  ): void {
+    if (providerClients === undefined) return;
+    const seen = new Set<string>();
+    for (const { id, setup } of providerClients.setups) {
+      if (!/^[a-zA-Z0-9]+$/.test(id)) {
+        throw new Error(
+          `Provider client setup id "${id}" is invalid; ids must be alphanumeric`,
+        );
+      }
+      if (seen.has(id)) {
+        throw new Error(
+          `Provider client setup id "${id}" is registered twice; each auth ` +
+            `method registers once per ConvexAuthProvider`,
+        );
+      }
+      seen.add(id);
+      const registration = setup({
+        client: this,
+        store: this.store.scoped(id),
+        storage: this.scopedStorage(id),
+        signInApi: providerClients.signInApi,
+      });
+      if (registration?.onInit !== undefined) {
+        this.#initCallbacks.push({ id, callback: registration.onInit });
+      }
+    }
+  }
+
   // --- Lifecycle -----------------------------------------------------------
 
   /**
-   * Load any persisted session from storage and start listening for cross-tab
-   * changes (if applicable). Until this resolves, the client reports `isLoading`.
+   * Run provider client onInit callbacks, load any persisted session from
+   * storage, and start listening for cross-tab changes (if applicable).
+   * Until this resolves, the client reports `isLoading`.
    *
-   * Symmetric and repeatable with {@link dispose}: loading the session happens
-   * once, but the cross-tab listener is (re)attached on every call, so an
-   * `init` after a `dispose` fully restores the client.
+   * Symmetric and repeatable with {@link dispose}. The callbacks and session
+   * load happen once, but the cross-tab listener is (re)attached on every
+   * call, so an `init` after a `dispose` fully restores the client.
    */
   async init(): Promise<void> {
     // Attach before the one-time guard so a dispose()/init() cycle re-attaches
@@ -247,6 +299,20 @@ export class AuthClient {
     this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
+    // Run provider onInit callbacks before anything observable happens, so a
+    // withSignInPending call inside one marks loading before the session
+    // loads. A callback that throws is logged and skipped, so the others
+    // still run and the session still loads.
+    for (const { id, callback } of this.#initCallbacks) {
+      try {
+        callback();
+      } catch (error) {
+        console.error(
+          `[convex-auth] onInit for provider client "${id}" threw:`,
+          error,
+        );
+      }
+    }
     // An initially provided token is considered to be the freshest value, so
     // persist it before the load below reads it back (and so other tabs see
     // it).

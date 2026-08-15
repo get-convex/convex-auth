@@ -47,21 +47,21 @@ describe("ConvexAuthProvider provider clients", () => {
     expect(screen.getByText("registered")).toBeDefined();
   });
 
-  test("onStart runs once per client under StrictMode", () => {
+  test("onInit runs once per client under StrictMode", () => {
     const client = makeConvexClient();
-    const onStart = vi.fn();
+    const onInit = vi.fn();
     render(
       <StrictMode>
         <ConvexAuthProvider
           client={client}
           api={API}
-          providerClients={[{ id: "probe", setup: () => ({ onStart }) }]}
+          providerClients={[{ id: "probe", setup: () => ({ onInit }) }]}
         >
           <div />
         </ConvexAuthProvider>
       </StrictMode>,
     );
-    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onInit).toHaveBeenCalledTimes(1);
   });
 
   test("setups and hooks receive the same sign-in api", () => {

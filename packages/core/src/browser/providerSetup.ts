@@ -7,17 +7,17 @@
  * `id` naming the auth method. The store and storage views the setup
  * receives are scoped by it, so two provider clients (or a provider and the
  * core token keys) can never collide. Setups run in two phases, both driven
- * by the core provider:
+ * by the `AuthClient`:
  *
  * 1. **Setup**: runs synchronously while the `AuthClient` is constructed.
  *    Register actions and seed state in `ctx.store` here, so values exist
  *    before the app's first render reads them.
- * 2. **Start**: the optional returned `onStart` runs once per client
- *    instance at startup, before the client loads the persisted session.
- *    Side-effectful work belongs here (e.g. handling an OAuth callback
- *    URL). Call `withSignInPending` synchronously in `onStart` around a
- *    sign-in completion, so the auth state reports loading rather than
- *    briefly signed out.
+ * 2. **Init**: the optional returned `onInit` runs inside the client's
+ *    `init()`, once per client instance, before the persisted session
+ *    loads. Side-effectful work belongs here (e.g. handling an OAuth
+ *    callback URL). Call `withSignInPending` synchronously in `onInit`
+ *    around a sign-in completion, so the auth state reports loading rather
+ *    than briefly signed out.
  *
  * The Convex imports are type-only. Like `SpaAuthApi`, this contract keeps
  * provider client logic free of any particular Convex client class, so
@@ -74,9 +74,9 @@ export type AuthProviderClientContext = {
 };
 
 /**
- * A provider client's registration with the core provider, passed via
- * `ConvexAuthProvider`'s `providerClients` prop. See the module docs for the
- * two-phase lifecycle.
+ * A provider client's registration, passed via `ConvexAuthProvider`'s
+ * `providerClients` prop and run by the `AuthClient` while it is
+ * constructed. See the module docs for the two-phase lifecycle.
  */
 export type AuthProviderClientSetup = {
   /**
@@ -86,47 +86,5 @@ export type AuthProviderClientSetup = {
    */
   id: string;
   /** The setup function. Runs while the `AuthClient` is constructed. */
-  setup: (ctx: AuthProviderClientContext) => void | { onStart?: () => void };
+  setup: (ctx: AuthProviderClientContext) => void | { onInit?: () => void };
 };
-
-/**
- * Run provider client setups against a client, handing each its scoped
- * views. Returns the collected `onStart` callbacks in registration order,
- * each paired with its setup id so the binding (React, or a non-React one)
- * can run them at startup and name the provider if one fails. Throws when
- * two setups share an id.
- */
-export function registerProviderClientSetups({
-  client,
-  signInApi,
-  setups,
-}: {
-  client: AuthClient;
-  signInApi: AuthSignInApi;
-  setups: ReadonlyArray<AuthProviderClientSetup>;
-}): Array<{ id: string; onStart: () => void }> {
-  const seen = new Set<string>();
-  return setups.flatMap(({ id, setup }) => {
-    if (!/^[a-zA-Z0-9]+$/.test(id)) {
-      throw new Error(
-        `Provider client setup id "${id}" is invalid; ids must be alphanumeric`,
-      );
-    }
-    if (seen.has(id)) {
-      throw new Error(
-        `Provider client setup id "${id}" is registered twice; each auth ` +
-          `method registers once per ConvexAuthProvider`,
-      );
-    }
-    seen.add(id);
-    const registration = setup({
-      client,
-      store: client.store.scoped(id),
-      storage: client.scopedStorage(id),
-      signInApi,
-    });
-    return registration?.onStart === undefined
-      ? []
-      : [{ id, onStart: registration.onStart }];
-  });
-}
