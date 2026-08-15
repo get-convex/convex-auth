@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as commonPasswords from "../commonPasswords.js";
 import type * as public_ from "../public.js";
 import type * as react from "../react.js";
 import type * as setup from "../setup.js";
@@ -21,6 +22,7 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  commonPasswords: typeof commonPasswords;
   public: typeof public_;
   react: typeof react;
   setup: typeof setup;

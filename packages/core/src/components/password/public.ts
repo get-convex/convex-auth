@@ -9,6 +9,7 @@ import {
 } from "argon2id-wasm";
 import {
   validatePasswordInputFormat,
+  validateNewPassword,
   normalizePassword,
   setPasswordUserError,
   verifyPasswordUserError,
@@ -54,7 +55,7 @@ export const setPassword = mutation({
   args: { userId: v.string(), password: v.string() },
   returns: setPasswordResult,
   handler: async (ctx, { userId, password }): Promise<SetPasswordResult> => {
-    const userError = validatePasswordInputFormat(password);
+    const userError = validateNewPassword(password);
     if (userError !== null) {
       return { success: false, userError };
     }

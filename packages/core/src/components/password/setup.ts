@@ -1,3 +1,4 @@
+
 import { Infer, v } from "convex/values";
 import {
   vSignInSuccess,
@@ -12,7 +13,7 @@ import {
   validateUsernameFormat,
 } from "../username/validation";
 import {
-  validatePasswordInputFormat,
+  validateNewPassword,
   setPasswordUserError,
   verifyPasswordUserError,
 } from "./validation";
@@ -139,7 +140,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             if (usernameError !== null) {
               return { success: false, userError: usernameError };
             }
-            const userError = validatePasswordInputFormat(password);
+            const userError = validateNewPassword(password);
             if (userError !== null) {
               return { success: false, userError };
             }

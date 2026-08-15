@@ -126,6 +126,30 @@ describe("password validation (setPassword)", () => {
       userError: { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" },
     });
   });
+
+  test("rejects one of the most frequent passwords", async () => {
+    const t = setup();
+    const result = await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: "password123",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_COMMON" },
+    });
+  });
+
+  test("rejects a frequent password that has a different case", async () => {
+    const t = setup();
+    const result = await t.mutation(api.public.setPassword, {
+      userId: "alice",
+      password: "Password123",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_COMMON" },
+    });
+  });
 });
 
 describe("password validation (verifyPassword)", () => {
@@ -175,6 +199,22 @@ describe("password validation (verifyPassword)", () => {
       success: false,
       userError: { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" },
     });
+  });
+
+  // A user can have a frequent password from before this rule. That user must
+  // keep the possibility to log in. Only `setPassword` rejects such a password.
+  test("accepts one of the most frequent passwords", async () => {
+    const t = setup();
+    const commonPassword = "password123";
+    const passwordHashPHC = await hashPassword(commonPassword);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("passwords", { userId: "alice", passwordHashPHC });
+    });
+    const result = await t.mutation(api.public.verifyPassword, {
+      userId: "alice",
+      password: commonPassword,
+    });
+    expect(result).toEqual({ success: true });
   });
 });
 
