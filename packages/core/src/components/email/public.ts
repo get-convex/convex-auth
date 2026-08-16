@@ -14,8 +14,10 @@ import {
   startValidationUserError,
   completeValidationUserError,
   vEmailSenderConfig,
+  vValidationStatus,
   type EmailSenderConfig,
   type PurposeKind,
+  type ValidationStatus,
 } from "./validation";
 
 // --- Configuration ---------------------------------------------------------
@@ -515,16 +517,6 @@ export const completeValidation = mutation({
   },
 });
 
-const validationStatus = v.union(
-  v.object({
-    status: v.literal("pending"),
-    purpose: vPurposeKind,
-    email: v.string(),
-  }),
-  v.object({ status: v.literal("invalid") }),
-);
-type ValidationStatus = Infer<typeof validationStatus>;
-
 /**
  * Report the state of a validation flow without claiming it.
  *
@@ -535,7 +527,7 @@ type ValidationStatus = Infer<typeof validationStatus>;
  */
 export const getValidationStatus = query({
   args: { code: v.string(), secret: v.string() },
-  returns: validationStatus,
+  returns: vValidationStatus,
   handler: async (ctx, args): Promise<ValidationStatus> => {
     const codeHash = await sha256Hex(args.code);
     const row = await ctx.db

@@ -10,6 +10,7 @@
 
 import type * as crypto from "../crypto.js";
 import type * as public_ from "../public.js";
+import type * as setup from "../setup.js";
 import type * as validation from "../validation.js";
 
 import type {
@@ -22,6 +23,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 const fullApi: ApiFromModules<{
   crypto: typeof crypto;
   public: typeof public_;
+  setup: typeof setup;
   validation: typeof validation;
 }> = anyApi as any;
 
