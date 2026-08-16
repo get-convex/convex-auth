@@ -20,6 +20,8 @@ import {
   vEmailSenderConfig,
   normalizeEmail,
   generateRandomToken,
+  vChallengeStatus,
+  type ChallengeStatus,
 } from "./validation.ts";
 
 const checkStartChallengeResult = v.union(
@@ -301,16 +303,6 @@ export const complete = mutation({
   },
 });
 
-const challengeStatus = v.union(
-  v.object({
-    status: v.literal("pending"),
-    purpose: vPurposeKind,
-    email: v.string(),
-  }),
-  v.object({ status: v.literal("invalid") }),
-);
-type ChallengeStatus = Infer<typeof challengeStatus>;
-
 /**
  * Report the state of a challenge without claiming it.
  *
@@ -321,7 +313,7 @@ type ChallengeStatus = Infer<typeof challengeStatus>;
  */
 export const getStatus = query({
   args: { code: v.string(), secret: v.string() },
-  returns: challengeStatus,
+  returns: vChallengeStatus,
   handler: async (ctx, args): Promise<ChallengeStatus> => {
     const codeHash = await sha256Hex(args.code);
     const row = await ctx.db
