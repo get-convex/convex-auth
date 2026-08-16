@@ -15,7 +15,11 @@ import {
   getOnSignInCalls,
   resetUserCallbackCalls,
 } from "./testApp";
-import { type AuthClaims, type TokenBundle } from "../../lib/types";
+import {
+  type AuthClaims,
+  type TokenBundle,
+  USE_USER_ID_AS_ACCOUNT_ID,
+} from "../../lib/types";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -254,6 +258,71 @@ describe("signIn", () => {
       async (ctx) => (await ctx.db.query("sessions").collect()).length,
     );
     expect(sessions).toBe(0);
+  });
+});
+
+describe("createAccount", () => {
+  test("creates the user and the account, but no session", async () => {
+    const t = setup();
+    resetCreateOrUpdateUserCalls();
+
+    const { userId } = await t.mutation(api.public.createAccount, {
+      claims: claims(),
+      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+    });
+
+    // The app's createOrUpdateUser echoes the providerAccountId as the user id.
+    expect(userId).toBe("alice");
+    const calls = getCreateOrUpdateUserCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0].userId).toBeNull();
+
+    // The account exists, but no session was minted.
+    const counts = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+    }));
+    expect(counts).toEqual({ accounts: 1, sessions: 0 });
+  });
+
+  test("a later signIn resolves the same user and mints a session", async () => {
+    const t = setup();
+    const { userId } = await t.mutation(api.public.createAccount, {
+      claims: claims(),
+      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+    });
+
+    const bundle = await signIn(t, claims());
+    expect(bundle.userId).toBe(userId);
+
+    // The sign-in reused the account that createAccount made.
+    const counts = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+    }));
+    expect(counts).toEqual({ accounts: 1, sessions: 1 });
+  });
+
+  test("keys the account by the minted user id with USE_USER_ID_AS_ACCOUNT_ID", async () => {
+    const t = setup();
+    const { userId } = await t.mutation(api.public.createAccount, {
+      claims: claims({
+        providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
+        profile: { email: "alice@example.com" },
+      }),
+      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+    });
+
+    // The account's identifier is the user id the app minted, so a later
+    // sign-in that passes the user id resolves the same user.
+    const bundle = await signIn(t, claims({ providerAccountId: userId }));
+    expect(bundle.userId).toBe(userId);
+
+    const accounts = await t.run(
+      async (ctx) => await ctx.db.query("accounts").collect(),
+    );
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0].providerAccountId).toBe(userId);
   });
 });
 

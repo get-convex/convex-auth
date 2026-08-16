@@ -353,6 +353,36 @@ export const signIn = mutation({
 });
 
 /**
+ * Create the account and the app user for a provider's verified identity
+ * claims, without minting a session.
+ *
+ * Providers use this (via the `createAccount` helper the core hands them)
+ * when the user must complete a step before the first sign-in — for example,
+ * an email validation. Account and user resolution follows the same rules as
+ * `signIn` (the app's `createOrUpdateUser` mutation runs, and
+ * `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted user id), but no
+ * refresh token or access token is issued: the user cannot make authenticated
+ * calls until a later `signIn` succeeds.
+ */
+export const createAccount = mutation({
+  args: {
+    claims: vAuthClaims,
+    createOrUpdateUserHandle: v.string(),
+  },
+  returns: v.object({ userId: v.string() }),
+  handler: async (ctx, args): Promise<{ userId: string }> => {
+    // TODO: This API is kind of awkward. We might want to reconsider it before the GA v2 release.
+
+    const { userId } = await resolveAccount(
+      ctx,
+      args.claims,
+      args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
+    );
+    return { userId };
+  },
+});
+
+/**
  * Resolve a provider identity to its app user id without minting a session.
  *
  * Providers use this (via the `resolveUserId` helper the core hands them) to look

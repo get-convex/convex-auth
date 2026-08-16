@@ -313,6 +313,19 @@ export type BoundAuthHelpers<Profile> = {
     profile: Profile;
   }): Promise<TokenBundle>;
   /**
+   * Create the account and the app user for a verified identity, but do not
+   * mint a session.
+   *
+   * Call this when the user must complete a step (for example, an email
+   * validation) before the first sign-in. Account and user resolution follows
+   * the same rules as `completeSignIn`. The provider signs the user in later
+   * with `completeSignIn`.
+   */
+  createAccount(args: {
+    providerAccountId: string;
+    profile: Profile;
+  }): Promise<{ userId: string }>;
+  /**
    * Look up the app user id for a given `providerAccountId`.
    *
    * Returns `null` when no user id is found for the account.

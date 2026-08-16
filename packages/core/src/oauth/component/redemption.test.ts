@@ -58,7 +58,10 @@ const FAKE_BUNDLE: TokenBundle = {
   userId: "user-1",
 };
 
-/** A fake core whose builders inject fake {@link BoundAuthHelpers}. */
+/**
+ * A fake core whose builders inject fake {@link BoundAuthHelpers}.
+ * `createAccount` is never reached by redemption.
+ */
 const FAKE_CORE = {
   bindProvider: <Provider extends string, Profile>({
     name,
@@ -87,6 +90,9 @@ const FAKE_CORE = {
       completeSignUp: record("signUp"),
       completeSignIn: record("signIn"),
       resolveUserId: async () => resolvedUserId.value,
+      createAccount: async () => {
+        throw new Error("createAccount is not used by redemption");
+      },
     };
     const authMutation: AuthMutationBuilder<Profile> = (fn) =>
       mutationGeneric({

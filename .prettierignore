@@ -1,5 +1,7 @@
 node_modules
 dist
+# Local anonymous Convex deployment state (used for component codegen).
+.convex
 **/_generated/**
 .agents
 .context
