@@ -108,6 +108,14 @@
       "types": "./dist/components/passkey/*.d.ts",
       "default": "./dist/components/passkey/*.js"
     },
+    "./providers/email-password/*.js": {
+      "types": "./dist/components/email/*.d.ts",
+      "default": "./dist/components/email/*.js"
+    },
+    "./providers/email-password/*": {
+      "types": "./dist/components/email/*.d.ts",
+      "default": "./dist/components/email/*.js"
+    },
     "./email/*.js": {
       "types": "./dist/components/email/*.d.ts",
       "default": "./dist/components/email/*.js"

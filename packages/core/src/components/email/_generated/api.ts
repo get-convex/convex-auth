@@ -10,6 +10,7 @@
 
 import type * as challenge from "../challenge.js";
 import type * as helpers from "../helpers.js";
+import type * as react from "../react.js";
 import type * as setup from "../setup.js";
 import type * as testSetup from "../testSetup.js";
 import type * as validation from "../validation.js";
@@ -25,6 +26,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 const fullApi: ApiFromModules<{
   challenge: typeof challenge;
   helpers: typeof helpers;
+  react: typeof react;
   setup: typeof setup;
   testSetup: typeof testSetup;
   validation: typeof validation;
