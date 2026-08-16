@@ -118,6 +118,7 @@
     "./providers/oauth/*": "./src/oauth/component/*.ts",
     "./providers/email-password/convex.config.js": "./src/components/email/convex.config.ts",
     "./providers/email-password/*": "./src/components/email/*.ts",
+    "./providers/email-password/react": "./src/components/email/react.tsx",
     "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
     "./providers/password/react": "./src/components/password/react.tsx",
     "./providers/password/*": "./src/components/password/*.ts",
