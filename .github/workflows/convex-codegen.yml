@@ -10,7 +10,7 @@ on:
   pull_request:
     branches: ["**"]
     paths:
-      - ".github/convex-codegen.yml"
+      - ".github/workflows/convex-codegen.yml"
       - "examples/**"
       - "packages/**"
   workflow_dispatch:
