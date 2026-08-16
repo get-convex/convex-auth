@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as crypto from "../crypto.js";
 import type * as public_ from "../public.js";
 import type * as validation from "../validation.js";
 
@@ -19,6 +20,7 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  crypto: typeof crypto;
   public: typeof public_;
   validation: typeof validation;
 }> = anyApi as any;
@@ -49,4 +51,6 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {};
+export const components = componentsGeneric() as unknown as {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};
