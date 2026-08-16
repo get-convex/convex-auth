@@ -91,6 +91,8 @@
       "types": "./dist/components/passkey/*.d.ts",
       "default": "./dist/components/passkey/*.js"
     },
+    "./providers/email-password/convex.config.js": "./src/components/email/convex.config.ts",
+    "./providers/email-password/*": "./src/components/email/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": {
       "types": "./dist/browser/index.d.ts",
