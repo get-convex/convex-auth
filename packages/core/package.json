@@ -52,6 +52,7 @@
   },
   "scripts": {
     "build:cli": "tsc -p tsconfig.cli.json",
+    "generate:common-passwords": "bun src/components/password/scripts/generateCommonPasswords.script.ts",
     "prepare": "pnpm build:cli",
     "typecheck": "tsc --noEmit"
   },

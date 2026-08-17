@@ -9,6 +9,8 @@ export default defineConfig([
   {
     ignores: [
       "**/_generated/**",
+      // Generated data files, for example the list of frequent passwords.
+      "**/*.generated.ts",
       "**/node_modules/**",
       "**/dist/**",
       ".agents/**",

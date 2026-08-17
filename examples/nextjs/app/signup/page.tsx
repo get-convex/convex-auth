@@ -45,6 +45,8 @@ export default function SignUp() {
                 return `Password must be at most ${result.userError.maximumLength} characters.`;
               case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
                 return "Password can't start or end with whitespace.";
+              case "PASSWORD_TOO_COMMON":
+                return "This password is one of the most commonly used passwords. Please choose a different one.";
               case "OTHER_ERROR":
                 // The call failed unexpectedly; the original error is
                 // available on `cause` if you want to log or inspect it.

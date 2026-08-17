@@ -34,7 +34,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             userError:
               | { error: "PASSWORD_TOO_SHORT"; minimumLength: number }
               | { error: "PASSWORD_TOO_LONG"; maximumLength: number }
-              | { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" };
+              | { error: "PASSWORD_HAS_SURROUNDING_WHITESPACE" }
+              | { error: "PASSWORD_TOO_COMMON" };
           },
         Name
       >;
