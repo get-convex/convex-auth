@@ -1,0 +1,4 @@
+{
+  "name": "Convex Auth",
+  "install": "bash .cursor/setup.sh"
+}
