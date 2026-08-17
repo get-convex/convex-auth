@@ -47,10 +47,12 @@ export const getExpiredChallenges = internalQuery({
     // the batch erases.
     const expired = await ctx.db
       .query("challenges")
-      .withIndex("by_creation_time", (q) =>
-        // The boundary matches `isChallengeExpired`: at exactly the TTL, a
-        // challenge is expired. A wake-up at the deadline thus finds work.
-        q.lte("_creationTime", now - CHALLENGE_TTL_MS),
+      .withIndex(
+        "by_creation_time",
+        (q) =>
+          // The boundary matches `isChallengeExpired`: at exactly the TTL, a
+          // challenge is expired. A wake-up at the deadline thus finds work.
+          q.lte("_creationTime", now - CHALLENGE_TTL_MS), // FIXME: we could consider using the batch worker cursor here to avoid tombstones
       )
       .take(BATCH_SIZE);
     if (expired.length > 0) {
