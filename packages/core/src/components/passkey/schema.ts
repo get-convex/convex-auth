@@ -25,13 +25,15 @@ export default defineSchema({
     .index("by_userId", ["userId"]),
 
   // The WebAuthn challenges that are active. Each challenge is for one use
-  // only: the finish step deletes it.
+  // only: the finish step deletes it. A challenge expires a fixed time after
+  // its creation (see CHALLENGE_TTL_MS), thus `_creationTime` is the age of
+  // the challenge and the built-in `by_creation_time` index gives the
+  // background cleanup loop (see cleanup.ts) the oldest challenges first.
   challenges: defineTable(
     v.union(
       v.object({
         kind: v.literal("registration"),
         challenge: v.bytes(), // 32 random bytes
-        createdAt: v.number(), // challenges expire (see CHALLENGE_TTL_MS)
       }),
       v.object({
         kind: v.literal("authentication"),
@@ -40,16 +42,7 @@ export default defineSchema({
         // The field is not set for discoverable-credential ceremonies. In
         // that flow, the assertion identifies the user.
         userId: v.optional(v.string()),
-        createdAt: v.number(),
       }),
     ),
-  )
-    .index("by_challenge", ["challenge"])
-    // Used by the background cleanup loop (see cleanup.ts) to find the
-    // challenges that are expired, oldest first.
-    .index("by_createdAt", ["createdAt"])
-    // Used by `deleteUser` to erase the authentication challenges that are
-    // bound to a user. Registration rows have no `userId` field, so a probe
-    // with a user ID string never matches them.
-    .index("by_userId", ["userId"]),
+  ).index("by_challenge", ["challenge"]),
 });

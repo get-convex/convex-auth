@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@convex-dev/auth": "workspace:*",
-    "convex": "^1.41.0",
+    "convex": "^1.43.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1"
@@ -24,7 +24,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.3",
-    "convex-test": "^0.0.53",
+    "convex-test": "^0.0.55",
     "jose": "^5.10.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"

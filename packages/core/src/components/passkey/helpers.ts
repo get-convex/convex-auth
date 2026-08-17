@@ -58,5 +58,5 @@ export function isChallengeExpired(
   // A challenge is valid for strictly less than the TTL: at exactly the
   // TTL, it is expired. The cleanup loop (see cleanup.ts) uses the same
   // boundary, so a wake-up at the deadline always finds work.
-  return now - row.createdAt >= CHALLENGE_TTL_MS;
+  return now - row._creationTime >= CHALLENGE_TTL_MS;
 }

@@ -14,7 +14,7 @@
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
     "@eslint/js": "^10.0.1",
-    "convex": "^1.41.0",
+    "convex": "^1.43.0",
     "eslint": "^10.6.0",
     "prettier": "^3.9.4",
     "typescript": "^6.0.3",

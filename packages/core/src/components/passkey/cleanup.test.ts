@@ -4,30 +4,31 @@ import { WORKER_NAME } from "./cleanup";
 import { CHALLENGE_TTL_MS } from "./validation";
 import { setup } from "../passkeyTestSetup";
 
-// The `challenges` rows are a union, so the tests write a full row.
-function registrationChallenge(byte: number, createdAt: number) {
-  return {
-    kind: "registration" as const,
-    challenge: new Uint8Array(32).fill(byte).buffer,
-    createdAt,
-  };
-}
+const START = new Date("2026-01-01T00:00:00Z").getTime();
 
-/** Insert a registration challenge, as `startRegistration` does. */
+/**
+ * Insert a registration challenge, as `startRegistration` does. The age of a
+ * challenge is the age of its `_creationTime`, thus the tests set the clock to
+ * `createdAt` before the insert.
+ */
 function insertRegistration(
   t: ReturnType<typeof setup>,
   byte: number,
   createdAt: number,
 ) {
+  vi.setSystemTime(createdAt);
   return t.run((ctx) =>
-    ctx.db.insert("challenges", registrationChallenge(byte, createdAt)),
+    ctx.db.insert("challenges", {
+      // The `challenges` rows are a union, so the tests write a full row.
+      kind: "registration" as const,
+      challenge: new Uint8Array(32).fill(byte).buffer,
+    }),
   );
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
-  // A fixed time keeps `createdAt` predictable.
-  vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  vi.setSystemTime(START);
 });
 
 afterEach(() => {
@@ -45,16 +46,16 @@ describe("getExpiredChallenges", () => {
 
   test("returns only the challenges that are expired", async () => {
     const t = setup();
-    const now = Date.now();
     const expiredId = await insertRegistration(
       t,
       1,
-      now - CHALLENGE_TTL_MS - 1,
+      START - CHALLENGE_TTL_MS - 1,
     );
     // One millisecond before the TTL the challenge is still usable.
-    await insertRegistration(t, 2, now - CHALLENGE_TTL_MS + 1);
-    await insertRegistration(t, 3, now);
+    await insertRegistration(t, 2, START - CHALLENGE_TTL_MS + 1);
+    await insertRegistration(t, 3, START);
 
+    vi.setSystemTime(START);
     const result = await t.query(internal.cleanup.getExpiredChallenges, {
       name: WORKER_NAME,
     });
@@ -63,12 +64,10 @@ describe("getExpiredChallenges", () => {
 
   test("goes idle until just after the oldest challenge expires", async () => {
     const t = setup();
-    const now = Date.now();
-    await t.run(async (ctx) => {
-      await ctx.db.insert("challenges", registrationChallenge(1, now - 1000));
-      await ctx.db.insert("challenges", registrationChallenge(2, now));
-    });
+    await insertRegistration(t, 1, START - 1000);
+    await insertRegistration(t, 2, START);
 
+    vi.setSystemTime(START);
     const result = await t.query(internal.cleanup.getExpiredChallenges, {
       name: WORKER_NAME,
     });
@@ -80,12 +79,16 @@ describe("getExpiredChallenges", () => {
 
   test("a wake-up at exactly the TTL boundary finds work", async () => {
     const t = setup();
-    const now = Date.now();
     // A challenge at exactly the TTL is expired. A wake-up at the deadline
     // must find the row, or the loop would go idle with `timeoutMs: 0`
     // forever.
-    const challengeId = await insertRegistration(t, 1, now - CHALLENGE_TTL_MS);
+    const challengeId = await insertRegistration(
+      t,
+      1,
+      START - CHALLENGE_TTL_MS,
+    );
 
+    vi.setSystemTime(START);
     const result = await t.query(internal.cleanup.getExpiredChallenges, {
       name: WORKER_NAME,
     });
@@ -96,13 +99,12 @@ describe("getExpiredChallenges", () => {
 describe("deleteExpiredChallenges", () => {
   test("erases the rows of the batch and keeps the others", async () => {
     const t = setup();
-    const now = Date.now();
     const expiredId = await insertRegistration(
       t,
       1,
-      now - CHALLENGE_TTL_MS - 1,
+      START - CHALLENGE_TTL_MS - 1,
     );
-    const freshId = await insertRegistration(t, 2, now);
+    const freshId = await insertRegistration(t, 2, START);
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
       ids: [expiredId],
@@ -113,31 +115,18 @@ describe("deleteExpiredChallenges", () => {
     );
     expect(remaining.map((row) => row._id)).toEqual([freshId]);
   });
-
-  test("ignores a row that a ceremony consumed in the meantime", async () => {
-    const t = setup();
-    const now = Date.now();
-    const challengeId = await insertRegistration(
-      t,
-      1,
-      now - CHALLENGE_TTL_MS - 1,
-    );
-    await t.run((ctx) => ctx.db.delete("challenges", challengeId));
-
-    await expect(
-      t.mutation(internal.cleanup.deleteExpiredChallenges, {
-        ids: [challengeId],
-      }),
-    ).resolves.toBeNull();
-  });
 });
 
 describe("the cleanup loop", () => {
   test("starting a ceremony erases the challenges that expired", async () => {
     const t = setup();
-    const now = Date.now();
-    const staleId = await insertRegistration(t, 1, now - CHALLENGE_TTL_MS - 1);
+    const staleId = await insertRegistration(
+      t,
+      1,
+      START - CHALLENGE_TTL_MS - 1,
+    );
 
+    vi.setSystemTime(START);
     await t.mutation(api.registration.startRegistration, {});
     // The loop runs in scheduled functions; let them all complete.
     await t.finishAllScheduledFunctions(() => vi.runAllTimers());

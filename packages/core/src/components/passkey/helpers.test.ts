@@ -59,7 +59,6 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        createdAt: Date.now(),
       });
       const row = await consumeChallenge(ctx, "registration", challenge);
       expect(row).not.toBe(null);
@@ -87,7 +86,6 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        createdAt: Date.now(),
       });
       const row = await consumeChallenge(ctx, "authentication", challenge);
       expect(row).toBe(null);
@@ -103,7 +101,6 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "authentication",
         challenge: toArrayBuffer(challenge),
-        createdAt: Date.now(),
       });
       expect(await consumeChallenge(ctx, "authentication", challenge)).not.toBe(
         null,
@@ -114,17 +111,32 @@ describe("consumeChallenge", () => {
     });
   });
 
-  test("rejects and deletes an expired challenge", async () => {
+  /**
+   * Insert a registration challenge, then move the clock forward by `ageMs`.
+   * The age of a challenge is the age of its `_creationTime`, thus the clock
+   * is the only way to make a challenge old.
+   */
+  async function insertAndAge(
+    t: ReturnType<typeof setup>,
+    challenge: Uint8Array,
+    ageMs: number,
+  ) {
     vi.useFakeTimers();
     vi.setSystemTime(1_700_000_000_000);
-    const t = setup();
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    await t.run(async (ctx) => {
-      await ctx.db.insert("challenges", {
+    await t.run((ctx) =>
+      ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
-        createdAt: Date.now() - CHALLENGE_TTL_MS - 1,
-      });
+      }),
+    );
+    vi.setSystemTime(1_700_000_000_000 + ageMs);
+  }
+
+  test("rejects and deletes an expired challenge", async () => {
+    const t = setup();
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    await insertAndAge(t, challenge, CHALLENGE_TTL_MS + 1);
+    await t.run(async (ctx) => {
       const row = await consumeChallenge(ctx, "registration", challenge);
       expect(row).toBe(null);
       // The expired row was deleted on the way out.
@@ -133,34 +145,22 @@ describe("consumeChallenge", () => {
   });
 
   test("rejects a challenge exactly at the TTL boundary", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_700_000_000_000);
     const t = setup();
     const challenge = crypto.getRandomValues(new Uint8Array(32));
+    await insertAndAge(t, challenge, CHALLENGE_TTL_MS);
+    // A challenge is valid for strictly less than the TTL: at exactly
+    // the TTL, it is expired. This is the same boundary that the cleanup
+    // loop uses.
     await t.run(async (ctx) => {
-      await ctx.db.insert("challenges", {
-        kind: "registration",
-        challenge: toArrayBuffer(challenge),
-        createdAt: Date.now() - CHALLENGE_TTL_MS,
-      });
-      // A challenge is valid for strictly less than the TTL: at exactly
-      // the TTL, it is expired. This is the same boundary that the cleanup
-      // loop uses.
       expect(await consumeChallenge(ctx, "registration", challenge)).toBe(null);
     });
   });
 
   test("accepts a challenge one millisecond before the TTL boundary", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_700_000_000_000);
     const t = setup();
     const challenge = crypto.getRandomValues(new Uint8Array(32));
+    await insertAndAge(t, challenge, CHALLENGE_TTL_MS - 1);
     await t.run(async (ctx) => {
-      await ctx.db.insert("challenges", {
-        kind: "registration",
-        challenge: toArrayBuffer(challenge),
-        createdAt: Date.now() - CHALLENGE_TTL_MS + 1,
-      });
       expect(await consumeChallenge(ctx, "registration", challenge)).not.toBe(
         null,
       );

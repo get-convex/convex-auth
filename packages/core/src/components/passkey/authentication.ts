@@ -54,7 +54,6 @@ export const startAuthentication = mutation({
       kind: "authentication",
       challenge,
       userId,
-      createdAt: Date.now(),
     });
     await scheduleChallengeCleanup(ctx);
     if (userId === undefined) {

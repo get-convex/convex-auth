@@ -46,7 +46,6 @@ export const startRegistration = mutation({
     await ctx.db.insert("challenges", {
       kind: "registration",
       challenge,
-      createdAt: Date.now(),
     });
     await scheduleChallengeCleanup(ctx);
     let excludeCredentials: ArrayBuffer[] = [];
