@@ -25,10 +25,9 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
-// Real function references (they carry their path), the way an app picks them
-// off its generated `api.auth`. The start leg passes `startSignIn` through by
-// identity; the completion leg rebuilds `completeSignIn` from the persisted
-// path, so completion assertions compare paths via `getFunctionName`.
+// Real function references, so they carry a path. Completion rebuilds its
+// reference from the saved path, so those assertions compare paths with
+// `getFunctionName` rather than comparing the references themselves.
 const googleStart = makeFunctionReference<"mutation">("auth:startSignInGoogle");
 const googleComplete = makeFunctionReference<"mutation">(
   "auth:completeSignInGoogle",
@@ -60,10 +59,10 @@ function seedPendingFlow(
 }
 
 /**
- * Run the oauth setup against a real AuthClient and a fake sign-in api. The
- * setup runs during client construction through a wrapper that keeps the
- * returned onInit away from the client and hands it to the test instead, so
- * tests drive the startup work by hand and `client.init()` won't also run it.
+ * Run the oauth setup against a real AuthClient and a fake sign-in api. A
+ * wrapper hands the returned onInit to the test instead of the client, so
+ * tests can run the startup work themselves and `client.init()` won't also
+ * run it.
  */
 function setupOAuth({ storage = new InMemoryStorage() } = {}) {
   const mutation = vi.fn();
@@ -251,7 +250,7 @@ describe("OAuth client", () => {
 
     onInit();
 
-    // The library owns default copy for each code; apps rebrand by switching
+    // The library owns default copy for each code. Apps rebrand by switching
     // on `code` and ignoring `message`.
     expect(flowError()).toEqual({
       code: "access_denied",
@@ -297,8 +296,8 @@ describe("OAuth client", () => {
   });
 
   test("a pending flow without a completeSignIn path is invalid", async () => {
-    // A record persisted by an older client (or tampered with) that lacks the
-    // function path can't be completed — it must not crash or half-redeem.
+    // A record saved by an older client, or tampered with, that has no
+    // function path. It must not crash or half-redeem.
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     void flowStorage(storage).set(
@@ -420,7 +419,7 @@ describe("OAuth client", () => {
 
     onInit();
 
-    // Only namespaced params are ours; a plain code/error belongs to the app.
+    // Only namespaced params are ours. A plain code or error is the app's.
     expect(mutation).not.toHaveBeenCalled();
     expect(flowError()).toBeNull();
     expect(window.location.search).toBe("?code=foreign&error=foreign");
