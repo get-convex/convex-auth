@@ -368,7 +368,7 @@ export function oauth(): AuthProviderClientSetup {
 
     store.set(OAUTH_ACTIONS_KEY, { signIn } satisfies OauthActions);
     setFlowError(null);
-    return { onStart: handleCallback };
+    return { onInit: handleCallback };
   };
   return { id: OAUTH_SETUP_ID, setup };
 }
