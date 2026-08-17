@@ -1,5 +1,5 @@
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
-import { KeyedStore } from "./keyedStore";
+import { KeyedStore, type ScopedKeyedStoreReader } from "./keyedStore";
 import { runWithMutex } from "./mutex";
 import type { AuthProviderClientSetup, AuthSignInApi } from "./providerSetup";
 import { retryOnNetworkError } from "./retry";
@@ -8,7 +8,6 @@ import {
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   TokenStorage,
-  type ScopedStorage,
 } from "./storage";
 
 /**
@@ -231,16 +230,18 @@ export class AuthClient {
 
   /**
    * Client-scoped shared state for provider clients. Setups register their
-   * actions and flow state here, and provider hooks read it back.
+   * actions and flow state here through their scoped view, and provider
+   * hooks read it back through {@link providerState}.
    */
-  readonly store = new KeyedStore();
+  readonly #store = new KeyedStore();
 
   /**
-   * Persistent storage scoped to a provider client's id. Providers persist
-   * their flow state here under their own keys.
+   * A read-only view of the shared state under a provider client's id, for
+   * hooks and other bindings to read and subscribe to. Writes only happen
+   * through the scoped store a setup receives.
    */
-  scopedStorage(id: string): ScopedStorage {
-    return this.#storage.scoped(id);
+  providerState(id: string): ScopedKeyedStoreReader {
+    return this.#store.scopedReader(id);
   }
 
   /** Provider client onInit callbacks, run once inside {@link init}. */
@@ -271,8 +272,8 @@ export class AuthClient {
       seen.add(id);
       const registration = setup({
         client: this,
-        store: this.store.scoped(id),
-        storage: this.scopedStorage(id),
+        store: this.#store.scoped(id),
+        storage: this.#storage.scoped(id),
         signInApi: providerClients.signInApi,
       });
       if (registration?.onInit !== undefined) {

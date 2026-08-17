@@ -414,7 +414,9 @@ describe("AuthClient provider client setups", () => {
         },
       },
     ]);
-    expect(client.store.get<string>("oauth/actions")).toBe("registered");
+    expect(client.providerState("oauth").get<string>("actions")).toBe(
+      "registered",
+    );
   });
 
   test("scoped storage writes land under the provider prefix", () => {

@@ -14,10 +14,8 @@
 "use client";
 
 import { useCallback, useContext, useSyncExternalStore } from "react";
-import { scopedKey } from "../browser/keyedStore";
 import { AuthClientContext } from "./client";
 
-export { KeyedStore } from "../browser/keyedStore";
 export type {
   AuthProviderClientContext,
   AuthProviderClientSetup,
@@ -38,16 +36,15 @@ export function useAuthClientValue<T>(id: string, key: string): T | undefined {
       "useAuthClientValue must be used within a <ConvexAuthProvider>.",
     );
   }
-  const fullKey = scopedKey(id, key);
   const subscribe = useCallback(
-    (listener: () => void) => client.store.subscribe(fullKey, listener),
-    [client, fullKey],
+    (listener: () => void) => client.providerState(id).subscribe(key, listener),
+    [client, id, key],
   );
   const getSnapshot = useCallback(
     // The store is already populated during SSR, so the server snapshot is
     // the same read.
-    () => client.store.get<T>(fullKey),
-    [client, fullKey],
+    () => client.providerState(id).get<T>(key),
+    [client, id, key],
   );
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

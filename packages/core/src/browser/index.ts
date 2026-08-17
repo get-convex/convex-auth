@@ -14,7 +14,7 @@ export {
   REFRESH_TOKEN_STORAGE_KEY,
 } from "./storage";
 export { runWithMutex } from "./mutex";
-export { KeyedStore, scopedKey, type ScopedKeyedStore } from "./keyedStore";
+export type { ScopedKeyedStore, ScopedKeyedStoreReader } from "./keyedStore";
 export type {
   AuthProviderClientContext,
   AuthProviderClientSetup,

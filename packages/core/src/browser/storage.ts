@@ -86,6 +86,9 @@ export function defaultStorage(): TokenStorage {
  * A read/write view over a {@link NamespacedStorage} for one provider
  * client, with every key prefixed by the provider's setup id. The shape
  * handed to provider client setups.
+ *
+ * Keys are stored as-is, so use only characters in `[A-Za-z0-9._-]` to stay
+ * compatible with React Native storage backends like Expo SecureStore.
  */
 export type ScopedStorage = {
   /** Read a value. */

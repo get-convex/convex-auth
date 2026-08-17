@@ -67,4 +67,16 @@ describe("KeyedStore", () => {
     store.scoped("oauth").set("flowError", "expired");
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  test("a scoped reader reads and subscribes under its prefix", () => {
+    const store = new KeyedStore();
+    const reader = store.scopedReader("oauth");
+    const listener = vi.fn();
+    reader.subscribe("actions", listener);
+
+    store.scoped("oauth").set("actions", "registered");
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(reader.get<string>("actions")).toBe("registered");
+    expect(reader.get("oauth/actions")).toBeUndefined();
+  });
 });

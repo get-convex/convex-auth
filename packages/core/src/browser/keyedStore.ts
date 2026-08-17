@@ -6,6 +6,8 @@
  * hooks can read it from any component without a dedicated React context.
  * Values are replaced, never mutated, so a read is a stable snapshot for
  * `useSyncExternalStore`.
+ *
+ * @module
  */
 /**
  * A read/write view over a {@link KeyedStore} with every key prefixed, the
@@ -17,6 +19,21 @@ export type ScopedKeyedStore = {
   get<T>(key: string): T | undefined;
   /** Replace the value at `key` within the scope. */
   set<T>(key: string, value: T): void;
+};
+
+/**
+ * A read-only view over a {@link KeyedStore} with every key prefixed, the
+ * shape hooks and other bindings read provider client state through. Writes
+ * only happen through the {@link ScopedKeyedStore} a setup receives.
+ */
+export type ScopedKeyedStoreReader = {
+  /** Read the value at `key` within the scope. */
+  get<T>(key: string): T | undefined;
+  /**
+   * Subscribe to changes of the value at `key` within the scope. Returns an
+   * unsubscribe function.
+   */
+  subscribe(key: string, listener: () => void): () => void;
 };
 
 /** The full store key for `key` within the scope named `prefix`. */
@@ -52,6 +69,19 @@ export class KeyedStore {
       set: <T>(key: string, value: T): void => {
         this.set(scopedKey(prefix, key), value);
       },
+    };
+  }
+
+  /**
+   * A {@link ScopedKeyedStoreReader} over this store, mapping `key` to
+   * `${prefix}/${key}`.
+   */
+  scopedReader(prefix: string): ScopedKeyedStoreReader {
+    return {
+      get: <T>(key: string): T | undefined =>
+        this.get<T>(scopedKey(prefix, key)),
+      subscribe: (key: string, listener: () => void): (() => void) =>
+        this.subscribe(scopedKey(prefix, key), listener),
     };
   }
 
