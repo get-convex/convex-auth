@@ -78,7 +78,15 @@ export type ProviderBuilders<Profile> = {
  * The core auth API returned by {@link setupCore}: the session handlers the
  * app re-exports, plus {@link AuthCore.bindProvider} for wiring up providers.
  */
-export type AuthCore = {
+export type AuthCore<UsersTable extends string = string> = {
+  /**
+   * The name of the app's users table, as configured on {@link setupCore}.
+   *
+   * Carried on the value (not just in the type) so provider setup functions
+   * can infer `UsersTable` from the `core` they are handed, and so the name is
+   * available for error messages.
+   */
+  usersTable: UsersTable;
   /**
    * Signs out of the current session.
    *
@@ -137,7 +145,7 @@ export type AuthCore = {
    */
   bindProvider<Provider extends string, Profile>(options: {
     name: Provider;
-    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile>;
+    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>;
   }): ProviderBuilders<Profile>;
 };
 
@@ -172,8 +180,25 @@ export type AuthCore = {
  * Changes to token TTLs impact newly minted tokens, not ones that have
  * already been issued.
  */
-export function setupCore(options: {
+export function setupCore<UsersTable extends string = "users">(options: {
   component: ComponentApi;
+  /**
+   * The name of the app's users table. Defaults to `"users"`.
+   *
+   * The core never reads or writes the table — it only stores the id the app's
+   * create-or-update-user callback returns. The name is a *type-level* contract:
+   * it makes every provider's `attachUserCallback` demand a mutation whose
+   * `userId` argument and return type are `Id<usersTable>`, so an app cannot
+   * accidentally hand back an id from some other table (and, because the app
+   * then declares `v.id(usersTable)`, Convex enforces the same thing at runtime).
+   *
+   * Set this if the app's users live in a table with a different name:
+   *
+   * ```ts
+   * const core = setupCore({ component: components.auth, usersTable: "members" });
+   * ```
+   */
+  usersTable?: UsersTable;
   /**
    * Access-token lifetime in seconds. Defaults to 60 (1 minute).
    *
@@ -188,8 +213,11 @@ export function setupCore(options: {
    * already been issued.
    */
   refreshTokenTtlSeconds?: number;
-}): AuthCore {
+}): AuthCore<UsersTable> {
   const { component, accessTokenTtlSeconds, refreshTokenTtlSeconds } = options;
+  // The default only matters to the type system (the core never touches the
+  // table), but keep the value in sync with the `= "users"` default above.
+  const usersTable = options.usersTable ?? ("users" as UsersTable);
 
   const issuer = (): string => {
     const url = process.env.CONVEX_SITE_URL;
@@ -243,7 +271,7 @@ export function setupCore(options: {
     createOrUpdateUser,
   }: {
     name: Provider;
-    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile>;
+    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>;
   }): ProviderBuilders<Profile> => {
     if (boundProviderNames.has(name)) {
       throw new Error(
@@ -314,5 +342,5 @@ export function setupCore(options: {
     return { authMutation, authAction };
   };
 
-  return { signOut, refreshSession, isAuthenticated, bindProvider };
+  return { usersTable, signOut, refreshSession, isAuthenticated, bindProvider };
 }

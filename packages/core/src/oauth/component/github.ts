@@ -112,7 +112,10 @@ const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
  *
  * The `httpPrefix` alone determines the callback URL.
  */
-export function setupGithub(core: AuthCore, options: OauthProviderOptions) {
+export function setupGithub<UsersTable extends string>(
+  core: AuthCore<UsersTable>,
+  options: OauthProviderOptions,
+) {
   return {
     /**
      * Supply the app's create-or-update-user mutation (see
@@ -120,7 +123,11 @@ export function setupGithub(core: AuthCore, options: OauthProviderOptions) {
      * get this provider's functions to export.
      */
     attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<"github", GithubProfile>,
+      createOrUpdateUser: CreateOrUpdateUserFn<
+        "github",
+        GithubProfile,
+        UsersTable
+      >,
     ) {
       const { startSignIn, completeSignIn } = setupOauth(
         core,

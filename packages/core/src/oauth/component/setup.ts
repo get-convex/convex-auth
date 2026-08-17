@@ -146,12 +146,13 @@ function parseUrl(value: string): URL | null {
 export function setupOauth<
   Provider extends string,
   Profile extends { id: string },
+  UsersTable extends string,
   UserInfo extends Record<string, unknown> = Record<string, unknown>,
 >(
-  core: AuthCore,
+  core: AuthCore<UsersTable>,
   providerName: Provider,
   catalog: OauthCatalog<Profile, UserInfo>,
-  createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile>,
+  createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>,
   options: OauthProviderOptions,
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy

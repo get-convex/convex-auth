@@ -79,7 +79,10 @@ const googleCatalog: OauthCatalog<GoogleProfile> = {
  *
  * The `httpPrefix` alone determines the callback URL.
  */
-export function setupGoogle(core: AuthCore, options: OauthProviderOptions) {
+export function setupGoogle<UsersTable extends string>(
+  core: AuthCore<UsersTable>,
+  options: OauthProviderOptions,
+) {
   return {
     /**
      * Supply the app's create-or-update-user mutation (see
@@ -87,7 +90,11 @@ export function setupGoogle(core: AuthCore, options: OauthProviderOptions) {
      * get this provider's functions to export.
      */
     attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<"google", GoogleProfile>,
+      createOrUpdateUser: CreateOrUpdateUserFn<
+        "google",
+        GoogleProfile,
+        UsersTable
+      >,
     ) {
       const { startSignIn, completeSignIn } = setupOauth(
         core,

@@ -93,8 +93,8 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * user id back from it at sign-in. The password component itself stores only
  * `{ userId, passwordHash }` and knows nothing about usernames.
  */
-export function setupUsernamePassword(
-  core: AuthCore,
+export function setupUsernamePassword<UsersTable extends string>(
+  core: AuthCore<UsersTable>,
   options: UsernamePasswordOptions,
 ) {
   const { component, usernameComponent } = options;
@@ -108,7 +108,8 @@ export function setupUsernamePassword(
     attachUserCallback(
       createOrUpdateUser: CreateOrUpdateUserFn<
         "password",
-        { username: string }
+        { username: string },
+        UsersTable
       >,
     ) {
       const { authMutation } = core.bindProvider({

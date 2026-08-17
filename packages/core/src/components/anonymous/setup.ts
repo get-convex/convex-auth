@@ -27,8 +27,8 @@ const PROVIDER_NAME = "anonymous";
  * }).attachUserCallback(internal.users.createOrUpdateUser);
  * ```
  */
-export function setupAnonymous(
-  core: AuthCore,
+export function setupAnonymous<UsersTable extends string>(
+  core: AuthCore<UsersTable>,
   options: {
     /** The mounted anonymous component (`components.authAnonymous`). */
     component: ComponentApi;
@@ -45,7 +45,8 @@ export function setupAnonymous(
     attachUserCallback(
       createOrUpdateUser: CreateOrUpdateUserFn<
         "anonymous",
-        Record<string, never>
+        Record<string, never>,
+        UsersTable
       >,
     ) {
       const { authMutation } = core.bindProvider({

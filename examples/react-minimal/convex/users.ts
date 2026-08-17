@@ -6,16 +6,12 @@ export const createOrUpdateUser = internalMutation({
     provider: v.literal("anonymous"),
     providerAccountId: v.string(),
     profile: v.object({}),
-    userId: v.union(v.string(), v.null()),
+    userId: v.union(v.id("users"), v.null()),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
     if (args.userId !== null) {
-      const existing = ctx.db.normalizeId("users", args.userId);
-      if (existing === null) {
-        throw new Error(`Unknown user id: ${args.userId}`);
-      }
-      return existing;
+      return args.userId;
     }
     return ctx.db.insert("users", {});
   },

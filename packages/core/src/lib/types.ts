@@ -1,6 +1,6 @@
 import { FunctionReference } from "convex/server";
 
-import { Infer, v } from "convex/values";
+import { GenericId, Infer, v } from "convex/values";
 
 /**
  * Shared contracts that cross a module boundary within Convex Auth. That includes
@@ -198,8 +198,11 @@ export const vCreateOrUpdateUser = v.object({
  *    * The existing `userId` must be the return value.
  *
  * The application keeps ownership of its users table — the core only holds a
- * reference to this one mutation, and treats the returned user id as an
- * opaque string (so the table can have any name).
+ * reference to this one mutation, and treats the returned user id as an opaque
+ * string at runtime. At the type level the table is named by the `usersTable`
+ * option on `setupCore` (defaulting to `"users"`), which is what makes the
+ * callback's `userId` argument and return type `Id<usersTable>` rather than a
+ * bare string.
  *
  * If an application wants to reject a sign in, it can throw a `ConvexError`
  * and the entire sign in attempt will be blocked.
@@ -216,6 +219,7 @@ export const vCreateOrUpdateUser = v.object({
 export type CreateOrUpdateUserFn<
   Provider extends string,
   Profile,
+  UsersTable extends string = string,
 > = FunctionReference<
   "mutation",
   "internal",
@@ -223,9 +227,9 @@ export type CreateOrUpdateUserFn<
     provider: Provider;
     providerAccountId: string;
     profile: Profile;
-    userId: string | null;
+    userId: GenericId<UsersTable> | null;
   },
-  string
+  GenericId<UsersTable>
 >;
 
 /**

@@ -19,7 +19,7 @@ export const createOrUpdateUserAnonymous = internalMutation({
     provider: v.literal("anonymous"),
     providerAccountId: v.string(),
     profile: v.object({}),
-    userId: v.union(v.string(), v.null()),
+    userId: v.union(v.id("users"), v.null()),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
@@ -32,7 +32,7 @@ export const createOrUpdateUserPassword = internalMutation({
     provider: v.literal("password"),
     providerAccountId: v.string(),
     profile: v.object({ username: v.string() }),
-    userId: v.union(v.string(), v.null()),
+    userId: v.union(v.id("users"), v.null()),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
@@ -53,14 +53,10 @@ export const createOrUpdateUserPassword = internalMutation({
  */
 async function createOrUpdateUser(
   ctx: MutationCtx,
-  args: { userId: string | null; username?: string },
+  args: { userId: Id<"users"> | null; username?: string },
 ): Promise<Id<"users">> {
   if (args.userId !== null) {
-    const existing = ctx.db.normalizeId("users", args.userId);
-    if (existing === null) {
-      throw new Error(`Unknown user id: ${args.userId}`);
-    }
-    return existing;
+    return args.userId;
   }
   return await ctx.db.insert("users", { username: args.username });
 }
