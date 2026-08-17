@@ -18,7 +18,7 @@ export const {
     password: { signUpWithPassword, signInWithPassword },
   },
 } = setupCore({
-  component: components.core,
+  component: components.auth,
   providers: [
     provider(Anonymous, {
       component: components.authAnonymous,

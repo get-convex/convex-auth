@@ -10,7 +10,7 @@ const modules = import.meta.glob("../core/**/*.ts");
  */
 export function registerCore(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name: string = "core",
+  name: string = "auth",
 ) {
   t.registerComponent(name, schema, modules);
 }
