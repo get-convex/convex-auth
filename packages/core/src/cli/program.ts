@@ -74,23 +74,9 @@ app.use(auth, {
 export default app;
 `,
   "auth.ts": `import { components } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup.js";
+import { setupCore } from "@convex-dev/auth/core/setup";
 
-<<<<<<< HEAD
-export const {
-  signOut,
-  refreshSession,
-  providers: {
-    // TODO
-  },
-} = setupCore({
-  component: components.auth,
-  providers: [
-    // TODO
-  ],
-}).attachUserCallback(internal.users.createOrUpdateUser);
-=======
-const core = setupCore({ component: components.core });
+const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 // TODO Set up a login provider. For example:
@@ -99,7 +85,6 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 //     component: components.authPasswordProvider,
 //     usernameComponent: components.authUsername,
 //   }).attachUserCallback(internal.users.createOrUpdateUser);
->>>>>>> 0e178cb (Bring back setup functions)
 `,
 };
 
