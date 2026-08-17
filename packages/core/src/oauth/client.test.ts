@@ -279,8 +279,8 @@ describe("OAuth client", () => {
 
   test("a rejecting storage during redemption sets oauth_error", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
-    // Reject only the pending-flow read (an RN-style async storage failing);
-    // the client's own token reads stay healthy.
+    // Reject only the saved-flow read, the way an async storage might fail.
+    // The client's own token reads stay healthy.
     const storage: TokenStorage = {
       getItem: (key) =>
         key.startsWith("__convexAuthProvider_oauth_flow")
@@ -310,8 +310,8 @@ describe("OAuth client", () => {
     await client.init();
 
     expect(flowError()?.code).toBe("access_denied");
-    // Give the voided cleanup a beat to settle — a rejection escaping it
-    // would fail the run as unhandled.
+    // Give the cleanup a beat to settle. A rejection escaping it would fail
+    // the run as unhandled.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(flowError()?.code).toBe("access_denied");
   });

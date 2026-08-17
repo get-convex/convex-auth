@@ -54,9 +54,8 @@ export type OauthProviderRefs = {
  *
  * - `"access_denied"`: the user cancelled at the identity provider.
  * - `"expired"`: the flow took too long, or the code was already redeemed.
- * - `"rejected"`: the app's own backend refused the sign-in by throwing a
- *   `ConvexError` (e.g. from `createOrUpdateUser`); `message` carries the
- *   error's `data` when it is a string.
+ * - `"rejected"`: the app's own backend turned the sign-in down by throwing
+ *   a `ConvexError`.
  * - `"oauth_error"`: something else went wrong during the provider handshake,
  *   including failing to start it.
  * - `"invalid_flow"`: the callback arrived but this client has no saved flow,
@@ -205,15 +204,15 @@ async function takePendingFlow(
 }
 
 /**
- * Best-effort removal of the pending sign-in flow, for flows that already
- * ended. Failures are swallowed: the flow error the caller sets is the
- * signal, and a rejecting storage must not become an unhandled rejection.
+ * Remove the saved sign-in flow for a flow that already ended. A storage that
+ * rejects is ignored, because the caller has already recorded why the sign-in
+ * failed and a failed cleanup would only add an unhandled rejection.
  */
 async function dropPendingFlow(storage: SignInStorage): Promise<void> {
   try {
     await storage.remove(OAUTH_FLOW_STORAGE_KEY);
   } catch {
-    // The flow was already over; a failed cleanup changes nothing.
+    // Nothing to do. The flow was already over.
   }
 }
 
@@ -242,11 +241,9 @@ export function oauth(): AmbientSignInClient {
     };
 
     /**
-     * Map a thrown sign-in failure to its flow error. An app rejects a
-     * sign-in by throwing a `ConvexError` (the channel the core setup's
-     * `attachUserCallback` documents); its `data`, when a string, is the
-     * app's own user-facing copy. Anything else is a generic handshake
-     * failure.
+     * Turn a thrown sign-in failure into a flow error. An app turns a sign-in
+     * down by throwing a `ConvexError`, and a string `data` on it is the
+     * app's own copy for the user. Anything else is a generic failure.
      */
     const setThrownFlowError = (error: unknown): void => {
       if (error instanceof ConvexError) {
@@ -263,14 +260,14 @@ export function oauth(): AmbientSignInClient {
      * Redeem a callback `code` against the saved flow and adopt the session.
      * The whole thing runs inside `withSignInPending`, including
      * `setSession`, so the auth state stays on loading until the client is
-     * signed in rather than flickering through signed out. Never rejects:
-     * every failure becomes a flow error, so the fire-and-forget startup call
-     * is safe.
+     * signed in rather than flickering through signed out. It never rejects.
+     * Every failure becomes a flow error instead, so callers that don't await
+     * it are safe.
      */
     const completeFlow = async (code: string): Promise<boolean> =>
       await client.withSignInPending(async () => {
-        // The storage read sits inside the try so a rejecting custom storage
-        // is a flow error like any other completion failure.
+        // The storage read is inside the try so that a storage which rejects
+        // becomes a flow error like any other failure here.
         try {
           const pending = await takePendingFlow(storage);
           if (pending === null) {
@@ -377,8 +374,8 @@ export function oauth(): AmbientSignInClient {
         }
         return { redirect: url };
       } catch (error) {
-        // Failing to start still publishes the flow error, so UI bound to it
-        // shows feedback even when the caller ignores the rejection.
+        // Record the failure before rethrowing, so UI reading the flow error
+        // still shows something when the caller ignores the rejection.
         setThrownFlowError(error);
         throw error;
       }
