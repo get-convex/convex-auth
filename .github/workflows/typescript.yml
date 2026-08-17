@@ -48,3 +48,8 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # `tsc` does not compile the MDX content, thus a docs build is necessary
+      # to find syntax errors in the documentation.
+      - name: Build docs
+        run: pnpm --filter docs build
