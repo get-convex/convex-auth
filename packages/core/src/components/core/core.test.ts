@@ -14,12 +14,7 @@ import {
   getCreateOrUpdateUserCalls,
   resetCreateOrUpdateUserCalls,
 } from "./testApp";
-import { provider } from "./setup";
-import {
-  defineProvider,
-  type AuthClaims,
-  type TokenBundle,
-} from "../../lib/types";
+import { type AuthClaims, type TokenBundle } from "../../lib/types";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -346,23 +341,5 @@ describe("getUserIdByAccount", () => {
       providerAccountId: "alice",
     });
     expect(other).toBeNull();
-  });
-});
-
-describe("provider()", () => {
-  /** A minimal config whose options type the pairing must enforce. */
-  const Dummy = defineProvider({
-    name: "dummy",
-    setup: (_helpers, options: { limit: number }) => ({ options }),
-  });
-
-  test("pairs a config with its options and rejects unknown options", () => {
-    const paired = provider(Dummy, { limit: 1 });
-    expect(paired).toEqual([Dummy, { limit: 1 }]);
-    provider(Dummy, {
-      limit: 1,
-      // @ts-expect-error — unknown options must error, not be silently ignored
-      unknownOption: true,
-    });
   });
 });

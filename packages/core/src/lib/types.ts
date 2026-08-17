@@ -1,8 +1,4 @@
-import {
-  FunctionReference,
-  GenericActionCtx,
-  GenericDataModel,
-} from "convex/server";
+import { FunctionReference } from "convex/server";
 
 import { GenericId, Infer, v } from "convex/values";
 
@@ -135,7 +131,7 @@ export type IsAuthenticatedFn = FunctionReference<
 >;
 
 /**
- * The auth mutations the app exports from `setupCore(...).attachUserCallback`.
+ * The auth mutations the app exports from `setupCore`.
  * Passed as references (not names) because an app may re-export them under any
  * names. Consumed by both SPA and SSR implementations.
  */
@@ -182,120 +178,94 @@ export const vCreateOrUpdateUser = v.object({
   userId: v.union(v.string(), v.null()),
 });
 
-export type CreateOrUpdateUserFn<Provider extends string> = FunctionReference<
+/**
+ * The type of an app defined create-or-update-user mutation.
+ *
+ * This is the core entrypoint for an application to integrate its user model
+ * with Convex Auth. Apps install one per provider, via that provider's
+ * `attachUserCallback`, typed with that provider's exact name and profile
+ * shape.
+ *
+ * It will be called in two scenarios, both associated with a user signing in:
+ *
+ *  1. The first time a user signs in with an account from a provider.
+ *    * The `userId` argument will be `null` in this case.
+ *    * The application should create a new user record and return its `_id`
+ *  2. Subsequent sign ins from a provider
+ *    * The `userId` argument will be present.
+ *    * The application may use the data in `profile` to update or otherwise
+ *      modify the stored user record.
+ *    * The existing `userId` must be the return value.
+ *
+ * The application keeps ownership of its users table — the core only holds a
+ * reference to this one mutation, and treats the returned user id as an opaque
+ * string at runtime. At the type level the table is named by the `usersTable`
+ * option on `setupCore` (defaulting to `"users"`), which is what makes the
+ * callback's `userId` argument and return type `Id<usersTable>` rather than a
+ * bare string.
+ *
+ * If an application wants to reject a sign in, it can throw a `ConvexError`
+ * and the entire sign in attempt will be blocked.
+ *
+ * The mutation's args must be declared with the provider's *exact* literal
+ * types (e.g. `provider: v.literal("password")`, `profile: v.object({ username:
+ * v.string() })`).
+ *
+ * One mutation shared across providers, declaring a union of provider names,
+ * is runtime-safe but does not typecheck, because `FunctionReference` args
+ * compare covariantly. For shared logic, define one thin mutation per provider
+ * that delegates to a plain shared function.
+ */
+export type CreateOrUpdateUserFn<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = FunctionReference<
   "mutation",
   "internal",
   {
     provider: Provider;
     providerAccountId: string;
-    // TODO: dowski - investigate type safety for provider profile data.
-    profile: unknown;
-    userId: string | null;
+    profile: Profile;
+    userId: GenericId<UsersTable> | null;
   },
-  GenericId<"users">
+  GenericId<UsersTable>
 >;
 
 /**
- * The subset of a Convex `ctx` that {@link CompleteSignInFunc} needs. It only
- * calls `runMutation`, so accepting this structural type lets a provider
- * complete sign in from either a mutation or an action.
- */
-type RunMutationCtx = Pick<GenericActionCtx<GenericDataModel>, "runMutation">;
-
-/**
- * The subset of a Convex `ctx` that {@link ResolveUserIdFunc} needs. It only
- * calls `runQuery`, so accepting this structural type lets a provider resolve
- * a user id from either a mutation or an action.
- */
-type RunQueryCtx = Pick<GenericActionCtx<GenericDataModel>, "runQuery">;
-
-/**
- * Exchanges verified auth claims for a bundle.
- */
-export type CompleteSignInFunc = (
-  ctx: RunMutationCtx,
-  claims: AuthClaims,
-) => Promise<TokenBundle>;
-
-/**
- * A function that finds the user ID a provider account ID is associated with
- * (bound to a particular provider).
+ * The helpers that `authMutation`/`authAction` inject onto `ctx` for a
+ * provider's handlers.
  *
- * This does not mint a session or edit any data.
+ * This API is used for building auth providers.
  */
-export type ResolveUserIdFunc = (
-  ctx: RunQueryCtx,
-  providerAccountId: string,
-) => Promise<string | null>;
-
-export type ProviderHelpers = {
-  completeSignIn: CompleteSignInFunc;
-  resolveUserId: ResolveUserIdFunc;
-};
-
-type ProviderSetupFunc<O, P> = (helpers: ProviderHelpers, options: O) => P;
-
-export type ProviderConfig<N extends string, O, P> = {
+export type BoundAuthHelpers<Profile> = {
   /**
-   * The name of this provider.
+   * Exchange a verified account identity for a session.
    *
-   * This value will be persisted the `accounts` table and passed to
-   * the {@link CreateOrUpdateUserFn}.
+   * Call this once the provider has authenticated an account its own way
+   * (checking a password, say). It resolves (or creates) the account and its
+   * app user via an app-provided create-or-update-user callback, mints a
+   * session, and returns the tokens a client needs to make authenticated
+   * calls.
    */
-  // TODO: consider making the component more first-class in the API and using its name.
-  name: N;
+  completeSignIn(args: {
+    providerAccountId: string;
+    profile: Profile;
+  }): Promise<TokenBundle>;
   /**
-   * Convex Auth will call this function to setup this provider.
+   * Look up the app user id for a given `providerAccountId`.
    *
-   * It should return an object of names to Convex functions that will
-   * make up the public API surface of the provider. The provider APIs
-   * should be exported by application code so they are callable by
-   * client code. The API is responsible for authenticating a user and
-   * triggering the completion of sign in.
-   *
-   * It will be passed a {@link ProviderHelpers} bundle, provided by Convex
-   * Auth. `completeSignIn` accepts claims from a provider, establishes a
-   * session and returns the tokens required for a client application to make
-   * authenticated calls to Convex functions; the provider function that
-   * completes an authentication flow should call it once it has authenticated
-   * an account and return the result. `resolveUserId` looks up the app user id
-   * behind one of this provider's account identifiers without minting a session
-   * (e.g. to find the user a password should be verified against).
-   *
-   * It will also receive any `options` that the provider defined.
+   * Returns `null` when no user id is found for the account.
    */
-  setup: ProviderSetupFunc<O, P>;
+  resolveUserId(providerAccountId: string): Promise<string | null>;
 };
 
 /**
- * A convenience function for defining a `ProviderConfig`.
+ * The ctx additions that `authMutation`/`authAction` provide to provider
+ * handlers.
  *
- * Call it like:
- *
- * ```typescript
- * const FooProvider = defineProvider(
- *   {
- *     name: "foo",
- *     setup: ({ completeSignIn, resolveUserId }, options: {limit: number}) => {
- *       return {
- *         login: actionGeneric({
- *           args: {},
- *           handler: async (ctx, args) => {
- *             // Do your login magic here.
- *             const claims = await authenticateFoo(args, options.limit);
- *             return completeSignIn(ctx, claims);
- *           }
- *         })
- *       }
- *     },
- *   }
- * );
- * ```
- *
- * All of the generic types are inferred from the passed in object.
+ * The {@link BoundAuthHelpers} are available under `ctx.convexAuth`.
  */
-export function defineProvider<const N extends string, O, P>(
-  config: ProviderConfig<N, O, P>,
-): ProviderConfig<N, O, P> {
-  return config;
-}
+export type ConvexAuthCtx<Profile> = {
+  convexAuth: BoundAuthHelpers<Profile>;
+};

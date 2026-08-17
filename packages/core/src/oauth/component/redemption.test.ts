@@ -1,30 +1,41 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { makeFunctionReference } from "convex/server";
+import { makeFunctionReference, mutationGeneric } from "convex/server";
+import type { PropertyValidators } from "convex/values";
 import { api, internal } from "./_generated/api.js";
 import type { ComponentApi } from "./_generated/component.js";
 import schema from "./schema.js";
 import { setupOauth, type OauthProfile } from "./setup";
 import { encryptTicketPayload, generateRandomToken } from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
-import type { AuthClaims, ProviderHelpers, TokenBundle } from "../../lib/types";
+import type {
+  AuthClaims,
+  BoundAuthHelpers,
+  TokenBundle,
+} from "../../lib/types";
+import type {
+  AuthActionBuilder,
+  AuthCore,
+  AuthMutationBuilder,
+  ProviderBuilders,
+} from "../../components/core/setup";
 
 /**
  * Tests for the app-side `completeSignIn` mutation that `setupOauth`
  * produces, run against the real component (real `claimTicket`, real ticket
- * crypto). The helpers that turn verified claims into a session
- * (`helpers.completeSignIn`) are faked and spied here. The real helpers are
+ * crypto). The core helper that turns verified claims into a session
+ * (`ctx.convexAuth.completeSignIn`) is faked and spied here. The real one is
  * covered by the core's own suite (components/core/core.test.ts).
  */
 
 /**
- * Claims recorded by the fake `helpers.completeSignIn`. The suite runs in
- * one process, so tests read and reset this directly.
+ * Claims recorded by the fake `ctx.convexAuth.completeSignIn`. The suite runs
+ * in one process, so tests read and reset this directly.
  */
 const completeSignInCalls: AuthClaims[] = [];
 
 /**
- * When set, the fake `helpers.completeSignIn` throws this instead of
+ * When set, the fake `ctx.convexAuth.completeSignIn` throws this instead of
  * returning a bundle, modeling the app rejecting the sign-in from its
  * `createOrUpdateUser` callback.
  */
@@ -40,19 +51,50 @@ const FAKE_BUNDLE: TokenBundle = {
 };
 
 /**
- * Fake {@link ProviderHelpers}. `resolveUserId` is never reached by
- * redemption.
+ * A fake core whose builders inject fake {@link BoundAuthHelpers}.
+ * `resolveUserId` is never reached by redemption.
  */
-const fakeHelpers: ProviderHelpers = {
-  completeSignIn: async (_ctx, claims) => {
-    completeSignInCalls.push({ ...claims });
-    if (helperFailure.error !== undefined) {
-      throw helperFailure.error;
-    }
-    return FAKE_BUNDLE;
+const FAKE_CORE = {
+  bindProvider: <Provider extends string, Profile>({
+    name,
+  }: {
+    name: Provider;
+  }): ProviderBuilders<Profile> => {
+    const convexAuth: BoundAuthHelpers<Profile> = {
+      completeSignIn: async ({ providerAccountId, profile }) => {
+        completeSignInCalls.push({
+          provider: name,
+          providerAccountId,
+          profile,
+        });
+        if (helperFailure.error !== undefined) {
+          throw helperFailure.error;
+        }
+        return FAKE_BUNDLE;
+      },
+      resolveUserId: async () => null,
+    };
+    const authMutation: AuthMutationBuilder<Profile> = (fn) =>
+      mutationGeneric({
+        args: fn.args as PropertyValidators,
+        returns: fn.returns,
+        handler: (ctx, args) =>
+          fn.handler(
+            { ...ctx, convexAuth },
+            args as Parameters<typeof fn.handler>[1],
+          ),
+      });
+    const authAction: AuthActionBuilder<Profile> = () => {
+      throw new Error("redemption does not build actions");
+    };
+    return { authMutation, authAction };
   },
-  resolveUserId: async () => null,
-};
+} as unknown as AuthCore;
+
+/**
+ * A create-or-update-user callback reference. The fake core never invokes it.
+ */
+const FAKE_CALLBACK = {} as never;
 
 /**
  * Provider options for every instance under test. The component's own
@@ -94,7 +136,10 @@ const USERINFO_CATALOG = {
   profile: ((_claims, userInfoResponses) => ({
     id: String(userInfoResponses!.user.id),
     login: userInfoResponses!.user.login,
-  })) satisfies OauthProfile<{ user: { id: number; login: string } }>,
+  })) satisfies OauthProfile<
+    { id: string; login: string },
+    { user: { id: number; login: string } }
+  >,
 };
 
 /** A catalog whose profile mapping returns an empty id. */
@@ -123,24 +168,32 @@ const MISSING_ID_CATALOG = {
  * public mutations into the component's generated API.
  */
 const testApp = {
-  completeSignInAcme: setupOauth("acme", CLAIMS_CATALOG, fakeHelpers, OPTIONS)
-    .completeSignIn,
+  completeSignInAcme: setupOauth(
+    FAKE_CORE,
+    "acme",
+    CLAIMS_CATALOG,
+    FAKE_CALLBACK,
+    OPTIONS,
+  ).completeSignIn,
   completeSignInAcmeInfo: setupOauth(
+    FAKE_CORE,
     "acmeInfo",
     USERINFO_CATALOG,
-    fakeHelpers,
+    FAKE_CALLBACK,
     OPTIONS,
   ).completeSignIn,
   completeSignInEmptyId: setupOauth(
+    FAKE_CORE,
     "emptyId",
     EMPTY_ID_CATALOG,
-    fakeHelpers,
+    FAKE_CALLBACK,
     OPTIONS,
   ).completeSignIn,
   completeSignInMissingId: setupOauth(
+    FAKE_CORE,
     "missingId",
     MISSING_ID_CATALOG,
-    fakeHelpers,
+    FAKE_CALLBACK,
     OPTIONS,
   ).completeSignIn,
 };

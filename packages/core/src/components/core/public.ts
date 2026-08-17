@@ -6,7 +6,7 @@ import {
   env,
 } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
-import { v } from "convex/values";
+import { GenericId, v } from "convex/values";
 import { FunctionHandle } from "convex/server";
 import {
   vAuthClaims,
@@ -146,10 +146,22 @@ async function issueSession(
 }
 
 type CreateOrUpdateUserFunctionHandle = FunctionHandle<
-  CreateOrUpdateUserFn<string>["_type"],
-  CreateOrUpdateUserFn<string>["_args"],
-  CreateOrUpdateUserFn<string>["_returnType"]
+  CreateOrUpdateUserFn<string, unknown>["_type"],
+  CreateOrUpdateUserFn<string, unknown>["_args"],
+  CreateOrUpdateUserFn<string, unknown>["_returnType"]
 >;
+
+/**
+ * Type the given userId string as a {@link GenericId}.
+ *
+ * The core stores app user ids as opaque strings and has no access to the
+ * app's data model. The type for user-supplied callbacks types them as
+ * `Id<usersTable>` for the app's benefit, so re-brand on the way back out. The
+ * value is the same string either way.
+ */
+function asUserId(userId: string): GenericId<string> {
+  return userId as GenericId<string>;
+}
 
 /**
  * Resolve a provider identity to its account, creating one (and the app user
@@ -185,7 +197,7 @@ async function resolveAccount(
           provider: claims.provider,
           providerAccountId: claims.providerAccountId,
           profile: claims.profile,
-          userId: account.userId,
+          userId: asUserId(account.userId),
         }))
       ) {
         throw new Error(

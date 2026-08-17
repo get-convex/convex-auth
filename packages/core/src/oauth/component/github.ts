@@ -1,5 +1,6 @@
 import { Infer, v } from "convex/values";
-import { defineProvider } from "../../lib/types";
+import type { CreateOrUpdateUserFn } from "../../lib/types";
+import type { AuthCore } from "../../components/core/setup";
 import {
   setupOauth,
   type OauthCatalog,
@@ -49,10 +50,10 @@ type GithubUser = {
 type GithubUserInfo = { user: GithubUser; emails: GithubEmail[] };
 
 /** Map GitHub's userinfo responses to {@link GithubProfile}. */
-export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
-  _claims,
-  userInfoResponses,
-) => {
+export const normalizeGithubProfile: OauthProfile<
+  GithubProfile,
+  GithubUserInfo
+> = (_claims, userInfoResponses) => {
   const user = userInfoResponses?.user;
   if (user === undefined) {
     throw new Error("GitHub userinfo response is missing the `user` entry");
@@ -78,7 +79,7 @@ export const normalizeGithubProfile: OauthProfile<GithubUserInfo> = (
 };
 
 /** GitHub's endpoints, scopes, and profile mapping. */
-const githubCatalog: OauthCatalog<GithubUserInfo> = {
+const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
   authorizationEndpoint: "https://github.com/login/oauth/authorize",
   tokenEndpoint: "https://github.com/login/oauth/access_token",
   scopes: ["read:user", "user:email"],
@@ -91,14 +92,14 @@ const githubCatalog: OauthCatalog<GithubUserInfo> = {
 };
 
 /**
- * Built-in GitHub OAuth provider. Register it with its own oauth component
+ * Built-in GitHub OAuth provider. Wire it up with its own oauth component
  * instance:
  *
  * ```ts
- * provider(OauthGithub, {
+ * export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
  *   component: components.oauthGithub,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
- * })
+ * }).attachUserCallback(internal.users.createOrUpdateGithubUser);
  * ```
  *
  * Setup:
@@ -111,18 +112,34 @@ const githubCatalog: OauthCatalog<GithubUserInfo> = {
  *
  * The `httpPrefix` alone determines the callback URL.
  */
-export const OauthGithub = defineProvider({
-  name: "github",
-  setup: (helpers, options: OauthProviderOptions) => {
-    const { startSignIn, completeSignIn } = setupOauth(
-      "github",
-      githubCatalog,
-      helpers,
-      options,
-    );
-    return {
-      startSignInGithub: startSignIn,
-      completeSignInGithub: completeSignIn,
-    };
-  },
-});
+export function setupGithub<UsersTable extends string>(
+  core: AuthCore<UsersTable>,
+  options: OauthProviderOptions,
+) {
+  return {
+    /**
+     * Supply the app's create-or-update-user mutation (see
+     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
+     * get this provider's functions to export.
+     */
+    attachUserCallback(
+      createOrUpdateUser: CreateOrUpdateUserFn<
+        "github",
+        GithubProfile,
+        UsersTable
+      >,
+    ) {
+      const { startSignIn, completeSignIn } = setupOauth(
+        core,
+        "github",
+        githubCatalog,
+        createOrUpdateUser,
+        options,
+      );
+      return {
+        startSignInGithub: startSignIn,
+        completeSignInGithub: completeSignIn,
+      };
+    },
+  };
+}

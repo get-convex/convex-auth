@@ -1,31 +1,26 @@
 import { components, internal } from "./_generated/api";
-import { provider, setupCore } from "@convex-dev/auth/core/setup";
-import { Anonymous } from "@convex-dev/auth/providers/anonymous/setup";
-import { UsernamePassword } from "@convex-dev/auth/providers/password/setup";
+import { setupCore } from "@convex-dev/auth/core/setup";
+import { setupAnonymous } from "@convex-dev/auth/providers/anonymous/setup";
+import { setupUsernamePassword } from "@convex-dev/auth/providers/password/setup";
 
-// The core owns sessions, accounts, and JWT minting. It calls back into our
-// `createOrUpdateUser` on every sign-in. Each provider exposes the functions its
-// client hooks call: `signInAnonymous` for the anonymous provider,
-// `signUpWithPassword` / `signInWithPassword` for the password one. Under SSR
-// those calls go through the auth proxy, which needs each one listed in `signIn`
-// in src/lib/serverAuth.ts.
-export const {
-  signOut,
-  refreshSession,
-  isAuthenticated,
-  providers: {
-    anonymous: { signInAnonymous },
-    password: { signUpWithPassword, signInWithPassword },
+// The core owns sessions, accounts, and JWT minting. Each provider is wired to
+// it with its own setup function, and only hands back its functions once the
+// app attaches the callback that creates its user rows. Each provider exposes
+// the functions its client hooks call: `signInAnonymous` for the anonymous
+// provider, `signUpWithPassword` / `signInWithPassword` for the password one.
+// Under SSR those calls get proxied to Convex via the SSR host. The sign-in
+// functions exposed here are wired up to be proxied in src/lib/serverAuth.ts.
+const core = setupCore({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = core;
+
+export const { signInAnonymous } = setupAnonymous(core, {
+  component: components.authAnonymous,
+}).attachUserCallback(internal.users.createOrUpdateUserAnonymous);
+
+export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
+  core,
+  {
+    component: components.authPasswordProvider,
+    usernameComponent: components.authUsername,
   },
-} = setupCore({
-  component: components.auth,
-  providers: [
-    provider(Anonymous, {
-      component: components.authAnonymous,
-    }),
-    provider(UsernamePassword, {
-      component: components.authPasswordProvider,
-      usernameComponent: components.authUsername,
-    }),
-  ],
-}).attachUserCallback(internal.users.createOrUpdateUser);
+).attachUserCallback(internal.users.createOrUpdateUserPassword);

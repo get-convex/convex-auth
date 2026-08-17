@@ -1,10 +1,10 @@
-import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import {
-  defineProvider,
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
+  type CreateOrUpdateUserFn,
 } from "../../lib/types";
+import type { AuthCore } from "../core/setup";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
@@ -17,8 +17,11 @@ import {
   verifyPasswordUserError,
 } from "./validation";
 
+// TODO: derive this from the component mount path rather than hardcoding it.
+const PROVIDER_NAME = "password";
+
 /**
- * Options for {@link UsernamePassword}.
+ * Options for {@link setupUsernamePassword}.
  */
 export type UsernamePasswordOptions = {
   /**
@@ -33,9 +36,6 @@ export type UsernamePasswordOptions = {
    */
   usernameComponent: UsernameComponentApi;
 };
-
-// TODO: derive this from the component mount path rather than hardcoding it.
-const PROVIDER_NAME = "password";
 
 const signInResult = v.union(
   vSignInSuccess,
@@ -72,18 +72,17 @@ export type SignUpResult = Infer<typeof signUpResult>;
 
 /**
  * The simplest password recipe: every account is a `(username, password)` pair,
- * with no email or email verification. Wire it into `setupCore`:
+ * with no email or email verification. Wire it up in `convex/auth.ts`:
  *
  * ```ts
- * setupCore({
- *   component: components.auth,
- *   providers: [
- *     provider(UsernamePassword, {
- *       component: components.authPasswordProvider,
- *       usernameComponent: components.authUsername,
- *     }),
- *   ],
- * }).attachUserCallback(internal.users.upsertFromAuth);
+ * const core = setupCore({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = core;
+ *
+ * export const { signUpWithPassword, signInWithPassword } =
+ *   setupUsernamePassword(core, {
+ *     component: components.authPasswordProvider,
+ *     usernameComponent: components.authUsername,
+ *   }).attachUserCallback(internal.users.createOrUpdateUser);
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
@@ -94,137 +93,161 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * user id back from it at sign-in. The password component itself stores only
  * `{ userId, passwordHash }` and knows nothing about usernames.
  */
-export const UsernamePassword = defineProvider({
-  name: PROVIDER_NAME,
-  setup: ({ completeSignIn }, options: UsernamePasswordOptions) => {
-    const { component, usernameComponent } = options;
+export function setupUsernamePassword<UsersTable extends string>(
+  core: AuthCore<UsersTable>,
+  options: UsernamePasswordOptions,
+) {
+  const { component, usernameComponent } = options;
 
-    return {
-      /**
-       * Create a new account: reject a taken username or an invalid password,
-       * otherwise create the user + session and store the username and the
-       * password.
-       */
-      signUpWithPassword: mutationGeneric({
-        args: { username: v.string(), password: v.string() },
-        returns: signUpResult,
-        handler: async (ctx, { username, password }): Promise<SignUpResult> => {
-          // Validate the username and the password *before* creating
-          // anything, so invalid input never mints a session.
-          // (`setUsername` and `setPassword` do the same checks again, but by
-          // then the account would already exist.)
-          // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
-          const usernameError = validateUsernameFormat(username);
-          if (usernameError !== null) {
-            return { success: false, userError: usernameError };
-          }
-          const userError = validatePasswordInputFormat(password);
-          if (userError !== null) {
-            return { success: false, userError };
-          }
+  return {
+    /**
+     * Supply the app's create-or-update-user mutation (see
+     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
+     * get this provider's functions to export.
+     */
+    attachUserCallback(
+      createOrUpdateUser: CreateOrUpdateUserFn<
+        "password",
+        { username: string },
+        UsersTable
+      >,
+    ) {
+      const { authMutation } = core.bindProvider({
+        name: PROVIDER_NAME,
+        createOrUpdateUser,
+      });
 
-          const existing = await ctx.runQuery(
-            usernameComponent.public.getUserIdByUsername,
-            { username },
-          );
-          if (existing !== null) {
-            return { success: false, userError: { error: "USERNAME_TAKEN" } };
-          }
+      return {
+        /**
+         * Create a new account: reject a taken username or an invalid password,
+         * otherwise create the user + session and store the username and the
+         * password.
+         */
+        signUpWithPassword: authMutation({
+          args: { username: v.string(), password: v.string() },
+          returns: signUpResult,
+          handler: async (
+            ctx,
+            { username, password },
+          ): Promise<SignUpResult> => {
+            // Validate the username and the password *before* creating
+            // anything, so invalid input never mints a session.
+            // (`setUsername` and `setPassword` do the same checks again, but by
+            // then the account would already exist.)
+            // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
+            const usernameError = validateUsernameFormat(username);
+            if (usernameError !== null) {
+              return { success: false, userError: usernameError };
+            }
+            const userError = validatePasswordInputFormat(password);
+            if (userError !== null) {
+              return { success: false, userError };
+            }
 
-          // Create the account + app user (via the app's createOrUpdateUser)
-          // and mint the session. Password accounts are keyed by the app user
-          // id, which does not exist before this call mints it, hence the
-          // placeholder; sign-in passes the user id itself. `profile.username`
-          // keeps the original casing for display.
-          //
-          // TODO(nicolas) The app's `createOrUpdateUser` callback should not
-          // receive a provider account ID for the password provider at all:
-          // the value is an internal key ("" at sign-up, the user id
-          // afterwards) with no meaning to the app. We will probably improve
-          // this when providers support typesafe profiles.
-          const tokens = await completeSignIn(ctx, {
-            provider: PROVIDER_NAME,
-            providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-            profile: { username },
-          });
-
-          const setUsernameResult = await ctx.runMutation(
-            usernameComponent.public.setUsername,
-            { userId: tokens.userId, username },
-          );
-          if (!setUsernameResult.success) {
-            // Unexpected: we validated the username above, and this handler
-            // is a mutation, thus the check for a conflict above and this
-            // call are in the same transaction.
-            // Throwing so that the transaction doesn’t commit.
-            throw new Error(
-              "Unexpected error when setting the username: " +
-                setUsernameResult.userError.error,
-              { cause: setUsernameResult.userError },
+            const existing = await ctx.runQuery(
+              usernameComponent.public.getUserIdByUsername,
+              { username },
             );
-          }
+            if (existing !== null) {
+              return { success: false, userError: { error: "USERNAME_TAKEN" } };
+            }
 
-          const setResult = await ctx.runMutation(
-            component.public.setPassword,
-            {
-              userId: tokens.userId,
-              password,
-            },
-          );
-          if (!setResult.success) {
-            // Unexpected: we pre-validated the password above,
-            // so this call should not fail.
-            // Throwing so that the transaction doesn’t commit.
+            // Create the account + app user (via the app's createOrUpdateUser)
+            // and mint the session. Password accounts are keyed by the app user
+            // id, which does not exist before this call mints it, hence the
+            // placeholder; sign-in passes the user id itself. `profile.username`
+            // keeps the original casing for display.
             //
-            // TODO(nicolas) can we improve this?
-            throw new Error(
-              "Unexpected error when setting the password: " + userError,
-              { cause: userError },
+            // TODO(nicolas) The app's `createOrUpdateUser` callback should not
+            // receive a provider account ID for the password provider at all:
+            // the value is an internal key ("" at sign-up, the user id
+            // afterwards) with no meaning to the app. We will probably improve
+            // this when providers support typesafe profiles.
+            const tokens = await ctx.convexAuth.completeSignIn({
+              providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
+              profile: { username },
+            });
+
+            const setUsernameResult = await ctx.runMutation(
+              usernameComponent.public.setUsername,
+              { userId: tokens.userId, username },
             );
-          }
+            if (!setUsernameResult.success) {
+              // Unexpected: we validated the username above, and this handler
+              // is a mutation, thus the check for a conflict above and this
+              // call are in the same transaction.
+              // Throwing so that the transaction doesn’t commit.
+              throw new Error(
+                "Unexpected error when setting the username: " +
+                  setUsernameResult.userError.error,
+                { cause: setUsernameResult.userError },
+              );
+            }
 
-          return { success: true, tokens };
-        },
-      }),
+            const setResult = await ctx.runMutation(
+              component.public.setPassword,
+              {
+                userId: tokens.userId,
+                password,
+              },
+            );
+            if (!setResult.success) {
+              // Unexpected: we pre-validated the password above,
+              // so this call should not fail.
+              // Throwing so that the transaction doesn’t commit.
+              //
+              // TODO(nicolas) can we improve this?
+              throw new Error(
+                "Unexpected error when setting the password: " + userError,
+                { cause: userError },
+              );
+            }
 
-      /**
-       * Verify an existing account's password and, on success, mint a session.
-       * Returns `USER_NOT_FOUND` when the username has no account and
-       * `INVALID_CREDENTIALS` when the password is wrong, so callers can tell
-       * the two apart. (Account existence is already observable via sign-up's
-       * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
-       */
-      signInWithPassword: mutationGeneric({
-        args: { username: v.string(), password: v.string() },
-        returns: signInResult,
-        handler: async (ctx, { username, password }): Promise<SignInResult> => {
-          const userId = await ctx.runQuery(
-            usernameComponent.public.getUserIdByUsername,
-            { username },
-          );
-          if (userId === null) {
-            return {
-              success: false,
-              userError: { error: "USER_NOT_FOUND" },
-            };
-          }
+            return { success: true, tokens };
+          },
+        }),
 
-          const verifyResult = await ctx.runMutation(
-            component.public.verifyPassword,
-            { userId, password },
-          );
-          if (!verifyResult.success) {
-            return { success: false, userError: verifyResult.userError };
-          }
+        /**
+         * Verify an existing account's password and, on success, mint a session.
+         * Returns `USER_NOT_FOUND` when the username has no account and
+         * `INVALID_CREDENTIALS` when the password is wrong, so callers can tell
+         * the two apart. (Account existence is already observable via sign-up's
+         * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
+         */
+        signInWithPassword: authMutation({
+          args: { username: v.string(), password: v.string() },
+          returns: signInResult,
+          handler: async (
+            ctx,
+            { username, password },
+          ): Promise<SignInResult> => {
+            const userId = await ctx.runQuery(
+              usernameComponent.public.getUserIdByUsername,
+              { username },
+            );
+            if (userId === null) {
+              return {
+                success: false,
+                userError: { error: "USER_NOT_FOUND" },
+              };
+            }
 
-          const tokens = await completeSignIn(ctx, {
-            provider: PROVIDER_NAME,
-            providerAccountId: userId,
-            profile: { username },
-          });
-          return { success: true, tokens };
-        },
-      }),
-    };
-  },
-});
+            const verifyResult = await ctx.runMutation(
+              component.public.verifyPassword,
+              { userId, password },
+            );
+            if (!verifyResult.success) {
+              return { success: false, userError: verifyResult.userError };
+            }
+
+            const tokens = await ctx.convexAuth.completeSignIn({
+              providerAccountId: userId,
+              profile: { username },
+            });
+            return { success: true, tokens };
+          },
+        }),
+      };
+    },
+  };
+}

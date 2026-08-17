@@ -2,9 +2,10 @@ import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
 import {
   vTokenBundle,
-  type ProviderHelpers,
+  type CreateOrUpdateUserFn,
   type TokenBundle,
 } from "../../lib/types";
+import type { AuthCore } from "../../components/core/setup";
 import type { ComponentApi } from "./_generated/component.js";
 import {
   decryptTicketPayload,
@@ -34,17 +35,21 @@ export type OidcClaims = {
  * `userInfoEndpoints`). `id` becomes the provider account id. Supplied by
  * each provider's catalog (see `google.ts`, `github.ts`).
  *
+ * `Profile` is the exact shape the mapping emits, which is what the app's
+ * create-or-update-user callback receives.
+ *
  * `UserInfo` is the catalog's declared shape for the userinfo responses,
  * keyed like `userInfoEndpoints`. It types what the provider is trusted to
  * return. The responses are provider-attested JSON and are not validated
  * against it at runtime.
  */
 export type OauthProfile<
+  Profile extends { id: string } = { id: string } & Record<string, unknown>,
   UserInfo extends Record<string, unknown> = Record<string, unknown>,
 > = (
   claims: OidcClaims | undefined,
   userInfoResponses: UserInfo | undefined,
-) => { id: string; [key: string]: unknown };
+) => Profile;
 
 /**
  * Provider-defined config for interacting with an individual OAuth provider.
@@ -54,6 +59,7 @@ export type OauthProfile<
  * {@link OauthProfile}).
  */
 export type OauthCatalog<
+  Profile extends { id: string } = { id: string } & Record<string, unknown>,
   UserInfo extends Record<string, unknown> = Record<string, unknown>,
 > = {
   /**
@@ -89,7 +95,7 @@ export type OauthCatalog<
    */
   pkce: boolean;
   /** Map the provider's attested identity to the account profile. */
-  profile: OauthProfile<UserInfo>;
+  profile: OauthProfile<Profile, UserInfo>;
 };
 
 /**
@@ -138,11 +144,15 @@ function parseUrl(value: string): URL | null {
  * TODO: support response_mode=form_post (Apple) before launch.
  */
 export function setupOauth<
+  Provider extends string,
+  Profile extends { id: string },
+  UsersTable extends string,
   UserInfo extends Record<string, unknown> = Record<string, unknown>,
 >(
-  providerName: string,
-  catalog: OauthCatalog<UserInfo>,
-  helpers: ProviderHelpers,
+  core: AuthCore<UsersTable>,
+  providerName: Provider,
+  catalog: OauthCatalog<Profile, UserInfo>,
+  createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>,
   options: OauthProviderOptions,
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy
@@ -182,6 +192,11 @@ export function setupOauth<
       `Provider "${providerName}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
     );
   }
+
+  const { authMutation } = core.bindProvider({
+    name: providerName,
+    createOrUpdateUser,
+  });
 
   /**
    * Start an OAuth sign-in. The server mints `state` and returns it;
@@ -258,7 +273,9 @@ export function setupOauth<
    * `createOrUpdateUser`) rolls back the ticket claim. Only a
    * successful redemption consumes the ticket.
    */
-  const completeSignIn = mutationGeneric({
+  // TODO: dowski - return the shared `vSignInSuccess` envelope like the other
+  // providers do, instead of a bare bundle or null.
+  const completeSignIn = authMutation({
     args: {
       code: v.string(),
       state: v.string(),
@@ -294,8 +311,7 @@ export function setupOauth<
         );
       }
 
-      return await helpers.completeSignIn(ctx, {
-        provider: providerName,
+      return await ctx.convexAuth.completeSignIn({
         providerAccountId: profile.id,
         profile,
       });
