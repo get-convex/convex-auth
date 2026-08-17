@@ -18,6 +18,11 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
+import {
+  registerProviderClientSetups,
+  type AuthProviderClientSetup,
+  type AuthSignInApi,
+} from "../browser/providerSetup";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
 import type { ConvexAuthApi } from "../lib/types";
@@ -26,11 +31,11 @@ import {
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
-  type AuthSignInApi,
 } from "./client";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+export type { AuthProviderClientSetup } from "../browser/providerSetup";
 export type { TokenStorage } from "../browser/storage";
 export type { ConvexAuthApi, TokenBundle } from "../lib/types";
 export type { ConvexAuthActionsContextType } from "./client";
@@ -57,12 +62,24 @@ export { useAuthSignInApi, type AuthSignInApi } from "./client";
  *   );
  * }
  * ```
+ *
+ * Auth methods that need registration or startup work plug in via the
+ * `providerClients` prop, e.g. OAuth:
+ *
+ * ```tsx
+ * <ConvexAuthProvider
+ *   client={convex}
+ *   api={{ refreshSession: api.auth.refreshSession, signOut: api.auth.signOut }}
+ *   providerClients={[oauth({ providers })]}
+ * >
+ * ```
  */
 export function ConvexAuthProvider({
   client,
   api,
   storage,
   storageNamespace,
+  providerClients,
   children,
 }: {
   /** Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). */
@@ -98,9 +115,16 @@ export function ConvexAuthProvider({
    * Non-alphanumeric characters are ignored. Defaults to the deployment URL.
    */
   storageNamespace?: string;
+  /**
+   * Provider client setups, one per auth method that needs registration or
+   * startup work (e.g. `oauth(...)` from
+   * `@convex-dev/auth/providers/oauth/react`). Read once when the client is
+   * created and not expected to change.
+   */
+  providerClients?: AuthProviderClientSetup[];
   children: ReactNode;
 }) {
-  const authClient = useMemo(() => {
+  const { authClient, signInApi, onStarts } = useMemo(() => {
     // Refresh and sign-out go over a *separate* HTTP client, not the websocket
     // `client`. A refresh happens while `client` is paused waiting for a token,
     // so calling it through `client` would deadlock on the very handshake the
@@ -108,7 +132,7 @@ export function ConvexAuthProvider({
     const httpClient = new ConvexHttpClient(client.url, {
       logger: client.logger,
     });
-    return new AuthClient({
+    const authClient = new AuthClient({
       mode: "spa",
       authApi: {
         refreshSession: (refreshToken) =>
@@ -120,23 +144,33 @@ export function ConvexAuthProvider({
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
     });
-    // `client` identity is what matters; the api/storage props are read once at
+    // Sign-in functions run against the deployment over the same websocket
+    // client as the rest of the app (it isn't paused pre-auth, unlike the
+    // refresh path above), so the response carries the full token bundle for
+    // `setSession` to persist. The same object serves provider setups here
+    // and, via AuthProvider below, provider hooks.
+    const signInApi: AuthSignInApi = {
+      mutation: (fn, args) => client.mutation(fn, args),
+      action: (fn, args) => client.action(fn, args),
+    };
+    // Setups run here rather than in an effect so anything they register in
+    // the store exists before the first render reads it.
+    const onStarts = registerProviderClientSetups({
+      client: authClient,
+      signInApi,
+      setups: providerClients ?? [],
+    });
+    return { authClient, signInApi, onStarts };
+    // `client` identity is what matters. The other props are read once at
     // construction and are not expected to change.
   }, [client]);
 
-  // Sign-in functions run against the deployment over the same websocket client
-  // as the rest of the app, so the response carries the full token bundle for
-  // `setSession` to persist.
-  const signInApi = useMemo<AuthSignInApi>(
-    () => ({
-      mutation: (fn, args) => client.mutation(fn, args),
-      action: (fn, args) => client.action(fn, args),
-    }),
-    [client],
-  );
-
   return (
-    <AuthProvider authClient={authClient} signInApi={signInApi}>
+    <AuthProvider
+      authClient={authClient}
+      signInApi={signInApi}
+      onStarts={onStarts}
+    >
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
@@ -148,11 +182,14 @@ export function ConvexAuthProvider({
  * Access the auth actions:
  *
  * ```ts
- * const { setSession, signOut } = useAuthActions();
+ * const { setSession, signOut, withSignInPending } = useAuthActions();
  * ```
  *
- * `setSession` adopts a {@link TokenBundle} produced by a provider's sign-in;
- * `signOut` revokes and clears the session.
+ * - `setSession` adopts a {@link TokenBundle} produced by a provider's
+ *   sign-in.
+ * - `signOut` revokes and clears the session.
+ * - `withSignInPending` reports the auth state as loading while a sign-in
+ *   completes in the background (e.g. redeeming an OAuth callback code).
  */
 export function useAuthActions() {
   const actions = useContext(ConvexAuthActionsContext);

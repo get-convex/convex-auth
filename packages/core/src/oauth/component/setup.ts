@@ -78,6 +78,12 @@ export type OauthCatalog<
    * one form (Google also uses `accounts.google.com`); an array accepts any
    * of them. Present for OIDC providers; absent for plain-OAuth providers
    * (e.g., GitHub), where identity comes from userinfo.
+   *
+   * All values must name the same issuing authority (aliases, or an issuer
+   * URL migration). Multiple values should only be used when a single provider
+   * has multiple potential issuer values, but is guaranteed to provide the same
+   * sub for a given account. Multiple issuers that use different `sub` values
+   * can lead to users being logged into the wrong account.
    */
   issuer?: string | string[];
   /**

@@ -47,6 +47,7 @@
     "./browser": "./src/browser/index.ts",
     "./server": "./src/server/index.ts",
     "./react": "./src/react/index.tsx",
+    "./react/providers": "./src/react/providers.ts",
     "./nextjs": "./src/nextjs/index.tsx",
     "./nextjs/server": "./src/nextjs/server.tsx"
   },

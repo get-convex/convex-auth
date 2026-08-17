@@ -1,10 +1,5 @@
 "use client";
 
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-} from "convex/server";
 import {
   ReactNode,
   createContext,
@@ -14,35 +9,11 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
+import type { AuthSignInApi } from "../browser/providerSetup";
 import { INITIAL_AUTH_STATE, type AuthClient } from "../browser/sessionManager";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 
-/**
- * How a provider's sign-in function gets executed.
- *
- * This is the only thing that differs between the two session models, so
- * providers take it from context instead of picking a transport themselves.
- * One client hook per provider then serves both:
- *
- *  - SPA: called against the deployment, returning the full
- *    {@link TokenBundle} for client JS to persist.
- *  - SSR: called through the auth proxy on the SSR host, which moves the
- *    refresh token into an httpOnly cookie and returns an access-only
- *    {@link SlimTokenBundle}.
- *
- * A provider never sees which model it is running under. See
- * {@link ClientView} for why one declared type is honest for both.
- */
-export interface AuthSignInApi {
-  mutation<F extends FunctionReference<"mutation", "public">>(
-    fn: F,
-    args: FunctionArgs<F>,
-  ): Promise<FunctionReturnType<F>>;
-  action<F extends FunctionReference<"action", "public">>(
-    fn: F,
-    args: FunctionArgs<F>,
-  ): Promise<FunctionReturnType<F>>;
-}
+export type { AuthSignInApi };
 
 const ConvexAuthSignInApiContext = createContext<AuthSignInApi | undefined>(
   undefined,
@@ -84,11 +55,25 @@ export type ConvexAuthActionsContextType = {
   setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
   /** Sign out: revoke the session on the server and clear it locally. */
   signOut: () => Promise<void>;
+  /**
+   * Run a sign-in completion while the auth state reports loading, so the
+   * UI shows `<AuthLoading>` instead of flashing `<Unauthenticated>`. See
+   * {@link AuthClient.withSignInPending}.
+   */
+  withSignInPending: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
 export const ConvexAuthActionsContext = createContext<
   ConvexAuthActionsContextType | undefined
 >(undefined);
+
+/**
+ * The bound {@link AuthClient}. Consumed by the provider-author surface
+ * (`useAuthClientValue` in `react/providers.ts`), not by apps.
+ */
+export const AuthClientContext = createContext<AuthClient | undefined>(
+  undefined,
+);
 
 /** The current access token (a JWT), or null when signed out. */
 export const ConvexAuthTokenContext = createContext<string | null>(null);
@@ -121,6 +106,10 @@ export function useAuth() {
   return auth;
 }
 
+// onStart callbacks run once per client instance, matching init()'s internal
+// one-time guard, so a StrictMode remount doesn't replay them.
+const onStartsRan = new WeakSet<AuthClient>();
+
 /**
  * Binds an {@link AuthClient} to React and provides the auth, actions, and
  * token contexts. Rendered by `ConvexAuthProvider` around
@@ -129,11 +118,19 @@ export function useAuth() {
 export function AuthProvider({
   authClient,
   signInApi,
+  onStarts,
   children,
 }: {
   authClient: AuthClient;
   /** How provider hooks execute their sign-in functions. See {@link AuthSignInApi}. */
   signInApi: AuthSignInApi;
+  /**
+   * Provider clients' startup work, collected from their setups. Run in
+   * order, once per client instance no matter how often the provider
+   * remounts, before `init()`. A callback that throws is logged and skipped,
+   * so the others still run and the client still initializes.
+   */
+  onStarts?: ReadonlyArray<{ id: string; onStart: () => void }>;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -147,8 +144,23 @@ export function AuthProvider({
     // client instance, so it is init'd, disposed, then init'd again. That's
     // fine: init()/dispose() are symmetric, and the second init() re-attaches
     // the cross-tab listener the dispose() removed.
+    if (!onStartsRan.has(authClient)) {
+      onStartsRan.add(authClient);
+      onStarts?.forEach(({ id, onStart }) => {
+        // One provider failing must not block the others or init() below.
+        try {
+          onStart();
+        } catch (error) {
+          console.error(
+            `[convex-auth] onStart for provider client "${id}" threw:`,
+            error,
+          );
+        }
+      });
+    }
     void authClient.init();
     return () => authClient.dispose();
+    // `onStarts` is read once per client, like the props that construct it.
   }, [authClient]);
 
   const fetchAccessToken = useCallback(
@@ -169,19 +181,22 @@ export function AuthProvider({
     () => ({
       setSession: authClient.setSession,
       signOut: authClient.signOut,
+      withSignInPending: authClient.withSignInPending,
     }),
     [authClient],
   );
 
   return (
-    <ConvexAuthInternalContext.Provider value={authState}>
-      <ConvexAuthSignInApiContext.Provider value={signInApi}>
-        <ConvexAuthActionsContext.Provider value={actions}>
-          <ConvexAuthTokenContext.Provider value={state.token}>
-            {children}
-          </ConvexAuthTokenContext.Provider>
-        </ConvexAuthActionsContext.Provider>
-      </ConvexAuthSignInApiContext.Provider>
-    </ConvexAuthInternalContext.Provider>
+    <AuthClientContext.Provider value={authClient}>
+      <ConvexAuthInternalContext.Provider value={authState}>
+        <ConvexAuthSignInApiContext.Provider value={signInApi}>
+          <ConvexAuthActionsContext.Provider value={actions}>
+            <ConvexAuthTokenContext.Provider value={state.token}>
+              {children}
+            </ConvexAuthTokenContext.Provider>
+          </ConvexAuthActionsContext.Provider>
+        </ConvexAuthSignInApiContext.Provider>
+      </ConvexAuthInternalContext.Provider>
+    </AuthClientContext.Provider>
   );
 }

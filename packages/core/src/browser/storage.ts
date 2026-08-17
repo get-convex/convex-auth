@@ -83,11 +83,28 @@ export function defaultStorage(): TokenStorage {
 }
 
 /**
+ * A read/write view over a {@link NamespacedStorage} for one provider
+ * client, with every key prefixed by the provider's setup id. The shape
+ * handed to provider client setups.
+ */
+export type ScopedStorage = {
+  /** Read a value. */
+  get(key: string): ReturnType<TokenStorage["getItem"]>;
+  /** Write a value. */
+  set(key: string, value: string): ReturnType<TokenStorage["setItem"]>;
+  /** Remove a value. */
+  remove(key: string): ReturnType<TokenStorage["removeItem"]>;
+};
+
+/**
  * A view over a {@link TokenStorage} that suffixes every key with a sanitized
  * namespace. Keying by (e.g.) the deployment URL keeps tokens for different
  * deployments from colliding when they share one origin's `localStorage` (the
  * classic dev-vs-prod-on-localhost case). Two clients sharing a namespace share
  * a session; distinct namespaces isolate them.
+ *
+ * The sanitized suffix is best effort. Namespaces with the same alphanumeric
+ * characters map to the same keys.
  */
 export class NamespacedStorage {
   /** The wrapped storage. Exposed so callers can compare a `StorageEvent`'s
@@ -114,5 +131,20 @@ export class NamespacedStorage {
   }
   remove(key: string) {
     return this.storage.removeItem(this.key(key));
+  }
+
+  /**
+   * A {@link ScopedStorage} for the provider client registered under `id`,
+   * mapping `key` to `__convexAuthProvider_<id>_<key>` before the namespace
+   * suffix. Provider keys can then never collide with the core token keys or
+   * another provider's.
+   */
+  scoped(id: string): ScopedStorage {
+    const prefix = `__convexAuthProvider_${id}_`;
+    return {
+      get: (key) => this.get(`${prefix}${key}`),
+      set: (key, value) => this.set(`${prefix}${key}`, value),
+      remove: (key) => this.remove(`${prefix}${key}`),
+    };
   }
 }
