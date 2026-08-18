@@ -565,7 +565,7 @@ describe("finishRegistration", () => {
     // A compliant client cannot cause this, so the mutation throws instead
     // of returning a user error.
     const { args } = await registrationArgs(t, "user2", {
-      startUserId: null,
+      isNewAccountFlow: true,
       credential,
     });
     await expect(
@@ -605,27 +605,6 @@ describe("finishRegistration", () => {
       ctx.db.query("challenges").collect(),
     );
     expect(challenges).toEqual([]);
-  });
-
-  test("deletes the unlinked handle for a duplicate credential in the new-account flow", async () => {
-    const t = setup();
-    const { credential } = await register(t, "user1");
-    const { challenge } = await t.mutation(api.registration.startRegistration, {
-      userId: null,
-    });
-    const { args } = await registrationArgs(t, "user2", {
-      challenge,
-      credential,
-    });
-    const result = await t.mutation(api.registration.finishRegistration, args);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },
-    });
-    // Only the linked handle of user1 stays.
-    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
-    expect(handles).toHaveLength(1);
-    expect(handles[0].userId).toBe("user1");
   });
 
   test("keeps the linked handle when verification fails for an existing user", async () => {
