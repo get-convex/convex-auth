@@ -78,6 +78,27 @@ test("decodeSEC1PublicKey()", () => {
   ).toStrictEqual(publicKey);
 });
 
+// Added to the ported tests: a coordinate that is smaller than 2^248 has fewer
+// than 32 significant bytes, and must be right-aligned in its slot.
+test("ECDSAPublicKey.encodeSEC1Uncompressed() pads short coordinates", () => {
+  const x = 0x00ffn;
+  const y = 0x01n;
+  const encoded = new ECDSAPublicKey(p256, x, y).encodeSEC1Uncompressed();
+  expect(encoded).toStrictEqual(
+    new Uint8Array([
+      0x04,
+      ...new Array<number>(30).fill(0x00),
+      0x00,
+      0xff,
+      ...new Array<number>(31).fill(0x00),
+      0x01,
+    ]),
+  );
+  const decoded = decodeSEC1PublicKey(p256, encoded);
+  expect(decoded.x).toBe(x);
+  expect(decoded.y).toBe(y);
+});
+
 describe("ECDSAPublicKey", async () => {
   const data = new TextEncoder().encode("hello world");
 

@@ -38,5 +38,9 @@ becomes `crypto/ecdsa.ts`).
   like Convex functions). The NIST signature- and hash-verification vectors
   from the `@oslojs/crypto` repository are ported for the algorithms kept here
   (SHA-256, ECDSA P-256, RSASSA-PKCS1-v1.5) in `crypto/nist-vectors.test.ts`.
+- Bug fix in `crypto/ecdsa.ts`: `ECDSAPublicKey.encodeSEC1Uncompressed()` wrote
+  the `y` coordinate left-aligned in its slot. A coordinate smaller than 2^248
+  (about 1 key in 256) was therefore shifted and padded with trailing zeroes,
+  which made every signature check with that key fail.
 
 When changing this code, keep the changes minimal and covered by the tests.
