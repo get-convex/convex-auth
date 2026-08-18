@@ -78,7 +78,10 @@ describe("getExpiredChallenges", () => {
     const result = await t.query(internal.cleanup.getExpiredChallenges, {
       name: WORKER_NAME,
     });
-    expect(result).toEqual({ kind: "work", batch: { ids: [expiredId] } });
+    expect(result).toEqual({
+      kind: "work",
+      batch: { events: [{ id: expiredId }] },
+    });
   });
 
   test("goes idle until just after the oldest challenge expires", async () => {
@@ -111,7 +114,10 @@ describe("getExpiredChallenges", () => {
     const result = await t.query(internal.cleanup.getExpiredChallenges, {
       name: WORKER_NAME,
     });
-    expect(result).toEqual({ kind: "work", batch: { ids: [challengeId] } });
+    expect(result).toEqual({
+      kind: "work",
+      batch: { events: [{ id: challengeId }] },
+    });
   });
 });
 
@@ -126,7 +132,7 @@ describe("deleteExpiredChallenges", () => {
     const { challengeId: freshId } = await insertRegistration(t, 2, START);
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
-      ids: [expiredId],
+      events: [{ id: expiredId }],
     });
 
     const remaining = await t.run((ctx) =>
@@ -144,7 +150,7 @@ describe("deleteExpiredChallenges", () => {
     );
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
-      ids: [challengeId],
+      events: [{ id: challengeId }],
     });
 
     const remaining = await t.run((ctx) => ctx.db.get("handles", handleId));
@@ -161,7 +167,7 @@ describe("deleteExpiredChallenges", () => {
     );
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
-      ids: [challengeId],
+      events: [{ id: challengeId }],
     });
 
     const remaining = await t.run((ctx) => ctx.db.get("handles", handleId));

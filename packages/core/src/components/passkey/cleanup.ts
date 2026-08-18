@@ -1,10 +1,11 @@
 import { v } from "convex/values";
-import { ping, vBatchQueryArgs, vBatchResult } from "@convex-dev/batch-worker";
+import { ping } from "@convex-dev/batch-worker";
 import { components, internal } from "./_generated/api";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { CHALLENGE_TTL_MS } from "./validation";
 import { deleteDeadChallenge } from "./helpers";
+import { defineBatchWorkerValidators } from "@convex-dev/batch-worker";
 
 // The name of the batch worker loop that erases expired challenges. Only one
 // loop is necessary, so the name is constant.
@@ -31,6 +32,11 @@ export async function scheduleChallengeCleanup(ctx: MutationCtx) {
   });
 }
 
+const vEvents = v.array(v.object({ id: v.id("challenges") }));
+
+const { vQueryArgs, vQueryReturns, vMutationArgs } =
+  defineBatchWorkerValidators({ batch: { events: vEvents } });
+
 /**
  * Find the next batch of expired challenges.
  *
@@ -39,8 +45,8 @@ export async function scheduleChallengeCleanup(ctx: MutationCtx) {
  * of them expires, even if no new ceremony starts.
  */
 export const getExpiredChallenges = internalQuery({
-  args: vBatchQueryArgs,
-  returns: vBatchResult(v.object({ ids: v.array(v.id("challenges")) })),
+  args: vQueryArgs,
+  returns: vQueryReturns,
   handler: async (ctx) => {
     const now = Date.now();
     // A challenge expires at a fixed age, thus the creation-time index sorts
@@ -59,7 +65,7 @@ export const getExpiredChallenges = internalQuery({
     if (expired.length > 0) {
       return {
         kind: "work" as const,
-        batch: { ids: expired.map((row) => row._id) },
+        batch: { events: expired.map((row) => ({ id: row._id })) },
       };
     }
     // Nothing to erase now. The oldest remaining challenge is the first one
@@ -84,10 +90,10 @@ export const getExpiredChallenges = internalQuery({
  * its row, thus every row of the batch still exists here.
  */
 export const deleteExpiredChallenges = internalMutation({
-  args: { ids: v.array(v.id("challenges")) },
+  args: vMutationArgs,
   returns: v.null(),
-  handler: async (ctx, { ids }) => {
-    for (const id of ids) {
+  handler: async (ctx, { events }) => {
+    for (const { id } of events) {
       const challenge = await ctx.db.get("challenges", id);
       if (challenge !== null) {
         await deleteDeadChallenge(ctx, challenge);
