@@ -351,8 +351,10 @@ export class ECDSAPublicKey {
     bytes[0] = 0x04;
     const xBytes = bigIntBytes(this.x);
     const yBytes = bigIntBytes(this.y);
+    // Both coordinates are right-aligned in their fixed-size slot. `bigIntBytes`
+    // omits the leading zero bytes, which happens for about 1 in 256 keys.
     bytes.set(xBytes, 1 + this.curve.size - xBytes.byteLength);
-    bytes.set(yBytes, 1 + this.curve.size);
+    bytes.set(yBytes, 1 + this.curve.size * 2 - yBytes.byteLength);
     return bytes;
   }
 
