@@ -66,7 +66,7 @@ const googleCatalog: OauthCatalog<GoogleProfile> = {
  * export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
  *   component: components.oauthGoogle,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
- * }).attachUserCallbacks({ onSignUp: internal.users.onSignUpGoogle });
+ * }).attachUserCallbacks({ createUser: internal.users.createUserGoogle });
  * ```
  *
  * Setup:

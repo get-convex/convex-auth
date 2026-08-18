@@ -45,7 +45,7 @@ const resolvedUserId = { value: null as string | null };
 
 /**
  * When set, the fake helpers throw this instead of returning a bundle, modeling
- * the app rejecting the sign-in from its `onSignUp` / `onSignIn` callback.
+ * the app rejecting the sign-in from its `createUser` / `onSignIn` callback.
  */
 const helperFailure = { error: undefined as Error | undefined };
 

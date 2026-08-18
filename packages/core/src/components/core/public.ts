@@ -17,7 +17,7 @@ import {
 } from "../../lib/types";
 import { signJwt, generateRefreshToken } from "./crypto";
 import { sha256Hex } from "../../lib/crypto";
-import { OnSignInFn, OnSignUpFn } from "../../lib/types";
+import { CreateUserFn, OnSignInFn } from "../../lib/types";
 
 // --- Configuration ---------------------------------------------------------
 
@@ -145,10 +145,10 @@ async function issueSession(
   };
 }
 
-type OnSignUpFunctionHandle = FunctionHandle<
-  OnSignUpFn<string, unknown>["_type"],
-  OnSignUpFn<string, unknown>["_args"],
-  OnSignUpFn<string, unknown>["_returnType"]
+type CreateUserFunctionHandle = FunctionHandle<
+  CreateUserFn<string, unknown>["_type"],
+  CreateUserFn<string, unknown>["_args"],
+  CreateUserFn<string, unknown>["_returnType"]
 >;
 
 type OnSignInFunctionHandle = FunctionHandle<
@@ -172,15 +172,15 @@ function asUserId(userId: string): GenericId<string> {
 /**
  * Create the account and app-level user for an identity the core has not seen before.
  *
- * The app's `onSignUp` callback mints and returns the user id, and this
+ * The app's `createUser` callback mints and returns the user id, and this
  * records the provider-identity -> user mapping. Returns what minting a
  * session needs: the account id and its app user id. The claims are passed to
- * the `onSignUp` callback.
+ * the `createUser` callback.
  */
 async function createAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
-  onSignUp: OnSignUpFunctionHandle,
+  createUser: CreateUserFunctionHandle,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
   // `USE_USER_ID_AS_ACCOUNT_ID` means the account is keyed by the app user id,
   // which does not exist until the callback below mints it. Such claims can
@@ -198,14 +198,14 @@ async function createAccount(
       // app user for someone who already has one. Fail before calling the app.
       throw new Error(
         `Cannot sign up: an account for provider = ${JSON.stringify(claims.provider)} ` +
-        `and provider account ID = ${JSON.stringify(claims.providerAccountId)} already ` +
-        `exists. Providers that cannot tell a first sign-in from a return visit must ` +
-        `look the identity up (getUserIdByAccount) and call signIn instead.`,
+          `and provider account ID = ${JSON.stringify(claims.providerAccountId)} already ` +
+          `exists. Providers that cannot tell a first sign-in from a return visit must ` +
+          `look the identity up (getUserIdByAccount) and call signIn instead.`,
       );
     }
   }
 
-  const userId = await ctx.runMutation(onSignUp, {
+  const userId = await ctx.runMutation(createUser, {
     provider: claims.provider,
     providerAccountId: claims.providerAccountId,
     profile: claims.profile,
@@ -236,16 +236,40 @@ async function createAccount(
   return { accountId, userId };
 }
 
+/**
+ * Run the app's sign-in callback, if it attached one. Every sign-in goes
+ * through here, a first one included, so per-sign-in work in the app has a
+ * single home.
+ */
+async function notifySignIn(
+  ctx: MutationCtx,
+  claims: AuthClaims,
+  userId: string,
+  onSignInHandle: string | undefined,
+): Promise<void> {
+  if (onSignInHandle === undefined) return;
+  await ctx.runMutation(onSignInHandle as OnSignInFunctionHandle, {
+    provider: claims.provider,
+    providerAccountId: claims.providerAccountId,
+    profile: claims.profile,
+    userId: asUserId(userId),
+  });
+}
+
 // --- Component API ------------------------------------------------------------
 
 /**
  * Performs an app-integrated new user sign-up.
  *
  * Establishes a session and returns a token bundle upon success.
- * 
+ *
  * Providers don't typically call this API directly, but instead use the
  * framework's `completeSignUp` helper. That function takes care of passing the
- * `onSignUpHandle` app callback.
+ * `createUserHandle` and `onSignInHandle` app callbacks.
+ *
+ * `createUser` mints the app user, then `onSignIn` runs like it does for any
+ * other sign-in. An `onSignIn` that throws therefore rolls back the user
+ * `createUser` just made, since both are subtransactions of this one.
  *
  * The JWT accessToken in the return value is issued with `issuer` as its
  * `iss`. Token lifetimes default to 1m (access) and 30d (refresh) unless
@@ -258,7 +282,8 @@ async function createAccount(
 export const signUp = mutation({
   args: {
     claims: vAuthClaims,
-    onSignUpHandle: v.string(),
+    createUserHandle: v.string(),
+    onSignInHandle: v.optional(v.string()),
     issuer: v.string(),
     accessTokenTtlSeconds: v.optional(v.number()),
     refreshTokenTtlSeconds: v.optional(v.number()),
@@ -269,8 +294,9 @@ export const signUp = mutation({
     const { accountId, userId } = await createAccount(
       ctx,
       args.claims,
-      args.onSignUpHandle as OnSignUpFunctionHandle,
+      args.createUserHandle as CreateUserFunctionHandle,
     );
+    await notifySignIn(ctx, args.claims, userId, args.onSignInHandle);
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
   },
 });
@@ -279,7 +305,7 @@ export const signUp = mutation({
  * Performs an app-integrated user sign-in.
  *
  * Establishes a session and returns a token bundle upon success.
- * 
+ *
  * Providers don't typically call this API directly, but instead use the
  * framework's `completeSignIn` helper. That function takes care of passing the
  * `onSignInHandle` app callback.
@@ -311,18 +337,11 @@ export const signIn = mutation({
     if (account === null) {
       throw new Error(
         `Cannot sign in: no account for provider = ${JSON.stringify(claims.provider)} ` +
-        `and provider account ID = ${JSON.stringify(claims.providerAccountId)} exists. ` +
-        `A first sign-in for an identity must go through signUp.`,
+          `and provider account ID = ${JSON.stringify(claims.providerAccountId)} exists. ` +
+          `A first sign-in for an identity must go through signUp.`,
       );
     }
-    if (args.onSignInHandle !== undefined) {
-      await ctx.runMutation(args.onSignInHandle as OnSignInFunctionHandle, {
-        provider: claims.provider,
-        providerAccountId: claims.providerAccountId,
-        profile: claims.profile,
-        userId: asUserId(account.userId),
-      });
-    }
+    await notifySignIn(ctx, claims, account.userId, args.onSignInHandle);
     return await issueSession(
       ctx,
       account._id,

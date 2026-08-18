@@ -82,7 +82,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
  *   setupUsernamePassword(core, {
  *     component: components.authPasswordProvider,
  *     usernameComponent: components.authUsername,
- *   }).attachUserCallbacks({ onSignUp: internal.users.onSignUpPassword });
+ *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
@@ -105,12 +105,12 @@ export function setupUsernamePassword<UsersTable extends string>(
      * args must be declared) and get this provider's functions to export.
      */
     attachUserCallbacks({
-      onSignUp,
+      createUser,
       onSignIn,
     }: UserCallbacks<"password", { username: string }, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
-        onSignUp,
+        createUser,
         onSignIn,
       });
 
@@ -149,8 +149,8 @@ export function setupUsernamePassword<UsersTable extends string>(
               return { success: false, userError: { error: "USERNAME_TAKEN" } };
             }
 
-            // Create the account + app user (via the app's onSignUp) and mint
-            // the session. Password accounts are keyed by the app user id,
+            // Create the account + app user (via the app's createUser) and
+            // mint the session. Password accounts are keyed by the app user id,
             // which does not exist before this call mints it, hence the
             // placeholder; sign-in passes the user id itself. `profile.username`
             // keeps the original casing for display.

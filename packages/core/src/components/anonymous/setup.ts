@@ -1,7 +1,7 @@
 import {
   vSignInSuccess,
-  type OnSignUpFn,
   type SignInSuccess,
+  type UserCallbacks,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
 import { ComponentApi } from "./_generated/component";
@@ -24,7 +24,7 @@ const PROVIDER_NAME = "anonymous";
  *
  * export const { signInAnonymous } = setupAnonymous(core, {
  *   component: components.authAnonymous,
- * }).attachUserCallbacks({ onSignUp: internal.users.onSignUpAnonymous });
+ * }).attachUserCallbacks({ createUser: internal.users.createUserAnonymous });
  * ```
  */
 export function setupAnonymous<UsersTable extends string>(
@@ -38,20 +38,21 @@ export function setupAnonymous<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's sign-up mutation (see {@link OnSignUpFn} for how its
+     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
      * args must be declared) and get this provider's functions to export.
      *
-     * There is no `onSignIn`: every anonymous sign-in establishes a new
-     * account, so a return-visit callback could never fire.
+     * Every anonymous sign-in establishes a new account, so `createUser` runs
+     * every time. An `onSignIn` is still worth attaching for work an app does
+     * on every sign-in whatever the provider, since it runs right afterwards.
      */
     attachUserCallbacks({
-      onSignUp,
-    }: {
-      onSignUp: OnSignUpFn<"anonymous", Record<string, never>, UsersTable>;
-    }) {
+      createUser,
+      onSignIn,
+    }: UserCallbacks<"anonymous", Record<string, never>, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
-        onSignUp,
+        createUser,
+        onSignIn,
       });
 
       return {

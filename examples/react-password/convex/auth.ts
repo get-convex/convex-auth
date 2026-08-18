@@ -11,4 +11,4 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
     component: components.authPasswordProvider,
     usernameComponent: components.authUsername,
   },
-).attachUserCallbacks({ onSignUp: internal.users.onSignUp });
+).attachUserCallbacks({ createUser: internal.users.createUser });

@@ -7,4 +7,4 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const { signInAnonymous } = setupAnonymous(core, {
   component: components.authAnonymous,
-}).attachUserCallbacks({ onSignUp: internal.users.onSignUp });
+}).attachUserCallbacks({ createUser: internal.users.createUser });

@@ -2,10 +2,12 @@ import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
- * Every anonymous sign-in establishes a new account, so this app only needs a
- * sign-up callback: create the user row and return its id.
+ * Create the user row for a new anonymous account and return its id.
+ *
+ * Every anonymous sign-in establishes a new account, so this runs on every
+ * anonymous sign-in.
  */
-export const onSignUp = internalMutation({
+export const createUser = internalMutation({
   args: {
     provider: v.literal("anonymous"),
     providerAccountId: v.string(),

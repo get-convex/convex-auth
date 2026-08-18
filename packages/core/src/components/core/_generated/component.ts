@@ -81,8 +81,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           accessTokenTtlSeconds?: number;
           claims: { profile: any; provider: string; providerAccountId: string };
+          createUserHandle: string;
           issuer: string;
-          onSignUpHandle: string;
+          onSignInHandle?: string;
           refreshTokenTtlSeconds?: number;
         },
         {

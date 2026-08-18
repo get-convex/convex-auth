@@ -99,7 +99,7 @@ const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
  * export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
  *   component: components.oauthGithub,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
- * }).attachUserCallbacks({ onSignUp: internal.users.onSignUpGithub });
+ * }).attachUserCallbacks({ createUser: internal.users.createUserGithub });
  * ```
  *
  * Setup:

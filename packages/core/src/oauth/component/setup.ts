@@ -195,7 +195,7 @@ export function setupOauth<
 
   const { authMutation } = core.bindProvider({
     name: providerName,
-    onSignUp: callbacks.onSignUp,
+    createUser: callbacks.createUser,
     onSignIn: callbacks.onSignIn,
   });
 
@@ -271,7 +271,7 @@ export function setupOauth<
    *
    * The component calls are subtransactions of this mutation, so a
    * failure anywhere (including the app rejecting the sign-in from
-   * `onSignUp` / `onSignIn`) rolls back the ticket claim. Only a
+   * `createUser` / `onSignIn`) rolls back the ticket claim. Only a
    * successful redemption consumes the ticket.
    */
   // TODO: dowski - return the shared `vSignInSuccess` envelope like the other

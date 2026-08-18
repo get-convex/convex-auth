@@ -11,8 +11,8 @@ import {
 import { api } from "./_generated/api";
 import schema from "./schema";
 import {
+  getCreateUserCalls,
   getOnSignInCalls,
-  getOnSignUpCalls,
   resetUserCallbackCalls,
 } from "./testApp";
 import { type AuthClaims, type TokenBundle } from "../../lib/types";
@@ -24,8 +24,9 @@ const modules = import.meta.glob("./**/*.ts");
 // vars so the suite exercises genuine JWT signing/verification.
 const ISSUER = "https://example.convex.site";
 const AUDIENCE = "convex";
-const ON_SIGN_UP_HANDLE = "testApp:onSignUp";
+const CREATE_USER_HANDLE = "testApp:createUser";
 const ON_SIGN_IN_HANDLE = "testApp:onSignIn";
+const THROWING_ON_SIGN_IN_HANDLE = "testApp:onSignInThatThrows";
 let publicJwk: JWK;
 
 beforeAll(async () => {
@@ -58,7 +59,8 @@ function setup() {
 async function signUp(t: ReturnType<typeof setup>, c: AuthClaims) {
   return await t.mutation(api.public.signUp, {
     claims: c,
-    onSignUpHandle: ON_SIGN_UP_HANDLE,
+    createUserHandle: CREATE_USER_HANDLE,
+    onSignInHandle: ON_SIGN_IN_HANDLE,
     issuer: ISSUER,
   });
 }
@@ -83,7 +85,7 @@ describe("signUp", () => {
     const t = setup();
     const bundle = await signUp(t, claims());
 
-    // The app's onSignUp echoes the providerAccountId as the user id.
+    // The app's createUser echoes the providerAccountId as the user id.
     expect(bundle.userId).toBe("alice");
     expect(bundle.refreshToken).toBeTruthy();
     expect(bundle.accessTokenExpiresAt).toBeGreaterThan(Date.now());
@@ -107,21 +109,66 @@ describe("signUp", () => {
     expect(counts).toEqual({ accounts: 1, sessions: 1 });
   });
 
-  test("invokes the app's onSignUp with the claims", async () => {
+  test("invokes the app's createUser with the claims, then onSignIn", async () => {
     const t = setup();
     resetUserCallbackCalls();
 
     await signUp(t, claims({ profile: { name: "Alice" } }));
 
-    expect(getOnSignUpCalls()).toEqual([
+    expect(getCreateUserCalls()).toEqual([
       {
         provider: "password",
         providerAccountId: "alice",
         profile: { name: "Alice" },
       },
     ]);
-    // Sign-up does not call the user supplied onSignIn function
+    // A first sign-in is still a sign-in, so onSignIn runs too, with the id
+    // createUser just returned. Per-sign-in work has one home.
+    expect(getOnSignInCalls()).toEqual([
+      {
+        provider: "password",
+        providerAccountId: "alice",
+        profile: { name: "Alice" },
+        userId: "alice",
+      },
+    ]);
+  });
+
+  test("creates the user without an onSignIn attached", async () => {
+    const t = setup();
+    resetUserCallbackCalls();
+
+    const bundle = await t.mutation(api.public.signUp, {
+      claims: claims(),
+      createUserHandle: CREATE_USER_HANDLE,
+      issuer: ISSUER,
+    });
+
+    expect(bundle.userId).toBe("alice");
+    expect(getCreateUserCalls()).toHaveLength(1);
     expect(getOnSignInCalls()).toHaveLength(0);
+  });
+
+  test("an onSignIn that throws rolls back the user it just created", async () => {
+    const t = setup();
+
+    await expect(
+      t.mutation(api.public.signUp, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        onSignInHandle: THROWING_ON_SIGN_IN_HANDLE,
+        issuer: ISSUER,
+      }),
+    ).rejects.toThrow(/no sign-ins for you/);
+
+    // The account insert is a write of the same mutation, so it rolls back with
+    // it, and the app's own users row rolls back the same way. The session was
+    // never reached, since onSignIn runs before it is minted.
+    const counts = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+    }));
+    expect(counts).toEqual({ accounts: 0, sessions: 0 });
   });
 
   test("refuses to sign up an identity that already has an account", async () => {
@@ -167,16 +214,16 @@ describe("signIn", () => {
     await signUp(t, claims({ profile: { name: "Alice" } }));
     await signIn(t, claims({ profile: { name: "Alice 2.0" } }));
 
-    // The app gets the known id and the fresh profile to sync from.
-    expect(getOnSignUpCalls()).toHaveLength(1);
-    expect(getOnSignInCalls()).toEqual([
-      {
-        provider: "password",
-        providerAccountId: "alice",
-        profile: { name: "Alice 2.0" },
-        userId: "alice",
-      },
-    ]);
+    // The app gets the known id and the fresh profile to sync from. createUser
+    // ran once, for the sign-up; onSignIn ran for both.
+    expect(getCreateUserCalls()).toHaveLength(1);
+    expect(getOnSignInCalls()).toHaveLength(2);
+    expect(getOnSignInCalls()[1]).toEqual({
+      provider: "password",
+      providerAccountId: "alice",
+      profile: { name: "Alice 2.0" },
+      userId: "alice",
+    });
   });
 
   test("mints the session without notifying an app that attached no onSignIn", async () => {
@@ -328,7 +375,7 @@ describe("token lifetime configuration", () => {
     const before = Date.now();
     const bundle = await t.mutation(api.public.signUp, {
       claims: claims(),
-      onSignUpHandle: ON_SIGN_UP_HANDLE,
+      createUserHandle: CREATE_USER_HANDLE,
       issuer: ISSUER,
       accessTokenTtlSeconds: 300, // 5 minutes
     });
@@ -349,7 +396,7 @@ describe("token lifetime configuration", () => {
     const before = Date.now();
     const bundle = await t.mutation(api.public.signUp, {
       claims: claims(),
-      onSignUpHandle: ON_SIGN_UP_HANDLE,
+      createUserHandle: CREATE_USER_HANDLE,
       issuer: ISSUER,
       refreshTokenTtlSeconds: oneHourSeconds,
     });
@@ -378,7 +425,7 @@ describe("token lifetime configuration", () => {
     await expect(
       t.mutation(api.public.signUp, {
         claims: claims(),
-        onSignUpHandle: ON_SIGN_UP_HANDLE,
+        createUserHandle: CREATE_USER_HANDLE,
         issuer: ISSUER,
         accessTokenTtlSeconds: 100,
         refreshTokenTtlSeconds: 1, // 1s — shorter than the 100s access token

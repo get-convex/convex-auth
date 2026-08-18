@@ -73,12 +73,13 @@ const core = setupCore({ component: components.auth, usersTable: "members" });
 
 ### Set up user creation
 
-Write an `onSignUp` mutation that creates a row in your `users` table and
-returns its id. The provider calls it for every anonymous sign-in.
+Write a `createUser` mutation that creates a row in your `users` table and
+returns its id. The provider calls it for every anonymous sign-in, since each
+one establishes a new account.
 
-Providers that can recognize a returning account also take an optional
-`onSignIn` callback. The anonymous provider does not: every anonymous sign-in
-establishes a new account, so there is no return visit to hook.
+You can also attach an optional `onSignIn` mutation, called with the resolved
+`userId` right afterwards. It is the same hook every other provider gets, so
+work an app does on any sign-in has one home.
 
 <include lang="ts" meta='title="convex/users.ts"'>
   ../../../../../examples/react-minimal/convex/users.ts
@@ -96,7 +97,7 @@ rows, in `convex/auth.ts`:
 
 <include
   lang="ts"
-  meta='title="convex/auth.ts" highlight="import { setupAnonymous }" highlight="export const { signInAnonymous } = setupAnonymous(core, {...}).attachUserCallbacks({ onSignUp: internal.users.onSignUp });"'
+  meta='title="convex/auth.ts" highlight="import { setupAnonymous }" highlight="export const { signInAnonymous } = setupAnonymous(core, {...}).attachUserCallbacks({ createUser: internal.users.createUser });"'
 >
   ../../../../../examples/react-minimal/convex/auth.ts
 </include>

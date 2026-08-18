@@ -134,8 +134,8 @@ export type AuthCore<UsersTable extends string = string> = {
    * providers bound to this core — a duplicate throws immediately (two
    * providers sharing a name would silently share accounts).
    *
-   * `onSignUp` is the app's user-creating callback for this provider and
-   * `onSignIn` is the optional return-visit hook (see {@link UserCallbacks}).
+   * `createUser` is the app's user-creating callback for this provider and
+   * `onSignIn` is its optional per-sign-in hook (see {@link UserCallbacks}).
    *
    * Provider setup functions call this from inside their `attachUserCallbacks`,
    * once the app has supplied the callbacks, so the builders can close over
@@ -163,7 +163,7 @@ export type AuthCore<UsersTable extends string = string> = {
  *   setupUsernamePassword(core, {
  *     component: components.authPasswordProvider,
  *     usernameComponent: components.authUsername,
- *   }).attachUserCallbacks({ onSignUp: internal.users.onSignUpPassword });
+ *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```
  *
  * The core never triggers a sign-in itself: it has no idea how any given
@@ -188,11 +188,11 @@ export function setupCore<UsersTable extends string = "users">(options: {
    * The name of the app's users table. Defaults to `"users"`.
    *
    * The core never reads or writes the table — it only stores the id the app's
-   * `onSignUp` callback returns. The name is a *type-level* contract: it makes
-   * every provider's `attachUserCallbacks` demand mutations whose `userId`
-   * argument and return type are `Id<usersTable>`, so an app cannot
-   * accidentally hand back an id from some other table (and, because the app
-   * then declares `v.id(usersTable)`, Convex enforces the same thing at runtime).
+   * `createUser` callback returns. The name is a *type-level* contract: it makes
+   * every provider's `attachUserCallbacks` demand a `createUser` returning
+   * `Id<usersTable>` and an `onSignIn` taking one, so an app cannot accidentally
+   * hand back an id from some other table (and, because the app then declares
+   * `v.id(usersTable)`, Convex enforces the same thing at runtime).
    *
    * Set this if the app's users live in a table with a different name:
    *
@@ -270,7 +270,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
 
   const bindProvider = <Provider extends string, Profile>({
     name,
-    onSignUp,
+    createUser,
     onSignIn,
   }: {
     name: Provider;
@@ -288,6 +288,11 @@ export function setupCore<UsersTable extends string = "users">(options: {
     }
     boundProviderNames.add(name);
 
+    // Undefined when the app attached no `onSignIn`, which tells the core to
+    // mint the session without notifying the app.
+    const onSignInHandle = async (): Promise<string | undefined> =>
+      onSignIn === undefined ? undefined : await createFunctionHandle(onSignIn);
+
     // The helpers close over the live ctx; both mutation and action ctxs
     // expose the compatible `runMutation`/`runQuery` these need.
     const makeHelpers = (
@@ -299,14 +304,14 @@ export function setupCore<UsersTable extends string = "users">(options: {
         providerAccountId: string;
         profile: Profile;
       }): Promise<TokenBundle> => {
-        const onSignUpHandle = await createFunctionHandle(onSignUp);
         return await ctx.runMutation(component.public.signUp, {
           claims: {
             provider: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },
-          onSignUpHandle,
+          createUserHandle: await createFunctionHandle(createUser),
+          onSignInHandle: await onSignInHandle(),
           issuer: issuer(),
           accessTokenTtlSeconds,
           refreshTokenTtlSeconds,
@@ -316,18 +321,13 @@ export function setupCore<UsersTable extends string = "users">(options: {
         providerAccountId: string;
         profile: Profile;
       }): Promise<TokenBundle> => {
-        // With no handle the core mints the session without notifying the app.
-        const onSignInHandle =
-          onSignIn === undefined
-            ? undefined
-            : await createFunctionHandle(onSignIn);
         return await ctx.runMutation(component.public.signIn, {
           claims: {
             provider: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },
-          onSignInHandle,
+          onSignInHandle: await onSignInHandle(),
           issuer: issuer(),
           accessTokenTtlSeconds,
           refreshTokenTtlSeconds,

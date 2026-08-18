@@ -13,11 +13,15 @@ import { setupUsernamePassword } from "@convex-dev/auth/providers/password/setup
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
+// `onSignIn` is optional, and runs on every sign-in including the first. This
+// app uses it to stamp the user's last sign-in.
 export const { signInAnonymous } = setupAnonymous(core, {
   component: components.authAnonymous,
-}).attachUserCallbacks({ onSignUp: internal.users.onSignUpAnonymous });
+}).attachUserCallbacks({
+  createUser: internal.users.createUserAnonymous,
+  onSignIn: internal.users.onSignInAnonymous,
+});
 
-// `onSignIn` is optional. This app uses it to stamp the user's last sign-in.
 export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
   core,
   {
@@ -25,6 +29,6 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
     usernameComponent: components.authUsername,
   },
 ).attachUserCallbacks({
-  onSignUp: internal.users.onSignUpPassword,
+  createUser: internal.users.createUserPassword,
   onSignIn: internal.users.onSignInPassword,
 });
