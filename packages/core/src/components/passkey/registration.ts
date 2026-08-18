@@ -67,7 +67,7 @@ export const startRegistration = mutation({
       handle = await ctx.db
         .query("handles")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .first();
+        .unique();
       const rows = await ctx.db
         .query("passkeys")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
