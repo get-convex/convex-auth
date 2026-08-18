@@ -185,6 +185,34 @@ export const vOnSignIn = v.object({
 });
 
 /**
+ * The args the core calls a `createUser` callback with.
+ *
+ * The provider's name arrives as a literal, and `profile` is whatever that
+ * provider produces, so a callback declaring exactly this shape serves exactly
+ * one provider.
+ */
+export type CreateUserArgs<Provider extends string, Profile> = {
+  provider: Provider;
+  providerAccountId: string;
+  profile: Profile;
+};
+
+/**
+ * The args the core calls an `onSignIn` callback with: {@link CreateUserArgs}
+ * plus the app user id the account resolved to.
+ */
+export type OnSignInArgs<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = {
+  provider: Provider;
+  providerAccountId: string;
+  profile: Profile;
+  userId: GenericId<UsersTable>;
+};
+
+/**
  * The type of an app defined user-creating mutation: create the app's user
  * record for an identity the core has not seen before, and return its id. It
  * runs once per account, and {@link OnSignInFn} runs right after it, so this
@@ -192,22 +220,19 @@ export const vOnSignIn = v.object({
  *
  * This is the core entrypoint for an application to integrate its user model
  * with Convex Auth. Apps install one per provider, via that provider's
- * `attachUserCallbacks`, typed with that provider's exact name and profile
- * shape. Throw a `ConvexError` to reject the sign up.
+ * `attachUserCallbacks`. Throw a `ConvexError` to reject the sign up.
  *
  * The application keeps ownership of its users table. The core treats the
  * returned id as an opaque string at runtime; at the type level the table is
  * named by `setupCore`'s `usersTable` option, which is what makes the return
  * type `Id<usersTable>` rather than a bare string.
  *
- * The mutation's args must be declared with the provider's *exact* literal
- * types (e.g. `provider: v.literal("password")`, `profile: v.object({ username:
- * v.string() })`).
- *
- * One mutation shared across providers, declaring a union of provider names,
- * is runtime-safe but does not typecheck, because `FunctionReference` args
- * compare covariantly. For shared logic, define one thin mutation per provider
- * that delegates to a plain shared function.
+ * This type describes the *narrowest* callback a provider accepts: one
+ * declaring that provider's exact literal name and profile shape (e.g.
+ * `provider: v.literal("password")`, `profile: v.object({ username:
+ * v.string() })`). A callback may declare more than that and still be
+ * accepted — see {@link AcceptsCreateUserArgs} for what a provider really
+ * demands, and for how one mutation can serve several providers.
  */
 export type CreateUserFn<
   Provider extends string,
@@ -216,11 +241,7 @@ export type CreateUserFn<
 > = FunctionReference<
   "mutation",
   "internal",
-  {
-    provider: Provider;
-    providerAccountId: string;
-    profile: Profile;
-  },
+  CreateUserArgs<Provider, Profile>,
   GenericId<UsersTable>
 >;
 
@@ -239,9 +260,8 @@ export type CreateUserFn<
  * reject the sign in, which on a first sign-in rolls back the user the create
  * callback just made.
  *
- * Like {@link CreateUserFn}, the args must be declared with the provider's
- * exact literal types, and one mutation per provider (delegating to a plain
- * shared function) is how to share logic across providers.
+ * Like {@link CreateUserFn}, this is the narrowest shape a provider accepts;
+ * a callback declaring a wider one works too.
  */
 export type OnSignInFn<
   Provider extends string,
@@ -250,19 +270,152 @@ export type OnSignInFn<
 > = FunctionReference<
   "mutation",
   "internal",
-  {
-    provider: Provider;
-    providerAccountId: string;
-    profile: Profile;
-    userId: GenericId<UsersTable>;
-  },
+  OnSignInArgs<Provider, Profile, UsersTable>,
   null
 >;
 
 /**
+ * Any internal mutation reference, whatever args it declares and whatever it
+ * returns.
+ *
+ * This is the *constraint* on the app's user callbacks, not the check. A
+ * provider infers the app's exact reference type against this and then checks
+ * it structurally with {@link AcceptsCreateUserArgs} /
+ * {@link AcceptsOnSignInArgs}, which is what lets one callback serve several
+ * providers (see {@link UserCallbacksFor}).
+ */
+export type AnyUserCallback = FunctionReference<
+  "mutation",
+  "internal",
+  any,
+  any
+>;
+
+/**
+ * Assert that the callback `F` accepts (at least) the args `Needed`, and
+ * returns something the core can use as `Wanted`.
+ *
+ * Resolves to `unknown` when compatible, so intersecting it with `F` leaves `F`
+ * untouched; otherwise it resolves to an object of error fields that no
+ * function reference has, so the assignment fails and the message spells out
+ * what the callback would have had to declare.
+ *
+ * The args are checked in the "accepts at least" direction
+ * (`Needed extends Declared`) rather than by comparing the two
+ * `FunctionReference`s, because a `FunctionReference`'s args compare
+ * *covariantly*: `CreateUserFn<"password" | "github", ...>` is not assignable
+ * to `CreateUserFn<"password", ...>` even though calling it with password args
+ * is perfectly safe. Checking the args directly instead is what lets a single
+ * app mutation, declaring a union of provider names and profile shapes (or a
+ * `v.any()` profile), be attached to several providers at once. Both sides are
+ * wrapped in tuples so a union in `Needed` is checked as a whole rather than
+ * distributed over.
+ *
+ * The keys are then checked in the opposite direction, because the args check
+ * alone would pass a callback that *omits* one: a type with fewer properties is
+ * still extended by one with more. Convex rejects an arg a mutation never
+ * declared, so an omission is a runtime validator error, not a harmless
+ * mismatch. Requiring the callback's keys to cover the ones the core sends is
+ * what catches it, while still leaving room for extra *optional* args of the
+ * app's own (an extra required one fails the args check above, as it should).
+ *
+ * The return is checked in the ordinary direction: whatever the callback
+ * declares must be usable as `Wanted`.
+ */
+type CallbackCompatible<F extends AnyUserCallback, Needed, Wanted> = [
+  Needed,
+] extends [F["_args"]]
+  ? [keyof Needed] extends [keyof F["_args"]]
+    ? [F["_returnType"]] extends [Wanted]
+      ? unknown
+      : {
+          ERROR: "This callback does not return what the provider needs";
+          expectedToReturn: Wanted;
+          butDeclares: F["_returnType"];
+        }
+    : {
+        ERROR: "This callback does not declare all the args the provider sends";
+        expectedToAccept: Needed;
+        butDeclares: F["_args"];
+      }
+  : {
+      ERROR: "This callback does not accept the args the provider calls it with";
+      expectedToAccept: Needed;
+      butDeclares: F["_args"];
+    };
+
+/**
+ * Assert that `F` is a usable `createUser` for the given provider: it accepts
+ * this provider's args and returns an id of the app's users table.
+ */
+export type AcceptsCreateUserArgs<
+  F extends AnyUserCallback,
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = CallbackCompatible<
+  F,
+  CreateUserArgs<Provider, Profile>,
+  GenericId<UsersTable>
+>;
+
+/**
+ * Assert that `F` is a usable `onSignIn` for the given provider: it accepts
+ * this provider's args (including the app user id) and returns null.
+ */
+export type AcceptsOnSignInArgs<
+  F extends AnyUserCallback,
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = CallbackCompatible<F, OnSignInArgs<Provider, Profile, UsersTable>, null>;
+
+/**
  * The app's user callbacks for one provider, as its `attachUserCallbacks`
- * takes them: {@link CreateUserFn} is required (something has to create the
- * user record), {@link OnSignInFn} is optional.
+ * takes them: `createUser` is required (something has to create the user
+ * record), `onSignIn` is optional.
+ *
+ * `CreateUser` and `OnSignIn` are the app's *actual* reference types, which
+ * each provider's `attachUserCallbacks` infers from what the app passes. They
+ * are only required to accept what this provider calls them with, so a
+ * callback that declares a union of provider names and profile shapes is
+ * accepted by every provider in that union — one mutation, several providers:
+ *
+ * ```ts
+ * export const createUser = internalMutation({
+ *   args: {
+ *     provider: v.union(v.literal("password"), v.literal("anonymous")),
+ *     providerAccountId: v.string(),
+ *     profile: v.union(v.object({ username: v.string() }), v.object({})),
+ *   },
+ *   returns: v.id("users"),
+ *   handler: async (ctx, args) => { ... },
+ * });
+ * ```
+ *
+ * A callback narrower than the provider needs is rejected, with an error
+ * naming the args it would have had to accept.
+ */
+export type UserCallbacksFor<
+  CreateUser extends AnyUserCallback,
+  OnSignIn extends AnyUserCallback,
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = {
+  createUser: CreateUser &
+    AcceptsCreateUserArgs<CreateUser, Provider, Profile, UsersTable>;
+  onSignIn?: OnSignIn &
+    AcceptsOnSignInArgs<OnSignIn, Provider, Profile, UsersTable>;
+};
+
+/**
+ * The app's user callbacks for one provider, in their narrowest form: exactly
+ * the shapes {@link CreateUserFn} and {@link OnSignInFn} describe.
+ *
+ * Provider setup functions take {@link UserCallbacksFor} instead, which also
+ * accepts wider callbacks. This remains the shape a provider can *rely* on
+ * being callable, and supplies the defaults for those inferred parameters.
  */
 export type UserCallbacks<
   Provider extends string,
@@ -271,6 +424,16 @@ export type UserCallbacks<
 > = {
   createUser: CreateUserFn<Provider, Profile, UsersTable>;
   onSignIn?: OnSignInFn<Provider, Profile, UsersTable>;
+};
+
+/**
+ * The user callbacks as the core receives them from a provider: already
+ * checked against that provider by `attachUserCallbacks`, so the core only
+ * needs them to be internal mutations it can make handles out of.
+ */
+export type BoundUserCallbacks = {
+  createUser: AnyUserCallback;
+  onSignIn?: AnyUserCallback;
 };
 
 /**

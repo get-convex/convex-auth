@@ -14,21 +14,36 @@ const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 // `onSignIn` is optional, and runs on every sign-in including the first. This
-// app uses it to stamp the user's last sign-in.
-export const { signInAnonymous } = setupAnonymous(core, {
+// app uses it to stamp the user's last sign-in. Both providers are attached to
+// the same pair of callbacks, which is allowed because the callbacks declare
+// args wide enough for either provider to call them (see convex/users.ts).
+// The annotated intermediate variables are the price of the shared callbacks
+// above. Checking whether a callback *accepts* what a provider sends takes a
+// generic `attachUserCallbacks`, and a generic call that has to type an
+// `internal.*` argument to produce an exported value is self-referential:
+// `internal` is built from this module's own exports. Annotating the variable
+// gives TypeScript the type without resolving the call, breaking the cycle;
+// exporting the chained call directly fails with TS7022 (as the two
+// single-provider examples currently do).
+type AnonymousApi = ReturnType<
+  ReturnType<typeof setupAnonymous<"users">>["attachUserCallbacks"]
+>;
+const anonymousApi: AnonymousApi = setupAnonymous(core, {
   component: components.authAnonymous,
 }).attachUserCallbacks({
-  createUser: internal.users.createUserAnonymous,
-  onSignIn: internal.users.onSignInAnonymous,
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
 });
+export const { signInAnonymous } = anonymousApi;
 
-export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
-  core,
-  {
-    component: components.authPasswordProvider,
-    usernameComponent: components.authUsername,
-  },
-).attachUserCallbacks({
-  createUser: internal.users.createUserPassword,
-  onSignIn: internal.users.onSignInPassword,
+type PasswordApi = ReturnType<
+  ReturnType<typeof setupUsernamePassword<"users">>["attachUserCallbacks"]
+>;
+const passwordApi: PasswordApi = setupUsernamePassword(core, {
+  component: components.authPasswordProvider,
+  usernameComponent: components.authUsername,
+}).attachUserCallbacks({
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
 });
+export const { signUpWithPassword, signInWithPassword } = passwordApi;
