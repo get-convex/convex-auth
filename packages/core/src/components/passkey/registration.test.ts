@@ -1,9 +1,9 @@
-import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
 import { api } from "./_generated/api";
 import { toArrayBuffer } from "./helpers";
-import schema from "./schema";
+import { CHALLENGE_TTL_MS } from "./validation";
+import { setup } from "../passkeyTestSetup";
 import {
   ORIGIN,
   RP_ID,
@@ -15,14 +15,6 @@ import {
   generateRS256Credential,
   register,
 } from "./testAuthenticator";
-
-const modules = import.meta.glob("./**/*.ts");
-
-const CHALLENGE_TTL_MS = 10 * 60 * 1000;
-
-function setup() {
-  return convexTest(schema, modules);
-}
 
 /** Build valid `finishRegistration` args, with overridable pieces. */
 async function registrationArgs(
@@ -73,6 +65,12 @@ async function registrationArgs(
     },
   };
 }
+
+// Only the expiry tests move the clock, but the restore is global to keep the
+// other tests on the real clock.
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("startRegistration", () => {
   test("returns a 32-byte challenge and stores an anonymous registration row", async () => {
@@ -186,12 +184,10 @@ describe("finishRegistration", () => {
   test("returns CHALLENGE_EXPIRED for an expired challenge and deletes it", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1");
-    await t.run(async (ctx) => {
-      const row = await ctx.db.query("challenges").unique();
-      await ctx.db.patch(row!._id, {
-        createdAt: row!.createdAt - CHALLENGE_TTL_MS - 1000,
-      });
-    });
+    // The age of a challenge is the age of its `_creationTime`, thus the
+    // clock is the only way to make the challenge expire.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + CHALLENGE_TTL_MS + 1000);
     const result = await t.mutation(api.registration.finishRegistration, args);
     expect(result).toEqual({
       success: false,

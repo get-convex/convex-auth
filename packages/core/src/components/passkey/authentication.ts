@@ -20,6 +20,7 @@ import {
 import { sha256 } from "../../vendor/oslo/crypto/sha2";
 import { finishAuthenticationUserError } from "./validation";
 import { consumeChallenge, randomChallenge } from "./helpers";
+import { scheduleChallengeCleanup } from "./cleanup";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
 // `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
@@ -53,8 +54,8 @@ export const startAuthentication = mutation({
       kind: "authentication",
       challenge,
       userId,
-      createdAt: Date.now(),
     });
+    await scheduleChallengeCleanup(ctx);
     if (userId === undefined) {
       // Discoverable credentials: no allow-list. The authenticator decides.
       return { challenge, allowCredentials: [] };

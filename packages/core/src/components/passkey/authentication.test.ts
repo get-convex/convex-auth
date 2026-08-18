@@ -1,7 +1,7 @@
-import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
-import schema from "./schema";
+import { CHALLENGE_TTL_MS } from "./validation";
+import { expectSameBytes, setup } from "../passkeyTestSetup";
 import {
   ORIGIN,
   RP_ID,
@@ -11,15 +11,13 @@ import {
   register,
 } from "./testAuthenticator";
 
-const modules = import.meta.glob("./**/*.ts");
-
-const CHALLENGE_TTL_MS = 10 * 60 * 1000;
-
 const EXPECTED = { expectedRpId: RP_ID, expectedOrigin: ORIGIN };
 
-function setup() {
-  return convexTest(schema, modules);
-}
+// Only the expiry test moves the clock, but the restore is global to keep the
+// other tests on the real clock.
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("startAuthentication", () => {
   test("stores a user-bound challenge and returns the user's credential IDs", async () => {
@@ -32,9 +30,7 @@ describe("startAuthentication", () => {
     );
     expect(new Uint8Array(challenge).length).toBe(32);
     expect(allowCredentials).toHaveLength(1);
-    expect(new Uint8Array(allowCredentials[0])).toEqual(
-      credential.credentialId,
-    );
+    expectSameBytes(allowCredentials[0], credential.credentialId);
     const [row] = await t.run((ctx) => ctx.db.query("challenges").collect());
     expect(row.kind).toBe("authentication");
     expect(row.kind === "authentication" && row.userId).toBe("user1");
@@ -251,13 +247,11 @@ describe("finishAuthentication", () => {
       api.authentication.startAuthentication,
       { userId: "user1" },
     );
-    await t.run(async (ctx) => {
-      const row = await ctx.db.query("challenges").unique();
-      await ctx.db.patch(row!._id, {
-        createdAt: row!.createdAt - CHALLENGE_TTL_MS - 1000,
-      });
-    });
     const assertion = await buildAssertion(credential, challenge);
+    // The age of a challenge is the age of its `_creationTime`, thus the
+    // clock is the only way to make the challenge expire.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + CHALLENGE_TTL_MS + 1000);
     const result = await t.mutation(api.authentication.finishAuthentication, {
       ...EXPECTED,
       ...assertion,

@@ -1,12 +1,6 @@
 import { Doc } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
-
-// How long a stored challenge stays valid. The WebAuthn spec recommends
-// ceremony timeouts of 5–10 minutes to leave room for user interaction
-// (PIN entry, cross-device flows); we match the upper bound. Expiring
-// challenges bounds the window for replay of an intercepted challenge.
-// https://www.w3.org/TR/webauthn-3/#sctn-timeout-recommended-range
-const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+import { CHALLENGE_TTL_MS } from "./validation";
 
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
@@ -48,8 +42,21 @@ export async function consumeChallenge(
   }
   // One use only: a consumed (or expired) challenge is deleted.
   await ctx.db.delete("challenges", row._id);
-  if (Date.now() - row.createdAt > CHALLENGE_TTL_MS) {
+  if (isChallengeExpired(row)) {
     return null;
   }
   return row;
+}
+
+/**
+ * Tell if a stored challenge is too old to redeem.
+ */
+export function isChallengeExpired(
+  row: Doc<"challenges">,
+  now: number = Date.now(),
+): boolean {
+  // A challenge is valid for strictly less than the TTL: at exactly the
+  // TTL, it is expired. The cleanup loop (see cleanup.ts) uses the same
+  // boundary, so a wake-up at the deadline always finds work.
+  return now - row._creationTime >= CHALLENGE_TTL_MS;
 }

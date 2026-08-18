@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@convex-dev/auth": "workspace:*",
-    "convex": "^1.41.0",
+    "convex": "^1.43.0",
     "jose": "^5.10.0",
     "next": "^16.0.0",
     "react": "^19.2.7",

@@ -9,6 +9,7 @@
  */
 
 import type * as authentication from "../authentication.js";
+import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
 import type * as registration from "../registration.js";
 import type * as testAuthenticator from "../testAuthenticator.js";
@@ -23,6 +24,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   authentication: typeof authentication;
+  cleanup: typeof cleanup;
   helpers: typeof helpers;
   registration: typeof registration;
   testAuthenticator: typeof testAuthenticator;
@@ -55,4 +57,6 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {};
+export const components = componentsGeneric() as unknown as {
+  batchWorker: import("@convex-dev/batch-worker/_generated/component.js").ComponentApi<"batchWorker">;
+};
