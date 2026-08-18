@@ -150,7 +150,7 @@ describe("deleteExpiredChallenges", () => {
     );
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
-      ids: [challengeId],
+      events: [{ id: challengeId }],
     });
 
     const remaining = await t.run((ctx) => ctx.db.get("handles", handleId));
@@ -167,7 +167,7 @@ describe("deleteExpiredChallenges", () => {
     );
 
     await t.mutation(internal.cleanup.deleteExpiredChallenges, {
-      ids: [challengeId],
+      events: [{ id: challengeId }],
     });
 
     const remaining = await t.run((ctx) => ctx.db.get("handles", handleId));
