@@ -94,7 +94,7 @@ describe("startRegistration", () => {
     await register(t, "user1");
     const { excludeCredentials } = await t.mutation(
       api.registration.startRegistration,
-      {},
+      { userId: null },
     );
     expect(excludeCredentials).toEqual([]);
   });
@@ -114,6 +114,30 @@ describe("startRegistration", () => {
     expect(ids).toHaveLength(2);
     expect(ids).toContain(first.credential.credentialId.join(","));
     expect(ids).toContain(second.credential.credentialId.join(","));
+  });
+
+  test("throws when a new handle collides with an existing handle", async () => {
+    const t = setup();
+    // Make each new handle the same bytes. Only the 64-byte values are
+    // handles: the challenges (32 bytes) stay random.
+    const getRandomValues = crypto.getRandomValues.bind(crypto);
+    const spy = vi
+      .spyOn(crypto, "getRandomValues")
+      .mockImplementation((array) =>
+        array !== null && array.byteLength === 64
+          ? (array as Uint8Array).fill(7)
+          : getRandomValues(array as Uint8Array),
+      );
+    try {
+      await t.mutation(api.registration.startRegistration, { userId: "user1" });
+      await expect(
+        t.mutation(api.registration.startRegistration, { userId: "user2" }),
+      ).rejects.toThrow("collides with an existing handle");
+    } finally {
+      spy.mockRestore();
+    }
+    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
+    expect(handles).toHaveLength(1);
   });
 });
 
@@ -325,6 +349,68 @@ describe("finishRegistration", () => {
       ctx.db.query("challenges").collect(),
     );
     expect(challenges).toEqual([]);
+  });
+
+  test("deletes the unlinked handle when verification fails in the new-account flow", async () => {
+    const t = setup();
+    const { challenge } = await t.mutation(api.registration.startRegistration, {
+      userId: null,
+    });
+    const { args } = await registrationArgs(t, "user1", {
+      challenge,
+      userVerified: false,
+    });
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "VERIFICATION_FAILED" },
+    });
+    // The failure burned the challenge, so the cleanup loop cannot find the
+    // handle later. The mutation must delete the handle itself.
+    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
+    expect(handles).toEqual([]);
+    const challenges = await t.run((ctx) =>
+      ctx.db.query("challenges").collect(),
+    );
+    expect(challenges).toEqual([]);
+  });
+
+  test("deletes the unlinked handle for a duplicate credential in the new-account flow", async () => {
+    const t = setup();
+    const { credential } = await register(t, "user1");
+    const { challenge } = await t.mutation(api.registration.startRegistration, {
+      userId: null,
+    });
+    const { args } = await registrationArgs(t, "user2", {
+      challenge,
+      credential,
+    });
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },
+    });
+    // Only the linked handle of user1 stays.
+    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
+    expect(handles).toHaveLength(1);
+    expect(handles[0].userId).toBe("user1");
+  });
+
+  test("keeps the linked handle when verification fails for an existing user", async () => {
+    const t = setup();
+    await register(t, "user1");
+    const { args } = await registrationArgs(t, "user1", {
+      userVerified: false,
+    });
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "VERIFICATION_FAILED" },
+    });
+    // The handle belongs to user1, so the failed attempt must not remove it.
+    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
+    expect(handles).toHaveLength(1);
+    expect(handles[0].userId).toBe("user1");
   });
 });
 

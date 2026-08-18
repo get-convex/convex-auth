@@ -1,4 +1,4 @@
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 import { CHALLENGE_TTL_MS } from "./validation";
 
@@ -17,17 +17,26 @@ export function randomChallenge(): ArrayBuffer {
   return toArrayBuffer(challenge);
 }
 
+export function randomHandle(): ArrayBuffer {
+  // 64 bytes is the WebAuthn maximum length for `user.id`.
+  const handle = new Uint8Array(64);
+  crypto.getRandomValues(handle);
+  return toArrayBuffer(handle);
+}
+
 /**
  * Find a one-use challenge by its bytes. Make sure that the challenge has
  * the correct kind and is not too old. Delete the challenge and return the
  * row. Return `null` when no usable challenge exists (unknown, incorrect
  * kind, already used, or expired).
  */
-export async function consumeChallenge(
+export async function consumeChallenge<
+  Kind extends "registration" | "authentication",
+>(
   ctx: MutationCtx,
-  kind: "registration" | "authentication",
+  kind: Kind,
   challenge: Uint8Array,
-): Promise<Doc<"challenges"> | null> {
+): Promise<Extract<Doc<"challenges">, { kind: Kind }> | null> {
   const row = await ctx.db
     .query("challenges")
     .withIndex("by_challenge", (q) =>
@@ -40,12 +49,13 @@ export async function consumeChallenge(
   if (row === null || row.kind !== kind) {
     return null;
   }
-  // One use only: a consumed (or expired) challenge is deleted.
-  await ctx.db.delete("challenges", row._id);
   if (isChallengeExpired(row)) {
+    await deleteDeadChallenge(ctx, row);
     return null;
   }
-  return row;
+  // One use only: a consumed challenge is deleted.
+  await ctx.db.delete("challenges", row._id);
+  return row as Extract<Doc<"challenges">, { kind: Kind }>;
 }
 
 /**
@@ -59,4 +69,47 @@ export function isChallengeExpired(
   // TTL, it is expired. The cleanup loop (see cleanup.ts) uses the same
   // boundary, so a wake-up at the deadline always finds work.
   return now - row._creationTime >= CHALLENGE_TTL_MS;
+}
+
+/**
+ * Delete a challenge whose ceremony can never complete: an expired
+ * challenge, or a live challenge that a failed finish attempt burns.
+ */
+export async function deleteDeadChallenge(
+  ctx: MutationCtx,
+  row: Doc<"challenges">,
+): Promise<void> {
+  await ctx.db.delete("challenges", row._id);
+
+  if (row.kind === "registration") {
+    await deleteUnlinkedHandle(ctx, row.handleId);
+  }
+}
+
+/**
+ * Delete the handle of a burned registration ceremony when no user owns it.
+ *
+ * A handle with `userId: null` comes from the new-account flow. When the
+ * ceremony fails, no other row points at the handle. Without this cleanup,
+ * the handle stays forever, because the challenge cleanup loop only finds
+ * handles through their challenge rows.
+ */
+export async function deleteUnlinkedHandle(
+  ctx: MutationCtx,
+  handleId: Id<"handles">,
+): Promise<void> {
+  const handle = await ctx.db.get("handles", handleId);
+
+  // In most cases the handle should exist here, but in rare cases it can be deleted
+  // (if an existing user starts a passkey registration attempt, never completes it,
+  // and then deletes their account before the challenge expires)
+  if (handle === null) {
+    return;
+  }
+
+  // If the handle is not linked to a user account,
+  // it means the user never existed and we can delete the handle
+  if (handle.userId === null) {
+    await ctx.db.delete("handles", handle._id);
+  }
 }

@@ -1,7 +1,19 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { consumeChallenge, randomChallenge, toArrayBuffer } from "./helpers";
+import {
+  consumeChallenge,
+  randomChallenge,
+  randomHandle,
+  toArrayBuffer,
+} from "./helpers";
 import schema from "./schema";
+import { MutationCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+
+/** Insert an unlinked handle, as `startRegistration` does. */
+function insertHandle(ctx: MutationCtx): Promise<Id<"handles">> {
+  return ctx.db.insert("handles", { handle: randomHandle(), userId: null });
+}
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -59,11 +71,14 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
+        handleId: await insertHandle(ctx),
       });
       const row = await consumeChallenge(ctx, "registration", challenge);
       expect(row).not.toBe(null);
       expect(row!.kind).toBe("registration");
       expect(await ctx.db.query("challenges").collect()).toEqual([]);
+      // The challenge was not expired: its handle stays.
+      expect(await ctx.db.query("handles").collect()).toHaveLength(1);
     });
   });
 
@@ -86,6 +101,7 @@ describe("consumeChallenge", () => {
       await ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
+        handleId: await insertHandle(ctx),
       });
       const row = await consumeChallenge(ctx, "authentication", challenge);
       expect(row).toBe(null);
@@ -112,9 +128,11 @@ describe("consumeChallenge", () => {
   });
 
   /**
-   * Insert a registration challenge, then move the clock forward by `ageMs`.
-   * The age of a challenge is the age of its `_creationTime`, thus the clock
-   * is the only way to make a challenge old.
+   * Insert a handle and a registration challenge that points at it, then move
+   * the clock forward by `ageMs`. The age of a challenge is the age of its
+   * `_creationTime`, thus the clock is the only way to make a challenge old.
+   * The handle goes in one millisecond earlier, in its own transaction, so
+   * that the challenge gets the base time exactly.
    */
   async function insertAndAge(
     t: ReturnType<typeof setup>,
@@ -122,11 +140,14 @@ describe("consumeChallenge", () => {
     ageMs: number,
   ) {
     vi.useFakeTimers();
+    vi.setSystemTime(1_700_000_000_000 - 1);
+    const handleId = await t.run((ctx) => insertHandle(ctx));
     vi.setSystemTime(1_700_000_000_000);
     await t.run((ctx) =>
       ctx.db.insert("challenges", {
         kind: "registration",
         challenge: toArrayBuffer(challenge),
+        handleId,
       }),
     );
     vi.setSystemTime(1_700_000_000_000 + ageMs);
@@ -139,8 +160,10 @@ describe("consumeChallenge", () => {
     await t.run(async (ctx) => {
       const row = await consumeChallenge(ctx, "registration", challenge);
       expect(row).toBe(null);
-      // The expired row was deleted on the way out.
+      // The expired row was deleted on the way out, together with its
+      // unlinked handle.
       expect(await ctx.db.query("challenges").collect()).toEqual([]);
+      expect(await ctx.db.query("handles").collect()).toEqual([]);
     });
   });
 

@@ -1,5 +1,6 @@
 import { Infer, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import {
   ClientDataType,
   coseAlgorithmES256,
@@ -14,15 +15,23 @@ import {
   finishRegistrationUserError,
   deletePasskeyUserError,
 } from "./validation";
-import { consumeChallenge, randomChallenge, toArrayBuffer } from "./helpers";
+import {
+  consumeChallenge,
+  deleteUnlinkedHandle,
+  randomChallenge,
+  randomHandle,
+  toArrayBuffer,
+} from "./helpers";
 import { scheduleChallengeCleanup } from "./cleanup";
 
-// The challenge and the credential IDs travel as raw bytes (Convex
-// `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
-// browser makes and accepts the same bytes, so no base64 conversion is
-// necessary.
+// The challenge, the credential IDs, and the user handle travel as raw bytes
+// (Convex `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API
+// in the browser makes and accepts the same bytes, so no base64 conversion
+// is necessary.
 const startRegistrationResult = v.object({
   challenge: v.bytes(),
+  // The WebAuthn user handle (`user.id`) for the `create()` call.
+  userHandle: v.bytes(),
   excludeCredentials: v.array(v.bytes()),
 });
 
@@ -33,30 +42,66 @@ const startRegistrationResult = v.object({
  * challenge bytes. The challenge has no identity: it is simply a random
  * string used to avoid replay attacks.
  *
- * Set `userId` when a known user adds a passkey to their account. The
- * function then also returns the existing credential IDs of the user.
- * This is used by the authenticator to ensure there isn’t already a
- * passkey that exists for the user.
+ * The function also returns the `userHandle` for the ceremony:
+ * - Give a `userId` when a known user adds a passkey to their account. The
+ *   function reuses the handle of the user, or makes one when the user has
+ *   none. It also returns the existing credential IDs of the user. This is
+ *   used by the authenticator to ensure there isn’t already a passkey that
+ *   exists for the user.
+ * - Give `null` in the new-account flow (the user row does not exist yet).
+ *   The function makes a new handle with no user. `finishRegistration` links
+ *   the handle to the verified user.
+ *
+ * The `userId` argument is required, not optional: the two flows behave
+ * differently, so the caller must state which flow it runs. (Compare with
+ * `startAuthentication`, where the argument is optional.)
+ *
+ * TODO(nicolas) Split this into two methods
  */
 export const startRegistration = mutation({
-  args: { userId: v.optional(v.string()) },
+  args: { userId: v.union(v.string(), v.null()) },
   returns: startRegistrationResult,
   handler: async (ctx, { userId }) => {
-    const challenge = randomChallenge();
-    await ctx.db.insert("challenges", {
-      kind: "registration",
-      challenge,
-    });
-    await scheduleChallengeCleanup(ctx);
+    let handle: { _id: Id<"handles">; handle: ArrayBuffer } | null = null;
     let excludeCredentials: ArrayBuffer[] = [];
-    if (userId !== undefined) {
+    if (userId !== null) {
+      // A user has a maximum of one handle: reuse it when it exists.
+      handle = await ctx.db
+        .query("handles")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .unique();
       const rows = await ctx.db
         .query("passkeys")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .collect();
       excludeCredentials = rows.map((row) => row.credentialId);
     }
-    return { challenge, excludeCredentials };
+    if (handle === null) {
+      const bytes = randomHandle();
+      // A handle is 64 random bytes, so a collision is not expected. The
+      // check is here for safety: two users with the same handle would let
+      // one of them authenticate as the other.
+      const collision = await ctx.db
+        .query("handles")
+        .withIndex("by_handle", (q) => q.eq("handle", bytes))
+        .first();
+      if (collision !== null) {
+        throw new Error(
+          "The new user handle collides with an existing handle.",
+        );
+      }
+      const id = await ctx.db.insert("handles", { handle: bytes, userId });
+      handle = { _id: id, handle: bytes };
+    }
+
+    const challenge = randomChallenge();
+    await ctx.db.insert("challenges", {
+      kind: "registration",
+      challenge,
+      handleId: handle._id,
+    });
+    await scheduleChallengeCleanup(ctx);
+    return { challenge, userHandle: handle.handle, excludeCredentials };
   },
 });
 
@@ -136,6 +181,9 @@ export const finishRegistration = mutation({
       throw new Error("Relying party ID hash mismatch.");
     }
     if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
+      // The challenge is consumed, so the cleanup loop cannot find the
+      // handle later. Remove it here when no user owns it.
+      await deleteUnlinkedHandle(ctx, challengeRow.handleId);
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
     const credential = authenticatorData.credential;
@@ -171,10 +219,40 @@ export const finishRegistration = mutation({
       .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
       .first();
     if (existing !== null) {
+      // Same as VERIFICATION_FAILED above: the ceremony is burned, so
+      // remove the handle when no user owns it.
+      await deleteUnlinkedHandle(ctx, challengeRow.handleId);
       return {
         success: false,
         userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },
       };
+    }
+
+    // Link the handle of the ceremony to the verified user.
+    const handle = await ctx.db.get("handles", challengeRow.handleId);
+    if (handle === null) {
+      throw new Error("The handle of the challenge does not exist.");
+    }
+    if (handle.userId === null) {
+      // The new-account flow: the handle was made before the user existed.
+      const existingHandle = await ctx.db
+        .query("handles")
+        .withIndex("by_userId", (q) => q.eq("userId", args.verifiedUserId))
+        .first();
+      if (existingHandle !== null) {
+        // Invariant: the new-account flow only runs for a brand-new user,
+        // which cannot have a handle already.
+        throw new Error(
+          "Invariant violation: The user already has a different handle. finishRegistration is being called incorrectly.",
+        );
+      }
+      await ctx.db.patch("handles", handle._id, {
+        userId: args.verifiedUserId,
+      });
+    } else if (handle.userId !== args.verifiedUserId) {
+      throw new Error(
+        "Invariant violation: The handle belongs to a different user. finishRegistration is being called incorrectly.",
+      );
     }
 
     const passkeyId = await ctx.db.insert("passkeys", {
@@ -229,6 +307,12 @@ type DeletePasskeyResult = Infer<typeof deletePasskeyResult>;
  *
  * The `userId` check makes the function safe for an ID that comes directly
  * from the client: a user can only delete their own passkeys.
+ *
+ * The function does not delete the handle of the user, not even when the
+ * user has no passkeys left. A passkey that the user creates later must
+ * reuse the same handle. Then an authenticator that still holds an old
+ * credential keeps working, and the user does not fork across two handles.
+ * Use `deleteUser` when the user is deleted permanently.
  */
 export const deletePasskey = mutation({
   args: { userId: v.string(), passkeyId: v.string() },
@@ -244,5 +328,49 @@ export const deletePasskey = mutation({
     }
     await ctx.db.delete("passkeys", id);
     return { success: true };
+  },
+});
+
+/**
+ * Delete all the passkey data of a user: their passkeys, their handle, and
+ * the authentication challenges bound to the user.
+ *
+ * The app calls this function when it deletes a user permanently. Do not
+ * call it in other cases: without the handle, an authenticator that still
+ * holds an old credential stops working (see `deletePasskey`).
+ *
+ * Caveat: an in-flight registration challenge that points at the handle of
+ * the user survives until its TTL. That is safe: `finishRegistration` throws
+ * when the handle of the challenge no longer exists, and the cleanup loop
+ * erases the challenge after the TTL.
+ */
+export const deleteUser = mutation({
+  args: { userId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { userId }) => {
+    const passkeys = await ctx.db
+      .query("passkeys")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    for (const passkey of passkeys) {
+      await ctx.db.delete("passkeys", passkey._id);
+    }
+    const handles = await ctx.db
+      .query("handles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    for (const handle of handles) {
+      await ctx.db.delete("handles", handle._id);
+    }
+    // Only authentication challenges carry a `userId`. Registration rows
+    // have no `userId` field, so the index probe never matches them.
+    const challenges = await ctx.db
+      .query("challenges")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    for (const challenge of challenges) {
+      await ctx.db.delete("challenges", challenge._id);
+    }
+    return null;
   },
 });
