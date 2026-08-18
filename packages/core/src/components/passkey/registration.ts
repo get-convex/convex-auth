@@ -219,13 +219,11 @@ export const finishRegistration = mutation({
       .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
       .first();
     if (existing !== null) {
-      // Same as VERIFICATION_FAILED above: the ceremony is burned, so
-      // remove the handle when no user owns it.
-      await deleteUnlinkedHandle(ctx, challengeRow.handleId);
-      return {
-        success: false,
-        userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },
-      };
+      // A compliant client cannot cause this: authenticators make a fresh
+      // random credential ID for each ceremony, and `excludeCredentials`
+      // makes the authenticator refuse a duplicate for this RP. A duplicate
+      // here shows a replayed or tampered registration.
+      throw new Error("The credential is already registered.");
     }
 
     // Link the handle of the ceremony to the verified user.

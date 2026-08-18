@@ -84,9 +84,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              | { error: "CHALLENGE_EXPIRED" }
-              | { error: "VERIFICATION_FAILED" }
-              | { error: "CREDENTIAL_ALREADY_REGISTERED" };
+              { error: "CHALLENGE_EXPIRED" } | { error: "VERIFICATION_FAILED" };
           },
         Name
       >;
