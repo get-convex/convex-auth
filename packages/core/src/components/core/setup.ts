@@ -17,7 +17,7 @@ import {
   vTokenBundle,
   type TokenBundle,
   type ConvexAuthCtx,
-  type CreateOrUpdateUserFn,
+  type UserCallbacks,
 } from "../../lib/types";
 
 /**
@@ -134,19 +134,19 @@ export type AuthCore<UsersTable extends string = string> = {
    * providers bound to this core — a duplicate throws immediately (two
    * providers sharing a name would silently share accounts).
    *
-   * `createOrUpdateUser` is the app's user callback for this provider (see
-   * {@link CreateOrUpdateUserFn}); the core invokes it on every sign-in the
-   * returned builders complete.
+   * `onSignUp` is the app's user-creating callback for this provider and
+   * `onSignIn` is the optional return-visit hook (see {@link UserCallbacks}).
    *
-   * Provider setup functions call this from inside their `attachUserCallback`,
-   * once the app has supplied the callback — so the builders can simply close
-   * over it, and a provider with no callback cannot exist. It is not meant to
-   * be called by application code directly.
+   * Provider setup functions call this from inside their `attachUserCallbacks`,
+   * once the app has supplied the callbacks, so the builders can close over
+   * them and a provider with no way to create users cannot exist. It is not
+   * meant to be called by application code directly.
    */
-  bindProvider<Provider extends string, Profile>(options: {
-    name: Provider;
-    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>;
-  }): ProviderBuilders<Profile>;
+  bindProvider<Provider extends string, Profile>(
+    options: {
+      name: Provider;
+    } & UserCallbacks<Provider, Profile, UsersTable>,
+  ): ProviderBuilders<Profile>;
 };
 
 /**
@@ -163,14 +163,16 @@ export type AuthCore<UsersTable extends string = string> = {
  *   setupUsernamePassword(core, {
  *     component: components.authPasswordProvider,
  *     usernameComponent: components.authUsername,
- *   }).attachUserCallback(internal.users.createOrUpdateUser);
+ *   }).attachUserCallbacks({ onSignUp: internal.users.onSignUpPassword });
  * ```
  *
  * The core never triggers a sign-in itself: it has no idea how any given
  * provider authenticates a user. *Triggering sign-in is each provider's
  * responsibility.* A provider verifies the user its own way (checking a
- * password, say) and then calls the `completeSignIn` helper the core injects
- * on `ctx.convexAuth` to exchange the verified identity for a session.
+ * password, say) and then calls one of the helpers the core injects on
+ * `ctx.convexAuth` to exchange the verified identity for a session:
+ * `completeSignUp` when it has just established the account, `completeSignIn`
+ * when the account already exists.
  *
  * Token lifetimes are configurable here and default to 1m (access) and 30d
  * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
@@ -186,9 +188,9 @@ export function setupCore<UsersTable extends string = "users">(options: {
    * The name of the app's users table. Defaults to `"users"`.
    *
    * The core never reads or writes the table — it only stores the id the app's
-   * create-or-update-user callback returns. The name is a *type-level* contract:
-   * it makes every provider's `attachUserCallback` demand a mutation whose
-   * `userId` argument and return type are `Id<usersTable>`, so an app cannot
+   * `onSignUp` callback returns. The name is a *type-level* contract: it makes
+   * every provider's `attachUserCallbacks` demand mutations whose `userId`
+   * argument and return type are `Id<usersTable>`, so an app cannot
    * accidentally hand back an id from some other table (and, because the app
    * then declares `v.id(usersTable)`, Convex enforces the same thing at runtime).
    *
@@ -268,11 +270,15 @@ export function setupCore<UsersTable extends string = "users">(options: {
 
   const bindProvider = <Provider extends string, Profile>({
     name,
-    createOrUpdateUser,
+    onSignUp,
+    onSignIn,
   }: {
     name: Provider;
-    createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>;
-  }): ProviderBuilders<Profile> => {
+  } & UserCallbacks<
+    Provider,
+    Profile,
+    UsersTable
+  >): ProviderBuilders<Profile> => {
     if (boundProviderNames.has(name)) {
       throw new Error(
         `A provider named "${name}" is already bound to this auth core. ` +
@@ -289,19 +295,39 @@ export function setupCore<UsersTable extends string = "users">(options: {
         | GenericActionCtx<GenericDataModel>
         | GenericMutationCtx<GenericDataModel>,
     ) => ({
+      completeSignUp: async (args: {
+        providerAccountId: string;
+        profile: Profile;
+      }): Promise<TokenBundle> => {
+        const onSignUpHandle = await createFunctionHandle(onSignUp);
+        return await ctx.runMutation(component.public.signUp, {
+          claims: {
+            provider: name,
+            providerAccountId: args.providerAccountId,
+            profile: args.profile,
+          },
+          onSignUpHandle,
+          issuer: issuer(),
+          accessTokenTtlSeconds,
+          refreshTokenTtlSeconds,
+        });
+      },
       completeSignIn: async (args: {
         providerAccountId: string;
         profile: Profile;
       }): Promise<TokenBundle> => {
-        const createOrUpdateUserHandle =
-          await createFunctionHandle(createOrUpdateUser);
+        // With no handle the core mints the session without notifying the app.
+        const onSignInHandle =
+          onSignIn === undefined
+            ? undefined
+            : await createFunctionHandle(onSignIn);
         return await ctx.runMutation(component.public.signIn, {
           claims: {
             provider: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },
-          createOrUpdateUserHandle,
+          onSignInHandle,
           issuer: issuer(),
           accessTokenTtlSeconds,
           refreshTokenTtlSeconds,

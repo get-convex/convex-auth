@@ -23,21 +23,29 @@ import type {
 /**
  * Tests for the app-side `completeSignIn` mutation that `setupOauth`
  * produces, run against the real component (real `claimTicket`, real ticket
- * crypto). The core helper that turns verified claims into a session
- * (`ctx.convexAuth.completeSignIn`) is faked and spied here. The real one is
- * covered by the core's own suite (components/core/core.test.ts).
+ * crypto). The core helpers it uses (`ctx.convexAuth.completeSignUp` /
+ * `completeSignIn`, plus the `resolveUserId` it picks between them with) are
+ * faked and spied here. The real ones are covered by the core's own suite
+ * (components/core/core.test.ts).
  */
 
 /**
- * Claims recorded by the fake `ctx.convexAuth.completeSignIn`. The suite runs
- * in one process, so tests read and reset this directly.
+ * Claims recorded by the fake `ctx.convexAuth.completeSignUp` /
+ * `completeSignIn`, tagged with which of the two redemption chose. The suite
+ * runs in one process, so tests read and reset this directly.
  */
-const completeSignInCalls: AuthClaims[] = [];
+type HelperCall = { kind: "signUp" | "signIn"; claims: AuthClaims };
+const helperCalls: HelperCall[] = [];
 
 /**
- * When set, the fake `ctx.convexAuth.completeSignIn` throws this instead of
- * returning a bundle, modeling the app rejecting the sign-in from its
- * `createOrUpdateUser` callback.
+ * What the fake `ctx.convexAuth.resolveUserId` reports. `null` (the default)
+ * models an identity the core has never seen; a user id models a return visit.
+ */
+const resolvedUserId = { value: null as string | null };
+
+/**
+ * When set, the fake helpers throw this instead of returning a bundle, modeling
+ * the app rejecting the sign-in from its `onSignUp` / `onSignIn` callback.
  */
 const helperFailure = { error: undefined as Error | undefined };
 
@@ -50,29 +58,35 @@ const FAKE_BUNDLE: TokenBundle = {
   userId: "user-1",
 };
 
-/**
- * A fake core whose builders inject fake {@link BoundAuthHelpers}.
- * `resolveUserId` is never reached by redemption.
- */
+/** A fake core whose builders inject fake {@link BoundAuthHelpers}. */
 const FAKE_CORE = {
   bindProvider: <Provider extends string, Profile>({
     name,
   }: {
     name: Provider;
   }): ProviderBuilders<Profile> => {
-    const convexAuth: BoundAuthHelpers<Profile> = {
-      completeSignIn: async ({ providerAccountId, profile }) => {
-        completeSignInCalls.push({
-          provider: name,
-          providerAccountId,
-          profile,
+    const record =
+      (kind: HelperCall["kind"]) =>
+      async ({
+        providerAccountId,
+        profile,
+      }: {
+        providerAccountId: string;
+        profile: Profile;
+      }) => {
+        helperCalls.push({
+          kind,
+          claims: { provider: name, providerAccountId, profile },
         });
         if (helperFailure.error !== undefined) {
           throw helperFailure.error;
         }
         return FAKE_BUNDLE;
-      },
-      resolveUserId: async () => null,
+      };
+    const convexAuth: BoundAuthHelpers<Profile> = {
+      completeSignUp: record("signUp"),
+      completeSignIn: record("signIn"),
+      resolveUserId: async () => resolvedUserId.value,
     };
     const authMutation: AuthMutationBuilder<Profile> = (fn) =>
       mutationGeneric({
@@ -92,9 +106,9 @@ const FAKE_CORE = {
 } as unknown as AuthCore;
 
 /**
- * A create-or-update-user callback reference. The fake core never invokes it.
+ * The app's user callbacks. The fake core never invokes them.
  */
-const FAKE_CALLBACK = {} as never;
+const FAKE_CALLBACKS = {} as never;
 
 /**
  * Provider options for every instance under test. The component's own
@@ -172,28 +186,28 @@ const testApp = {
     FAKE_CORE,
     "acme",
     CLAIMS_CATALOG,
-    FAKE_CALLBACK,
+    FAKE_CALLBACKS,
     OPTIONS,
   ).completeSignIn,
   completeSignInAcmeInfo: setupOauth(
     FAKE_CORE,
     "acmeInfo",
     USERINFO_CATALOG,
-    FAKE_CALLBACK,
+    FAKE_CALLBACKS,
     OPTIONS,
   ).completeSignIn,
   completeSignInEmptyId: setupOauth(
     FAKE_CORE,
     "emptyId",
     EMPTY_ID_CATALOG,
-    FAKE_CALLBACK,
+    FAKE_CALLBACKS,
     OPTIONS,
   ).completeSignIn,
   completeSignInMissingId: setupOauth(
     FAKE_CORE,
     "missingId",
     MISSING_ID_CATALOG,
-    FAKE_CALLBACK,
+    FAKE_CALLBACKS,
     OPTIONS,
   ).completeSignIn,
 };
@@ -255,7 +269,8 @@ async function mintTicket(
 
 afterEach(() => {
   vi.useRealTimers();
-  completeSignInCalls.length = 0;
+  helperCalls.length = 0;
+  resolvedUserId.value = null;
   helperFailure.error = undefined;
 });
 
@@ -271,12 +286,40 @@ describe("completeSignIn", () => {
 
     expect(bundle).toEqual(FAKE_BUNDLE);
     // The decrypted payload flowed through the catalog's profile mapping
-    // into the fake helpers.
-    expect(completeSignInCalls).toEqual([
+    // into the fake helpers. The identity is unknown to the core, so
+    // redemption took the sign-up path.
+    expect(helperCalls).toEqual([
       {
-        provider: "acme",
-        providerAccountId: "acme-sub-1",
-        profile: { id: "acme-sub-1", email: "ada@example.com", name: "Ada" },
+        kind: "signUp",
+        claims: {
+          provider: "acme",
+          providerAccountId: "acme-sub-1",
+          profile: { id: "acme-sub-1", email: "ada@example.com", name: "Ada" },
+        },
+      },
+    ]);
+  });
+
+  test("signs a returning identity in rather than signing it up again", async () => {
+    const t = setup();
+    const code = await mintTicket(t);
+
+    // Only the core knows the account has been seen before.
+    resolvedUserId.value = "user-1";
+    const bundle = await t.mutation(completeSignInAcme, {
+      code,
+      state: "state-1",
+    });
+
+    expect(bundle).toEqual(FAKE_BUNDLE);
+    expect(helperCalls).toEqual([
+      {
+        kind: "signIn",
+        claims: {
+          provider: "acme",
+          providerAccountId: "acme-sub-1",
+          profile: { id: "acme-sub-1", email: "ada@example.com", name: "Ada" },
+        },
       },
     ]);
   });
@@ -294,11 +337,14 @@ describe("completeSignIn", () => {
     });
 
     expect(bundle).toEqual(FAKE_BUNDLE);
-    expect(completeSignInCalls).toEqual([
+    expect(helperCalls).toEqual([
       {
-        provider: "acmeInfo",
-        providerAccountId: "42",
-        profile: { id: "42", login: "octocat" },
+        kind: "signUp",
+        claims: {
+          provider: "acmeInfo",
+          providerAccountId: "42",
+          profile: { id: "42", login: "octocat" },
+        },
       },
     ]);
   });
@@ -310,7 +356,7 @@ describe("completeSignIn", () => {
       state: "state-1",
     });
     expect(result).toBeNull();
-    expect(completeSignInCalls).toHaveLength(0);
+    expect(helperCalls).toHaveLength(0);
   });
 
   test("a wrong state returns null and preserves the ticket", async () => {
@@ -347,7 +393,7 @@ describe("completeSignIn", () => {
       state: "state-1",
     });
     expect(second).toBeNull();
-    expect(completeSignInCalls).toHaveLength(1);
+    expect(helperCalls).toHaveLength(1);
   });
 
   test("an expired ticket returns null", async () => {
@@ -361,7 +407,7 @@ describe("completeSignIn", () => {
       state: "state-1",
     });
     expect(result).toBeNull();
-    expect(completeSignInCalls).toHaveLength(0);
+    expect(helperCalls).toHaveLength(0);
   });
 
   test("a profile mapping that returns an empty id throws", async () => {

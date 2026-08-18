@@ -1,6 +1,6 @@
 import {
   vSignInSuccess,
-  type CreateOrUpdateUserFn,
+  type OnSignUpFn,
   type SignInSuccess,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
@@ -24,7 +24,7 @@ const PROVIDER_NAME = "anonymous";
  *
  * export const { signInAnonymous } = setupAnonymous(core, {
  *   component: components.authAnonymous,
- * }).attachUserCallback(internal.users.createOrUpdateUser);
+ * }).attachUserCallbacks({ onSignUp: internal.users.onSignUpAnonymous });
  * ```
  */
 export function setupAnonymous<UsersTable extends string>(
@@ -38,20 +38,20 @@ export function setupAnonymous<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's create-or-update-user mutation (see
-     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
-     * get this provider's functions to export.
+     * Supply the app's sign-up mutation (see {@link OnSignUpFn} for how its
+     * args must be declared) and get this provider's functions to export.
+     *
+     * There is no `onSignIn`: every anonymous sign-in establishes a new
+     * account, so a return-visit callback could never fire.
      */
-    attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<
-        "anonymous",
-        Record<string, never>,
-        UsersTable
-      >,
-    ) {
+    attachUserCallbacks({
+      onSignUp,
+    }: {
+      onSignUp: OnSignUpFn<"anonymous", Record<string, never>, UsersTable>;
+    }) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
-        createOrUpdateUser,
+        onSignUp,
       });
 
       return {
@@ -69,7 +69,7 @@ export function setupAnonymous<UsersTable extends string>(
               component.provider.createAnonymousAccount,
               {},
             );
-            const tokens = await ctx.convexAuth.completeSignIn({
+            const tokens = await ctx.convexAuth.completeSignUp({
               providerAccountId: anonymousId,
               profile: {},
             });
