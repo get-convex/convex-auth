@@ -557,20 +557,30 @@ describe("finishRegistration", () => {
     ).rejects.toThrow("Unsupported elliptic curve (expected P-256).");
   });
 
-  test("returns CREDENTIAL_ALREADY_REGISTERED for a duplicate credential ID", async () => {
+  test("throws for a duplicate credential ID", async () => {
     const t = setup();
+    await register(t, "user1");
     const { credential } = await register(t, "user1");
-    const { args } = await registrationArgs(t, "user2", { credential });
-    const result = await t.mutation(api.registration.finishRegistration, args);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },
+    // A second ceremony for a new account, with a credential that exists.
+    // A compliant client cannot cause this, so the mutation throws instead
+    // of returning a user error.
+    const { args } = await registrationArgs(t, "user2", {
+      isNewAccountFlow: true,
+      credential,
     });
-    // The failed attempt still burned its challenge.
+    await expect(
+      t.mutation(api.registration.finishRegistration, args),
+    ).rejects.toThrow("The credential is already registered.");
+    // The throw rolls back the mutation: the challenge and its unlinked
+    // handle stay, and the cleanup loop erases them after the TTL.
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
     );
-    expect(challenges).toEqual([]);
+    expect(challenges).toHaveLength(1);
+    expect((await handleRows(t)).map((row) => row.userId)).toEqual([
+      "user1",
+      null,
+    ]);
   });
 
   test("deletes the unlinked handle when verification fails in the new-account flow", async () => {
@@ -595,27 +605,6 @@ describe("finishRegistration", () => {
       ctx.db.query("challenges").collect(),
     );
     expect(challenges).toEqual([]);
-  });
-
-  test("deletes the unlinked handle for a duplicate credential in the new-account flow", async () => {
-    const t = setup();
-    const { credential } = await register(t, "user1");
-    const { challenge } = await t.mutation(api.registration.startRegistration, {
-      userId: null,
-    });
-    const { args } = await registrationArgs(t, "user2", {
-      challenge,
-      credential,
-    });
-    const result = await t.mutation(api.registration.finishRegistration, args);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },
-    });
-    // Only the linked handle of user1 stays.
-    const handles = await t.run((ctx) => ctx.db.query("handles").collect());
-    expect(handles).toHaveLength(1);
-    expect(handles[0].userId).toBe("user1");
   });
 
   test("keeps the linked handle when verification fails for an existing user", async () => {

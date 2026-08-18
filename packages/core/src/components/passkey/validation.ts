@@ -24,8 +24,6 @@ export const finishRegistrationUserError = v.union(
   v.object({ error: v.literal("CHALLENGE_EXPIRED") }),
   // The authenticator did not report user presence and user verification.
   v.object({ error: v.literal("VERIFICATION_FAILED") }),
-  // The credential is already registered, for this user or a different user.
-  v.object({ error: v.literal("CREDENTIAL_ALREADY_REGISTERED") }),
 );
 export type FinishRegistrationUserError = Infer<
   typeof finishRegistrationUserError
