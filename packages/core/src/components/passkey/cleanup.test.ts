@@ -81,6 +81,7 @@ describe("getExpiredChallenges", () => {
     expect(result).toEqual({
       kind: "work",
       batch: { events: [{ id: expiredId }] },
+      cursor: START - CHALLENGE_TTL_MS - 1,
     });
   });
 
@@ -96,6 +97,29 @@ describe("getExpiredChallenges", () => {
     expect(result).toEqual({
       kind: "idle",
       timeoutMs: CHALLENGE_TTL_MS - 1000,
+    });
+  });
+
+  test("the cursor skips the rows that the loop already erased", async () => {
+    const t = setup();
+    // A row that stays below the cursor is a stale read for the loop: only a
+    // tombstone can be below the cursor in production.
+    await insertRegistration(t, 1, START - CHALLENGE_TTL_MS - 10);
+    const { challengeId: laterId } = await insertRegistration(
+      t,
+      2,
+      START - CHALLENGE_TTL_MS - 5,
+    );
+
+    vi.setSystemTime(START);
+    const result = await t.query(internal.cleanup.getExpiredChallenges, {
+      name: WORKER_NAME,
+      cursor: START - CHALLENGE_TTL_MS - 5,
+    });
+    expect(result).toEqual({
+      kind: "work",
+      batch: { events: [{ id: laterId }] },
+      cursor: START - CHALLENGE_TTL_MS - 5,
     });
   });
 
@@ -117,6 +141,7 @@ describe("getExpiredChallenges", () => {
     expect(result).toEqual({
       kind: "work",
       batch: { events: [{ id: challengeId }] },
+      cursor: START - CHALLENGE_TTL_MS,
     });
   });
 });
