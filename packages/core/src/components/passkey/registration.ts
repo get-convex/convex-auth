@@ -17,6 +17,7 @@ import {
 } from "./validation";
 import {
   consumeChallenge,
+  deleteUnlinkedHandle,
   randomChallenge,
   randomHandle,
   toArrayBuffer,
@@ -178,6 +179,9 @@ export const finishRegistration = mutation({
       throw new Error("Relying party ID hash mismatch.");
     }
     if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
+      // The challenge is consumed, so the cleanup loop cannot find the
+      // handle later. Remove it here when no user owns it.
+      await deleteUnlinkedHandle(ctx, challengeRow.handleId);
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
     const credential = authenticatorData.credential;
@@ -213,6 +217,9 @@ export const finishRegistration = mutation({
       .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
       .first();
     if (existing !== null) {
+      // Same as VERIFICATION_FAILED above: the ceremony is burned, so
+      // remove the handle when no user owns it.
+      await deleteUnlinkedHandle(ctx, challengeRow.handleId);
       return {
         success: false,
         userError: { error: "CREDENTIAL_ALREADY_REGISTERED" },

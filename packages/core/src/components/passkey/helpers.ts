@@ -1,4 +1,4 @@
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 import { CHALLENGE_TTL_MS } from "./validation";
 
@@ -82,19 +82,34 @@ export async function deleteDeadChallenge(
   await ctx.db.delete("challenges", row._id);
 
   if (row.kind === "registration") {
-    const handle = await ctx.db.get("handles", row.handleId);
+    await deleteUnlinkedHandle(ctx, row.handleId);
+  }
+}
 
-    // In most cases the handle should exist here, but in rare cases it can be deleted
-    // (if an existing user starts a passkey registration attempt, never completes it,
-    // and then deletes their account before the challenge expires)
-    if (handle === null) {
-      return;
-    }
+/**
+ * Delete the handle of a burned registration ceremony when no user owns it.
+ *
+ * A handle with `userId: null` comes from the new-account flow. When the
+ * ceremony fails, no other row points at the handle. Without this cleanup,
+ * the handle stays forever, because the challenge cleanup loop only finds
+ * handles through their challenge rows.
+ */
+export async function deleteUnlinkedHandle(
+  ctx: MutationCtx,
+  handleId: Id<"handles">,
+): Promise<void> {
+  const handle = await ctx.db.get("handles", handleId);
 
-    // If the handle is not linked to a user account,
-    // it means the user never existed and we can delete the handle
-    if (handle.userId === null) {
-      await ctx.db.delete("handles", handle._id);
-    }
+  // In most cases the handle should exist here, but in rare cases it can be deleted
+  // (if an existing user starts a passkey registration attempt, never completes it,
+  // and then deletes their account before the challenge expires)
+  if (handle === null) {
+    return;
+  }
+
+  // If the handle is not linked to a user account,
+  // it means the user never existed and we can delete the handle
+  if (handle.userId === null) {
+    await ctx.db.delete("handles", handle._id);
   }
 }
