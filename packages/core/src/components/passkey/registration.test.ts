@@ -3,7 +3,7 @@ import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
 import { api } from "./_generated/api";
 import { toArrayBuffer } from "./helpers";
 import { CHALLENGE_TTL_MS } from "./validation";
-import { setup } from "../passkeyTestSetup";
+import { expectSameBytes, setup } from "../passkeyTestSetup";
 import {
   ORIGIN,
   RP_ID,
@@ -15,6 +15,19 @@ import {
   generateRS256Credential,
   register,
 } from "./testAuthenticator";
+
+function handleRows(t: ReturnType<typeof setup>) {
+  return t.run((ctx) => ctx.db.query("handles").collect());
+}
+
+/**
+ * Make the one challenge in flight expire. The age of a challenge is the age
+ * of its `_creationTime`, thus the clock is the only way to make it expire.
+ */
+function expireChallenge() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + CHALLENGE_TTL_MS + 1000);
+}
 
 /** Build valid `finishRegistration` args, with overridable pieces. */
 async function registrationArgs(
@@ -32,13 +45,31 @@ async function registrationArgs(
     userVerified?: boolean;
     includeCredential?: boolean;
     challenge?: ArrayBuffer;
+    // Run the new-account flow, where no user exists yet and only
+    // `finishRegistration` knows the verified user.
+    isNewAccountFlow?: boolean;
+    // The user that `startRegistration` receives. It is `userId` by default.
+    startUserId?: string;
   } = {},
 ) {
   const credential = options.credential ?? (await generateES256Credential());
-  const challenge =
-    options.challenge ??
-    (await t.mutation(api.registration.startRegistration, { userId }))
-      .challenge;
+  const startUserId = options.isNewAccountFlow
+    ? null
+    : (options.startUserId ?? userId);
+  let challenge: ArrayBuffer;
+  let userHandle: ArrayBuffer | null;
+  if (options.challenge !== undefined) {
+    // A supplied challenge stands in for a ceremony that the component does
+    // not know, thus no ceremony starts in that case.
+    challenge = options.challenge;
+    userHandle = null;
+  } else {
+    const started = await t.mutation(api.registration.startRegistration, {
+      userId: startUserId,
+    });
+    challenge = started.challenge;
+    userHandle = started.userHandle;
+  }
   const authData = buildAuthenticatorData({
     rpId: options.authDataRpId ?? RP_ID,
     counter: options.counter ?? 0,
@@ -48,6 +79,7 @@ async function registrationArgs(
   });
   return {
     credential,
+    userHandle,
     args: {
       expectedRpId: RP_ID,
       expectedOrigin: ORIGIN,
@@ -85,8 +117,96 @@ describe("startRegistration", () => {
     expect(new Uint8Array(rows[0].challenge)).toEqual(
       new Uint8Array(challenge),
     );
-    // Registration challenges carry no identity, even when a userId is given.
+    // Registration challenges carry no identity, even when a userId is given:
+    // they point at a handle instead.
     expect("userId" in rows[0]).toBe(false);
+    const handles = await handleRows(t);
+    expect(rows[0]).toMatchObject({ handleId: handles[0]._id });
+  });
+
+  test("makes an unlinked handle in the new-account flow", async () => {
+    const t = setup();
+    const { userHandle, excludeCredentials } = await t.mutation(
+      api.registration.startRegistration,
+      { userId: null },
+    );
+    // 64 bytes is the WebAuthn maximum length for `user.id`.
+    expect(new Uint8Array(userHandle).length).toBe(64);
+    expect(excludeCredentials).toEqual([]);
+
+    const handles = await handleRows(t);
+    expect(handles).toHaveLength(1);
+    expect(handles[0].userId).toBe(null);
+    expectSameBytes(handles[0].handle, userHandle);
+  });
+
+  test("makes a linked handle for a known user with no handle", async () => {
+    const t = setup();
+    const { userHandle } = await t.mutation(
+      api.registration.startRegistration,
+      { userId: "user1" },
+    );
+    const handles = await handleRows(t);
+    expect(handles).toHaveLength(1);
+    expect(handles[0].userId).toBe("user1");
+    expectSameBytes(handles[0].handle, userHandle);
+  });
+
+  test("reuses the existing handle of a user", async () => {
+    const t = setup();
+    const first = await t.mutation(api.registration.startRegistration, {
+      userId: "user1",
+    });
+    const second = await t.mutation(api.registration.startRegistration, {
+      userId: "user1",
+    });
+
+    expectSameBytes(second.userHandle, first.userHandle);
+    // Each user has a maximum of one handle.
+    expect(await handleRows(t)).toHaveLength(1);
+    // The challenges are distinct, and both point at the same handle.
+    expect(new Uint8Array(second.challenge)).not.toEqual(
+      new Uint8Array(first.challenge),
+    );
+    const challenges = await t.run((ctx) =>
+      ctx.db.query("challenges").collect(),
+    );
+    const handleIds = new Set(
+      challenges.map((row) =>
+        row.kind === "registration" ? row.handleId : null,
+      ),
+    );
+    expect(handleIds.size).toBe(1);
+  });
+
+  test("makes a separate handle for each user", async () => {
+    const t = setup();
+    const first = await t.mutation(api.registration.startRegistration, {
+      userId: "user1",
+    });
+    const second = await t.mutation(api.registration.startRegistration, {
+      userId: "user2",
+    });
+
+    expect(new Uint8Array(second.userHandle)).not.toEqual(
+      new Uint8Array(first.userHandle),
+    );
+    expect(await handleRows(t)).toHaveLength(2);
+  });
+
+  test("does not reuse the unlinked handle of another ceremony", async () => {
+    const t = setup();
+    const first = await t.mutation(api.registration.startRegistration, {
+      userId: null,
+    });
+    const second = await t.mutation(api.registration.startRegistration, {
+      userId: null,
+    });
+
+    expect(new Uint8Array(second.userHandle)).not.toEqual(
+      new Uint8Array(first.userHandle),
+    );
+    expect(await handleRows(t)).toHaveLength(2);
   });
 
   test("returns no excludeCredentials without a userId", async () => {
@@ -193,6 +313,80 @@ describe("finishRegistration", () => {
     expect(row.name).toBe("MacBook Touch ID");
   });
 
+  test("links the handle to the verified user in the new-account flow", async () => {
+    const t = setup();
+    const { userHandle, args } = await registrationArgs(t, "user1", {
+      isNewAccountFlow: true,
+    });
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result.success).toBe(true);
+
+    const handles = await handleRows(t);
+    expect(handles).toHaveLength(1);
+    expect(handles[0].userId).toBe("user1");
+    expectSameBytes(handles[0].handle, userHandle!);
+  });
+
+  test("keeps the handle of a user that adds a second passkey", async () => {
+    const t = setup();
+    const first = await registrationArgs(t, "user1", {
+      isNewAccountFlow: true,
+    });
+    await t.mutation(api.registration.finishRegistration, first.args);
+    const second = await registrationArgs(t, "user1");
+    const result = await t.mutation(
+      api.registration.finishRegistration,
+      second.args,
+    );
+
+    expect(result.success).toBe(true);
+    expectSameBytes(second.userHandle!, first.userHandle!);
+    expect(await handleRows(t)).toHaveLength(1);
+  });
+
+  test("throws for a handle that belongs to a different user", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user2", {
+      startUserId: "user1",
+    });
+    await expect(
+      t.mutation(api.registration.finishRegistration, args),
+    ).rejects.toThrow("The handle belongs to a different user.");
+  });
+
+  test("throws for an unlinked handle when the user already has one", async () => {
+    const t = setup();
+    // A ceremony that starts as a new account, but that finishes with a user
+    // that already has a handle. The invariant is that this cannot happen.
+    const { args } = await registrationArgs(t, "user1", {
+      isNewAccountFlow: true,
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("handles", {
+        handle: new Uint8Array(64).fill(9).buffer,
+        userId: "user1",
+      }),
+    );
+    await expect(
+      t.mutation(api.registration.finishRegistration, args),
+    ).rejects.toThrow("The user already has a different handle.");
+  });
+
+  test("throws when the handle of the challenge no longer exists", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", {
+      isNewAccountFlow: true,
+    });
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query("handles").collect()) {
+        await ctx.db.delete("handles", row._id);
+      }
+    });
+    await expect(
+      t.mutation(api.registration.finishRegistration, args),
+    ).rejects.toThrow("The handle of the challenge does not exist.");
+  });
+
   test("returns CHALLENGE_EXPIRED for an unknown challenge", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
@@ -208,10 +402,7 @@ describe("finishRegistration", () => {
   test("returns CHALLENGE_EXPIRED for an expired challenge and deletes it", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1");
-    // The age of a challenge is the age of its `_creationTime`, thus the
-    // clock is the only way to make the challenge expire.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + CHALLENGE_TTL_MS + 1000);
+    expireChallenge();
     const result = await t.mutation(api.registration.finishRegistration, args);
     expect(result).toEqual({
       success: false,
@@ -221,6 +412,26 @@ describe("finishRegistration", () => {
       ctx.db.query("challenges").collect(),
     );
     expect(challenges).toEqual([]);
+  });
+
+  test("erases the unlinked handle of an expired challenge", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", {
+      isNewAccountFlow: true,
+    });
+    expireChallenge();
+    await t.mutation(api.registration.finishRegistration, args);
+    // The ceremony can never complete, thus its handle goes away too.
+    expect(await handleRows(t)).toEqual([]);
+  });
+
+  test("keeps the linked handle of an expired challenge", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    expireChallenge();
+    await t.mutation(api.registration.finishRegistration, args);
+    // The handle belongs to the user, thus it survives the dead ceremony.
+    expect(await handleRows(t)).toHaveLength(1);
   });
 
   test("throws for an authentication client data type", async () => {
@@ -286,6 +497,17 @@ describe("finishRegistration", () => {
       success: false,
       userError: { error: "VERIFICATION_FAILED" },
     });
+  });
+
+  test("keeps the linked handle when the user is not verified", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1", {
+      userVerified: false,
+    });
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result.success).toBe(false);
+    // The handle belongs to the user, thus it survives the failed attempt.
+    expect((await handleRows(t)).map((row) => row.userId)).toEqual(["user1"]);
   });
 
   test("throws when the attested credential data is missing", async () => {
@@ -458,6 +680,25 @@ describe("deletePasskey", () => {
     expect(passkeys).toEqual([]);
   });
 
+  test("keeps the handle so a later passkey reuses it", async () => {
+    const t = setup();
+    const { passkeyId } = await register(t, "user1");
+    const [handle] = await handleRows(t);
+    await t.mutation(api.registration.deletePasskey, {
+      userId: "user1",
+      passkeyId,
+    });
+
+    // The user keeps their handle, thus a new passkey reuses it.
+    const handles = await handleRows(t);
+    expect(handles).toHaveLength(1);
+    expect(handles[0].userId).toBe("user1");
+    const next = await t.mutation(api.registration.startRegistration, {
+      userId: "user1",
+    });
+    expectSameBytes(next.userHandle, handle.handle);
+  });
+
   test("refuses to delete another user's passkey", async () => {
     const t = setup();
     const { passkeyId: user1PasskeyId } = await register(t, "user1");
@@ -504,5 +745,107 @@ describe("deletePasskey", () => {
       success: false,
       userError: { error: "PASSKEY_NOT_FOUND" },
     });
+  });
+});
+
+describe("deleteUser", () => {
+  test("erases the passkeys, the handle, and the challenges of the user", async () => {
+    const t = setup();
+    await register(t, "user1");
+    await register(t, "user1");
+    const authenticationChallengeId = await t.run((ctx) =>
+      ctx.db.insert("challenges", {
+        kind: "authentication",
+        challenge: new Uint8Array(32).fill(0xaa).buffer,
+        userId: "user1",
+      }),
+    );
+
+    await t.mutation(api.registration.deleteUser, { userId: "user1" });
+
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+    expect(await handleRows(t)).toEqual([]);
+    expect(
+      await t.run((ctx) => ctx.db.get("challenges", authenticationChallengeId)),
+    ).toBe(null);
+  });
+
+  test("keeps an in-flight registration challenge until the TTL", async () => {
+    const t = setup();
+    await register(t, "user1");
+    // An in-flight ceremony that adds a passkey to the user.
+    await t.mutation(api.registration.startRegistration, { userId: "user1" });
+
+    await t.mutation(api.registration.deleteUser, { userId: "user1" });
+
+    // A registration challenge has no `userId`, thus it survives. That is
+    // safe: its handle is gone, so a finish attempt throws, and the cleanup
+    // loop erases the challenge after the TTL.
+    const challenges = await t.run((ctx) =>
+      ctx.db.query("challenges").collect(),
+    );
+    expect(challenges).toHaveLength(1);
+    expect(challenges[0].kind).toBe("registration");
+  });
+
+  test("keeps the rows of the other users", async () => {
+    const t = setup();
+    await register(t, "user1");
+    await register(t, "user2");
+    const otherChallengeId = await t.run((ctx) =>
+      ctx.db.insert("challenges", {
+        kind: "authentication",
+        challenge: new Uint8Array(32).fill(0xbb).buffer,
+        userId: "user2",
+      }),
+    );
+    // A discoverable-credential challenge has no user: it survives too.
+    const anonymousChallengeId = await t.run((ctx) =>
+      ctx.db.insert("challenges", {
+        kind: "authentication",
+        challenge: new Uint8Array(32).fill(0xcc).buffer,
+      }),
+    );
+
+    await t.mutation(api.registration.deleteUser, { userId: "user1" });
+
+    const passkeys = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(passkeys.map((row) => row.userId)).toEqual(["user2"]);
+    const handles = await handleRows(t);
+    expect(handles.map((row) => row.userId)).toEqual(["user2"]);
+    expect(
+      await t.run((ctx) => ctx.db.get("challenges", otherChallengeId)),
+    ).not.toBe(null);
+    expect(
+      await t.run((ctx) => ctx.db.get("challenges", anonymousChallengeId)),
+    ).not.toBe(null);
+  });
+
+  test("gives a new handle to a user that registers again", async () => {
+    const t = setup();
+    await register(t, "user1");
+    const [first] = await handleRows(t);
+    await t.mutation(api.registration.deleteUser, { userId: "user1" });
+
+    const second = await t.mutation(api.registration.startRegistration, {
+      userId: "user1",
+    });
+    expect(new Uint8Array(second.userHandle)).not.toEqual(
+      new Uint8Array(first.handle),
+    );
+  });
+
+  test("does nothing for a user with no passkey data", async () => {
+    const t = setup();
+    await register(t, "user1");
+
+    await t.mutation(api.registration.deleteUser, { userId: "user2" });
+
+    expect(
+      await t.run((ctx) => ctx.db.query("passkeys").collect()),
+    ).toHaveLength(1);
+    expect(await handleRows(t)).toHaveLength(1);
   });
 });
