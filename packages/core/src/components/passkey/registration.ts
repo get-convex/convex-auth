@@ -55,6 +55,8 @@ const startRegistrationResult = v.object({
  * The `userId` argument is required, not optional: the two flows behave
  * differently, so the caller must state which flow it runs. (Compare with
  * `startAuthentication`, where the argument is optional.)
+ *
+ * TODO(nicolas) Split this into two methods
  */
 export const startRegistration = mutation({
   args: { userId: v.union(v.string(), v.null()) },
