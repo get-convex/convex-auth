@@ -336,19 +336,17 @@ export function setupCore<UsersTable extends string = "users">(options: {
       // Creates the app user + account without a session, for providers where
       // the user must complete a step (e.g. an email validation) before the
       // first sign-in.
-      createAccount: async (args: {
+      signUpWithoutSession: async (args: {
         providerAccountId: string;
         profile: Profile;
       }): Promise<{ userId: string }> => {
-        const createOrUpdateUserHandle =
-          await createFunctionHandle(createOrUpdateUser);
-        return await ctx.runMutation(component.public.createAccount, {
+        return await ctx.runMutation(component.public.signUpWithoutSession, {
           claims: {
             provider: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },
-          createOrUpdateUserHandle,
+          createUserHandle: await createFunctionHandle(createUser),
         });
       },
       resolveUserId: async (

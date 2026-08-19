@@ -261,21 +261,21 @@ describe("signIn", () => {
   });
 });
 
-describe("createAccount", () => {
+describe("signUpWithoutSession", () => {
   test("creates the user and the account, but no session", async () => {
     const t = setup();
-    resetCreateOrUpdateUserCalls();
+    resetUserCallbackCalls();
 
-    const { userId } = await t.mutation(api.public.createAccount, {
+    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
       claims: claims(),
-      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+      createUserHandle: CREATE_USER_HANDLE,
     });
 
-    // The app's createOrUpdateUser echoes the providerAccountId as the user id.
+    // The app's createUser echoes the providerAccountId as the user id.
     expect(userId).toBe("alice");
-    const calls = getCreateOrUpdateUserCalls();
-    expect(calls).toHaveLength(1);
-    expect(calls[0].userId).toBeNull();
+    expect(getCreateUserCalls()).toHaveLength(1);
+    // No sign-in happened, so onSignIn does not run.
+    expect(getOnSignInCalls()).toHaveLength(0);
 
     // The account exists, but no session was minted.
     const counts = await t.run(async (ctx) => ({
@@ -287,15 +287,15 @@ describe("createAccount", () => {
 
   test("a later signIn resolves the same user and mints a session", async () => {
     const t = setup();
-    const { userId } = await t.mutation(api.public.createAccount, {
+    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
       claims: claims(),
-      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+      createUserHandle: CREATE_USER_HANDLE,
     });
 
     const bundle = await signIn(t, claims());
     expect(bundle.userId).toBe(userId);
 
-    // The sign-in reused the account that createAccount made.
+    // The sign-in reused the account that signUpWithoutSession made.
     const counts = await t.run(async (ctx) => ({
       accounts: (await ctx.db.query("accounts").collect()).length,
       sessions: (await ctx.db.query("sessions").collect()).length,
@@ -305,12 +305,12 @@ describe("createAccount", () => {
 
   test("keys the account by the minted user id with USE_USER_ID_AS_ACCOUNT_ID", async () => {
     const t = setup();
-    const { userId } = await t.mutation(api.public.createAccount, {
+    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
       claims: claims({
         providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
         profile: { email: "alice@example.com" },
       }),
-      createOrUpdateUserHandle: CREATE_OR_UPDATE_USER_HANDLE,
+      createUserHandle: CREATE_USER_HANDLE,
     });
 
     // The account's identifier is the user id the app minted, so a later
@@ -323,6 +323,24 @@ describe("createAccount", () => {
     );
     expect(accounts).toHaveLength(1);
     expect(accounts[0].providerAccountId).toBe(userId);
+  });
+
+  test("refuses an identity that already has an account", async () => {
+    const t = setup();
+    await signUp(t, claims());
+
+    // Like signUp: a second app user for the same identity is never minted.
+    await expect(
+      t.mutation(api.public.signUpWithoutSession, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+      }),
+    ).rejects.toThrow(/already\s+exists/i);
+
+    const accounts = await t.run(
+      async (ctx) => (await ctx.db.query("accounts").collect()).length,
+    );
+    expect(accounts).toBe(1);
   });
 });
 

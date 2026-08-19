@@ -42,13 +42,10 @@ export const createUser = internalMutation({
   returns: v.string(),
   handler: async (_ctx, args) => {
     createUserCalls.push({ ...args });
-    if (args.userId !== null) {
-      return args.userId;
-    }
     // With `USE_USER_ID_AS_ACCOUNT_ID` the provider sends an empty account id,
     // so mint a fresh user id — like a real app's insert would.
     if (args.providerAccountId === "") {
-      return `user-${createOrUpdateUserCalls.length}`;
+      return `user-${createUserCalls.length}`;
     }
     return args.providerAccountId;
   },

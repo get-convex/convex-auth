@@ -176,6 +176,8 @@ function asUserId(userId: string): GenericId<string> {
  * records the provider-identity -> user mapping. Returns what minting a
  * session needs: the account id and its app user id. The claims are passed to
  * the `createUser` callback.
+ *
+ * Both `signUp` and the sessionless `signUpWithoutSession` build on this.
  */
 async function createAccount(
   ctx: MutationCtx,
@@ -194,10 +196,11 @@ async function createAccount(
       claims.providerAccountId,
     );
     if (account !== null) {
-      // Signing up an identity that already has an account would mint a second
-      // app user for someone who already has one. Fail before calling the app.
+      // Creating an account for an identity that already has one would mint a
+      // second app user for someone who already has one. Fail before calling
+      // the app.
       throw new Error(
-        `Cannot sign up: an account for provider = ${JSON.stringify(claims.provider)} ` +
+        `Cannot create an account: an account for provider = ${JSON.stringify(claims.provider)} ` +
           `and provider account ID = ${JSON.stringify(claims.providerAccountId)} already ` +
           `exists. Providers that cannot tell a first sign-in from a return visit must ` +
           `look the identity up (getUserIdByAccount) and call signIn instead.`,
@@ -356,27 +359,27 @@ export const signIn = mutation({
  * Create the account and the app user for a provider's verified identity
  * claims, without minting a session.
  *
- * Providers use this (via the `createAccount` helper the core hands them)
- * when the user must complete a step before the first sign-in — for example,
- * an email validation. Account and user resolution follows the same rules as
- * `signIn` (the app's `createOrUpdateUser` mutation runs, and
- * `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted user id), but no
- * refresh token or access token is issued: the user cannot make authenticated
- * calls until a later `signIn` succeeds.
+ * Providers use this (via the `signUpWithoutSession` helper the core hands
+ * them) when the user must complete a step before the first sign-in — for
+ * example, an email validation. Account creation follows the same rules as
+ * `signUp` (the app's `createUser` mutation mints the user,
+ * `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted user id, and an
+ * identity that already has an account is refused), but no session is minted
+ * and `onSignIn` does not run: the user cannot make authenticated calls until
+ * a later `signIn` succeeds.
  */
-export const createAccount = mutation({
+export const signUpWithoutSession = mutation({
   args: {
     claims: vAuthClaims,
-    createOrUpdateUserHandle: v.string(),
+    createUserHandle: v.string(),
   },
   returns: v.object({ userId: v.string() }),
   handler: async (ctx, args): Promise<{ userId: string }> => {
     // TODO: This API is kind of awkward. We might want to reconsider it before the GA v2 release.
-
-    const { userId } = await resolveAccount(
+    const { userId } = await createAccount(
       ctx,
       args.claims,
-      args.createOrUpdateUserHandle as CreateOrUpdateUserFunctionHandle,
+      args.createUserHandle as CreateUserFunctionHandle,
     );
     return { userId };
   },
