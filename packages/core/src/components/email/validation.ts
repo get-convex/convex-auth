@@ -48,4 +48,18 @@ export function validateEmailFormat(
  */
 export function normalizeEmail(email: string): string {
   return email.toLowerCase().normalize("NFC");
+
+  // Note that in theory, email addresses are case-sensitive (https://stackoverflow.com/a/9808332/4652564).
+  // In this project we always store the canonical email representation using the
+  // case that the user used, but use a normalized lowercase version to check for existing accounts.
+  //
+  // This means that if Jane.Doe@example.com creates an account, we will store her email
+  // as Jane.Doe@example.com (and the app will display her email using that case).
+  // She will also be able to log in with jane.doe@example.com.
+  // This is what we expect the correct behavior to be in practice.
+  //
+  // The only downside is that if jane.doe@example.com is a separate person,
+  // she won’t be able to also create an account.
+  // (But she won’t be able to perform account recovery to the original account,
+  // as account recovery emails will be sent to Jane.Doe@example.com).
 }
