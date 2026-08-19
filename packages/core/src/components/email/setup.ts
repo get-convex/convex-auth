@@ -22,7 +22,7 @@ import { Infer, v } from "convex/values";
 import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
-  type CreateOrUpdateUserFn,
+  type UserCallbacks,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
 import type { ComponentApi } from "./_generated/component.js";
@@ -359,20 +359,17 @@ export function setupEmailPassword<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's create-or-update-user mutation (see
-     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
-     * get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * args must be declared) and get this provider's functions to export.
      */
-    attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<
-        typeof PROVIDER_NAME,
-        EmailPasswordProfile,
-        UsersTable
-      >,
-    ) {
+    attachUserCallbacks({
+      createUser,
+      onSignIn,
+    }: UserCallbacks<typeof PROVIDER_NAME, EmailPasswordProfile, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
-        createOrUpdateUser,
+        createUser,
+        onSignIn,
       });
 
       return {
@@ -430,7 +427,7 @@ export function setupEmailPassword<UsersTable extends string>(
             // keyed by the app user id, which does not exist before this call
             // mints it, hence the placeholder; sign-in passes the user id
             // itself.
-            const { userId } = await ctx.convexAuth.createAccount({
+            const { userId } = await ctx.convexAuth.signUpWithoutSession({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
               profile: { email },
             });
@@ -453,7 +450,8 @@ export function setupEmailPassword<UsersTable extends string>(
               component.public.startValidation,
               {
                 email,
-                purpose: { kind: "addEmail", userId, setPrimary: true },
+                // The user is new, so this first address becomes primary.
+                purpose: { kind: "addEmail", userId },
                 url: urls.signUp,
                 emailSender: await senderConfig(),
               },
@@ -512,15 +510,16 @@ export function setupEmailPassword<UsersTable extends string>(
           args: { email: v.string(), password: v.string() },
           returns: signInResult,
           handler: async (ctx, { email, password }): Promise<SignInResult> => {
-            const userId = await ctx.runQuery(
+            const existing = await ctx.runQuery(
               component.public.getUserIdByEmail,
               {
                 email,
               },
             );
-            if (userId === null) {
+            if (existing === null) {
               return { success: false, userError: { error: "USER_NOT_FOUND" } };
             }
+            const { userId } = existing;
 
             const verifyResult = await ctx.runMutation(
               passwordComponent.public.verifyPassword,
@@ -615,7 +614,7 @@ export function setupEmailPassword<UsersTable extends string>(
               component.public.startValidation,
               {
                 email: newEmail,
-                purpose: { kind: "addEmail", userId, setPrimary: true },
+                purpose: { kind: "setEmail", userId },
                 url: urls.changeEmail,
                 emailSender: await senderConfig(),
               },
@@ -641,7 +640,7 @@ export function setupEmailPassword<UsersTable extends string>(
           ): Promise<CompleteChangeEmailResult> => {
             const complete = await ctx.runMutation(
               component.public.completeValidation,
-              { code, secret, purpose: "addEmail" },
+              { code, secret, purpose: "setEmail" },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
