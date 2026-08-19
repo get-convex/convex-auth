@@ -24,9 +24,3 @@ npm run dev              # start the Vite frontend
 
 Before you deploy, set `rpId` and `origin` in `convex/auth.ts` to the
 production domain. Passkeys are permanently bound to the `rpId`.
-
-## Test without a real authenticator
-
-Chrome DevTools has a virtual authenticator: open DevTools → More tools →
-WebAuthn, enable the environment, and add an authenticator with
-"Supports resident keys" and "Supports user verification" checked.
