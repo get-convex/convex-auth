@@ -1,5 +1,5 @@
 import { Infer, v } from "convex/values";
-import type { CreateOrUpdateUserFn } from "../../lib/types";
+import type { UserCallbacks } from "../../lib/types";
 import type { AuthCore } from "../../components/core/setup";
 import {
   setupOauth,
@@ -99,7 +99,7 @@ const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
  * export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
  *   component: components.oauthGithub,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
- * }).attachUserCallback(internal.users.createOrUpdateGithubUser);
+ * }).attachUserCallbacks({ createUser: internal.users.createUserGithub });
  * ```
  *
  * Setup:
@@ -118,22 +118,17 @@ export function setupGithub<UsersTable extends string>(
 ) {
   return {
     /**
-     * Supply the app's create-or-update-user mutation (see
-     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
-     * get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * args must be declared) and get this provider's functions to export.
      */
-    attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<
-        "github",
-        GithubProfile,
-        UsersTable
-      >,
+    attachUserCallbacks(
+      callbacks: UserCallbacks<"github", GithubProfile, UsersTable>,
     ) {
       const { startSignIn, completeSignIn } = setupOauth(
         core,
         "github",
         githubCatalog,
-        createOrUpdateUser,
+        callbacks,
         options,
       );
       return {

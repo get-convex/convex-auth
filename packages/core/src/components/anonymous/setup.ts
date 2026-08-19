@@ -1,7 +1,7 @@
 import {
   vSignInSuccess,
-  type CreateOrUpdateUserFn,
   type SignInSuccess,
+  type UserCallbacks,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
 import { ComponentApi } from "./_generated/component";
@@ -24,7 +24,7 @@ const PROVIDER_NAME = "anonymous";
  *
  * export const { signInAnonymous } = setupAnonymous(core, {
  *   component: components.authAnonymous,
- * }).attachUserCallback(internal.users.createOrUpdateUser);
+ * }).attachUserCallbacks({ createUser: internal.users.createUserAnonymous });
  * ```
  */
 export function setupAnonymous<UsersTable extends string>(
@@ -38,20 +38,21 @@ export function setupAnonymous<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's create-or-update-user mutation (see
-     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
-     * get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * args must be declared) and get this provider's functions to export.
+     *
+     * Every anonymous sign-in establishes a new account, so `createUser` runs
+     * every time. An `onSignIn` is still worth attaching for work an app does
+     * on every sign-in whatever the provider, since it runs right afterwards.
      */
-    attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<
-        "anonymous",
-        Record<string, never>,
-        UsersTable
-      >,
-    ) {
+    attachUserCallbacks({
+      createUser,
+      onSignIn,
+    }: UserCallbacks<"anonymous", Record<string, never>, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
-        createOrUpdateUser,
+        createUser,
+        onSignIn,
       });
 
       return {
@@ -69,7 +70,7 @@ export function setupAnonymous<UsersTable extends string>(
               component.provider.createAnonymousAccount,
               {},
             );
-            const tokens = await ctx.convexAuth.completeSignIn({
+            const tokens = await ctx.convexAuth.completeSignUp({
               providerAccountId: anonymousId,
               profile: {},
             });

@@ -162,50 +162,43 @@ export const vAuthClaims = v.object({
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
 /**
- * Pass this as `providerAccountId` to `completeSignIn` when the provider has
- * no identifier of its own. The core then keys the new account by the app
- * user id it mints during sign-in. On later sign-ins, pass that user id as
- * the account identifier.
+ * The `providerAccountId` a provider sends to `completeSignUp` when it has no
+ * identifier of its own. The core then keys the new account by the app user id
+ * `createUser` returns, and later sign-ins send that user id as the account
+ * identifier.
  *
  * @TODO(nicolas) Consider replacing this mechanism
  */
 export const USE_USER_ID_AS_ACCOUNT_ID = "";
 
-export const vCreateOrUpdateUser = v.object({
+export const vCreateUser = v.object({
   provider: v.string(),
   providerAccountId: v.string(),
   profile: v.any(),
-  userId: v.union(v.string(), v.null()),
+});
+
+export const vOnSignIn = v.object({
+  provider: v.string(),
+  providerAccountId: v.string(),
+  profile: v.any(),
+  userId: v.string(),
 });
 
 /**
- * The type of an app defined create-or-update-user mutation.
+ * The type of an app defined user-creating mutation: create the app's user
+ * record for an identity the core has not seen before, and return its id. It
+ * runs once per account, and {@link OnSignInFn} runs right after it, so this
+ * one is only responsible for what is true at creation time.
  *
  * This is the core entrypoint for an application to integrate its user model
  * with Convex Auth. Apps install one per provider, via that provider's
- * `attachUserCallback`, typed with that provider's exact name and profile
- * shape.
+ * `attachUserCallbacks`, typed with that provider's exact name and profile
+ * shape. Throw a `ConvexError` to reject the sign up.
  *
- * It will be called in two scenarios, both associated with a user signing in:
- *
- *  1. The first time a user signs in with an account from a provider.
- *    * The `userId` argument will be `null` in this case.
- *    * The application should create a new user record and return its `_id`
- *  2. Subsequent sign ins from a provider
- *    * The `userId` argument will be present.
- *    * The application may use the data in `profile` to update or otherwise
- *      modify the stored user record.
- *    * The existing `userId` must be the return value.
- *
- * The application keeps ownership of its users table — the core only holds a
- * reference to this one mutation, and treats the returned user id as an opaque
- * string at runtime. At the type level the table is named by the `usersTable`
- * option on `setupCore` (defaulting to `"users"`), which is what makes the
- * callback's `userId` argument and return type `Id<usersTable>` rather than a
- * bare string.
- *
- * If an application wants to reject a sign in, it can throw a `ConvexError`
- * and the entire sign in attempt will be blocked.
+ * The application keeps ownership of its users table. The core treats the
+ * returned id as an opaque string at runtime; at the type level the table is
+ * named by `setupCore`'s `usersTable` option, which is what makes the return
+ * type `Id<usersTable>` rather than a bare string.
  *
  * The mutation's args must be declared with the provider's *exact* literal
  * types (e.g. `provider: v.literal("password")`, `profile: v.object({ username:
@@ -216,7 +209,7 @@ export const vCreateOrUpdateUser = v.object({
  * compare covariantly. For shared logic, define one thin mutation per provider
  * that delegates to a plain shared function.
  */
-export type CreateOrUpdateUserFn<
+export type CreateUserFn<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
@@ -227,10 +220,58 @@ export type CreateOrUpdateUserFn<
     provider: Provider;
     providerAccountId: string;
     profile: Profile;
-    userId: GenericId<UsersTable> | null;
   },
   GenericId<UsersTable>
 >;
+
+/**
+ * The type of an app defined sign-in mutation: an optional hook that runs on
+ * *every* sign-in.
+ *
+ * That includes the first one, where it runs immediately after
+ * {@link CreateUserFn} has minted the user. So per-sign-in work (a last-seen
+ * timestamp, an audit row, syncing the user record from the latest `profile`,
+ * which the core does not store) belongs here and nowhere else.
+ *
+ * The core resolves the account to its app user first, so `userId` is always
+ * present and there is nothing to return. Declare `returns: v.null()` and
+ * return `null`, or leave the callback out entirely. Throw a `ConvexError` to
+ * reject the sign in, which on a first sign-in rolls back the user the create
+ * callback just made.
+ *
+ * Like {@link CreateUserFn}, the args must be declared with the provider's
+ * exact literal types, and one mutation per provider (delegating to a plain
+ * shared function) is how to share logic across providers.
+ */
+export type OnSignInFn<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = FunctionReference<
+  "mutation",
+  "internal",
+  {
+    provider: Provider;
+    providerAccountId: string;
+    profile: Profile;
+    userId: GenericId<UsersTable>;
+  },
+  null
+>;
+
+/**
+ * The app's user callbacks for one provider, as its `attachUserCallbacks`
+ * takes them: {@link CreateUserFn} is required (something has to create the
+ * user record), {@link OnSignInFn} is optional.
+ */
+export type UserCallbacks<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = {
+  createUser: CreateUserFn<Provider, Profile, UsersTable>;
+  onSignIn?: OnSignInFn<Provider, Profile, UsersTable>;
+};
 
 /**
  * The helpers that `authMutation`/`authAction` inject onto `ctx` for a
@@ -240,13 +281,32 @@ export type CreateOrUpdateUserFn<
  */
 export type BoundAuthHelpers<Profile> = {
   /**
-   * Exchange a verified account identity for a session.
+   * Exchange a *newly established* account identity for a session.
    *
-   * Call this once the provider has authenticated an account its own way
-   * (checking a password, say). It resolves (or creates) the account and its
-   * app user via an app-provided create-or-update-user callback, mints a
-   * session, and returns the tokens a client needs to make authenticated
-   * calls.
+   * Call this when the provider has just created the account. The core records
+   * the account, calls the app's `createUser` to mint the app user, then its
+   * `onSignIn` like any other sign-in, and returns the tokens a client needs to
+   * make authenticated calls.
+   *
+   * Throws if the identity already has an account. A provider that cannot tell
+   * a first sign-in from a return visit should call
+   * {@link BoundAuthHelpers.resolveUserId} first and pick the right helper.
+   */
+  completeSignUp(args: {
+    providerAccountId: string;
+    profile: Profile;
+  }): Promise<TokenBundle>;
+  /**
+   * Exchange a verified *existing* account identity for a session.
+   *
+   * Call this once the provider has authenticated a known account its own way
+   * (checking a password, say). The core resolves the account to its app user,
+   * runs the app's `onSignIn` callback if one is attached, and returns the
+   * tokens a client needs to make authenticated calls.
+   *
+   * Throws if the identity has no account: reaching this helper is the
+   * provider's assertion that the account exists, so a miss is a bug rather
+   * than an authentication failure to report to the user.
    */
   completeSignIn(args: {
     providerAccountId: string;

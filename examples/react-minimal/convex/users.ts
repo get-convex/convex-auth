@@ -1,18 +1,20 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
-export const createOrUpdateUser = internalMutation({
+/**
+ * Create the user row for a new anonymous account and return its id.
+ *
+ * Every anonymous sign-in establishes a new account, so this runs on every
+ * anonymous sign-in.
+ */
+export const createUser = internalMutation({
   args: {
     provider: v.literal("anonymous"),
     providerAccountId: v.string(),
     profile: v.object({}),
-    userId: v.union(v.id("users"), v.null()),
   },
   returns: v.id("users"),
-  handler: async (ctx, args) => {
-    if (args.userId !== null) {
-      return args.userId;
-    }
-    return ctx.db.insert("users", {});
+  handler: async (ctx) => {
+    return await ctx.db.insert("users", {});
   },
 });

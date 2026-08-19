@@ -55,8 +55,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           accessTokenTtlSeconds?: number;
           claims: { profile: any; provider: string; providerAccountId: string };
-          createOrUpdateUserHandle: string;
           issuer: string;
+          onSignInHandle?: string;
           refreshTokenTtlSeconds?: number;
         },
         {
@@ -73,6 +73,26 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         { refreshToken: string },
         null,
+        Name
+      >;
+      signUp: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          accessTokenTtlSeconds?: number;
+          claims: { profile: any; provider: string; providerAccountId: string };
+          createUserHandle: string;
+          issuer: string;
+          onSignInHandle?: string;
+          refreshTokenTtlSeconds?: number;
+        },
+        {
+          accessToken: string;
+          accessTokenExpiresAt: number;
+          refreshToken: string;
+          refreshTokenExpiresAt: number;
+          userId: string;
+        },
         Name
       >;
     };

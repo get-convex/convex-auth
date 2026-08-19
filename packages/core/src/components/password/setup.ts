@@ -2,7 +2,7 @@ import { Infer, v } from "convex/values";
 import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
-  type CreateOrUpdateUserFn,
+  type UserCallbacks,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
 import type { ComponentApi } from "./_generated/component.js";
@@ -82,7 +82,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
  *   setupUsernamePassword(core, {
  *     component: components.authPasswordProvider,
  *     usernameComponent: components.authUsername,
- *   }).attachUserCallback(internal.users.createOrUpdateUser);
+ *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
@@ -101,20 +101,17 @@ export function setupUsernamePassword<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's create-or-update-user mutation (see
-     * {@link CreateOrUpdateUserFn} for how its args must be declared) and
-     * get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * args must be declared) and get this provider's functions to export.
      */
-    attachUserCallback(
-      createOrUpdateUser: CreateOrUpdateUserFn<
-        "password",
-        { username: string },
-        UsersTable
-      >,
-    ) {
+    attachUserCallbacks({
+      createUser,
+      onSignIn,
+    }: UserCallbacks<"password", { username: string }, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
-        createOrUpdateUser,
+        createUser,
+        onSignIn,
       });
 
       return {
@@ -152,18 +149,18 @@ export function setupUsernamePassword<UsersTable extends string>(
               return { success: false, userError: { error: "USERNAME_TAKEN" } };
             }
 
-            // Create the account + app user (via the app's createOrUpdateUser)
-            // and mint the session. Password accounts are keyed by the app user
-            // id, which does not exist before this call mints it, hence the
+            // Create the account + app user (via the app's createUser) and
+            // mint the session. Password accounts are keyed by the app user id,
+            // which does not exist before this call mints it, hence the
             // placeholder; sign-in passes the user id itself. `profile.username`
             // keeps the original casing for display.
             //
-            // TODO(nicolas) The app's `createOrUpdateUser` callback should not
-            // receive a provider account ID for the password provider at all:
-            // the value is an internal key ("" at sign-up, the user id
-            // afterwards) with no meaning to the app. We will probably improve
-            // this when providers support typesafe profiles.
-            const tokens = await ctx.convexAuth.completeSignIn({
+            // TODO(nicolas) The app's user callbacks should not receive a
+            // provider account ID for the password provider at all: the value
+            // is an internal key ("" at sign-up, the user id afterwards) with
+            // no meaning to the app. We will probably improve this when
+            // providers support typesafe profiles.
+            const tokens = await ctx.convexAuth.completeSignUp({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
               profile: { username },
             });
@@ -240,6 +237,9 @@ export function setupUsernamePassword<UsersTable extends string>(
               return { success: false, userError: verifyResult.userError };
             }
 
+            // The username resolved to a user id and its password verified, so
+            // the account exists and `completeSignIn` (which throws otherwise)
+            // is the right helper.
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
               profile: { username },

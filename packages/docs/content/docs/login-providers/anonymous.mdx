@@ -53,8 +53,8 @@ Add an empty `users` table to your schema in `convex/schema.ts`.
 Convex Auth will create a row for each account. You can also add application-specific fields to this table if necessary.
 
 The table does not have to be called `users` — if yours has another name, pass
-it to `setupCore`, and every provider's `attachUserCallback` will then require
-a callback typed with that table's ids:
+it to `setupCore`, and every provider's `attachUserCallbacks` will then require
+callbacks typed with that table's ids:
 
 ```ts title="convex/auth.ts"
 const core = setupCore({ component: components.auth, usersTable: "members" });
@@ -73,6 +73,10 @@ const core = setupCore({ component: components.auth, usersTable: "members" });
 
 ### Set up user creation
 
+Write a `createUser` mutation that creates a row in your `users` table and
+returns its id. The provider calls it for every anonymous sign-in, since each
+one establishes a new account.
+
 <include lang="ts" meta='title="convex/users.ts"'>
   ../../../../../examples/react-minimal/convex/users.ts
 </include>
@@ -89,7 +93,7 @@ rows, in `convex/auth.ts`:
 
 <include
   lang="ts"
-  meta='title="convex/auth.ts" highlight="import { setupAnonymous }" highlight="export const { signInAnonymous } = setupAnonymous(core, {...}).attachUserCallback(internal.users.createOrUpdateUser);"'
+  meta='title="convex/auth.ts" highlight="import { setupAnonymous }" highlight="export const { signInAnonymous } = setupAnonymous(core, {...}).attachUserCallbacks({ createUser: internal.users.createUser });"'
 >
   ../../../../../examples/react-minimal/convex/auth.ts
 </include>

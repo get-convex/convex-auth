@@ -2,8 +2,8 @@ import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
 import {
   vTokenBundle,
-  type CreateOrUpdateUserFn,
   type TokenBundle,
+  type UserCallbacks,
 } from "../../lib/types";
 import type { AuthCore } from "../../components/core/setup";
 import type { ComponentApi } from "./_generated/component.js";
@@ -152,7 +152,7 @@ export function setupOauth<
   core: AuthCore<UsersTable>,
   providerName: Provider,
   catalog: OauthCatalog<Profile, UserInfo>,
-  createOrUpdateUser: CreateOrUpdateUserFn<Provider, Profile, UsersTable>,
+  callbacks: UserCallbacks<Provider, Profile, UsersTable>,
   options: OauthProviderOptions,
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy
@@ -195,7 +195,8 @@ export function setupOauth<
 
   const { authMutation } = core.bindProvider({
     name: providerName,
-    createOrUpdateUser,
+    createUser: callbacks.createUser,
+    onSignIn: callbacks.onSignIn,
   });
 
   /**
@@ -270,7 +271,7 @@ export function setupOauth<
    *
    * The component calls are subtransactions of this mutation, so a
    * failure anywhere (including the app rejecting the sign-in from
-   * `createOrUpdateUser`) rolls back the ticket claim. Only a
+   * `createUser` / `onSignIn`) rolls back the ticket claim. Only a
    * successful redemption consumes the ticket.
    */
   // TODO: dowski - return the shared `vSignInSuccess` envelope like the other
@@ -311,10 +312,19 @@ export function setupOauth<
         );
       }
 
-      return await ctx.convexAuth.completeSignIn({
-        providerAccountId: profile.id,
-        profile,
-      });
+      // The same redemption flow serves a first sign-in and a return visit, so
+      // resolve the identity to pick a path. This handler is a mutation, so the
+      // lookup and the write it decides on are one transaction.
+      const existingUserId = await ctx.convexAuth.resolveUserId(profile.id);
+      return existingUserId === null
+        ? await ctx.convexAuth.completeSignUp({
+            providerAccountId: profile.id,
+            profile,
+          })
+        : await ctx.convexAuth.completeSignIn({
+            providerAccountId: profile.id,
+            profile,
+          });
     },
   });
 
