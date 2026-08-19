@@ -1,6 +1,6 @@
 import { Infer, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { mutation, query, QueryCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import {
   ClientDataType,
   coseAlgorithmES256,
@@ -13,11 +13,13 @@ import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa";
 import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
 import {
   finishRegistrationUserError,
+  FinishRegistrationUserError,
   deletePasskeyUserError,
 } from "./validation";
 import {
-  consumeChallenge,
-  deleteUnlinkedHandle,
+  deleteDeadChallenge,
+  findChallenge,
+  isChallengeExpired,
   randomChallenge,
   randomHandle,
   toArrayBuffer,
@@ -114,6 +116,176 @@ const finishRegistrationResult = v.union(
 );
 type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
 
+// The arguments that the shared verification helper examines.
+const registrationCheckArgs = {
+  expectedRpId: v.string(),
+  expectedOrigin: v.string(),
+  attestationObject: v.bytes(),
+  clientDataJSON: v.bytes(),
+};
+
+const vRegistrationCheckArgs = v.object(registrationCheckArgs);
+type RegistrationCheckArgs = Infer<typeof vRegistrationCheckArgs>;
+
+type RegistrationChallengeRow = Extract<
+  Doc<"challenges">,
+  { kind: "registration" }
+>;
+
+// The result of `verifyRegistration`. On a `userError`, `challengeRow` is
+// the raw challenge row when one exists (live or expired):
+// `finishRegistration` burns it. On success, `challengeRow` is the live row.
+type RegistrationVerification =
+  | {
+      userError: FinishRegistrationUserError;
+      challengeRow: RegistrationChallengeRow | null;
+    }
+  | {
+      userError: null;
+      challengeRow: RegistrationChallengeRow;
+      credentialId: ArrayBuffer;
+      algorithm: "ES256" | "RS256";
+      publicKey: ArrayBuffer;
+      counter: number;
+    };
+
+/**
+ * The complete verification body of `finishRegistration`, without any
+ * write: the client data checks, the challenge lookup with its TTL, the
+ * attestation checks, the key extraction, and the duplicate-credential
+ * check.
+ *
+ * The function takes a read-only ctx. `QueryCtx` is structurally satisfied
+ * by `MutationCtx`, so both `checkRegistration` (a query) and
+ * `finishRegistration` (a mutation) run the exact same code.
+ *
+ * Failures that the user can correct come back as a `userError`. For a
+ * protocol violation, the function throws an error (see
+ * `finishRegistration`).
+ */
+async function verifyRegistration(
+  ctx: QueryCtx,
+  args: RegistrationCheckArgs,
+): Promise<RegistrationVerification> {
+  const clientData = parseClientDataJSON(new Uint8Array(args.clientDataJSON));
+  if (clientData.type !== ClientDataType.Create) {
+    throw new Error("Unexpected client data type.");
+  }
+  if (clientData.origin !== args.expectedOrigin) {
+    // We could allow this verification to be less strict in the future
+    // (see the comment in `finishAuthentication`).
+    throw new Error("Unexpected WebAuthn origin.");
+  }
+  if (clientData.crossOrigin === true) {
+    // In the future, we could allow the user to explicitly opt out to this.
+    throw new Error("Cross-origin WebAuthn ceremonies are not allowed.");
+  }
+  const challengeRow = await findChallenge(
+    ctx,
+    "registration",
+    clientData.challenge,
+  );
+  if (challengeRow === null || isChallengeExpired(challengeRow)) {
+    return { userError: { error: "CHALLENGE_EXPIRED" }, challengeRow };
+  }
+
+  const attestationObject = parseAttestationObject(
+    new Uint8Array(args.attestationObject),
+  );
+  const authenticatorData = attestationObject.authenticatorData;
+  if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
+    throw new Error("Relying party ID hash mismatch.");
+  }
+  if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
+    return { userError: { error: "VERIFICATION_FAILED" }, challengeRow };
+  }
+  const credential = authenticatorData.credential;
+  if (credential === null) {
+    throw new Error("Missing attested credential data.");
+  }
+
+  const cosePublicKey = credential.publicKey;
+  let algorithm: "ES256" | "RS256";
+  let publicKey: Uint8Array;
+  if (cosePublicKey.algorithm() === coseAlgorithmES256) {
+    const ec2 = cosePublicKey.ec2();
+    if (ec2.curve !== coseEllipticCurveP256) {
+      throw new Error("Unsupported elliptic curve (expected P-256).");
+    }
+    publicKey = new ECDSAPublicKey(p256, ec2.x, ec2.y).encodeSEC1Uncompressed();
+    algorithm = "ES256";
+  } else if (cosePublicKey.algorithm() === coseAlgorithmRS256) {
+    const rsa = cosePublicKey.rsa();
+    publicKey = new RSAPublicKey(rsa.n, rsa.e).encodePKCS1();
+    algorithm = "RS256";
+  } else {
+    throw new Error("Unsupported public key algorithm.");
+  }
+
+  const credentialId = toArrayBuffer(credential.id);
+  const existing = await ctx.db
+    .query("passkeys")
+    .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
+    .first();
+  if (existing !== null) {
+    // A compliant client cannot cause this: authenticators make a fresh
+    // random credential ID for each ceremony, and `excludeCredentials`
+    // makes the authenticator refuse a duplicate for this RP. A duplicate
+    // here shows a replayed or tampered registration.
+    throw new Error("The credential is already registered.");
+  }
+
+  return {
+    userError: null,
+    challengeRow,
+    credentialId,
+    algorithm,
+    publicKey: toArrayBuffer(publicKey),
+    counter: authenticatorData.signatureCounter,
+  };
+}
+
+const checkRegistrationResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    userError: finishRegistrationUserError,
+  }),
+);
+type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
+
+/**
+ * Run the verifications of `finishRegistration`, without any write.
+ *
+ * A transactional sign-up flow calls this query first, before it creates
+ * the user. Because this is a query, the runtime enforces that nothing is
+ * stored: there is no way to store an unverified credential through it.
+ *
+ * Guarantee: when `checkRegistration` returns `success: true` inside a
+ * mutation, a `finishRegistration` call with the same arguments in the
+ * same mutation does not return a `userError`. The two calls run in one
+ * transaction, so they see the same rows, and Convex fixes the transaction
+ * timestamp, so the challenge TTL check cannot flip between the two calls.
+ *
+ * The guarantee does not cover throws. This function cannot see the
+ * handle-linking invariants of `finishRegistration` (they depend on
+ * `verifiedUserId`), so `finishRegistration` can still throw after a
+ * successful check, and a throw aborts the transaction. The function throws
+ * on the same protocol violations that make `finishRegistration` throw, so
+ * a caller transaction aborts identically for those.
+ */
+export const checkRegistration = query({
+  args: registrationCheckArgs,
+  returns: checkRegistrationResult,
+  handler: async (ctx, args): Promise<CheckRegistrationResult> => {
+    const verification = await verifyRegistration(ctx, args);
+    if (verification.userError !== null) {
+      return { success: false, userError: verification.userError };
+    }
+    return { success: true };
+  },
+});
+
 /**
  * Finish a registration ceremony.
  *
@@ -139,92 +311,32 @@ type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
  * Failures that the user can correct come back as a `userError`. For a
  * protocol violation, the function throws an error. The error aborts the
  * transaction around the call, so a new user row rolls back with it.
+ *
+ * A caller that must be sure that this call succeeds before it creates
+ * data runs `checkRegistration` first, in the same mutation.
  */
 export const finishRegistration = mutation({
   args: {
-    expectedRpId: v.string(),
-    expectedOrigin: v.string(),
+    ...registrationCheckArgs,
     verifiedUserId: v.string(),
     name: v.optional(v.string()),
-    attestationObject: v.bytes(),
-    clientDataJSON: v.bytes(),
   },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
-    const clientData = parseClientDataJSON(new Uint8Array(args.clientDataJSON));
-    if (clientData.type !== ClientDataType.Create) {
-      throw new Error("Unexpected client data type.");
-    }
-    if (clientData.origin !== args.expectedOrigin) {
-      // We could allow this verification to be less strict in the future
-      // (see the comment in `finishAuthentication`).
-      throw new Error("Unexpected WebAuthn origin.");
-    }
-    if (clientData.crossOrigin === true) {
-      // In the future, we could allow the user to explicitly opt out to this.
-      throw new Error("Cross-origin WebAuthn ceremonies are not allowed.");
-    }
-    const challengeRow = await consumeChallenge(
-      ctx,
-      "registration",
-      clientData.challenge,
-    );
-    if (challengeRow === null) {
-      return { success: false, userError: { error: "CHALLENGE_EXPIRED" } };
-    }
+    const verification = await verifyRegistration(ctx, args);
 
-    const attestationObject = parseAttestationObject(
-      new Uint8Array(args.attestationObject),
-    );
-    const authenticatorData = attestationObject.authenticatorData;
-    if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
-      throw new Error("Relying party ID hash mismatch.");
-    }
-    if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
-      // The challenge is consumed, so the cleanup loop cannot find the
-      // handle later. Remove it here when no user owns it.
-      await deleteUnlinkedHandle(ctx, challengeRow.handleId);
-      return { success: false, userError: { error: "VERIFICATION_FAILED" } };
-    }
-    const credential = authenticatorData.credential;
-    if (credential === null) {
-      throw new Error("Missing attested credential data.");
-    }
-
-    const cosePublicKey = credential.publicKey;
-    let algorithm: "ES256" | "RS256";
-    let publicKey: Uint8Array;
-    if (cosePublicKey.algorithm() === coseAlgorithmES256) {
-      const ec2 = cosePublicKey.ec2();
-      if (ec2.curve !== coseEllipticCurveP256) {
-        throw new Error("Unsupported elliptic curve (expected P-256).");
+    if (verification.userError !== null) {
+      // The challenge burns on each finish attempt, also when the
+      // verification fails. The ceremony can never complete: the unlinked
+      // handle of the ceremony goes away with the challenge.
+      if (verification.challengeRow !== null) {
+        await deleteDeadChallenge(ctx, verification.challengeRow);
       }
-      publicKey = new ECDSAPublicKey(
-        p256,
-        ec2.x,
-        ec2.y,
-      ).encodeSEC1Uncompressed();
-      algorithm = "ES256";
-    } else if (cosePublicKey.algorithm() === coseAlgorithmRS256) {
-      const rsa = cosePublicKey.rsa();
-      publicKey = new RSAPublicKey(rsa.n, rsa.e).encodePKCS1();
-      algorithm = "RS256";
-    } else {
-      throw new Error("Unsupported public key algorithm.");
+      return { success: false, userError: verification.userError };
     }
-
-    const credentialId = toArrayBuffer(credential.id);
-    const existing = await ctx.db
-      .query("passkeys")
-      .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
-      .first();
-    if (existing !== null) {
-      // A compliant client cannot cause this: authenticators make a fresh
-      // random credential ID for each ceremony, and `excludeCredentials`
-      // makes the authenticator refuse a duplicate for this RP. A duplicate
-      // here shows a replayed or tampered registration.
-      throw new Error("The credential is already registered.");
-    }
+    const challengeRow = verification.challengeRow;
+    // One use only: the consumed challenge is deleted.
+    await ctx.db.delete("challenges", challengeRow._id);
 
     // Link the handle of the ceremony to the verified user.
     const handle = await ctx.db.get("handles", challengeRow.handleId);
@@ -256,10 +368,10 @@ export const finishRegistration = mutation({
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.verifiedUserId,
       name: args.name,
-      credentialId,
-      algorithm,
-      publicKey: toArrayBuffer(publicKey),
-      counter: authenticatorData.signatureCounter,
+      credentialId: verification.credentialId,
+      algorithm: verification.algorithm,
+      publicKey: verification.publicKey,
+      counter: verification.counter,
     });
     return { success: true, passkeyId };
   },

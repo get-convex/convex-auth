@@ -1,4 +1,3 @@
-import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   consumeChallenge,
@@ -6,21 +5,14 @@ import {
   randomHandle,
   toArrayBuffer,
 } from "./helpers";
-import schema from "./schema";
+import { CHALLENGE_TTL_MS } from "./validation";
+import { expectSameBytes, setup } from "../passkeyTestSetup";
 import { MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 /** Insert an unlinked handle, as `startRegistration` does. */
 function insertHandle(ctx: MutationCtx): Promise<Id<"handles">> {
   return ctx.db.insert("handles", { handle: randomHandle(), userId: null });
-}
-
-const modules = import.meta.glob("./**/*.ts");
-
-const CHALLENGE_TTL_MS = 10 * 60 * 1000;
-
-function setup() {
-  return convexTest(schema, modules);
 }
 
 describe("toArrayBuffer", () => {
@@ -35,10 +27,10 @@ describe("toArrayBuffer", () => {
     const view = full.subarray(1, 4);
     const result = toArrayBuffer(view);
     expect(result).not.toBe(full.buffer);
-    expect(new Uint8Array(result)).toEqual(new Uint8Array([2, 3, 4]));
+    expectSameBytes(result, new Uint8Array([2, 3, 4]));
     // The copy is independent from the original bytes.
     full[2] = 42;
-    expect(new Uint8Array(result)).toEqual(new Uint8Array([2, 3, 4]));
+    expectSameBytes(result, new Uint8Array([2, 3, 4]));
   });
 
   test("handles zero-length input", () => {

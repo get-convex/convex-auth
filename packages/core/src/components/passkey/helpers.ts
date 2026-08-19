@@ -1,5 +1,5 @@
 import { Doc, Id } from "./_generated/dataModel";
-import { MutationCtx } from "./_generated/server";
+import { MutationCtx, QueryCtx } from "./_generated/server";
 import { CHALLENGE_TTL_MS } from "./validation";
 
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -25,15 +25,16 @@ export function randomHandle(): ArrayBuffer {
 }
 
 /**
- * Find a one-use challenge by its bytes. Make sure that the challenge has
- * the correct kind and is not too old. Delete the challenge and return the
- * row. Return `null` when no usable challenge exists (unknown, incorrect
- * kind, already used, or expired).
+ * Find a challenge by its bytes and its kind. Return `null` when no row
+ * matches.
+ *
+ * The function does not check the TTL, and can return expired challenges.
+ * Callers must check the TTL by themselves.
  */
-export async function consumeChallenge<
+export async function findChallenge<
   Kind extends "registration" | "authentication",
 >(
-  ctx: MutationCtx,
+  ctx: QueryCtx,
   kind: Kind,
   challenge: Uint8Array,
 ): Promise<Extract<Doc<"challenges">, { kind: Kind }> | null> {
@@ -49,13 +50,33 @@ export async function consumeChallenge<
   if (row === null || row.kind !== kind) {
     return null;
   }
+  return row as Extract<Doc<"challenges">, { kind: Kind }>;
+}
+
+/**
+ * Find a one-use challenge by its bytes. Make sure that the challenge has
+ * the correct kind and is not too old. Delete the challenge and return the
+ * row. Return `null` when no usable challenge exists (unknown, incorrect
+ * kind, already used, or expired).
+ */
+export async function consumeChallenge<
+  Kind extends "registration" | "authentication",
+>(
+  ctx: MutationCtx,
+  kind: Kind,
+  challenge: Uint8Array,
+): Promise<Extract<Doc<"challenges">, { kind: Kind }> | null> {
+  const row = await findChallenge(ctx, kind, challenge);
+  if (row === null) {
+    return null;
+  }
   if (isChallengeExpired(row)) {
     await deleteDeadChallenge(ctx, row);
     return null;
   }
   // One use only: a consumed challenge is deleted.
   await ctx.db.delete("challenges", row._id);
-  return row as Extract<Doc<"challenges">, { kind: Kind }>;
+  return row;
 }
 
 /**
