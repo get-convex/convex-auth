@@ -93,6 +93,8 @@
     },
     "./providers/email-password/convex.config.js": "./src/components/email/convex.config.ts",
     "./providers/email-password/*": "./src/components/email/*.ts",
+    "./email/convex.config.js": "./src/components/email/convex.config.ts",
+    "./email/*": "./src/components/email/*.ts",
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": {
       "types": "./dist/browser/index.d.ts",

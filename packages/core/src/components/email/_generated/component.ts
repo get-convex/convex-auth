@@ -42,7 +42,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "query",
         "internal",
         { email: string },
-        string | null,
+        { email: string; userId: string } | null,
         Name
       >;
     };
