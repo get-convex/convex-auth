@@ -290,8 +290,7 @@ export type BoundAuthHelpers<Profile> = {
    *
    * Throws if the identity already has an account. A provider that cannot tell
    * a first sign-in from a return visit should call
-   * {@link BoundAuthHelpers.resolveUserId} first and pick the right helper;
-   * both run in one mutation transaction, so the check cannot go stale.
+   * {@link BoundAuthHelpers.resolveUserId} first and pick the right helper.
    */
   completeSignUp(args: {
     providerAccountId: string;

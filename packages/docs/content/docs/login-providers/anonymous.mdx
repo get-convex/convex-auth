@@ -77,10 +77,6 @@ Write a `createUser` mutation that creates a row in your `users` table and
 returns its id. The provider calls it for every anonymous sign-in, since each
 one establishes a new account.
 
-You can also attach an optional `onSignIn` mutation, called with the resolved
-`userId` right afterwards. It is the same hook every other provider gets, so
-work an app does on any sign-in has one home.
-
 <include lang="ts" meta='title="convex/users.ts"'>
   ../../../../../examples/react-minimal/convex/users.ts
 </include>

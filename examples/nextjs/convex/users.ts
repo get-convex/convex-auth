@@ -14,7 +14,7 @@
  */
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { internalMutation, MutationCtx, query } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
 
 export const createUserAnonymous = internalMutation({
   args: {
@@ -40,14 +40,9 @@ export const createUserPassword = internalMutation({
   },
 });
 
-/**
- * The per-sign-in hooks. Because `onSignIn` runs on a first sign-in too, right
- * after `createUser`, stamping `lastSignedInAt` here covers every sign-in and
- * the create callbacks don't have to repeat it.
- *
- * One mutation per provider, since each declares its provider's exact literal
- * types, both delegating to a plain shared function.
- */
+// Below is an exmple of using the per-sign-in hooks. Here the app is choosing to
+// record a `lastSignedInAt` timestamp for each user upon sign-in.
+
 export const onSignInAnonymous = internalMutation({
   args: {
     provider: v.literal("anonymous"),
@@ -57,7 +52,7 @@ export const onSignInAnonymous = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await touchLastSignedIn(ctx, args.userId);
+    await ctx.db.patch("users", args.userId, { lastSignedInAt: Date.now() });
   },
 });
 
@@ -70,17 +65,9 @@ export const onSignInPassword = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await touchLastSignedIn(ctx, args.userId);
+    await ctx.db.patch("users", args.userId, { lastSignedInAt: Date.now() });
   },
 });
-
-async function touchLastSignedIn(
-  ctx: MutationCtx,
-  userId: Id<"users">,
-): Promise<null> {
-  await ctx.db.patch("users", userId, { lastSignedInAt: Date.now() });
-  return null;
-}
 
 /**
  * The currently signed-in user, or null. Demonstrates an authenticated query
