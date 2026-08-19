@@ -15,8 +15,9 @@ export default defineSchema({
     // uniqueness checks use this field, not `email`.
     normalizedEmail: v.string(),
     userId: v.string(),
-    // `true` for the user's primary address. The primary address receives
-    // security notifications.
+    // `true` for the user's primary address.
+    // The primary address can be used by the app when it needs to email
+    // a particular user (e.g. for security notifications).
     isPrimary: v.boolean(),
   })
     .index("by_normalizedEmail", ["normalizedEmail"])
