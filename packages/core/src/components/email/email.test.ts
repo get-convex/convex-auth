@@ -18,8 +18,9 @@ async function seedEmail(
   isPrimary: boolean,
 ) {
   await t.run(async (ctx) => {
-    await ctx.db.insert("emails", {
-      email: normalizeEmail(email),
+    await ctx.db.insert("verifiedEmails", {
+      email,
+      normalizedEmail: normalizeEmail(email),
       userId,
       isPrimary,
     });
@@ -65,18 +66,29 @@ describe("getUserIdByEmail", () => {
 
   test("finds the user and ignores case and normalization form", async () => {
     const t = setup();
-    await seedEmail(t, "user1", "alice@example.com", true);
+    await seedEmail(t, "user1", "Alice@Example.com", true);
 
     expect(
       await t.query(api.public.getUserIdByEmail, {
-        email: "alice@example.com",
+        email: "Alice@Example.com",
       }),
     ).toBe("user1");
     expect(
       await t.query(api.public.getUserIdByEmail, {
-        email: "ALICE@Example.COM",
+        email: "ALICE@example.COM",
       }),
     ).toBe("user1");
+  });
+});
+
+describe("the stored email address", () => {
+  test("keeps the case that the user gave", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "Alice@Example.com", true);
+
+    expect(await t.query(api.public.getEmails, { userId: "user1" })).toEqual([
+      { email: "Alice@Example.com", isPrimary: true },
+    ]);
   });
 });
 

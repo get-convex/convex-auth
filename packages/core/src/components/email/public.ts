@@ -47,7 +47,7 @@ export const deleteUser = mutation({
   handler: async (ctx, { userId }): Promise<null> => {
     const rows = await emailsByUserId(ctx, userId);
     for (const row of rows) {
-      await ctx.db.delete("emails", row._id);
+      await ctx.db.delete("verifiedEmails", row._id);
     }
     return null;
   },
@@ -56,19 +56,21 @@ export const deleteUser = mutation({
 function emailsByUserId(
   ctx: QueryCtx,
   userId: string,
-): Promise<Doc<"emails">[]> {
+): Promise<Doc<"verifiedEmails">[]> {
   return ctx.db
-    .query("emails")
+    .query("verifiedEmails")
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .collect();
 }
 
 function emailByNormalizedEmail(
   ctx: QueryCtx,
-  email: string,
-): Promise<Doc<"emails"> | null> {
+  normalizedEmail: string,
+): Promise<Doc<"verifiedEmails"> | null> {
   return ctx.db
-    .query("emails")
-    .withIndex("by_email", (q) => q.eq("email", email))
+    .query("verifiedEmails")
+    .withIndex("by_normalizedEmail", (q) =>
+      q.eq("normalizedEmail", normalizedEmail),
+    )
     .unique();
 }
