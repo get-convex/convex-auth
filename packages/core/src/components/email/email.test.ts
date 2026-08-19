@@ -64,7 +64,7 @@ describe("getUserIdByEmail", () => {
     ).toBeNull();
   });
 
-  test("finds the user and ignores case and normalization form", async () => {
+  test("finds the user with the same case as the stored address", async () => {
     const t = setup();
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
@@ -72,12 +72,50 @@ describe("getUserIdByEmail", () => {
       await t.query(api.public.getUserIdByEmail, {
         email: "Alice@Example.com",
       }),
-    ).toBe("user1");
+    ).toEqual({ userId: "user1", email: "Alice@Example.com" });
+  });
+
+  test("finds the user with a different case, and returns the stored address", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "Alice@Example.com", true);
+
+    for (const email of [
+      "alice@example.com",
+      "ALICE@EXAMPLE.COM",
+      "aLiCe@eXaMpLe.CoM",
+    ]) {
+      expect(await t.query(api.public.getUserIdByEmail, { email })).toEqual({
+        userId: "user1",
+        email: "Alice@Example.com",
+      });
+    }
+  });
+
+  test("finds the user with a different Unicode normalization form", async () => {
+    const t = setup();
+    // The stored address uses the composed form ("é" as U+00E9).
+    await seedEmail(t, "user1", "H\u00e9l\u00e8ne@example.com", true);
+
+    // The argument uses the decomposed form ("e" + a combining accent).
     expect(
       await t.query(api.public.getUserIdByEmail, {
-        email: "ALICE@example.COM",
+        email: "he\u0301le\u0300ne@example.com",
       }),
-    ).toBe("user1");
+    ).toEqual({ userId: "user1", email: "H\u00e9l\u00e8ne@example.com" });
+  });
+
+  test("does not match a different address that normalizes differently", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "Alice@Example.com", true);
+
+    expect(
+      await t.query(api.public.getUserIdByEmail, {
+        email: "alice@example.org",
+      }),
+    ).toBeNull();
+    expect(
+      await t.query(api.public.getUserIdByEmail, { email: "alic@example.com" }),
+    ).toBeNull();
   });
 });
 
@@ -89,6 +127,16 @@ describe("the stored email address", () => {
     expect(await t.query(api.public.getEmails, { userId: "user1" })).toEqual([
       { email: "Alice@Example.com", isPrimary: true },
     ]);
+  });
+
+  test("keeps both forms of the address in the row", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "Alice@Example.com", true);
+
+    const rows = await t.run((ctx) => ctx.db.query("verifiedEmails").collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].email).toBe("Alice@Example.com");
+    expect(rows[0].normalizedEmail).toBe("alice@example.com");
   });
 });
 

@@ -24,15 +24,22 @@ export const getEmails = query({
  * Find the user that a verified email address identifies.
  *
  * The lookup ignores the case and the Unicode normalization form of the
- * `email` argument. The function returns `null` when no user has verified
- * this address.
+ * `email` argument. The `email` field of the result is the stored address,
+ * with the case that the user gave, which can be different from the argument.
+ * The function returns `null` when no user has verified this address.
  */
 export const getUserIdByEmail = query({
   args: { email: v.string() },
-  returns: v.union(v.string(), v.null()),
-  handler: async (ctx, { email }): Promise<string | null> => {
+  returns: v.union(
+    v.object({ userId: v.string(), email: v.string() }),
+    v.null(),
+  ),
+  handler: async (
+    ctx,
+    { email },
+  ): Promise<{ userId: string; email: string } | null> => {
     const row = await emailByNormalizedEmail(ctx, normalizeEmail(email));
-    return row === null ? null : row.userId;
+    return row === null ? null : { userId: row.userId, email: row.email };
   },
 });
 
