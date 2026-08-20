@@ -19,7 +19,7 @@
  * @module
  */
 
-import type { TokenBundle } from "../lib/types";
+import type { TokenBundle } from "../lib/types.js";
 import {
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
@@ -27,8 +27,8 @@ import {
   CookieStore,
   clearAuthCookies,
   writeAuthCookies,
-} from "./cookies";
-import { isTokenExpiring } from "./jwt";
+} from "./cookies.js";
+import { isTokenExpiring } from "./jwt.js";
 
 /**
  * Rotate a refresh token into a fresh {@link TokenBundle}, or `null` when the

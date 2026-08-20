@@ -14,13 +14,13 @@
 "use client";
 
 import { useCallback, useContext, useSyncExternalStore } from "react";
-import { AuthClientContext } from "./client";
+import { AuthClientContext } from "./client.js";
 
 export type {
   AmbientSignInClient,
   AmbientSignInContext,
   AuthSignInApi,
-} from "../browser/ambientSignInClient";
+} from "../browser/ambientSignInClient.js";
 
 /**
  * Subscribe to a value published by the ambient sign-in registered as `id`

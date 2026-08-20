@@ -4,7 +4,7 @@
  * in this directory). Trimmed to decoding only; see README.md.
  */
 
-import { bigEndian, DynamicBuffer } from "../binary";
+import { bigEndian, DynamicBuffer } from "../binary/index.js";
 
 export type CBORValue =
   | CBORPositiveInteger

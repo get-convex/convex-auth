@@ -1,5 +1,5 @@
 import { Infer, v } from "convex/values";
-import { isCommonPassword } from "./commonPasswords";
+import { isCommonPassword } from "./commonPasswords.js";
 
 // Password requirements, following the NIST guidance summarized at
 // https://auth.pilcrowonpaper.com/passwords: 10–100 characters, any printable

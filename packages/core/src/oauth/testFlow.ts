@@ -5,10 +5,10 @@
  */
 import { getFunctionName, makeFunctionReference } from "convex/server";
 import { vi } from "vitest";
-import type { AuthSignInApi } from "../browser/ambientSignInClient";
-import { AuthClient } from "../browser/sessionManager";
-import { InMemoryStorage, NamespacedStorage } from "../browser/storage";
-import type { TokenBundle } from "../lib/types";
+import type { AuthSignInApi } from "../browser/ambientSignInClient.js";
+import { AuthClient } from "../browser/sessionManager.js";
+import { InMemoryStorage, NamespacedStorage } from "../browser/storage.js";
+import type { TokenBundle } from "../lib/types.js";
 import {
   OAUTH_ACTIONS_KEY,
   OAUTH_FLOW_ERROR_KEY,
@@ -18,7 +18,7 @@ import {
   type OauthFlowError,
   type OauthProviderRefs,
   type PendingFlow,
-} from "./client";
+} from "./client.js";
 
 /** The deployment url the tests namespace their storage under. */
 export const NAMESPACE = "https://happy-animal-123.convex.cloud";

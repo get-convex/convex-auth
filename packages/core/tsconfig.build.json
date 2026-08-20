@@ -1,0 +1,32 @@
+{
+  // Builds the published library: ESM JavaScript plus declarations under
+  // `dist/`, mirroring `src/`. Consumers resolve `dist/`, never `src/`, so
+  // their `tsconfig.json` never typechecks our sources (no `@types/node`,
+  // `lib` level, or `verbatimModuleSyntax` requirements leak onto them).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+    // `types` is inherited from tsconfig.json: `node` for `process.env` and
+    // `vite/client` for the `import.meta.glob` in `components/testing/*`.
+    // Neither leaks into the emitted declarations.
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.script.ts",
+    "src/components/password/scripts/**",
+    // Ships as source (see the `./providers/testing/*` export).
+    "src/components/testing/**",
+    "src/components/passkeyTestSetup.ts",
+    "src/oauth/testFlow.ts",
+    "src/react/testSignInApi.ts"
+  ]
+}

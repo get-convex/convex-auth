@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { httpCookies, serializeCookie } from "./httpCookies";
+import { httpCookies, serializeCookie } from "./httpCookies.js";
 
 describe("serializeCookie", () => {
   test("emits the attributes it is given", () => {

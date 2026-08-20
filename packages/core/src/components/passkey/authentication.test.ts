@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { api } from "./_generated/api";
-import { CHALLENGE_TTL_MS } from "./validation";
-import { expectSameBytes, setup } from "../passkeyTestSetup";
+import { api } from "./_generated/api.js";
+import { CHALLENGE_TTL_MS } from "./validation.js";
+import { expectSameBytes, setup } from "../passkeyTestSetup.js";
 import {
   ORIGIN,
   RP_ID,
@@ -9,7 +9,7 @@ import {
   generateES256Credential,
   generateRS256Credential,
   register,
-} from "./testAuthenticator";
+} from "./testAuthenticator.js";
 
 const EXPECTED = { expectedRpId: RP_ID, expectedOrigin: ORIGIN };
 

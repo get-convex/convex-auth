@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { AuthSignInApi } from "../browser/ambientSignInClient";
-import { AuthClient, type AuthState } from "../browser/sessionManager";
-import { InMemoryStorage } from "../browser/storage";
-import type { TokenBundle } from "../lib/types";
-import { oauth } from "./client";
+import type { AuthSignInApi } from "../browser/ambientSignInClient.js";
+import { AuthClient, type AuthState } from "../browser/sessionManager.js";
+import { InMemoryStorage } from "../browser/storage.js";
+import type { TokenBundle } from "../lib/types.js";
+import { oauth } from "./client.js";
 import {
   ACME_REFS,
   NAMESPACE,
@@ -16,7 +16,7 @@ import {
   seedPendingFlow,
   setupOAuth,
   stubReactNative,
-} from "./testFlow";
+} from "./testFlow.js";
 
 describe("OAuth client", () => {
   afterEach(() => {

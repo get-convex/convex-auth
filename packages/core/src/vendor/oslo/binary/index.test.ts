@@ -7,7 +7,7 @@ import {
   compareBytes,
   DynamicBuffer,
   rotr32,
-} from "./index";
+} from "./index.js";
 
 test("bigIntBytes()", () => {
   expect(bigIntBytes(1n)).toStrictEqual(new Uint8Array([0x01]));

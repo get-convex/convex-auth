@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { normalizeGoogleProfile } from "./google";
+import { normalizeGoogleProfile } from "./google.js";
 
 describe("normalizeGoogleProfile", () => {
   test("maps validated id_token claims to the profile", () => {

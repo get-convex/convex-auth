@@ -8,18 +8,18 @@ import {
   jwtVerify,
   type JWK,
 } from "jose";
-import { api } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api.js";
+import schema from "./schema.js";
 import {
   getCreateUserCalls,
   getOnSignInCalls,
   resetUserCallbackCalls,
-} from "./testApp";
+} from "./testApp.js";
 import {
   type AuthClaims,
   type TokenBundle,
   USE_USER_ID_AS_ACCOUNT_ID,
-} from "../../lib/types";
+} from "../../lib/types.js";
 
 const modules = import.meta.glob("./**/*.ts");
 

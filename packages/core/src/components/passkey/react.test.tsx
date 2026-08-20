@@ -2,13 +2,13 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthClient } from "../../browser/sessionManager";
-import { InMemoryStorage } from "../../browser/storage";
-import type { TokenBundle } from "../../lib/types";
-import type { AuthSignInApi } from "../../react/client";
-import { AuthProvider, useAuth } from "../../react/client";
-import { useAuthToken } from "../../react";
-import { PasskeyApi, PasskeySignInResult, usePasskey } from "./react";
+import { AuthClient } from "../../browser/sessionManager.js";
+import { InMemoryStorage } from "../../browser/storage.js";
+import type { TokenBundle } from "../../lib/types.js";
+import type { AuthSignInApi } from "../../react/client.js";
+import { AuthProvider, useAuth } from "../../react/client.js";
+import { useAuthToken } from "../../react/index.js";
+import { PasskeyApi, PasskeySignInResult, usePasskey } from "./react.js";
 
 // The hook runs its mutations through the injected `AuthSignInApi`, so
 // the tests substitute a signInApi rather than mocking `convex/react`. The

@@ -17,17 +17,17 @@ import { ConvexHttpClient } from "convex/browser";
 import { cookies as nextCookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ReactNode } from "react";
-import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types";
+import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types.js";
 import {
   AUTH_JWT_COOKIE,
   AuthCookieOptions,
   CookieDeleteOptions,
   CookieOptions,
   CookieStore,
-} from "../server/cookies";
-import { createServerAuthChecker } from "../server/isAuthenticated";
-import { isTokenExpiring } from "../server/jwt";
-import { ServerAuthSession } from "../server/session";
+} from "../server/cookies.js";
+import { createServerAuthChecker } from "../server/isAuthenticated.js";
+import { isTokenExpiring } from "../server/jwt.js";
+import { ServerAuthSession } from "../server/session.js";
 
 /** Configuration for {@link setupConvexAuthNextjs}. */
 export interface ConvexAuthNextjsConfig {
@@ -213,7 +213,7 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
     const initialToken = await convexAuthNextjsAccessToken();
     // Lazily import the client component so other consumers of this module
     // don't have to take on those dependencies.
-    const { ConvexAuthNextjsProvider } = await import("./index");
+    const { ConvexAuthNextjsProvider } = await import("./index.js");
     return (
       <ConvexAuthNextjsProvider
         convexUrl={config.convexUrl}

@@ -3,11 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { anyApi, makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { AuthClient } from "../browser/sessionManager";
-import { InMemoryStorage } from "../browser/storage";
-import { useAuthToken } from "../react";
-import { AuthProvider, useAuth } from "../react/client";
-import { stubSignInApi } from "../react/testSignInApi";
+import { AuthClient } from "../browser/sessionManager.js";
+import { InMemoryStorage } from "../browser/storage.js";
+import { useAuthToken } from "../react/index.js";
+import { AuthProvider, useAuth } from "../react/client.js";
+import { stubSignInApi } from "../react/testSignInApi.js";
 import {
   useOauth,
   useOauthSignIn,
@@ -15,7 +15,7 @@ import {
   useSignInWithGoogle,
   type OauthProviderApi,
   type OauthProviderRefs,
-} from "./react";
+} from "./react.js";
 import {
   ACME_REFS,
   NAMESPACE,
@@ -26,7 +26,7 @@ import {
   restoreNavigatorProduct,
   seedPendingFlow,
   stubReactNative,
-} from "./testFlow";
+} from "./testFlow.js";
 
 // Function references with the paths a generated `api.auth` would have. Nothing
 // resolves them. The sign-in api is a mock, so these are addresses the

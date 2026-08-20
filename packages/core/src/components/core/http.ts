@@ -1,5 +1,5 @@
 import { httpRouter } from "convex/server";
-import { httpAction, env } from "./_generated/server";
+import { httpAction, env } from "./_generated/server.js";
 
 // The core serves its own JWKS. AUTH_JWKS is a static env var set by running
 // `npx @convex-dev/auth` and is served verbatim here. Convex mounts these

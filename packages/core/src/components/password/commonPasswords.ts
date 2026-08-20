@@ -1,4 +1,4 @@
-import { COMMON_PASSWORDS_BY_LENGTH } from "./commonPasswords.generated";
+import { COMMON_PASSWORDS_BY_LENGTH } from "./commonPasswords.generated.js";
 
 // A list of the most frequent passwords. OWASP ASVS L1 (requirement 2.1.7) and
 // NIST SP 800-63B tell applications to reject these passwords.

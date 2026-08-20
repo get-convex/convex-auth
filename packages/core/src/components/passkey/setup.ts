@@ -4,18 +4,18 @@ import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
-} from "../../lib/types";
-import type { AuthCore } from "../core/setup";
+} from "../../lib/types.js";
+import type { AuthCore } from "../core/setup.js";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
 import {
   setUsernameUserError,
   validateUsernameFormat,
-} from "../username/validation";
+} from "../username/validation.js";
 import {
   finishAuthenticationUserError,
   finishRegistrationUserError,
-} from "./validation";
+} from "./validation.js";
 
 /**
  * Options for {@link setupUsernamePasskey}.

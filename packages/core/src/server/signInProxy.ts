@@ -32,12 +32,12 @@ import {
   makeSlimBundle,
   type SignInSuccess,
   type TokenBundle,
-} from "../lib/types";
-import type { AuthCookieOptions } from "./cookies";
-import { writeAuthCookies } from "./cookies";
-import type { RequestHandler } from "./handlers";
-import { httpCookies } from "./httpCookies";
-import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
+} from "../lib/types.js";
+import type { AuthCookieOptions } from "./cookies.js";
+import { writeAuthCookies } from "./cookies.js";
+import type { RequestHandler } from "./handlers.js";
+import { httpCookies } from "./httpCookies.js";
+import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.js";
 
 /**
  * A sign-in function exposed through the proxy.

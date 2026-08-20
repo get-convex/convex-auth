@@ -67,6 +67,31 @@ This command:
 - Generates a key pair for your dev deployment (`AUTH_PRIVATE_KEY` and `AUTH_JWKS` environment variables).
 - Initializes the following files in `convex/`: `auth.config.ts`, `convex.config.ts`, `auth.ts`.
 
+<Callout type="info">
+  The generated `convex/auth.config.ts` reads `process.env.CONVEX_SITE_URL`, so
+  your project needs Node's global types. Two things have to be in place, and
+  neither is the default — without them `npx convex dev` fails to typecheck with
+  `TS2591: Cannot find name 'process'`.
+
+First, depend on `@types/node` (Vite's `react-ts` template doesn't):
+
+```sh
+npm i -D @types/node
+```
+
+Then list it in `convex/tsconfig.json`, which Convex generates without a `types`
+field:
+
+```json title="convex/tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}
+```
+
+</Callout>
+
 </Step>
 
 <Step>

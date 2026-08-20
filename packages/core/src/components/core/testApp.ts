@@ -1,5 +1,5 @@
-import { vCreateUser, vOnSignIn } from "../../lib/types";
-import { internalMutation } from "./_generated/server";
+import { vCreateUser, vOnSignIn } from "../../lib/types.js";
+import { internalMutation } from "./_generated/server.js";
 import { Infer, v } from "convex/values";
 
 /**
@@ -8,8 +8,7 @@ import { Infer, v } from "convex/values";
  * needs to assert that. convex-test runs the whole suite in one process,
  * so module-level logs are a stable spy; the readers and reset below are plain
  * functions the test imports directly, since there's no reason to round-trip
- * through the test deployment to read in-process state. This file is excluded
- * from the published build, so the global state never reaches production.
+ * through the test deployment to read in-process state.
  */
 type CreateUserCall = Infer<typeof vCreateUser>;
 type OnSignInCall = Infer<typeof vOnSignIn>;

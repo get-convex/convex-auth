@@ -9,8 +9,8 @@ import {
   bcrypt,
   bcryptVerify,
 } from "hash-wasm";
-import { api } from "./_generated/api";
-import schema from "./schema";
+import { api } from "./_generated/api.js";
+import schema from "./schema.js";
 import { hashPassword, verifyPassword } from "argon2id-wasm";
 
 const modules = import.meta.glob("./**/*.ts");

@@ -2,6 +2,7 @@ import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import convexPlugin from "@convex-dev/eslint-plugin";
+import importX from "eslint-plugin-import-x";
 
 const convexRecommended = convexPlugin.configs.recommended[0].rules;
 
@@ -72,5 +73,24 @@ export default defineConfig([
       "@convex-dev": convexPlugin,
     },
     rules: convexRecommended,
+  },
+  {
+    // The publishable packages compile to `dist/` with `tsc`, which copies
+    // module specifiers through verbatim. An extensionless relative import
+    // therefore stays extensionless in the published JavaScript, where Node's
+    // ESM resolver rejects it — which breaks consumers whose bundler doesn't
+    // paper over it (Vitest externalizes `node_modules` and loads them with
+    // native ESM). Write the extension the emitted file will need: `.js`, even
+    // though the source file is `.ts`.
+    files: [
+      "packages/core/src/**/*.{ts,tsx}",
+      "packages/argon2id-wasm/src/**/*.ts",
+    ],
+    plugins: {
+      "import-x": importX,
+    },
+    rules: {
+      "import-x/extensions": ["error", "ignorePackages"],
+    },
   },
 ]);

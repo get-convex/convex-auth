@@ -2,10 +2,12 @@
 import { describe, expect, test, vi } from "vitest";
 import {
   createProgram,
+  declaresNodeTypes,
   detectPackageManager,
+  devInstallCommand,
   FILE_TEMPLATES,
   installCommand,
-} from "./program";
+} from "./program.js";
 
 const PROJECT = "/project";
 
@@ -82,6 +84,12 @@ async function runCli(deps: unknown, args: string[] = []) {
 
 const pkgWithAuth = JSON.stringify({
   dependencies: { "@convex-dev/auth": "^2.0.0" },
+  devDependencies: { "@types/node": "^24.0.0" },
+});
+
+/** A `convex/tsconfig.json` that already lists Node's global types. */
+const tsconfigWithNodeTypes = JSON.stringify({
+  compilerOptions: { types: ["node"] },
 });
 
 describe("convex-auth init CLI", () => {
@@ -206,6 +214,83 @@ describe("convex-auth init CLI", () => {
     // The other files were still created.
     expect(fs.files.get("/project/convex/convex.config.ts")).toBe(
       FILE_TEMPLATES["convex.config.ts"],
+    );
+  });
+});
+
+describe("typecheck setup warning", () => {
+  test("names both steps when neither is in place", async () => {
+    const { deps, warns } = makeDeps({
+      files: {
+        "/project/package.json": JSON.stringify({
+          dependencies: { "@convex-dev/auth": "^2.0.0" },
+        }),
+      },
+      detectPackageManager: () => "pnpm",
+    });
+
+    const { error } = await runCli(deps);
+
+    expect(error).toBeUndefined();
+    const warning = warns.join("\n");
+    expect(warning).toContain("TS2591");
+    expect(warning).toContain("pnpm add -D @types/node");
+    expect(warning).toContain('"types": ["node"] to convex/tsconfig.json');
+  });
+
+  test("only names the tsconfig step when @types/node is installed", async () => {
+    const { deps, warns } = makeDeps({
+      files: { "/project/package.json": pkgWithAuth },
+    });
+
+    const { error } = await runCli(deps);
+
+    expect(error).toBeUndefined();
+    const warning = warns.join("\n");
+    expect(warning).toContain('"types": ["node"] to convex/tsconfig.json');
+    expect(warning).not.toContain("@types/node\n");
+  });
+
+  test("stays quiet once both are in place", async () => {
+    const { deps, warns } = makeDeps({
+      files: {
+        "/project/package.json": pkgWithAuth,
+        "/project/convex/tsconfig.json": tsconfigWithNodeTypes,
+      },
+    });
+
+    const { error } = await runCli(deps);
+
+    expect(error).toBeUndefined();
+    expect(warns.join("\n")).not.toContain("TS2591");
+  });
+});
+
+describe("declaresNodeTypes", () => {
+  test.each([
+    ['{ "compilerOptions": { "types": ["node"] } }', true],
+    ['{ "compilerOptions": { "types": ["node", "vite/client"] } }', true],
+    ['{ "compilerOptions": { "types" : [ "vite/client", "node" ] } }', true],
+    ['{ "compilerOptions": { "types": ["vite/client"] } }', false],
+    ['{ "compilerOptions": { "noEmit": true } }', false],
+  ])("%s", (contents, expected) => {
+    expect(declaresNodeTypes(contents)).toBe(expected);
+  });
+});
+
+describe("devInstallCommand", () => {
+  test.each([
+    ["npm", "npm install --save-dev @types/node"],
+    ["pnpm", "pnpm add -D @types/node"],
+    ["yarn", "yarn add -D @types/node"],
+    ["bun", "bun add -d @types/node"],
+  ])("%s", (pm, expected) => {
+    expect(devInstallCommand(pm, "@types/node")).toBe(expected);
+  });
+
+  test("falls back to npm for an unknown package manager", () => {
+    expect(devInstallCommand("who-knows", "@types/node")).toContain(
+      "npm install --save-dev",
     );
   });
 });

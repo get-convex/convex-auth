@@ -25,16 +25,16 @@ import type {
   AuthSessionResponse,
   RefreshSessionFn,
   SignOutFn,
-} from "../lib/types";
-import { makeSlimBundle } from "../lib/types";
+} from "../lib/types.js";
+import { makeSlimBundle } from "../lib/types.js";
 import {
   AUTH_REFRESH_COOKIE,
   AuthCookieOptions,
   clearAuthCookies,
-} from "./cookies";
-import { httpCookies } from "./httpCookies";
-import { forbiddenOriginResponse, isTrustedOrigin } from "./origin";
-import { ServerAuthSession } from "./session";
+} from "./cookies.js";
+import { httpCookies } from "./httpCookies.js";
+import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.js";
+import { ServerAuthSession } from "./session.js";
 
 /** A WHATWG request handler. */
 export type RequestHandler = (request: Request) => Promise<Response>;

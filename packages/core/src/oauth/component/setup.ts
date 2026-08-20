@@ -4,15 +4,15 @@ import {
   vTokenBundle,
   type TokenBundle,
   type UserCallbacks,
-} from "../../lib/types";
-import type { AuthCore } from "../../components/core/setup";
+} from "../../lib/types.js";
+import type { AuthCore } from "../../components/core/setup.js";
 import type { ComponentApi } from "./_generated/component.js";
 import {
   decryptTicketPayload,
   generateRandomToken,
   sha256Base64Url,
-} from "./crypto";
-import { sha256Hex } from "../../lib/crypto";
+} from "./crypto.js";
+import { sha256Hex } from "../../lib/crypto.js";
 
 /**
  * Standard OIDC id_token claims. The well-known ones are typed. Any other

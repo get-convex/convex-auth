@@ -5,13 +5,13 @@
  * README.md.
  */
 
-import { bigEndian, bigIntFromBytes, compareBytes } from "../binary";
-import { decodeBase64urlIgnorePadding } from "../encoding";
+import { bigEndian, bigIntFromBytes, compareBytes } from "../binary/index.js";
+import { decodeBase64urlIgnorePadding } from "../encoding/index.js";
 import {
   decodeCBORToNativeValue,
   decodeCBORToNativeValueNoLeftoverBytes,
-} from "../cbor";
-import { sha256 } from "../crypto/sha2";
+} from "../cbor/index.js";
+import { sha256 } from "../crypto/sha2.js";
 
 export function parseClientDataJSON(encoded: Uint8Array): ClientData {
   let parsed: unknown;

@@ -5,20 +5,20 @@ import type { PropertyValidators } from "convex/values";
 import { api, internal } from "./_generated/api.js";
 import type { ComponentApi } from "./_generated/component.js";
 import schema from "./schema.js";
-import { setupOauth, type OauthProfile } from "./setup";
-import { encryptTicketPayload, generateRandomToken } from "./crypto";
-import { sha256Hex } from "../../lib/crypto";
+import { setupOauth, type OauthProfile } from "./setup.js";
+import { encryptTicketPayload, generateRandomToken } from "./crypto.js";
+import { sha256Hex } from "../../lib/crypto.js";
 import type {
   AuthClaims,
   BoundAuthHelpers,
   TokenBundle,
-} from "../../lib/types";
+} from "../../lib/types.js";
 import type {
   AuthActionBuilder,
   AuthCore,
   AuthMutationBuilder,
   ProviderBuilders,
-} from "../../components/core/setup";
+} from "../../components/core/setup.js";
 
 /**
  * Tests for the app-side `completeSignIn` mutation that `setupOauth`

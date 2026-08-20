@@ -19,7 +19,7 @@ import {
   parseASN1,
   variableLengthQuantityBytes,
   variableLengthQuantityFromBytes,
-} from "./index";
+} from "./index.js";
 
 test("bigIntTwosComplementBytes()", () => {
   expect(bigIntTwosComplementBytes(0n)).toStrictEqual(new Uint8Array([0x00]));
