@@ -38,7 +38,7 @@ export const bundle: TokenBundle = {
 
 /**
  * A stand-in provider, for tests that don't care which provider ran. The refs
- * carry paths that look like an app's because `signIn` saves the completeSignIn
+ * have paths that look like an app's because `signIn` saves the completeSignIn
  * path and completion rebuilds the reference from it, so assertions compare
  * paths, not references.
  */
@@ -54,8 +54,8 @@ export function flowStorage(storage: TokenStorage) {
 }
 
 /**
- * The pending flow as stored, or null. Only for the synchronous stores, since
- * the storage type also allows ones that return promises.
+ * The pending flow as stored, or null. Only works with a storage that reads
+ * synchronously, like `InMemoryStorage`, because it does not await the read.
  */
 export function readFlow(storage: TokenStorage): PendingFlow | null {
   const raw = flowStorage(storage).get("flow") as string | null | undefined;

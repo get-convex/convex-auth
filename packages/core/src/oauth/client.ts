@@ -55,7 +55,7 @@ export type OauthProviderRefs = {
  * - `"access_denied"`: the user cancelled at the identity provider.
  * - `"expired"`: the flow took too long, or the code was already redeemed.
  * - `"rejected"`: the app's own backend turned the sign-in down by throwing
- *   a `ConvexError`.
+ *   a `ConvexError`, and `message` has its text.
  * - `"oauth_error"`: something else went wrong during the provider handshake,
  *   including failing to start it.
  * - `"invalid_flow"`: the callback arrived but this client has no saved flow,
@@ -64,17 +64,13 @@ export type OauthProviderRefs = {
 export type OauthFlowErrorCode =
   "access_denied" | "expired" | "rejected" | "oauth_error" | "invalid_flow";
 
-/**
- * Why a sign-in failed. A `"rejected"` error can carry the app's own copy for
- * the user.
- */
+/** Why a sign-in failed. */
 export type OauthFlowError = {
   /** Why the sign-in failed. */
   code: OauthFlowErrorCode;
   /**
-   * The app's own copy for the user, taken from the `ConvexError` its backend
-   * threw. Only set for a `"rejected"` error, and only when that error carried
-   * a string.
+   * Text to show the user. Only set when the app's backend threw a
+   * `ConvexError` whose `data` is a string. That string is this text.
    */
   message?: string;
 };
@@ -204,9 +200,9 @@ async function takePendingFlow(
 }
 
 /**
- * Remove the saved sign-in flow for a flow that already ended. A storage that
- * rejects is ignored, because the caller has already recorded why the sign-in
- * failed and a failed cleanup would only add an unhandled rejection.
+ * Remove the saved sign-in flow after it has ended. Callers don't await this,
+ * so a rejecting storage is ignored instead of becoming an unhandled
+ * rejection. The caller already recorded why the sign-in failed.
  */
 async function dropPendingFlow(storage: SignInStorage): Promise<void> {
   try {
@@ -241,9 +237,9 @@ export function oauth(): AmbientSignInClient {
     };
 
     /**
-     * Turn a thrown sign-in failure into a flow error. An app turns a sign-in
-     * down by throwing a `ConvexError`, and a string `data` on it is the
-     * app's own copy for the user. Anything else is a generic failure.
+     * Turn a thrown sign-in failure into a flow error. A `ConvexError` means
+     * the app's backend rejected the sign-in. Anything else is a generic
+     * failure.
      */
     const setThrownFlowError = (error: unknown): void => {
       if (error instanceof ConvexError) {
