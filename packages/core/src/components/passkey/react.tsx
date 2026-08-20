@@ -371,11 +371,11 @@ async function runAuthenticationCeremony(
  * }
  * ```
  *
- * @param api The app's re-exported passkey mutation references.
+ * @param passkeyApi The app's re-exported passkey mutation references.
  * @param options Set `autofill: false` to keep the autofill request off.
  */
 export function usePasskey(
-  api: PasskeyApi,
+  passkeyApi: PasskeyApi,
   options: { autofill?: boolean } = {},
 ) {
   // TODO(nicolas) Refactor this hook, potentially allow more extensibility
@@ -412,8 +412,8 @@ export function usePasskey(
   // renders (Convex's generated `api` object creates a new reference on
   // every property access), and neither `signIn`'s identity nor the
   // pending browser request must change on a render.
-  const currentRef = useRef({ api, signInApi, setSession });
-  currentRef.current = { api, signInApi, setSession };
+  const currentRef = useRef({ passkeyApi, signInApi, setSession });
+  currentRef.current = { passkeyApi, signInApi, setSession };
 
   const signIn = useCallback(
     async ({
@@ -442,9 +442,11 @@ export function usePasskey(
             userError: { error: "WEBAUTHN_UNSUPPORTED" },
           };
         }
-        const { api, signInApi, setSession } = currentRef.current;
+        const { passkeyApi, signInApi, setSession } = currentRef.current;
 
-        const start = await signInApi.mutation(api.startSignIn, { username });
+        const start = await signInApi.mutation(passkeyApi.startSignIn, {
+          username,
+        });
         if (!start.success) {
           return start;
         }
@@ -454,7 +456,10 @@ export function usePasskey(
           if (args === null) {
             return { success: false, userError: { error: "CEREMONY_ABORTED" } };
           }
-          const result = await signInApi.mutation(api.finishSignUp, args);
+          const result = await signInApi.mutation(
+            passkeyApi.finishSignUp,
+            args,
+          );
           if (!result.success) {
             return result;
           }
@@ -466,7 +471,7 @@ export function usePasskey(
         if (args === null) {
           return { success: false, userError: { error: "CEREMONY_ABORTED" } };
         }
-        const result = await signInApi.mutation(api.finishSignIn, args);
+        const result = await signInApi.mutation(passkeyApi.finishSignIn, args);
         if (!result.success) {
           return result;
         }
@@ -613,8 +618,8 @@ export function usePasskey(
         setStatus("waiting");
         let start;
         try {
-          const { api, signInApi } = currentRef.current;
-          start = await signInApi.mutation(api.startAutofillSignIn, {});
+          const { passkeyApi, signInApi } = currentRef.current;
+          start = await signInApi.mutation(passkeyApi.startAutofillSignIn, {});
         } catch (cause) {
           setLastError(foldClientError(cause));
           setStatus("stopped");
@@ -657,9 +662,9 @@ export function usePasskey(
           }
 
           setStatus("signingIn");
-          const { api, signInApi, setSession } = currentRef.current;
+          const { passkeyApi, signInApi, setSession } = currentRef.current;
           const result = await signInApi.mutation(
-            api.finishSignIn,
+            passkeyApi.finishSignIn,
             assertionArgs(credential),
           );
           if (result.success) {
