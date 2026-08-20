@@ -69,7 +69,8 @@ export type OauthFlowError = {
 /** Options accepted by {@link OauthActions.signIn}. */
 export type SignInOptions = {
   /**
-   * Where the flow returns to when it finishes. Defaults to the current URL.
+   * Where the flow returns to when it finishes. Defaults to the current URL,
+   * and is required where there is no current URL, such as React Native.
    * Must be an http or https URL. Custom schemes like `myapp://` are not
    * supported yet.
    */
@@ -122,10 +123,13 @@ const SERVER_ERRORS: ReadonlySet<string> = new Set([
 const OAUTH_FLOW_STORAGE_KEY = "flow";
 
 /** What `signIn` saves before it navigates to the identity provider. */
-type PendingFlow = {
+export type PendingFlow = {
   /** Which provider the flow belongs to. */
   providerName: string;
-  /** The state minted at sign-in. Proof this client started the flow. */
+  /**
+   * The state the server gave back at sign-in. Proof this client started the
+   * flow.
+   */
   state: string;
   /**
    * The path of the provider's `completeSignIn` mutation, from
@@ -137,6 +141,18 @@ type PendingFlow = {
    */
   completeSignIn: string;
 };
+
+/**
+ * The current page URL, or null where there is none. React Native defines
+ * `window` but no `window.location`, so checking for `window` alone isn't
+ * enough.
+ */
+function currentHref(): string | null {
+  if (typeof window === "undefined" || window.location === undefined) {
+    return null;
+  }
+  return window.location.href;
+}
 
 /**
  * Read and remove the saved sign-in flow. It is removed even if the redeem
@@ -233,10 +249,11 @@ export function oauth(): AmbientSignInClient {
      * own purposes is left alone.
      */
     const handleCallback = (): void => {
-      if (typeof window === "undefined") {
+      const href = currentHref();
+      if (href === null) {
         return;
       }
-      const url = new URL(window.location.href);
+      const url = new URL(href);
       const code = url.searchParams.get(OAUTH_CODE_PARAM);
       const errorParam = url.searchParams.get(OAUTH_ERROR_PARAM);
       if (code === null && errorParam === null) {
@@ -268,12 +285,23 @@ export function oauth(): AmbientSignInClient {
 
     /** Start a provider's flow, or finish a saved one when `code` is given. */
     const signIn: OauthActions["signIn"] = async (refs, options) => {
-      setFlowError(null);
       if (options?.code !== undefined) {
+        setFlowError(null);
         return { signedIn: await completeFlow(options.code) };
       }
+      const href = currentHref();
+      const redirectTo = options?.redirectTo ?? href;
+      if (redirectTo === null) {
+        throw new Error(
+          "`redirectTo` is required where there is no current page URL, " +
+            "such as React Native.",
+        );
+      }
+      // Cleared here rather than at the top, so a call that throws above
+      // leaves any error the app is showing alone.
+      setFlowError(null);
       const { redirect, state } = await signInApi.mutation(refs.startSignIn, {
-        redirectTo: options?.redirectTo ?? window.location.href,
+        redirectTo,
       });
       await storage.set(
         OAUTH_FLOW_STORAGE_KEY,
@@ -284,9 +312,10 @@ export function oauth(): AmbientSignInClient {
         } satisfies PendingFlow),
       );
       const url = new URL(redirect);
-      // Don't navigate in React Native. The app opens the returned URL in an
-      // in-app browser and finishes with `signIn(refs, { code })`.
-      if (navigator.product !== "ReactNative") {
+      // Don't navigate where there's no page URL to leave. React Native has
+      // none, so it gets the url back, opens it in an in-app browser, and
+      // finishes with `signIn(refs, { code })`.
+      if (href !== null && navigator.product !== "ReactNative") {
         window.location.href = url.toString();
       }
       return { redirect: url };
