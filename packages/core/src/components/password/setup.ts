@@ -4,6 +4,7 @@ import {
   USE_USER_ID_AS_ACCOUNT_ID,
   type AnyUserCallback,
   type OnSignInFn,
+  type ProvidedUserCallbacks,
   type UserCallbacksFor,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
@@ -104,39 +105,14 @@ export function setupUsernamePassword<UsersTable extends string>(
 ) {
   const { component, usernameComponent } = options;
 
-  return {
-    /**
-     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
-     * their args must be declared) and get this provider's functions to export.
-     *
-     * The callbacks only have to *accept* what this provider calls them with,
-     * so a mutation declaring a union of provider names and profile shapes can
-     * be attached here and to other providers as well.
-     */
-    attachUserCallbacks<
-      CreateUser extends AnyUserCallback,
-      OnSignIn extends AnyUserCallback = OnSignInFn<
-        "password",
-        PasswordProfile,
-        UsersTable
-      >,
-    >({
+  const attach = (createUser: AnyUserCallback, onSignIn?: AnyUserCallback) => {
+    const { authMutation } = core.bindProvider<PasswordProfile>({
+      name: PROVIDER_NAME,
       createUser,
       onSignIn,
-    }: UserCallbacksFor<
-      CreateUser,
-      OnSignIn,
-      "password",
-      PasswordProfile,
-      UsersTable
-    >) {
-      const { authMutation } = core.bindProvider<PasswordProfile>({
-        name: PROVIDER_NAME,
-        createUser,
-        onSignIn,
-      });
+    });
 
-      return {
+    return {
         /**
          * Create a new account: reject a taken username or an invalid password,
          * otherwise create the user + session and store the username and the
@@ -270,6 +246,48 @@ export function setupUsernamePassword<UsersTable extends string>(
           },
         }),
       };
+  };
+
+  return {
+    /**
+     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
+     * their args must be declared) and get this provider's functions to export.
+     *
+     * The callbacks only have to *accept* what this provider calls them with,
+     * so a mutation declaring a union of provider names and profile shapes can
+     * be attached here and to other providers as well.
+     */
+    attachUserCallbacks<
+      CreateUser extends AnyUserCallback,
+      OnSignIn extends AnyUserCallback = OnSignInFn<
+        "password",
+        PasswordProfile,
+        UsersTable
+      >,
+    >({
+      createUser,
+      onSignIn,
+    }: UserCallbacksFor<
+      CreateUser,
+      OnSignIn,
+      "password",
+      PasswordProfile,
+      UsersTable
+    >) {
+      return attach(createUser, onSignIn);
+    },
+
+    /**
+     * EXPERIMENT (carrier approach): same contract as `attachUserCallbacks`,
+     * but non-generic — the callbacks arrive wrapped by `userCallback`, whose
+     * carrier type puts the args in contravariant position so plain
+     * assignability does the "accepts at least" check.
+     */
+    attachUserCallbacks2({
+      createUser,
+      onSignIn,
+    }: ProvidedUserCallbacks<"password", PasswordProfile, UsersTable>) {
+      return attach(createUser.ref, onSignIn?.ref);
     },
   };
 }

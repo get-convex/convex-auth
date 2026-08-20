@@ -436,6 +436,84 @@ export type BoundUserCallbacks = {
   onSignIn?: AnyUserCallback;
 };
 
+/* ------------------------------------------------------------------------- *
+ * EXPERIMENT: contravariant carrier ("pseudo-function") approach.
+ *
+ * A `FunctionReference` carries its args as a plain (covariant) property, so a
+ * provider that *declares* the reference type it wants can only accept the
+ * exact shape, never a wider one. This carrier re-states the reference as two
+ * phantom function types, putting the args and the declared keys in parameter
+ * position, where TypeScript's ordinary contravariance does the "accepts at
+ * least" check with no generics at the provider boundary.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * An app user callback as `userCallback` re-types it.
+ *
+ * `Args`/`Return` here are what the *provider needs*; a wrapped reference
+ * declaring wider args (a union of providers, say) is assignable because both
+ * phantom members are function types:
+ *
+ * - `__accepts` puts the args in parameter position, so the wrapped callback's
+ *   declared args must be a *supertype* of what the provider sends.
+ * - `__declares` puts the declared arg *names* in parameter position, so the
+ *   callback must declare every arg the provider sends (Convex rejects an arg
+ *   a mutation never declared), while extra optional args of the app's own
+ *   still pass.
+ * - `__accepts`'s return puts the declared return in ordinary covariant
+ *   position.
+ */
+export type ProvidedUserCallback<
+  Args,
+  Keys extends PropertyKey,
+  Return,
+> = {
+  /** Phantom; never present at runtime. */
+  __accepts: (args: Args) => Return;
+  /** Phantom; never present at runtime. */
+  __declares: (key: Keys) => void;
+  /** The reference itself, which the core makes a handle out of. */
+  ref: AnyUserCallback;
+};
+
+/**
+ * Wrap an internal mutation reference for a provider's `attachUserCallbacks`.
+ *
+ * Pure re-typing: the runtime value just boxes the reference. The wrapper's
+ * only job is to move the reference's `_args`/`_returnType` into the carrier's
+ * function-typed members, after which every provider checks it structurally.
+ */
+export function userCallback<F extends AnyUserCallback>(
+  ref: F,
+): ProvidedUserCallback<F["_args"], keyof F["_args"], F["_returnType"]> {
+  return { ref } as unknown as ProvidedUserCallback<
+    F["_args"],
+    keyof F["_args"],
+    F["_returnType"]
+  >;
+}
+
+/**
+ * The carrier-typed callbacks for one provider: what its (non-generic)
+ * `attachUserCallbacks` accepts under the carrier approach.
+ */
+export type ProvidedUserCallbacks<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = {
+  createUser: ProvidedUserCallback<
+    CreateUserArgs<Provider, Profile>,
+    keyof CreateUserArgs<Provider, Profile>,
+    GenericId<UsersTable>
+  >;
+  onSignIn?: ProvidedUserCallback<
+    OnSignInArgs<Provider, Profile, UsersTable>,
+    keyof OnSignInArgs<Provider, Profile, UsersTable>,
+    null
+  >;
+};
+
 /**
  * The helpers that `authMutation`/`authAction` inject onto `ctx` for a
  * provider's handlers.

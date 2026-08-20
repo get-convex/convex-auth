@@ -3,6 +3,7 @@ import {
   type SignInSuccess,
   type AnyUserCallback,
   type OnSignInFn,
+  type ProvidedUserCallbacks,
   type UserCallbacksFor,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
@@ -41,6 +42,38 @@ export function setupAnonymous<UsersTable extends string>(
 ) {
   const { component } = options;
 
+  const attach = (createUser: AnyUserCallback, onSignIn?: AnyUserCallback) => {
+    const { authMutation } = core.bindProvider<AnonymousProfile>({
+      name: PROVIDER_NAME,
+      createUser,
+      onSignIn,
+    });
+
+    return {
+        // Anonymous sign-in cannot fail per-user, so this only ever produces
+        // the success arm. It still returns the shared envelope rather than a
+        // bare bundle: that is the shape the SSR auth proxy recognizes (and
+        // validates before moving the refresh token into its cookie), and it
+        // leaves room for a `userError` arm later without another breaking
+        // change.
+        signInAnonymous: authMutation({
+          args: {},
+          returns: vSignInSuccess,
+          handler: async (ctx): Promise<SignInSuccess> => {
+            const anonymousId = await ctx.runMutation(
+              component.provider.createAnonymousAccount,
+              {},
+            );
+            const tokens = await ctx.convexAuth.completeSignUp({
+              providerAccountId: anonymousId,
+              profile: {},
+            });
+            return { success: true, tokens };
+          },
+        }),
+      };
+  };
+
   return {
     /**
      * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
@@ -69,35 +102,20 @@ export function setupAnonymous<UsersTable extends string>(
       AnonymousProfile,
       UsersTable
     >) {
-      const { authMutation } = core.bindProvider<AnonymousProfile>({
-        name: PROVIDER_NAME,
-        createUser,
-        onSignIn,
-      });
+      return attach(createUser, onSignIn);
+    },
 
-      return {
-        // Anonymous sign-in cannot fail per-user, so this only ever produces
-        // the success arm. It still returns the shared envelope rather than a
-        // bare bundle: that is the shape the SSR auth proxy recognizes (and
-        // validates before moving the refresh token into its cookie), and it
-        // leaves room for a `userError` arm later without another breaking
-        // change.
-        signInAnonymous: authMutation({
-          args: {},
-          returns: vSignInSuccess,
-          handler: async (ctx): Promise<SignInSuccess> => {
-            const anonymousId = await ctx.runMutation(
-              component.provider.createAnonymousAccount,
-              {},
-            );
-            const tokens = await ctx.convexAuth.completeSignUp({
-              providerAccountId: anonymousId,
-              profile: {},
-            });
-            return { success: true, tokens };
-          },
-        }),
-      };
+    /**
+     * EXPERIMENT (carrier approach): same contract as `attachUserCallbacks`,
+     * but non-generic — the callbacks arrive wrapped by `userCallback`, whose
+     * carrier type puts the args in contravariant position so plain
+     * assignability does the "accepts at least" check.
+     */
+    attachUserCallbacks2({
+      createUser,
+      onSignIn,
+    }: ProvidedUserCallbacks<"anonymous", AnonymousProfile, UsersTable>) {
+      return attach(createUser.ref, onSignIn?.ref);
     },
   };
 }
