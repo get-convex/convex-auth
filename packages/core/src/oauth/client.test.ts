@@ -76,6 +76,22 @@ function setupOAuth({ storage = new InMemoryStorage() } = {}) {
   return { client, mutation, actions, flowError, storage };
 }
 
+// Save original navigator.product value so it can be restored. Can't just mock
+// the window entirely as we do elsewhere because this test runs in jsdom env.
+const ORIGINAL_PRODUCT = Object.getOwnPropertyDescriptor(
+  window.navigator,
+  "product",
+);
+
+/** Undo the React Native stub's shadowing of `navigator.product`. */
+function restoreNavigatorProduct(): void {
+  if (ORIGINAL_PRODUCT === undefined) {
+    delete (window.navigator as { product?: string }).product;
+  } else {
+    Object.defineProperty(window.navigator, "product", ORIGINAL_PRODUCT);
+  }
+}
+
 /** The function path the fake `mutation` was called with. */
 function calledPath(mutation: ReturnType<typeof vi.fn>, call = 0): string {
   return getFunctionName(mutation.mock.calls[call]![0] as never);
@@ -85,8 +101,7 @@ describe("OAuth client", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     window.history.replaceState(null, "", "/");
-    // Restore the prototype getter shadowed by the React Native stub.
-    delete (window.navigator as { product?: string }).product;
+    restoreNavigatorProduct();
   });
 
   test("registers actions and a null flow error at setup", () => {
@@ -223,12 +238,7 @@ describe("OAuth client", () => {
 
     await client.init();
 
-    // The library owns default copy for each code. Apps rebrand by switching
-    // on `code` and ignoring `message`.
-    expect(flowError()).toEqual({
-      code: "access_denied",
-      message: "Sign-in was cancelled.",
-    });
+    expect(flowError()).toEqual({ code: "access_denied" });
     expect(mutation).not.toHaveBeenCalled();
     expect(window.location.search).toBe("");
   });

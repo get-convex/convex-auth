@@ -60,23 +60,10 @@ export type OauthProviderRefs = {
 export type OauthFlowErrorCode =
   "access_denied" | "expired" | "oauth_error" | "invalid_flow";
 
-/** Why a sign-in failed, with default copy an app can render as-is. */
+/** Why a sign-in failed. */
 export type OauthFlowError = {
   /** Why the sign-in failed. */
   code: OauthFlowErrorCode;
-  /**
-   * Default English copy for `code`. Not a stable string. To localize or
-   * rebrand, switch on `code` and ignore this.
-   */
-  message: string;
-};
-
-/** Default user-facing copy for each {@link OauthFlowErrorCode}. */
-const FLOW_ERROR_MESSAGES: Record<OauthFlowErrorCode, string> = {
-  access_denied: "Sign-in was cancelled.",
-  expired: "Sign-in took too long. Please try again.",
-  oauth_error: "Something went wrong during sign-in. Please try again.",
-  invalid_flow: "This sign-in can't be completed here. Please try again.",
 };
 
 /** Options accepted by {@link OauthActions.signIn}. */
@@ -201,10 +188,7 @@ export function oauth(): AmbientSignInClient {
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
     const setFlowError = (code: OauthFlowErrorCode | null): void => {
-      values.set(
-        OAUTH_FLOW_ERROR_KEY,
-        code === null ? null : { code, message: FLOW_ERROR_MESSAGES[code] },
-      );
+      values.set(OAUTH_FLOW_ERROR_KEY, code === null ? null : { code });
     };
 
     /**
