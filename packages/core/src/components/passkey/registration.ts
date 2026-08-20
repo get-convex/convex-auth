@@ -124,8 +124,8 @@ const registrationCheckArgs = {
   clientDataJSON: v.bytes(),
 };
 
-const vRegistrationCheckArgs = v.object(registrationCheckArgs);
-type RegistrationCheckArgs = Infer<typeof vRegistrationCheckArgs>;
+const _vRegistrationCheckArgs = v.object(registrationCheckArgs);
+type RegistrationCheckArgs = Infer<typeof _vRegistrationCheckArgs>;
 
 type RegistrationChallengeRow = Extract<
   Doc<"challenges">,
