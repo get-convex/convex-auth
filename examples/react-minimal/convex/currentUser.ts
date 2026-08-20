@@ -13,7 +13,7 @@ export const loggedInUser = query({
     if (identity === null) {
       return null;
     }
-    const userId = identity.subject as Id<"users">;
+    const userId = identity.subject as Id<"users">; // TODO(nicolas) Avoid this
     const user = await ctx.db.get("users", userId);
     if (user === null) {
       return null;

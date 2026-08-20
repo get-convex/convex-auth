@@ -2,8 +2,8 @@ import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
- * Create the user row for a new password account and return its id. The
- * provider supplies the username it just registered in `profile`.
+ * Create the user row for a new password account and return its id. This
+ * example keeps no data in the row, but your app can put a profile here.
  */
 export const createUser = internalMutation({
   args: {
@@ -12,7 +12,7 @@ export const createUser = internalMutation({
     profile: v.object({ username: v.string() }),
   },
   returns: v.id("users"),
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("users", { username: args.profile.username });
+  handler: async (ctx) => {
+    return await ctx.db.insert("users", {});
   },
 });

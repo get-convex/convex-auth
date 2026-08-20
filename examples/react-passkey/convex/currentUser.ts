@@ -1,4 +1,5 @@
 import { query } from "./_generated/server";
+import { components } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
 /**
@@ -13,12 +14,20 @@ export const loggedInUser = query({
     if (identity === null) {
       return null;
     }
-    const userId = identity.subject as Id<"users">;
+    const userId = identity.subject as Id<"users">; // TODO(nicolas) Avoid this
     const user = await ctx.db.get("users", userId);
     if (user === null) {
       return null;
     }
+    const username = await ctx.runQuery(
+      components.authUsername.public.getUsername,
+      { userId },
+    );
+    if (username === null) {
+      // Every user signs up with a username, so this must not occur.
+      throw new Error(`User ${userId} unexpectedly has no username`);
+    }
 
-    return { id: user._id, username: user.username };
+    return { id: user._id, username };
   },
 });
