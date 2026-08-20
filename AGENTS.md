@@ -19,14 +19,16 @@ a package whose `exports` resolve to `.ts` gets typechecked by the consumer's
 `tsconfig.json`, so our source would have to satisfy _their_ `lib`, `types`,
 and `verbatimModuleSyntax` settings. Two rules follow from it:
 
-- Relative imports in `packages/*/src` carry explicit `.js` extensions
-  (`./cookies.js`, `../vendor/oslo/webauthn/index.js`) — yes, even though the
-  file on disk is `.ts`. `tsc` never rewrites specifiers, so the extension in
-  the source is the extension in `dist/`, and Node's ESM resolver needs it.
-  `packages/core/tsconfig.json` sets `moduleResolution: NodeNext` so the
-  compiler enforces this (TS2835) in the editor and `tsc --noEmit`; the build
-  config overrides back to `Bundler` for emit. Same split as the other Convex
-  components. The examples and docs are free to stay extensionless.
+- Relative imports in `packages/core/src` carry the extension of the file on
+  disk (`./cookies.ts`, `./client.tsx`). `packages/core/tsconfig.json` sets
+  `moduleResolution: NodeNext`, so an import without an extension is a compile
+  error (TS2835) in the editor and in `tsc --noEmit`, and
+  `rewriteRelativeImportExtensions` turns each one into `.js` in the emitted
+  JavaScript, which is what Node's ESM resolver needs. Declarations keep the
+  `.ts` specifier; a consumer's TypeScript reads that as the sibling `.d.ts`,
+  back to TypeScript 5.0. Files under `_generated/` keep the `.js` extensions
+  that `convex codegen` writes, and both spellings compile. The examples and
+  docs are free to stay extensionless.
 - Anything reached from a published entry point must compile. `dist/` is built
   by `tsconfig.build.json`, which excludes tests and other in-repo-only
   modules (see its `exclude` list).
@@ -37,7 +39,11 @@ transformed by the consumer's bundler — and Vitest externalizes plain `.js`
 under `node_modules` (leaving the macro intact, so it throws at import) while it
 cannot externalize `.ts`. Shipping source is what makes them work. They carry
 their own `/// <reference types="vite/client" />` so a consumer doesn't need
-`vite/client` in their `tsconfig`.
+`vite/client` in their `tsconfig`. Their schema import is also the one place
+that keeps a `.js` extension: the consumer's `tsc` reads these files, and a
+`.ts` extension there is an error (TS5097) unless they turn on
+`allowImportingTsExtensions`. The example apps' `pnpm typecheck` catches a
+regression here.
 
 Use `pnpm install` at the root. Common tasks:
 
