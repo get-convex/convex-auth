@@ -1,5 +1,7 @@
+import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
+import type { AmbientSignInClient, AuthSignInApi } from "./ambientSignInClient";
 import {
   AuthClient,
   INITIAL_AUTH_STATE,
@@ -9,6 +11,7 @@ import {
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
+  NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   type TokenStorage,
 } from "./storage";
@@ -255,6 +258,52 @@ describe("AuthClient", () => {
     expect(() => client.dispose()).not.toThrow();
   });
 
+  test("withSignInPending turns loading on while its call is pending", async () => {
+    const { client } = makeClient();
+    await client.init();
+    expect(client.getSnapshot().isLoading).toBe(false);
+
+    const { promise, resolve } = Promise.withResolvers<string>();
+    const pending = client.withSignInPending(() => promise);
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    resolve("done");
+    await expect(pending).resolves.toBe("done");
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
+  test("withSignInPending clears loading when the completion throws", async () => {
+    const { client } = makeClient();
+    await client.init();
+
+    await expect(
+      client.withSignInPending(async () => {
+        throw new Error("redemption failed");
+      }),
+    ).rejects.toThrow("redemption failed");
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
+  test("overlapping completions keep loading until the last settles", async () => {
+    const { client } = makeClient();
+    await client.init();
+
+    const first = Promise.withResolvers<void>();
+    const second = Promise.withResolvers<void>();
+    const pending = [
+      client.withSignInPending(() => first.promise),
+      client.withSignInPending(() => second.promise),
+    ];
+
+    first.resolve();
+    await pending[0];
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    second.resolve();
+    await pending[1];
+    expect(client.getSnapshot().isLoading).toBe(false);
+  });
+
   test("re-attaches the storage listener when init runs after dispose", async () => {
     const listeners = new Set<(event: StorageEvent) => void>();
     const storage = new InMemoryStorage();
@@ -289,6 +338,221 @@ describe("AuthClient", () => {
     expect(client.getSnapshot()).toMatchObject({
       isAuthenticated: false,
       token: null,
+    });
+  });
+});
+
+/** The mutation stub behind {@link SIGN_IN_API}. */
+const SIGN_IN_MUTATION = vi.fn();
+
+/** A stub sign-in api handed to every setup below. */
+const SIGN_IN_API = {
+  mutation: SIGN_IN_MUTATION,
+  action: vi.fn(),
+} as unknown as AuthSignInApi;
+
+/** A reference to hand the stub. Its path is never resolved. */
+const SIGN_IN_REF = makeFunctionReference<"mutation">("auth:probeSignIn");
+
+/** An {@link AuthClient} constructed with the given ambient sign-ins. */
+function makeClientWithSignIns(
+  signIns: ReadonlyArray<AmbientSignInClient>,
+  storage: TokenStorage = new InMemoryStorage(),
+) {
+  const client = new AuthClient({
+    mode: "spa",
+    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    storage,
+    storageNamespace: NAMESPACE,
+    ambientSignIns: { signIns, signInApi: SIGN_IN_API },
+  });
+  return { client, storage };
+}
+
+describe("AuthClient ambient sign-ins", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("throws when two sign-ins share an id", () => {
+    expect(() =>
+      makeClientWithSignIns([
+        { id: "oauth", setup: () => {} },
+        { id: "oauth", setup: () => {} },
+      ]),
+    ).toThrow(/"oauth" is registered twice/);
+  });
+
+  test("throws when a sign-in id is not alphanumeric", () => {
+    expect(() =>
+      makeClientWithSignIns([{ id: "pass-key", setup: () => {} }]),
+    ).toThrow(/"pass-key" is invalid/);
+  });
+
+  test("scoped value writes land under the sign-in id", () => {
+    const { client } = makeClientWithSignIns([
+      {
+        id: "oauth",
+        setup: (ctx) => {
+          ctx.values.set("actions", "registered");
+        },
+      },
+    ]);
+    expect(client.ambientSignInValues("oauth").get<string>("actions")).toBe(
+      "registered",
+    );
+  });
+
+  test("scoped storage writes land under the sign-in prefix", () => {
+    const storage = new InMemoryStorage();
+    makeClientWithSignIns(
+      [
+        {
+          id: "oauth",
+          setup: (ctx) => {
+            void ctx.storage.set("verifier", "v1");
+          },
+        },
+      ],
+      storage,
+    );
+    // Provider prefix first, then the client's deployment namespacing.
+    expect(
+      storage.getItem(
+        new NamespacedStorage(storage, NAMESPACE).key(
+          "__convexAuthProvider_oauth_verifier",
+        ),
+      ),
+    ).toBe("v1");
+  });
+
+  test("every setup receives the same sign-in api and client", () => {
+    const received: Array<{ signInApi: AuthSignInApi; client: AuthClient }> =
+      [];
+    const { client } = makeClientWithSignIns([
+      {
+        id: "a",
+        setup: (ctx) => {
+          received.push({ signInApi: ctx.signInApi, client: ctx.client });
+        },
+      },
+      {
+        id: "b",
+        setup: (ctx) => {
+          received.push({ signInApi: ctx.signInApi, client: ctx.client });
+        },
+      },
+    ]);
+    expect(received[0].signInApi).toBe(SIGN_IN_API);
+    expect(received[1].signInApi).toBe(SIGN_IN_API);
+    expect(received[0].client).toBe(client);
+    expect(received[1].client).toBe(client);
+  });
+
+  test("onInit callbacks run during init in registration order, before the session loads", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const order: string[] = [];
+    const { client } = makeClientWithSignIns(
+      [
+        {
+          id: "a",
+          setup: (ctx) => ({
+            // The persisted token isn't visible yet, proving the callback
+            // runs before the session loads.
+            onInit: () => order.push(`a:${ctx.client.getAccessToken()}`),
+          }),
+        },
+        { id: "b", setup: () => {} },
+        { id: "c", setup: () => ({ onInit: () => order.push("c") }) },
+      ],
+      storage,
+    );
+    expect(order).toEqual([]);
+    await client.init();
+    expect(order).toEqual(["a:null", "c"]);
+    expect(client.getAccessToken()).toBe("access-1");
+  });
+
+  test("a second init after dispose does not re-run onInit callbacks", async () => {
+    const onInit = vi.fn();
+    const { client } = makeClientWithSignIns([
+      { id: "probe", setup: () => ({ onInit }) },
+    ]);
+    await client.init();
+    client.dispose();
+    await client.init();
+    expect(onInit).toHaveBeenCalledTimes(1);
+  });
+
+  test("a withSignInPending call in onInit holds loading past the session load", async () => {
+    // What every ambient sign-in does: onInit starts a sign-in whose network
+    // call has not finished by the time init finishes loading the session.
+    // Without the withSignInPending wrapper the client would report signed out
+    // until the call finished, sending the user to a sign-in screen while they
+    // are signing in.
+    const signIn = Promise.withResolvers<void>();
+    // onInit returns nothing, so the promise it starts is saved here for the
+    // test to await.
+    const pending: Promise<void>[] = [];
+    const { client } = makeClientWithSignIns([
+      {
+        id: "probe",
+        setup: (ctx) => ({
+          onInit: () => {
+            pending.push(
+              ctx.client.withSignInPending(async () => {
+                await ctx.signInApi.mutation(SIGN_IN_REF, {});
+                await ctx.client.setSession(bundle(1));
+              }),
+            );
+          },
+        }),
+      },
+    ]);
+    SIGN_IN_MUTATION.mockReturnValueOnce(signIn.promise);
+
+    await client.init();
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    signIn.resolve();
+    await Promise.all(pending);
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+  });
+
+  test("a throwing onInit callback is logged and doesn't block the rest", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const order: string[] = [];
+    const { client } = makeClientWithSignIns(
+      [
+        {
+          id: "broken",
+          setup: () => ({
+            onInit: () => {
+              throw new Error("boom");
+            },
+          }),
+        },
+        { id: "ok", setup: () => ({ onInit: () => order.push("ok") }) },
+      ],
+      storage,
+    );
+
+    await client.init();
+    expect(order).toEqual(["ok"]);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(consoleError.mock.calls[0][0]).toContain('"broken"');
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: true,
+      token: "access-1",
     });
   });
 });

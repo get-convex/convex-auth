@@ -1,17 +1,14 @@
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
+import { KeyedStore, type SignInValuesReader } from "./keyedStore";
 import { runWithMutex } from "./mutex";
+import type { AmbientSignInClient, AuthSignInApi } from "./ambientSignInClient";
+import { retryOnNetworkError } from "./retry";
 import {
   JWT_STORAGE_KEY,
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   TokenStorage,
 } from "./storage";
-
-// Retry a failed refresh this long (ms) after the Nth network error. A refresh
-// commonly fails transiently on mobile when the app is backgrounded mid-call
-// and succeeds once it returns to the foreground.
-const RETRY_BACKOFF = [500, 2000];
-const RETRY_JITTER = 100;
 
 /**
  * The refresh and sign-out API for a **SPA** client, where JS holds the
@@ -50,6 +47,14 @@ interface AuthClientConfigBase {
    * an SSR host.
    */
   initialAccessToken?: string | null;
+  /**
+   * Ambient sign-ins to set up while the client is constructed, along with
+   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
+   */
+  ambientSignIns?: {
+    signIns: ReadonlyArray<AmbientSignInClient>;
+    signInApi: AuthSignInApi;
+  };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
 }
@@ -121,13 +126,6 @@ function domEventTarget(): Pick<
   return window;
 }
 
-function isNetworkError(error: unknown): boolean {
-  return (
-    error instanceof TypeError &&
-    /network|failed to fetch|load failed/i.test(error.message)
-  );
-}
-
 /**
  * Framework-agnostic owner of the auth session on the client.
  *
@@ -161,6 +159,7 @@ export class AuthClient {
    */
   #refreshToken: string | null = null;
   #isLoading = true;
+  #pendingSignIns = 0;
   #initialized = false;
 
   #snapshot: AuthState = INITIAL_AUTH_STATE;
@@ -197,6 +196,9 @@ export class AuthClient {
       this.#refresh = () => authApi.refreshSession();
       this.#signOutInternal = () => authApi.signOut();
     }
+
+    // Runs last so setups see a fully initialized client.
+    this.#registerAmbientSignIns(config.ambientSignIns);
   }
 
   // --- Observable store API ------------------------------------------------
@@ -223,15 +225,72 @@ export class AuthClient {
     return this.#accessToken;
   }
 
+  // --- Ambient sign-in surface ----------------------------------------------
+
+  /**
+   * What ambient sign-ins publish, keyed by sign-in id. A setup writes
+   * through the scoped view it is handed, and hooks read it back through
+   * {@link ambientSignInValues}.
+   */
+  readonly #ambientValues = new KeyedStore();
+
+  /**
+   * A read-only view of the values published under an ambient sign-in's id,
+   * for hooks and other bindings to read and subscribe to. Only the sign-in
+   * itself can write.
+   */
+  ambientSignInValues(id: string): SignInValuesReader {
+    return this.#ambientValues.forSignInReader(id);
+  }
+
+  /** Ambient sign-in onInit callbacks, run once inside {@link init}. */
+  readonly #initCallbacks: Array<{ id: string; callback: () => void }> = [];
+
+  /**
+   * Run the configured ambient sign-in setups, handing each its scoped
+   * views, and collect their onInit callbacks for {@link init} to run.
+   * Throws when a sign-in id is invalid or registered twice.
+   */
+  #registerAmbientSignIns(
+    ambientSignIns: AuthClientConfig["ambientSignIns"],
+  ): void {
+    if (ambientSignIns === undefined) return;
+    const seen = new Set<string>();
+    for (const { id, setup } of ambientSignIns.signIns) {
+      if (!/^[a-zA-Z0-9]+$/.test(id)) {
+        throw new Error(
+          `Ambient sign-in id "${id}" is invalid; ids must be alphanumeric`,
+        );
+      }
+      if (seen.has(id)) {
+        throw new Error(
+          `Ambient sign-in id "${id}" is registered twice; each auth ` +
+            `method registers once per ConvexAuthProvider`,
+        );
+      }
+      seen.add(id);
+      const registration = setup({
+        client: this,
+        values: this.#ambientValues.forSignIn(id),
+        storage: this.#storage.forSignIn(id),
+        signInApi: ambientSignIns.signInApi,
+      });
+      if (registration?.onInit !== undefined) {
+        this.#initCallbacks.push({ id, callback: registration.onInit });
+      }
+    }
+  }
+
   // --- Lifecycle -----------------------------------------------------------
 
   /**
-   * Load any persisted session from storage and start listening for cross-tab
-   * changes (if applicable). Until this resolves, the client reports `isLoading`.
+   * Run ambient sign-in onInit callbacks, load any persisted session from
+   * storage, and start listening for cross-tab changes (if applicable).
+   * Until this resolves, the client reports `isLoading`.
    *
-   * Symmetric and repeatable with {@link dispose}: loading the session happens
-   * once, but the cross-tab listener is (re)attached on every call, so an
-   * `init` after a `dispose` fully restores the client.
+   * Symmetric and repeatable with {@link dispose}. The callbacks and session
+   * load happen once, but the cross-tab listener is (re)attached on every
+   * call, so an `init` after a `dispose` fully restores the client.
    */
   async init(): Promise<void> {
     // Attach before the one-time guard so a dispose()/init() cycle re-attaches
@@ -240,6 +299,21 @@ export class AuthClient {
     this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
+    // Run ambient sign-in onInit callbacks before anything observable
+    // happens, so a withSignInPending call inside one marks loading before
+    // the session
+    // loads. A callback that throws is logged and skipped, so the others
+    // still run and the session still loads.
+    for (const { id, callback } of this.#initCallbacks) {
+      try {
+        callback();
+      } catch (error) {
+        console.error(
+          `[convex-auth] onInit for ambient sign-in "${id}" threw:`,
+          error,
+        );
+      }
+    }
     // An initially provided token is considered to be the freshest value, so
     // persist it before the load below reads it back (and so other tabs see
     // it).
@@ -287,6 +361,25 @@ export class AuthClient {
   };
 
   /**
+   * Run a sign-in completion while reporting `isLoading`. Use it for work
+   * that establishes a session without a user action in the current page,
+   * like redeeming an OAuth callback code after a redirect, so the UI shows
+   * a loading state instead of flashing unauthenticated. The wrapped
+   * function should include its {@link setSession} call, so the loading
+   * state holds until the client is authenticated.
+   */
+  withSignInPending = async <T>(fn: () => Promise<T>): Promise<T> => {
+    this.#pendingSignIns++;
+    this.#notify();
+    try {
+      return await fn();
+    } finally {
+      this.#pendingSignIns--;
+      this.#notify();
+    }
+  };
+
+  /**
    * Revoke the current session on the server and clear it locally.
    */
   signOut = async (): Promise<void> => {
@@ -321,7 +414,10 @@ export class AuthClient {
         this.#log(`using token refreshed by another tab`);
         return this.#accessToken;
       }
-      const result = await this.#withRetry(() => this.#refresh());
+      const result = await retryOnNetworkError(
+        () => this.#refresh(),
+        (message) => this.#log(`refresh: ${message}`),
+      );
       await this.#adopt(result);
       return this.#accessToken;
     });
@@ -334,27 +430,6 @@ export class AuthClient {
     return (
       (await this.#storage.get(REFRESH_TOKEN_STORAGE_KEY)) ?? this.#refreshToken
     );
-  }
-
-  /**
-   * Run a refresh `op`, retrying only on transient network errors (backoff +
-   * jitter). Shared by both refresh modes — the caller supplies the actual
-   * refresh call so this stays agnostic to whether a token is passed.
-   */
-  async #withRetry<T>(op: () => Promise<T>): Promise<T> {
-    let lastError: unknown;
-    for (let retry = 0; retry < RETRY_BACKOFF.length; retry++) {
-      try {
-        return await op();
-      } catch (error) {
-        lastError = error;
-        if (!isNetworkError(error)) break;
-        const wait = RETRY_BACKOFF[retry] + RETRY_JITTER * Math.random();
-        this.#log(`refresh network error, retry ${retry + 1} in ${wait}ms`);
-        await new Promise((resolve) => setTimeout(resolve, wait));
-      }
-    }
-    throw lastError;
   }
 
   /**
@@ -460,7 +535,9 @@ export class AuthClient {
 
   #notify(): void {
     this.#snapshot = {
-      isLoading: this.#isLoading,
+      // Loading until the persisted session has been read, and again while a
+      // sign-in completion is pending (see withSignInPending).
+      isLoading: this.#isLoading || this.#pendingSignIns > 0,
       isAuthenticated: this.#accessToken !== null,
       token: this.#accessToken,
     };

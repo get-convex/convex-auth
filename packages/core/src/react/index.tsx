@@ -18,6 +18,10 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
+import type {
+  AmbientSignInClient,
+  AuthSignInApi,
+} from "../browser/ambientSignInClient";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
 import type { ConvexAuthApi } from "../lib/types";
@@ -26,11 +30,11 @@ import {
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
-  type AuthSignInApi,
 } from "./client";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+export type { AmbientSignInClient } from "../browser/ambientSignInClient";
 export type { TokenStorage } from "../browser/storage";
 export type { ConvexAuthApi, TokenBundle } from "../lib/types";
 export type { ConvexAuthActionsContextType } from "./client";
@@ -57,12 +61,24 @@ export { useAuthSignInApi, type AuthSignInApi } from "./client";
  *   );
  * }
  * ```
+ *
+ * Auth methods that run on their own at startup plug in via the
+ * `ambientSignIns` prop, e.g. OAuth:
+ *
+ * ```tsx
+ * <ConvexAuthProvider
+ *   client={convex}
+ *   api={{ refreshSession: api.auth.refreshSession, signOut: api.auth.signOut }}
+ *   ambientSignIns={[oauth({ providers })]}
+ * >
+ * ```
  */
 export function ConvexAuthProvider({
   client,
   api,
   storage,
   storageNamespace,
+  ambientSignIns,
   children,
 }: {
   /** Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). */
@@ -98,9 +114,16 @@ export function ConvexAuthProvider({
    * Non-alphanumeric characters are ignored. Defaults to the deployment URL.
    */
   storageNamespace?: string;
+  /**
+   * Ambient sign-ins, one per auth method that runs on its own at client
+   * startup (e.g. `oauth(...)` from
+   * `@convex-dev/auth/providers/oauth/react`). Read once when the client is
+   * created and not expected to change.
+   */
+  ambientSignIns?: AmbientSignInClient[];
   children: ReactNode;
 }) {
-  const authClient = useMemo(() => {
+  const { authClient, signInApi } = useMemo(() => {
     // Refresh and sign-out go over a *separate* HTTP client, not the websocket
     // `client`. A refresh happens while `client` is paused waiting for a token,
     // so calling it through `client` would deadlock on the very handshake the
@@ -108,7 +131,16 @@ export function ConvexAuthProvider({
     const httpClient = new ConvexHttpClient(client.url, {
       logger: client.logger,
     });
-    return new AuthClient({
+    // Sign-in functions run against the deployment over the same websocket
+    // client as the rest of the app (it isn't paused pre-auth, unlike the
+    // refresh path below), so the response carries the full token bundle for
+    // `setSession` to persist. The same object serves provider setups here
+    // and, via AuthProvider below, provider hooks.
+    const signInApi: AuthSignInApi = {
+      mutation: (fn, args) => client.mutation(fn, args),
+      action: (fn, args) => client.action(fn, args),
+    };
+    const authClient = new AuthClient({
       mode: "spa",
       authApi: {
         refreshSession: (refreshToken) =>
@@ -119,21 +151,14 @@ export function ConvexAuthProvider({
       },
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
+      // Setups run in the constructor, so anything they publish exists
+      // before the first render reads it.
+      ambientSignIns: { signIns: ambientSignIns ?? [], signInApi },
     });
-    // `client` identity is what matters; the api/storage props are read once at
+    return { authClient, signInApi };
+    // `client` identity is what matters. The other props are read once at
     // construction and are not expected to change.
   }, [client]);
-
-  // Sign-in functions run against the deployment over the same websocket client
-  // as the rest of the app, so the response carries the full token bundle for
-  // `setSession` to persist.
-  const signInApi = useMemo<AuthSignInApi>(
-    () => ({
-      mutation: (fn, args) => client.mutation(fn, args),
-      action: (fn, args) => client.action(fn, args),
-    }),
-    [client],
-  );
 
   return (
     <AuthProvider authClient={authClient} signInApi={signInApi}>
@@ -151,8 +176,9 @@ export function ConvexAuthProvider({
  * const { setSession, signOut } = useAuthActions();
  * ```
  *
- * `setSession` adopts a {@link TokenBundle} produced by a provider's sign-in;
- * `signOut` revokes and clears the session.
+ * - `setSession` adopts a {@link TokenBundle} produced by a provider's
+ *   sign-in.
+ * - `signOut` revokes and clears the session.
  */
 export function useAuthActions() {
   const actions = useContext(ConvexAuthActionsContext);
