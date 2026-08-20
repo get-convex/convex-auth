@@ -393,9 +393,13 @@ export function usePasskey(
   const pendingRef = useRef(false);
 
   // The autofill flow's state.
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [status, setStatus] = useState<PasskeyAutofillStatus>("idle");
-  const [lastError, setLastError] = useState<PasskeyAutofillError | null>(null);
+  const [autofillAvailable, setAutofillAvailable] = useState<boolean | null>(
+    null,
+  );
+  const [autofillStatus, setAutofillStatus] =
+    useState<PasskeyAutofillStatus>("idle");
+  const [autofillLastError, setAutofillLastError] =
+    useState<PasskeyAutofillError | null>(null);
   const cancelAutofillRef = useRef<() => void>(() => {});
 
   // The pause/resume handle of the pending autofill request; `null` while
@@ -493,11 +497,11 @@ export function usePasskey(
     if (!autofillEnabled) {
       // Report the off state, so `status` does not stay stuck on the last
       // value of a previous enabled run.
-      setStatus("idle");
+      setAutofillStatus("idle");
       // No detection runs and the autocompletion list will not offer
       // passkeys. Report `false`, so `available` does not stay on `null`
       // ("detection runs") forever.
-      setAvailable(false);
+      setAutofillAvailable(false);
       return;
     }
     // The outer controller lives for the whole effect. The cleanup aborts
@@ -584,9 +588,9 @@ export function usePasskey(
       if (outer.signal.aborted) {
         return;
       }
-      setAvailable(supported);
+      setAutofillAvailable(supported);
       if (!supported) {
-        setStatus("stopped");
+        setAutofillStatus("stopped");
         return;
       }
 
@@ -615,14 +619,14 @@ export function usePasskey(
           continue;
         }
 
-        setStatus("waiting");
+        setAutofillStatus("waiting");
         let start;
         try {
           const { passkeyApi, signInApi } = currentRef.current;
           start = await signInApi.mutation(passkeyApi.startAutofillSignIn, {});
         } catch (cause) {
-          setLastError(foldClientError(cause));
-          setStatus("stopped");
+          setAutofillLastError(foldClientError(cause));
+          setAutofillStatus("stopped");
           return;
         }
         if (pauseCount > 0 || outer.signal.aborted) {
@@ -657,11 +661,11 @@ export function usePasskey(
             },
           })) as PublicKeyCredential | null;
           if (credential === null) {
-            setStatus("stopped");
+            setAutofillStatus("stopped");
             return;
           }
 
-          setStatus("signingIn");
+          setAutofillStatus("signingIn");
           const { passkeyApi, signInApi, setSession } = currentRef.current;
           const result = await signInApi.mutation(
             passkeyApi.finishSignIn,
@@ -676,14 +680,14 @@ export function usePasskey(
             await setSession(result.tokens);
             // A failed attempt earlier in this loop can have set
             // `lastError`. The sign-in succeeded, so clear it.
-            setLastError(null);
-            setStatus("signedIn");
+            setAutofillLastError(null);
+            setAutofillStatus("signedIn");
             return;
           }
-          setLastError(result.userError);
+          setAutofillLastError(result.userError);
           failures += 1;
           if (failures >= MAX_AUTOFILL_FAILURES) {
-            setStatus("stopped");
+            setAutofillStatus("stopped");
             return;
           }
           // Try again with a fresh challenge.
@@ -704,8 +708,8 @@ export function usePasskey(
           // another pending request, e.g. from a second `usePasskey`
           // instance): retrying would spin, so stop for good.
           // `foldClientError` maps it to `CEREMONY_ABORTED`.
-          setLastError(foldClientError(error));
-          setStatus("stopped");
+          setAutofillLastError(foldClientError(error));
+          setAutofillStatus("stopped");
           return;
         } finally {
           clearTimeout(refreshTimer);
@@ -736,7 +740,7 @@ export function usePasskey(
 
   const cancelAutofill = useCallback(() => {
     cancelAutofillRef.current();
-    setStatus("stopped");
+    setAutofillStatus("stopped");
   }, []);
 
   return {
@@ -763,11 +767,11 @@ export function usePasskey(
        * Whether the browser can offer passkeys in the autocompletion
        * list. `null` while detection runs; `false` when autofill is off.
        */
-      available,
+      available: autofillAvailable,
       /** The state of the request; see {@link PasskeyAutofillStatus}. */
-      status,
+      status: autofillStatus,
       /** The most recent failure, for display or logging. */
-      lastError,
+      lastError: autofillLastError,
       /** Stop the pending autofill request for good. */
       cancel: cancelAutofill,
     },
