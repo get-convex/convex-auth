@@ -41,6 +41,21 @@ preserving the login-CSRF property.
 rejected at setup (`packages/core/src/oauth/component/setup.ts`), so React
 Native apps must return via https universal links / app links.
 
+React Native also has no page URL for the client to work from: it defines
+`window` but no `window.location`. So the startup handler that finishes a flow
+from callback params does nothing there, and `signIn` requires an explicit
+`redirectTo` (`packages/core/src/oauth/client.ts`). Supporting React Native
+properly means deciding what `redirectTo` looks like when it can't be a page
+URL.
+
+## OAuth isn't wired into the Next.js client
+
+`ConvexAuthNextjsProvider` builds its `AuthClient` with no ambient sign-ins and
+takes no prop for them (`packages/core/src/nextjs/index.tsx`), so `oauth()` is
+never registered and the OAuth hooks throw wherever they're used under SSR. The
+sign-in api pointed at the auth proxy is already there, so what's missing is the
+registration.
+
 ## Apple sign-in isn't supported yet
 
 Two gaps. The callback route only accepts GET redirects, and Apple POSTs the

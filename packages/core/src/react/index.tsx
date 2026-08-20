@@ -24,6 +24,7 @@ import type {
 } from "../browser/ambientSignInClient";
 import { AuthClient } from "../browser/sessionManager";
 import { TokenStorage, defaultStorage } from "../browser/storage";
+import { oauth } from "../oauth/client";
 import type { ConvexAuthApi } from "../lib/types";
 import {
   AuthProvider,
@@ -60,17 +61,6 @@ export { useAuthSignInApi, type AuthSignInApi } from "./client";
  *     </ConvexAuthProvider>
  *   );
  * }
- * ```
- *
- * Auth methods that run on their own at startup plug in via the
- * `ambientSignIns` prop, e.g. OAuth:
- *
- * ```tsx
- * <ConvexAuthProvider
- *   client={convex}
- *   api={{ refreshSession: api.auth.refreshSession, signOut: api.auth.signOut }}
- *   ambientSignIns={[oauth({ providers })]}
- * >
  * ```
  */
 export function ConvexAuthProvider({
@@ -115,10 +105,15 @@ export function ConvexAuthProvider({
    */
   storageNamespace?: string;
   /**
-   * Ambient sign-ins, one per auth method that runs on its own at client
-   * startup (e.g. `oauth(...)` from
-   * `@convex-dev/auth/providers/oauth/react`). Read once when the client is
-   * created and not expected to change.
+   * Advanced. Ambient sign-ins run initialization for auth providers that can
+   * take action outside of a user activated sign in flow, such as reading an
+   * oauth code from a url query param.
+   *
+   * Setting this replaces the default (`[oauth()]`) entirely rather than adding
+   * to it. Pass `[]` to register nothing, or include `oauth()` (from
+   * `@convex-dev/auth/providers/oauth/react`) yourself to keep it alongside
+   * other sign-ins. Read once when the client is created and not expected to
+   * change.
    */
   ambientSignIns?: AmbientSignInClient[];
   children: ReactNode;
@@ -151,9 +146,7 @@ export function ConvexAuthProvider({
       },
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
-      // Setups run in the constructor, so anything they publish exists
-      // before the first render reads it.
-      ambientSignIns: { signIns: ambientSignIns ?? [], signInApi },
+      ambientSignIns: { signIns: ambientSignIns ?? [oauth()], signInApi },
     });
     return { authClient, signInApi };
     // `client` identity is what matters. The other props are read once at

@@ -1,101 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { getFunctionName, makeFunctionReference } from "convex/server";
 import type { AuthSignInApi } from "../browser/ambientSignInClient";
 import { AuthClient, type AuthState } from "../browser/sessionManager";
-import { InMemoryStorage, NamespacedStorage } from "../browser/storage";
+import { InMemoryStorage } from "../browser/storage";
 import type { TokenBundle } from "../lib/types";
+import { oauth } from "./client";
 import {
-  OAUTH_ACTIONS_KEY,
-  OAUTH_FLOW_ERROR_KEY,
-  OAUTH_SETUP_ID,
-  oauth,
-  type OauthActions,
-  type OauthFlowError,
-  type OauthProviderRefs,
-} from "./client";
-
-const NAMESPACE = "https://happy-animal-123.convex.cloud";
-
-const bundle: TokenBundle = {
-  accessToken: "access-1",
-  accessTokenExpiresAt: 0,
-  refreshToken: "refresh-1",
-  refreshTokenExpiresAt: 0,
-  userId: "user-1",
-};
-
-// A stand-in provider. The refs carry real paths because `signIn` saves the
-// completeSignIn path and completion rebuilds the reference from it, so
-// assertions compare paths with `getFunctionName`, not references.
-const acmeStart = makeFunctionReference<"mutation">("auth:startSignInAcme");
-const acmeComplete = makeFunctionReference<"mutation">(
-  "auth:completeSignInAcme",
-);
-const ACME_REFS: OauthProviderRefs = {
-  providerName: "acme",
-  startSignIn: acmeStart,
-  completeSignIn: acmeComplete,
-};
-
-/** The oauth sign-in's scoped storage view over `storage`. */
-function flowStorage(storage: InMemoryStorage) {
-  return new NamespacedStorage(storage, NAMESPACE).forSignIn(OAUTH_SETUP_ID);
-}
-
-/** Store a pending flow the way `signIn` would before navigating away. */
-function seedPendingFlow(
-  storage: InMemoryStorage,
-  {
-    providerName = "acme",
-    state = "state-1",
-    completeSignIn = "auth:completeSignInAcme",
-  } = {},
-) {
-  void flowStorage(storage).set(
-    "flow",
-    JSON.stringify({ providerName, state, completeSignIn }),
-  );
-}
-
-/** Run the real oauth setup against an AuthClient with a fake sign-in api. */
-function setupOAuth({ storage = new InMemoryStorage() } = {}) {
-  const mutation = vi.fn();
-  const signInApi = { mutation, action: vi.fn() } as unknown as AuthSignInApi;
-  const client = new AuthClient({
-    mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
-    storage,
-    storageNamespace: NAMESPACE,
-    ambientSignIns: { signIns: [oauth()], signInApi },
-  });
-  const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
-  const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
-  const flowError = () =>
-    oauthValues.get<OauthFlowError | null>(OAUTH_FLOW_ERROR_KEY);
-  return { client, mutation, actions, flowError, storage };
-}
-
-// Save original navigator.product value so it can be restored. Can't just mock
-// the window entirely as we do elsewhere because this test runs in jsdom env.
-const ORIGINAL_PRODUCT = Object.getOwnPropertyDescriptor(
-  window.navigator,
-  "product",
-);
-
-/** Undo the React Native stub's shadowing of `navigator.product`. */
-function restoreNavigatorProduct(): void {
-  if (ORIGINAL_PRODUCT === undefined) {
-    delete (window.navigator as { product?: string }).product;
-  } else {
-    Object.defineProperty(window.navigator, "product", ORIGINAL_PRODUCT);
-  }
-}
-
-/** The function path the fake `mutation` was called with. */
-function calledPath(mutation: ReturnType<typeof vi.fn>, call = 0): string {
-  return getFunctionName(mutation.mock.calls[call]![0] as never);
-}
+  ACME_REFS,
+  NAMESPACE,
+  bundle,
+  calledPath,
+  flowStorage,
+  readFlow,
+  restoreNavigatorProduct,
+  seedPendingFlow,
+  setupOAuth,
+  stubReactNative,
+} from "./testFlow";
 
 describe("OAuth client", () => {
   afterEach(() => {
@@ -253,7 +174,7 @@ describe("OAuth client", () => {
 
     expect(flowError()?.code).toBe("access_denied");
     // The flow ended in an error, so the stored state can never complete.
-    await vi.waitFor(() => expect(flowStorage(storage).get("flow")).toBeNull());
+    await vi.waitFor(() => expect(readFlow(storage)).toBeNull());
   });
 
   test("an unknown error param normalizes to oauth_error", async () => {
@@ -323,12 +244,7 @@ describe("OAuth client", () => {
   });
 
   test("signIn starts a flow, persists it, and returns the redirect", async () => {
-    // The React Native branch returns the URL instead of navigating, which
-    // also keeps jsdom (no navigation support) happy.
-    Object.defineProperty(window.navigator, "product", {
-      value: "ReactNative",
-      configurable: true,
-    });
+    stubReactNative();
     const { mutation, actions, storage } = setupOAuth();
     mutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth?client_id=x",
@@ -339,7 +255,7 @@ describe("OAuth client", () => {
       redirectTo: "http://localhost/app",
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeStart, {
+    expect(mutation).toHaveBeenCalledExactlyOnceWith(ACME_REFS.startSignIn, {
       redirectTo: "http://localhost/app",
     });
     expect(outcome).toEqual({
@@ -347,13 +263,11 @@ describe("OAuth client", () => {
     });
     // The persisted flow carries the completeSignIn function path, so
     // completion can run on a page that never held the references.
-    expect(flowStorage(storage).get("flow")).toBe(
-      JSON.stringify({
-        providerName: "acme",
-        state: "state-1",
-        completeSignIn: "auth:completeSignInAcme",
-      }),
-    );
+    expect(readFlow(storage)).toEqual({
+      providerName: "acme",
+      state: "state-1",
+      completeSignIn: "auth:completeSignInAcme",
+    });
   });
 
   test("signIn with a code completes the pending flow", async () => {
@@ -376,10 +290,7 @@ describe("OAuth client", () => {
 
   test("signIn clears a previous flow error", async () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
-    Object.defineProperty(window.navigator, "product", {
-      value: "ReactNative",
-      configurable: true,
-    });
+    stubReactNative();
     const { client, mutation, actions, flowError } = setupOAuth();
     await client.init();
     expect(flowError()?.code).toBe("access_denied");
@@ -388,7 +299,8 @@ describe("OAuth client", () => {
       redirect: "https://provider.example/auth",
       state: "state-2",
     });
-    await actions.signIn(ACME_REFS);
+    // React Native has no page URL to default to, so `redirectTo` is required.
+    await actions.signIn(ACME_REFS, { redirectTo: "http://localhost/app" });
 
     expect(flowError()).toBeNull();
   });
