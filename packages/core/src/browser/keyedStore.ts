@@ -37,7 +37,7 @@ export type ScopedKeyedStoreReader = {
 };
 
 /** The full store key for `key` within the scope named `prefix`. */
-export function scopedKey(prefix: string, key: string): string {
+function scopedKey(prefix: string, key: string): string {
   return `${prefix}/${key}`;
 }
 

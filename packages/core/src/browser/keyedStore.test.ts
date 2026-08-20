@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { KeyedStore, scopedKey } from "./keyedStore";
+import { KeyedStore } from "./keyedStore";
 
 describe("KeyedStore", () => {
   test("get returns undefined for a missing key", () => {
@@ -43,10 +43,6 @@ describe("KeyedStore", () => {
     unsubscribe();
     store.set("greeting", "hi again");
     expect(listener).toHaveBeenCalledTimes(1);
-  });
-
-  test("scopedKey joins a prefix and key", () => {
-    expect(scopedKey("oauth", "actions")).toBe("oauth/actions");
   });
 
   test("a scoped view reads and writes under its prefix", () => {

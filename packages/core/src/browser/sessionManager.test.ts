@@ -1,3 +1,4 @@
+import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 import type { AuthProviderClientSetup, AuthSignInApi } from "./providerSetup";
@@ -257,7 +258,7 @@ describe("AuthClient", () => {
     expect(() => client.dispose()).not.toThrow();
   });
 
-  test("withSignInPending reports loading while a completion runs", async () => {
+  test("withSignInPending turns loading on while its call is pending", async () => {
     const { client } = makeClient();
     await client.init();
     expect(client.getSnapshot().isLoading).toBe(false);
@@ -269,29 +270,6 @@ describe("AuthClient", () => {
     resolve("done");
     await expect(pending).resolves.toBe("done");
     expect(client.getSnapshot().isLoading).toBe(false);
-  });
-
-  test("withSignInPending holds loading across init resolving", async () => {
-    // This is the real mount ordering. A provider client calls
-    // withSignInPending before init() runs, and init resolving must not end
-    // the loading state early.
-    const { client } = makeClient();
-    const { promise, resolve } = Promise.withResolvers<void>();
-    const pending = client.withSignInPending(async () => {
-      await promise;
-      await client.setSession(bundle(1));
-    });
-
-    await client.init();
-    expect(client.getSnapshot().isLoading).toBe(true);
-
-    resolve();
-    await pending;
-    expect(client.getSnapshot()).toEqual({
-      isLoading: false,
-      isAuthenticated: true,
-      token: "access-1",
-    });
   });
 
   test("withSignInPending clears loading when the completion throws", async () => {
@@ -364,11 +342,17 @@ describe("AuthClient", () => {
   });
 });
 
-/** A stub sign-in api. Setups receive it but these tests never call it. */
+/** The mutation stub behind {@link SIGN_IN_API}. */
+const SIGN_IN_MUTATION = vi.fn();
+
+/** A stub sign-in api handed to every setup below. */
 const SIGN_IN_API = {
-  mutation: vi.fn(),
+  mutation: SIGN_IN_MUTATION,
   action: vi.fn(),
 } as unknown as AuthSignInApi;
+
+/** A reference to hand the stub. Its path is never resolved. */
+const SIGN_IN_REF = makeFunctionReference<"mutation">("auth:probeSignIn");
 
 /** An {@link AuthClient} constructed with the given provider client setups. */
 function makeClientWithSetups(
@@ -499,6 +483,45 @@ describe("AuthClient provider client setups", () => {
     client.dispose();
     await client.init();
     expect(onInit).toHaveBeenCalledTimes(1);
+  });
+
+  test("a withSignInPending call in onInit holds loading past the session load", async () => {
+    // What every provider client does: onInit starts a sign-in whose network
+    // call has not finished by the time init finishes loading the session.
+    // Without the withSignInPending wrapper the client would report signed out
+    // until the call finished, sending the user to a sign-in screen while they
+    // are signing in.
+    const signIn = Promise.withResolvers<void>();
+    // onInit returns nothing, so the promise it starts is saved here for the
+    // test to await.
+    const pending: Promise<void>[] = [];
+    const { client } = makeClientWithSetups([
+      {
+        id: "probe",
+        setup: (ctx) => ({
+          onInit: () => {
+            pending.push(
+              ctx.client.withSignInPending(async () => {
+                await ctx.signInApi.mutation(SIGN_IN_REF, {});
+                await ctx.client.setSession(bundle(1));
+              }),
+            );
+          },
+        }),
+      },
+    ]);
+    SIGN_IN_MUTATION.mockReturnValueOnce(signIn.promise);
+
+    await client.init();
+    expect(client.getSnapshot().isLoading).toBe(true);
+
+    signIn.resolve();
+    await Promise.all(pending);
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
   });
 
   test("a throwing onInit callback is logged and doesn't block the rest", async () => {

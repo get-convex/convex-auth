@@ -34,10 +34,9 @@ import type { ScopedStorage } from "./storage";
 
 /**
  * How a provider's sign-in functions get executed. Provider code takes this
- * as given, at setup time via {@link AuthProviderClientContext} and in hooks
- * via `useAuthSignInApi`, instead of picking a transport itself. Executing
- * the call is the only thing that differs between the two session models, so
- * one implementation of a provider serves both:
+ * as given via {@link AuthProviderClientContext} instead of picking a transport
+ * itself. Executing the call is the only thing that differs between the two
+ * session models, so one implementation of a provider serves both:
  *
  *  - SPA: called against the deployment, returning the full `TokenBundle`
  *    for client JS to persist.
