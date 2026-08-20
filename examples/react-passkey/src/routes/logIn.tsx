@@ -1,0 +1,111 @@
+import {
+  PasskeyAutofillError,
+  PasskeySignInResult,
+  usePasskey,
+} from "@convex-dev/auth/providers/passkey/react";
+import { useEffect, useState } from "react";
+import { api } from "../../convex/_generated/api";
+
+export function LogIn() {
+  // While this hook is mounted, the browser also offers stored passkeys in
+  // the autocompletion list of the username field below (the field carries
+  // autoComplete="username webauthn"). Picking one signs in directly.
+  const { signIn, pending, autofill } = usePasskey({
+    startSignIn: api.auth.startSignIn,
+    startAutofillSignIn: api.auth.startAutofillSignIn,
+    finishSignIn: api.auth.finishSignIn,
+    finishSignUp: api.auth.finishSignUp,
+  });
+  const [username, setUsername] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // Show autofill failures in the same error area as the modal flow. The
+  // most recent failure from either flow wins.
+  const { lastError } = autofill;
+  useEffect(() => {
+    if (lastError !== null) {
+      setError(errorMessage(lastError));
+    }
+  }, [lastError]);
+
+  // Also lock the form while an autofill sign-in is being verified on the
+  // server.
+  const busy = pending || autofill.status === "signingIn";
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setError(null);
+        const result = await signIn({ username });
+        if (result.success) {
+          return;
+        }
+        setError(errorMessage(result.userError));
+      }}
+    >
+      <h1>Log in</h1>
+      <p>
+        Enter your username. A free username creates a new account with a
+        passkey; an existing username asks for its passkey.
+      </p>
+      <label>
+        Username
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoComplete="username webauthn"
+          required
+          disabled={busy}
+        />
+      </label>
+      {error ? (
+        <p role="alert">
+          <strong>{error}</strong>
+        </p>
+      ) : null}
+      <button type="submit" disabled={busy}>
+        {busy ? "Waiting for your passkey…" : "Continue with a passkey"}
+      </button>
+    </form>
+  );
+}
+
+function errorMessage(
+  userError:
+    | Extract<PasskeySignInResult, { success: false }>["userError"]
+    | PasskeyAutofillError,
+): string {
+  switch (userError.error) {
+    case "USERNAME_TOO_SHORT":
+      return `The username must be at least ${userError.minimumLength} characters.`;
+    case "USERNAME_HAS_SURROUNDING_WHITESPACE":
+      return "The username can't start or end with whitespace.";
+    case "USERNAME_HAS_INVALID_CHARACTERS":
+      return "The username contains characters that aren't allowed.";
+    case "USERNAME_TAKEN":
+      // Only returned when someone claimed the username between the two
+      // steps of the ceremony.
+      return "That username was just taken. Try another one.";
+    case "CHALLENGE_EXPIRED":
+      return "The sign-in attempt took too long. Please try again.";
+    case "VERIFICATION_FAILED":
+      return "The passkey could not be verified. Please try again.";
+    case "UNKNOWN_CREDENTIAL":
+      return "This passkey is not registered here.";
+    case "CEREMONY_ABORTED":
+      // The most common failure: the user closed the passkey dialog.
+      return "Sign-in was cancelled.";
+    case "WEBAUTHN_UNSUPPORTED":
+      return "This browser does not support passkeys.";
+    case "OTHER_ERROR":
+      // The mutation threw unexpectedly; the original error is available
+      // on `cause` if you want to log or inspect it.
+      console.error("Sign-in failed:", userError.cause);
+      return "Something went wrong. Please try again.";
+    default:
+      userError satisfies never;
+      return `Unknown error: ${JSON.stringify(userError)}`;
+  }
+}
