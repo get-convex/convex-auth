@@ -156,7 +156,7 @@ export type AuthCore<UsersTable extends string = string> = {
  * functions use to wire themselves to the core:
  *
  * ```ts
- * const core = setupCore({ component: components.core });
+ * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
  * export const { signUpWithPassword, signInWithPassword } =
