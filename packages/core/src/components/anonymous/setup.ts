@@ -19,7 +19,7 @@ const PROVIDER_NAME = "anonymous";
  * anonymous account.
  *
  * ```ts
- * const core = setupCore({ component: components.core });
+ * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
  * export const { signInAnonymous } = setupAnonymous(core, {
