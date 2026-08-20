@@ -12,9 +12,10 @@ users can store the passkey on their device, protected by a fingerprint,
 a face scan, or PIN), or use an external hardware security key.
 Your app never handles a secret that can be phished or reused.
 
-The `UsernamePasskey` provider implements an _identifier-first_ flow: your
-login page has a single username field. A free username creates a new account
-with a new passkey; an existing username asks for a passkey of that account.
+The `setupUsernamePasskey` provider implements an _identifier-first_ flow:
+your login page has a single username field. A free username creates a new
+account with a new passkey; an existing username asks for a passkey of that
+account.
 
 ## Setting up username + passkey login in your app
 
@@ -75,13 +76,13 @@ Convex Auth will create a row for each account. You can also add application-spe
 
 ### Set up user creation
 
-Write a `createOrUpdateUser` mutation that returns the id of the user the
-account belongs to. The provider calls it on every sign-in:
+Write a `createUser` mutation that creates a row in your `users` table and
+returns its id. The provider calls it the first time it sees an account.
 
-- On the first sign-in of a new account, `userId` is `null`. Create a row in
-  your `users` table and return its id.
-- On later sign-ins, `userId` holds the id you returned before. Return it
-  again, and do any per-sign-in work you need there.
+You can also attach an optional `onSignIn` mutation, called with the resolved
+`userId` on every sign-in, the first one included. Anything you want to happen
+each time someone signs in belongs there, so `createUser` only has to handle
+what is true at creation time. Leave it out if there is nothing to do.
 
 <include lang="ts" meta='title="convex/users.ts"'>
   ../../../../../examples/react-passkey/convex/users.ts
@@ -93,13 +94,13 @@ account belongs to. The provider calls it on every sign-in:
 
 ### Set up the public backend functions
 
-Set up the passkey provider with `UsernamePasskey` and export the four
+Set up the passkey provider with `setupUsernamePasskey` and export the four
 mutations it hands back once you attach the callback that creates your user
 rows, in `convex/auth.ts`:
 
 <include
   lang="ts"
-  meta='title="convex/auth.ts" highlight="import { UsernamePasskey }" highlight="export const {...}).attachUserCallback(internal.users.createOrUpdateUser);"'
+  meta='title="convex/auth.ts" highlight="import { setupUsernamePasskey }" highlight="export const { startSignIn, startAutofillSignIn, finishSignUp, finishSignIn } =...}).attachUserCallbacks({ createUser: internal.users.createUser });"'
 >
   ../../../../../examples/react-passkey/convex/auth.ts
 </include>
