@@ -14,6 +14,7 @@
  */
 "use client";
 
+import { useConvex } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientView } from "../../lib/types.js";
@@ -382,9 +383,15 @@ export function usePasskey(
 
   const { autofill: autofillEnabled = true } = options;
   const { setSession } = useAuthActions();
-  // Running through the signInApi rather than `useMutation` is what lets
-  // this hook serve both session models (SPA + SSR).
+  // Running the two finishing mutations through the signInApi rather than
+  // `useMutation` is what lets this hook serve both session models (SPA +
+  // SSR): under SSR they go through the auth proxy, which keeps the refresh
+  // token in an httpOnly cookie.
   const signInApi = useAuthSignInApi();
+  // The two starting mutations mint a challenge rather than a session, so
+  // they go straight to the deployment in both models. The proxy only speaks
+  // the sign-in envelope and would refuse their shape.
+  const convex = useConvex();
 
   // The identifier-first (modal) flow's state.
   const [pending, setPending] = useState(false);
@@ -411,13 +418,13 @@ export function usePasskey(
   // coordination exists.
   const autofillHandleRef = useRef<AutofillHandle | null>(null);
 
-  // The flows read the mutation references, the sign-in API and
+  // The flows read the mutation references, the two call paths and
   // `setSession` through a ref: their identities are not stable across
   // renders (Convex's generated `api` object creates a new reference on
   // every property access), and neither `signIn`'s identity nor the
   // pending browser request must change on a render.
-  const currentRef = useRef({ passkeyApi, signInApi, setSession });
-  currentRef.current = { passkeyApi, signInApi, setSession };
+  const currentRef = useRef({ passkeyApi, signInApi, convex, setSession });
+  currentRef.current = { passkeyApi, signInApi, convex, setSession };
 
   const signIn = useCallback(
     async ({
@@ -446,9 +453,10 @@ export function usePasskey(
             userError: { error: "WEBAUTHN_UNSUPPORTED" },
           };
         }
-        const { passkeyApi, signInApi, setSession } = currentRef.current;
+        const { passkeyApi, signInApi, convex, setSession } =
+          currentRef.current;
 
-        const start = await signInApi.mutation(passkeyApi.startSignIn, {
+        const start = await convex.mutation(passkeyApi.startSignIn, {
           username,
         });
         if (!start.success) {
@@ -622,8 +630,8 @@ export function usePasskey(
         setAutofillStatus("waiting");
         let start;
         try {
-          const { passkeyApi, signInApi } = currentRef.current;
-          start = await signInApi.mutation(passkeyApi.startAutofillSignIn, {});
+          const { passkeyApi, convex } = currentRef.current;
+          start = await convex.mutation(passkeyApi.startAutofillSignIn, {});
         } catch (cause) {
           setAutofillLastError(foldClientError(cause));
           setAutofillStatus("stopped");
