@@ -1,0 +1,138 @@
+/**
+ * Shared test setup for the OAuth client and its React hooks.
+ *
+ * @module
+ */
+import { getFunctionName, makeFunctionReference } from "convex/server";
+import { vi } from "vitest";
+import type { AuthSignInApi } from "../browser/ambientSignInClient";
+import { AuthClient } from "../browser/sessionManager";
+import { InMemoryStorage, NamespacedStorage } from "../browser/storage";
+import type { TokenBundle } from "../lib/types";
+import {
+  OAUTH_ACTIONS_KEY,
+  OAUTH_FLOW_ERROR_KEY,
+  OAUTH_SETUP_ID,
+  oauth,
+  type OauthActions,
+  type OauthFlowError,
+  type OauthProviderRefs,
+  type PendingFlow,
+} from "./client";
+
+/** The deployment url the tests namespace their storage under. */
+export const NAMESPACE = "https://happy-animal-123.convex.cloud";
+
+/** A session for the sign-in mutations to resolve with. */
+export const bundle: TokenBundle = {
+  accessToken: "access-1",
+  accessTokenExpiresAt: 0,
+  refreshToken: "refresh-1",
+  refreshTokenExpiresAt: 0,
+  userId: "user-1",
+};
+
+/**
+ * A stand-in provider, for tests that don't care which provider ran. The refs
+ * carry paths that look like an app's because `signIn` saves the completeSignIn
+ * path and completion rebuilds the reference from it, so assertions compare
+ * paths, not references.
+ */
+export const ACME_REFS: OauthProviderRefs = {
+  providerName: "acme",
+  startSignIn: makeFunctionReference<"mutation">("auth:startSignInAcme"),
+  completeSignIn: makeFunctionReference<"mutation">("auth:completeSignInAcme"),
+};
+
+/** The oauth setup's scoped storage view over `storage`. */
+export function flowStorage(storage: InMemoryStorage) {
+  return new NamespacedStorage(storage, NAMESPACE).forSignIn(OAUTH_SETUP_ID);
+}
+
+/**
+ * The pending flow as stored, or null. `InMemoryStorage` reads synchronously,
+ * unlike the async stores the storage type also allows.
+ */
+export function readFlow(storage: InMemoryStorage): PendingFlow | null {
+  const raw = flowStorage(storage).get("flow") as string | null | undefined;
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  return JSON.parse(raw) as PendingFlow;
+}
+
+/** Store a pending flow the way `signIn` would before navigating away. */
+export function seedPendingFlow(
+  storage: InMemoryStorage,
+  refs: OauthProviderRefs = ACME_REFS,
+  state = "state-1",
+): void {
+  void flowStorage(storage).set(
+    "flow",
+    JSON.stringify({
+      providerName: refs.providerName,
+      state,
+      completeSignIn: getFunctionName(refs.completeSignIn),
+    } satisfies PendingFlow),
+  );
+}
+
+/**
+ * An AuthClient with the real oauth setup registered, plus the `mutation` mock
+ * standing in for the Convex call. The mock records the function reference it
+ * was called with, so tests can assert which function ran.
+ */
+export function oauthClient(storage: InMemoryStorage): {
+  client: AuthClient;
+  signInApi: AuthSignInApi;
+  mutation: ReturnType<typeof vi.fn>;
+} {
+  const mutation = vi.fn();
+  const signInApi = { mutation, action: vi.fn() } as unknown as AuthSignInApi;
+  const client = new AuthClient({
+    mode: "spa",
+    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    storage,
+    storageNamespace: NAMESPACE,
+    ambientSignIns: { signIns: [oauth()], signInApi },
+  });
+  return { client, signInApi, mutation };
+}
+
+/** {@link oauthClient} plus the values the oauth setup published. */
+export function setupOAuth({ storage = new InMemoryStorage() } = {}) {
+  const { client, mutation } = oauthClient(storage);
+  const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
+  const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
+  const flowError = () =>
+    oauthValues.get<OauthFlowError | null>(OAUTH_FLOW_ERROR_KEY);
+  return { client, mutation, actions, flowError, storage };
+}
+
+/** The function path the `mutation` mock was called with. */
+export function calledPath(
+  mutation: ReturnType<typeof vi.fn>,
+  call = 0,
+): string {
+  return getFunctionName(mutation.mock.calls[call]![0] as never);
+}
+
+/**
+ * Take the client's React Native branch, which returns the redirect url
+ * instead of navigating. jsdom has a location, so without this the client
+ * would try to navigate and jsdom would log a not-implemented error.
+ */
+export function stubReactNative(): void {
+  Object.defineProperty(window.navigator, "product", {
+    value: "ReactNative",
+    configurable: true,
+  });
+}
+
+/**
+ * Undo {@link stubReactNative}. jsdom keeps `product` on `Navigator.prototype`,
+ * so deleting the stubbed own property reveals the real value again.
+ */
+export function restoreNavigatorProduct(): void {
+  delete (window.navigator as { product?: string }).product;
+}

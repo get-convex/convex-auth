@@ -8,6 +8,7 @@ import type {
   AmbientSignInClient,
   AuthSignInApi,
 } from "../browser/ambientSignInClient";
+import { useOauth } from "../oauth/react";
 import { ConvexAuthProvider, useAuthSignInApi } from "./index";
 import { useAmbientSignInValue } from "./providers";
 
@@ -28,6 +29,14 @@ function makeConvexClient() {
 function ProbeStatus() {
   const status = useAmbientSignInValue<string>("probe", "status");
   return <div>{status ?? "missing"}</div>;
+}
+
+/**
+ * Renders the flow error from the default oauth setup. The hook throws when
+ * oauth() was never registered, so rendering this at all is the assertion.
+ */
+function OauthFlowError() {
+  return <div>{String(useOauth().flowError)}</div>;
 }
 
 describe("ConvexAuthProvider ambient sign-ins", () => {
@@ -109,5 +118,15 @@ describe("ConvexAuthProvider ambient sign-ins", () => {
     );
     await expect(captured[0].mutation(signIn, {})).resolves.toBe("result");
     expect(mutationSpy).toHaveBeenCalledWith(signIn, {});
+  });
+
+  test("oauth() is registered when no ambient sign-ins are given", () => {
+    const client = makeConvexClient();
+    render(
+      <ConvexAuthProvider client={client} api={API}>
+        <OauthFlowError />
+      </ConvexAuthProvider>,
+    );
+    expect(screen.getByText("null")).toBeDefined();
   });
 });
