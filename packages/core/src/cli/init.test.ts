@@ -5,7 +5,7 @@ import {
   detectPackageManager,
   FILE_TEMPLATES,
   installCommand,
-} from "./program.js";
+} from "./program.ts";
 
 const PROJECT = "/project";
 

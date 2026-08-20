@@ -23,7 +23,7 @@ import {
   toFloat32,
   toFloat64,
   transformCBORValueToNative,
-} from "./index.js";
+} from "./index.ts";
 
 describe("decodeCBORNoLeftoverBytes()", () => {
   test("decode indefinite byte string", () => {

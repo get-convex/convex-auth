@@ -4,8 +4,8 @@
  * in this directory). Trimmed to RSASSA-PKCS1-v1.5 verification; see README.md.
  */
 
-import { bigIntFromBytes, DynamicBuffer } from "../binary/index.js";
-import { constantTimeEqual } from "./subtle.js";
+import { bigIntFromBytes, DynamicBuffer } from "../binary/index.ts";
+import { constantTimeEqual } from "./subtle.ts";
 import {
   ASN1EncodableSequence,
   ASN1Integer,
@@ -15,7 +15,7 @@ import {
   encodeASN1,
   encodeObjectIdentifier,
   parseASN1NoLeftoverBytes,
-} from "../asn1/index.js";
+} from "../asn1/index.ts";
 
 export function verifyRSASSAPKCS1v15Signature(
   publicKey: RSAPublicKey,

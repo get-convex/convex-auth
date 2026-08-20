@@ -1,17 +1,17 @@
-import type { SlimTokenBundle, TokenBundle } from "../lib/types.js";
-import { KeyedStore, type SignInValuesReader } from "./keyedStore.js";
-import { runWithMutex } from "./mutex.js";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
+import { KeyedStore, type SignInValuesReader } from "./keyedStore.ts";
+import { runWithMutex } from "./mutex.ts";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
-} from "./ambientSignInClient.js";
-import { retryOnNetworkError } from "./retry.js";
+} from "./ambientSignInClient.ts";
+import { retryOnNetworkError } from "./retry.ts";
 import {
   JWT_STORAGE_KEY,
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   TokenStorage,
-} from "./storage.js";
+} from "./storage.ts";
 
 /**
  * The refresh and sign-out API for a **SPA** client, where JS holds the

@@ -1,14 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // NodeNext resolution makes extensionless relative imports a compile
-    // error (TS2835). tsc copies specifiers into `dist/` verbatim, so imports
-    // must be written with the `.js` extension the emitted file will need;
-    // this is what enforces that, in the editor and in `tsc --noEmit` alike.
-    // The build config overrides back to Bundler for emit — same split as
-    // the other Convex components (workpool, rate-limiter, better-auth).
+    // Relative imports use the extension of the file on disk (`.ts`, `.tsx`).
+    // NodeNext resolution makes an import without an extension an error
+    // (TS2835), in the editor and in `tsc --noEmit`. At build time,
+    // `rewriteRelativeImportExtensions` changes each extension to `.js`,
+    // because Node loads the compiled file. Declaration files keep the `.ts`
+    // extension. TypeScript reads it as the related `.d.ts` file, back to
+    // TypeScript 5.0.
     "module": "Node16",
     "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     // `vite/client` types the `import.meta.glob` that convex-test relies on.
     "types": ["node", "vite/client"]
   },

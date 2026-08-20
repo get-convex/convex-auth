@@ -1,7 +1,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { expect } from "vitest";
 import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
-import schema from "./passkey/schema.js";
+import schema from "./passkey/schema.ts";
 
 export const modules = import.meta.glob("./passkey/**/*.ts");
 

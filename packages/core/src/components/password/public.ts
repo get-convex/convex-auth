@@ -1,6 +1,6 @@
-import { mutation, QueryCtx } from "./_generated/server.js";
-import { Doc } from "./_generated/dataModel.js";
-import { components } from "./_generated/api.js";
+import { mutation, QueryCtx } from "./_generated/server.ts";
+import { Doc } from "./_generated/dataModel.ts";
+import { components } from "./_generated/api.ts";
 import { Infer, v } from "convex/values";
 import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
 import {
@@ -13,7 +13,7 @@ import {
   normalizePassword,
   setPasswordUserError,
   verifyPasswordUserError,
-} from "./validation.js";
+} from "./validation.ts";
 
 // Throttle for password verification attempts.
 //

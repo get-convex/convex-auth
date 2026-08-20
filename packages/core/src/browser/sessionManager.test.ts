@@ -1,23 +1,23 @@
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { SlimTokenBundle, TokenBundle } from "../lib/types.js";
+import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
-} from "./ambientSignInClient.js";
+} from "./ambientSignInClient.ts";
 import {
   AuthClient,
   INITIAL_AUTH_STATE,
   SpaAuthApi,
   SsrAuthApi,
-} from "./sessionManager.js";
+} from "./sessionManager.ts";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
   type TokenStorage,
-} from "./storage.js";
+} from "./storage.ts";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 // Matches NamespacedStorage's `replace(/[^a-zA-Z0-9]/g, "")`.

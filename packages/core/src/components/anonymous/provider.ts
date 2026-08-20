@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server.js";
+import { mutation } from "./_generated/server.ts";
 
 /**
  * Creates an anonymous account in the `accounts` table.

@@ -12,8 +12,8 @@ import {
   ECDSAPublicKey,
   p256,
   verifyECDSASignature,
-} from "./ecdsa.js";
-import { sha256 } from "./sha2.js";
+} from "./ecdsa.ts";
+import { sha256 } from "./sha2.ts";
 
 async function generateP256KeyAndSignature(): Promise<{
   publicKeySEC1: Uint8Array;

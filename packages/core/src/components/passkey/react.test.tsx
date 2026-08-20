@@ -3,13 +3,13 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, type ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthClient } from "../../browser/sessionManager.js";
-import { InMemoryStorage } from "../../browser/storage.js";
-import type { TokenBundle } from "../../lib/types.js";
-import type { AuthSignInApi } from "../../react/client.js";
-import { AuthProvider, useAuth } from "../../react/client.js";
-import { useAuthToken } from "../../react/index.js";
-import { PasskeyApi, PasskeySignInResult, usePasskey } from "./react.js";
+import { AuthClient } from "../../browser/sessionManager.ts";
+import { InMemoryStorage } from "../../browser/storage.ts";
+import type { TokenBundle } from "../../lib/types.ts";
+import type { AuthSignInApi } from "../../react/client.tsx";
+import { AuthProvider, useAuth } from "../../react/client.tsx";
+import { useAuthToken } from "../../react/index.tsx";
+import { PasskeyApi, PasskeySignInResult, usePasskey } from "./react.tsx";
 
 // The hook calls several different mutations, so both call paths dispatch on
 // the reference (a string sentinel here) to one mock per mutation.

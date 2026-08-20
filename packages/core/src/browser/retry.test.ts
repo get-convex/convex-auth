@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { retryOnNetworkError } from "./retry.js";
+import { retryOnNetworkError } from "./retry.ts";
 
 /** A fetch-level failure the way Chromium words it. */
 function networkError() {

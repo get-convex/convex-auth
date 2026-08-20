@@ -11,7 +11,7 @@ import {
   InMemoryStorage,
   defaultStorage,
   resetInMemoryFallbackWarning,
-} from "./storage.js";
+} from "./storage.ts";
 
 // The edge-runtime environment supplies its own `window` (=== globalThis), and
 // we keep a reference to it here to restore it after each test (some of which

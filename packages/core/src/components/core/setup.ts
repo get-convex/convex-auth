@@ -12,13 +12,13 @@ import {
   ReturnValueForOptionalValidator,
 } from "convex/server";
 import { ObjectType, PropertyValidators, v, Validator } from "convex/values";
-import type { ComponentApi } from "./_generated/component.js";
+import type { ComponentApi } from "./_generated/component.ts";
 import {
   vTokenBundle,
   type TokenBundle,
   type ConvexAuthCtx,
   type UserCallbacks,
-} from "../../lib/types.js";
+} from "../../lib/types.ts";
 
 /**
  * A type for a factory that returns a `RegisteredMutation` with a handler that

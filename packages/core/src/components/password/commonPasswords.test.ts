@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { isCommonPassword } from "./commonPasswords.js";
-import { COMMON_PASSWORDS_BY_LENGTH } from "./commonPasswords.generated.js";
-import { MIN_PASSWORD_LENGTH } from "./validation.js";
+import { isCommonPassword } from "./commonPasswords.ts";
+import { COMMON_PASSWORDS_BY_LENGTH } from "./commonPasswords.generated.ts";
+import { MIN_PASSWORD_LENGTH } from "./validation.ts";
 
 const allPasswords = Object.values(COMMON_PASSWORDS_BY_LENGTH).flat();
 

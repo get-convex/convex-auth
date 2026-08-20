@@ -17,15 +17,15 @@
 import { useConvex } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ClientView } from "../../lib/types.js";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.js";
+import type { ClientView } from "../../lib/types.ts";
+import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 import type {
   FinishSignInResult,
   FinishSignUpResult,
   StartAutofillSignInResult,
   StartSignInResult,
-} from "./setup.js";
-import { CHALLENGE_TTL_MS } from "./validation.js";
+} from "./setup.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
 
 /**
  * The `startSignIn` mutation the app re-exports from its `setupCore`.

@@ -1,11 +1,11 @@
 import { convexTest } from "convex-test";
 import { FunctionArgs } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { api } from "./_generated/api.js";
-import { decryptTicketPayload } from "./crypto.js";
-import schema from "./schema.js";
-import { sha256Hex } from "../../lib/crypto.js";
-import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.js";
+import { api } from "./_generated/api.ts";
+import { decryptTicketPayload } from "./crypto.ts";
+import schema from "./schema.ts";
+import { sha256Hex } from "../../lib/crypto.ts";
+import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
 
 const modules = import.meta.glob("./**/*.ts");
 

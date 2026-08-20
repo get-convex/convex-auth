@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { TokenBundle } from "../lib/types.js";
+import type { TokenBundle } from "../lib/types.ts";
 import {
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
@@ -9,7 +9,7 @@ import {
   CookieStore,
   clearAuthCookies,
   writeAuthCookies,
-} from "./cookies.js";
+} from "./cookies.ts";
 
 const bundle: TokenBundle = {
   accessToken: "access-1",

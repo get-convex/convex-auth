@@ -4,6 +4,9 @@
 // bundler transforms this file. Vitest externalizes plain `.js` under
 // `node_modules` and would leave the macro untransformed, but it can't
 // externalize `.ts`, so shipping source is what makes this work at all.
+// The schema import below keeps the `.js` extension. The TypeScript compiler
+// of the consumer reads this file. A `.ts` extension in an import is an error
+// (TS5097) unless the consumer sets `allowImportingTsExtensions`.
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";

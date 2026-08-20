@@ -1,5 +1,5 @@
 import { parse, serialize } from "cookie";
-import { CookieOptions, CookieStore } from "./cookies.js";
+import { CookieOptions, CookieStore } from "./cookies.ts";
 
 /**
  * Serialize a cookie into a `Set-Cookie` header value.

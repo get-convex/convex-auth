@@ -1,5 +1,5 @@
-import { vCreateUser, vOnSignIn } from "../../lib/types.js";
-import { internalMutation } from "./_generated/server.js";
+import { vCreateUser, vOnSignIn } from "../../lib/types.ts";
+import { internalMutation } from "./_generated/server.ts";
 import { Infer, v } from "convex/values";
 
 /**

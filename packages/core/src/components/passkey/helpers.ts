@@ -1,6 +1,6 @@
-import { Doc, Id } from "./_generated/dataModel.js";
-import { MutationCtx, QueryCtx } from "./_generated/server.js";
-import { CHALLENGE_TTL_MS } from "./validation.js";
+import { Doc, Id } from "./_generated/dataModel.ts";
+import { MutationCtx, QueryCtx } from "./_generated/server.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
 
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength

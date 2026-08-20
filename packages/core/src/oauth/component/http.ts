@@ -1,15 +1,15 @@
 import { GenericActionCtx, GenericDataModel, httpRouter } from "convex/server";
-import { env, httpAction } from "./_generated/server.js";
-import { internal } from "./_generated/api.js";
-import { CALLBACK_PATH } from "./constants.js";
+import { env, httpAction } from "./_generated/server.ts";
+import { internal } from "./_generated/api.ts";
+import { CALLBACK_PATH } from "./constants.ts";
 import {
   decodeJwtPayloadUnverified,
   encryptTicketPayload,
   generateRandomToken,
   type IssuerDeliveredJwt,
-} from "./crypto.js";
-import { sha256Hex } from "../../lib/crypto.js";
-import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.js";
+} from "./crypto.ts";
+import { sha256Hex } from "../../lib/crypto.ts";
+import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
 
 const http = httpRouter();
 

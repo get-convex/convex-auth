@@ -1,26 +1,26 @@
 import { Infer, v } from "convex/values";
-import { mutation } from "./_generated/server.js";
+import { mutation } from "./_generated/server.ts";
 import {
   ClientDataType,
   createAssertionSignatureMessage,
   parseAuthenticatorData,
   parseClientDataJSON,
-} from "../../vendor/oslo/webauthn/index.js";
+} from "../../vendor/oslo/webauthn/index.ts";
 import {
   decodePKIXECDSASignature,
   decodeSEC1PublicKey,
   p256,
   verifyECDSASignature,
-} from "../../vendor/oslo/crypto/ecdsa.js";
+} from "../../vendor/oslo/crypto/ecdsa.ts";
 import {
   decodePKCS1RSAPublicKey,
   sha256ObjectIdentifier,
   verifyRSASSAPKCS1v15Signature,
-} from "../../vendor/oslo/crypto/rsa.js";
-import { sha256 } from "../../vendor/oslo/crypto/sha2.js";
-import { finishAuthenticationUserError } from "./validation.js";
-import { consumeChallenge, randomChallenge } from "./helpers.js";
-import { scheduleChallengeCleanup } from "./cleanup.js";
+} from "../../vendor/oslo/crypto/rsa.ts";
+import { sha256 } from "../../vendor/oslo/crypto/sha2.ts";
+import { finishAuthenticationUserError } from "./validation.ts";
+import { consumeChallenge, randomChallenge } from "./helpers.ts";
+import { scheduleChallengeCleanup } from "./cleanup.ts";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
 // `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
@@ -87,8 +87,8 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
 /**
  * Finish an authentication ceremony.
  *
- * The app supplies `expectedRpId` and `expectedOrigin`; see
- * {@link import("./registration.js").finishRegistration}.
+ * The app supplies `expectedRpId` and `expectedOrigin`, as it does for
+ * `finishRegistration`.
  *
  * The function finds the credential. Then it examines the authenticator
  * data, the client data, and the assertion signature. It deletes the

@@ -1,12 +1,12 @@
 import { Infer, v } from "convex/values";
-import type { UserCallbacks } from "../../lib/types.js";
-import type { AuthCore } from "../../components/core/setup.js";
+import type { UserCallbacks } from "../../lib/types.ts";
+import type { AuthCore } from "../../components/core/setup.ts";
 import {
   setupOauth,
   type OauthCatalog,
   type OauthProfile,
   type OauthProviderOptions,
-} from "./setup.js";
+} from "./setup.ts";
 
 /**
  * The account profile the GitHub provider produces. GitHub is plain OAuth

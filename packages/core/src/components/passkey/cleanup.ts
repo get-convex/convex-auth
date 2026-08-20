@@ -1,10 +1,10 @@
 import { v } from "convex/values";
 import { defineBatchWorkerValidators, ping } from "@convex-dev/batch-worker";
-import { components, internal } from "./_generated/api.js";
-import { internalMutation, internalQuery } from "./_generated/server.js";
-import type { MutationCtx } from "./_generated/server.js";
-import { CHALLENGE_TTL_MS } from "./validation.js";
-import { deleteDeadChallenge } from "./helpers.js";
+import { components, internal } from "./_generated/api.ts";
+import { internalMutation, internalQuery } from "./_generated/server.ts";
+import type { MutationCtx } from "./_generated/server.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { deleteDeadChallenge } from "./helpers.ts";
 
 // The name of the batch worker loop that erases expired challenges. Only one
 // loop is necessary, so the name is constant.

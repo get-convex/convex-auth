@@ -8,10 +8,10 @@ import {
   RSAPublicKey,
   sha256ObjectIdentifier,
   verifyRSASSAPKCS1v15Signature,
-} from "./rsa.js";
-import { bigIntFromBytes } from "../binary/index.js";
-import { decodeBase64urlIgnorePadding } from "../encoding/index.js";
-import { sha256 } from "./sha2.js";
+} from "./rsa.ts";
+import { bigIntFromBytes } from "../binary/index.ts";
+import { decodeBase64urlIgnorePadding } from "../encoding/index.ts";
+import { sha256 } from "./sha2.ts";
 
 const data = new TextEncoder().encode("hello world");
 

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa.js";
-import { api } from "./_generated/api.js";
-import { toArrayBuffer } from "./helpers.js";
-import { CHALLENGE_TTL_MS } from "./validation.js";
-import { expectSameBytes, setup } from "../passkeyTestSetup.js";
+import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa.ts";
+import { api } from "./_generated/api.ts";
+import { toArrayBuffer } from "./helpers.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { expectSameBytes, setup } from "../passkeyTestSetup.ts";
 import {
   ORIGIN,
   RP_ID,
@@ -14,7 +14,7 @@ import {
   generateES256Credential,
   generateRS256Credential,
   register,
-} from "./testAuthenticator.js";
+} from "./testAuthenticator.ts";
 
 function handleRows(t: ReturnType<typeof setup>) {
   return t.run((ctx) => ctx.db.query("handles").collect());
