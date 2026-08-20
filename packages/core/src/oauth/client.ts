@@ -14,9 +14,9 @@ import {
   getFunctionName,
   makeFunctionReference,
 } from "convex/server";
-import type { AuthProviderClientSetup } from "../browser/providerSetup";
+import type { AmbientSignInClient } from "../browser/ambientSignInClient";
 import { retryOnNetworkError } from "../browser/retry";
-import type { ScopedStorage } from "../browser/storage";
+import type { SignInStorage } from "../browser/storage";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams";
 import type { TokenBundle } from "../lib/types";
 
@@ -99,7 +99,7 @@ export type SignInOptions = {
  */
 export type SignInOutcome = { redirect: URL } | { signedIn: boolean };
 
-/** The sign-in actions {@link oauth} registers in the auth client's store. */
+/** The sign-in actions {@link oauth} publishes for its hooks to read. */
 export type OauthActions = {
   /**
    * Start the given provider's OAuth flow, or finish a saved one when
@@ -114,12 +114,12 @@ export type OauthActions = {
 /** The id {@link oauth} registers under. */
 export const OAUTH_SETUP_ID = "oauth";
 
-/** Store key where {@link oauth} registers its {@link OauthActions}. */
+/** Key {@link oauth} publishes its {@link OauthActions} under. */
 export const OAUTH_ACTIONS_KEY = "actions";
 
 /**
- * Store key holding the current {@link OauthFlowError}, or `null` when the
- * last attempt was fine. It is set at registration, so `undefined` means
+ * Key holding the current {@link OauthFlowError}, or `null` when the last
+ * attempt was fine. It is set at registration, so `undefined` means
  * {@link oauth} was never registered.
  */
 export const OAUTH_FLOW_ERROR_KEY = "flowError";
@@ -157,7 +157,7 @@ type PendingFlow = {
  * be used again anyway.
  */
 async function takePendingFlow(
-  storage: ScopedStorage,
+  storage: SignInStorage,
 ): Promise<PendingFlow | null> {
   const raw = await storage.get(OAUTH_FLOW_STORAGE_KEY);
   await storage.remove(OAUTH_FLOW_STORAGE_KEY);
@@ -192,16 +192,16 @@ async function takePendingFlow(
  * startup work that finishes a flow. Provider mutations arrive with each
  * {@link OauthActions.signIn} call, so the setup takes no configuration.
  */
-export function oauth(): AuthProviderClientSetup {
-  const setup: AuthProviderClientSetup["setup"] = ({
+export function oauth(): AmbientSignInClient {
+  const setup: AmbientSignInClient["setup"] = ({
     client,
-    store,
+    values,
     storage,
     signInApi,
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
     const setFlowError = (code: OauthFlowErrorCode | null): void => {
-      store.set(
+      values.set(
         OAUTH_FLOW_ERROR_KEY,
         code === null ? null : { code, message: FLOW_ERROR_MESSAGES[code] },
       );
@@ -308,7 +308,7 @@ export function oauth(): AuthProviderClientSetup {
       return { redirect: url };
     };
 
-    store.set(OAUTH_ACTIONS_KEY, { signIn } satisfies OauthActions);
+    values.set(OAUTH_ACTIONS_KEY, { signIn } satisfies OauthActions);
     setFlowError(null);
     return { onInit: handleCallback };
   };

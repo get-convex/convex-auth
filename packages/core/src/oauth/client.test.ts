@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { getFunctionName, makeFunctionReference } from "convex/server";
-import type { AuthSignInApi } from "../browser/providerSetup";
+import type { AuthSignInApi } from "../browser/ambientSignInClient";
 import { AuthClient, type AuthState } from "../browser/sessionManager";
 import { InMemoryStorage, NamespacedStorage } from "../browser/storage";
 import type { TokenBundle } from "../lib/types";
@@ -38,9 +38,9 @@ const ACME_REFS: OauthProviderRefs = {
   completeSignIn: acmeComplete,
 };
 
-/** The oauth setup's scoped storage view over `storage`. */
+/** The oauth sign-in's scoped storage view over `storage`. */
 function flowStorage(storage: InMemoryStorage) {
-  return new NamespacedStorage(storage, NAMESPACE).scoped(OAUTH_SETUP_ID);
+  return new NamespacedStorage(storage, NAMESPACE).forSignIn(OAUTH_SETUP_ID);
 }
 
 /** Store a pending flow the way `signIn` would before navigating away. */
@@ -67,12 +67,12 @@ function setupOAuth({ storage = new InMemoryStorage() } = {}) {
     authApi: { refreshSession: async () => null, signOut: async () => {} },
     storage,
     storageNamespace: NAMESPACE,
-    providerClients: { setups: [oauth()], signInApi },
+    ambientSignIns: { signIns: [oauth()], signInApi },
   });
-  const oauthState = client.providerState(OAUTH_SETUP_ID);
-  const actions = oauthState.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
+  const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
+  const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
   const flowError = () =>
-    oauthState.get<OauthFlowError | null>(OAUTH_FLOW_ERROR_KEY);
+    oauthValues.get<OauthFlowError | null>(OAUTH_FLOW_ERROR_KEY);
   return { client, mutation, actions, flowError, storage };
 }
 
@@ -110,7 +110,7 @@ describe("OAuth client", () => {
           },
           storage: new InMemoryStorage(),
           storageNamespace: NAMESPACE,
-          providerClients: { setups: [oauth(), oauth()], signInApi },
+          ambientSignIns: { signIns: [oauth(), oauth()], signInApi },
         }),
     ).toThrow(/registered twice/);
   });
