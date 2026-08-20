@@ -1,29 +1,26 @@
 import { Infer, v } from "convex/values";
 import { mutation } from "./_generated/server.ts";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import type {
+  AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
+} from "@simplewebauthn/server";
 import {
-  ClientDataType,
-  createAssertionSignatureMessage,
+  decodeClientDataJSON,
+  isoBase64URL,
   parseAuthenticatorData,
-  parseClientDataJSON,
-} from "../../vendor/oslo/webauthn/index.ts";
-import {
-  decodePKIXECDSASignature,
-  decodeSEC1PublicKey,
-  p256,
-  verifyECDSASignature,
-} from "../../vendor/oslo/crypto/ecdsa.ts";
-import {
-  decodePKCS1RSAPublicKey,
-  sha256ObjectIdentifier,
-  verifyRSASSAPKCS1v15Signature,
-} from "../../vendor/oslo/crypto/rsa.ts";
-import { sha256 } from "../../vendor/oslo/crypto/sha2.ts";
+} from "@simplewebauthn/server/helpers";
 import {
   credentialDescriptor,
   finishAuthenticationUserError,
   validatePurpose,
 } from "./validation.ts";
-import { consumeChallenge, okOrNull, randomChallenge } from "./helpers.ts";
+import {
+  consumeChallenge,
+  okOrNull,
+  randomChallenge,
+  rpIdHashMatches,
+} from "./helpers.ts";
 import { scheduleChallengeCleanup } from "./cleanup.ts";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
@@ -34,6 +31,11 @@ const startAuthenticationResult = v.object({
   challenge: v.bytes(),
   allowCredentials: v.array(credentialDescriptor),
 });
+
+/** Encode ceremony bytes the way `@simplewebauthn/server` reads them. */
+function toBase64URL(bytes: ArrayBuffer): string {
+  return isoBase64URL.fromBuffer(new Uint8Array(bytes));
+}
 
 /**
  * Start an authentication ceremony.
@@ -93,23 +95,6 @@ export const startAuthentication = mutation({
   },
 });
 
-/**
- * Verify an ES256 assertion signature.
- *
- * @throws on invalid input
- */
-function verifyES256Signature(
-  storedPublicKey: Uint8Array,
-  hash: Uint8Array,
-  signature: Uint8Array,
-): boolean {
-  return verifyECDSASignature(
-    decodeSEC1PublicKey(p256, storedPublicKey),
-    hash,
-    decodePKIXECDSASignature(signature),
-  );
-}
-
 const finishAuthenticationResult = v.union(
   v.object({
     success: v.literal(true),
@@ -159,9 +144,8 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "UNKNOWN_CREDENTIAL" } };
     }
 
-    const authenticatorDataBytes = new Uint8Array(args.authenticatorData);
     const authenticatorData = okOrNull(() =>
-      parseAuthenticatorData(authenticatorDataBytes),
+      parseAuthenticatorData(new Uint8Array(args.authenticatorData)),
     );
     if (authenticatorData === null) {
       console.warn(
@@ -170,7 +154,9 @@ export const finishAuthentication = mutation({
       );
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
-    if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
+    if (
+      !(await rpIdHashMatches(authenticatorData.rpIdHash, args.expectedRpId))
+    ) {
       console.warn(
         `Rejected the passkey ceremony: the authenticator data does not ` +
           `match the expected relying party ID ${JSON.stringify(args.expectedRpId)}. ` +
@@ -179,7 +165,7 @@ export const finishAuthentication = mutation({
       );
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
-    if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
+    if (!authenticatorData.flags.up || !authenticatorData.flags.uv) {
       // The ceremony asks for `userVerification: "required"`, thus
       // `userVerified`/`userPresent` should be set
       console.warn(
@@ -189,8 +175,24 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
-    const clientDataJSONBytes = new Uint8Array(args.clientDataJSON);
-    const clientData = okOrNull(() => parseClientDataJSON(clientDataJSONBytes));
+    // We need to parse the client data before we validate the signature
+    // to extract the challenge it contains, so that we can get the
+    // appropriate DB row.
+    // TODO(nicolas) After the wire format change, we’ll be able to avoid
+    //               the manual client data parsing by using the
+    //               callback variant of the `expectedChallenge`
+    //               argument of `verifyAuthenticationResponse`.`
+    const clientData = okOrNull(() => {
+      const parsed = decodeClientDataJSON(toBase64URL(args.clientDataJSON));
+      // The challenge is decoded inside this guarded read. A client data
+      // JSON that carries no `challenge` is a protocol violation, and must
+      // be refused like any other, not thrown out of the mutation.
+      return { ...parsed, challenge: isoBase64URL.toBuffer(parsed.challenge) };
+    });
+
+    // Here we perform a few checks manually. These checks are also done later by
+    // SimpleWebAuthn’s verifyAuthenticationResponse function, but doing these checks
+    // early allows us to give better error messages.
     if (clientData === null) {
       console.warn(
         `Rejected the passkey ceremony: the client data JSON could not be ` +
@@ -198,7 +200,7 @@ export const finishAuthentication = mutation({
       );
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
-    if (clientData.type !== ClientDataType.Get) {
+    if (clientData.type !== "webauthn.get") {
       console.warn(
         `Rejected the passkey ceremony: the client data type is ` +
           `"webauthn.create", but an authentication ceremony must send ` +
@@ -215,7 +217,8 @@ export const finishAuthentication = mutation({
       //   of subdomains (RP ID = example.com, allowed origins =
       //   [auth.example.com, dashboard.example.com] but NOT marketing.example.com)
       // For these reasons, we will probably want to offer more customization options
-      // for this check in the future.
+      // for this check in the future. `expectedOrigin` already takes an array
+      // in `@simplewebauthn/server`, so the list case is a small change.
       console.warn(
         `Rejected the passkey ceremony: the ceremony ran at the origin ` +
           `${JSON.stringify(clientData.origin)}, but the expected origin is ` +
@@ -270,32 +273,63 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
-    const hash = sha256(
-      createAssertionSignatureMessage(
-        authenticatorDataBytes,
-        clientDataJSONBytes,
-      ),
-    );
-    const signature = new Uint8Array(args.signature);
-    const storedPublicKey = new Uint8Array(passkey.publicKey);
-    let valid: boolean;
-    if (passkey.algorithm === "ES256") {
-      valid =
-        okOrNull(() =>
-          verifyES256Signature(storedPublicKey, hash, signature),
-        ) ?? false;
-    } else {
-      valid =
-        okOrNull(() =>
-          verifyRSASSAPKCS1v15Signature(
-            decodePKCS1RSAPublicKey(storedPublicKey),
-            sha256ObjectIdentifier,
-            hash,
-            signature,
-          ),
-        ) ?? false;
+    const credentialId = toBase64URL(args.credentialId);
+    const response: AuthenticationResponseJSON = {
+      id: credentialId,
+      rawId: credentialId,
+      response: {
+        clientDataJSON: toBase64URL(args.clientDataJSON),
+        authenticatorData: toBase64URL(args.authenticatorData),
+        signature: toBase64URL(args.signature),
+      },
+      clientExtensionResults: {},
+      type: "public-key",
+    };
+
+    // The relying party ID hash, the user-presence and user-verification
+    // flags, and the assertion signature are all checked here. The stored
+    // key is a COSE key, which names its own algorithm, so there is no
+    // ES256/RS256 branch: `verifyAuthenticationResponse` reads the algorithm
+    // out of the key and picks the verifier.
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response,
+        expectedChallenge: toBase64URL(challengeRow.challenge),
+        expectedOrigin: args.expectedOrigin,
+        expectedRPID: args.expectedRpId,
+        credential: {
+          id: credentialId,
+          publicKey: new Uint8Array(passkey.publicKey),
+          // Deliberately 0, never the stored counter.
+          // `verifyAuthenticationResponse` otherwise refuses an assertion
+          // whose counter did not grow, and this component does not enforce
+          // the counter: most authenticators always report 0, and a synced
+          // passkey can report a counter that moved backwards. The value
+          // below is still recorded, so a future flow can use it.
+          // https://www.imperialviolet.org/2023/08/05/signature-counters.html
+          counter: 0,
+          // The database keeps the transports as free-form strings, because
+          // the WebAuthn spec lets new ones appear.
+          transports: passkey.transports as
+            AuthenticatorTransportFuture[] | undefined,
+        },
+        requireUserVerification: true,
+      });
+    } catch (cause) {
+      // The message names the check that failed: a relying party ID hash
+      // that does not match, a missing user verification, a bad signature,
+      // and so on. It stays in the backend logs, and the client only learns
+      // that the ceremony was refused.
+      console.warn(
+        `Rejected the passkey ceremony: the assertion did not verify. ` +
+          `If this happens for every ceremony, check that the \`rpId\` and ` +
+          `the \`origin\` of the provider match the page that ran it. ` +
+          `${String(cause)}`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
-    if (!valid) {
+    if (!verification.verified) {
       console.warn(
         `Rejected the passkey ceremony: the assertion signature does not ` +
           `match the public key of the credential.`,
@@ -309,7 +343,7 @@ export const finishAuthentication = mutation({
     // https://www.imperialviolet.org/2023/08/05/signature-counters.html
     // TODO(nicolas) Also record `lastUsedAt` here when the field exists.
     await ctx.db.patch("passkeys", passkey._id, {
-      counter: authenticatorData.signatureCounter,
+      counter: verification.authenticationInfo.newCounter,
     });
     return {
       success: true,

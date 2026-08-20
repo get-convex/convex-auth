@@ -11,9 +11,7 @@ export default defineSchema({
     name: v.optional(v.string()),
     // The raw credential ID bytes (the WebAuthn `rawId`).
     credentialId: v.bytes(),
-    algorithm: v.union(v.literal("ES256"), v.literal("RS256")),
-    // The encoded public key for signature checks. The format is a SEC1
-    // uncompressed point for ES256, and PKCS#1 DER for RS256.
+    // The COSE public key (this contains the key, algorithm and curve).
     publicKey: v.bytes(),
     // The signature counter. The value is 0 if the authenticator does not
     // use a counter. When the authenticator supports the counter, it is

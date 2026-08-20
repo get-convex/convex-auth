@@ -1,3 +1,4 @@
+import { isoUint8Array, toHash } from "@simplewebauthn/server/helpers";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
@@ -11,6 +12,22 @@ export function okOrNull<T>(read: () => T): T | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Tell whether the relying party ID hash inside authenticator data names the
+ * expected relying party.
+ *
+ * `verifyRegistrationResponse` and `verifyAuthenticationResponse` check this
+ * too. It is checked separately, and first, because a mismatch is almost
+ * always a misconfigured `rpId`. The message of the library names the check
+ * that failed; this one names the setting of the provider to correct.
+ */
+export async function rpIdHashMatches(
+  rpIdHash: Uint8Array<ArrayBuffer>,
+  expectedRpId: string,
+): Promise<boolean> {
+  return isoUint8Array.areEqual(rpIdHash, await toHash(expectedRpId));
 }
 
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
