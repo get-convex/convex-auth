@@ -95,5 +95,15 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         },
         Name
       >;
+      signUpWithoutSession: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          claims: { profile: any; provider: string; providerAccountId: string };
+          createUserHandle: string;
+        },
+        { userId: string },
+        Name
+      >;
     };
   };

@@ -333,6 +333,22 @@ export function setupCore<UsersTable extends string = "users">(options: {
           refreshTokenTtlSeconds,
         });
       },
+      // Creates the app user + account without a session, for providers where
+      // the user must complete a step (e.g. an email validation) before the
+      // first sign-in.
+      signUpWithoutSession: async (args: {
+        providerAccountId: string;
+        profile: Profile;
+      }): Promise<{ userId: string }> => {
+        return await ctx.runMutation(component.public.signUpWithoutSession, {
+          claims: {
+            provider: name,
+            providerAccountId: args.providerAccountId,
+            profile: args.profile,
+          },
+          createUserHandle: await createFunctionHandle(createUser),
+        });
+      },
       resolveUserId: async (
         providerAccountId: string,
       ): Promise<string | null> => {
