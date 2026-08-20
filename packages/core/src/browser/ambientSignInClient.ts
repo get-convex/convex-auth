@@ -26,6 +26,10 @@
  *    around a sign-in completion, so the auth state reports loading rather
  *    than briefly signed out.
  *
+ * `onInit` must gate its own work. A binding can register a setup the app
+ * never asked for, so `onInit` should return right away unless it finds a
+ * sign of its own flow, like a URL param or a storage key it wrote itself.
+ *
  * The Convex imports are type-only. Like `SpaAuthApi`, this contract keeps
  * ambient sign-in logic free of any particular Convex client class, so
  * non-React bindings can drive the same setups.

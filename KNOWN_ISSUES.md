@@ -23,6 +23,17 @@ sign-in with an explicit error naming this requirement.
 
 No action item, just here for awareness.
 
+## One pending OAuth flow per storage
+
+The client keeps a single pending-flow key (`flow` in the oauth setup's
+scoped storage, `packages/core/src/oauth/client.ts`). Two sign-ins running concurrently in
+different tabs overwrite each other, and both fail recoverably (`expired` /
+`invalid_flow`); retrying works.
+
+Fix direction: keyed pending flows selected by a non-secret flow id carried
+in the redirect URL. The state itself must still never be read from the URL,
+preserving the login-CSRF property.
+
 ## Support for custom url schemes (eg., React Native)
 
 `allowedRedirectOrigins` entries must be http(s) origins - custom schemes
