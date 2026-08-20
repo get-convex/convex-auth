@@ -1,13 +1,18 @@
 import {
   vSignInSuccess,
   type SignInSuccess,
-  type UserCallbacks,
+  type AnyUserCallback,
+  type OnSignInFn,
+  type UserCallbacksFor,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
 import { ComponentApi } from "./_generated/component";
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "anonymous";
+
+/** An anonymous account carries nothing about the user. */
+type AnonymousProfile = Record<string, never>;
 
 /**
  * An anonymous accounts provider.
@@ -38,18 +43,33 @@ export function setupAnonymous<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
-     * args must be declared) and get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
+     * their args must be declared) and get this provider's functions to export.
      *
      * Every anonymous sign-in establishes a new account, so `createUser` runs
      * every time. An `onSignIn` is still worth attaching for work an app does
-     * on every sign-in whatever the provider, since it runs right afterwards.
+     * on every sign-in whatever the provider, since it runs right afterwards —
+     * and because the callbacks only have to *accept* what this provider calls
+     * them with, that can be the very same mutation another provider uses.
      */
-    attachUserCallbacks({
+    attachUserCallbacks<
+      CreateUser extends AnyUserCallback,
+      OnSignIn extends AnyUserCallback = OnSignInFn<
+        "anonymous",
+        AnonymousProfile,
+        UsersTable
+      >,
+    >({
       createUser,
       onSignIn,
-    }: UserCallbacks<"anonymous", Record<string, never>, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+    }: UserCallbacksFor<
+      CreateUser,
+      OnSignIn,
+      "anonymous",
+      AnonymousProfile,
+      UsersTable
+    >) {
+      const { authMutation } = core.bindProvider<AnonymousProfile>({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,

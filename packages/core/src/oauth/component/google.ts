@@ -1,5 +1,9 @@
 import { Infer, v } from "convex/values";
-import type { UserCallbacks } from "../../lib/types";
+import type {
+  AnyUserCallback,
+  OnSignInFn,
+  UserCallbacksFor,
+} from "../../lib/types";
 import type { AuthCore } from "../../components/core/setup";
 import {
   setupOauth,
@@ -85,11 +89,28 @@ export function setupGoogle<UsersTable extends string>(
 ) {
   return {
     /**
-     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
-     * args must be declared) and get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
+     * their args must be declared) and get this provider's functions to export.
+     *
+     * The callbacks only have to *accept* what this provider calls them with,
+     * so a mutation declaring a union of provider names and profile shapes can
+     * be attached here and to other providers as well.
      */
-    attachUserCallbacks(
-      callbacks: UserCallbacks<"google", GoogleProfile, UsersTable>,
+    attachUserCallbacks<
+      CreateUser extends AnyUserCallback,
+      OnSignIn extends AnyUserCallback = OnSignInFn<
+        "google",
+        GoogleProfile,
+        UsersTable
+      >,
+    >(
+      callbacks: UserCallbacksFor<
+        CreateUser,
+        OnSignIn,
+        "google",
+        GoogleProfile,
+        UsersTable
+      >,
     ) {
       const { startSignIn, completeSignIn } = setupOauth(
         core,

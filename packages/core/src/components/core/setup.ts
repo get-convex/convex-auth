@@ -17,7 +17,7 @@ import {
   vTokenBundle,
   type TokenBundle,
   type ConvexAuthCtx,
-  type UserCallbacks,
+  type BoundUserCallbacks,
 } from "../../lib/types";
 
 /**
@@ -135,17 +135,25 @@ export type AuthCore<UsersTable extends string = string> = {
    * providers sharing a name would silently share accounts).
    *
    * `createUser` is the app's user-creating callback for this provider and
-   * `onSignIn` is its optional per-sign-in hook (see {@link UserCallbacks}).
+   * `onSignIn` is its optional per-sign-in hook (see
+   * {@link BoundUserCallbacks}).
    *
    * Provider setup functions call this from inside their `attachUserCallbacks`,
    * once the app has supplied the callbacks, so the builders can close over
    * them and a provider with no way to create users cannot exist. It is not
    * meant to be called by application code directly.
+   *
+   * The callbacks arrive already checked against this provider by its
+   * `attachUserCallbacks` — that is the boundary where the app's references are
+   * compared with what the provider calls them with — so the core asks only
+   * that they be internal mutations it can make handles out of. `Profile` is
+   * therefore no longer inferrable from them and each provider passes it
+   * explicitly; it types the `profile` its handlers hand to the helpers.
    */
-  bindProvider<Provider extends string, Profile>(
+  bindProvider<Profile>(
     options: {
-      name: Provider;
-    } & UserCallbacks<Provider, Profile, UsersTable>,
+      name: string;
+    } & BoundUserCallbacks,
   ): ProviderBuilders<Profile>;
 };
 
@@ -268,17 +276,13 @@ export function setupCore<UsersTable extends string = "users">(options: {
   // two providers on the same core, whose accounts would silently share rows.
   const boundProviderNames = new Set<string>();
 
-  const bindProvider = <Provider extends string, Profile>({
+  const bindProvider = <Profile>({
     name,
     createUser,
     onSignIn,
   }: {
-    name: Provider;
-  } & UserCallbacks<
-    Provider,
-    Profile,
-    UsersTable
-  >): ProviderBuilders<Profile> => {
+    name: string;
+  } & BoundUserCallbacks): ProviderBuilders<Profile> => {
     if (boundProviderNames.has(name)) {
       throw new Error(
         `A provider named "${name}" is already bound to this auth core. ` +

@@ -3,7 +3,9 @@ import { v } from "convex/values";
 import {
   vTokenBundle,
   type TokenBundle,
-  type UserCallbacks,
+  type AnyUserCallback,
+  type OnSignInFn,
+  type UserCallbacksFor,
 } from "../../lib/types";
 import type { AuthCore } from "../../components/core/setup";
 import type { ComponentApi } from "./_generated/component.js";
@@ -147,12 +149,20 @@ export function setupOauth<
   Provider extends string,
   Profile extends { id: string },
   UsersTable extends string,
+  CreateUser extends AnyUserCallback,
+  OnSignIn extends AnyUserCallback = OnSignInFn<Provider, Profile, UsersTable>,
   UserInfo extends Record<string, unknown> = Record<string, unknown>,
 >(
   core: AuthCore<UsersTable>,
   providerName: Provider,
   catalog: OauthCatalog<Profile, UserInfo>,
-  callbacks: UserCallbacks<Provider, Profile, UsersTable>,
+  callbacks: UserCallbacksFor<
+    CreateUser,
+    OnSignIn,
+    Provider,
+    Profile,
+    UsersTable
+  >,
   options: OauthProviderOptions,
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy
@@ -193,7 +203,7 @@ export function setupOauth<
     );
   }
 
-  const { authMutation } = core.bindProvider({
+  const { authMutation } = core.bindProvider<Profile>({
     name: providerName,
     createUser: callbacks.createUser,
     onSignIn: callbacks.onSignIn,

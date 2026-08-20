@@ -2,7 +2,9 @@ import { Infer, v } from "convex/values";
 import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
-  type UserCallbacks,
+  type AnyUserCallback,
+  type OnSignInFn,
+  type UserCallbacksFor,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
 import type { ComponentApi } from "./_generated/component.js";
@@ -19,6 +21,9 @@ import {
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "password";
+
+/** What this provider tells the app about a user: just the username. */
+type PasswordProfile = { username: string };
 
 /**
  * Options for {@link setupUsernamePassword}.
@@ -101,14 +106,31 @@ export function setupUsernamePassword<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
-     * args must be declared) and get this provider's functions to export.
+     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
+     * their args must be declared) and get this provider's functions to export.
+     *
+     * The callbacks only have to *accept* what this provider calls them with,
+     * so a mutation declaring a union of provider names and profile shapes can
+     * be attached here and to other providers as well.
      */
-    attachUserCallbacks({
+    attachUserCallbacks<
+      CreateUser extends AnyUserCallback,
+      OnSignIn extends AnyUserCallback = OnSignInFn<
+        "password",
+        PasswordProfile,
+        UsersTable
+      >,
+    >({
       createUser,
       onSignIn,
-    }: UserCallbacks<"password", { username: string }, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+    }: UserCallbacksFor<
+      CreateUser,
+      OnSignIn,
+      "password",
+      PasswordProfile,
+      UsersTable
+    >) {
+      const { authMutation } = core.bindProvider<PasswordProfile>({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,
