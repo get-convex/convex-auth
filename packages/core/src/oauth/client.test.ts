@@ -264,7 +264,7 @@ describe("OAuth client", () => {
     expect(client.getSnapshot().isAuthenticated).toBe(false);
   });
 
-  test("an app rejection with non-string data gets the default copy", async () => {
+  test("an app rejection with non-string data carries no message", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
@@ -274,7 +274,9 @@ describe("OAuth client", () => {
     await client.init();
 
     await vi.waitFor(() => expect(flowError()?.code).toBe("rejected"));
-    expect(flowError()?.message).toBe("Sign-in was declined.");
+    // Only a string carries copy the app meant for the user, so there is
+    // nothing to show here.
+    expect(flowError()?.message).toBeUndefined();
   });
 
   test("a rejecting storage during redemption sets oauth_error", async () => {
