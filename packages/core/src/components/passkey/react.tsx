@@ -2,13 +2,18 @@
  * React client for the passkey provider, exported at
  * `@convex-dev/auth/providers/passkey/react`.
  *
- * The React client wraps the browser-side WebAuthentication code
- * (`navigator.credentials`). It exports a `usePasskey` hook that is used
+ * The React client wraps `@simplewebauthn/browser`, which owns the
+ * `navigator.credentials` calls. It exports a `usePasskey` hook that is used
  * on the passkey login form, which handles both:
  * - Manually logging in by providing an identifier (e.g. username)
  *   then registering a new passkey or logging in
  * - Passkey autofill (conditional mediation) where the user selects an account
  *   directly in the autocompletion list.
+ *
+ * The server sends complete ceremony options, so this module never builds a
+ * `publicKey` option object and never states which algorithms or which
+ * resident-key policy the ceremony uses. It forwards `optionsJSON` to
+ * `@simplewebauthn/browser` and forwards the response back.
  *
  * @module
  */
@@ -16,6 +21,18 @@
 
 import type { FunctionReference } from "convex/server";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  browserSupportsWebAuthn,
+  browserSupportsWebAuthnAutofill,
+  startAuthentication,
+  startRegistration,
+  WebAuthnAbortService,
+  WebAuthnError,
+} from "@simplewebauthn/browser";
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+} from "@simplewebauthn/browser";
 import type { ClientView } from "../../lib/types";
 import { useAuthActions, useAuthSignInApi } from "../../react";
 import type {
@@ -57,11 +74,7 @@ type StartAutofillSignInMutation = FunctionReference<
 type FinishSignUpMutation = FunctionReference<
   "mutation",
   "public",
-  {
-    username: string;
-    attestationObject: ArrayBuffer;
-    clientDataJSON: ArrayBuffer;
-  },
+  { username: string; response: RegistrationResponseJSON },
   ClientView<FinishSignUpResult>
 >;
 
@@ -71,12 +84,7 @@ type FinishSignUpMutation = FunctionReference<
 type FinishSignInMutation = FunctionReference<
   "mutation",
   "public",
-  {
-    credentialId: ArrayBuffer;
-    authenticatorData: ArrayBuffer;
-    clientDataJSON: ArrayBuffer;
-    signature: ArrayBuffer;
-  },
+  { response: AuthenticationResponseJSON },
   ClientView<FinishSignInResult>
 >;
 
@@ -94,15 +102,17 @@ export type PasskeyApi = {
  * one `userError` switch and never need their own `try`/`catch`:
  *
  * - `CEREMONY_ABORTED`: the user dismissed the passkey dialog, the browser
- *   refused the ceremony (`NotAllowedError`), or a second `signIn` call
- *   came in while one was already running (the browser would refuse the
- *   second modal ceremony anyway). This is the most common failure; show a
- *   calm "sign-in was cancelled" message.
+ *   refused the ceremony, or a second ceremony started on the page while
+ *   one was already running (`@simplewebauthn/browser` allows only one at a
+ *   time). This is the most common failure; show a calm "sign-in was
+ *   cancelled" message.
  * - `WEBAUTHN_UNSUPPORTED`: the browser has no WebAuthn support, or the
  *   page is not a secure context.
  * - `OTHER_ERROR`: everything else thrown (a network blip, a bug, an
  *   unexpected server error). The thrown value is preserved on `cause` for
- *   callers that want to inspect or log it.
+ *   callers that want to inspect or log it. A `WebAuthnError` from
+ *   `@simplewebauthn/browser` carries a `code` field that names the exact
+ *   cause, which is worth logging.
  */
 type ClientFailure = {
   success: false;
@@ -162,8 +172,9 @@ const AUTOFILL_REFRESH_MS = CHALLENGE_TTL_MS - 2 * 60 * 1000;
 // the autofill flow stops instead of asking the browser again.
 const MAX_AUTOFILL_FAILURES = 3;
 
-// The values a pending autofill `credentials.get()` is aborted with. The
-// promise rejects with the abort reason, so the loop can tell why it woke.
+// Why the autofill loop cancelled its own pending ceremony. Every
+// cancellation surfaces as the same `ERROR_CEREMONY_ABORTED`, so the loop
+// records its intent at the moment it issues the cancel.
 type AutofillAbortReason = "STOP" | "REFRESH" | "PAUSE";
 
 /**
@@ -177,18 +188,27 @@ type AutofillHandle = {
 };
 
 function supportsWebAuthn(): boolean {
+  // `browserSupportsWebAuthn` looks for the API. The secure-context check
+  // is kept separate because it produces a different, more useful message
+  // than the `SecurityError` the ceremony would otherwise throw.
   return (
     typeof window !== "undefined" &&
-    typeof PublicKeyCredential !== "undefined" &&
+    browserSupportsWebAuthn() &&
     window.isSecureContext
   );
 }
 
-function isCeremonyAborted(cause: unknown): boolean {
-  // `NotAllowedError` is what the browser throws when the user dismisses
-  // the dialog, when the ceremony times out, and when the page is not
-  // allowed to run one. A `null` credential is handled separately.
-  return cause instanceof DOMException && cause.name === "NotAllowedError";
+/**
+ * Tell whether a thrown value is the abort of a WebAuthn ceremony that
+ * something on this page issued, rather than a refusal by the user or the
+ * browser. `@simplewebauthn/browser` reports the two differently: an
+ * `AbortError` becomes `ERROR_CEREMONY_ABORTED`, while a user dismissal
+ * arrives as a `NotAllowedError` passed through untouched.
+ */
+function isCeremonyAbort(error: unknown): boolean {
+  return (
+    error instanceof WebAuthnError && error.code === "ERROR_CEREMONY_ABORTED"
+  );
 }
 
 /**
@@ -196,142 +216,17 @@ function isCeremonyAborted(cause: unknown): boolean {
  * callers handle every failure through the one `userError` switch.
  */
 function foldClientError(cause: unknown): ClientFailure["userError"] {
-  if (isCeremonyAborted(cause)) {
+  if (isCeremonyAbort(cause)) {
+    return { error: "CEREMONY_ABORTED" };
+  }
+  // A user dismissal, a ceremony timeout, and a page that is not allowed to
+  // run one all arrive as `NotAllowedError`, which
+  // `@simplewebauthn/browser` forwards on `cause` rather than interpreting.
+  const domError = cause instanceof WebAuthnError ? cause.cause : cause;
+  if (domError instanceof DOMException && domError.name === "NotAllowedError") {
     return { error: "CEREMONY_ABORTED" };
   }
   return { error: "OTHER_ERROR", cause };
-}
-
-/**
- * When the thrown value is the abort of the given signal, return the abort
- * reason. Return `null` for every other error, even when the signal aborted
- * afterwards: a real failure can race a `PAUSE`/`REFRESH` abort, and the
- * signal alone would misattribute it.
- */
-function autofillAbortReason(
-  error: unknown,
-  signal: AbortSignal,
-): AutofillAbortReason | null {
-  if (error === "STOP" || error === "REFRESH" || error === "PAUSE") {
-    // The browser rejected with the abort reason itself.
-    return error;
-  }
-  if (
-    error instanceof DOMException &&
-    error.name === "AbortError" &&
-    signal.aborted
-  ) {
-    // The browser rejected with a generic `AbortError`: the reason is on
-    // the signal.
-    const reason = signal.reason as unknown;
-    if (reason === "REFRESH" || reason === "PAUSE") {
-      return reason;
-    }
-    return "STOP";
-  }
-  return null;
-}
-
-/** The `finishSignIn` arguments derived from a WebAuthn assertion. */
-type AssertionArgs = {
-  credentialId: ArrayBuffer;
-  authenticatorData: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  signature: ArrayBuffer;
-};
-
-/**
- * Turn an assertion credential into the `finishSignIn` arguments. Shared
- * between the modal authenticate path and the autofill path.
- */
-function assertionArgs(credential: PublicKeyCredential): AssertionArgs {
-  const response = credential.response as AuthenticatorAssertionResponse;
-  return {
-    // `rawId` carries the credential ID bytes; `credential.id` is the
-    // base64url form and must not be sent.
-    credentialId: credential.rawId,
-    authenticatorData: response.authenticatorData,
-    clientDataJSON: response.clientDataJSON,
-    signature: response.signature,
-  };
-}
-
-/**
- * Run the modal registration ceremony and return the `finishSignUp`
- * arguments, or `null` when the browser returns no credential.
- */
-async function runRegistrationCeremony(
-  username: string,
-  start: Extract<StartSignInResult, { step: "register" }>,
-): Promise<{
-  username: string;
-  attestationObject: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-} | null> {
-  const credential = (await navigator.credentials.create({
-    publicKey: {
-      challenge: start.challenge,
-      rp: { id: start.rpId, name: start.rpName },
-      // The handle comes from the server: the app user id cannot be used,
-      // because the user row does not exist yet.
-      user: {
-        id: start.userHandle,
-        name: username,
-        displayName: username,
-      },
-      // Exactly the algorithms the server accepts (ES256 and RS256; see
-      // the verification in `registration.ts`).
-      pubKeyCredParams: [
-        { type: "public-key", alg: -7 }, // ES256
-        { type: "public-key", alg: -257 }, // RS256
-      ],
-      // A discoverable credential is required for autofill, and the
-      // server hard-requires user verification.
-      authenticatorSelection: {
-        residentKey: "required",
-        requireResidentKey: true,
-        userVerification: "required",
-      },
-      attestation: "none",
-      excludeCredentials: start.excludeCredentials.map((id) => ({
-        type: "public-key",
-        id,
-      })),
-    },
-  })) as PublicKeyCredential | null;
-  if (credential === null) {
-    return null;
-  }
-  const response = credential.response as AuthenticatorAttestationResponse;
-  return {
-    username,
-    attestationObject: response.attestationObject,
-    clientDataJSON: response.clientDataJSON,
-  };
-}
-
-/**
- * Run the modal authentication ceremony and return the `finishSignIn`
- * arguments, or `null` when the browser returns no credential.
- */
-async function runAuthenticationCeremony(
-  start: Extract<StartSignInResult, { step: "authenticate" }>,
-): Promise<AssertionArgs | null> {
-  const credential = (await navigator.credentials.get({
-    publicKey: {
-      challenge: start.challenge,
-      rpId: start.rpId,
-      allowCredentials: start.allowCredentials.map((id) => ({
-        type: "public-key",
-        id,
-      })),
-      userVerification: "required",
-    },
-  })) as PublicKeyCredential | null;
-  if (credential === null) {
-    return null;
-  }
-  return assertionArgs(credential);
 }
 
 /**
@@ -371,6 +266,11 @@ async function runAuthenticationCeremony(
  * }
  * ```
  *
+ * The autofill flow needs an `<input>` whose `autocomplete` includes
+ * `webauthn` to be in the document: that is what makes the browser offer
+ * passkeys in the autocompletion list. Without it the request stays pending
+ * and no passkey is ever offered.
+ *
  * @param passkeyApi The app's re-exported passkey mutation references.
  * @param options Set `autofill: false` to keep the autofill request off.
  */
@@ -403,12 +303,13 @@ export function usePasskey(
   const cancelAutofillRef = useRef<() => void>(() => {});
 
   // The pause/resume handle of the pending autofill request; `null` while
-  // no autofill loop runs. Browsers reject a modal `credentials.create()`
-  // /`get()` while a conditional (autofill) request is pending on the same
-  // page, so the modal flow must pause the autofill request first and
-  // resume it when the modal ceremony is over. Both flows live in this
-  // hook, so the handle is instance state — a ref — and no cross-component
-  // coordination exists.
+  // no autofill loop runs. `@simplewebauthn/browser` keeps a single active
+  // ceremony per page and cancels the previous one when a new one starts,
+  // so the modal flow must park the autofill loop before it runs its own
+  // ceremony: otherwise the loop would see its request cancelled out from
+  // under it and could not tell that from a user dismissal. Both flows live
+  // in this hook, so the handle is instance state — a ref — and no
+  // cross-component coordination exists.
   const autofillHandleRef = useRef<AutofillHandle | null>(null);
 
   // The flows read the mutation references, the sign-in API and
@@ -456,14 +357,13 @@ export function usePasskey(
         }
 
         if (start.step === "register") {
-          const args = await runRegistrationCeremony(username, start);
-          if (args === null) {
-            return { success: false, userError: { error: "CEREMONY_ABORTED" } };
-          }
-          const result = await signInApi.mutation(
-            passkeyApi.finishSignUp,
-            args,
-          );
+          const response = await startRegistration({
+            optionsJSON: start.optionsJSON,
+          });
+          const result = await signInApi.mutation(passkeyApi.finishSignUp, {
+            username,
+            response,
+          });
           if (!result.success) {
             return result;
           }
@@ -471,11 +371,12 @@ export function usePasskey(
           return { ...result, flow: "signUp" };
         }
 
-        const args = await runAuthenticationCeremony(start);
-        if (args === null) {
-          return { success: false, userError: { error: "CEREMONY_ABORTED" } };
-        }
-        const result = await signInApi.mutation(passkeyApi.finishSignIn, args);
+        const response = await startAuthentication({
+          optionsJSON: start.optionsJSON,
+        });
+        const result = await signInApi.mutation(passkeyApi.finishSignIn, {
+          response,
+        });
         if (!result.success) {
           return result;
         }
@@ -504,14 +405,33 @@ export function usePasskey(
       setAutofillAvailable(false);
       return;
     }
-    // The outer controller lives for the whole effect. The cleanup aborts
-    // it with `STOP`, which makes the autofill flow StrictMode-safe by
-    // construction: the throwaway first mount's loop sees its own
-    // controller aborted and exits, while the second mount runs its own
-    // loop with its own controller.
+    // The controller lives for the whole effect and is the loop's own
+    // lifecycle flag. The cleanup aborts it, which makes the autofill flow
+    // StrictMode-safe by construction: the throwaway first mount's loop
+    // sees its own controller aborted and exits, while the second mount
+    // runs its own loop with its own controller.
     const outer = new AbortController();
-    cancelAutofillRef.current = () =>
-      outer.abort("STOP" satisfies AutofillAbortReason);
+
+    // Whether a browser ceremony is pending right now. Cancelling goes
+    // through a page-wide singleton, so the loop only ever cancels while
+    // one of *its* ceremonies is in flight, never a modal one.
+    let ceremonyPending = false;
+    // Why the loop cancelled, read by the `catch` below.
+    let selfAbort: AutofillAbortReason | null = null;
+    const cancelCeremony = (reason: AutofillAbortReason) => {
+      if (!ceremonyPending) {
+        return;
+      }
+      selfAbort = reason;
+      WebAuthnAbortService.cancelCeremony();
+    };
+
+    // Stopping has to do both: cancel the ceremony the browser is holding,
+    // and flip the loop's own flag so it does not start another one.
+    cancelAutofillRef.current = () => {
+      cancelCeremony("STOP");
+      outer.abort();
+    };
 
     // The pause/resume gates behind the {@link AutofillHandle} this effect
     // publishes on `autofillHandleRef`. The pauses are reference-counted,
@@ -519,7 +439,6 @@ export function usePasskey(
     // tab-visibility pause can overlap).
     let pauseCount = 0;
     let parked = false;
-    let inner: AbortController | null = null;
     let onParked: (() => void) | null = null;
     let onResumed: (() => void) | null = null;
     const handle: AutofillHandle = {
@@ -538,7 +457,7 @@ export function usePasskey(
             resolve();
           };
         });
-        inner?.abort("PAUSE" satisfies AutofillAbortReason);
+        cancelCeremony("PAUSE");
         return parkedPromise;
       },
       resume: () => {
@@ -570,18 +489,14 @@ export function usePasskey(
     }
 
     const run = async () => {
-      // Feature-detect conditional mediation. The method is a static one,
-      // and it is absent in older browsers: guard before calling it. Count
-      // a rejection as "not available": if it escaped, the promise chain
-      // below would reject unhandled and the hook would stay on
-      // `available: null` and `status: "idle"` forever.
+      // Feature-detect conditional mediation. Count a rejection as "not
+      // available": if it escaped, the promise chain below would reject
+      // unhandled and the hook would stay on `available: null` and
+      // `status: "idle"` forever.
       let supported = false;
       try {
         supported =
-          supportsWebAuthn() &&
-          typeof PublicKeyCredential.isConditionalMediationAvailable ===
-            "function" &&
-          (await PublicKeyCredential.isConditionalMediationAvailable());
+          supportsWebAuthn() && (await browserSupportsWebAuthnAutofill());
       } catch {
         // Keep `supported` as `false`.
       }
@@ -636,41 +551,31 @@ export function usePasskey(
           continue;
         }
 
-        inner = new AbortController();
-        const innerController = inner;
-        const forwardAbort = () =>
-          innerController.abort(outer.signal.reason ?? "STOP");
-        outer.signal.addEventListener("abort", forwardAbort, { once: true });
         // Refresh before the server's challenge TTL, so the challenge
         // that the user finally redeems is never expired.
         const refreshTimer = setTimeout(
-          () => innerController.abort("REFRESH" satisfies AutofillAbortReason),
+          () => cancelCeremony("REFRESH"),
           AUTOFILL_REFRESH_MS,
         );
+        ceremonyPending = true;
         try {
-          const credential = (await navigator.credentials.get({
-            mediation: "conditional",
-            signal: innerController.signal,
-            publicKey: {
-              challenge: start.challenge,
-              rpId: start.rpId,
-              userVerification: "required",
-              // No allow-list: the passkey the user picks identifies the
-              // account.
-              allowCredentials: [],
-            },
-          })) as PublicKeyCredential | null;
-          if (credential === null) {
-            setAutofillStatus("stopped");
-            return;
-          }
+          const response = await startAuthentication({
+            optionsJSON: start.optionsJSON,
+            useBrowserAutofill: true,
+            // `@simplewebauthn/browser` otherwise throws when no
+            // `autocomplete="... webauthn"` input is in the document. This
+            // hook cannot control when the consumer renders that input, and
+            // a throw here would stop the loop for good. Without the input
+            // the browser simply never offers a passkey, which is the same
+            // outcome as before this check existed.
+            verifyBrowserAutofillInput: false,
+          });
 
           setAutofillStatus("signingIn");
           const { passkeyApi, signInApi, setSession } = currentRef.current;
-          const result = await signInApi.mutation(
-            passkeyApi.finishSignIn,
-            assertionArgs(credential),
-          );
+          const result = await signInApi.mutation(passkeyApi.finishSignIn, {
+            response,
+          });
           if (result.success) {
             // Residual race with the modal flow: when the user resolves
             // the autofill assertion just before the modal flow pauses us,
@@ -692,29 +597,33 @@ export function usePasskey(
           }
           // Try again with a fresh challenge.
         } catch (error) {
-          // Look at the thrown value before the signal: a real failure
-          // can race a `PAUSE`/`REFRESH` abort, and the signal alone
-          // would misattribute it.
-          const reason = autofillAbortReason(error, innerController.signal);
-          if (reason === "REFRESH" || reason === "PAUSE") {
-            // The top of the loop starts a fresh request, or parks until
-            // `resume()`.
-            continue;
+          const intent = selfAbort;
+          selfAbort = null;
+          if (isCeremonyAbort(error)) {
+            if (intent === "REFRESH" || intent === "PAUSE") {
+              // The top of the loop starts a fresh request, or parks until
+              // `resume()`.
+              continue;
+            }
+            if (intent === "STOP" || outer.signal.aborted) {
+              return; // The hook unmounted or `cancel()` ran.
+            }
+            // Something else on the page started a ceremony and took ours
+            // with it (for example a second `usePasskey` instance).
+            // Restarting would fight it, so stop for good.
+            setAutofillLastError({ error: "CEREMONY_ABORTED" });
+            setAutofillStatus("stopped");
+            return;
           }
-          if (reason === "STOP") {
-            return; // The hook unmounted or `cancel()` ran.
-          }
-          // Includes `NotAllowedError` (a permissions-policy refusal or
-          // another pending request, e.g. from a second `usePasskey`
-          // instance): retrying would spin, so stop for good.
-          // `foldClientError` maps it to `CEREMONY_ABORTED`.
+          // A user dismissal or a refusal by the browser. Retrying would
+          // spin, so stop for good. `foldClientError` maps a
+          // `NotAllowedError` to `CEREMONY_ABORTED`.
           setAutofillLastError(foldClientError(error));
           setAutofillStatus("stopped");
           return;
         } finally {
+          ceremonyPending = false;
           clearTimeout(refreshTimer);
-          outer.signal.removeEventListener("abort", forwardAbort);
-          inner = null;
         }
       }
     };
@@ -734,7 +643,8 @@ export function usePasskey(
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
-      outer.abort("STOP" satisfies AutofillAbortReason);
+      cancelCeremony("STOP");
+      outer.abort();
     };
   }, [autofillEnabled]);
 

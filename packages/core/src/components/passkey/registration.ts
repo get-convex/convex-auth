@@ -1,20 +1,13 @@
 import { Infer, v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
-import {
-  ClientDataType,
-  coseAlgorithmES256,
-  coseAlgorithmRS256,
-  coseEllipticCurveP256,
-  parseAttestationObject,
-  parseClientDataJSON,
-} from "../../vendor/oslo/webauthn";
-import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa";
-import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
+import { verifyRegistrationResponse } from "@simplewebauthn/server";
+import { decodeClientDataJSON } from "@simplewebauthn/server/helpers";
 import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
+  SUPPORTED_ALGORITHM_IDS,
 } from "./validation";
 import {
   deleteDeadChallenge,
@@ -25,23 +18,32 @@ import {
   toArrayBuffer,
 } from "./helpers";
 import { scheduleChallengeCleanup } from "./cleanup";
+import {
+  vAuthenticatorTransports,
+  vRegistrationResponse,
+} from "./webauthnJson";
 
-// The challenge, the credential IDs, and the user handle travel as raw bytes
-// (Convex `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API
-// in the browser makes and accepts the same bytes, so no base64 conversion
-// is necessary.
+// The challenge, the handle, and the credential IDs are base64url strings:
+// that is the encoding SimpleWebAuthn reads and writes on both sides of the
+// wire, so nothing here re-encodes them. The caller feeds these values to
+// `generateRegistrationOptions`, which owns the rest of the option object.
 const startRegistrationResult = v.object({
-  challenge: v.bytes(),
+  challenge: v.string(),
   // The WebAuthn user handle (`user.id`) for the `create()` call.
-  userHandle: v.bytes(),
-  excludeCredentials: v.array(v.bytes()),
+  userHandle: v.string(),
+  excludeCredentials: v.array(
+    v.object({
+      id: v.string(),
+      transports: v.optional(vAuthenticatorTransports),
+    }),
+  ),
 });
 
 /**
  * Start a registration ceremony.
  *
  * The function stores a one-use `registration` challenge and returns the
- * challenge bytes. The challenge has no identity: it is simply a random
+ * challenge. The challenge has no identity: it is simply a random
  * string used to avoid replay attacks.
  *
  * The function also returns the `userHandle` for the ceremony:
@@ -58,14 +60,22 @@ const startRegistrationResult = v.object({
  * differently, so the caller must state which flow it runs. (Compare with
  * `startAuthentication`, where the argument is optional.)
  *
+ * The result is not a complete `PublicKeyCredentialCreationOptionsJSON`.
+ * The component deliberately does not see the username that WebAuthn wants
+ * in `user.name`, so the caller passes these values to
+ * `generateRegistrationOptions` and adds the naming itself.
+ *
  * TODO(nicolas) Split this into two methods
  */
 export const startRegistration = mutation({
   args: { userId: v.union(v.string(), v.null()) },
   returns: startRegistrationResult,
   handler: async (ctx, { userId }) => {
-    let handle: { _id: Id<"handles">; handle: ArrayBuffer } | null = null;
-    let excludeCredentials: ArrayBuffer[] = [];
+    let handle: { _id: Id<"handles">; handle: string } | null = null;
+    let excludeCredentials: {
+      id: string;
+      transports?: Infer<typeof vAuthenticatorTransports>;
+    }[] = [];
     if (userId !== null) {
       // A user has a maximum of one handle: reuse it when it exists.
       handle = await ctx.db
@@ -76,10 +86,13 @@ export const startRegistration = mutation({
         .query("passkeys")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .collect();
-      excludeCredentials = rows.map((row) => row.credentialId);
+      excludeCredentials = rows.map((row) => ({
+        id: row.credentialId,
+        transports: row.transports,
+      }));
     }
     if (handle === null) {
-      const bytes = randomHandle();
+      const bytes = await randomHandle();
       // A handle is 64 random bytes, so a collision is not expected. The
       // check is here for safety: two users with the same handle would let
       // one of them authenticate as the other.
@@ -96,7 +109,7 @@ export const startRegistration = mutation({
       handle = { _id: id, handle: bytes };
     }
 
-    const challenge = randomChallenge();
+    const challenge = await randomChallenge();
     await ctx.db.insert("challenges", {
       kind: "registration",
       challenge,
@@ -120,8 +133,10 @@ type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
 const registrationCheckArgs = {
   expectedRpId: v.string(),
   expectedOrigin: v.string(),
-  attestationObject: v.bytes(),
-  clientDataJSON: v.bytes(),
+  // The whole `startRegistration()` result from `@simplewebauthn/browser`,
+  // carried verbatim. `verifyRegistrationResponse` wants the response as the
+  // browser built it, so the client does not take it apart.
+  response: vRegistrationResponse,
 };
 
 const _vRegistrationCheckArgs = v.object(registrationCheckArgs);
@@ -143,9 +158,9 @@ type RegistrationVerification =
   | {
       userError: null;
       challengeRow: RegistrationChallengeRow;
-      credentialId: ArrayBuffer;
-      algorithm: "ES256" | "RS256";
+      credentialId: string;
       publicKey: ArrayBuffer;
+      transports: Infer<typeof vAuthenticatorTransports> | undefined;
       counter: number;
     };
 
@@ -167,8 +182,17 @@ async function verifyRegistration(
   ctx: QueryCtx,
   args: RegistrationCheckArgs,
 ): Promise<RegistrationVerification> {
-  const clientData = parseClientDataJSON(new Uint8Array(args.clientDataJSON));
-  if (clientData.type !== ClientDataType.Create) {
+  // The client data is read before the signature is checked, for two
+  // reasons: the stored challenge has to be found before it can be given to
+  // `verifyRegistrationResponse` as the expected one, and an origin
+  // mismatch is a deployment mistake that deserves a louder failure than
+  // the `userError` that a rejected attestation gets. Neither read is the
+  // security boundary — `verifyRegistrationResponse` below checks the
+  // challenge, the origin, and the type again over the signed bytes.
+  const clientData = decodeClientDataJSON(
+    args.response.response.clientDataJSON,
+  );
+  if (clientData.type !== "webauthn.create") {
     throw new Error("Unexpected client data type.");
   }
   if (clientData.origin !== args.expectedOrigin) {
@@ -189,43 +213,36 @@ async function verifyRegistration(
     return { userError: { error: "CHALLENGE_EXPIRED" }, challengeRow };
   }
 
-  const attestationObject = parseAttestationObject(
-    new Uint8Array(args.attestationObject),
-  );
-  const authenticatorData = attestationObject.authenticatorData;
-  if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
-    throw new Error("Relying party ID hash mismatch.");
-  }
-  if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
+  // Everything protocol-level happens here: the attestation object is
+  // decoded, the RP ID hash and the flags are checked, and the COSE public
+  // key is extracted. A rejected attestation throws, so the surrounding
+  // `catch` is what turns it into a user-facing error.
+  let verification;
+  try {
+    verification = await verifyRegistrationResponse({
+      response: args.response,
+      expectedChallenge: challengeRow.challenge,
+      expectedOrigin: args.expectedOrigin,
+      expectedRPID: args.expectedRpId,
+      requireUserVerification: true,
+      supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
+    });
+  } catch (cause) {
+    // The message says which check failed (a bad signature, a missing user
+    // verification, an unsupported algorithm, …). It is logged rather than
+    // returned: the user-facing union stays a small closed set, and the app
+    // developer still sees the detail in the Convex logs.
+    console.error("Passkey registration was rejected:", cause);
     return { userError: { error: "VERIFICATION_FAILED" }, challengeRow };
   }
-  const credential = authenticatorData.credential;
-  if (credential === null) {
-    throw new Error("Missing attested credential data.");
+  if (!verification.verified) {
+    return { userError: { error: "VERIFICATION_FAILED" }, challengeRow };
   }
+  const { credential } = verification.registrationInfo;
 
-  const cosePublicKey = credential.publicKey;
-  let algorithm: "ES256" | "RS256";
-  let publicKey: Uint8Array;
-  if (cosePublicKey.algorithm() === coseAlgorithmES256) {
-    const ec2 = cosePublicKey.ec2();
-    if (ec2.curve !== coseEllipticCurveP256) {
-      throw new Error("Unsupported elliptic curve (expected P-256).");
-    }
-    publicKey = new ECDSAPublicKey(p256, ec2.x, ec2.y).encodeSEC1Uncompressed();
-    algorithm = "ES256";
-  } else if (cosePublicKey.algorithm() === coseAlgorithmRS256) {
-    const rsa = cosePublicKey.rsa();
-    publicKey = new RSAPublicKey(rsa.n, rsa.e).encodePKCS1();
-    algorithm = "RS256";
-  } else {
-    throw new Error("Unsupported public key algorithm.");
-  }
-
-  const credentialId = toArrayBuffer(credential.id);
   const existing = await ctx.db
     .query("passkeys")
-    .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
+    .withIndex("by_credentialId", (q) => q.eq("credentialId", credential.id))
     .first();
   if (existing !== null) {
     // A compliant client cannot cause this: authenticators make a fresh
@@ -238,10 +255,10 @@ async function verifyRegistration(
   return {
     userError: null,
     challengeRow,
-    credentialId,
-    algorithm,
-    publicKey: toArrayBuffer(publicKey),
-    counter: authenticatorData.signatureCounter,
+    credentialId: credential.id,
+    publicKey: toArrayBuffer(credential.publicKey),
+    transports: credential.transports,
+    counter: credential.counter,
   };
 }
 
@@ -304,9 +321,8 @@ export const checkRegistration = query({
  *   inferred by the client from the authenticator (e.g. “1Password”),
  *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
  *
- * The function examines the attestation as
- * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
- * the credential and deletes the challenge.
+ * `@simplewebauthn/server` examines the attestation. Then this function
+ * stores the credential and deletes the challenge.
  *
  * Failures that the user can correct come back as a `userError`. For a
  * protocol violation, the function throws an error. The error aborts the
@@ -369,8 +385,8 @@ export const finishRegistration = mutation({
       userId: args.verifiedUserId,
       name: args.name,
       credentialId: verification.credentialId,
-      algorithm: verification.algorithm,
       publicKey: verification.publicKey,
+      transports: verification.transports,
       counter: verification.counter,
     });
     return { success: true, passkeyId };
@@ -388,7 +404,7 @@ export const listPasskeys = query({
     v.object({
       passkeyId: v.string(),
       name: v.optional(v.string()),
-      credentialId: v.bytes(),
+      credentialId: v.string(),
       createdAt: v.number(),
     }),
   ),

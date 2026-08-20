@@ -1,3 +1,8 @@
+import {
+  generateChallenge,
+  generateUserID,
+  isoBase64URL,
+} from "@simplewebauthn/server/helpers";
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 import { CHALLENGE_TTL_MS } from "./validation";
@@ -11,17 +16,15 @@ export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
       ) as ArrayBuffer);
 }
 
-export function randomChallenge(): ArrayBuffer {
-  const challenge = new Uint8Array(32);
-  crypto.getRandomValues(challenge);
-  return toArrayBuffer(challenge);
+/** A fresh 32-byte challenge, base64url-encoded for storage and transport. */
+export async function randomChallenge(): Promise<string> {
+  return isoBase64URL.fromBuffer(await generateChallenge());
 }
 
-export function randomHandle(): ArrayBuffer {
-  // 64 bytes is the WebAuthn maximum length for `user.id`.
-  const handle = new Uint8Array(64);
-  crypto.getRandomValues(handle);
-  return toArrayBuffer(handle);
+/** A fresh 64-byte WebAuthn user handle, base64url-encoded. */
+export async function randomHandle(): Promise<string> {
+  // `generateUserID` emits 64 bytes, the WebAuthn maximum for `user.id`.
+  return isoBase64URL.fromBuffer(await generateUserID());
 }
 
 /**
@@ -36,7 +39,7 @@ export async function findChallenge<
 >(
   ctx: QueryCtx,
   kind: Kind,
-  challenge: Uint8Array,
+  challenge: string,
 ): Promise<Extract<Doc<"challenges">, { kind: Kind }> | null> {
   const row = await ctx.db
     .query("challenges")
@@ -44,7 +47,7 @@ export async function findChallenge<
       // It’s okay for this lookup to not be guaranteed to be constant-time:
       // knowing the challenge doesn’t prove anything, issuing a valid
       // assertion for that challenge does.
-      q.eq("challenge", toArrayBuffer(challenge)),
+      q.eq("challenge", challenge),
     )
     .first();
   if (row === null || row.kind !== kind) {
@@ -64,7 +67,7 @@ export async function consumeChallenge<
 >(
   ctx: MutationCtx,
   kind: Kind,
-  challenge: Uint8Array,
+  challenge: string,
 ): Promise<Extract<Doc<"challenges">, { kind: Kind }> | null> {
   const row = await findChallenge(ctx, kind, challenge);
   if (row === null) {

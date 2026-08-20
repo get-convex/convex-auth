@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { vAuthenticatorTransports } from "./webauthnJson";
 
 export default defineSchema({
   // One row for each passkey credential. The component only sees an opaque
@@ -9,12 +10,19 @@ export default defineSchema({
     // A label that the user sets for this passkey. An app can show it in
     // a passkey list (for example, "MacBook Touch ID").
     name: v.optional(v.string()),
-    // The raw credential ID bytes (the WebAuthn `rawId`).
-    credentialId: v.bytes(),
-    algorithm: v.union(v.literal("ES256"), v.literal("RS256")),
-    // The encoded public key for signature checks. The format is a SEC1
-    // uncompressed point for ES256, and PKCS#1 DER for RS256.
+    // The credential ID, base64url-encoded. This is the `id` that
+    // SimpleWebAuthn reads off a ceremony response, and the `id` it wants
+    // back in `allowCredentials`, so it is stored in that same encoding.
+    credentialId: v.string(),
+    // The COSE public key, exactly as `verifyRegistrationResponse` returns
+    // it. A COSE key carries its own algorithm and curve, so no separate
+    // algorithm column is needed: `verifyAuthenticationResponse` reads the
+    // algorithm out of these bytes and picks the right verifier.
     publicKey: v.bytes(),
+    // The transports the authenticator reported at registration ("internal",
+    // "hybrid", "usb", …). Feeding them back through `allowCredentials`
+    // lets the browser skip irrelevant prompts.
+    transports: v.optional(vAuthenticatorTransports),
     // The signature counter. The value is 0 if the authenticator does not
     // use a counter. When the authenticator supports the counter, it is
     // expected to be always increasing. This component doesn’t enforce it,
@@ -34,8 +42,9 @@ export default defineSchema({
   // the registration ceremony starts. The handle is created first, and
   // `finishRegistration` links it to the user.
   handles: defineTable({
-    // 64 random bytes (the WebAuthn maximum length for `user.id`).
-    handle: v.bytes(),
+    // 64 random bytes, base64url-encoded (64 bytes is the WebAuthn maximum
+    // length for `user.id`).
+    handle: v.string(),
     // The app user that owns the handle, or `null` until the account exists.
     userId: v.union(v.string(), v.null()),
   })
@@ -51,17 +60,21 @@ export default defineSchema({
   // its creation (see CHALLENGE_TTL_MS), thus `_creationTime` is the age of
   // the challenge and the built-in `by_creation_time` index gives the
   // background cleanup loop (see cleanup.ts) the oldest challenges first.
+  //
+  // A challenge is stored base64url-encoded, which is the encoding the
+  // browser puts in `clientDataJSON` and the encoding SimpleWebAuthn's
+  // `expectedChallenge` takes, so the lookup compares the string as-is.
   challenges: defineTable(
     v.union(
       v.object({
         kind: v.literal("registration"),
-        challenge: v.bytes(), // 32 random bytes
+        challenge: v.string(), // 32 random bytes, base64url-encoded
         // The handle that this ceremony registers a credential for.
         handleId: v.id("handles"),
       }),
       v.object({
         kind: v.literal("authentication"),
-        challenge: v.bytes(),
+        challenge: v.string(),
         // The user that the challenge is for, if the app knows the user.
         // The field is not set for discoverable-credential ceremonies. In
         // that flow, the assertion identifies the user.

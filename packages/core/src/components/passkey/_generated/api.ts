@@ -16,6 +16,7 @@ import type * as registration from "../registration.js";
 import type * as setup from "../setup.js";
 import type * as testAuthenticator from "../testAuthenticator.js";
 import type * as validation from "../validation.js";
+import type * as webauthnJson from "../webauthnJson.js";
 
 import type {
   ApiFromModules,
@@ -33,6 +34,7 @@ const fullApi: ApiFromModules<{
   setup: typeof setup;
   testAuthenticator: typeof testAuthenticator;
   validation: typeof validation;
+  webauthnJson: typeof webauthnJson;
 }> = anyApi as any;
 
 /**

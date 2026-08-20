@@ -7,6 +7,17 @@ import { Infer, v } from "convex/values";
 // https://www.w3.org/TR/webauthn-3/#sctn-timeout-recommended-range
 export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// The COSE signature algorithms this provider accepts, as IANA identifiers
+// (https://www.iana.org/assignments/cose/cose.xhtml#algorithms). The same
+// list is offered to the authenticator in `pubKeyCredParams` and enforced
+// when the attestation is verified, so the two can never disagree.
+// `@simplewebauthn/server` also verifies Ed25519 (-8); adding it here is the
+// only change needed to accept it.
+export const SUPPORTED_ALGORITHM_IDS = [
+  -7, // ES256
+  -257, // RS256
+];
+
 /**
  * The user-facing errors for `finishRegistration`. An app can show these
  * errors to the end user. The `error` field is a machine-readable code and

@@ -1,6 +1,11 @@
 import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+} from "@simplewebauthn/server";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
+import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
@@ -15,7 +20,14 @@ import {
 import {
   finishAuthenticationUserError,
   finishRegistrationUserError,
+  SUPPORTED_ALGORITHM_IDS,
 } from "./validation";
+import {
+  vAuthenticationResponse,
+  vCreationOptions,
+  vRegistrationResponse,
+  vRequestOptions,
+} from "./webauthnJson";
 
 /**
  * Options for {@link setupUsernamePasskey}.
@@ -55,26 +67,24 @@ export type UsernamePasskeyOptions = {
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "passkey";
 
+// Both success branches carry a complete, ready-to-use `optionsJSON`. The
+// client hands it straight to `@simplewebauthn/browser` without adding
+// anything, so the algorithms, the resident-key policy, and the user
+// verification requirement are decided on the server and cannot drift out
+// of step with what the server later enforces.
 const startSignInResult = v.union(
   // The username has an account: authenticate with a passkey of that
   // account. The challenge is bound to the user.
   v.object({
     success: v.literal(true),
     step: v.literal("authenticate"),
-    challenge: v.bytes(),
-    allowCredentials: v.array(v.bytes()),
-    rpId: v.string(),
+    optionsJSON: vRequestOptions,
   }),
   // The username is free: register a new account with a new passkey.
   v.object({
     success: v.literal(true),
     step: v.literal("register"),
-    challenge: v.bytes(),
-    // The WebAuthn user handle (`user.id`) for the `create()` call.
-    userHandle: v.bytes(),
-    excludeCredentials: v.array(v.bytes()),
-    rpId: v.string(),
-    rpName: v.string(),
+    optionsJSON: vCreationOptions,
   }),
   v.object({ success: v.literal(false), userError: setUsernameUserError }),
 );
@@ -86,8 +96,7 @@ const startSignInResult = v.union(
 export type StartSignInResult = Infer<typeof startSignInResult>;
 
 const startAutofillSignInResult = v.object({
-  challenge: v.bytes(),
-  rpId: v.string(),
+  optionsJSON: vRequestOptions,
 });
 
 /**
@@ -224,9 +233,16 @@ export function setupUsernamePasskey<UsersTable extends string>(
               return {
                 success: true,
                 step: "authenticate",
-                challenge,
-                allowCredentials,
-                rpId,
+                optionsJSON: await generateAuthenticationOptions({
+                  rpID: rpId,
+                  // The stored challenge is base64url. It has to be handed
+                  // over as bytes: a string argument is read as UTF-8 text
+                  // and encoded again, which would not match the challenge
+                  // the row holds.
+                  challenge: isoBase64URL.toBuffer(challenge),
+                  allowCredentials,
+                  userVerification: "required",
+                }),
               };
             }
 
@@ -237,11 +253,30 @@ export function setupUsernamePasskey<UsersTable extends string>(
             return {
               success: true,
               step: "register",
-              challenge,
-              userHandle,
-              excludeCredentials,
-              rpId,
-              rpName,
+              optionsJSON: await generateRegistrationOptions({
+                rpID: rpId,
+                rpName,
+                // The username is the label the browser shows in the passkey
+                // dialog and the account picker. The passkey component never
+                // sees it: it deals only in opaque user ids.
+                userName: username,
+                userDisplayName: username,
+                // The handle comes from the component, because the app user
+                // id does not exist yet in this flow.
+                userID: isoBase64URL.toBuffer(userHandle),
+                challenge: isoBase64URL.toBuffer(challenge),
+                excludeCredentials,
+                attestationType: "none",
+                // A discoverable credential is what makes autofill work, and
+                // the component hard-requires user verification when it
+                // checks the attestation.
+                authenticatorSelection: {
+                  residentKey: "required",
+                  requireResidentKey: true,
+                  userVerification: "required",
+                },
+                supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
+              }),
             };
           },
         }),
@@ -259,7 +294,15 @@ export function setupUsernamePasskey<UsersTable extends string>(
               component.authentication.startAuthentication,
               {},
             );
-            return { challenge, rpId };
+            return {
+              optionsJSON: await generateAuthenticationOptions({
+                rpID: rpId,
+                challenge: isoBase64URL.toBuffer(challenge),
+                // No allow-list: the passkey the user picks identifies the
+                // account.
+                userVerification: "required",
+              }),
+            };
           },
         }),
 
@@ -282,8 +325,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
         finishSignUp: authMutation({
           args: {
             username: v.string(),
-            attestationObject: v.bytes(),
-            clientDataJSON: v.bytes(),
+            response: vRegistrationResponse,
           },
           returns: finishSignUpResult,
           handler: async (ctx, args): Promise<FinishSignUpResult> => {
@@ -308,8 +350,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               {
                 expectedRpId: rpId,
                 expectedOrigin: origin,
-                attestationObject: args.attestationObject,
-                clientDataJSON: args.clientDataJSON,
+                response: args.response,
               },
             );
             if (!checkResult.success) {
@@ -352,8 +393,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 expectedRpId: rpId,
                 expectedOrigin: origin,
                 verifiedUserId: tokens.userId,
-                attestationObject: args.attestationObject,
-                clientDataJSON: args.clientDataJSON,
+                response: args.response,
               },
             );
             if (!registrationResult.success) {
@@ -385,10 +425,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
          */
         finishSignIn: authMutation({
           args: {
-            credentialId: v.bytes(),
-            authenticatorData: v.bytes(),
-            clientDataJSON: v.bytes(),
-            signature: v.bytes(),
+            response: vAuthenticationResponse,
           },
           returns: finishSignInResult,
           handler: async (ctx, args): Promise<FinishSignInResult> => {
@@ -397,10 +434,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               {
                 expectedRpId: rpId,
                 expectedOrigin: origin,
-                credentialId: args.credentialId,
-                authenticatorData: args.authenticatorData,
-                clientDataJSON: args.clientDataJSON,
-                signature: args.signature,
+                response: args.response,
               },
             );
             if (!authenticationResult.success) {
