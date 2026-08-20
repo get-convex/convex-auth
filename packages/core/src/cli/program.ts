@@ -10,9 +10,6 @@
  *   3. Scaffolds `convex/auth.config.ts`, `convex/convex.config.ts` and
  *      `convex/auth.ts`. Existing files are left untouched — the CLI instead
  *      prints the content the file should contain.
- *   4. Warns if the project isn't set up to typecheck the scaffolded
- *      `auth.config.ts`, which reads `process.env.CONVEX_SITE_URL` and so needs
- *      both `@types/node` and `"types": ["node"]` in `convex/tsconfig.json`.
  *
  * The command's behavior is expressed as a set of injectable dependencies (see
  * `defaultDeps`) so it can be driven end-to-end in unit tests with the file
@@ -34,9 +31,6 @@ const ALG = "RS256";
 
 /** The package the generated `convex.config.ts` / `auth.ts` import from. */
 const AUTH_PACKAGE = "@convex-dev/auth";
-
-/** Needed to typecheck the `process.env` read in the generated `auth.config.ts`. */
-const NODE_TYPES_PACKAGE = "@types/node";
 
 /** Where to grab the v2 (reboot) build from until it's on npm proper. */
 const INSTALL_SPEC = `${AUTH_PACKAGE}@https://pkg.pr.new/${AUTH_PACKAGE}@reboot`;
@@ -137,21 +131,6 @@ export function installCommand(packageManager: string) {
   }
 }
 
-/** The dev-dependency install command for `spec` on a given package manager. */
-export function devInstallCommand(packageManager: string, spec: string) {
-  switch (packageManager) {
-    case "pnpm":
-      return `pnpm add -D ${spec}`;
-    case "bun":
-      return `bun add -d ${spec}`;
-    case "yarn":
-      return `yarn add -D ${spec}`;
-    case "npm":
-    default:
-      return `npm install --save-dev ${spec}`;
-  }
-}
-
 /**
  * Detect the package manager in use, preferring the agent that actually invoked
  * the CLI (`npm_config_user_agent`) and falling back to whichever lockfile is
@@ -232,53 +211,11 @@ export function defaultDeps(): InitDeps {
   };
 }
 
-/** Whether `name` appears in the package's (dev)dependencies. */
-function hasDependency(pkg: PackageJson, name: string) {
+/** Whether `@convex-dev/auth` appears in the package's (dev)dependencies. */
+function hasAuthDependency(pkg: PackageJson) {
   return (
-    name in (pkg.dependencies ?? {}) || name in (pkg.devDependencies ?? {})
-  );
-}
-
-/** Whether a `convex/tsconfig.json` already opts into Node's global types. */
-export function declaresNodeTypes(tsconfig: string) {
-  return /"types"\s*:\s*\[[^\]]*"node"/.test(tsconfig);
-}
-
-/**
- * The scaffolded `auth.config.ts` reads `process.env.CONVEX_SITE_URL`, which
- * needs Node's global types. Two things have to be true for that to typecheck,
- * and neither holds in a fresh project: `@types/node` has to be a dependency
- * (Vite's react-ts template doesn't pull it in), and `convex/tsconfig.json` has
- * to list `"node"` under `types` (the one Convex generates sets no `types` at
- * all, and TypeScript doesn't include `@types/*` packages on its own). Say so
- * here rather than letting `npx convex dev` fail with TS2591.
- */
-function warnTypecheckSetup(deps: InitDeps, pkg: PackageJson, dir: string) {
-  const needsTypesPackage = !hasDependency(pkg, NODE_TYPES_PACKAGE);
-  const tsconfigPath = join(dir, "convex", "tsconfig.json");
-  // A missing tsconfig counts: `npx convex dev` writes one without `types`.
-  const needsTypesField =
-    !deps.fs.existsSync(tsconfigPath) ||
-    !declaresNodeTypes(deps.fs.readFileSync(tsconfigPath));
-  if (!needsTypesPackage && !needsTypesField) return;
-
-  const steps: string[] = [];
-  if (needsTypesPackage) {
-    const command = devInstallCommand(
-      deps.detectPackageManager(dir),
-      NODE_TYPES_PACKAGE,
-    );
-    steps.push(`    ${command}`);
-  }
-  if (needsTypesField) {
-    steps.push('    add "types": ["node"] to convex/tsconfig.json');
-  }
-
-  deps.warn(
-    "\n⚠ convex/auth.config.ts reads process.env.CONVEX_SITE_URL, which needs\n" +
-      "  Node's types. Without them `npx convex dev` fails to typecheck with\n" +
-      `  "TS2591: Cannot find name 'process'". To fix it:\n\n` +
-      `${steps.join("\n")}\n`,
+    AUTH_PACKAGE in (pkg.dependencies ?? {}) ||
+    AUTH_PACKAGE in (pkg.devDependencies ?? {})
   );
 }
 
@@ -359,7 +296,7 @@ async function runInit(
     return;
   }
 
-  if (!hasDependency(pkg, AUTH_PACKAGE)) {
+  if (!hasAuthDependency(pkg)) {
     const packageManager = deps.detectPackageManager(dir);
     command.error(
       `${AUTH_PACKAGE} is not a dependency of this project.\n\n` +
@@ -374,8 +311,6 @@ async function runInit(
 
   deps.log("Scaffolding Convex Auth files…");
   writeAuthFiles(deps, dir);
-
-  warnTypecheckSetup(deps, pkg, dir);
 
   deps.log(
     "\nConvex Auth is set up. Next: add a provider to convex/auth.ts and " +
