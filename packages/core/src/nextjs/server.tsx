@@ -14,8 +14,8 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import { cookies as nextCookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { cookies as nextCookies } from "next/headers.js";
+import { NextRequest, NextResponse } from "next/server.js";
 import { ReactNode } from "react";
 import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types.js";
 import {

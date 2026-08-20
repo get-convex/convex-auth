@@ -23,8 +23,10 @@ and `verbatimModuleSyntax` settings. Two rules follow from it:
   (`./cookies.js`, `../vendor/oslo/webauthn/index.js`) — yes, even though the
   file on disk is `.ts`. `tsc` never rewrites specifiers, so the extension in
   the source is the extension in `dist/`, and Node's ESM resolver needs it.
-  `import-x/extensions` enforces this in ESLint, scoped to the publishable
-  packages; the examples and docs are free to stay extensionless.
+  `packages/core/tsconfig.json` sets `moduleResolution: NodeNext` so the
+  compiler enforces this (TS2835) in the editor and `tsc --noEmit`; the build
+  config overrides back to `Bundler` for emit. Same split as the other Convex
+  components. The examples and docs are free to stay extensionless.
 - Anything reached from a published entry point must compile. `dist/` is built
   by `tsconfig.build.json`, which excludes tests and other in-repo-only
   modules (see its `exclude` list).

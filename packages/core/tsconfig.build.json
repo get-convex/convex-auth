@@ -5,6 +5,8 @@
   // `lib` level, or `verbatimModuleSyntax` requirements leak onto them).
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "noEmit": false,
     "rootDir": "src",
     "outDir": "dist",

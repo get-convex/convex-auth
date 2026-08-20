@@ -246,8 +246,8 @@ describe("startRegistration", () => {
       .spyOn(crypto, "getRandomValues")
       .mockImplementation((array) =>
         array !== null && array.byteLength === 64
-          ? (array as Uint8Array).fill(7)
-          : getRandomValues(array as Uint8Array),
+          ? (array as Uint8Array<ArrayBuffer>).fill(7)
+          : getRandomValues(array as Uint8Array<ArrayBuffer>),
       );
     try {
       await t.mutation(api.registration.startRegistration, { userId: "user1" });
