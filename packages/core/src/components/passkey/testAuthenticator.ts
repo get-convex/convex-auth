@@ -1,34 +1,38 @@
 import type { TestConvex } from "convex-test";
-import {
-  encodeASN1,
-  ASN1EncodableSequence,
-  ASN1Integer,
-} from "../../vendor/oslo/asn1";
-import { bigIntFromBytes } from "../../vendor/oslo/binary";
-import { sha256 } from "../../vendor/oslo/crypto/sha2";
-import { decodeBase64urlIgnorePadding } from "../../vendor/oslo/encoding";
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+} from "@simplewebauthn/server";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { api } from "./_generated/api";
-import { toArrayBuffer } from "./helpers";
 import type schema from "./schema";
 
 /**
  * A minimal software authenticator for tests. It builds the WebAuthn
  * payloads (client data, authenticator data, attestation objects) and signs
- * assertions with real WebCrypto keys, so the component's parsing and
- * signature verification run against genuine ceremony bytes.
+ * assertions with real WebCrypto keys, so the component's verification runs
+ * against genuine ceremony bytes.
+ *
+ * The builders emit the base64url `*JSON` shapes that
+ * `@simplewebauthn/browser` produces, which is what the component accepts.
  */
+
+// `@simplewebauthn/server` types its byte strings as `Uint8Array_`, an
+// `ArrayBuffer`-backed view. Matching it here keeps the helpers below
+// assignable to `isoBase64URL.fromBuffer` without a cast.
+type Bytes = Uint8Array<ArrayBuffer>;
 
 export const RP_ID = "example.com";
 export const ORIGIN = "https://app.example.com";
 
 export interface TestCredential {
   algorithm: "ES256" | "RS256";
-  credentialId: Uint8Array;
+  credentialId: Bytes;
   privateKey: CryptoKey;
-  cosePublicKey: Uint8Array;
+  cosePublicKey: Bytes;
 }
 
-type CBORValue = number | string | Uint8Array | Map<number | string, CBORValue>;
+type CBORValue = number | string | Bytes | Map<number | string, CBORValue>;
 
 function cborHead(majorType: number, value: number): number[] {
   if (value < 24) {
@@ -44,7 +48,7 @@ function cborHead(majorType: number, value: number): number[] {
 }
 
 /** Encode a small CBOR value (enough for COSE keys and attestation objects). */
-export function encodeCBOR(value: CBORValue): Uint8Array {
+export function encodeCBOR(value: CBORValue): Bytes {
   const encode = (value: CBORValue): number[] => {
     if (typeof value === "number") {
       return value >= 0 ? cborHead(0, value) : cborHead(1, -1 - value);
@@ -63,6 +67,22 @@ export function encodeCBOR(value: CBORValue): Uint8Array {
     return out;
   };
   return new Uint8Array(encode(value));
+}
+
+async function sha256(bytes: Bytes): Promise<Bytes> {
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+}
+
+/** Encode one ASN.1 DER INTEGER from a big-endian unsigned byte string. */
+function derInteger(bytes: Bytes): number[] {
+  let start = 0;
+  while (start < bytes.length - 1 && bytes[start] === 0) {
+    start += 1;
+  }
+  const trimmed = Array.from(bytes.slice(start));
+  // DER integers are signed: a leading bit set needs a zero pad.
+  const body = (trimmed[0] & 0x80) !== 0 ? [0, ...trimmed] : trimmed;
+  return [0x02, body.length, ...body];
 }
 
 export async function generateES256Credential(): Promise<TestCredential> {
@@ -108,8 +128,8 @@ export async function generateRS256Credential(): Promise<TestCredential> {
     new Map<number, CBORValue>([
       [1, 3], // kty: RSA
       [3, -257], // alg: RS256
-      [-1, decodeBase64urlIgnorePadding(jwk.n!)], // n (256 bytes)
-      [-2, decodeBase64urlIgnorePadding(jwk.e!)], // e (3 bytes)
+      [-1, isoBase64URL.toBuffer(jwk.n!)], // n (256 bytes)
+      [-2, isoBase64URL.toBuffer(jwk.e!)], // e (3 bytes)
     ]),
   );
   return {
@@ -127,27 +147,22 @@ export function buildClientDataJSON({
   crossOrigin,
 }: {
   type: "webauthn.create" | "webauthn.get";
-  challenge: ArrayBuffer | Uint8Array;
+  // The base64url challenge, exactly as the component stored it.
+  challenge: string;
   origin: string;
   crossOrigin?: boolean;
-}): Uint8Array {
-  const bytes =
-    challenge instanceof Uint8Array ? challenge : new Uint8Array(challenge);
-  const base64url = btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
+}): Bytes {
   return new TextEncoder().encode(
     JSON.stringify({
       type,
-      challenge: base64url,
+      challenge,
       origin,
       ...(crossOrigin !== undefined ? { crossOrigin } : {}),
     }),
   );
 }
 
-export function buildAuthenticatorData({
+export async function buildAuthenticatorData({
   rpId,
   userPresent = true,
   userVerified = true,
@@ -160,13 +175,13 @@ export function buildAuthenticatorData({
   counter?: number;
   // When set, the attested credential data block is included (AT flag).
   credential?: Pick<TestCredential, "credentialId" | "cosePublicKey">;
-}): Uint8Array {
+}): Promise<Bytes> {
   let flags = 0;
   if (userPresent) flags |= 0x01;
   if (userVerified) flags |= 0x04;
   if (credential !== undefined) flags |= 0x40;
   const parts: number[] = [
-    ...sha256(new TextEncoder().encode(rpId)),
+    ...(await sha256(new TextEncoder().encode(rpId))),
     flags,
     (counter >>> 24) & 0xff,
     (counter >>> 16) & 0xff,
@@ -184,7 +199,7 @@ export function buildAuthenticatorData({
   return new Uint8Array(parts);
 }
 
-export function buildAttestationObject(authData: Uint8Array): Uint8Array {
+export function buildAttestationObject(authData: Bytes): Bytes {
   return encodeCBOR(
     new Map<string, CBORValue>([
       ["fmt", "none"],
@@ -197,15 +212,15 @@ export function buildAttestationObject(authData: Uint8Array): Uint8Array {
 /** Sign `authenticatorData || sha256(clientDataJSON)` like an authenticator. */
 export async function signAssertion(
   credential: TestCredential,
-  authenticatorData: Uint8Array,
-  clientDataJSON: Uint8Array,
-): Promise<Uint8Array> {
+  authenticatorData: Bytes,
+  clientDataJSON: Bytes,
+): Promise<Bytes> {
   const message = new Uint8Array(authenticatorData.length + 32);
   message.set(authenticatorData);
-  message.set(sha256(clientDataJSON), authenticatorData.length);
+  message.set(await sha256(clientDataJSON), authenticatorData.length);
   if (credential.algorithm === "ES256") {
     // WebCrypto emits the IEEE P1363 encoding (r || s); WebAuthn transports
-    // the DER (PKIX) encoding, which is what the component expects.
+    // the DER encoding, which is what an authenticator sends.
     const p1363 = new Uint8Array(
       await crypto.subtle.sign(
         { name: "ECDSA", hash: "SHA-256" },
@@ -213,12 +228,9 @@ export async function signAssertion(
         message,
       ),
     );
-    return encodeASN1(
-      new ASN1EncodableSequence([
-        new ASN1Integer(bigIntFromBytes(p1363.slice(0, 32))),
-        new ASN1Integer(bigIntFromBytes(p1363.slice(32))),
-      ]),
-    );
+    const r = derInteger(p1363.slice(0, 32));
+    const s = derInteger(p1363.slice(32));
+    return new Uint8Array([0x30, r.length + s.length, ...r, ...s]);
   }
   return new Uint8Array(
     await crypto.subtle.sign(
@@ -227,6 +239,50 @@ export async function signAssertion(
       message,
     ),
   );
+}
+
+/** Build the `RegistrationResponseJSON` for a `create()` ceremony. */
+export async function buildRegistrationResponse(
+  credential: TestCredential,
+  challenge: string,
+  options: {
+    origin?: string;
+    crossOrigin?: boolean;
+    rpId?: string;
+    counter?: number;
+    userPresent?: boolean;
+    userVerified?: boolean;
+    type?: "webauthn.create" | "webauthn.get";
+  } = {},
+): Promise<RegistrationResponseJSON> {
+  const authData = await buildAuthenticatorData({
+    rpId: options.rpId ?? RP_ID,
+    counter: options.counter ?? 0,
+    userPresent: options.userPresent,
+    userVerified: options.userVerified,
+    credential,
+  });
+  const credentialId = isoBase64URL.fromBuffer(credential.credentialId);
+  return {
+    id: credentialId,
+    rawId: credentialId,
+    response: {
+      clientDataJSON: isoBase64URL.fromBuffer(
+        buildClientDataJSON({
+          type: options.type ?? "webauthn.create",
+          challenge,
+          origin: options.origin ?? ORIGIN,
+          crossOrigin: options.crossOrigin,
+        }),
+      ),
+      attestationObject: isoBase64URL.fromBuffer(
+        buildAttestationObject(authData),
+      ),
+      transports: ["internal"],
+    },
+    clientExtensionResults: {},
+    type: "public-key",
+  };
 }
 
 type T = TestConvex<typeof schema>;
@@ -245,24 +301,14 @@ export async function register(
   const { challenge } = await t.mutation(api.registration.startRegistration, {
     userId,
   });
-  const authData = buildAuthenticatorData({
-    rpId: RP_ID,
-    counter: options.counter ?? 0,
-    credential,
-  });
   const result = await t.mutation(api.registration.finishRegistration, {
     expectedRpId: RP_ID,
     expectedOrigin: ORIGIN,
     verifiedUserId: userId,
     name: options.name,
-    attestationObject: toArrayBuffer(buildAttestationObject(authData)),
-    clientDataJSON: toArrayBuffer(
-      buildClientDataJSON({
-        type: "webauthn.create",
-        challenge,
-        origin: ORIGIN,
-      }),
-    ),
+    response: await buildRegistrationResponse(credential, challenge, {
+      counter: options.counter,
+    }),
   });
   if (!result.success) {
     throw new Error(`Test registration failed: ${result.userError.error}`);
@@ -270,10 +316,10 @@ export async function register(
   return { credential, passkeyId: result.passkeyId };
 }
 
-/** Build the assertion arguments for `finishAuthentication`. */
+/** Build the `AuthenticationResponseJSON` for a `get()` ceremony. */
 export async function buildAssertion(
   credential: TestCredential,
-  challenge: ArrayBuffer | Uint8Array,
+  challenge: string,
   options: {
     type?: "webauthn.create" | "webauthn.get";
     origin?: string;
@@ -285,19 +331,14 @@ export async function buildAssertion(
     // Sign with a different key than `credential` (an invalid signature).
     signWith?: TestCredential;
   } = {},
-): Promise<{
-  credentialId: ArrayBuffer;
-  authenticatorData: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  signature: ArrayBuffer;
-}> {
+): Promise<AuthenticationResponseJSON> {
   const clientDataJSON = buildClientDataJSON({
     type: options.type ?? "webauthn.get",
     challenge,
     origin: options.origin ?? ORIGIN,
     crossOrigin: options.crossOrigin,
   });
-  const authenticatorData = buildAuthenticatorData({
+  const authenticatorData = await buildAuthenticatorData({
     rpId: options.rpId ?? RP_ID,
     counter: options.counter ?? 1,
     userPresent: options.userPresent,
@@ -308,10 +349,16 @@ export async function buildAssertion(
     authenticatorData,
     clientDataJSON,
   );
+  const credentialId = isoBase64URL.fromBuffer(credential.credentialId);
   return {
-    credentialId: toArrayBuffer(credential.credentialId),
-    authenticatorData: toArrayBuffer(authenticatorData),
-    clientDataJSON: toArrayBuffer(clientDataJSON),
-    signature: toArrayBuffer(signature),
+    id: credentialId,
+    rawId: credentialId,
+    response: {
+      clientDataJSON: isoBase64URL.fromBuffer(clientDataJSON),
+      authenticatorData: isoBase64URL.fromBuffer(authenticatorData),
+      signature: isoBase64URL.fromBuffer(signature),
+    },
+    clientExtensionResults: {},
+    type: "public-key",
   };
 }

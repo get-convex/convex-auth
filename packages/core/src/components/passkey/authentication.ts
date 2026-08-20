@@ -1,34 +1,26 @@
 import { Infer, v } from "convex/values";
 import { mutation } from "./_generated/server";
-import {
-  ClientDataType,
-  createAssertionSignatureMessage,
-  parseAuthenticatorData,
-  parseClientDataJSON,
-} from "../../vendor/oslo/webauthn";
-import {
-  decodePKIXECDSASignature,
-  decodeSEC1PublicKey,
-  p256,
-  verifyECDSASignature,
-} from "../../vendor/oslo/crypto/ecdsa";
-import {
-  decodePKCS1RSAPublicKey,
-  sha256ObjectIdentifier,
-  verifyRSASSAPKCS1v15Signature,
-} from "../../vendor/oslo/crypto/rsa";
-import { sha256 } from "../../vendor/oslo/crypto/sha2";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import { decodeClientDataJSON } from "@simplewebauthn/server/helpers";
 import { finishAuthenticationUserError } from "./validation";
 import { consumeChallenge, randomChallenge } from "./helpers";
 import { scheduleChallengeCleanup } from "./cleanup";
+import {
+  vAuthenticationResponse,
+  vAuthenticatorTransports,
+} from "./webauthnJson";
 
-// The challenge and the credential IDs travel as raw bytes (Convex
-// `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
-// browser makes and accepts the same bytes, so no base64 conversion is
-// necessary.
+// The challenge and the credential IDs are base64url strings, the encoding
+// SimpleWebAuthn reads and writes on both sides of the wire. The caller
+// feeds these values to `generateAuthenticationOptions`.
 const startAuthenticationResult = v.object({
-  challenge: v.bytes(),
-  allowCredentials: v.array(v.bytes()),
+  challenge: v.string(),
+  allowCredentials: v.array(
+    v.object({
+      id: v.string(),
+      transports: v.optional(vAuthenticatorTransports),
+    }),
+  ),
 });
 
 /**
@@ -49,7 +41,7 @@ export const startAuthentication = mutation({
   args: { userId: v.optional(v.string()) },
   returns: startAuthenticationResult,
   handler: async (ctx, { userId }) => {
-    const challenge = randomChallenge();
+    const challenge = await randomChallenge();
     await ctx.db.insert("challenges", {
       kind: "authentication",
       challenge,
@@ -66,7 +58,10 @@ export const startAuthentication = mutation({
       .collect();
     return {
       challenge,
-      allowCredentials: rows.map((row) => row.credentialId),
+      allowCredentials: rows.map((row) => ({
+        id: row.credentialId,
+        transports: row.transports,
+      })),
     };
   },
 });
@@ -90,44 +85,40 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
  * The app supplies `expectedRpId` and `expectedOrigin`; see
  * {@link import("./registration").finishRegistration}.
  *
- * The function finds the credential. Then it examines the authenticator
- * data, the client data, and the assertion signature. It deletes the
- * challenge and returns the `userId` of the user. The app can then make a
- * session for that user.
+ * The function finds the credential, hands the assertion to
+ * `@simplewebauthn/server` to check the authenticator data, the client
+ * data, and the signature, then deletes the challenge and returns the
+ * `userId` of the user. The app can then make a session for that user.
  */
 export const finishAuthentication = mutation({
   args: {
     expectedRpId: v.string(),
     expectedOrigin: v.string(),
-    credentialId: v.bytes(),
-    authenticatorData: v.bytes(),
-    clientDataJSON: v.bytes(),
-    signature: v.bytes(),
+    // The whole `startAuthentication()` result from
+    // `@simplewebauthn/browser`, carried verbatim.
+    response: vAuthenticationResponse,
   },
   returns: finishAuthenticationResult,
   handler: async (ctx, args): Promise<FinishAuthenticationResult> => {
     const passkey = await ctx.db
       .query("passkeys")
       .withIndex("by_credentialId", (q) =>
-        q.eq("credentialId", args.credentialId),
+        q.eq("credentialId", args.response.id),
       )
       .first();
     if (passkey === null) {
       return { success: false, userError: { error: "UNKNOWN_CREDENTIAL" } };
     }
 
-    const authenticatorDataBytes = new Uint8Array(args.authenticatorData);
-    const authenticatorData = parseAuthenticatorData(authenticatorDataBytes);
-    if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
-      throw new Error("Relying party ID hash mismatch.");
-    }
-    if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
-      return { success: false, userError: { error: "VERIFICATION_FAILED" } };
-    }
-
-    const clientDataJSONBytes = new Uint8Array(args.clientDataJSON);
-    const clientData = parseClientDataJSON(clientDataJSONBytes);
-    if (clientData.type !== ClientDataType.Get) {
+    // The client data is read before the signature is checked so the stored
+    // challenge can be found and given to `verifyAuthenticationResponse` as
+    // the expected one, and so an origin mismatch fails loudly as the
+    // deployment mistake it is. `verifyAuthenticationResponse` checks the
+    // challenge, the origin, and the type again over the signed bytes.
+    const clientData = decodeClientDataJSON(
+      args.response.response.clientDataJSON,
+    );
+    if (clientData.type !== "webauthn.get") {
       throw new Error("Unexpected client data type.");
     }
     if (clientData.origin !== args.expectedOrigin) {
@@ -139,7 +130,8 @@ export const finishAuthentication = mutation({
       //   of subdomains (RP ID = example.com, allowed origins =
       //   [auth.example.com, dashboard.example.com] but NOT marketing.example.com)
       // For these reasons, we will probably want to offer more customization options
-      // for this check in the future.
+      // for this check in the future. `expectedOrigin` already takes an array
+      // in `@simplewebauthn/server`, so the list case is a small change.
       throw new Error("Unexpected WebAuthn origin.");
     }
     if (clientData.crossOrigin === true) {
@@ -165,31 +157,31 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
 
-    const hash = sha256(
-      createAssertionSignatureMessage(
-        authenticatorDataBytes,
-        clientDataJSONBytes,
-      ),
-    );
-    const signature = new Uint8Array(args.signature);
-    const storedPublicKey = new Uint8Array(passkey.publicKey);
-    let valid: boolean;
-    if (passkey.algorithm === "ES256") {
-      valid = verifyECDSASignature(
-        decodeSEC1PublicKey(p256, storedPublicKey),
-        hash,
-        // WebAuthn ECDSA signatures use the DER (PKIX) encoding.
-        decodePKIXECDSASignature(signature),
-      );
-    } else {
-      valid = verifyRSASSAPKCS1v15Signature(
-        decodePKCS1RSAPublicKey(storedPublicKey),
-        sha256ObjectIdentifier,
-        hash,
-        signature,
-      );
+    // The stored public key is a COSE key, which names its own algorithm, so
+    // there is no ES256/RS256 branch here: `verifyAuthenticationResponse`
+    // reads the algorithm out of the key and picks the verifier.
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: args.response,
+        expectedChallenge: challengeRow.challenge,
+        expectedOrigin: args.expectedOrigin,
+        expectedRPID: args.expectedRpId,
+        credential: {
+          id: passkey.credentialId,
+          publicKey: new Uint8Array(passkey.publicKey),
+          counter: passkey.counter,
+          transports: passkey.transports,
+        },
+        requireUserVerification: true,
+      });
+    } catch (cause) {
+      // Logged rather than returned, so the user-facing union stays a small
+      // closed set while the app developer still sees which check failed.
+      console.error("Passkey assertion was rejected:", cause);
+      return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
-    if (!valid) {
+    if (!verification.verified) {
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
 
@@ -198,7 +190,7 @@ export const finishAuthentication = mutation({
     // and using it appropriately, and most authenticators will always set it to 0 anyway.
     // https://www.imperialviolet.org/2023/08/05/signature-counters.html
     await ctx.db.patch("passkeys", passkey._id, {
-      counter: authenticatorData.signatureCounter,
+      counter: verification.authenticationInfo.newCounter,
     });
     return {
       success: true,
