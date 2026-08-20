@@ -3,7 +3,6 @@ import {
   AuthLoading,
   Unauthenticated,
   useAuthActions,
-  useAuthToken,
 } from "@convex-dev/auth/react";
 import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import { useQuery } from "convex/react";
@@ -39,14 +38,12 @@ function SignIn() {
 
 function Dashboard() {
   const user = useQuery(api.currentUser.loggedInUser);
-  const token = useAuthToken();
   const { signOut } = useAuthActions();
   return (
     <>
       <p>
         Signed in as <strong>{user ? user.id : "…"}</strong>
       </p>
-      <p>Access token: {token ? `${token.slice(0, 24)}…` : "(none)"}</p>
       <button onClick={() => signOut()}>Sign out</button>
     </>
   );
