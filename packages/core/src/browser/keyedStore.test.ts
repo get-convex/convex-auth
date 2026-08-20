@@ -47,7 +47,7 @@ describe("KeyedStore", () => {
 
   test("a scoped view reads and writes under its prefix", () => {
     const store = new KeyedStore();
-    const scoped = store.scoped("oauth");
+    const scoped = store.forSignIn("oauth");
 
     scoped.set("actions", "registered");
     expect(store.get<string>("oauth/actions")).toBe("registered");
@@ -60,17 +60,17 @@ describe("KeyedStore", () => {
     const listener = vi.fn();
     store.subscribe("oauth/flowError", listener);
 
-    store.scoped("oauth").set("flowError", "expired");
+    store.forSignIn("oauth").set("flowError", "expired");
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
   test("a scoped reader reads and subscribes under its prefix", () => {
     const store = new KeyedStore();
-    const reader = store.scopedReader("oauth");
+    const reader = store.forSignInReader("oauth");
     const listener = vi.fn();
     reader.subscribe("actions", listener);
 
-    store.scoped("oauth").set("actions", "registered");
+    store.forSignIn("oauth").set("actions", "registered");
     expect(listener).toHaveBeenCalledTimes(1);
     expect(reader.get<string>("actions")).toBe("registered");
     expect(reader.get("oauth/actions")).toBeUndefined();

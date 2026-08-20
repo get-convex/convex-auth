@@ -7,19 +7,19 @@
 
 export {
   type TokenStorage,
-  type ScopedStorage,
+  type SignInStorage,
   InMemoryStorage,
   defaultStorage,
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "./storage";
 export { runWithMutex } from "./mutex";
-export type { ScopedKeyedStore, ScopedKeyedStoreReader } from "./keyedStore";
+export type { SignInValues, SignInValuesReader } from "./keyedStore";
 export type {
-  AuthProviderClientContext,
-  AuthProviderClientSetup,
+  AmbientSignInClient,
+  AmbientSignInContext,
   AuthSignInApi,
-} from "./providerSetup";
+} from "./ambientSignInClient";
 export {
   AuthClient,
   type SpaAuthApi,

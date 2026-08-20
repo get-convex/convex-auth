@@ -83,14 +83,14 @@ export function defaultStorage(): TokenStorage {
 }
 
 /**
- * A read/write view over a {@link NamespacedStorage} for one provider
- * client, with every key prefixed by the provider's setup id. The shape
- * handed to provider client setups.
+ * A read/write view over a {@link NamespacedStorage} for one ambient sign-in,
+ * with every key prefixed by that sign-in's id. The shape handed to an
+ * ambient sign-in's setup.
  *
  * Keys are stored as-is, so use only characters in `[A-Za-z0-9._-]` to stay
  * compatible with React Native storage backends like Expo SecureStore.
  */
-export type ScopedStorage = {
+export type SignInStorage = {
   /** Read a value. */
   get(key: string): ReturnType<TokenStorage["getItem"]>;
   /** Write a value. */
@@ -137,12 +137,12 @@ export class NamespacedStorage {
   }
 
   /**
-   * A {@link ScopedStorage} for the provider client registered under `id`,
+   * A {@link SignInStorage} for the ambient sign-in registered under `id`,
    * mapping `key` to `__convexAuthProvider_<id>_<key>` before the namespace
-   * suffix. Provider keys can then never collide with the core token keys or
-   * another provider's.
+   * suffix. A sign-in's keys can then never collide with the core token keys
+   * or another sign-in's.
    */
-  scoped(id: string): ScopedStorage {
+  forSignIn(id: string): SignInStorage {
     const prefix = `__convexAuthProvider_${id}_`;
     return {
       get: (key) => this.get(`${prefix}${key}`),

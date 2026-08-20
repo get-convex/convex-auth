@@ -1,7 +1,7 @@
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
-import type { AuthProviderClientSetup, AuthSignInApi } from "./providerSetup";
+import type { AmbientSignInClient, AuthSignInApi } from "./ambientSignInClient";
 import {
   AuthClient,
   INITIAL_AUTH_STATE,
@@ -354,9 +354,9 @@ const SIGN_IN_API = {
 /** A reference to hand the stub. Its path is never resolved. */
 const SIGN_IN_REF = makeFunctionReference<"mutation">("auth:probeSignIn");
 
-/** An {@link AuthClient} constructed with the given provider client setups. */
-function makeClientWithSetups(
-  setups: ReadonlyArray<AuthProviderClientSetup>,
+/** An {@link AuthClient} constructed with the given ambient sign-ins. */
+function makeClientWithSignIns(
+  signIns: ReadonlyArray<AmbientSignInClient>,
   storage: TokenStorage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
@@ -364,48 +364,48 @@ function makeClientWithSetups(
     authApi: { refreshSession: async () => null, signOut: async () => {} },
     storage,
     storageNamespace: NAMESPACE,
-    providerClients: { setups, signInApi: SIGN_IN_API },
+    ambientSignIns: { signIns, signInApi: SIGN_IN_API },
   });
   return { client, storage };
 }
 
-describe("AuthClient provider client setups", () => {
+describe("AuthClient ambient sign-ins", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  test("throws when two setups share an id", () => {
+  test("throws when two sign-ins share an id", () => {
     expect(() =>
-      makeClientWithSetups([
+      makeClientWithSignIns([
         { id: "oauth", setup: () => {} },
         { id: "oauth", setup: () => {} },
       ]),
     ).toThrow(/"oauth" is registered twice/);
   });
 
-  test("throws when a setup id is not alphanumeric", () => {
+  test("throws when a sign-in id is not alphanumeric", () => {
     expect(() =>
-      makeClientWithSetups([{ id: "pass-key", setup: () => {} }]),
+      makeClientWithSignIns([{ id: "pass-key", setup: () => {} }]),
     ).toThrow(/"pass-key" is invalid/);
   });
 
-  test("scoped store writes land under the setup id", () => {
-    const { client } = makeClientWithSetups([
+  test("scoped value writes land under the sign-in id", () => {
+    const { client } = makeClientWithSignIns([
       {
         id: "oauth",
         setup: (ctx) => {
-          ctx.store.set("actions", "registered");
+          ctx.values.set("actions", "registered");
         },
       },
     ]);
-    expect(client.providerState("oauth").get<string>("actions")).toBe(
+    expect(client.ambientSignInValues("oauth").get<string>("actions")).toBe(
       "registered",
     );
   });
 
-  test("scoped storage writes land under the provider prefix", () => {
+  test("scoped storage writes land under the sign-in prefix", () => {
     const storage = new InMemoryStorage();
-    makeClientWithSetups(
+    makeClientWithSignIns(
       [
         {
           id: "oauth",
@@ -429,7 +429,7 @@ describe("AuthClient provider client setups", () => {
   test("every setup receives the same sign-in api and client", () => {
     const received: Array<{ signInApi: AuthSignInApi; client: AuthClient }> =
       [];
-    const { client } = makeClientWithSetups([
+    const { client } = makeClientWithSignIns([
       {
         id: "a",
         setup: (ctx) => {
@@ -453,7 +453,7 @@ describe("AuthClient provider client setups", () => {
     const storage = new InMemoryStorage();
     storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
     const order: string[] = [];
-    const { client } = makeClientWithSetups(
+    const { client } = makeClientWithSignIns(
       [
         {
           id: "a",
@@ -476,7 +476,7 @@ describe("AuthClient provider client setups", () => {
 
   test("a second init after dispose does not re-run onInit callbacks", async () => {
     const onInit = vi.fn();
-    const { client } = makeClientWithSetups([
+    const { client } = makeClientWithSignIns([
       { id: "probe", setup: () => ({ onInit }) },
     ]);
     await client.init();
@@ -486,7 +486,7 @@ describe("AuthClient provider client setups", () => {
   });
 
   test("a withSignInPending call in onInit holds loading past the session load", async () => {
-    // What every provider client does: onInit starts a sign-in whose network
+    // What every ambient sign-in does: onInit starts a sign-in whose network
     // call has not finished by the time init finishes loading the session.
     // Without the withSignInPending wrapper the client would report signed out
     // until the call finished, sending the user to a sign-in screen while they
@@ -495,7 +495,7 @@ describe("AuthClient provider client setups", () => {
     // onInit returns nothing, so the promise it starts is saved here for the
     // test to await.
     const pending: Promise<void>[] = [];
-    const { client } = makeClientWithSetups([
+    const { client } = makeClientWithSignIns([
       {
         id: "probe",
         setup: (ctx) => ({
@@ -531,7 +531,7 @@ describe("AuthClient provider client setups", () => {
     const storage = new InMemoryStorage();
     storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
     const order: string[] = [];
-    const { client } = makeClientWithSetups(
+    const { client } = makeClientWithSignIns(
       [
         {
           id: "broken",

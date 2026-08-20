@@ -5,11 +5,11 @@ import { makeFunctionReference } from "convex/server";
 import { StrictMode } from "react";
 import { describe, expect, test, vi } from "vitest";
 import type {
-  AuthProviderClientSetup,
+  AmbientSignInClient,
   AuthSignInApi,
-} from "../browser/providerSetup";
+} from "../browser/ambientSignInClient";
 import { ConvexAuthProvider, useAuthSignInApi } from "./index";
-import { useAuthClientValue } from "./providers";
+import { useAmbientSignInValue } from "./providers";
 
 const API = {
   refreshSession: makeFunctionReference<"mutation">("auth:refreshSession"),
@@ -24,23 +24,23 @@ function makeConvexClient() {
   return new ConvexReactClient("https://happy-animal-123.convex.cloud");
 }
 
-/** Renders the store value a probe setup writes under its scoped `status` key. */
+/** Renders the value a probe setup publishes under its scoped `status` key. */
 function ProbeStatus() {
-  const status = useAuthClientValue<string>("probe", "status");
+  const status = useAmbientSignInValue<string>("probe", "status");
   return <div>{status ?? "missing"}</div>;
 }
 
-describe("ConvexAuthProvider provider clients", () => {
-  test("setup store values are readable on the first render", () => {
+describe("ConvexAuthProvider ambient sign-ins", () => {
+  test("published setup values are readable on the first render", () => {
     const client = makeConvexClient();
-    const probe: AuthProviderClientSetup = {
+    const probe: AmbientSignInClient = {
       id: "probe",
       setup: (ctx) => {
-        ctx.store.set("status", "registered");
+        ctx.values.set("status", "registered");
       },
     };
     render(
-      <ConvexAuthProvider client={client} api={API} providerClients={[probe]}>
+      <ConvexAuthProvider client={client} api={API} ambientSignIns={[probe]}>
         <ProbeStatus />
       </ConvexAuthProvider>,
     );
@@ -55,7 +55,7 @@ describe("ConvexAuthProvider provider clients", () => {
         <ConvexAuthProvider
           client={client}
           api={API}
-          providerClients={[{ id: "probe", setup: () => ({ onInit }) }]}
+          ambientSignIns={[{ id: "probe", setup: () => ({ onInit }) }]}
         >
           <div />
         </ConvexAuthProvider>
@@ -76,7 +76,7 @@ describe("ConvexAuthProvider provider clients", () => {
       <ConvexAuthProvider
         client={client}
         api={API}
-        providerClients={[
+        ambientSignIns={[
           {
             id: "probe",
             setup: (ctx) => {

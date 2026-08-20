@@ -9,7 +9,7 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
-import type { AuthSignInApi } from "../browser/providerSetup";
+import type { AuthSignInApi } from "../browser/ambientSignInClient";
 import { INITIAL_AUTH_STATE, type AuthClient } from "../browser/sessionManager";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
 
@@ -55,12 +55,6 @@ export type ConvexAuthActionsContextType = {
   setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
   /** Sign out: revoke the session on the server and clear it locally. */
   signOut: () => Promise<void>;
-  /**
-   * Run a sign-in completion while the auth state reports loading, so the
-   * UI shows `<AuthLoading>` instead of flashing `<Unauthenticated>`. See
-   * {@link AuthClient.withSignInPending}.
-   */
-  withSignInPending: <T>(fn: () => Promise<T>) => Promise<T>;
 };
 
 export const ConvexAuthActionsContext = createContext<
@@ -69,7 +63,7 @@ export const ConvexAuthActionsContext = createContext<
 
 /**
  * The bound {@link AuthClient}. Consumed by the provider-author surface
- * (`useAuthClientValue` in `react/providers.ts`), not by apps.
+ * (`useAmbientSignInValue` in `react/providers.ts`), not by apps.
  */
 export const AuthClientContext = createContext<AuthClient | undefined>(
   undefined,
@@ -154,7 +148,6 @@ export function AuthProvider({
     () => ({
       setSession: authClient.setSession,
       signOut: authClient.signOut,
-      withSignInPending: authClient.withSignInPending,
     }),
     [authClient],
   );

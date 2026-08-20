@@ -7,7 +7,8 @@
  * {@link useAuthActions}). This anonymous provider is the simplest case. It
  * has a single mutation that directly returns the `TokenBundle`.
  *
- * It's useful as an example of the bare minimum required of a provider client.
+ * It's useful as an example of the bare minimum a provider needs on the
+ * client: one hook, and no registration with the auth client at all.
  *
  * @module
  */

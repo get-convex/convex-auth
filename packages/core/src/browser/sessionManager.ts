@@ -1,7 +1,7 @@
 import type { SlimTokenBundle, TokenBundle } from "../lib/types";
-import { KeyedStore, type ScopedKeyedStoreReader } from "./keyedStore";
+import { KeyedStore, type SignInValuesReader } from "./keyedStore";
 import { runWithMutex } from "./mutex";
-import type { AuthProviderClientSetup, AuthSignInApi } from "./providerSetup";
+import type { AmbientSignInClient, AuthSignInApi } from "./ambientSignInClient";
 import { retryOnNetworkError } from "./retry";
 import {
   JWT_STORAGE_KEY,
@@ -48,12 +48,11 @@ interface AuthClientConfigBase {
    */
   initialAccessToken?: string | null;
   /**
-   * Provider client setups to run while the client is constructed, along
-   * with the sign-in api handed to each setup. See
-   * {@link AuthProviderClientSetup}.
+   * Ambient sign-ins to set up while the client is constructed, along with
+   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
    */
-  providerClients?: {
-    setups: ReadonlyArray<AuthProviderClientSetup>;
+  ambientSignIns?: {
+    signIns: ReadonlyArray<AmbientSignInClient>;
     signInApi: AuthSignInApi;
   };
   /** Log refresh/lifecycle steps to the console. */
@@ -199,7 +198,7 @@ export class AuthClient {
     }
 
     // Runs last so setups see a fully initialized client.
-    this.#registerProviderClients(config.providerClients);
+    this.#registerAmbientSignIns(config.ambientSignIns);
   }
 
   // --- Observable store API ------------------------------------------------
@@ -226,55 +225,55 @@ export class AuthClient {
     return this.#accessToken;
   }
 
-  // --- Provider client surface ----------------------------------------------
+  // --- Ambient sign-in surface ----------------------------------------------
 
   /**
-   * Client-scoped shared state for provider clients. Setups register their
-   * actions and flow state here through their scoped view, and provider
-   * hooks read it back through {@link providerState}.
+   * What ambient sign-ins publish, keyed by sign-in id. A setup writes
+   * through the scoped view it is handed, and hooks read it back through
+   * {@link ambientSignInValues}.
    */
-  readonly #store = new KeyedStore();
+  readonly #ambientValues = new KeyedStore();
 
   /**
-   * A read-only view of the shared state under a provider client's id, for
-   * hooks and other bindings to read and subscribe to. Writes only happen
-   * through the scoped store a setup receives.
+   * A read-only view of the values published under an ambient sign-in's id,
+   * for hooks and other bindings to read and subscribe to. Only the sign-in
+   * itself can write.
    */
-  providerState(id: string): ScopedKeyedStoreReader {
-    return this.#store.scopedReader(id);
+  ambientSignInValues(id: string): SignInValuesReader {
+    return this.#ambientValues.forSignInReader(id);
   }
 
-  /** Provider client onInit callbacks, run once inside {@link init}. */
+  /** Ambient sign-in onInit callbacks, run once inside {@link init}. */
   readonly #initCallbacks: Array<{ id: string; callback: () => void }> = [];
 
   /**
-   * Run the configured provider client setups, handing each its scoped
+   * Run the configured ambient sign-in setups, handing each its scoped
    * views, and collect their onInit callbacks for {@link init} to run.
-   * Throws when a setup id is invalid or registered twice.
+   * Throws when a sign-in id is invalid or registered twice.
    */
-  #registerProviderClients(
-    providerClients: AuthClientConfig["providerClients"],
+  #registerAmbientSignIns(
+    ambientSignIns: AuthClientConfig["ambientSignIns"],
   ): void {
-    if (providerClients === undefined) return;
+    if (ambientSignIns === undefined) return;
     const seen = new Set<string>();
-    for (const { id, setup } of providerClients.setups) {
+    for (const { id, setup } of ambientSignIns.signIns) {
       if (!/^[a-zA-Z0-9]+$/.test(id)) {
         throw new Error(
-          `Provider client setup id "${id}" is invalid; ids must be alphanumeric`,
+          `Ambient sign-in id "${id}" is invalid; ids must be alphanumeric`,
         );
       }
       if (seen.has(id)) {
         throw new Error(
-          `Provider client setup id "${id}" is registered twice; each auth ` +
+          `Ambient sign-in id "${id}" is registered twice; each auth ` +
             `method registers once per ConvexAuthProvider`,
         );
       }
       seen.add(id);
       const registration = setup({
         client: this,
-        store: this.#store.scoped(id),
-        storage: this.#storage.scoped(id),
-        signInApi: providerClients.signInApi,
+        values: this.#ambientValues.forSignIn(id),
+        storage: this.#storage.forSignIn(id),
+        signInApi: ambientSignIns.signInApi,
       });
       if (registration?.onInit !== undefined) {
         this.#initCallbacks.push({ id, callback: registration.onInit });
@@ -285,7 +284,7 @@ export class AuthClient {
   // --- Lifecycle -----------------------------------------------------------
 
   /**
-   * Run provider client onInit callbacks, load any persisted session from
+   * Run ambient sign-in onInit callbacks, load any persisted session from
    * storage, and start listening for cross-tab changes (if applicable).
    * Until this resolves, the client reports `isLoading`.
    *
@@ -300,8 +299,9 @@ export class AuthClient {
     this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
-    // Run provider onInit callbacks before anything observable happens, so a
-    // withSignInPending call inside one marks loading before the session
+    // Run ambient sign-in onInit callbacks before anything observable
+    // happens, so a withSignInPending call inside one marks loading before
+    // the session
     // loads. A callback that throws is logged and skipped, so the others
     // still run and the session still loads.
     for (const { id, callback } of this.#initCallbacks) {
@@ -309,7 +309,7 @@ export class AuthClient {
         callback();
       } catch (error) {
         console.error(
-          `[convex-auth] onInit for provider client "${id}" threw:`,
+          `[convex-auth] onInit for ambient sign-in "${id}" threw:`,
           error,
         );
       }

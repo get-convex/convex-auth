@@ -1,20 +1,20 @@
 /**
  * A keyed, subscribable value store scoped to one `AuthClient` instance.
  *
- * Provider clients keep their shared client-side state here (actions
- * registered at setup time, flow state like an OAuth error code) so their
- * hooks can read it from any component without a dedicated React context.
- * Values are replaced, never mutated, so a read is a stable snapshot for
+ * Ambient sign-ins publish here what their hooks need to read (the actions
+ * registered at setup time, and status like an OAuth error code), so any
+ * component can read it without a dedicated React context. Values are
+ * replaced, never mutated, so a read is a stable snapshot for
  * `useSyncExternalStore`.
  *
  * @module
  */
 /**
  * A read/write view over a {@link KeyedStore} with every key prefixed, the
- * shape handed to provider client setups. Subscriptions stay on the full
+ * shape handed to an ambient sign-in's setup. Subscriptions stay on the full
  * store, by full key.
  */
-export type ScopedKeyedStore = {
+export type SignInValues = {
   /** Read the value at `key` within the scope. */
   get<T>(key: string): T | undefined;
   /** Replace the value at `key` within the scope. */
@@ -23,10 +23,10 @@ export type ScopedKeyedStore = {
 
 /**
  * A read-only view over a {@link KeyedStore} with every key prefixed, the
- * shape hooks and other bindings read provider client state through. Writes
- * only happen through the {@link ScopedKeyedStore} a setup receives.
+ * shape hooks and other bindings read an ambient sign-in's values through.
+ * Writes only happen through the {@link SignInValues} a setup receives.
  */
-export type ScopedKeyedStoreReader = {
+export type SignInValuesReader = {
   /** Read the value at `key` within the scope. */
   get<T>(key: string): T | undefined;
   /**
@@ -59,10 +59,10 @@ export class KeyedStore {
   }
 
   /**
-   * A {@link ScopedKeyedStore} over this store, mapping `key` to
+   * A {@link SignInValues} over this store, mapping `key` to
    * `${prefix}/${key}`.
    */
-  scoped(prefix: string): ScopedKeyedStore {
+  forSignIn(prefix: string): SignInValues {
     return {
       get: <T>(key: string): T | undefined =>
         this.get<T>(scopedKey(prefix, key)),
@@ -73,10 +73,10 @@ export class KeyedStore {
   }
 
   /**
-   * A {@link ScopedKeyedStoreReader} over this store, mapping `key` to
+   * A {@link SignInValuesReader} over this store, mapping `key` to
    * `${prefix}/${key}`.
    */
-  scopedReader(prefix: string): ScopedKeyedStoreReader {
+  forSignInReader(prefix: string): SignInValuesReader {
     return {
       get: <T>(key: string): T | undefined =>
         this.get<T>(scopedKey(prefix, key)),

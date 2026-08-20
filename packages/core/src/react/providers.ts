@@ -4,10 +4,10 @@
  * modules (OAuth, and future auth methods) use these to expose their state as
  * hooks.
  *
- * A provider client registers its actions and flow state in the auth client's
- * keyed store from its {@link AuthProviderClientSetup} (passed to
- * `ConvexAuthProvider`'s `providerClients` prop); its hooks read them back
- * with {@link useAuthClientValue}.
+ * An ambient sign-in publishes its actions and status from its
+ * {@link AmbientSignInClient} (passed to `ConvexAuthProvider`'s
+ * `ambientSignIns` prop); its hooks read them back with
+ * {@link useAmbientSignInValue}.
  *
  * @module
  */
@@ -17,33 +17,37 @@ import { useCallback, useContext, useSyncExternalStore } from "react";
 import { AuthClientContext } from "./client";
 
 export type {
-  AuthProviderClientContext,
-  AuthProviderClientSetup,
+  AmbientSignInClient,
+  AmbientSignInContext,
   AuthSignInApi,
-} from "../browser/providerSetup";
+} from "../browser/ambientSignInClient";
 
 /**
- * Subscribe to a value in the auth client's keyed store, under the provider
- * client registered as `id` (the same scope its setup writes through).
- * Returns `undefined` when nothing is registered at `key`, typically meaning
- * the provider's setup wasn't passed to `ConvexAuthProvider`'s
- * `providerClients` prop, which provider hooks should surface as an error.
+ * Subscribe to a value published by the ambient sign-in registered as `id`
+ * (the same scope its setup writes through). Returns `undefined` when nothing
+ * is registered at `key`, typically meaning the sign-in wasn't passed to
+ * `ConvexAuthProvider`'s `ambientSignIns` prop, which provider hooks should
+ * surface as an error.
  */
-export function useAuthClientValue<T>(id: string, key: string): T | undefined {
+export function useAmbientSignInValue<T>(
+  id: string,
+  key: string,
+): T | undefined {
   const client = useContext(AuthClientContext);
   if (client === undefined) {
     throw new Error(
-      "useAuthClientValue must be used within a <ConvexAuthProvider>.",
+      "useAmbientSignInValue must be used within a <ConvexAuthProvider>.",
     );
   }
   const subscribe = useCallback(
-    (listener: () => void) => client.providerState(id).subscribe(key, listener),
+    (listener: () => void) =>
+      client.ambientSignInValues(id).subscribe(key, listener),
     [client, id, key],
   );
   const getSnapshot = useCallback(
-    // The store is already populated during SSR, so the server snapshot is
+    // The values are already published during SSR, so the server snapshot is
     // the same read.
-    () => client.providerState(id).get<T>(key),
+    () => client.ambientSignInValues(id).get<T>(key),
     [client, id, key],
   );
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
