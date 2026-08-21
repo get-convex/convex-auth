@@ -10,6 +10,9 @@ This is a pnpm monorepo:
   directory:
   - `react-minimal` wires up the core with the anonymous provider.
   - `react-password` wires up the core with the password provider.
+  - `react-email-password` wires up the core, password, and email components
+    with the `EmailPassword` provider (sign-up with email validation, change
+    password/email, password recovery; email through `@convex-dev/resend`).
 
 ## Published output
 
