@@ -96,6 +96,19 @@ describe("token interception", () => {
     expect(cookies).toContain("HttpOnly");
   });
 
+  test("keeps the fields a provider adds beside the bundle", async () => {
+    // `finishSignIn` of the passkey provider returns the username alongside the
+    // tokens. The refresh token is the only thing the proxy removes.
+    upstream({
+      status: "success",
+      value: { success: true, tokens: bundle(), username: "alice" },
+    });
+
+    const body = await (await handler(call(envelope()))).json();
+    expect(body.value.username).toBe("alice");
+    expect(body.value.tokens.refreshToken).toBeUndefined();
+  });
+
   test("passes a failure arm through untouched and writes no cookies", async () => {
     upstream({
       status: "success",
@@ -112,6 +125,20 @@ describe("token interception", () => {
     // application result carries the reason.
     expect(response.status).toBe(200);
     expect(setCookies(response)).toBe("");
+  });
+
+  test("refuses a challenge-minting function, which is why those bypass the proxy", async () => {
+    // What `startSignIn` of the passkey provider returns. A provider must run
+    // this one on the Convex client, not through the sign-in API: the proxy
+    // classifies every reply as the sign-in envelope, and this is not one.
+    upstream({
+      status: "success",
+      value: { success: true, step: "register", rpId: "app.test" },
+    });
+
+    const response = await handler(call(envelope()));
+    expect(response.status).toBe(500);
+    expect(await response.text()).toContain("did not return a sign-in result");
   });
 
   test("fails closed when an exposed function returns an unrecognized shape", async () => {
