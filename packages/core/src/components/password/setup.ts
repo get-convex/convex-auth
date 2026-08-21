@@ -4,7 +4,6 @@ import {
   USE_USER_ID_AS_ACCOUNT_ID,
   type AnyUserCallback,
   type OnSignInFn,
-  type ProvidedUserCallbacks,
   type UserCallbacksFor,
 } from "../../lib/types";
 import type { AuthCore } from "../core/setup";
@@ -84,14 +83,15 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUpWithPassword, signInWithPassword } =
- *   setupUsernamePassword(core, {
- *     component: components.authPasswordProvider,
- *     usernameComponent: components.authUsername,
- *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
+ * const password = setupUsernamePassword(core, {
+ *   component: components.authPasswordProvider,
+ *   usernameComponent: components.authUsername,
+ * });
+ * password.attachUserCallbacks({ createUser: internal.users.createUserPassword });
+ * export const { signUpWithPassword, signInWithPassword } = password.exports;
  * ```
  *
- * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
+ * The app re-exports the `signUpWithPassword` / `signInWithPassword`
  * mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the username
@@ -248,14 +248,21 @@ export function setupUsernamePassword<UsersTable extends string>(
       };
   };
 
+  let attached: ReturnType<typeof attach> | undefined;
+
   return {
     /**
      * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
-     * their args must be declared) and get this provider's functions to export.
+     * their args must be declared). The provider's functions are available on
+     * {@link exports} afterwards.
      *
-     * The callbacks only have to *accept* what this provider calls them with,
-     * so a mutation declaring a union of provider names and profile shapes can
-     * be attached here and to other providers as well.
+     * Because this call is generic (that is what checks that the callbacks
+     * *accept* what this provider sends, so a mutation declaring a union of
+     * provider names and profile shapes can be attached here and to other
+     * providers as well), its result cannot feed an `export` in the same
+     * module that `internal` is generated from — TypeScript would have to
+     * type the module's exports in terms of themselves (TS7022). Call it as
+     * its own statement and export from `exports`, which is not generic.
      */
     attachUserCallbacks<
       CreateUser extends AnyUserCallback,
@@ -273,21 +280,24 @@ export function setupUsernamePassword<UsersTable extends string>(
       "password",
       PasswordProfile,
       UsersTable
-    >) {
-      return attach(createUser, onSignIn);
+    >): void {
+      attached = attach(createUser, onSignIn);
     },
 
     /**
-     * EXPERIMENT (carrier approach): same contract as `attachUserCallbacks`,
-     * but non-generic — the callbacks arrive wrapped by `userCallback`, whose
-     * carrier type puts the args in contravariant position so plain
-     * assignability does the "accepts at least" check.
+     * The provider's functions to export, available once
+     * {@link attachUserCallbacks} has run. Accessing them earlier throws, so
+     * a module that forgets to attach callbacks fails at eval (push) time,
+     * not at the first sign-in.
      */
-    attachUserCallbacks2({
-      createUser,
-      onSignIn,
-    }: ProvidedUserCallbacks<"password", PasswordProfile, UsersTable>) {
-      return attach(createUser.ref, onSignIn?.ref);
+    get exports() {
+      if (attached === undefined) {
+        throw new Error(
+          "Call attachUserCallbacks before accessing the password " +
+            "provider's exports.",
+        );
+      }
+      return attached;
     },
   };
 }
