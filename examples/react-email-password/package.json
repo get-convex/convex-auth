@@ -1,0 +1,23 @@
+{
+  "name": "example-react-email-password",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@convex-dev/auth": "workspace:*",
+    "@convex-dev/resend": "^0.2.6",
+    "convex": "^1.43.0"
+  },
+  "scripts": {
+    "dev": "convex dev --start vite",
+    "build": "tsc -p convex --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p convex --noEmit"
+  },
+  "devDependencies": {
+    "@convex-dev/rate-limiter": "^0.3.2",
+    "@types/node": "^24.12.4",
+    "convex-test": "^0.0.55",
+    "jose": "^5.10.0",
+    "typescript": "^6.0.3"
+  }
+}
