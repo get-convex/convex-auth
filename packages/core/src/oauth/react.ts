@@ -57,7 +57,8 @@ const NOT_REGISTERED_ERROR =
 export type UseOauthReturn = {
   /**
    * Why the last sign-in attempt failed, or `null`. Cleared on the next
-   * sign-in. Your app supplies the message text for each `code`.
+   * sign-in. Your app supplies the message text for each `code`. A
+   * `rejected` error has a `message` from your own backend.
    */
   flowError: OauthFlowError | null;
 };
@@ -98,9 +99,9 @@ export type UseOauthSignInReturn = {
  * per-provider hooks like {@link useSignInWithGoogle} call this with their
  * own references.
  *
- * A failure while starting the flow rejects the returned promise. After the
- * redirect back there is no caller left to catch anything, so failures from
- * then on are reported through {@link useOauth}'s `flowError` instead.
+ * A failure while starting the flow rejects the returned promise. Failures
+ * after the redirect back have no caller left to catch them, so every failure
+ * is also reported through {@link useOauth}'s `flowError`.
  */
 export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
   const actions = useAmbientSignInValue<OauthActions>(
