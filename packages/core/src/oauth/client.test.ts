@@ -279,7 +279,7 @@ describe("OAuth client", () => {
     expect(flowError()?.message).toBeUndefined();
   });
 
-  test("a rejecting storage during redemption sets oauth_error", async () => {
+  test("a rejected storage read during redemption sets oauth_error", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     // Fail reads of the saved flow key, the way an async storage might. Reads
     // of the session tokens still work.
@@ -300,7 +300,7 @@ describe("OAuth client", () => {
     expect(client.getSnapshot().isLoading).toBe(false);
   });
 
-  test("a rejecting storage during error cleanup keeps the flow error", async () => {
+  test("a rejected storage removal during error cleanup keeps the flow error", async () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
     const storage: TokenStorage = {
       getItem: () => null,

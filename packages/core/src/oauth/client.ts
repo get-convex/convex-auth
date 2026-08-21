@@ -71,6 +71,8 @@ export type OauthFlowError = {
   /**
    * Text to show the user. Only set when the app's backend threw a
    * `ConvexError` whose `data` is a string. That string is this text.
+   *
+   * @TODO(erquhart) Look into localization support.
    */
   message?: string;
 };
@@ -201,8 +203,8 @@ async function takePendingFlow(
 
 /**
  * Remove the saved sign-in flow after it has ended. Callers don't await this,
- * so a rejecting storage is ignored instead of becoming an unhandled
- * rejection. The caller already recorded why the sign-in failed.
+ * so a failed removal is ignored instead of becoming an unhandled rejection.
+ * The caller already recorded why the sign-in failed.
  */
 async function dropPendingFlow(storage: SignInStorage): Promise<void> {
   try {
@@ -262,14 +264,16 @@ export function oauth(): AmbientSignInClient {
      */
     const completeFlow = async (code: string): Promise<boolean> =>
       await client.withSignInPending(async () => {
-        // The storage read is inside the try so that a storage which rejects
-        // becomes a flow error like any other failure here.
+        // The storage read is inside the try so that a failed read becomes a
+        // flow error like any other failure here.
         try {
           const pending = await takePendingFlow(storage);
           if (pending === null) {
             setFlowError("invalid_flow");
             return false;
           }
+          // TODO(erquhart) Look at getting this reference without storing
+          // its path.
           const completeSignIn = makeFunctionReference<"mutation">(
             pending.completeSignIn,
           ) as OauthProviderApi["completeSignIn"];
