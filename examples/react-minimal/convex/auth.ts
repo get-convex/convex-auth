@@ -5,6 +5,6 @@ import { setupAnonymous } from "@convex-dev/auth/providers/anonymous/setup";
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
-export const { signInAnonymous } = setupAnonymous(core, {
-  component: components.authAnonymous,
-}).attachUserCallbacks({ createUser: internal.users.createUser });
+const anonymous = setupAnonymous(core, { component: components.authAnonymous });
+anonymous.attachUserCallbacks({ createUser: internal.users.createUser });
+export const { signInAnonymous } = anonymous.exports;

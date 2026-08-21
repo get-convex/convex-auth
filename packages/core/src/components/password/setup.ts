@@ -83,14 +83,15 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUpWithPassword, signInWithPassword } =
- *   setupUsernamePassword(core, {
- *     component: components.authPasswordProvider,
- *     usernameComponent: components.authUsername,
- *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
+ * const password = setupUsernamePassword(core, {
+ *   component: components.authPasswordProvider,
+ *   usernameComponent: components.authUsername,
+ * });
+ * password.attachUserCallbacks({ createUser: internal.users.createUserPassword });
+ * export const { signUpWithPassword, signInWithPassword } = password.exports;
  * ```
  *
- * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
+ * The app re-exports the `signUpWithPassword` / `signInWithPassword`
  * mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the username
@@ -104,39 +105,14 @@ export function setupUsernamePassword<UsersTable extends string>(
 ) {
   const { component, usernameComponent } = options;
 
-  return {
-    /**
-     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
-     * their args must be declared) and get this provider's functions to export.
-     *
-     * The callbacks only have to *accept* what this provider calls them with,
-     * so a mutation declaring a union of provider names and profile shapes can
-     * be attached here and to other providers as well.
-     */
-    attachUserCallbacks<
-      CreateUser extends AnyUserCallback,
-      OnSignIn extends AnyUserCallback = OnSignInFn<
-        "password",
-        PasswordProfile,
-        UsersTable
-      >,
-    >({
+  const attach = (createUser: AnyUserCallback, onSignIn?: AnyUserCallback) => {
+    const { authMutation } = core.bindProvider<PasswordProfile>({
+      name: PROVIDER_NAME,
       createUser,
       onSignIn,
-    }: UserCallbacksFor<
-      CreateUser,
-      OnSignIn,
-      "password",
-      PasswordProfile,
-      UsersTable
-    >) {
-      const { authMutation } = core.bindProvider<PasswordProfile>({
-        name: PROVIDER_NAME,
-        createUser,
-        onSignIn,
-      });
+    });
 
-      return {
+    return {
         /**
          * Create a new account: reject a taken username or an invalid password,
          * otherwise create the user + session and store the username and the
@@ -270,6 +246,58 @@ export function setupUsernamePassword<UsersTable extends string>(
           },
         }),
       };
+  };
+
+  let attached: ReturnType<typeof attach> | undefined;
+
+  return {
+    /**
+     * Supply the app's user callbacks (see {@link UserCallbacksFor} for how
+     * their args must be declared). The provider's functions are available on
+     * {@link exports} afterwards.
+     *
+     * Because this call is generic (that is what checks that the callbacks
+     * *accept* what this provider sends, so a mutation declaring a union of
+     * provider names and profile shapes can be attached here and to other
+     * providers as well), its result cannot feed an `export` in the same
+     * module that `internal` is generated from — TypeScript would have to
+     * type the module's exports in terms of themselves (TS7022). Call it as
+     * its own statement and export from `exports`, which is not generic.
+     */
+    attachUserCallbacks<
+      CreateUser extends AnyUserCallback,
+      OnSignIn extends AnyUserCallback = OnSignInFn<
+        "password",
+        PasswordProfile,
+        UsersTable
+      >,
+    >({
+      createUser,
+      onSignIn,
+    }: UserCallbacksFor<
+      CreateUser,
+      OnSignIn,
+      "password",
+      PasswordProfile,
+      UsersTable
+    >): void {
+      attached = attach(createUser, onSignIn);
+    },
+
+    /**
+     * The provider's functions to export, available once
+     * {@link attachUserCallbacks} has run. Accessing them earlier throws, so
+     * a module that forgets to attach callbacks fails at eval (push) time,
+     * not at the first sign-in.
+     */
+    get exports() {
+      if (attached === undefined) {
+        throw new Error(
+          "Call attachUserCallbacks before accessing the password " +
+            "provider's exports.",
+        );
+      }
+      return attached;
     },
   };
 }
