@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { normalizeGithubProfile } from "./github";
+import { normalizeGithubProfile } from "./github.js";
 
 type GithubUserInfo = NonNullable<Parameters<typeof normalizeGithubProfile>[1]>;
 

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
-import { api } from "./_generated/api";
-import { toArrayBuffer } from "./helpers";
-import { CHALLENGE_TTL_MS } from "./validation";
-import { expectSameBytes, setup } from "../passkeyTestSetup";
+import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa.js";
+import { api } from "./_generated/api.js";
+import { toArrayBuffer } from "./helpers.js";
+import { CHALLENGE_TTL_MS } from "./validation.js";
+import { expectSameBytes, setup } from "../passkeyTestSetup.js";
 import {
   ORIGIN,
   RP_ID,
@@ -14,7 +14,7 @@ import {
   generateES256Credential,
   generateRS256Credential,
   register,
-} from "./testAuthenticator";
+} from "./testAuthenticator.js";
 
 function handleRows(t: ReturnType<typeof setup>) {
   return t.run((ctx) => ctx.db.query("handles").collect());
@@ -246,8 +246,8 @@ describe("startRegistration", () => {
       .spyOn(crypto, "getRandomValues")
       .mockImplementation((array) =>
         array !== null && array.byteLength === 64
-          ? (array as Uint8Array).fill(7)
-          : getRandomValues(array as Uint8Array),
+          ? (array as Uint8Array<ArrayBuffer>).fill(7)
+          : getRandomValues(array as Uint8Array<ArrayBuffer>),
       );
     try {
       await t.mutation(api.registration.startRegistration, { userId: "user1" });

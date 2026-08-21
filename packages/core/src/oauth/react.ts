@@ -22,7 +22,7 @@
 
 import { getFunctionName } from "convex/server";
 import { useMemo } from "react";
-import { useAmbientSignInValue } from "../react/providers";
+import { useAmbientSignInValue } from "../react/providers.js";
 import {
   OAUTH_ACTIONS_KEY,
   OAUTH_FLOW_ERROR_KEY,
@@ -33,9 +33,9 @@ import {
   type OauthProviderRefs,
   type SignInOptions,
   type SignInOutcome,
-} from "./client";
+} from "./client.js";
 
-export { oauth } from "./client";
+export { oauth } from "./client.js";
 export type {
   OauthActions,
   OauthFlowError,
@@ -44,7 +44,7 @@ export type {
   OauthProviderRefs,
   SignInOptions,
   SignInOutcome,
-} from "./client";
+} from "./client.js";
 
 /** What every hook here throws when the OAuth setup published nothing. */
 const NOT_REGISTERED_ERROR =

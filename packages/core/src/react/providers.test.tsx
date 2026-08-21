@@ -2,12 +2,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { ReactNode } from "react";
 import { describe, expect, test } from "vitest";
-import type { SignInValues } from "../browser/keyedStore";
-import { AuthClient } from "../browser/sessionManager";
-import { InMemoryStorage } from "../browser/storage";
-import { AuthProvider } from "./client";
-import { useAmbientSignInValue } from "./providers";
-import { stubSignInApi } from "./testSignInApi";
+import type { SignInValues } from "../browser/keyedStore.js";
+import { AuthClient } from "../browser/sessionManager.js";
+import { InMemoryStorage } from "../browser/storage.js";
+import { AuthProvider } from "./client.js";
+import { useAmbientSignInValue } from "./providers.js";
+import { stubSignInApi } from "./testSignInApi.js";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 

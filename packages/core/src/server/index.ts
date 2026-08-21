@@ -19,37 +19,41 @@ export {
   AUTH_REFRESH_COOKIE,
   clearAuthCookies,
   writeAuthCookies,
-} from "./cookies";
-export { type HttpCookies, httpCookies, serializeCookie } from "./httpCookies";
-export { isTrustedOrigin } from "./origin";
+} from "./cookies.js";
+export {
+  type HttpCookies,
+  httpCookies,
+  serializeCookie,
+} from "./httpCookies.js";
+export { isTrustedOrigin } from "./origin.js";
 export {
   type RefreshHandlerConfig,
   type RequestHandler,
   type SignOutHandlerConfig,
   refreshHandler,
   signOutHandler,
-} from "./handlers";
-export { type ConvexAuthServerConfig, setupConvexAuthServer } from "./setup";
+} from "./handlers.js";
+export { type ConvexAuthServerConfig, setupConvexAuthServer } from "./setup.js";
 export {
   type ConvexProxyConfig,
   type ExposedSignInFn,
   convexProxyHandler,
-} from "./signInProxy";
+} from "./signInProxy.js";
 export {
   type DecodedAccessToken,
   decodeAccessToken,
   isTokenExpiring,
-} from "./jwt";
+} from "./jwt.js";
 export {
   ServerAuthSession,
   type RefreshSession,
   type ServerAuthSessionConfig,
-} from "./session";
+} from "./session.js";
 export {
   createServerAuthChecker,
   type ServerAuthChecker,
   type ServerAuthCheckerConfig,
-} from "./isAuthenticated";
+} from "./isAuthenticated.js";
 export type {
   AuthSessionResponse,
   ClientView,
@@ -60,5 +64,5 @@ export type {
   SignOutFn,
   SlimTokenBundle,
   TokenBundle,
-} from "../lib/types";
-export { makeSlimBundle, vSignInSuccess } from "../lib/types";
+} from "../lib/types.js";
+export { makeSlimBundle, vSignInSuccess } from "../lib/types.js";

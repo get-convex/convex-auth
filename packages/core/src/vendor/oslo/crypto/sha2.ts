@@ -5,7 +5,7 @@
  * see README.md.
  */
 
-import { bigEndian, rotr32 } from "../binary";
+import { bigEndian, rotr32 } from "../binary/index.js";
 
 export interface Hash {
   blockSize: number;

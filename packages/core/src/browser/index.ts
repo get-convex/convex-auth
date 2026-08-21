@@ -12,18 +12,18 @@ export {
   defaultStorage,
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
-} from "./storage";
-export { runWithMutex } from "./mutex";
-export type { SignInValues, SignInValuesReader } from "./keyedStore";
+} from "./storage.js";
+export { runWithMutex } from "./mutex.js";
+export type { SignInValues, SignInValuesReader } from "./keyedStore.js";
 export type {
   AmbientSignInClient,
   AmbientSignInContext,
   AuthSignInApi,
-} from "./ambientSignInClient";
+} from "./ambientSignInClient.js";
 export {
   AuthClient,
   type SpaAuthApi,
   type SsrAuthApi,
   type AuthClientConfig,
   type AuthState,
-} from "./sessionManager";
+} from "./sessionManager.js";

@@ -12,8 +12,11 @@
  * @module
  */
 
-import { JWT_STORAGE_KEY, REFRESH_TOKEN_STORAGE_KEY } from "../browser/storage";
-import type { TokenBundle } from "../lib/types";
+import {
+  JWT_STORAGE_KEY,
+  REFRESH_TOKEN_STORAGE_KEY,
+} from "../browser/storage.js";
+import type { TokenBundle } from "../lib/types.js";
 
 /** The cookie holding the current access token (a JWT). */
 export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;

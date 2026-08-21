@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import type { TokenBundle } from "../lib/types";
-import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "./cookies";
-import { refreshHandler, signOutHandler } from "./handlers";
+import type { TokenBundle } from "../lib/types.js";
+import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "./cookies.js";
+import { refreshHandler, signOutHandler } from "./handlers.js";
 
 // The handlers talk to Convex through a `ConvexHttpClient`; stub it so the
 // tests exercise cookie behavior without a backend. This mutation mock stands

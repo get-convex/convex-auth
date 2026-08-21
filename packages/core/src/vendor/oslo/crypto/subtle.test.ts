@@ -1,7 +1,7 @@
 // Tests for the vendored @oslojs/crypto subtle module (the original
 // package did not ship tests for it).
 import { expect, test } from "vitest";
-import { constantTimeEqual } from "./subtle";
+import { constantTimeEqual } from "./subtle.js";
 
 test("constantTimeEqual()", () => {
   expect(constantTimeEqual(new Uint8Array(), new Uint8Array())).toBe(true);

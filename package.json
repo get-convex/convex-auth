@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "pnpm --filter @convex-dev/auth build",
+    "clean": "pnpm --filter @convex-dev/auth clean",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",

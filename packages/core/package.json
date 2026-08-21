@@ -23,46 +23,111 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx"
   ],
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./lib/*": "./src/lib/*.ts",
-    "./core/convex.config.js": "./src/components/core/convex.config.ts",
-    "./core/*": "./src/components/core/*.ts",
-    "./username/convex.config.js": "./src/components/username/convex.config.ts",
-    "./username/*": "./src/components/username/*.ts",
-    "./providers/anonymous/convex.config.js": "./src/components/anonymous/convex.config.ts",
-    "./providers/anonymous/react": "./src/components/anonymous/react.tsx",
-    "./providers/anonymous/*": "./src/components/anonymous/*.ts",
-    "./providers/oauth/convex.config.js": "./src/oauth/component/convex.config.ts",
-    "./providers/oauth/react": "./src/oauth/react.ts",
-    "./providers/oauth/*": "./src/oauth/component/*.ts",
-    "./providers/password/convex.config.js": "./src/components/password/convex.config.ts",
-    "./providers/password/react": "./src/components/password/react.tsx",
-    "./providers/password/*": "./src/components/password/*.ts",
-    "./providers/passkey/convex.config.js": "./src/components/passkey/convex.config.ts",
-    "./providers/passkey/react": "./src/components/passkey/react.tsx",
-    "./providers/passkey/*": "./src/components/passkey/*.ts",
+    "./package.json": "./package.json",
+    "./lib/*.js": {
+      "types": "./dist/lib/*.d.ts",
+      "default": "./dist/lib/*.js"
+    },
+    "./lib/*": {
+      "types": "./dist/lib/*.d.ts",
+      "default": "./dist/lib/*.js"
+    },
+    "./core/*.js": {
+      "types": "./dist/components/core/*.d.ts",
+      "default": "./dist/components/core/*.js"
+    },
+    "./core/*": {
+      "types": "./dist/components/core/*.d.ts",
+      "default": "./dist/components/core/*.js"
+    },
+    "./username/*.js": {
+      "types": "./dist/components/username/*.d.ts",
+      "default": "./dist/components/username/*.js"
+    },
+    "./username/*": {
+      "types": "./dist/components/username/*.d.ts",
+      "default": "./dist/components/username/*.js"
+    },
+    "./providers/anonymous/*.js": {
+      "types": "./dist/components/anonymous/*.d.ts",
+      "default": "./dist/components/anonymous/*.js"
+    },
+    "./providers/anonymous/*": {
+      "types": "./dist/components/anonymous/*.d.ts",
+      "default": "./dist/components/anonymous/*.js"
+    },
+    "./providers/oauth/react": {
+      "types": "./dist/oauth/react.d.ts",
+      "default": "./dist/oauth/react.js"
+    },
+    "./providers/oauth/*.js": {
+      "types": "./dist/oauth/component/*.d.ts",
+      "default": "./dist/oauth/component/*.js"
+    },
+    "./providers/oauth/*": {
+      "types": "./dist/oauth/component/*.d.ts",
+      "default": "./dist/oauth/component/*.js"
+    },
+    "./providers/password/*.js": {
+      "types": "./dist/components/password/*.d.ts",
+      "default": "./dist/components/password/*.js"
+    },
+    "./providers/password/*": {
+      "types": "./dist/components/password/*.d.ts",
+      "default": "./dist/components/password/*.js"
+    },
+    "./providers/passkey/*.js": {
+      "types": "./dist/components/passkey/*.d.ts",
+      "default": "./dist/components/passkey/*.js"
+    },
+    "./providers/passkey/*": {
+      "types": "./dist/components/passkey/*.d.ts",
+      "default": "./dist/components/passkey/*.js"
+    },
     "./providers/testing/*": "./src/components/testing/*.ts",
-    "./browser": "./src/browser/index.ts",
-    "./server": "./src/server/index.ts",
-    "./react": "./src/react/index.tsx",
-    "./react/providers": "./src/react/providers.ts",
-    "./nextjs": "./src/nextjs/index.tsx",
-    "./nextjs/server": "./src/nextjs/server.tsx"
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "default": "./dist/browser/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./react/providers": {
+      "types": "./dist/react/providers.d.ts",
+      "default": "./dist/react/providers.js"
+    },
+    "./nextjs": {
+      "types": "./dist/nextjs/index.d.ts",
+      "default": "./dist/nextjs/index.js"
+    },
+    "./nextjs/server": {
+      "types": "./dist/nextjs/server.d.ts",
+      "default": "./dist/nextjs/server.js"
+    }
   },
   "scripts": {
-    "build:cli": "tsc -p tsconfig.cli.json",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
     "generate:common-passwords": "bun src/components/password/scripts/generateCommonPasswords.script.ts",
-    "prepare": "pnpm build:cli",
+    "prepare": "pnpm run build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@convex-dev/batch-worker": "^0.3.0",
     "@convex-dev/rate-limiter": "^0.3.2",
-    "argon2id-wasm": "0.0.0-alpha.1",
+    "argon2id-wasm": "0.0.0-alpha.2",
     "commander": "^14.0.2",
     "cookie": "1.1.1",
     "jose": "^5.2.2"

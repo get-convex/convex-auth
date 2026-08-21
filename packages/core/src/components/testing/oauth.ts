@@ -1,6 +1,12 @@
+/// <reference types="vite/client" />
+// This helper ships as TypeScript, not as part of the compiled build: the
+// `import.meta.glob` below is a Vite macro that only works if the consumer's
+// bundler transforms this file. Vitest externalizes plain `.js` under
+// `node_modules` and would leave the macro untransformed, but it can't
+// externalize `.ts`, so shipping source is what makes this work at all.
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
-import schema from "../../oauth/component/schema";
+import schema from "../../oauth/component/schema.js";
 const modules = import.meta.glob("../../oauth/component/**/*.ts");
 
 /**

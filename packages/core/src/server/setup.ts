@@ -14,10 +14,10 @@
  * @module
  */
 
-import type { RefreshSessionFn, SignOutFn } from "../lib/types";
-import type { AuthCookieOptions } from "./cookies";
-import { refreshHandler, signOutHandler } from "./handlers";
-import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy";
+import type { RefreshSessionFn, SignOutFn } from "../lib/types.js";
+import type { AuthCookieOptions } from "./cookies.js";
+import { refreshHandler, signOutHandler } from "./handlers.js";
+import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy.js";
 
 /** Configuration for {@link setupConvexAuthServer}. */
 export interface ConvexAuthServerConfig {

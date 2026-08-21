@@ -18,7 +18,7 @@
  * @module
  */
 
-import type { AuthSessionResponse } from "../lib/types";
+import type { AuthSessionResponse } from "../lib/types.js";
 
 /**
  * Extracts just the host portion from an `origin`.

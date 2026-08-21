@@ -217,8 +217,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
       argon2id-wasm:
-        specifier: 0.0.0-alpha.1
-        version: 0.0.0-alpha.1
+        specifier: 0.0.0-alpha.2
+        version: 0.0.0-alpha.2
       commander:
         specifier: ^14.0.2
         version: 14.0.3
@@ -1610,8 +1610,8 @@ packages:
     resolution: {integrity: sha512-Cxwpt2SfTzTtXcfOlzGEee8O+c+MmUgGrNiBcXnuWxuFJHe6a5Hz7qwhwe5OgaSYI0IJvkLqWX1ASG+cJOkEiA==}
     engines: {node: '>=10'}
 
-  argon2id-wasm@0.0.0-alpha.1:
-    resolution: {integrity: sha512-rBKe0DTm6+lhKn0MJ4D73k4OeOyoDSMZJ3zOaD4W485dzRR6hgc8GAglGJes18E1EsNQ2drCrbBF4Vs6bV4jqg==}
+  argon2id-wasm@0.0.0-alpha.2:
+    resolution: {integrity: sha512-Bxa3aVWUbpg/hKTyHdjeLT68mJXNLftm1W3tXVXu/X83vmpTJ3zzgOhNMzu33Th2iNDxMU1kU4/MEGgW5udMgQ==}
 
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
@@ -4125,7 +4125,7 @@ snapshots:
 
   ansi-styles@5.2.0: {}
 
-  argon2id-wasm@0.0.0-alpha.1: {}
+  argon2id-wasm@0.0.0-alpha.2: {}
 
   argparse@2.0.1: {}
 

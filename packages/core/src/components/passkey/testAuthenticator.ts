@@ -3,13 +3,13 @@ import {
   encodeASN1,
   ASN1EncodableSequence,
   ASN1Integer,
-} from "../../vendor/oslo/asn1";
-import { bigIntFromBytes } from "../../vendor/oslo/binary";
-import { sha256 } from "../../vendor/oslo/crypto/sha2";
-import { decodeBase64urlIgnorePadding } from "../../vendor/oslo/encoding";
-import { api } from "./_generated/api";
-import { toArrayBuffer } from "./helpers";
-import type schema from "./schema";
+} from "../../vendor/oslo/asn1/index.js";
+import { bigIntFromBytes } from "../../vendor/oslo/binary/index.js";
+import { sha256 } from "../../vendor/oslo/crypto/sha2.js";
+import { decodeBase64urlIgnorePadding } from "../../vendor/oslo/encoding/index.js";
+import { api } from "./_generated/api.js";
+import { toArrayBuffer } from "./helpers.js";
+import type schema from "./schema.js";
 
 /**
  * A minimal software authenticator for tests. It builds the WebAuthn

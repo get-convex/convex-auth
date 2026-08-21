@@ -8,6 +8,8 @@ Use `pnpm install` at the root.
 
 Common tasks:
 
+- `pnpm build` — compile `@convex-dev/auth` to `dist/` (also runs on install
+  via `prepare`).
 - `pnpm test` — run tests across packages (Vitest).
 - `pnpm typecheck` — typecheck across packages.
 - `pnpm lint` — ESLint.

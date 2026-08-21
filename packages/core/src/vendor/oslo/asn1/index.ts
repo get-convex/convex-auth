@@ -10,7 +10,7 @@ import {
   bigIntFromBytes,
   compareBytes,
   DynamicBuffer,
-} from "../binary";
+} from "../binary/index.js";
 
 export function bigIntTwosComplementBytes(value: bigint): Uint8Array {
   if (value === 0n) {

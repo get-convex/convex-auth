@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { env, internalMutation, mutation } from "./_generated/server";
-import { CALLBACK_PATH } from "./constants";
+import { env, internalMutation, mutation } from "./_generated/server.js";
+import { CALLBACK_PATH } from "./constants.js";
 
 /** How long an authorization request stays claimable by the callback. */
 const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m

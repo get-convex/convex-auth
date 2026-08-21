@@ -7,10 +7,10 @@ import { describe, expect, test, vi } from "vitest";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
-} from "../browser/ambientSignInClient";
-import { useOauth } from "../oauth/react";
-import { ConvexAuthProvider, useAuthSignInApi } from "./index";
-import { useAmbientSignInValue } from "./providers";
+} from "../browser/ambientSignInClient.js";
+import { useOauth } from "../oauth/react.js";
+import { ConvexAuthProvider, useAuthSignInApi } from "./index.js";
+import { useAmbientSignInValue } from "./providers.js";
 
 const API = {
   refreshSession: makeFunctionReference<"mutation">("auth:refreshSession"),

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isTrustedOrigin } from "./origin";
+import { isTrustedOrigin } from "./origin.js";
 
 function request(headers: Record<string, string>): Request {
   return new Request("https://app.test/auth/refresh", {

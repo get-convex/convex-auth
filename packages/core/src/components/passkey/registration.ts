@@ -1,6 +1,6 @@
 import { Infer, v } from "convex/values";
-import { mutation, query, QueryCtx } from "./_generated/server";
-import { Doc, Id } from "./_generated/dataModel";
+import { mutation, query, QueryCtx } from "./_generated/server.js";
+import { Doc, Id } from "./_generated/dataModel.js";
 import {
   ClientDataType,
   coseAlgorithmES256,
@@ -8,14 +8,14 @@ import {
   coseEllipticCurveP256,
   parseAttestationObject,
   parseClientDataJSON,
-} from "../../vendor/oslo/webauthn";
-import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa";
-import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa";
+} from "../../vendor/oslo/webauthn/index.js";
+import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa.js";
+import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa.js";
 import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
-} from "./validation";
+} from "./validation.js";
 import {
   deleteDeadChallenge,
   findChallenge,
@@ -23,8 +23,8 @@ import {
   randomChallenge,
   randomHandle,
   toArrayBuffer,
-} from "./helpers";
-import { scheduleChallengeCleanup } from "./cleanup";
+} from "./helpers.js";
+import { scheduleChallengeCleanup } from "./cleanup.js";
 
 // The challenge, the credential IDs, and the user handle travel as raw bytes
 // (Convex `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API

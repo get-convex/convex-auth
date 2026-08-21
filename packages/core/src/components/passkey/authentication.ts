@@ -1,26 +1,26 @@
 import { Infer, v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation } from "./_generated/server.js";
 import {
   ClientDataType,
   createAssertionSignatureMessage,
   parseAuthenticatorData,
   parseClientDataJSON,
-} from "../../vendor/oslo/webauthn";
+} from "../../vendor/oslo/webauthn/index.js";
 import {
   decodePKIXECDSASignature,
   decodeSEC1PublicKey,
   p256,
   verifyECDSASignature,
-} from "../../vendor/oslo/crypto/ecdsa";
+} from "../../vendor/oslo/crypto/ecdsa.js";
 import {
   decodePKCS1RSAPublicKey,
   sha256ObjectIdentifier,
   verifyRSASSAPKCS1v15Signature,
-} from "../../vendor/oslo/crypto/rsa";
-import { sha256 } from "../../vendor/oslo/crypto/sha2";
-import { finishAuthenticationUserError } from "./validation";
-import { consumeChallenge, randomChallenge } from "./helpers";
-import { scheduleChallengeCleanup } from "./cleanup";
+} from "../../vendor/oslo/crypto/rsa.js";
+import { sha256 } from "../../vendor/oslo/crypto/sha2.js";
+import { finishAuthenticationUserError } from "./validation.js";
+import { consumeChallenge, randomChallenge } from "./helpers.js";
+import { scheduleChallengeCleanup } from "./cleanup.js";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
 // `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
@@ -88,7 +88,7 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
  * Finish an authentication ceremony.
  *
  * The app supplies `expectedRpId` and `expectedOrigin`; see
- * {@link import("./registration").finishRegistration}.
+ * {@link import("./registration.js").finishRegistration}.
  *
  * The function finds the credential. Then it examines the authenticator
  * data, the client data, and the assertion signature. It deletes the
