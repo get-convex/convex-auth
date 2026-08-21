@@ -1,9 +1,9 @@
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { TokenBundle } from "../lib/types.js";
-import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "./cookies.js";
-import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy.js";
+import type { TokenBundle } from "../lib/types.ts";
+import { AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE } from "./cookies.ts";
+import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy.ts";
 
 const CONVEX_URL = "https://happy-animal-123.convex.cloud";
 

@@ -2,16 +2,16 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { SpaAuthApi, AuthClient } from "../browser/sessionManager.js";
+import { SpaAuthApi, AuthClient } from "../browser/sessionManager.ts";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
-} from "../browser/storage.js";
-import type { TokenBundle } from "../lib/types.js";
-import { AuthProvider, useAuth } from "./client.js";
-import { stubSignInApi } from "./testSignInApi.js";
-import { useAuthActions, useAuthToken } from "./index.js";
+} from "../browser/storage.ts";
+import type { TokenBundle } from "../lib/types.ts";
+import { AuthProvider, useAuth } from "./client.tsx";
+import { stubSignInApi } from "./testSignInApi.ts";
+import { useAuthActions, useAuthToken } from "./index.tsx";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 // Matches NamespacedStorage's `replace(/[^a-zA-Z0-9]/g, "")`.

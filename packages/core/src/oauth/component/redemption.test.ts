@@ -2,23 +2,23 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { makeFunctionReference, mutationGeneric } from "convex/server";
 import type { PropertyValidators } from "convex/values";
-import { api, internal } from "./_generated/api.js";
-import type { ComponentApi } from "./_generated/component.js";
-import schema from "./schema.js";
-import { setupOauth, type OauthProfile } from "./setup.js";
-import { encryptTicketPayload, generateRandomToken } from "./crypto.js";
-import { sha256Hex } from "../../lib/crypto.js";
+import { api, internal } from "./_generated/api.ts";
+import type { ComponentApi } from "./_generated/component.ts";
+import schema from "./schema.ts";
+import { setupOauth, type OauthProfile } from "./setup.ts";
+import { encryptTicketPayload, generateRandomToken } from "./crypto.ts";
+import { sha256Hex } from "../../lib/crypto.ts";
 import type {
   AuthClaims,
   BoundAuthHelpers,
   TokenBundle,
-} from "../../lib/types.js";
+} from "../../lib/types.ts";
 import type {
   AuthActionBuilder,
   AuthCore,
   AuthMutationBuilder,
   ProviderBuilders,
-} from "../../components/core/setup.js";
+} from "../../components/core/setup.ts";
 
 /**
  * Tests for the app-side `completeSignIn` mutation that `setupOauth`

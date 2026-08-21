@@ -9,8 +9,8 @@
  */
 
 import { ConvexHttpClient } from "convex/browser";
-import type { IsAuthenticatedFn } from "../lib/types.js";
-import { isTokenExpiring } from "./jwt.js";
+import type { IsAuthenticatedFn } from "../lib/types.ts";
+import { isTokenExpiring } from "./jwt.ts";
 
 /** Configuration for {@link createServerAuthChecker}. */
 export interface ServerAuthCheckerConfig {

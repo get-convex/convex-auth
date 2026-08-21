@@ -28,14 +28,14 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useMemo } from "react";
-import { AuthClient } from "../browser/sessionManager.js";
-import { TokenStorage, defaultStorage } from "../browser/storage.js";
-import type { AuthSessionResponse } from "../lib/types.js";
-import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.js";
+import { AuthClient } from "../browser/sessionManager.ts";
+import { TokenStorage, defaultStorage } from "../browser/storage.ts";
+import type { AuthSessionResponse } from "../lib/types.ts";
+import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
-export { useAuthActions, useAuthToken } from "../react/index.js";
+export { useAuthActions, useAuthToken } from "../react/index.tsx";
 
 /**
  * POST to the refresh or sign-out route and read back the access-only bundle.

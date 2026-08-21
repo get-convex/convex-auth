@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import type { TokenBundle } from "../lib/types.js";
+import type { TokenBundle } from "../lib/types.ts";
 import {
   AuthCookieOptions,
   CookieDeleteOptions,
@@ -7,8 +7,8 @@ import {
   CookieStore,
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
-} from "./cookies.js";
-import { RefreshSession, ServerAuthSession } from "./session.js";
+} from "./cookies.ts";
+import { RefreshSession, ServerAuthSession } from "./session.ts";
 
 /** Build an unsigned JWT whose payload has the given `exp` (seconds). `jose`'s
  * `decodeJwt` reads the payload without verifying the signature. */

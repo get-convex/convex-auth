@@ -3,7 +3,7 @@
 // jsdom always has a `window.location`, so the client's no-page-URL cases need
 // their own file with a node environment.
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { ACME_REFS, readFlow, setupOAuth } from "./testFlow.js";
+import { ACME_REFS, readFlow, setupOAuth } from "./testFlow.ts";
 
 describe("OAuth client with no page URL", () => {
   afterEach(() => {

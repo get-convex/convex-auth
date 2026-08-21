@@ -2,9 +2,9 @@ import {
   vSignInSuccess,
   type SignInSuccess,
   type UserCallbacks,
-} from "../../lib/types.js";
-import type { AuthCore } from "../core/setup.js";
-import { ComponentApi } from "./_generated/component.js";
+} from "../../lib/types.ts";
+import type { AuthCore } from "../core/setup.ts";
+import { ComponentApi } from "./_generated/component.ts";
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "anonymous";

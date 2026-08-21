@@ -15,8 +15,8 @@
 import {
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
-} from "../browser/storage.js";
-import type { TokenBundle } from "../lib/types.js";
+} from "../browser/storage.ts";
+import type { TokenBundle } from "../lib/types.ts";
 
 /** The cookie holding the current access token (a JWT). */
 export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;

@@ -25,16 +25,16 @@ import type {
   AuthSessionResponse,
   RefreshSessionFn,
   SignOutFn,
-} from "../lib/types.js";
-import { makeSlimBundle } from "../lib/types.js";
+} from "../lib/types.ts";
+import { makeSlimBundle } from "../lib/types.ts";
 import {
   AUTH_REFRESH_COOKIE,
   AuthCookieOptions,
   clearAuthCookies,
-} from "./cookies.js";
-import { httpCookies } from "./httpCookies.js";
-import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.js";
-import { ServerAuthSession } from "./session.js";
+} from "./cookies.ts";
+import { httpCookies } from "./httpCookies.ts";
+import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.ts";
+import { ServerAuthSession } from "./session.ts";
 
 /** A WHATWG request handler. */
 export type RequestHandler = (request: Request) => Promise<Response>;

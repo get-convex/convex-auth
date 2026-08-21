@@ -2,7 +2,7 @@
 // MIT license. See README.md in this directory. The reference base64url
 // encoder from the original tests is replaced with `btoa`.
 import { expect, test } from "vitest";
-import { decodeBase64urlIgnorePadding } from "./index.js";
+import { decodeBase64urlIgnorePadding } from "./index.ts";
 
 function encodeBase64url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))

@@ -19,9 +19,9 @@
 
 import { FunctionReference } from "convex/server";
 import { useCallback, useState } from "react";
-import type { ClientView } from "../../lib/types.js";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.js";
-import type { SignInResult, SignUpResult } from "./setup.js";
+import type { ClientView } from "../../lib/types.ts";
+import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
+import type { SignInResult, SignUpResult } from "./setup.ts";
 
 /** The `(username, password)` pair both flows accept. */
 export type Credentials = { username: string; password: string };

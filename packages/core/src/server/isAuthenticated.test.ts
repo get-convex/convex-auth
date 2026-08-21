@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { createServerAuthChecker } from "./isAuthenticated.js";
+import { createServerAuthChecker } from "./isAuthenticated.ts";
 
 // The checker verifies tokens through a `ConvexHttpClient`; stub it so the
 // tests exercise the gate/verify logic without a backend.

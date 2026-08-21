@@ -1,6 +1,6 @@
 import { Infer, v } from "convex/values";
-import { mutation, query, QueryCtx } from "./_generated/server.js";
-import { Doc, Id } from "./_generated/dataModel.js";
+import { mutation, query, QueryCtx } from "./_generated/server.ts";
+import { Doc, Id } from "./_generated/dataModel.ts";
 import {
   ClientDataType,
   coseAlgorithmES256,
@@ -8,14 +8,14 @@ import {
   coseEllipticCurveP256,
   parseAttestationObject,
   parseClientDataJSON,
-} from "../../vendor/oslo/webauthn/index.js";
-import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa.js";
-import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa.js";
+} from "../../vendor/oslo/webauthn/index.ts";
+import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa.ts";
+import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa.ts";
 import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
-} from "./validation.js";
+} from "./validation.ts";
 import {
   deleteDeadChallenge,
   findChallenge,
@@ -23,8 +23,8 @@ import {
   randomChallenge,
   randomHandle,
   toArrayBuffer,
-} from "./helpers.js";
-import { scheduleChallengeCleanup } from "./cleanup.js";
+} from "./helpers.ts";
+import { scheduleChallengeCleanup } from "./cleanup.ts";
 
 // The challenge, the credential IDs, and the user handle travel as raw bytes
 // (Convex `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API

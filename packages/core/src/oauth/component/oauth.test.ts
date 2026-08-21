@@ -1,12 +1,12 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { api, internal } from "./_generated/api.js";
+import { api, internal } from "./_generated/api.ts";
 import {
   decryptTicketPayload,
   encryptTicketPayload,
   generateRandomToken,
-} from "./crypto.js";
-import schema from "./schema.js";
+} from "./crypto.ts";
+import schema from "./schema.ts";
 
 const modules = import.meta.glob("./**/*.ts");
 

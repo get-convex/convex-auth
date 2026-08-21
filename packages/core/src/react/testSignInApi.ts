@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { AuthSignInApi } from "./client.js";
+import type { AuthSignInApi } from "./client.tsx";
 
 /**
  * A stub {@link AuthSignInApi} for tests, with the mock standing in for the Convex

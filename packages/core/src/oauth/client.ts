@@ -15,11 +15,11 @@ import {
   makeFunctionReference,
 } from "convex/server";
 import { ConvexError } from "convex/values";
-import type { AmbientSignInClient } from "../browser/ambientSignInClient.js";
-import { retryOnNetworkError } from "../browser/retry.js";
-import type { SignInStorage } from "../browser/storage.js";
-import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams.js";
-import type { TokenBundle } from "../lib/types.js";
+import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
+import { retryOnNetworkError } from "../browser/retry.ts";
+import type { SignInStorage } from "../browser/storage.ts";
+import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams.ts";
+import type { TokenBundle } from "../lib/types.ts";
 
 /**
  * The mutations an OAuth provider adds to the app's API. Passed as

@@ -5,13 +5,13 @@
  * see README.md.
  */
 
-import { bigIntBytes, bigIntFromBytes } from "../binary/index.js";
+import { bigIntBytes, bigIntFromBytes } from "../binary/index.ts";
 import {
   ASN1EncodableSequence,
   ASN1Integer,
   encodeASN1,
   parseASN1NoLeftoverBytes,
-} from "../asn1/index.js";
+} from "../asn1/index.ts";
 
 export function euclideanMod(x: bigint, y: bigint): bigint {
   const r = x % y;

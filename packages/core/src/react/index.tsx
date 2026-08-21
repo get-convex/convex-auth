@@ -21,25 +21,25 @@ import { ReactNode, useContext, useMemo } from "react";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
-} from "../browser/ambientSignInClient.js";
-import { AuthClient } from "../browser/sessionManager.js";
-import { TokenStorage, defaultStorage } from "../browser/storage.js";
-import { oauth } from "../oauth/client.js";
-import type { ConvexAuthApi } from "../lib/types.js";
+} from "../browser/ambientSignInClient.ts";
+import { AuthClient } from "../browser/sessionManager.ts";
+import { TokenStorage, defaultStorage } from "../browser/storage.ts";
+import { oauth } from "../oauth/client.ts";
+import type { ConvexAuthApi } from "../lib/types.ts";
 import {
   AuthProvider,
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
-} from "./client.js";
+} from "./client.tsx";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
-export type { AmbientSignInClient } from "../browser/ambientSignInClient.js";
-export type { TokenStorage } from "../browser/storage.js";
-export type { ConvexAuthApi, TokenBundle } from "../lib/types.js";
-export type { ConvexAuthActionsContextType } from "./client.js";
-export { useAuthSignInApi, type AuthSignInApi } from "./client.js";
+export type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
+export type { TokenStorage } from "../browser/storage.ts";
+export type { ConvexAuthApi, TokenBundle } from "../lib/types.ts";
+export type { ConvexAuthActionsContextType } from "./client.tsx";
+export { useAuthSignInApi, type AuthSignInApi } from "./client.tsx";
 
 /**
  * Replace your `ConvexProvider` with this to enable authentication.

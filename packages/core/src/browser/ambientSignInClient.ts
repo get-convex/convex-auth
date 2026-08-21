@@ -39,9 +39,9 @@ import type {
   FunctionReference,
   FunctionReturnType,
 } from "convex/server";
-import type { SignInValues } from "./keyedStore.js";
-import type { AuthClient } from "./sessionManager.js";
-import type { SignInStorage } from "./storage.js";
+import type { SignInValues } from "./keyedStore.ts";
+import type { AuthClient } from "./sessionManager.ts";
+import type { SignInStorage } from "./storage.ts";
 
 /**
  * How a provider's sign-in functions get executed. Provider code takes this

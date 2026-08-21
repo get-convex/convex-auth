@@ -4,8 +4,8 @@ import {
   MutationCtx,
   QueryCtx,
   env,
-} from "./_generated/server.js";
-import { Doc, Id } from "./_generated/dataModel.js";
+} from "./_generated/server.ts";
+import { Doc, Id } from "./_generated/dataModel.ts";
 import { GenericId, v } from "convex/values";
 import { FunctionHandle } from "convex/server";
 import {
@@ -14,10 +14,10 @@ import {
   vTokenBundle,
   type TokenBundle,
   USE_USER_ID_AS_ACCOUNT_ID,
-} from "../../lib/types.js";
-import { signJwt, generateRefreshToken } from "./crypto.js";
-import { sha256Hex } from "../../lib/crypto.js";
-import { CreateUserFn, OnSignInFn } from "../../lib/types.js";
+} from "../../lib/types.ts";
+import { signJwt, generateRefreshToken } from "./crypto.ts";
+import { sha256Hex } from "../../lib/crypto.ts";
+import { CreateUserFn, OnSignInFn } from "../../lib/types.ts";
 
 // --- Configuration ---------------------------------------------------------
 

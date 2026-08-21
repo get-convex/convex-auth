@@ -1,7 +1,7 @@
 // Ported from @oslojs/crypto (https://github.com/oslo-project/crypto),
 // MIT license. See README.md in this directory.
 import { expect, test } from "vitest";
-import { sha256, SHA256 } from "./sha2.js";
+import { sha256, SHA256 } from "./sha2.ts";
 
 test("SHA256", () => {
   const randomValues = crypto.getRandomValues(new Uint8Array(5 * 100));

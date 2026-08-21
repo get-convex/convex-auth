@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { KeyedStore } from "./keyedStore.js";
+import { KeyedStore } from "./keyedStore.ts";
 
 describe("KeyedStore", () => {
   test("get returns undefined for a missing key", () => {

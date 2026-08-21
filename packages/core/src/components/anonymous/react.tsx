@@ -16,8 +16,8 @@
 
 import { FunctionReference } from "convex/server";
 import { useCallback } from "react";
-import type { ClientView, SignInSuccess } from "../../lib/types.js";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.js";
+import type { ClientView, SignInSuccess } from "../../lib/types.ts";
+import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 
 /**
  * The `signInAnonymous` mutation the anonymous provider adds to the app's API.

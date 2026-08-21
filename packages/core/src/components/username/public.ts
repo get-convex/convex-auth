@@ -1,11 +1,11 @@
-import { mutation, query, QueryCtx } from "./_generated/server.js";
-import { Doc } from "./_generated/dataModel.js";
+import { mutation, query, QueryCtx } from "./_generated/server.ts";
+import { Doc } from "./_generated/dataModel.ts";
 import { Infer, v } from "convex/values";
 import {
   normalizeUsername,
   setUsernameUserError,
   validateUsernameFormat,
-} from "./validation.js";
+} from "./validation.ts";
 
 const setUsernameResult = v.union(
   v.object({

@@ -15,13 +15,13 @@ import {
   ECDSASignature,
   p256,
   verifyECDSASignature,
-} from "./ecdsa.js";
+} from "./ecdsa.ts";
 import {
   RSAPublicKey,
   sha256ObjectIdentifier,
   verifyRSASSAPKCS1v15Signature,
-} from "./rsa.js";
-import { sha256 } from "./sha2.js";
+} from "./rsa.ts";
+import { sha256 } from "./sha2.ts";
 
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);

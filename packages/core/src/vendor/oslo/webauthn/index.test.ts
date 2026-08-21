@@ -11,13 +11,13 @@ import {
   createAssertionSignatureMessage,
   parseAuthenticatorData,
   parseClientDataJSON,
-} from "./index.js";
+} from "./index.ts";
 import type {
   ClientData,
   COSEEC2PublicKey,
   COSERSAPublicKey,
   WebAuthnCredential,
-} from "./index.js";
+} from "./index.ts";
 
 const authenticatorData = new Uint8Array([
   0x49, 0x96, 0x0d, 0xe5, 0x88, 0x0e, 0x8c, 0x68, 0x74, 0x34, 0x17, 0x0f, 0x64,

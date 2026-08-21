@@ -4,11 +4,11 @@ import {
   randomChallenge,
   randomHandle,
   toArrayBuffer,
-} from "./helpers.js";
-import { CHALLENGE_TTL_MS } from "./validation.js";
-import { expectSameBytes, setup } from "../passkeyTestSetup.js";
-import { MutationCtx } from "./_generated/server.js";
-import { Id } from "./_generated/dataModel.js";
+} from "./helpers.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { expectSameBytes, setup } from "../passkeyTestSetup.ts";
+import { MutationCtx } from "./_generated/server.ts";
+import { Id } from "./_generated/dataModel.ts";
 
 /** Insert an unlinked handle, as `startRegistration` does. */
 function insertHandle(ctx: MutationCtx): Promise<Id<"handles">> {

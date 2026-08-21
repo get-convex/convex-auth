@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { actionGeneric, mutationGeneric } from "convex/server";
-import type { AuthCore } from "../../components/core/setup.js";
-import type { ComponentApi } from "./_generated/component.js";
+import type { AuthCore } from "../../components/core/setup.ts";
+import type { ComponentApi } from "./_generated/component.ts";
 import {
   setupOauth,
   type OauthCatalog,
   type OauthProviderOptions,
-} from "./setup.js";
+} from "./setup.ts";
 
 /**
  * A minimal plain-OAuth catalog: no issuer or openid scope, no PKCE. Tests

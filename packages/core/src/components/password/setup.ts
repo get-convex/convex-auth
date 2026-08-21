@@ -3,19 +3,19 @@ import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
-} from "../../lib/types.js";
-import type { AuthCore } from "../core/setup.js";
-import type { ComponentApi } from "./_generated/component.js";
-import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.js";
+} from "../../lib/types.ts";
+import type { AuthCore } from "../core/setup.ts";
+import type { ComponentApi } from "./_generated/component.ts";
+import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.ts";
 import {
   setUsernameUserError,
   validateUsernameFormat,
-} from "../username/validation.js";
+} from "../username/validation.ts";
 import {
   validateNewPassword,
   setPasswordUserError,
   verifyPasswordUserError,
-} from "./validation.js";
+} from "./validation.ts";
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "password";
