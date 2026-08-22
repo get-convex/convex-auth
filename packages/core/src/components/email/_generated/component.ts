@@ -24,6 +24,33 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      checkStartValidation: FunctionReference<
+        "mutation",
+        "internal",
+        { email: string },
+        { ok: true } | { ok: false; retryAfterMs: number },
+        Name
+      >;
+      completeValidation: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          code: string;
+          purpose: "addEmail" | "setEmail" | "passwordReset";
+          secret: string;
+        },
+        | {
+            email: string;
+            previousPrimaryEmail: string | null;
+            success: true;
+            userId: string;
+          }
+        | {
+            success: false;
+            userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
+          },
+        Name
+      >;
       deleteUser: FunctionReference<
         "mutation",
         "internal",
@@ -43,6 +70,49 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         { email: string },
         { email: string; userId: string } | null,
+        Name
+      >;
+      getValidationStatus: FunctionReference<
+        "query",
+        "internal",
+        { code: string; secret: string },
+        | {
+            email: string;
+            purpose: "addEmail" | "setEmail" | "passwordReset";
+            status: "pending";
+          }
+        | { status: "invalid" },
+        Name
+      >;
+      startValidation: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          email: string;
+          emailSender: {
+            apiKey: string;
+            from: string;
+            initialBackoffMs: number;
+            kind: "resend";
+            retryAttempts: number;
+            sendEmailHandle: string;
+            testMode: boolean;
+          };
+          purpose:
+            | { kind: "addEmail"; userId: string }
+            | { kind: "setEmail"; userId: string }
+            | { kind: "passwordReset" };
+          url: string;
+        },
+        | { secret: string; success: true }
+        | {
+            success: false;
+            userError:
+              | { error: "INVALID_EMAIL" }
+              | { error: "EMAIL_TAKEN" }
+              | { error: "EMAIL_NOT_FOUND" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number };
+          },
         Name
       >;
     };

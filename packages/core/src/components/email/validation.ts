@@ -38,6 +38,89 @@ export function validateEmailFormat(
 }
 
 /**
+ * The purpose of a validation flow, as `startValidation` accepts it. The
+ * purpose controls what a successful completion does:
+ *
+ * - `addEmail`: prove that the address belongs to `userId`, then record it
+ *   as a secondary address (the first address of a user always becomes
+ *   primary).
+ * - `setEmail`: the same proof, but completion removes the user's old
+ *   primary address (if one exists) and records the new address as primary.
+ * - `passwordReset`: prove that the person owns an address that is already
+ *   verified on the account. Completion writes nothing; it returns the
+ *   `userId` as the ownership proof.
+ */
+export const vValidationPurposeArg = v.union(
+  v.object({ kind: v.literal("addEmail"), userId: v.string() }),
+  v.object({ kind: v.literal("setEmail"), userId: v.string() }),
+  v.object({ kind: v.literal("passwordReset") }),
+);
+export type ValidationPurposeArg = Infer<typeof vValidationPurposeArg>;
+
+/** The purpose kind alone, for completion-side checks. */
+export const vPurposeKind = v.union(
+  v.literal("addEmail"),
+  v.literal("setEmail"),
+  v.literal("passwordReset"),
+);
+export type PurposeKind = Infer<typeof vPurposeKind>;
+
+/**
+ * The user-facing errors for `startValidation`. An application can show
+ * these errors to the end user.
+ */
+export const startValidationUserError = v.union(
+  emailFormatUserError,
+  // Another user has already verified this address (`addEmail`,
+  // `setEmail`).
+  v.object({ error: v.literal("EMAIL_TAKEN") }),
+  // No user has verified this address (`passwordReset`).
+  v.object({ error: v.literal("EMAIL_NOT_FOUND") }),
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
+export type StartValidationUserError = Infer<typeof startValidationUserError>;
+
+/**
+ * The user-facing errors for `completeValidation`. `INVALID_LINK` covers an
+ * unknown code, a wrong secret, an expired link, and a purpose mismatch: one
+ * error for all of them, so the response is not an oracle for attackers.
+ */
+export const completeValidationUserError = v.union(
+  v.object({ error: v.literal("INVALID_LINK") }),
+  // The address was verified by another user after the flow started.
+  v.object({ error: v.literal("EMAIL_TAKEN") }),
+);
+export type CompleteValidationUserError = Infer<
+  typeof completeValidationUserError
+>;
+
+/**
+ * How `startValidation` sends its email. The caller (the provider recipe)
+ * resolves the function handle and the runtime options; the component only
+ * calls the handle.
+ *
+ * Only Resend is supported for now, through the `@convex-dev/resend`
+ * component's `lib.sendEmail` mutation.
+ *
+ * TODO: support other email providers.
+ * TODO: offer a first-party zero-configuration email service.
+ * TODO: let applications customize the email templates.
+ */
+export const vEmailSenderConfig = v.object({
+  kind: v.literal("resend"),
+  // Function handle for the Resend component's `lib.sendEmail` mutation.
+  sendEmailHandle: v.string(),
+  // The From address, e.g. `"My App <auth@example.com>"`.
+  from: v.string(),
+  // Runtime options that `lib.sendEmail` requires.
+  apiKey: v.string(),
+  testMode: v.boolean(),
+  initialBackoffMs: v.number(),
+  retryAttempts: v.number(),
+});
+export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
+
+/**
  * Normalize an email address for storage and comparisons.
  *
  * The function first makes the address lowercase, so that lookups are not
