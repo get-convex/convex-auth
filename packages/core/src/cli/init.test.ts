@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { describe, expect, test, vi } from "vitest";
+import chalk from "chalk";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
   createProgram,
   detectPackageManager,
@@ -8,6 +9,12 @@ import {
 } from "./program.ts";
 
 const PROJECT = "/project";
+
+// The CLI colors its output when it writes to a terminal. The assertions below
+// match plain text, so turn color off whatever the terminal running the tests.
+beforeAll(() => {
+  chalk.level = 0;
+});
 
 /** Minimal in-memory stand-in for the subset of `node:fs` the CLI uses. */
 function makeFs(initialFiles: Record<string, string> = {}) {
@@ -52,6 +59,8 @@ function makeDeps(overrides: Overrides = {}) {
     fs,
     log: (m: string) => logs.push(m),
     warn: (m: string) => warns.push(m),
+    // A spinner writes to the terminal, which a test has none of.
+    spinner: () => ({ stop: () => {} }),
     getEnv: overrides.getEnv ?? (() => null),
     setEnv: (k: string, v: string) => setEnvCalls.push([k, v]),
     generateKeys,
@@ -137,8 +146,39 @@ describe("convex-auth init CLI", () => {
     expect(fs.dirs.has("/project/convex")).toBe(true);
     for (const [name, content] of Object.entries(FILE_TEMPLATES)) {
       expect(fs.files.get(`/project/convex/${name}`)).toBe(content);
-      expect(logs.join("\n")).toContain(`created convex/${name}`);
+      expect(logs.join("\n")).toMatch(
+        new RegExp(`convex/${name.replace(".", "\\.")} +created`),
+      );
     }
+  });
+
+  test("reports the happy path as one grouped summary", async () => {
+    const { deps, logs } = makeDeps({
+      files: { "/project/package.json": pkgWithAuth },
+    });
+
+    const { error } = await runCli(deps);
+
+    expect(error).toBeUndefined();
+    expect(logs.join("\n")).toMatchInlineSnapshot(`
+      "Convex Auth setup in /project
+
+      Signing keys
+        ✔ Generated an RS256 key pair for the auth JWT tokens
+        ✔ Set AUTH_PRIVATE_KEY and AUTH_JWKS on the Convex deployment
+
+      Files
+        ✔ convex/auth.config.ts    created
+        ✔ convex/convex.config.ts  created
+        ✔ convex/auth.ts           created
+
+      Next steps
+        1. Add a login provider — see the TODO comments in the new files.
+        2. Start your dev server: npx convex dev
+
+        Docs: https://auth-v2.previews.convex.dev
+      "
+    `);
   });
 
   test("recognizes @convex-dev/auth listed under devDependencies", async () => {
@@ -202,7 +242,8 @@ describe("convex-auth init CLI", () => {
     // …but the warning tells the user what it should contain.
     const warning = warns.join("\n");
     expect(warning).toContain("convex/auth.ts already exists");
-    expect(warning).toContain("setupCore");
+    // The block is printed as it is, with no gutter, so it can be copied.
+    expect(warning).toContain(FILE_TEMPLATES["auth.ts"].trimEnd());
     // The other files were still created.
     expect(fs.files.get("/project/convex/convex.config.ts")).toBe(
       FILE_TEMPLATES["convex.config.ts"],
