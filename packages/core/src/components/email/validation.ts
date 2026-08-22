@@ -95,6 +95,20 @@ export type CompleteValidationUserError = Infer<
 >;
 
 /**
+ * What `getValidationStatus` reports about a validation flow. Landing pages
+ * use it to show what the link will do before the user confirms.
+ */
+export const vValidationStatus = v.union(
+  v.object({
+    status: v.literal("pending"),
+    purpose: vPurposeKind,
+    email: v.string(),
+  }),
+  v.object({ status: v.literal("invalid") }),
+);
+export type ValidationStatus = Infer<typeof vValidationStatus>;
+
+/**
  * How `startValidation` sends its email. The caller (the provider recipe)
  * resolves the function handle and the runtime options; the component only
  * calls the handle.
