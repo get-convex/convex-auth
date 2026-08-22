@@ -18,7 +18,7 @@ export const getCurrentUser = query({
     if (user === null) {
       return null;
     }
-    return { email: user.email };
+    return { verifiedEmail: user.verifiedEmail };
   },
 });
 
@@ -66,10 +66,10 @@ async function createUser(
   }
   const existingUser = await ctx.db
     .query("users")
-    .withIndex("email", (q) => q.eq("email", email))
+    .withIndex("verifiedEmail", (q) => q.eq("verifiedEmail", email))
     .unique();
   if (existingUser !== null) {
     return existingUser._id;
   }
-  return await ctx.db.insert("users", { email });
+  return await ctx.db.insert("users", { verifiedEmail: email });
 }

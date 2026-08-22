@@ -61,7 +61,7 @@ function SignedIn(): ReactNode {
   return (
     <>
       <h1>Signed in</h1>
-      <p>{user?.email ?? "…"}</p>
+      <p>{user?.verifiedEmail ?? "…"}</p>
       <button type="button" onClick={() => void signOut()}>
         Sign out
       </button>

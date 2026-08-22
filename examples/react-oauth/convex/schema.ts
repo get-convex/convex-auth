@@ -3,6 +3,6 @@ import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
-    email: v.string(),
-  }).index("email", ["email"]),
+    verifiedEmail: v.string(),
+  }).index("verifiedEmail", ["verifiedEmail"]),
 });
