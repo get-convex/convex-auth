@@ -1,6 +1,6 @@
+import { getAuthUserId } from "@convex-dev/auth/core";
 import { query } from "./_generated/server";
 import { components } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
 
 /**
  * The currently signed-in user, or null.
@@ -10,11 +10,10 @@ import { Id } from "./_generated/dataModel";
 export const loggedInUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
       return null;
     }
-    const userId = identity.subject as Id<"users">; // TODO(nicolas) Avoid this
     const user = await ctx.db.get("users", userId);
     if (user === null) {
       return null;
