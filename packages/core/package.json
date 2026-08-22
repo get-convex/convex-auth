@@ -39,6 +39,10 @@
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
     },
+    "./core": {
+      "types": "./dist/components/core/index.d.ts",
+      "default": "./dist/components/core/index.js"
+    },
     "./core/*.js": {
       "types": "./dist/components/core/*.d.ts",
       "default": "./dist/components/core/*.js"
