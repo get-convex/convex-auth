@@ -1,6 +1,12 @@
 # Changelog
 
-TODO: Update changelog for v2
+## 2.0.0-alpha.1
+
+Initial v2 alpha
+
+- no major dependencies
+- supports password, passkey, google, github providers
+- nextjs ssr support for password, passkey
 
 ## 0.0.94
 
