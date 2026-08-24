@@ -13,6 +13,21 @@ const { rewrite: rewriteSuffix } = rewritePath(
   `${docsContentRoute}/{*path}/content.md`,
 );
 
+// Route handlers that serve their own content. The negotiation must not
+// rewrite them, or agents get a 404 instead of the file they asked for.
+const nonDocsRoutes = ["/api", "/og"];
+
+/**
+ * Tell if the path can be a docs page. Docs page paths have no file extension,
+ * which keeps files such as `/llms-full.txt` and `/robots.txt` out.
+ */
+function isDocsPage(pathname: string) {
+  if (nonDocsRoutes.some((route) => pathname.startsWith(route))) {
+    return false;
+  }
+  return !pathname.split("/").pop()!.includes(".");
+}
+
 /**
  * Serve the Markdown source of a docs page to clients that ask for it, either
  * with a `.md` suffix on the page URL or with an `Accept: text/markdown`
@@ -20,7 +35,7 @@ const { rewrite: rewriteSuffix } = rewritePath(
  */
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith(docsContentRoute) || pathname.startsWith("/llms.")) {
+  if (pathname.startsWith(docsContentRoute)) {
     return NextResponse.next();
   }
 
@@ -29,7 +44,7 @@ export default function proxy(request: NextRequest) {
     return NextResponse.rewrite(new URL(suffixed, request.nextUrl));
   }
 
-  if (isMarkdownPreferred(request)) {
+  if (isDocsPage(pathname) && isMarkdownPreferred(request)) {
     // The index page has an empty `path`, which the rewrite would turn into
     // `//content.md`. Serve its Markdown from the content route directly.
     const negotiated =
