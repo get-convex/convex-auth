@@ -12,8 +12,8 @@
  *
  * @module
  */
+import { getAuthUserId } from "@convex-dev/auth/core";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 import { internalMutation, query } from "./_generated/server";
 
 export const createUserAnonymous = internalMutation({
@@ -76,11 +76,10 @@ export const onSignInPassword = internalMutation({
 export const loggedInUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
       return null;
     }
-    const userId = identity.subject as Id<"users">;
     const user = await ctx.db.get("users", userId);
     if (user === null) {
       return null;
