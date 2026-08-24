@@ -21,9 +21,3 @@ button {
   box-sizing: border-box;
   font-size: 1rem;
 }
-
-button svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  flex-shrink: 0;
-}

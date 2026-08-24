@@ -7,8 +7,6 @@ const app = defineApp({
   env: {
     AUTH_PRIVATE_KEY: v.string(),
     AUTH_JWKS: v.string(),
-    AUTH_GOOGLE_CLIENT_ID: v.string(),
-    AUTH_GOOGLE_CLIENT_SECRET: v.string(),
     AUTH_GITHUB_CLIENT_ID: v.string(),
     AUTH_GITHUB_CLIENT_SECRET: v.string(),
   },
@@ -22,17 +20,13 @@ app.use(auth, {
   },
 });
 
-// The oauth component is installed once per identity provider. Each instance
-// serves its callback at `<httpPrefix>/callback`.
-app.use(oauth, {
-  name: "oauthGoogle",
-  httpPrefix: "/oauth/google",
-  env: {
-    CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,
-    CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
-  },
-});
-
+// The `httpPrefix` below controls where the component's `callback` route is
+// mounted. That gets combined with the `CONVEX_SITE_URL` to form the full
+// redirect URI that needs to be set on the remote identity provider config.
+//
+// The full redirect URI will be something like:
+//
+// https://happy-animal-123.convex.site/oauth/github/callback
 app.use(oauth, {
   name: "oauthGithub",
   httpPrefix: "/oauth/github",
