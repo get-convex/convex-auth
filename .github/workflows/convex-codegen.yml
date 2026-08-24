@@ -46,7 +46,8 @@ jobs:
 
           apps=(
             examples/react-minimal
-            examples/react-oauth
+            examples/react-google
+            examples/react-github
             examples/react-password
             examples/nextjs
           )

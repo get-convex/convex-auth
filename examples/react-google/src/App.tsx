@@ -3,13 +3,10 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import {
   useOauth,
-  useSignInWithGithub,
   useSignInWithGoogle,
   type OauthFlowErrorCode,
 } from "@convex-dev/auth/providers/oauth/react";
 import { api } from "../convex/_generated/api";
-import { GoogleIcon } from "./icons/GoogleIcon";
-import { GitHubIcon } from "./icons/GitHubIcon";
 
 // Map potential oauth error codes to messages.
 const FLOW_ERROR_COPY: Record<OauthFlowErrorCode, string> = {
@@ -21,17 +18,16 @@ const FLOW_ERROR_COPY: Record<OauthFlowErrorCode, string> = {
 };
 
 /**
- * Both buttons start a flow and ignore what it returns. Every failure, before
+ * The button starts a flow and ignores what it returns. Every failure, before
  * or after the redirect, shows up in `useOauth`'s `flowError`.
  */
 function SignedOut(): ReactNode {
   const { signInGoogle } = useSignInWithGoogle(api.auth);
-  const { signInGithub } = useSignInWithGithub(api.auth);
   const { flowError } = useOauth();
   return (
     <>
       <h1>Sign in</h1>
-      <p>Continue with your preferred account</p>
+      <p>Continue with your Google account</p>
       {flowError !== null && (
         <p role="alert">
           <strong>
@@ -44,12 +40,7 @@ function SignedOut(): ReactNode {
         </p>
       )}
       <button type="button" onClick={() => void signInGoogle().catch(() => {})}>
-        <GoogleIcon />
         Continue with Google
-      </button>
-      <button type="button" onClick={() => void signInGithub().catch(() => {})}>
-        <GitHubIcon />
-        Continue with GitHub
       </button>
     </>
   );
@@ -61,7 +52,7 @@ function SignedIn(): ReactNode {
   return (
     <>
       <h1>Signed in</h1>
-      <p>{user?.verifiedEmail ?? "…"}</p>
+      <p>{user?.id ?? "…"}</p>
       <button type="button" onClick={() => void signOut()}>
         Sign out
       </button>
