@@ -39,11 +39,11 @@ transformed by the consumer's bundler — and Vitest externalizes plain `.js`
 under `node_modules` (leaving the macro intact, so it throws at import) while it
 cannot externalize `.ts`. Shipping source is what makes them work. They carry
 their own `/// <reference types="vite/client" />` so a consumer doesn't need
-`vite/client` in their `tsconfig`. Their schema import is also the one place
-that keeps a `.js` extension: the consumer's `tsc` reads these files, and a
-`.ts` extension there is an error (TS5097) unless they turn on
-`allowImportingTsExtensions`. The example apps' `pnpm typecheck` catches a
-regression here.
+`vite/client` in their `tsconfig`. Their schema import uses the extension of
+the file on disk, the same as the rest of `src/`. The consumer's `tsc` reads
+these files, thus the consumer must set `allowImportingTsExtensions`; without
+it, the `.ts` extension is an error (TS5097). Each example app sets it in its
+`convex/tsconfig.json`, and `pnpm typecheck` catches a regression here.
 
 Use `pnpm install` at the root. Common tasks:
 

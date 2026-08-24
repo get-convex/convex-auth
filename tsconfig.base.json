@@ -11,6 +11,9 @@
     "jsx": "react-jsx",
     "isolatedModules": true,
     "noEmit": true,
+    // `src/components/testing/**` of @convex-dev/auth ships as source, and its
+    // relative imports use the extension of the file on disk (`.ts`, `.tsx`).
+    "allowImportingTsExtensions": true,
     "types": ["node", "vite/client"]
   }
 }
