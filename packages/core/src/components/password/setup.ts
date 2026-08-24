@@ -21,6 +21,25 @@ import {
 const PROVIDER_NAME = "password";
 
 /**
+ * The args of the `createUser` and `onSignIn` mutations an app attaches to the
+ * password provider. Spread it into your mutation's `args` instead of spelling
+ * out `provider`, `providerAccountId` and `profile` yourself:
+ *
+ * ```ts
+ * export const createUser = internalMutation({
+ *   args: passwordUserCallbackArgs,
+ *   returns: v.id("users"),
+ *   handler: async (ctx) => ctx.db.insert("users", {}),
+ * });
+ * ```
+ */
+export const passwordUserCallbackArgs = {
+  provider: v.literal(PROVIDER_NAME),
+  providerAccountId: v.string(),
+  profile: v.object({ username: v.string() }),
+};
+
+/**
  * Options for {@link setupUsernamePassword}.
  */
 export type UsernamePasswordOptions = {
