@@ -105,7 +105,7 @@ describe("convex-auth init CLI", () => {
     expect(error).toBeDefined();
     expect(error!.message).toContain("is not a dependency");
     expect(error!.message).toContain(
-      "pnpm add @convex-dev/auth@https://pkg.pr.new/@convex-dev/auth@reboot",
+      "pnpm add @convex-dev/auth@https://pkg.pr.new/get-convex/convex-auth/@convex-dev/auth@reboot",
     );
     // It must not touch env vars or write any files on this path.
     expect(setEnvCalls).toEqual([]);
@@ -260,7 +260,7 @@ describe("installCommand", () => {
   ])("%s uses the right add command", (pm, prefix) => {
     expect(installCommand(pm)).toContain(prefix);
     expect(installCommand(pm)).toContain(
-      "@convex-dev/auth@https://pkg.pr.new/@convex-dev/auth@reboot",
+      "@convex-dev/auth@https://pkg.pr.new/get-convex/convex-auth/@convex-dev/auth@reboot",
     );
   });
 

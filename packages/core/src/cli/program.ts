@@ -51,7 +51,7 @@ const DOCS_URL = "https://auth-v2.previews.convex.dev";
 // TODO(nicolas) Replace by the real URL after it’s released
 
 /** Where to grab the v2 (reboot) build from until it's on npm proper. */
-const INSTALL_SPEC = `${AUTH_PACKAGE}@https://pkg.pr.new/${AUTH_PACKAGE}@reboot`;
+const INSTALL_SPEC = `${AUTH_PACKAGE}@https://pkg.pr.new/get-convex/convex-auth/${AUTH_PACKAGE}@reboot`;
 // TODO(nicolas) Replace by the real package path after it’s released
 
 /** Files scaffolded into the project's `convex/` directory, in write order. */
