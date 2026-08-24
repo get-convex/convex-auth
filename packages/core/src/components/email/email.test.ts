@@ -30,9 +30,9 @@ async function seedEmail(
 describe("getEmails", () => {
   test("returns an empty array for a user with no emails", async () => {
     const t = setup();
-    expect(await t.query(api.public.getEmails, { userId: "user1" })).toEqual(
-      [],
-    );
+    expect(
+      await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
+    ).toEqual([]);
   });
 
   test("returns the user's emails", async () => {
@@ -41,7 +41,9 @@ describe("getEmails", () => {
     await seedEmail(t, "user1", "alice@work.example", false);
     await seedEmail(t, "user2", "bob@example.com", true);
 
-    const emails = await t.query(api.public.getEmails, { userId: "user1" });
+    const emails = await t.query(api.verifiedEmails.getEmails, {
+      userId: "user1",
+    });
     expect(emails).toHaveLength(2);
     expect(emails).toContainEqual({
       email: "alice@example.com",
@@ -58,7 +60,7 @@ describe("getUserIdByEmail", () => {
   test("returns null for an unknown email", async () => {
     const t = setup();
     expect(
-      await t.query(api.public.getUserIdByEmail, {
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
         email: "nobody@example.com",
       }),
     ).toBeNull();
@@ -69,7 +71,7 @@ describe("getUserIdByEmail", () => {
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
     expect(
-      await t.query(api.public.getUserIdByEmail, {
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
         email: "Alice@Example.com",
       }),
     ).toEqual({ userId: "user1", email: "Alice@Example.com" });
@@ -84,7 +86,9 @@ describe("getUserIdByEmail", () => {
       "ALICE@EXAMPLE.COM",
       "aLiCe@eXaMpLe.CoM",
     ]) {
-      expect(await t.query(api.public.getUserIdByEmail, { email })).toEqual({
+      expect(
+        await t.query(api.verifiedEmails.getUserIdByEmail, { email }),
+      ).toEqual({
         userId: "user1",
         email: "Alice@Example.com",
       });
@@ -98,7 +102,7 @@ describe("getUserIdByEmail", () => {
 
     // The argument uses the decomposed form ("e" + a combining accent).
     expect(
-      await t.query(api.public.getUserIdByEmail, {
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
         email: "he\u0301le\u0300ne@example.com",
       }),
     ).toEqual({ userId: "user1", email: "H\u00e9l\u00e8ne@example.com" });
@@ -109,12 +113,14 @@ describe("getUserIdByEmail", () => {
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
     expect(
-      await t.query(api.public.getUserIdByEmail, {
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
         email: "alice@example.org",
       }),
     ).toBeNull();
     expect(
-      await t.query(api.public.getUserIdByEmail, { email: "alic@example.com" }),
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
+        email: "alic@example.com",
+      }),
     ).toBeNull();
   });
 });
@@ -124,9 +130,9 @@ describe("the stored email address", () => {
     const t = setup();
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
-    expect(await t.query(api.public.getEmails, { userId: "user1" })).toEqual([
-      { email: "Alice@Example.com", isPrimary: true },
-    ]);
+    expect(
+      await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
+    ).toEqual([{ email: "Alice@Example.com", isPrimary: true }]);
   });
 
   test("keeps both forms of the address in the row", async () => {
@@ -147,25 +153,25 @@ describe("deleteUser", () => {
     await seedEmail(t, "user1", "alice@work.example", false);
     await seedEmail(t, "user2", "bob@example.com", true);
 
-    await t.mutation(api.public.deleteUser, { userId: "user1" });
+    await t.mutation(api.verifiedEmails.deleteUser, { userId: "user1" });
 
-    expect(await t.query(api.public.getEmails, { userId: "user1" })).toEqual(
-      [],
-    );
     expect(
-      await t.query(api.public.getUserIdByEmail, {
+      await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
+    ).toEqual([]);
+    expect(
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
         email: "alice@example.com",
       }),
     ).toBeNull();
-    expect(await t.query(api.public.getEmails, { userId: "user2" })).toEqual([
-      { email: "bob@example.com", isPrimary: true },
-    ]);
+    expect(
+      await t.query(api.verifiedEmails.getEmails, { userId: "user2" }),
+    ).toEqual([{ email: "bob@example.com", isPrimary: true }]);
   });
 
   test("is idempotent for a user with no data", async () => {
     const t = setup();
     await expect(
-      t.mutation(api.public.deleteUser, { userId: "user1" }),
+      t.mutation(api.verifiedEmails.deleteUser, { userId: "user1" }),
     ).resolves.toBeNull();
   });
 });

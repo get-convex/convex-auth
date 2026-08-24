@@ -8,8 +8,8 @@
  * @module
  */
 
-import type * as public_ from "../public.js";
 import type * as validation from "../validation.js";
+import type * as verifiedEmails from "../verifiedEmails.js";
 
 import type {
   ApiFromModules,
@@ -19,8 +19,8 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  public: typeof public_;
   validation: typeof validation;
+  verifiedEmails: typeof verifiedEmails;
 }> = anyApi as any;
 
 /**
