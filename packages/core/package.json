@@ -118,11 +118,15 @@
     }
   },
   "scripts": {
+    "alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --publish-branch reboot && git push --follow-tags",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
     "generate:common-passwords": "bun src/components/password/scripts/generateCommonPasswords.script.ts",
     "prepare": "pnpm run build",
-    "typecheck": "tsc --noEmit"
+    "preversion": "pnpm -w install --frozen-lockfile && pnpm -w build && pnpm -w lint && pnpm -r --filter=!argon2id-wasm typecheck && pnpm -w test",
+    "release": "pnpm version patch && pnpm publish --publish-branch reboot && git push --follow-tags",
+    "typecheck": "tsc --noEmit",
+    "version": "(npm whoami || npm login) && vim -c 'normal o' -c 'normal o## '$npm_package_version ../../CHANGELOG.md && prettier -w ../../CHANGELOG.md && git add ../../CHANGELOG.md"
   },
   "dependencies": {
     "@babel/code-frame": "^7.29.7",

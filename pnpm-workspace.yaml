@@ -7,3 +7,8 @@ packages:
 # security fix), override this with:
 # `pnpm add <package>@<version> --config.minimumReleaseAge=0`.
 minimumReleaseAge: 10080
+
+# Packages listed here skip the wait above. Avoid adding third party packages
+# to this list.
+minimumReleaseAgeExclude:
+  - argon2id-wasm
