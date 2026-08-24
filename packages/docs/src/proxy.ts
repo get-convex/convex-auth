@@ -25,7 +25,10 @@ function isDocsPage(pathname: string) {
   if (nonDocsRoutes.some((route) => pathname.startsWith(route))) {
     return false;
   }
-  return !pathname.split("/").pop()!.includes(".");
+  // Next redirects a trailing slash away before the proxy runs, but do not
+  // let the test depend on that.
+  const lastSegment = pathname.replace(/\/+$/, "").split("/").pop()!;
+  return !lastSegment.includes(".");
 }
 
 /**
