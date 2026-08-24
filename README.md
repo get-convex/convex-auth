@@ -4,16 +4,7 @@ This branch contains a WIP implementation of Convex Auth v2.
 
 ## Getting Started
 
-Use `pnpm install` at the root.
-
-Common tasks:
-
-- `pnpm build` — compile `@convex-dev/auth` to `dist/` (also runs on install
-  via `prepare`).
-- `pnpm test` — run tests across packages (Vitest).
-- `pnpm typecheck` — typecheck across packages.
-- `pnpm lint` — ESLint.
-- `pnpm format` — Prettier.
+TODO: Write the v2 README.
 
 ## Examples
 
@@ -25,3 +16,5 @@ directory (see the example's own README):
 - `examples/react-password` — the core component with the password provider.
 
 Their tests run as part of `pnpm test` at the repo root.
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to develop in this repo.

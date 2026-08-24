@@ -11,7 +11,9 @@
     "format:check": "prettier . --check",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "alpha": "pnpm --filter @convex-dev/auth alpha",
+    "release": "pnpm --filter @convex-dev/auth release"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
