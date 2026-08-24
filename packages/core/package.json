@@ -96,9 +96,9 @@
       "types": "./dist/browser/index.d.ts",
       "default": "./dist/browser/index.js"
     },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "default": "./dist/server/index.js"
+    "./ssr": {
+      "types": "./dist/ssr/index.d.ts",
+      "default": "./dist/ssr/index.js"
     },
     "./react": {
       "types": "./dist/react/index.d.ts",
@@ -112,9 +112,9 @@
       "types": "./dist/nextjs/index.d.ts",
       "default": "./dist/nextjs/index.js"
     },
-    "./nextjs/server": {
-      "types": "./dist/nextjs/server.d.ts",
-      "default": "./dist/nextjs/server.js"
+    "./nextjs/ssr": {
+      "types": "./dist/nextjs/ssr.d.ts",
+      "default": "./dist/nextjs/ssr.js"
     }
   },
   "scripts": {

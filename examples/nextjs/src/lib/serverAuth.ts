@@ -1,4 +1,4 @@
-import { setupConvexAuthServer } from "@convex-dev/auth/server";
+import { setupConvexAuthServer } from "@convex-dev/auth/ssr";
 import { api } from "@/convex/_generated/api";
 
 // The framework-agnostic auth handlers, configured once. The `secure` cookie

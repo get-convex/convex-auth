@@ -1,11 +1,11 @@
 /**
  * Server bindings for Convex Auth on Next.js (App Router), exported at
- * `@convex-dev/auth/nextjs/server`.
+ * `@convex-dev/auth/nextjs/ssr`.
  *
  * This is the thin, genuinely Next-specific layer. The auth *handlers*
  * (per-provider sign-in, plus refresh/sign-out) are framework-agnostic
  * `(Request) => Response` functions mounted directly as route handlers (see
- * `@convex-dev/auth/server` and each provider's `/server` entry). What remains
+ * `@convex-dev/auth/ssr` and each provider's own entry point). What remains
  * Next-specific is the proxy (up-front refresh + redirects), reading the
  * access token in Server Components, and the server-side provider that hydrates
  * the client.
@@ -24,10 +24,10 @@ import {
   CookieDeleteOptions,
   CookieOptions,
   CookieStore,
-} from "../server/cookies.ts";
-import { createServerAuthChecker } from "../server/isAuthenticated.ts";
-import { isTokenExpiring } from "../server/jwt.ts";
-import { ServerAuthSession } from "../server/session.ts";
+} from "../ssr/cookies.ts";
+import { createServerAuthChecker } from "../ssr/isAuthenticated.ts";
+import { isTokenExpiring } from "../ssr/jwt.ts";
+import { ServerAuthSession } from "../ssr/session.ts";
 
 /** Configuration for {@link setupConvexAuthNextjs}. */
 export interface ConvexAuthNextjsConfig {
