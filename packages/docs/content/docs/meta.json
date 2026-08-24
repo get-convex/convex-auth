@@ -1,9 +1,3 @@
 {
-  "pages": [
-    "index",
-    "getting-started",
-    "login-providers",
-    "advanced",
-    "migrating"
-  ]
+  "pages": ["index", "getting-started", "login-providers", "migrating"]
 }
