@@ -67,3 +67,28 @@ catalogs assume a static `CLIENT_SECRET` binding.
 Potential fix direction: accept POST on the callback route
 (`packages/core/src/oauth/component/http.ts`), and add a signed-secret
 mechanism to the catalog config (`packages/core/src/oauth/component/setup.ts`).
+
+## Refresh-token reuse detection has a bounded horizon
+
+A spent hash is remembered for `SPENT_TOKEN_HORIZON_MS` (1 hour) and pruned by
+later rotations of the same session.
+
+Spent rows are pruned inline by the rotations of their own session, so a session
+abandoned mid-life leaves its remaining rows behind until it is signed out or
+expires — the same way an abandoned session row itself lingers today. Roughly
+`horizon ÷ refresh interval` rows, about 60 at the defaults.
+
+Nothing bounds that per-session set independently, and both `pruneSpentTokens`
+and `deleteSession` read all of it. At any plausible refresh rate that is a
+few dozen rows, but a session refreshed pathologically often (an unthrottled
+client, or an attacker hammering `refresh` — see the rate-limiting entry above)
+could grow it until those reads exceed the transaction's limits, which would
+make the session unrefreshable and un-signoutable. Accepted for now on the
+basis that the sweep below lands first.
+
+Fix direction: a `@convex-dev/batch-worker` loop over `spentRefreshTokens` by
+`_creationTime`, mirroring `packages/core/src/components/passkey/cleanup.ts`,
+to sweep orphans globally and cap the table regardless of any one session's
+behavior. Bound its idle probe's range read above (the passkey version's
+`gte(cursor)` is unbounded, which would put the whole index tail in the loop's
+read set and thrash on OCC at refresh volume).

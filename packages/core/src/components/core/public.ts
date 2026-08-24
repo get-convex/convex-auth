@@ -30,8 +30,16 @@ const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60; // 1 minute
 const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 // How long a just-rotated refresh token stays usable so concurrent refreshes
 // presenting it (parallel SSR loaders, two tabs sharing a cookie) don't race
-// each other into a forced sign-out.
-const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
+// each other into a forced sign-out. Past this, presenting a rotated-away
+// token is treated as theft — see `refreshWithSpentToken`.
+export const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
+// How long a spent hash is remembered. This is the reuse-detection horizon:
+// past it the row is gone and a replayed token reads as unknown, which revokes
+// nothing but also grants nothing.
+//
+// It bounds *detection* only, never normal use — a session's current token is
+// never in the spent table, so an idle client's token still works after weeks.
+export const SPENT_TOKEN_HORIZON_MS = 60 * 60 * 1000; // 1 hour
 
 // The issuer (CONVEX_SITE_URL) is passed in by the app rather than read here:
 // inside a component the system var arrives prefixed with the mount's
@@ -65,6 +73,77 @@ function sessionByHash(
       q.eq("refreshTokenHash", refreshTokenHash),
     )
     .unique();
+}
+
+/**
+ * Look up data for a refresh token that has been previously used.
+ *
+ * The returned document stores the refresh time via the `_creationTime` field
+ * as well as the associated `sessionId`.
+ */
+function spentTokenByHash(
+  ctx: QueryCtx,
+  hash: string,
+): Promise<Doc<"spentRefreshTokens"> | null> {
+  return ctx.db
+    .query("spentRefreshTokens")
+    .withIndex("by_hash", (q) => q.eq("hash", hash))
+    .unique();
+}
+
+/**
+ * Erase a session along with every spent refresh hash that points at it.
+ *
+ * Idempotent, because callers can race: two replays of the same stolen token,
+ * or a sign-out arriving alongside one, can both resolve the same session.
+ */
+async function deleteSession(
+  ctx: MutationCtx,
+  sessionId: Id<"sessions">,
+): Promise<void> {
+  // Reads every spent row the session has. That is fine at any plausible refresh
+  // rate — the horizon divided by the refresh interval, ~60 at the defaults — but
+  // it is unbounded in principle. A session refreshed pathologically often
+  // could exceed the transaction's limits and make the session unusable.
+  const spent = await ctx.db
+    .query("spentRefreshTokens")
+    .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+    .collect();
+  for (const row of spent) {
+    await ctx.db.delete("spentRefreshTokens", row._id);
+  }
+  // `delete` throws on an id that is already gone, and the session may have
+  // been deleted by whoever we raced.
+  if ((await ctx.db.get("sessions", sessionId)) !== null) {
+    await ctx.db.delete("sessions", sessionId);
+  }
+}
+
+/**
+ * Erase this session's spent hashes that are past the detection horizon.
+ *
+ * Cleanup rides on the rotation that creates the work, so a steadily
+ * refreshing session keeps its own set trimmed with no background job to run
+ * or mount. The `by_session` index orders by creation time within a session,
+ * so the expired rows come first and the loop stops at the first live one.
+ */
+async function pruneSpentTokens(
+  ctx: MutationCtx,
+  sessionId: Id<"sessions">,
+  now: number,
+): Promise<void> {
+  // A session that stops refreshing keeps its remaining rows until it is
+  // deleted, since nothing rotates it any more. Sweeping those orphans is what a
+  // background job would add; see KNOWN_ISSUES.md.
+  const spent = await ctx.db
+    .query("spentRefreshTokens")
+    .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+    .order("asc")
+    .collect();
+  for (const row of spent) {
+    if (row._creationTime > now - SPENT_TOKEN_HORIZON_MS) break;
+    await ctx.db.delete("spentRefreshTokens", row._id);
+  }
 }
 
 /**
@@ -410,10 +489,95 @@ export const getUserIdByAccount = query({
 });
 
 /**
- * Rotate a refresh token and mint a fresh access token. Returns `null` when the
- * session can't be refreshed. That can happen with an unknown token, or one
- * past its refresh-token lifetime. A dead session is a normal outcome the
- * caller should handle by updating its authenticated state.
+ * Mint a new refresh token for a live session, retiring the one it replaces.
+ *
+ * The retired hash goes into `spentRefreshTokens`, which is what lets a later
+ * presentation of it be recognized as either a concurrent refresh or a replay.
+ */
+async function rotateSession(
+  ctx: MutationCtx,
+  session: Doc<"sessions">,
+  now: number,
+  issuer: string,
+  ttl: TtlConfig,
+): Promise<TokenBundle> {
+  const newRefreshToken = generateRefreshToken();
+  const newRefreshTokenHash = await sha256Hex(newRefreshToken);
+  const refreshTokenExpiresAt = now + ttl.refreshTokenTtlSeconds * 1000;
+  await ctx.db.insert("spentRefreshTokens", {
+    hash: session.refreshTokenHash,
+    sessionId: session._id,
+  });
+  await ctx.db.patch("sessions", session._id, {
+    refreshTokenHash: newRefreshTokenHash,
+    refreshTokenExpiresAt,
+    lastRefreshedAt: now,
+  });
+
+  // Remove any spent tokens past the `SPENT_TOKEN_HORIZON_MS`.
+  await pruneSpentTokens(ctx, session._id, now);
+
+  const access = await mintAccessToken(
+    session.userId,
+    issuer,
+    ttl.accessTokenTtlSeconds,
+  );
+  return {
+    accessToken: access.token,
+    accessTokenExpiresAt: access.expiresAt,
+    refreshToken: newRefreshToken,
+    refreshTokenExpiresAt,
+    userId: session.userId,
+  };
+}
+
+/**
+ * Attempts a refresh with a previously used token.
+ *
+ * Inside the grace window this is a concurrent refresh and rotates normally.
+ *
+ * Outside it, the token was rotated away long enough ago that nobody should
+ * still be presenting it, so it is treated as stolen and the session is
+ * revoked.
+ */
+async function attemptRefreshWithSpentToken(
+  ctx: MutationCtx,
+  hash: string,
+  now: number,
+  issuer: string,
+  ttl: TtlConfig,
+): Promise<TokenBundle | null> {
+  const spent = await spentTokenByHash(ctx, hash);
+  // A token this component has no record of ever issuing. Revoking anything
+  // here would let anyone sign anyone else out by presenting a made-up string,
+  // so an unknown token reports no session and changes nothing.
+  if (spent === null) return null;
+
+  const session = await ctx.db.get("sessions", spent.sessionId);
+  // Already signed out, expired, or revoked a moment ago by a sibling
+  // detecting the same replay. Nothing left to revoke or report.
+  if (session === null) return null;
+
+  if (now - spent._creationTime > REFRESH_GRACE_MS) {
+    await deleteSession(ctx, session._id);
+    return null;
+  }
+  if (session.refreshTokenExpiresAt < now) {
+    await deleteSession(ctx, session._id);
+    return null;
+  }
+  return await rotateSession(ctx, session, now, issuer, ttl);
+}
+
+/**
+ * Rotate a refresh token and mint a fresh access token.
+ *
+ * Returns `null` when the session can't be refreshed. That can happen with an
+ * unknown token, one past its refresh-token lifetime, or one whose session was
+ * just revoked because the token had already been rotated away (see {@link
+ * refreshWithSpentToken}). A dead session is a normal outcome the caller
+ * should handle by updating its authenticated state; the reasons are
+ * deliberately indistinguishable, so a thief learns nothing from the response.
  */
 export const refresh = mutation({
   args: {
@@ -428,58 +592,23 @@ export const refresh = mutation({
     const now = Date.now();
     const hash = await sha256Hex(args.refreshToken);
 
-    // Accept either the current hash or a recently-rotated one still inside its
-    // grace window (the concurrent-refresh case).
-    let session = await sessionByHash(ctx, hash);
-    if (!session) {
-      const prior = await ctx.db
-        .query("sessions")
-        .withIndex("by_previous_refresh_hash", (q) =>
-          q.eq("previousRefreshTokenHash", hash),
-        )
-        .unique();
-      if (
-        prior &&
-        prior.previousRefreshTokenExpiresAt !== undefined &&
-        prior.previousRefreshTokenExpiresAt >= now
-      ) {
-        session = prior;
-      }
+    const session = await sessionByHash(ctx, hash);
+    if (session === null) {
+      return await attemptRefreshWithSpentToken(
+        ctx,
+        hash,
+        now,
+        args.issuer,
+        ttl,
+      );
     }
-    // Unknown token: no session to refresh, and nothing to clean up.
-    if (!session) return null;
     if (session.refreshTokenExpiresAt < now) {
       // Past its refresh-token lifetime: delete the dead row and report no
       // session.
-      await ctx.db.delete("sessions", session._id);
+      await deleteSession(ctx, session._id);
       return null;
     }
-
-    const newRefreshToken = generateRefreshToken();
-    const newRefreshTokenHash = await sha256Hex(newRefreshToken);
-    const refreshTokenExpiresAt = now + ttl.refreshTokenTtlSeconds * 1000;
-    // Retain the hash we're replacing as the previous one, valid for the grace
-    // window, then swap in the freshly-minted token as current.
-    await ctx.db.patch("sessions", session._id, {
-      refreshTokenHash: newRefreshTokenHash,
-      refreshTokenExpiresAt,
-      previousRefreshTokenHash: session.refreshTokenHash,
-      previousRefreshTokenExpiresAt: now + REFRESH_GRACE_MS,
-      lastRefreshedAt: now,
-    });
-
-    const access = await mintAccessToken(
-      session.userId,
-      args.issuer,
-      ttl.accessTokenTtlSeconds,
-    );
-    return {
-      accessToken: access.token,
-      accessTokenExpiresAt: access.expiresAt,
-      refreshToken: newRefreshToken,
-      refreshTokenExpiresAt,
-      userId: session.userId,
-    };
+    return await rotateSession(ctx, session, now, args.issuer, ttl);
   },
 });
 
@@ -488,11 +617,18 @@ export const signOut = mutation({
   args: { refreshToken: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const session = await sessionByHash(
-      ctx,
-      await sha256Hex(args.refreshToken),
-    );
-    if (session) await ctx.db.delete("sessions", session._id);
+    const hash = await sha256Hex(args.refreshToken);
+    const session = await sessionByHash(ctx, hash);
+    if (session !== null) {
+      await deleteSession(ctx, session._id);
+      return null;
+    }
+    // Signing out with a token a refresh rotated away — a tab that signs out
+    // just after a sibling refreshed — is a real sign-out request, not a race
+    // to resolve, so revoke regardless of the grace window. Matching only the
+    // current hash would leave the session alive after a sign-out.
+    const spent = await spentTokenByHash(ctx, hash);
+    if (spent !== null) await deleteSession(ctx, spent.sessionId);
     return null;
   },
 });
