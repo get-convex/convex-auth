@@ -3,7 +3,8 @@ title: Convex Auth
 description: The best way to add authentication to your Convex app.
 ---
 
-Convex Auth is the best way to add authentication to your [Convex](https://www.convex.dev) app.
+Convex Auth is the best way to add authentication to your
+[Convex](https://www.convex.dev) app.
 
 - ✅ Runs inside of your app, no external auth service required.
 - ✅ Highly extensible to your app’s auth needs.
@@ -11,33 +12,57 @@ Convex Auth is the best way to add authentication to your [Convex](https://www.c
 
 ## Frequently Asked Questions
 
+### What's the status of Convex Auth?
+
+Convex Auth is in active development and hasn't reached a stable release yet.
+These are the docs for the new development branch of Convex Auth which is built
+on Convex Components and is targeting a public stable release in Q3 2026.
+
+It currently includes features to build basic user sign-up/sign-in using
+passwords, passkeys and Google or GitHub OAuth.
+
+You can try Convex Auth in its current state but beware that the API and schema
+may change in breaking ways before the stable release.
+
 ### How much does it cost?
 
 Convex Auth is **100% free and open source** (Apache-2.0 license).
 
-If you host your Convex deployment on Convex Cloud, the standard [resource pricing](https://www.convex.dev/pricing) applies.
+If you host your Convex deployment on Convex Cloud, the standard [resource
+pricing](https://www.convex.dev/pricing) applies.
 
 ### Does Convex Auth support what my app needs?
 
-Convex Auth supports many auth features out of the box:
+Currently Convex Auth supports several login methods out of the box:
 
-- Login providers: password, passkeys, OAuth (e.g. log in with Google, Apple, Microsoft, GitHub…)
-- E-mail address verification
-- 2nd-factor verification with one-time password (OTP)
+- Password
+- Passkey
+- OAuth (Google and GitHub)
+- Anonymous
 
-Convex Auth is also **highly extensible**: if you need a feature that Convex Auth doesn’t support natively, you can [customize existing providers](/advanced/customizing-providers) or [create your own](/advanced/customizing-providers). Everything in Convex Auth is build as TypeScript code that you can modify, so **the extension possibilities are limitless**.
+Additional feature will be available with the stable release.
 
 ### Will my app be secure?
 
-Convex Auth is **built around modern security practices**. Its features are carefully designed to avoid common security pitfalls, and to respect industry standards.
+Convex Auth is **built around modern security practices**. Its features are
+carefully designed to avoid common security pitfalls, and to respect industry
+standards.
 
-When using Convex Auth, the most sensitive data is stored in [components](https://www.convex.dev/components) that are isolated from the rest of your app. This ensures that sensitive data is never exposed, and that it is always accessed in ways that are safe (e.g. using hashes, salts, and rate limits where necessary).
+When using Convex Auth, the most sensitive data is stored in
+[components](https://www.convex.dev/components) that are isolated from the rest
+of your app. This ensures that sensitive data is never exposed, and that it is
+always accessed in ways that are safe (e.g. using hashes, salts, and rate
+limits where necessary).
 
-This is the case even if you write your own code to customize Convex Auth features. Convex Auth components are designed so that they can only be used safely.
+This is the case even if you write your own code to customize Convex Auth
+features. Convex Auth components are designed so that they can only be used
+safely.
 
 ### Do I keep control of my user data?
 
-**Absolutely.** All the data in Convex Auth is stored inside of your app’s database. You stay in control of the user data, and you can [export](https://docs.convex.dev/database/import-export/export) it at any time.
+**Absolutely.** All the data in Convex Auth is stored inside of your app’s
+database. You stay in control of the user data, and you can
+[export](https://docs.convex.dev/database/import-export/export) it at any time.
 
 ### Which front-end libraries or frameworks can I use Convex Auth with?
 
