@@ -14,6 +14,7 @@ import { rateLimiter } from "../helpers.ts";
 import {
   seedEmail,
   seedChallenge,
+  ADD_EMAIL,
   CUSTOM,
   setup as setupComponent,
 } from "../../emailTestSetup.ts";
@@ -182,6 +183,25 @@ describe("challenge.custom.complete", () => {
         emailCode: "code2",
         browserSecret: "secret2",
         purpose: PURPOSE,
+        userId: "user1",
+      }),
+    ).rejects.toThrow();
+  });
+
+  test("a built-in challenge cannot be completed as a custom one", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: ADD_EMAIL("user1"),
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    await expect(
+      t.mutation(api.challenge.custom.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        purpose: "addEmail",
         userId: "user1",
       }),
     ).rejects.toThrow();

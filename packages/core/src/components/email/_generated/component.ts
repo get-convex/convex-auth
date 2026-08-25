@@ -24,12 +24,66 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     challenge: {
+      addEmail: {
+        check: FunctionReference<
+          "mutation",
+          "internal",
+          { email: string },
+          | { error: "INVALID_EMAIL" }
+          | { error: "EMAIL_TAKEN" }
+          | { error: "RATE_LIMITED"; retryAfterMs: number }
+          | null,
+          Name
+        >;
+        complete: FunctionReference<
+          "mutation",
+          "internal",
+          { browserSecret: string; emailCode: string; userId: string },
+          | { email: string; success: true; userId: string }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_CHALLENGE" }
+                | { error: "INCORRECT_CODE" }
+                | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+        start: FunctionReference<
+          "mutation",
+          "internal",
+          {
+            email: string;
+            emailSender: {
+              apiKey: string;
+              from: string;
+              initialBackoffMs: number;
+              kind: "resend";
+              retryAttempts: number;
+              sendEmailHandle: string;
+              testMode: boolean;
+            };
+            url: string;
+            userId: string;
+          },
+          | { browserSecret: string; challengeId: string; success: true }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_EMAIL" }
+                | { error: "EMAIL_TAKEN" }
+                | { error: "RATE_LIMITED"; retryAfterMs: number };
+            },
+          Name
+        >;
+      };
       custom: {
         check: FunctionReference<
           "mutation",
           "internal",
           { email: string },
           | { error: "INVALID_EMAIL" }
+          | { error: "EMAIL_TAKEN" }
           | { error: "RATE_LIMITED"; retryAfterMs: number }
           | null,
           Name
@@ -47,7 +101,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           | {
               success: false;
               userError:
-                { error: "INVALID_CHALLENGE" } | { error: "INCORRECT_CODE" };
+                | { error: "INVALID_CHALLENGE" }
+                | { error: "INCORRECT_CODE" }
+                | { error: "EMAIL_TAKEN" };
             },
           Name
         >;
@@ -77,6 +133,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               success: false;
               userError:
                 | { error: "INVALID_EMAIL" }
+                | { error: "EMAIL_TAKEN" }
                 | { error: "RATE_LIMITED"; retryAfterMs: number };
             },
           Name
