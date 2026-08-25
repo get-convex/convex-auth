@@ -10,7 +10,7 @@
     "login",
     "sign"
   ],
-  "homepage": "https://labs.convex.dev/auth",
+  "homepage": "https://auth-v2.previews.convex.dev",
   "bugs": "https://github.com/get-convex/convex-auth/issues",
   "license": "Apache-2.0",
   "repository": {
