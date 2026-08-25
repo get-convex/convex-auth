@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as challenge_common from "../challenge/common.js";
+import type * as helpers from "../helpers.js";
 import type * as validation from "../validation.js";
 import type * as verifiedEmails from "../verifiedEmails.js";
 
@@ -19,6 +21,8 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  "challenge/common": typeof challenge_common;
+  helpers: typeof helpers;
   validation: typeof validation;
   verifiedEmails: typeof verifiedEmails;
 }> = anyApi as any;

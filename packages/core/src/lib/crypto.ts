@@ -15,3 +15,19 @@ export async function sha256Hex(value: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/**
+ * Cryptographically random 256-bit opaque token, base64url encoded. Used for
+ * the tokens that a challenge or a ticket hands out and later hashes.
+ */
+export function generateRandomToken(): string {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
+}
