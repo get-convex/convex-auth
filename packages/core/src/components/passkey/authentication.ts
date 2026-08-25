@@ -18,7 +18,10 @@ import {
   verifyRSASSAPKCS1v15Signature,
 } from "../../vendor/oslo/crypto/rsa.ts";
 import { sha256 } from "../../vendor/oslo/crypto/sha2.ts";
-import { finishAuthenticationUserError } from "./validation.ts";
+import {
+  credentialDescriptor,
+  finishAuthenticationUserError,
+} from "./validation.ts";
 import { consumeChallenge, randomChallenge } from "./helpers.ts";
 import { scheduleChallengeCleanup } from "./cleanup.ts";
 
@@ -28,7 +31,7 @@ import { scheduleChallengeCleanup } from "./cleanup.ts";
 // necessary.
 const startAuthenticationResult = v.object({
   challenge: v.bytes(),
-  allowCredentials: v.array(v.bytes()),
+  allowCredentials: v.array(credentialDescriptor),
 });
 
 /**
@@ -66,7 +69,10 @@ export const startAuthentication = mutation({
       .collect();
     return {
       challenge,
-      allowCredentials: rows.map((row) => row.credentialId),
+      allowCredentials: rows.map((row) => ({
+        id: row.credentialId,
+        transports: row.transports,
+      })),
     };
   },
 });

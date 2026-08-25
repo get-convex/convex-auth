@@ -239,6 +239,7 @@ export async function register(
     name?: string;
     credential?: TestCredential;
     counter?: number;
+    transports?: string[];
   } = {},
 ): Promise<{ credential: TestCredential; passkeyId: string }> {
   const credential = options.credential ?? (await generateES256Credential());
@@ -255,6 +256,7 @@ export async function register(
     expectedOrigin: ORIGIN,
     verifiedUserId: userId,
     name: options.name,
+    transports: options.transports,
     attestationObject: toArrayBuffer(buildAttestationObject(authData)),
     clientDataJSON: toArrayBuffer(
       buildClientDataJSON({

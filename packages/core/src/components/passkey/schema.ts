@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { transports } from "./validation.ts";
 
 export default defineSchema({
   // One row for each passkey credential. The component only sees an opaque
@@ -20,6 +21,9 @@ export default defineSchema({
     // expected to be always increasing. This component doesn’t enforce it,
     // but in theory this property could be used to detect cloned passkeys.
     counter: v.number(),
+    // The transports that the browser reported for this credential. The
+    // field is not set when the browser did not report them.
+    transports,
   })
     .index("by_credentialId", ["credentialId"])
     .index("by_userId", ["userId"]),

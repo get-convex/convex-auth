@@ -8,6 +8,29 @@ import { Infer, v } from "convex/values";
 export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
+ * The ways that the browser can reach an authenticator, for example
+ * "internal", "usb", or "hybrid". The browser reports them when it makes a
+ * credential. A later ceremony sends them back to the browser, which then
+ * shows the correct instructions to the user.
+ *
+ * The values are plain strings and not an enumeration. The WebAuthn spec
+ * lets new transports appear, and it tells a relying party to keep an
+ * unknown value without a change.
+ * https://www.w3.org/TR/webauthn-3/#enum-transport
+ */
+export const transports = v.optional(v.array(v.string()));
+
+/**
+ * One entry of `allowCredentials` or `excludeCredentials`. The WebAuthn
+ * `type` field is not included, because it is always "public-key".
+ */
+export const credentialDescriptor = v.object({
+  id: v.bytes(),
+  transports,
+});
+export type CredentialDescriptor = Infer<typeof credentialDescriptor>;
+
+/**
  * The user-facing errors for `finishRegistration`. An app can show these
  * errors to the end user. The `error` field is a machine-readable code and
  * the discriminant of the union.

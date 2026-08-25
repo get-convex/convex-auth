@@ -25,7 +25,7 @@ import type {
   StartAutofillSignInResult,
   StartSignInResult,
 } from "./setup.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { CHALLENGE_TTL_MS, type CredentialDescriptor } from "./validation.ts";
 
 /**
  * The `startSignIn` mutation the app re-exports from its `setupCore`.
@@ -62,6 +62,7 @@ type FinishSignUpMutation = FunctionReference<
     username: string;
     attestationObject: ArrayBuffer;
     clientDataJSON: ArrayBuffer;
+    transports?: string[];
   },
   ClientView<FinishSignUpResult>
 >;
@@ -258,6 +259,23 @@ function assertionArgs(credential: PublicKeyCredential): AssertionArgs {
 }
 
 /**
+ * Turn the credential descriptors from the server into the WebAuthn shape
+ * of `allowCredentials` and `excludeCredentials`.
+ */
+function credentialDescriptors(
+  credentials: CredentialDescriptor[],
+): PublicKeyCredentialDescriptor[] {
+  return credentials.map(({ id, transports }) => ({
+    type: "public-key",
+    id,
+    // The DOM type lists only the transports that were known when it was
+    // written, but the WebAuthn spec lets new values appear. The stored
+    // strings go through unchanged.
+    transports: transports as AuthenticatorTransport[] | undefined,
+  }));
+}
+
+/**
  * Run the modal registration ceremony and return the `finishSignUp`
  * arguments, or `null` when the browser returns no credential.
  */
@@ -268,6 +286,7 @@ async function runRegistrationCeremony(
   username: string;
   attestationObject: ArrayBuffer;
   clientDataJSON: ArrayBuffer;
+  transports?: string[];
 } | null> {
   const credential = (await navigator.credentials.create({
     publicKey: {
@@ -294,10 +313,7 @@ async function runRegistrationCeremony(
         userVerification: "required",
       },
       attestation: "none",
-      excludeCredentials: start.excludeCredentials.map((id) => ({
-        type: "public-key",
-        id,
-      })),
+      excludeCredentials: credentialDescriptors(start.excludeCredentials),
     },
   })) as PublicKeyCredential | null;
   if (credential === null) {
@@ -308,6 +324,12 @@ async function runRegistrationCeremony(
     username,
     attestationObject: response.attestationObject,
     clientDataJSON: response.clientDataJSON,
+    // Older browsers have no `getTransports`. Then the server stores no
+    // transports for this credential.
+    transports:
+      typeof response.getTransports === "function"
+        ? response.getTransports()
+        : undefined,
   };
 }
 
@@ -322,10 +344,7 @@ async function runAuthenticationCeremony(
     publicKey: {
       challenge: start.challenge,
       rpId: start.rpId,
-      allowCredentials: start.allowCredentials.map((id) => ({
-        type: "public-key",
-        id,
-      })),
+      allowCredentials: credentialDescriptors(start.allowCredentials),
       userVerification: "required",
     },
   })) as PublicKeyCredential | null;
