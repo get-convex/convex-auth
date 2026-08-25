@@ -21,11 +21,12 @@ export async function seedEmail(
 }
 
 export type ChallengePurposeRow =
-  { kind: "addEmail" } | { kind: "setPrimaryEmail" } | { kind: "passwordReset" };
+  | { kind: "addEmail" }
+  | { kind: "setPrimaryEmail" }
+  | { kind: "passwordReset" };
 
 /**
  * Seed a pending challenge row directly, hashing the code and the secret
- * like `challenge.start` would. (`challenge.start` itself needs `ctx.meta`,
  * which convex-test does not supply.)
  */
 export async function seedChallenge(
@@ -53,4 +54,27 @@ export async function seedChallenge(
 }
 
 export const ADD_EMAIL: ChallengePurposeRow = { kind: "addEmail" };
-export const SET_PRIMARY_EMAIL: ChallengePurposeRow = { kind: "setPrimaryEmail" };
+export const SET_PRIMARY_EMAIL: ChallengePurposeRow = {
+  kind: "setPrimaryEmail",
+};
+export const PASSWORD_RESET: ChallengePurposeRow = { kind: "passwordReset" };
+
+/**
+ * Make the keys of an `import.meta.glob("../**\/*.ts")` map that a test in a
+ * subdirectory built relative to the component root.
+ *
+ * Vite writes the files of the test's own directory as `./file.ts`, but
+ * convex-test resolves every module from the directory that holds
+ * `_generated`, so those keys must read `../<subdir>/file.ts`.
+ */
+export function modulesFromSubdir<T>(
+  modules: Record<string, T>,
+  subdir: string,
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(modules).map(([path, module]) => [
+      path.startsWith("./") ? `../${subdir}/${path.slice(2)}` : path,
+      module,
+    ]),
+  );
+}

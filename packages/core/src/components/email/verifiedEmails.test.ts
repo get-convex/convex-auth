@@ -10,7 +10,7 @@ const modules = import.meta.glob("./**/*.ts");
 function setup() {
   const t = convexTest(schema, modules);
   // The component mounts the rate limiter; register it with the test instance
-  // so `challenge.start`'s throttle has a backing component.
+  // so the `start` mutations's throttle has a backing component.
   registerRateLimiter(t);
   return t;
 }

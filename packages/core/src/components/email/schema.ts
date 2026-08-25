@@ -36,7 +36,8 @@ export default defineSchema({
     normalizedEmail: v.string(),
     // The user this challenge is for.
     userId: v.string(),
-    // What a successful completion does. See `vChallengePurposeArg`.
+    // The kind of the challenge, which is the file in `challenge/` that
+    // started it. Each kind completes in its own way.
     purpose: v.union(
       v.object({ kind: v.literal("addEmail") }),
       v.object({ kind: v.literal("setPrimaryEmail") }),

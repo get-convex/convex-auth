@@ -36,10 +36,10 @@ import type {
   StartRecoveryResult,
   CompleteRecoveryResult,
 } from "./setup.ts";
-import type { ChallengeStatus } from "./validation.ts";
+import type { ChallengeStatus, EmailPasswordFlow } from "./validation.ts";
 
 /** The flows that keep a secret in the starting browser's storage. */
-export type EmailPasswordFlow = "signUp" | "changeEmail" | "recovery";
+export type { EmailPasswordFlow };
 
 // One storage key per flow, so concurrent flows do not overwrite each other.
 const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
@@ -130,7 +130,7 @@ type CompleteRecoveryMutation = FunctionReference<
 type GetChallengeStatusQuery = FunctionReference<
   "query",
   "public",
-  { code: string; secret: string },
+  { code: string; secret: string; flow: EmailPasswordFlow },
   ChallengeStatus
 >;
 
@@ -524,7 +524,7 @@ export function useCompleteRecovery(
  *
  * - `undefined` while the secret and the status load,
  * - `{ status: "missingSecret" }` when this browser did not start the flow,
- * - `{ status: "pending", purpose, email }` for a usable link,
+ * - `{ status: "pending", email }` for a usable link,
  * - `{ status: "invalid" }` for an unknown, expired or claimed link.
  */
 export type UseChallengeStatusResult =
@@ -562,7 +562,7 @@ export function useChallengeStatus(
 
   const status = useQuery(
     statusQuery,
-    secret === null || secret === undefined ? "skip" : { code, secret },
+    secret === null || secret === undefined ? "skip" : { code, secret, flow },
   );
 
   if (secret === undefined) {

@@ -8,7 +8,11 @@
  * @module
  */
 
-import type * as challenge from "../challenge.js";
+import type * as challenge_addEmail from "../challenge/addEmail.js";
+import type * as challenge_common from "../challenge/common.js";
+import type * as challenge_passwordReset from "../challenge/passwordReset.js";
+import type * as challenge_rateLimit from "../challenge/rateLimit.js";
+import type * as challenge_setPrimaryEmail from "../challenge/setPrimaryEmail.js";
 import type * as helpers from "../helpers.js";
 import type * as react from "../react.js";
 import type * as setup from "../setup.js";
@@ -24,7 +28,11 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  challenge: typeof challenge;
+  "challenge/addEmail": typeof challenge_addEmail;
+  "challenge/common": typeof challenge_common;
+  "challenge/passwordReset": typeof challenge_passwordReset;
+  "challenge/rateLimit": typeof challenge_rateLimit;
+  "challenge/setPrimaryEmail": typeof challenge_setPrimaryEmail;
   helpers: typeof helpers;
   react: typeof react;
   setup: typeof setup;

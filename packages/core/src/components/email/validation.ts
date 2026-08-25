@@ -38,36 +38,7 @@ export function validateEmailFormat(
 }
 
 /**
- * The purpose of a challenge, as `challenge.start` accepts it. The
- * purpose controls what a successful completion does:
- *
- * - `addEmail`: prove that the address belongs to `userId`, then record it
- *   as an email address for the user (primary if it’s the first email address
- *   or secondary if it’s not).
- * - `setPrimaryEmail`: similar to `addEmail`, but for apps where each user has
- *   one email address. When the challenge is completed, the new address
- *   always becomes primary, and the previous primary address is removed.
- * - `passwordReset`: prove that the person owns an address that is already
- *   verified on the account. Completion writes nothing; it returns the
- *   `userId` as the ownership proof.
- */
-export const vChallengePurposeArg = v.union(
-  v.object({ kind: v.literal("addEmail"), userId: v.string() }),
-  v.object({ kind: v.literal("setPrimaryEmail"), userId: v.string() }),
-  v.object({ kind: v.literal("passwordReset") }),
-);
-export type ChallengePurposeArg = Infer<typeof vChallengePurposeArg>;
-
-/** The purpose kind alone, for completion-side checks. */
-export const vPurposeKind = v.union(
-  v.literal("addEmail"),
-  v.literal("setPrimaryEmail"),
-  v.literal("passwordReset"),
-);
-export type PurposeKind = Infer<typeof vPurposeKind>;
-
-/**
- * The user-facing errors for `challenge.start`. An application can show
+ * The user-facing errors for the `start` mutations. An application can show
  * these errors to the end user.
  */
 export const startChallengeUserError = v.union(
@@ -82,9 +53,10 @@ export const startChallengeUserError = v.union(
 export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
 
 /**
- * The user-facing errors for `challenge.complete`. `INVALID_LINK` covers an
- * unknown code, a wrong secret, an expired link, and a purpose mismatch: one
- * error for all of them, so the response is not an oracle for attackers.
+ * The user-facing errors for the `complete` mutations. `INVALID_LINK` covers
+ * an unknown code, a wrong secret, an expired link, and a challenge of
+ * another kind: one error for all of them, so the response is not an oracle
+ * for attackers.
  */
 export const completeChallengeUserError = v.union(
   v.object({ error: v.literal("INVALID_LINK") }),
@@ -96,21 +68,29 @@ export type CompleteChallengeUserError = Infer<
 >;
 
 /**
- * What `challenge.getStatus` reports about a challenge. Landing pages use it
- * to show what the link will do before the user confirms.
+ * What a `getStatus` query reports about a challenge. Landing pages use it
+ * to show which address the link is for before the user confirms.
  */
 export const vChallengeStatus = v.union(
-  v.object({
-    status: v.literal("pending"),
-    purpose: vPurposeKind,
-    email: v.string(),
-  }),
+  v.object({ status: v.literal("pending"), email: v.string() }),
   v.object({ status: v.literal("invalid") }),
 );
 export type ChallengeStatus = Infer<typeof vChallengeStatus>;
 
 /**
- * How `challenge.start` sends its email. The caller (the provider recipe)
+ * The flows of the EmailPassword provider that send a challenge link. A
+ * landing page names its flow so the backend asks the matching challenge
+ * kind for the status.
+ */
+export const vEmailPasswordFlow = v.union(
+  v.literal("signUp"),
+  v.literal("changeEmail"),
+  v.literal("recovery"),
+);
+export type EmailPasswordFlow = Infer<typeof vEmailPasswordFlow>;
+
+/**
+ * How the `start` mutations send their email. The caller (the provider recipe)
  * resolves the function handle and the runtime options; the component only
  * calls the handle.
  *

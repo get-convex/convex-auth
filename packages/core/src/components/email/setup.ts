@@ -37,6 +37,7 @@ import {
   startChallengeUserError,
   completeChallengeUserError,
   vChallengeStatus,
+  vEmailPasswordFlow,
   type EmailSenderConfig,
   type ChallengeStatus,
 } from "./validation.ts";
@@ -306,7 +307,7 @@ export function setupEmailPassword<UsersTable extends string>(
     };
   };
 
-  /** The sender config the email component's `challenge.start` accepts. */
+  /** The sender config the email component's `start` mutations accept. */
   const senderConfig = async (): Promise<EmailSenderConfig> => ({
     kind: "resend",
     sendEmailHandle: await createFunctionHandle(emailSender.sendEmail),
@@ -410,7 +411,7 @@ export function setupEmailPassword<UsersTable extends string>(
             // can only roll back by throwing, and a rate limit is an expected
             // outcome, not an exception.
             const check = await ctx.runMutation(
-              component.challenge.checkStart,
+              component.challenge.rateLimit.checkStart,
               { email },
             );
             if (!check.ok) {
@@ -446,13 +447,16 @@ export function setupEmailPassword<UsersTable extends string>(
               );
             }
 
-            const start = await ctx.runMutation(component.challenge.start, {
-              email,
-              // The user is new, so this first address becomes primary.
-              purpose: { kind: "addEmail", userId },
-              url: urls.signUp,
-              emailSender: await senderConfig(),
-            });
+            const start = await ctx.runMutation(
+              component.challenge.addEmail.start,
+              {
+                email,
+                // The user is new, so this first address becomes primary.
+                userId,
+                url: urls.signUp,
+                emailSender: await senderConfig(),
+              },
+            );
             if (!start.success) {
               // Unexpected: the address was free and the rate limits passed
               // above, in this same transaction. Throw so the new user rolls
@@ -481,8 +485,8 @@ export function setupEmailPassword<UsersTable extends string>(
             { code, secret },
           ): Promise<CompleteSignUpResult> => {
             const complete = await ctx.runMutation(
-              component.challenge.complete,
-              { code, secret, purpose: "addEmail" },
+              component.challenge.addEmail.complete,
+              { code, secret },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
@@ -607,12 +611,15 @@ export function setupEmailPassword<UsersTable extends string>(
               return { success: false, userError: verifyResult.userError };
             }
 
-            const start = await ctx.runMutation(component.challenge.start, {
-              email: newEmail,
-              purpose: { kind: "setPrimaryEmail", userId },
-              url: urls.changeEmail,
-              emailSender: await senderConfig(),
-            });
+            const start = await ctx.runMutation(
+              component.challenge.setPrimaryEmail.start,
+              {
+                email: newEmail,
+                userId,
+                url: urls.changeEmail,
+                emailSender: await senderConfig(),
+              },
+            );
             if (!start.success) {
               return { success: false, userError: start.userError };
             }
@@ -633,8 +640,8 @@ export function setupEmailPassword<UsersTable extends string>(
             { code, secret },
           ): Promise<CompleteChangeEmailResult> => {
             const complete = await ctx.runMutation(
-              component.challenge.complete,
-              { code, secret, purpose: "setPrimaryEmail" },
+              component.challenge.setPrimaryEmail.complete,
+              { code, secret },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
@@ -667,7 +674,7 @@ export function setupEmailPassword<UsersTable extends string>(
           returns: startRecoveryResult,
           handler: async (ctx, { email }): Promise<StartRecoveryResult> => {
             const check = await ctx.runMutation(
-              component.challenge.checkStart,
+              component.challenge.rateLimit.checkStart,
               { email },
             );
             if (!check.ok) {
@@ -680,12 +687,10 @@ export function setupEmailPassword<UsersTable extends string>(
               };
             }
 
-            const start = await ctx.runMutation(component.challenge.start, {
-              email,
-              purpose: { kind: "passwordReset" },
-              url: urls.recovery,
-              emailSender: await senderConfig(),
-            });
+            const start = await ctx.runMutation(
+              component.challenge.passwordReset.start,
+              { email, url: urls.recovery, emailSender: await senderConfig() },
+            );
             if (!start.success) {
               return { success: false, userError: start.userError };
             }
@@ -720,8 +725,8 @@ export function setupEmailPassword<UsersTable extends string>(
             }
 
             const complete = await ctx.runMutation(
-              component.challenge.complete,
-              { code, secret, purpose: "passwordReset" },
+              component.challenge.passwordReset.complete,
+              { code, secret },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
@@ -760,15 +765,28 @@ export function setupEmailPassword<UsersTable extends string>(
         }),
 
         /**
-         * Report the state of a challenge (sign-up, change-email or
-         * recovery) without claiming it. Landing pages call this to show what
-         * the link will do before the user confirms.
+         * Report the state of a challenge without claiming it. Landing pages
+         * call this to show which address the link is for before the user
+         * confirms. `flow` names the landing page, so a link from another
+         * flow reports `invalid`.
          */
         getChallengeStatus: queryGeneric({
-          args: { code: v.string(), secret: v.string() },
+          args: {
+            code: v.string(),
+            secret: v.string(),
+            flow: vEmailPasswordFlow,
+          },
           returns: vChallengeStatus,
-          handler: async (ctx, args): Promise<ChallengeStatus> => {
-            return await ctx.runQuery(component.challenge.getStatus, args);
+          handler: async (
+            ctx,
+            { code, secret, flow },
+          ): Promise<ChallengeStatus> => {
+            const statusQuery = {
+              signUp: component.challenge.addEmail.getStatus,
+              changeEmail: component.challenge.setPrimaryEmail.getStatus,
+              recovery: component.challenge.passwordReset.getStatus,
+            }[flow];
+            return await ctx.runQuery(statusQuery, { code, secret });
           },
         }),
       };

@@ -53,7 +53,7 @@ type T = Awaited<ReturnType<typeof setup>>;
 /**
  * Run a function against a registered component's own database. convex-test
  * exposes `runInComponent` at runtime but does not declare it yet, hence the
- * cast. We use it to seed component state that only `challenge.start` writes
+ * cast. We use it to seed component state that only the `start` mutations write
  * in production — that mutation needs `ctx.meta`, which convex-test does not
  * supply.
  */
@@ -124,7 +124,9 @@ async function seedChallenge(
     email: string;
     userId: string;
     purpose:
-      { kind: "addEmail" } | { kind: "setPrimaryEmail" } | { kind: "passwordReset" };
+      | { kind: "addEmail" }
+      | { kind: "setPrimaryEmail" }
+      | { kind: "passwordReset" };
     code: string;
     secret: string;
   },
@@ -205,7 +207,7 @@ describe("signUp", () => {
   });
 
   // TODO: enable when convex-test supports ctx.meta (the happy path reaches
-  // challenge.checkStart, which reads the client IP).
+  // challenge.rateLimit.checkStart, which reads the client IP).
   test.skip("creates the user without a session and sends the link", () => {});
   test.skip("returns RATE_LIMITED without creating the user", () => {});
 });
@@ -441,7 +443,7 @@ describe("startChangeEmail", () => {
   });
 
   // TODO: enable when convex-test supports ctx.meta (the happy path reaches
-  // challenge.start, which reads the client IP).
+  // challenge.setPrimaryEmail.start, which reads the client IP).
   test.skip("sends a confirmation link to the new address", () => {});
 });
 
@@ -501,7 +503,7 @@ describe("completeChangeEmail", () => {
 
 describe("startRecovery", () => {
   // TODO: enable when convex-test supports ctx.meta (every path reaches
-  // challenge.checkStart, which reads the client IP).
+  // challenge.rateLimit.checkStart, which reads the client IP).
   test.skip("sends a reset link to a verified email", () => {});
   test.skip("surfaces EMAIL_NOT_FOUND for an unknown email", () => {});
 });
@@ -597,12 +599,22 @@ describe("getChallengeStatus", () => {
       await t.query(api.auth.getChallengeStatus, {
         code: "code1",
         secret: "secret1",
+        flow: "recovery",
       }),
-    ).toEqual({ status: "pending", purpose: "passwordReset", email: EMAIL });
+    ).toEqual({ status: "pending", email: EMAIL });
+    // A link from another flow reports invalid.
+    expect(
+      await t.query(api.auth.getChallengeStatus, {
+        code: "code1",
+        secret: "secret1",
+        flow: "signUp",
+      }),
+    ).toEqual({ status: "invalid" });
     expect(
       await t.query(api.auth.getChallengeStatus, {
         code: "code1",
         secret: "wrong",
+        flow: "recovery",
       }),
     ).toEqual({ status: "invalid" });
   });

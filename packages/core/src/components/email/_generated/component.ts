@@ -24,76 +24,163 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     challenge: {
-      checkStart: FunctionReference<
-        "mutation",
-        "internal",
-        { email: string },
-        { ok: true } | { ok: false; retryAfterMs: number },
-        Name
-      >;
-      complete: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          code: string;
-          purpose: "addEmail" | "setPrimaryEmail" | "passwordReset";
-          secret: string;
-        },
-        | {
+      addEmail: {
+        complete: FunctionReference<
+          "mutation",
+          "internal",
+          { code: string; secret: string },
+          | { email: string; success: true; userId: string }
+          | {
+              success: false;
+              userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+        getStatus: FunctionReference<
+          "query",
+          "internal",
+          { code: string; secret: string },
+          { email: string; status: "pending" } | { status: "invalid" },
+          Name
+        >;
+        start: FunctionReference<
+          "mutation",
+          "internal",
+          {
             email: string;
-            previousPrimaryEmail: string | null;
-            success: true;
+            emailSender: {
+              apiKey: string;
+              from: string;
+              initialBackoffMs: number;
+              kind: "resend";
+              retryAttempts: number;
+              sendEmailHandle: string;
+              testMode: boolean;
+            };
+            url: string;
             userId: string;
-          }
-        | {
-            success: false;
-            userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
           },
-        Name
-      >;
-      getStatus: FunctionReference<
-        "query",
-        "internal",
-        { code: string; secret: string },
-        | {
+          | { secret: string; success: true }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_EMAIL" }
+                | { error: "EMAIL_TAKEN" }
+                | { error: "EMAIL_NOT_FOUND" }
+                | { error: "RATE_LIMITED"; retryAfterMs: number };
+            },
+          Name
+        >;
+      };
+      passwordReset: {
+        complete: FunctionReference<
+          "mutation",
+          "internal",
+          { code: string; secret: string },
+          | { email: string; success: true; userId: string }
+          | {
+              success: false;
+              userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+        getStatus: FunctionReference<
+          "query",
+          "internal",
+          { code: string; secret: string },
+          { email: string; status: "pending" } | { status: "invalid" },
+          Name
+        >;
+        start: FunctionReference<
+          "mutation",
+          "internal",
+          {
             email: string;
-            purpose: "addEmail" | "setPrimaryEmail" | "passwordReset";
-            status: "pending";
-          }
-        | { status: "invalid" },
-        Name
-      >;
-      start: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          email: string;
-          emailSender: {
-            apiKey: string;
-            from: string;
-            initialBackoffMs: number;
-            kind: "resend";
-            retryAttempts: number;
-            sendEmailHandle: string;
-            testMode: boolean;
-          };
-          purpose:
-            | { kind: "addEmail"; userId: string }
-            | { kind: "setPrimaryEmail"; userId: string }
-            | { kind: "passwordReset" };
-          url: string;
-        },
-        | { secret: string; success: true }
-        | {
-            success: false;
-            userError:
-              | { error: "INVALID_EMAIL" }
-              | { error: "EMAIL_TAKEN" }
-              | { error: "EMAIL_NOT_FOUND" }
-              | { error: "RATE_LIMITED"; retryAfterMs: number };
+            emailSender: {
+              apiKey: string;
+              from: string;
+              initialBackoffMs: number;
+              kind: "resend";
+              retryAttempts: number;
+              sendEmailHandle: string;
+              testMode: boolean;
+            };
+            url: string;
           },
-        Name
-      >;
+          | { secret: string; success: true }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_EMAIL" }
+                | { error: "EMAIL_TAKEN" }
+                | { error: "EMAIL_NOT_FOUND" }
+                | { error: "RATE_LIMITED"; retryAfterMs: number };
+            },
+          Name
+        >;
+      };
+      rateLimit: {
+        checkStart: FunctionReference<
+          "mutation",
+          "internal",
+          { email: string },
+          { ok: true } | { ok: false; retryAfterMs: number },
+          Name
+        >;
+      };
+      setPrimaryEmail: {
+        complete: FunctionReference<
+          "mutation",
+          "internal",
+          { code: string; secret: string },
+          | {
+              email: string;
+              previousPrimaryEmail: string | null;
+              success: true;
+              userId: string;
+            }
+          | {
+              success: false;
+              userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+        getStatus: FunctionReference<
+          "query",
+          "internal",
+          { code: string; secret: string },
+          { email: string; status: "pending" } | { status: "invalid" },
+          Name
+        >;
+        start: FunctionReference<
+          "mutation",
+          "internal",
+          {
+            email: string;
+            emailSender: {
+              apiKey: string;
+              from: string;
+              initialBackoffMs: number;
+              kind: "resend";
+              retryAttempts: number;
+              sendEmailHandle: string;
+              testMode: boolean;
+            };
+            url: string;
+            userId: string;
+          },
+          | { secret: string; success: true }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_EMAIL" }
+                | { error: "EMAIL_TAKEN" }
+                | { error: "EMAIL_NOT_FOUND" }
+                | { error: "RATE_LIMITED"; retryAfterMs: number };
+            },
+          Name
+        >;
+      };
     };
     verifiedEmails: {
       deleteUser: FunctionReference<

@@ -3,7 +3,10 @@ import { Doc } from "./_generated/dataModel.ts";
 import { components } from "./_generated/api.ts";
 import { FunctionHandle } from "convex/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
-import { EmailSenderConfig, PurposeKind } from "./validation.ts";
+import { EmailSenderConfig } from "./validation.ts";
+
+/** The kind of a stored challenge. */
+export type ChallengeKind = Doc<"challenges">["purpose"]["kind"];
 
 // --- Configuration ---------------------------------------------------------
 
@@ -81,7 +84,10 @@ export function emailByNormalizedEmail(
 }
 
 /** The plain-text body of a challenge email. */
-export function challengeEmailText(purpose: PurposeKind, link: string): string {
+export function challengeEmailText(
+  purpose: ChallengeKind,
+  link: string,
+): string {
   // TODO: also offer a short code the user can type, with rate limiting on
   // attempts (a short code is guessable, unlike the 256-bit link code).
   if (purpose === "passwordReset") {
@@ -103,7 +109,7 @@ export function challengeEmailText(purpose: PurposeKind, link: string): string {
 }
 
 /** The subject line of a challenge email. */
-export function challengeEmailSubject(purpose: PurposeKind): string {
+export function challengeEmailSubject(purpose: ChallengeKind): string {
   return purpose === "passwordReset"
     ? "Reset your password"
     : "Validate your email address";
@@ -137,7 +143,7 @@ export async function sendChallengeEmail(
   ctx: MutationCtx,
   sender: EmailSenderConfig,
   to: string,
-  purpose: PurposeKind,
+  purpose: ChallengeKind,
   link: string,
 ): Promise<void> {
   await ctx.runMutation(sender.sendEmailHandle as SendEmailHandle, {
