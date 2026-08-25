@@ -250,9 +250,29 @@ describe("completeSignUp", () => {
       secret: "secret1",
     });
 
-    const result = await t.mutation(api.auth.completeSignUp, {
+    // A link is bound to its user: another user cannot complete it.
+    const other = await t.mutation(api.auth.completeSignUp, {
       code: "code1",
       secret: "secret1",
+      userId: "someone-else",
+    });
+    expect(other).toEqual({
+      success: false,
+      userError: { error: "INVALID_LINK" },
+    });
+    // The wrong user burned the link; seed it again for the happy path.
+    await seedChallenge(t, {
+      email: EMAIL,
+      userId,
+      purpose: { kind: "addEmail" },
+      code: "code2",
+      secret: "secret2",
+    });
+
+    const result = await t.mutation(api.auth.completeSignUp, {
+      code: "code2",
+      secret: "secret2",
+      userId,
     });
     expect(result).toEqual({ success: true, tokens: SESSION_TOKENS });
 
@@ -269,6 +289,7 @@ describe("completeSignUp", () => {
     const result = await t.mutation(api.auth.completeSignUp, {
       code: "unknown",
       secret: "whatever",
+      userId: "nobody",
     });
     expect(result).toEqual({
       success: false,
@@ -311,6 +332,7 @@ describe("completeSignUp", () => {
     const first = await t.mutation(api.auth.completeSignUp, {
       code: "code2",
       secret: "secret2",
+      userId: user2,
     });
     expect(first).toEqual({ success: true, tokens: SESSION_TOKENS });
 
@@ -318,6 +340,7 @@ describe("completeSignUp", () => {
     const second = await t.mutation(api.auth.completeSignUp, {
       code: "code1",
       secret: "secret1",
+      userId: user1,
     });
     expect(second).toEqual({
       success: false,
@@ -465,10 +488,22 @@ describe("completeChangeEmail", () => {
       secret: "secret1",
     });
 
-    const result = await t.mutation(api.auth.completeChangeEmail, {
+    // Without a session, the link cannot be completed.
+    const signedOut = await t.mutation(api.auth.completeChangeEmail, {
       code: "code1",
       secret: "secret1",
     });
+    expect(signedOut).toEqual({
+      success: false,
+      userError: { error: "NOT_LOGGED_IN" },
+    });
+
+    const result = await t
+      .withIdentity({ subject: userId })
+      .mutation(api.auth.completeChangeEmail, {
+        code: "code1",
+        secret: "secret1",
+      });
     expect(result).toEqual({ success: true });
 
     // Sign-in works with the new address, and no longer with the old one.
@@ -496,10 +531,13 @@ describe("completeChangeEmail", () => {
 
   test("rejects a bad code with INVALID_LINK", async () => {
     const t = await setup();
-    const result = await t.mutation(api.auth.completeChangeEmail, {
-      code: "unknown",
-      secret: "whatever",
-    });
+    const userId = await seedSignedUpUser(t);
+    const result = await t
+      .withIdentity({ subject: userId })
+      .mutation(api.auth.completeChangeEmail, {
+        code: "unknown",
+        secret: "whatever",
+      });
     expect(result).toEqual({
       success: false,
       userError: { error: "INVALID_LINK" },

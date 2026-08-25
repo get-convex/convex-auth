@@ -38,12 +38,14 @@ describe("the one-shot claim", () => {
     const first = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(first).toMatchObject({ success: true });
 
     const second = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(second).toEqual({
       success: false,
@@ -64,6 +66,7 @@ describe("the one-shot claim", () => {
     const wrong = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "not-the-secret",
+      userId: "user1",
     });
     expect(wrong).toEqual({
       success: false,
@@ -74,6 +77,7 @@ describe("the one-shot claim", () => {
     const retry = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(retry).toEqual({
       success: false,
@@ -95,6 +99,7 @@ describe("the one-shot claim", () => {
     const result = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toEqual({
       success: false,
@@ -116,6 +121,7 @@ describe("the one-shot claim", () => {
     const wrongKind = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(wrongKind).toEqual({
       success: false,
@@ -125,6 +131,7 @@ describe("the one-shot claim", () => {
     const rightKind = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(rightKind).toEqual({
       success: false,
@@ -147,6 +154,7 @@ describe("getStatus", () => {
     const status = await t.query(api.challenge.setPrimaryEmail.getStatus, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(status).toEqual({ status: "pending", email: "alice@example.com" });
 
@@ -154,6 +162,7 @@ describe("getStatus", () => {
     const result = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toMatchObject({ success: true });
   });
@@ -180,18 +189,21 @@ describe("getStatus", () => {
       await t.query(api.challenge.addEmail.getStatus, {
         code: "unknown",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toEqual({ status: "invalid" });
     expect(
       await t.query(api.challenge.addEmail.getStatus, {
         code: "code1",
         secret: "wrong",
+        userId: "user1",
       }),
     ).toEqual({ status: "invalid" });
     expect(
       await t.query(api.challenge.addEmail.getStatus, {
         code: "code2",
         secret: "secret2",
+        userId: "user2",
       }),
     ).toEqual({ status: "invalid" });
   });
@@ -210,12 +222,14 @@ describe("getStatus", () => {
       await t.query(api.challenge.setPrimaryEmail.getStatus, {
         code: "code1",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toEqual({ status: "invalid" });
     expect(
       await t.query(api.challenge.addEmail.getStatus, {
         code: "code1",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toEqual({ status: "pending", email: "alice@example.com" });
   });
@@ -243,6 +257,7 @@ describe("concurrent challenges", () => {
     const first = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(first).toMatchObject({ success: true, userId: "user1" });
 
@@ -252,11 +267,13 @@ describe("concurrent challenges", () => {
       await t.query(api.challenge.setPrimaryEmail.getStatus, {
         code: "code2",
         secret: "secret2",
+        userId: "user2",
       }),
     ).toMatchObject({ status: "pending" });
     const second = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code2",
       secret: "secret2",
+      userId: "user2",
     });
     expect(second).toEqual({
       success: false,
@@ -285,6 +302,7 @@ describe("concurrent challenges", () => {
       await t.mutation(api.challenge.setPrimaryEmail.complete, {
         code: "code1",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toMatchObject({ success: true, userId: "user1" });
 
@@ -292,6 +310,7 @@ describe("concurrent challenges", () => {
       await t.mutation(api.challenge.setPrimaryEmail.complete, {
         code: "code2",
         secret: "secret2",
+        userId: "user2",
       }),
     ).toEqual({ success: false, userError: { error: "EMAIL_TAKEN" } });
   });
@@ -328,6 +347,7 @@ describe("the pending challenge address", () => {
       await t.query(api.challenge.addEmail.getStatus, {
         code: "code1",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toEqual({ status: "pending", email: "Alice@Example.com" });
   });

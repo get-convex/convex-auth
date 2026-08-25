@@ -68,19 +68,19 @@ type CompleteResult = Infer<typeof completeResult>;
 
 /**
  * Complete a `setPrimaryEmail` challenge: remove the old primary address and
- * record the new one as primary. Fails with `EMAIL_TAKEN` when another user
- * verified the address after the start.
+ * record the new one as primary. The `userId` must be the one given at
+ * start. Fails with `EMAIL_TAKEN` when another user verified the address
+ * after the start.
  */
 export const complete = mutation({
-  args: vClaimArgs,
+  args: { ...vClaimArgs, userId: v.string() },
   returns: completeResult,
   handler: async (ctx, args): Promise<CompleteResult> => {
     const row = await claimChallenge(ctx, { ...args, purpose: PURPOSE });
     if (row === null) {
       return INVALID_LINK;
     }
-    // A row of this kind always has a user: `start` requires one.
-    const userId = row.userId as string;
+    const { userId } = args;
     const taken = await addressTakenError(ctx, row.normalizedEmail);
     if (taken !== null) {
       return { success: false, userError: taken };
@@ -115,7 +115,7 @@ export const complete = mutation({
 
 /** Report the state of a `setPrimaryEmail` challenge without claiming it. */
 export const getStatus = query({
-  args: vClaimArgs,
+  args: { ...vClaimArgs, userId: v.string() },
   returns: vChallengeStatus,
   handler: async (ctx, args): Promise<ChallengeStatus> =>
     await getChallengeStatus(ctx, { ...args, purpose: PURPOSE }),

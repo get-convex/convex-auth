@@ -48,6 +48,10 @@ const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
   recovery: "__convexAuthEmailPasswordRecoverySecret",
 };
 
+// The sign-up link is bound to the new user, and nobody is signed in until
+// the link is opened, so the browser keeps the `userId` next to the secret.
+const SIGN_UP_USER_ID_STORAGE_KEY = "__convexAuthEmailPasswordSignUpUserId";
+
 /**
  * A failure the client produces that the server never returns: the mutation
  * threw (a network blip, a bug, an unexpected server error) rather than
@@ -81,7 +85,7 @@ type SignUpMutation = FunctionReference<
 type CompleteSignUpMutation = FunctionReference<
   "mutation",
   "public",
-  { code: string; secret: string },
+  { code: string; secret: string; userId: string },
   ClientView<CompleteSignUpResult>
 >;
 
@@ -130,7 +134,7 @@ type CompleteRecoveryMutation = FunctionReference<
 type GetChallengeStatusQuery = FunctionReference<
   "query",
   "public",
-  { code: string; secret: string; flow: EmailPasswordFlow },
+  { code: string; secret: string; flow: EmailPasswordFlow; userId?: string },
   ChallengeStatus
 >;
 
@@ -229,6 +233,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
           const result = await signInApi.mutation(signUpMutation, credentials);
           if (result.success) {
             await storage.set(SECRET_STORAGE_KEYS.signUp, result.secret);
+            await storage.set(SIGN_UP_USER_ID_STORAGE_KEY, result.userId);
           }
           return result;
         } catch (cause) {
@@ -264,7 +269,13 @@ export function useCompleteSignUp(
       track(async () => {
         try {
           const secret = await storage.get(SECRET_STORAGE_KEYS.signUp);
-          if (secret === null || secret === undefined) {
+          const userId = await storage.get(SIGN_UP_USER_ID_STORAGE_KEY);
+          if (
+            secret === null ||
+            secret === undefined ||
+            userId === null ||
+            userId === undefined
+          ) {
             return {
               success: false,
               userError: { error: "MISSING_SECRET" },
@@ -273,10 +284,12 @@ export function useCompleteSignUp(
           const result = await signInApi.mutation(completeSignUpMutation, {
             code,
             secret,
+            userId,
           });
           if (result.success) {
             await setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.signUp);
+            await storage.remove(SIGN_UP_USER_ID_STORAGE_KEY);
           }
           return result;
         } catch (cause) {
@@ -544,15 +557,32 @@ export function useChallengeStatus(
   { code, flow }: { code: string; flow: EmailPasswordFlow },
 ): UseChallengeStatusResult {
   const storage = useSecretStorage();
-  // `undefined` = still reading storage; `null` = no secret in this browser.
-  const [secret, setSecret] = useState<string | null | undefined>(undefined);
+  // What the starting browser kept: the secret, and for sign-up the user.
+  // `undefined` = still reading storage; `null` = this browser did not start
+  // the flow.
+  const [kept, setKept] = useState<
+    { secret: string; userId?: string } | null | undefined
+  >(undefined);
 
   useEffect(() => {
     let canceled = false;
     void (async () => {
-      const value = await storage.get(SECRET_STORAGE_KEYS[flow]);
-      if (!canceled) {
-        setSecret(value ?? null);
+      const secret = await storage.get(SECRET_STORAGE_KEYS[flow]);
+      const userId =
+        flow === "signUp"
+          ? await storage.get(SIGN_UP_USER_ID_STORAGE_KEY)
+          : undefined;
+      if (canceled) {
+        return;
+      }
+      if (
+        secret === null ||
+        secret === undefined ||
+        (flow === "signUp" && (userId === null || userId === undefined))
+      ) {
+        setKept(null);
+      } else {
+        setKept({ secret, userId: userId ?? undefined });
       }
     })();
     return () => {
@@ -562,13 +592,13 @@ export function useChallengeStatus(
 
   const status = useQuery(
     statusQuery,
-    secret === null || secret === undefined ? "skip" : { code, secret, flow },
+    kept === null || kept === undefined ? "skip" : { code, flow, ...kept },
   );
 
-  if (secret === undefined) {
+  if (kept === undefined) {
     return undefined;
   }
-  if (secret === null) {
+  if (kept === null) {
     return { status: "missingSecret" };
   }
   return status;

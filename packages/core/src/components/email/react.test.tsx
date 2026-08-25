@@ -65,7 +65,11 @@ afterEach(() => {
 
 describe("useSignUpWithEmailPassword", () => {
   test("success stores the secret and does not sign in", async () => {
-    runMutation.mockResolvedValue({ success: true, secret: "secret-1" });
+    runMutation.mockResolvedValue({
+      success: true,
+      secret: "secret-1",
+      userId: "user-1",
+    });
     const { result } = renderWithProviders(() =>
       useSignUpWithEmailPassword(mutation),
     );
@@ -79,10 +83,18 @@ describe("useSignUpWithEmailPassword", () => {
       });
     });
 
-    expect(returned).toEqual({ success: true, secret: "secret-1" });
-    // The secret is kept for the completion step; no session was adopted.
+    expect(returned).toEqual({
+      success: true,
+      secret: "secret-1",
+      userId: "user-1",
+    });
+    // The secret and the user are kept for the completion step; no session
+    // was adopted.
     expect(secretStorage.get("__convexAuthEmailPasswordSignUpSecret")).toBe(
       "secret-1",
+    );
+    expect(secretStorage.get("__convexAuthEmailPasswordSignUpUserId")).toBe(
+      "user-1",
     );
     expect(result.current.auth.isAuthenticated).toBe(false);
   });
@@ -136,6 +148,7 @@ describe("useSignUpWithEmailPassword", () => {
 describe("useCompleteSignUp", () => {
   test("consumes the stored secret and adopts the session", async () => {
     secretStorage.set("__convexAuthEmailPasswordSignUpSecret", "secret-1");
+    secretStorage.set("__convexAuthEmailPasswordSignUpUserId", "user-1");
     runMutation.mockResolvedValue({ success: true, tokens: bundle });
     const { result } = renderWithProviders(() => useCompleteSignUp(mutation));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
@@ -147,16 +160,22 @@ describe("useCompleteSignUp", () => {
       returned = await result.current.hook.completeSignUp({ code: "code-1" });
     });
 
-    // The mutation received the code from the link plus the stored secret.
+    // The mutation received the code from the link plus the stored secret
+    // and user.
     expect(runMutation).toHaveBeenCalledWith({
       code: "code-1",
       secret: "secret-1",
+      userId: "user-1",
     });
     expect(returned).toEqual({ success: true, tokens: bundle });
     expect(result.current.auth.isAuthenticated).toBe(true);
-    // The secret is cleared once it has served its purpose.
+    // The secret and the user are cleared once they have served their
+    // purpose.
     expect(
       secretStorage.get("__convexAuthEmailPasswordSignUpSecret"),
+    ).toBeNull();
+    expect(
+      secretStorage.get("__convexAuthEmailPasswordSignUpUserId"),
     ).toBeNull();
   });
 
@@ -180,8 +199,28 @@ describe("useCompleteSignUp", () => {
     expect(result.current.auth.isAuthenticated).toBe(false);
   });
 
+  test("returns MISSING_SECRET when the user is missing from storage", async () => {
+    secretStorage.set("__convexAuthEmailPasswordSignUpSecret", "secret-1");
+    const { result } = renderWithProviders(() => useCompleteSignUp(mutation));
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.completeSignUp>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.completeSignUp({ code: "code-1" });
+    });
+
+    expect(returned).toEqual({
+      success: false,
+      userError: { error: "MISSING_SECRET" },
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
   test("keeps the secret when completion fails", async () => {
     secretStorage.set("__convexAuthEmailPasswordSignUpSecret", "secret-1");
+    secretStorage.set("__convexAuthEmailPasswordSignUpUserId", "user-1");
     runMutation.mockResolvedValue({
       success: false,
       userError: { error: "INVALID_LINK" },

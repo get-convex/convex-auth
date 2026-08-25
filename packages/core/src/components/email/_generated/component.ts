@@ -28,7 +28,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         complete: FunctionReference<
           "mutation",
           "internal",
-          { code: string; secret: string },
+          { code: string; secret: string; userId: string },
           | { email: string; success: true; userId: string }
           | {
               success: false;
@@ -39,7 +39,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         getStatus: FunctionReference<
           "query",
           "internal",
-          { code: string; secret: string },
+          { code: string; secret: string; userId: string },
           { email: string; status: "pending" } | { status: "invalid" },
           Name
         >;
@@ -145,7 +145,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         complete: FunctionReference<
           "mutation",
           "internal",
-          { code: string; secret: string },
+          { code: string; secret: string; userId: string },
           | {
               email: string;
               previousPrimaryEmail: string | null;
@@ -161,7 +161,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         getStatus: FunctionReference<
           "query",
           "internal",
-          { code: string; secret: string },
+          { code: string; secret: string; userId: string },
           { email: string; status: "pending" } | { status: "invalid" },
           Name
         >;

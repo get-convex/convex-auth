@@ -16,6 +16,7 @@ import {
   queryGeneric,
   type FunctionReference,
   type GenericMutationCtx,
+  type GenericQueryCtx,
   type GenericDataModel,
 } from "convex/server";
 import { Infer, v } from "convex/values";
@@ -161,7 +162,13 @@ export type EmailPasswordOptions = {
 const vNotLoggedIn = v.object({ error: v.literal("NOT_LOGGED_IN") });
 
 const signUpResult = v.union(
-  v.object({ success: v.literal(true), secret: v.string() }),
+  v.object({
+    success: v.literal(true),
+    secret: v.string(),
+    // The new user. The browser keeps it with the secret and gives both back
+    // to `completeSignUp`, which binds the link to this user.
+    userId: v.string(),
+  }),
   v.object({
     success: v.literal(false),
     userError: v.union(startChallengeUserError, setPasswordUserError),
@@ -233,7 +240,7 @@ const completeChangeEmailResult = v.union(
   v.object({ success: v.literal(true) }),
   v.object({
     success: v.literal(false),
-    userError: completeChallengeUserError,
+    userError: v.union(vNotLoggedIn, completeChallengeUserError),
   }),
 );
 
@@ -368,7 +375,9 @@ export function setupEmailPassword<UsersTable extends string>(
   };
 
   /** The signed-in user's id, or `null` when there is no session. */
-  const sessionUserId = async (ctx: MutationCtx): Promise<string | null> => {
+  const sessionUserId = async (
+    ctx: GenericQueryCtx<GenericDataModel>,
+  ): Promise<string | null> => {
     const identity = await ctx.auth.getUserIdentity();
     return identity === null ? null : identity.subject;
   };
@@ -489,7 +498,7 @@ export function setupEmailPassword<UsersTable extends string>(
               );
             }
 
-            return { success: true, secret: start.secret };
+            return { success: true, secret: start.secret, userId };
           },
         }),
 
@@ -499,15 +508,15 @@ export function setupEmailPassword<UsersTable extends string>(
          * Validation and sign-in happen in one transaction.
          */
         completeSignUp: authMutation({
-          args: { code: v.string(), secret: v.string() },
+          args: { code: v.string(), secret: v.string(), userId: v.string() },
           returns: completeSignUpResult,
           handler: async (
             ctx,
-            { code, secret },
+            { code, secret, userId },
           ): Promise<CompleteSignUpResult> => {
             const complete = await ctx.runMutation(
               component.challenge.addEmail.complete,
-              { code, secret },
+              { code, secret, userId },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
@@ -660,9 +669,15 @@ export function setupEmailPassword<UsersTable extends string>(
             ctx,
             { code, secret },
           ): Promise<CompleteChangeEmailResult> => {
+            // The link is bound to the user who started the change, so the
+            // same user must be signed in to complete it.
+            const userId = await sessionUserId(ctx);
+            if (userId === null) {
+              return { success: false, userError: { error: "NOT_LOGGED_IN" } };
+            }
             const complete = await ctx.runMutation(
               component.challenge.setPrimaryEmail.complete,
-              { code, secret },
+              { code, secret, userId },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
@@ -828,29 +843,43 @@ export function setupEmailPassword<UsersTable extends string>(
          * call this to show which address the link is for before the user
          * confirms. `flow` names the landing page, so a link from another
          * flow reports `invalid`.
+         *
+         * A link is bound to a user. The sign-up landing page gives the
+         * `userId` that `signUp` returned (nobody is signed in yet); the
+         * change-email page relies on the session; recovery has no user.
          */
         getChallengeStatus: queryGeneric({
           args: {
             code: v.string(),
             secret: v.string(),
             flow: vEmailPasswordFlow,
+            userId: v.optional(v.string()),
           },
           returns: vChallengeStatus,
           handler: async (
             ctx,
-            { code, secret, flow },
+            { code, secret, flow, userId },
           ): Promise<ChallengeStatus> => {
             switch (flow) {
-              case "signUp":
+              case "signUp": {
+                if (userId === undefined) {
+                  return { status: "invalid" };
+                }
                 return await ctx.runQuery(
                   component.challenge.addEmail.getStatus,
-                  { code, secret },
+                  { code, secret, userId },
                 );
-              case "changeEmail":
+              }
+              case "changeEmail": {
+                const sessionUser = await sessionUserId(ctx);
+                if (sessionUser === null) {
+                  return { status: "invalid" };
+                }
                 return await ctx.runQuery(
                   component.challenge.setPrimaryEmail.getStatus,
-                  { code, secret },
+                  { code, secret, userId: sessionUser },
                 );
+              }
               case "recovery":
                 return await ctx.runQuery(
                   component.challenge.custom.getStatus,

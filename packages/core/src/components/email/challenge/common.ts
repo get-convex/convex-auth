@@ -178,11 +178,15 @@ export async function createChallenge(
 
 // --- Complete and status ---------------------------------------------------
 
-/** What a completion or a status query expects to find in the row. */
+/**
+ * What a completion or a status query expects to find in the row: the
+ * purpose of the function that the caller uses, and the `userId` that the
+ * caller asserts (`null` for a flow without a user). Both must equal the
+ * stored values, so a link can never complete a flow for another user.
+ */
 export type ExpectedChallenge = {
   purpose: ChallengePurpose;
-  // The `userId` that the caller asserts. `undefined` skips the check.
-  userId?: string | null;
+  userId: string | null;
 };
 
 async function findByCode(
@@ -218,7 +222,7 @@ async function matches(
     row.secretHash === (await sha256Hex(args.secret)) &&
     row.expiresAt >= Date.now() &&
     samePurpose(row.purpose, args.purpose) &&
-    (args.userId === undefined || row.userId === args.userId)
+    row.userId === args.userId
   );
 }
 

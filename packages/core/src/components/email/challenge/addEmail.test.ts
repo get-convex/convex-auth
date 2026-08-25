@@ -32,6 +32,7 @@ describe("challenge.addEmail.complete", () => {
     const result = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toEqual({
       success: true,
@@ -59,6 +60,7 @@ describe("challenge.addEmail.complete", () => {
     const result = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toMatchObject({ success: true });
     const emails = await t.query(api.verifiedEmails.getEmails, {
@@ -89,6 +91,7 @@ describe("challenge.addEmail.complete", () => {
     const result = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toEqual({
       success: false,
@@ -115,6 +118,7 @@ describe("challenge.addEmail.complete", () => {
     const result = await t.mutation(api.challenge.addEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toMatchObject({
       success: true,
@@ -147,8 +151,69 @@ describe("challenge.addEmail.complete", () => {
       await t.mutation(api.challenge.addEmail.complete, {
         code: "code1",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toEqual({ success: false, userError: { error: "EMAIL_TAKEN" } });
+  });
+});
+
+describe("the userId of an addEmail challenge", () => {
+  test("another userId fails with INVALID_LINK and burns the link", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      userId: "user1",
+      purpose: ADD_EMAIL,
+      code: "code1",
+      secret: "secret1",
+    });
+
+    expect(
+      await t.mutation(api.challenge.addEmail.complete, {
+        code: "code1",
+        secret: "secret1",
+        userId: "user2",
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_LINK" } });
+    // Nothing was recorded for either user, and the link is gone.
+    expect(
+      await t.query(api.verifiedEmails.getUserIdByEmail, {
+        email: "alice@example.com",
+      }),
+    ).toBeNull();
+    expect(
+      await t.mutation(api.challenge.addEmail.complete, {
+        code: "code1",
+        secret: "secret1",
+        userId: "user1",
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_LINK" } });
+  });
+
+  test("getStatus with another userId reports invalid and keeps the row", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      userId: "user1",
+      purpose: ADD_EMAIL,
+      code: "code1",
+      secret: "secret1",
+    });
+
+    expect(
+      await t.query(api.challenge.addEmail.getStatus, {
+        code: "code1",
+        secret: "secret1",
+        userId: "user2",
+      }),
+    ).toEqual({ status: "invalid" });
+    expect(
+      await t.query(api.challenge.addEmail.getStatus, {
+        code: "code1",
+        secret: "secret1",
+        userId: "user1",
+      }),
+    ).toEqual({ status: "pending", email: "alice@example.com" });
   });
 });
 

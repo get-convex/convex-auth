@@ -89,6 +89,8 @@ export function ConfirmEmailChange() {
             switch (result.userError.error) {
               case "INVALID_LINK":
                 return "The link is not valid anymore. Start the change again.";
+              case "NOT_LOGGED_IN":
+                return "Log in first, then open the link again.";
               case "EMAIL_TAKEN":
                 return "Another account validated this email address first.";
               case "MISSING_SECRET":

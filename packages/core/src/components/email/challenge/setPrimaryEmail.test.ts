@@ -33,6 +33,7 @@ describe("challenge.setPrimaryEmail.complete", () => {
     const result = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toEqual({
       success: true,
@@ -64,6 +65,7 @@ describe("challenge.setPrimaryEmail.complete", () => {
     const result = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code1",
       secret: "secret1",
+      userId: "user1",
     });
     expect(result).toEqual({
       success: true,
@@ -92,6 +94,7 @@ describe("challenge.setPrimaryEmail.complete", () => {
       await t.mutation(api.challenge.setPrimaryEmail.complete, {
         code: "code1",
         secret: "secret1",
+        userId: "user1",
       }),
     ).toEqual({ success: false, userError: { error: "EMAIL_TAKEN" } });
     // The old primary stays in place.
