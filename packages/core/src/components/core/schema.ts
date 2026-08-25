@@ -24,10 +24,12 @@ export default defineSchema({
     .index("by_refresh_hash", ["refreshTokenHash"])
     .index("by_user", ["userId"]),
 
-  // The hashes of refresh tokens that rotation has replaced, so a token the
-  // component issued can still be traced back to its session after it stops
-  // being current. A presented token that lands here is one of two things,
-  // told apart by how long ago the row was created:
+  // The hashes of refresh tokens that rotation has replaced.
+  //
+  // This allows tracing a previously rotated token back to its session. A
+  // presented token that matches a document here is one of two things,
+  // depending on the age of the document (tracked by the system-added
+  // `_creationTime` field):
   //
   //  - Rotated away moments ago: two near-simultaneous refreshes presenting
   //    the same token (parallel SSR loaders, or two browser tabs sharing one
@@ -35,12 +37,6 @@ export default defineSchema({
   //    being rejected and logging the user out.
   //  - Rotated away longer ago: a token that should be in nobody's hands, so
   //    it is treated as stolen and its session is revoked.
-  //
-  // Without this table the second case is invisible: an out-of-grace token
-  // matches nothing and a thief keeps the session indefinitely.
-  //
-  // `_creationTime` is both the grace clock and the retention key, so the row
-  // carries no timestamps of its own.
   spentRefreshTokens: defineTable({
     hash: v.string(),
     sessionId: v.id("sessions"),

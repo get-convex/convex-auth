@@ -122,10 +122,13 @@ async function deleteSession(
 /**
  * Erase this session's spent hashes that are past the detection horizon.
  *
- * Cleanup rides on the rotation that creates the work, so a steadily
- * refreshing session keeps its own set trimmed with no background job to run
- * or mount. The `by_session` index orders by creation time within a session,
- * so the expired rows come first and the loop stops at the first live one.
+ * Spent tokens are used to allow concurrent refreshes within a grace window
+ * and to detect illegitamite use of a refresh token. Only a bounded set of
+ * tokens is kept for that purpose though, thus this code to prune documents
+ * older than the `SPENT_TOKEN_HORIZON_MS`.
+ *
+ * Cleanup is triggered by token rotation, so a steadily refreshing session
+ * keeps its own set trimmed with no background job to run or mount.
  */
 async function pruneSpentTokens(
   ctx: MutationCtx,
@@ -137,11 +140,13 @@ async function pruneSpentTokens(
   // background job would add; see KNOWN_ISSUES.md.
   const spent = await ctx.db
     .query("spentRefreshTokens")
-    .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
-    .order("asc")
+    .withIndex("by_session", (q) =>
+      q
+        .eq("sessionId", sessionId)
+        .lte("_creationTime", now - SPENT_TOKEN_HORIZON_MS),
+    )
     .collect();
   for (const row of spent) {
-    if (row._creationTime > now - SPENT_TOKEN_HORIZON_MS) break;
     await ctx.db.delete("spentRefreshTokens", row._id);
   }
 }

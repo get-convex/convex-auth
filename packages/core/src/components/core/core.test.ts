@@ -69,8 +69,10 @@ function setup() {
   return convexTest(schema, modules);
 }
 
+type ConvexTestApi = ReturnType<typeof setup>;
+
 /** Establish a brand new identity: the account, its app user, and a session. */
-async function signUp(t: ReturnType<typeof setup>, c: AuthClaims) {
+async function signUp(t: ConvexTestApi, c: AuthClaims) {
   return await t.mutation(api.public.signUp, {
     claims: c,
     createUserHandle: CREATE_USER_HANDLE,
@@ -80,7 +82,7 @@ async function signUp(t: ReturnType<typeof setup>, c: AuthClaims) {
 }
 
 /** Sign a known identity back in, as an app that attached an `onSignIn` does. */
-async function signIn(t: ReturnType<typeof setup>, c: AuthClaims) {
+async function signIn(t: ConvexTestApi, c: AuthClaims) {
   return await t.mutation(api.public.signIn, {
     claims: c,
     onSignInHandle: ON_SIGN_IN_HANDLE,
@@ -95,26 +97,26 @@ function expectBundle(bundle: TokenBundle | null): TokenBundle {
 }
 
 /** Exchange a refresh token, as a client rotating its session does. */
-async function refresh(t: ReturnType<typeof setup>, refreshToken: string) {
+async function refresh(t: ConvexTestApi, refreshToken: string) {
   return await t.mutation(api.public.refresh, { refreshToken, issuer: ISSUER });
 }
 
 /** How many sessions currently exist. */
-async function sessionCount(t: ReturnType<typeof setup>) {
+async function sessionCount(t: ConvexTestApi) {
   return await t.run(
     async (ctx) => (await ctx.db.query("sessions").collect()).length,
   );
 }
 
 /** The hashes rotation has retired, oldest first. */
-async function spentHashes(t: ReturnType<typeof setup>) {
+async function spentHashes(t: ConvexTestApi) {
   return await t.run(async (ctx) =>
     (await ctx.db.query("spentRefreshTokens").collect()).map((r) => r.hash),
   );
 }
 
 /** The hash of the token a session currently accepts. */
-async function currentHash(t: ReturnType<typeof setup>) {
+async function currentHash(t: ConvexTestApi) {
   return await t.run(
     async (ctx) => (await ctx.db.query("sessions").unique())?.refreshTokenHash,
   );
