@@ -33,12 +33,9 @@ const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 // each other into a forced sign-out. Past this, presenting a rotated-away
 // token is treated as theft — see `sessionBySpentHash`.
 export const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
-// How long a spent hash is remembered. This is the reuse-detection horizon:
-// past it the row is gone and a replayed token reads as unknown, which revokes
-// nothing but also grants nothing.
-//
-// It bounds *detection* only, never normal use — a session's current token is
-// never in the spent table, so an idle client's token still works after weeks.
+// How long a spent refresh token hash is remembered. This is the
+// reuse-detection horizon: past it the row is gone and a replayed token reads
+// as unknown, which revokes nothing but also grants nothing.
 export const SPENT_TOKEN_HORIZON_MS = 60 * 60 * 1000; // 1 hour
 
 // The issuer (CONVEX_SITE_URL) is passed in by the app rather than read here:
