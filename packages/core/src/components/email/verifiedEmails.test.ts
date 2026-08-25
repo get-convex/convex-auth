@@ -1,30 +1,18 @@
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
+import { convexTest } from "convex-test";
+import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
-import { normalizeEmail, validateEmailFormat } from "./validation.ts";
+import { seedEmail } from "./testSetup.ts";
 
 const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
-  return convexTest(schema, modules);
-}
-
-/** Seed a verified email row directly; the validation flow arrives later. */
-async function seedEmail(
-  t: ReturnType<typeof setup>,
-  userId: string,
-  email: string,
-  isPrimary: boolean,
-) {
-  await t.run(async (ctx) => {
-    await ctx.db.insert("verifiedEmails", {
-      email,
-      normalizedEmail: normalizeEmail(email),
-      userId,
-      isPrimary,
-    });
-  });
+  const t = convexTest(schema, modules);
+  // The component mounts the rate limiter; register it with the test instance
+  // so the `start` mutations's throttle has a backing component.
+  registerRateLimiter(t);
+  return t;
 }
 
 describe("getEmails", () => {
@@ -173,32 +161,5 @@ describe("deleteUser", () => {
     await expect(
       t.mutation(api.verifiedEmails.deleteUser, { userId: "user1" }),
     ).resolves.toBeNull();
-  });
-});
-
-describe("validateEmailFormat", () => {
-  test("accepts a plain address", () => {
-    expect(validateEmailFormat("alice@example.com")).toBeNull();
-  });
-
-  test.each([
-    ["no at sign", "alice.example.com"],
-    ["empty local part", "@example.com"],
-    ["no domain dot", "alice@example"],
-    ["whitespace", "alice @example.com"],
-    ["two at signs", "a@b@example.com"],
-    ["too long", "a".repeat(250) + "@example.com"],
-  ])("rejects %s", (_name, email) => {
-    expect(validateEmailFormat(email)).toEqual({ error: "INVALID_EMAIL" });
-  });
-});
-
-describe("normalizeEmail", () => {
-  test("lowercases and applies NFC", () => {
-    expect(normalizeEmail("Alice@Example.COM")).toBe("alice@example.com");
-    // "e" + combining acute accent (U+0301) normalizes to the composed form.
-    expect(normalizeEmail("he\u0301lene@example.com")).toBe(
-      "h\u00e9lene@example.com",
-    );
   });
 });

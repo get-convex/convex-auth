@@ -1,8 +1,82 @@
+/**
+ * The validators, the errors and the helpers that the email component shares
+ * with its callers. This module holds no server code, thus a provider recipe
+ * and a client can both import it.
+ *
+ * The component proves that a person reads the mail at an address with a
+ * challenge. A challenge has two steps, and each kind in `challenge/` gives
+ * each step its own function. Two secrets complete it, and the database
+ * keeps only the SHA-256 of each one:
+ *
+ * - The `code`, which travels in the emailed link.
+ * - The `secret`, which stays in the browser that started the challenge.
+ *   The browser gets it from the `start` mutation and keeps it in its local
+ *   storage. Because both secrets are necessary, a person who reads the
+ *   mailbox alone cannot complete the challenge, and neither can a person
+ *   who uses the browser alone.
+ *
+ * The start step makes the row and sends the link:
+ *
+ * ```
+ *  Client                    Provider                        Component
+ *    │                         │                               │
+ *    │  submit the address     │                               │
+ *    ├────────────────────────▶│                               │
+ *    │                         │  challenge start mutation     │
+ *    │                         ├──────────────────────────────▶│     check the format, then the rate limits
+ *    │                         │                               │     store the hashes of the code and the secret
+ *    │                         │                               ├─▶ send the link by email
+ *    │                         │◀──────────────────────────────┤     the secret and the ID of the challenge
+ *    │◀────────────────────────┤                               │
+ *    ├─▶ keep the secret in local storage                      │
+ *    │                         │                               │
+ * ```
+ *
+ * The completion step runs on the landing page that the link opens, in the
+ * same browser, because that browser has the secret. The page shows which
+ * address the link is for before the user confirms:
+ *
+ * ```
+ *  Landing page                Provider                          Component
+ *    │                           │                                 │
+ *    ├─▶ read the code from the URL and the secret from storage    │
+ *    │                           │                                 │
+ *    │  ask for the status       │                                 │
+ *    ├──────────────────────────▶│                                 │
+ *    │                           │  challenge getStatus query      │
+ *    │                           ├────────────────────────────────▶│     verify, write nothing
+ *    │                           │◀────────────────────────────────┤     the address under challenge
+ *    │◀──────────────────────────┤                                 │
+ *    ├─▶ show the address, the user confirms                       │
+ *    │                           │                                 │
+ *    │  confirm                  │                                 │
+ *    ├──────────────────────────▶│                                 │
+ *    │                           │  challenge complete mutation    │
+ *    │                           ├────────────────────────────────▶│     claim the row: delete it, then verify
+ *    │                           │                                 │     make the change that the kind defines
+ *    │                           │◀────────────────────────────────┤
+ *    │◀──────────────────────────┤                                 │
+ *    │                           │                                 │
+ * ```
+ *
+ * The `purpose` of the row says which kind started the challenge, and which
+ * user the flow is for. A `complete` call gives the purpose that it expects,
+ * thus a link for one flow can never complete another flow, or a flow for
+ * another user.
+ *
+ * The claim is one-shot: the row goes away as soon as the code matches, even
+ * when the secret is wrong or the link has expired, thus no link works twice.
+ * All the failures give the same `INVALID_LINK` error, thus the response
+ * tells an attacker nothing.
+ *
+ * @module
+ */
+
 import { Infer, v } from "convex/values";
 
 // The component applies only loose format rules: it rejects strings that can
 // not be a deliverable address, and nothing more. Real ownership of the
-// address is proven by the validation flow, not by format checks.
+// address is proven by the challenge, not by format checks.
 
 // The longest address SMTP can deliver to (RFC 5321: 256 octets for the path,
 // minus the angle brackets).
@@ -38,6 +112,77 @@ export function validateEmailFormat(
 }
 
 /**
+ * The user-facing errors for the `start` mutations. An application can show
+ * these errors to the end user.
+ */
+export const startChallengeUserError = v.union(
+  emailFormatUserError,
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
+export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
+
+/**
+ * The user-facing errors for the `complete` mutations. `INVALID_LINK` covers
+ * an unknown code, a wrong secret, an expired link, and a challenge of
+ * another kind: one error for all of them, so the response is not an oracle
+ * for attackers.
+ */
+export const completeChallengeUserError = v.union(
+  v.object({ error: v.literal("INVALID_LINK") }),
+);
+export type CompleteChallengeUserError = Infer<
+  typeof completeChallengeUserError
+>;
+
+/**
+ * What a `getStatus` query reports about a challenge. Landing pages use it
+ * to show which address the link is for before the user confirms.
+ */
+export const vChallengeStatus = v.union(
+  v.object({ status: v.literal("pending"), email: v.string() }),
+  v.object({ status: v.literal("invalid") }),
+);
+export type ChallengeStatus = Infer<typeof vChallengeStatus>;
+
+/**
+ * The flows of the EmailPassword provider that send a challenge link. A
+ * landing page names its flow so the backend asks the matching challenge
+ * kind for the status.
+ */
+export const vEmailPasswordFlow = v.union(
+  v.literal("signUp"),
+  v.literal("changeEmail"),
+  v.literal("recovery"),
+);
+export type EmailPasswordFlow = Infer<typeof vEmailPasswordFlow>;
+
+/**
+ * How the `start` mutations send their email. The caller (the provider recipe)
+ * resolves the function handle and the runtime options; the component only
+ * calls the handle.
+ *
+ * Only Resend is supported for now, through the `@convex-dev/resend`
+ * component's `lib.sendEmail` mutation.
+ *
+ * TODO: support other email providers.
+ * TODO: offer a first-party zero-configuration email service.
+ * TODO: let applications customize the email templates.
+ */
+export const vEmailSenderConfig = v.object({
+  kind: v.literal("resend"),
+  // Function handle for the Resend component's `lib.sendEmail` mutation.
+  sendEmailHandle: v.string(),
+  // The From address, e.g. `"My App <auth@example.com>"`.
+  from: v.string(),
+  // Runtime options that `lib.sendEmail` requires.
+  apiKey: v.string(),
+  testMode: v.boolean(),
+  initialBackoffMs: v.number(),
+  retryAttempts: v.number(),
+});
+export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
+
+/**
  * Normalize an email address for storage and comparisons.
  *
  * The function first makes the address lowercase, so that lookups are not
@@ -62,4 +207,19 @@ export function normalizeEmail(email: string): string {
   // she won’t be able to also create an account.
   // (But she won’t be able to perform account recovery to the original account,
   // as account recovery emails will be sent to Jane.Doe@example.com).
+}
+
+// Crypto helpers for the email component's challenge.
+
+export function base64UrlEncode(bytes: Uint8Array): string {
+  const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/** Cryptographically random 256-bit opaque token, base64url encoded. */
+export function generateRandomToken(): string {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
 }

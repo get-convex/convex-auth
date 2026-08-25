@@ -23,6 +23,17 @@ import type { FunctionReference } from "convex/server";
  */
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
+    challenge: {
+      rateLimit: {
+        checkStart: FunctionReference<
+          "mutation",
+          "internal",
+          { email: string },
+          { ok: true } | { ok: false; retryAfterMs: number },
+          Name
+        >;
+      };
+    };
     verifiedEmails: {
       deleteUser: FunctionReference<
         "mutation",
