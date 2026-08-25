@@ -8,6 +8,13 @@ Initial v2 alpha
 - supports password, passkey, google, github providers
 - nextjs ssr support for password, passkey
 
+## 0.0.95
+
+- fix: a failed OTP/magic-link sign-in no longer consumes the verification code
+  it rejected
+- fix: `signIn` called with only a `code` now resolves with `{ tokens: null }`
+  for every failure instead of rejecting for some
+
 ## 0.0.94
 
 - chore: bump `@auth/core` peer dependency (#320) @eden881
