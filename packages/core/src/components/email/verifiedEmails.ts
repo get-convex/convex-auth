@@ -1,6 +1,6 @@
-import { mutation, query, QueryCtx } from "./_generated/server.ts";
-import { Doc } from "./_generated/dataModel.ts";
+import { mutation, query } from "./_generated/server.ts";
 import { v } from "convex/values";
+import { emailsByUserId, emailByNormalizedEmail } from "./helpers.ts";
 import { normalizeEmail } from "./validation.ts";
 
 /**
@@ -44,7 +44,8 @@ export const getUserIdByEmail = query({
 });
 
 /**
- * Delete all data the component holds for a user.
+ * Delete all data the component holds for a user: verified emails and
+ * pending challenges.
  *
  * Call this when the app deletes the user. The function is idempotent.
  */
@@ -56,28 +57,13 @@ export const deleteUser = mutation({
     for (const row of rows) {
       await ctx.db.delete("verifiedEmails", row._id);
     }
+    const challenges = await ctx.db
+      .query("challenges")
+      .withIndex("by_purpose_userId", (q) => q.eq("purpose.userId", userId))
+      .collect();
+    for (const row of challenges) {
+      await ctx.db.delete("challenges", row._id);
+    }
     return null;
   },
 });
-
-function emailsByUserId(
-  ctx: QueryCtx,
-  userId: string,
-): Promise<Doc<"verifiedEmails">[]> {
-  return ctx.db
-    .query("verifiedEmails")
-    .withIndex("by_userId", (q) => q.eq("userId", userId))
-    .collect();
-}
-
-function emailByNormalizedEmail(
-  ctx: QueryCtx,
-  normalizedEmail: string,
-): Promise<Doc<"verifiedEmails"> | null> {
-  return ctx.db
-    .query("verifiedEmails")
-    .withIndex("by_normalizedEmail", (q) =>
-      q.eq("normalizedEmail", normalizedEmail),
-    )
-    .unique();
-}
