@@ -54,25 +54,36 @@ export type EmailSource = Infer<typeof vEmailSource>;
  */
 export const startChallengeUserError = v.union(
   emailFormatUserError,
-  // Another user has already verified this address.
-  v.object({ error: v.literal("EMAIL_TAKEN") }),
   v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
 );
 export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
 
 /**
  * The user-facing errors for `challenge.complete`. `INVALID_LINK` covers an
- * unknown code, a wrong secret and an expired link: one error for all of
- * them, so the response is not an oracle for attackers.
+ * unknown code, a wrong secret, an expired link, a purpose mismatch and a
+ * link that was already used: one error for all of them, so the response is
+ * not an oracle for attackers.
  */
-export const completeChallengeUserError = v.union(
-  v.object({ error: v.literal("INVALID_LINK") }),
-  // The address was verified by another user after the flow started.
-  v.object({ error: v.literal("EMAIL_TAKEN") }),
-);
+export const completeChallengeUserError = v.object({
+  error: v.literal("INVALID_LINK"),
+});
 export type CompleteChallengeUserError = Infer<
   typeof completeChallengeUserError
 >;
+
+/**
+ * The user-facing errors for `verifiedEmails.add`.
+ *
+ * - `INVALID_PROOF`: the proof is unknown, expired, or already spent. This is
+ *   a programming error in the caller, not something the end user did.
+ * - `EMAIL_TAKEN`: another user verified the address after the challenge
+ *   started.
+ */
+export const addEmailUserError = v.union(
+  v.object({ error: v.literal("INVALID_PROOF") }),
+  v.object({ error: v.literal("EMAIL_TAKEN") }),
+);
+export type AddEmailUserError = Infer<typeof addEmailUserError>;
 
 /**
  * How `challenge.start` sends its email. The caller (the provider recipe)

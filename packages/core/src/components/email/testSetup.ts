@@ -30,7 +30,8 @@ export async function seedChallenge(
   t: TestConvex<typeof schema>,
   args: {
     email: string;
-    userId: string;
+    userId?: string;
+    purpose: string;
     code: string;
     secret: string;
     expiresAt?: number;
@@ -40,6 +41,7 @@ export async function seedChallenge(
     await ctx.db.insert("challenges", {
       email: args.email,
       userId: args.userId,
+      purpose: args.purpose,
       codeHash: await sha256Hex(args.code),
       secretHash: await sha256Hex(args.secret),
       expiresAt: args.expiresAt ?? Date.now() + 60_000,

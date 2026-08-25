@@ -34,19 +34,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       complete: FunctionReference<
         "mutation",
         "internal",
-        { code: string; secret: string },
-        | { email: string; isPrimary: boolean; success: true; userId: string }
+        { code: string; purpose: string; secret: string },
         | {
-            success: false;
-            userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
-          },
+            email: string;
+            proof: string;
+            purpose: string;
+            success: true;
+            userId: string | null;
+          }
+        | { success: false; userError: { error: "INVALID_LINK" } },
         Name
       >;
       getStatus: FunctionReference<
         "query",
         "internal",
         { code: string; secret: string },
-        { email: string; status: "pending" } | { status: "invalid" },
+        | { email: string; purpose: string; status: "pending" }
+        | { status: "invalid" },
         Name
       >;
       start: FunctionReference<
@@ -63,21 +67,39 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             sendEmailHandle: string;
             testMode: boolean;
           };
+          purpose: string;
+          ttlMs?: number;
           url: string;
-          userId: string;
+          userId?: string;
         },
         | { secret: string; success: true }
         | {
             success: false;
             userError:
               | { error: "INVALID_EMAIL" }
-              | { error: "EMAIL_TAKEN" }
               | { error: "RATE_LIMITED"; retryAfterMs: number };
           },
         Name
       >;
     };
     verifiedEmails: {
+      add: FunctionReference<
+        "mutation",
+        "internal",
+        { proof: string; setPrimary: boolean },
+        | {
+            email: string;
+            isPrimary: boolean;
+            previousPrimaryEmail: string | null;
+            success: true;
+            userId: string;
+          }
+        | {
+            success: false;
+            userError: { error: "INVALID_PROOF" } | { error: "EMAIL_TAKEN" };
+          },
+        Name
+      >;
       deleteUser: FunctionReference<
         "mutation",
         "internal",

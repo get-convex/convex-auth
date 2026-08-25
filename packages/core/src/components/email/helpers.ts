@@ -1,26 +1,25 @@
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { Doc } from "./_generated/dataModel.ts";
 import { components } from "./_generated/api.ts";
-import {
-  FunctionArgs,
-  FunctionHandle,
-  FunctionReturnType,
-} from "convex/server";
-import type { ResendComponent } from "@convex-dev/resend";
+import { FunctionHandle } from "convex/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { EmailSenderConfig } from "./validation.ts";
 
 // --- Configuration ---------------------------------------------------------
 
-/** How long a link stays valid. TODO: review this value. */
-export const CHALLENGE_TTL_MS = 60 * 60 * 1000; // 1 hour
+/**
+ * How long a link stays valid when the caller gives no `ttlMs`.
+ * Flows with stricter needs pass their own value (OWASP ASVS v5 6.5.5 asks
+ * for at most 10 minutes for password reset). TODO: review this value.
+ */
+export const DEFAULT_CHALLENGE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Throttle for starting challenges. Each flow sends an email, so the
 // limits protect the destination mailbox from flooding and the sender's
 // reputation from abuse:
 // - per destination address, so an attacker cannot flood one mailbox;
 // - per client IP, so one machine cannot spray many addresses.
-// TODO(nicolas): review these limits.
+// TODO: review these limits.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
   startChallengePerEmail: { kind: "token bucket", rate: 5, period: HOUR },
   startChallengePerIp: { kind: "token bucket", rate: 20, period: HOUR },
@@ -38,7 +37,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
  */
 export async function getClientIp(ctx: MutationCtx): Promise<string> {
   // Old backends (and convex-test) have no `ctx.meta`.
-  const meta = ctx.meta;
+  const meta = (ctx as Partial<MutationCtx>).meta;
   if (meta === undefined) {
     throw new Error(
       "The email component requires `ctx.meta` for IP rate limiting. " +
@@ -80,16 +79,27 @@ export function emailByNormalizedEmail(
 }
 
 /** The plain-text body of a challenge email. */
-export function challengeEmailText(link: string): string {
+export function challengeEmailText(link: string, ttlMs: number): string {
   // TODO: also offer a short code the user can type, with rate limiting on
   // attempts (a short code is guessable, unlike the 256-bit link code).
+  // TODO: let the caller pass a purpose-specific template.
   return (
     "Open this link to confirm that this email address is yours:\n\n" +
     `${link}\n\n` +
-    "The link stops working after 1 hour, and works only in the browser " +
-    "you started from.\n\n" +
+    `The link stops working after ${describeDuration(ttlMs)}, and works ` +
+    "only in the browser you started from.\n\n" +
     "If you did not request this email, you can ignore it."
   );
+}
+
+/** A human-readable duration for the email text, e.g. "10 minutes". */
+function describeDuration(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) {
+    return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  }
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "1 hour" : `${hours} hours`;
 }
 
 /** The subject line of a challenge email. */
@@ -97,33 +107,28 @@ export function challengeEmailSubject(): string {
   return "Confirm your email address";
 }
 
-/**
- * The landing URL with the `code` query parameter.
- *
- * The URL must be absolute. A fragment stays at the end of the URL, and an
- * existing `code` parameter is replaced.
- */
+/** Append the code to the landing URL, with `?` or `&` as needed. */
 export function buildLink(url: string, code: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(
-      `The email component got an invalid landing URL: ${url}. ` +
-        "Give an absolute URL, for example https://example.com/verify.",
-    );
-  }
-  parsed.searchParams.set("code", code);
-  return parsed.toString();
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}code=${encodeURIComponent(code)}`;
 }
 
 /** The `sendEmail` mutation of the `@convex-dev/resend` component. */
-type SendEmailMutation = ResendComponent["lib"]["sendEmail"];
-
 export type SendEmailHandle = FunctionHandle<
   "mutation",
-  FunctionArgs<SendEmailMutation>,
-  FunctionReturnType<SendEmailMutation>
+  {
+    options: {
+      apiKey: string;
+      testMode: boolean;
+      initialBackoffMs: number;
+      retryAttempts: number;
+    };
+    from: string;
+    to: string[];
+    subject: string;
+    text: string;
+  },
+  string
 >;
 
 export async function sendChallengeEmail(
@@ -131,6 +136,7 @@ export async function sendChallengeEmail(
   sender: EmailSenderConfig,
   to: string,
   link: string,
+  ttlMs: number,
 ): Promise<void> {
   await ctx.runMutation(sender.sendEmailHandle as SendEmailHandle, {
     options: {
@@ -142,6 +148,6 @@ export async function sendChallengeEmail(
     from: sender.from,
     to: [to],
     subject: challengeEmailSubject(),
-    text: challengeEmailText(link),
+    text: challengeEmailText(link, ttlMs),
   });
 }
