@@ -4,7 +4,12 @@
 
 import { describe, expect, test } from "vitest";
 import { api } from "../_generated/api.ts";
-import { seedChallenge, CUSTOM, setup } from "../../emailTestSetup.ts";
+import {
+  seedChallenge,
+  ADD_EMAIL,
+  CUSTOM,
+  setup,
+} from "../../emailTestSetup.ts";
 
 const PURPOSE = "myApp/flow";
 const CLAIM = { purpose: PURPOSE, userId: "user1" };
@@ -129,6 +134,36 @@ describe("the one-shot claim", () => {
       userError: { error: "INVALID_CHALLENGE" },
     });
     expect(await challengeCount(t)).toBe(1);
+  });
+});
+
+describe("the kind of a challenge", () => {
+  test("a challenge of another kind throws and keeps the row", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: ADD_EMAIL("user1"),
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    // The landing page called the wrong kind: an application bug.
+    await expect(
+      t.mutation(api.challenge.custom.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        purpose: "addEmail",
+        userId: "user1",
+      }),
+    ).rejects.toThrow(/"addEmail".*"custom"/);
+    expect(await challengeCount(t)).toBe(1);
+    // The right kind still works.
+    const rightKind = await t.mutation(api.challenge.addEmail.complete, {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      userId: "user1",
+    });
+    expect(rightKind).toMatchObject({ success: true });
   });
 });
 

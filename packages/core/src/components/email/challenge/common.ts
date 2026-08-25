@@ -72,13 +72,14 @@
  */
 
 import { Infer, v } from "convex/values";
-import type { MutationCtx } from "../_generated/server.ts";
+import type { MutationCtx, QueryCtx } from "../_generated/server.ts";
 import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   rateLimiter,
   getClientIp,
+  emailByNormalizedEmail,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -182,6 +183,23 @@ export async function limitStart(
     return { error: "RATE_LIMITED", retryAfterMs: perIp.retryAfter };
   }
   return null;
+}
+
+/**
+ * Return `EMAIL_TAKEN` when a user has already verified the address, or
+ * `null` when the address is free. The kinds that record an address call
+ * this at start and again at completion.
+ *
+ * TODO: let the caller disable this check at start. It tells the caller if
+ * an address has an account, which an app that must prevent user
+ * enumeration does not want to reveal before the link is opened.
+ */
+export async function addressTakenError(
+  ctx: QueryCtx,
+  normalizedEmail: string,
+): Promise<{ error: "EMAIL_TAKEN" } | null> {
+  const existing = await emailByNormalizedEmail(ctx, normalizedEmail);
+  return existing === null ? null : { error: "EMAIL_TAKEN" };
 }
 
 /**
