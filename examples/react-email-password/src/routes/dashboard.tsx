@@ -148,9 +148,6 @@ function ChangeEmailForm() {
               return "That email address doesn't look valid.";
             case "EMAIL_TAKEN":
               return "An account already exists with that email address.";
-            case "EMAIL_NOT_FOUND":
-              // Not produced by change-email; included for the shared union.
-              return "No account exists with that email address.";
             case "PASSWORD_TOO_SHORT":
               return `Password must be at least ${result.userError.minimumLength} characters.`;
             case "PASSWORD_TOO_LONG":

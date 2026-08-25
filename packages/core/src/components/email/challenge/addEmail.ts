@@ -4,7 +4,11 @@
 
 import { Infer, v } from "convex/values";
 import { mutation, query } from "../_generated/server.ts";
-import { ADD_EMAIL_TTL_MS, emailsByUserId } from "../helpers.ts";
+import {
+  ADD_EMAIL_TTL_MS,
+  VALIDATE_EMAIL_COPY,
+  emailsByUserId,
+} from "../helpers.ts";
 import { vChallengeStatus, type ChallengeStatus } from "../validation.ts";
 import {
   vStartArgs,
@@ -38,7 +42,7 @@ export const start = mutation({
     if (taken !== null) {
       return { success: false, userError: taken };
     }
-    const secret = await createChallenge(ctx, {
+    const created = await createChallenge(ctx, {
       email: prepared.email,
       normalizedEmail: prepared.normalizedEmail,
       userId: args.userId,
@@ -46,8 +50,9 @@ export const start = mutation({
       ttlMs: ADD_EMAIL_TTL_MS,
       url: args.url,
       emailSender: args.emailSender,
+      copy: VALIDATE_EMAIL_COPY,
     });
-    return { success: true, secret };
+    return { success: true, ...created };
   },
 });
 
@@ -73,19 +78,21 @@ export const complete = mutation({
     if (row === null) {
       return INVALID_LINK;
     }
+    // A row of this kind always has a user: `start` requires one.
+    const userId = row.userId as string;
     const taken = await addressTakenError(ctx, row.normalizedEmail);
     if (taken !== null) {
       return { success: false, userError: taken };
     }
     // The first address of a user always becomes primary.
-    const isPrimary = (await emailsByUserId(ctx, row.userId)).length === 0;
+    const isPrimary = (await emailsByUserId(ctx, userId)).length === 0;
     await ctx.db.insert("verifiedEmails", {
       email: row.email,
       normalizedEmail: row.normalizedEmail,
-      userId: row.userId,
+      userId,
       isPrimary,
     });
-    return { success: true, userId: row.userId, email: row.email };
+    return { success: true, userId, email: row.email };
   },
 });
 

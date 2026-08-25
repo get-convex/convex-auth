@@ -23,7 +23,7 @@ export async function seedEmail(
 export type ChallengePurposeRow =
   | { kind: "addEmail" }
   | { kind: "setPrimaryEmail" }
-  | { kind: "passwordReset" };
+  | { kind: "custom"; purpose: string };
 
 /**
  * Seed a pending challenge row directly, hashing the code and the secret
@@ -33,7 +33,7 @@ export async function seedChallenge(
   t: TestConvex<typeof schema>,
   args: {
     email: string;
-    userId: string;
+    userId: string | null;
     purpose: ChallengePurposeRow;
     code: string;
     secret: string;
@@ -57,7 +57,9 @@ export const ADD_EMAIL: ChallengePurposeRow = { kind: "addEmail" };
 export const SET_PRIMARY_EMAIL: ChallengePurposeRow = {
   kind: "setPrimaryEmail",
 };
-export const PASSWORD_RESET: ChallengePurposeRow = { kind: "passwordReset" };
+export function CUSTOM(purpose: string): ChallengePurposeRow {
+  return { kind: "custom", purpose };
+}
 
 /**
  * Make the keys of an `import.meta.glob("../**\/*.ts")` map that a test in a

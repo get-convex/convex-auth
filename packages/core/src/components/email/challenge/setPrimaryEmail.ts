@@ -5,7 +5,7 @@
 
 import { Infer, v } from "convex/values";
 import { mutation, query } from "../_generated/server.ts";
-import { ADD_EMAIL_TTL_MS } from "../helpers.ts";
+import { ADD_EMAIL_TTL_MS, VALIDATE_EMAIL_COPY } from "../helpers.ts";
 import { vChallengeStatus, type ChallengeStatus } from "../validation.ts";
 import {
   vStartArgs,
@@ -39,7 +39,7 @@ export const start = mutation({
     if (taken !== null) {
       return { success: false, userError: taken };
     }
-    const secret = await createChallenge(ctx, {
+    const created = await createChallenge(ctx, {
       email: prepared.email,
       normalizedEmail: prepared.normalizedEmail,
       userId: args.userId,
@@ -47,8 +47,9 @@ export const start = mutation({
       ttlMs: ADD_EMAIL_TTL_MS,
       url: args.url,
       emailSender: args.emailSender,
+      copy: VALIDATE_EMAIL_COPY,
     });
-    return { success: true, secret };
+    return { success: true, ...created };
   },
 });
 
@@ -78,6 +79,8 @@ export const complete = mutation({
     if (row === null) {
       return INVALID_LINK;
     }
+    // A row of this kind always has a user: `start` requires one.
+    const userId = row.userId as string;
     const taken = await addressTakenError(ctx, row.normalizedEmail);
     if (taken !== null) {
       return { success: false, userError: taken };
@@ -87,7 +90,7 @@ export const complete = mutation({
     const oldPrimary = await ctx.db
       .query("verifiedEmails")
       .withIndex("by_userId_isPrimary", (q) =>
-        q.eq("userId", row.userId).eq("isPrimary", true),
+        q.eq("userId", userId).eq("isPrimary", true),
       )
       .unique();
     let previousPrimaryEmail: string | null = null;
@@ -98,12 +101,12 @@ export const complete = mutation({
     await ctx.db.insert("verifiedEmails", {
       email: row.email,
       normalizedEmail: row.normalizedEmail,
-      userId: row.userId,
+      userId,
       isPrimary: true,
     });
     return {
       success: true,
-      userId: row.userId,
+      userId,
       email: row.email,
       previousPrimaryEmail,
     };

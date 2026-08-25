@@ -46,6 +46,27 @@ import {
 const PROVIDER_NAME = "emailPassword";
 
 /**
+ * The purpose of the `custom` challenge that account recovery starts. The
+ * name carries a prefix so that an application's own custom purposes cannot
+ * collide with it.
+ */
+const RECOVERY_PURPOSE = "convexAuth/emailPassword/recovery";
+
+/**
+ * How long a recovery link stays valid. OWASP ASVS v5 6.5.5 requires at most
+ * 10 minutes for password-reset flows. TODO: review this value.
+ */
+const RECOVERY_TTL_MS = 10 * 60 * 1000;
+
+const RECOVERY_EMAIL = {
+  subject: "Reset your password",
+  intro: "Open this link to reset your password:",
+};
+
+/** No account has verified the address that recovery was asked for. */
+const vEmailNotFound = v.object({ error: v.literal("EMAIL_NOT_FOUND") });
+
+/**
  * The arguments the recipe sends to the `@convex-dev/resend` component's
  * `lib.sendEmail` mutation. Typed structurally so `@convex-dev/resend` stays
  * out of this package's dependencies; the app supplies the real reference
@@ -223,7 +244,7 @@ const startRecoveryResult = v.union(
   v.object({ success: v.literal(true), secret: v.string() }),
   v.object({
     success: v.literal(false),
-    userError: startChallengeUserError,
+    userError: v.union(startChallengeUserError, vEmailNotFound),
   }),
 );
 
@@ -687,9 +708,33 @@ export function setupEmailPassword<UsersTable extends string>(
               };
             }
 
+            // The address must belong to an account. The check runs again at
+            // completion: the component does not verify the address for a
+            // custom challenge.
+            const account = await ctx.runQuery(
+              component.verifiedEmails.getUserIdByEmail,
+              { email },
+            );
+            if (account === null) {
+              return {
+                success: false,
+                userError: { error: "EMAIL_NOT_FOUND" },
+              };
+            }
+
             const start = await ctx.runMutation(
-              component.challenge.passwordReset.start,
-              { email, url: urls.recovery, emailSender: await senderConfig() },
+              component.challenge.custom.start,
+              {
+                email,
+                purpose: RECOVERY_PURPOSE,
+                // Nobody is signed in: the account is found again from the
+                // verified address at completion.
+                userId: null,
+                url: urls.recovery,
+                emailSender: await senderConfig(),
+                ttlMs: RECOVERY_TTL_MS,
+                ...RECOVERY_EMAIL,
+              },
             );
             if (!start.success) {
               return { success: false, userError: start.userError };
@@ -725,16 +770,33 @@ export function setupEmailPassword<UsersTable extends string>(
             }
 
             const complete = await ctx.runMutation(
-              component.challenge.passwordReset.complete,
-              { code, secret },
+              component.challenge.custom.complete,
+              { code, secret, purpose: RECOVERY_PURPOSE, userId: null },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
             }
 
+            // The link proves control of the address, not of an account. The
+            // address must still be the primary address of an account: it
+            // could have moved to another user, or been removed, since the
+            // flow started.
+            const account = await ctx.runQuery(
+              component.verifiedEmails.getUserIdByEmail,
+              { email: complete.email },
+            );
+            if (account === null) {
+              return { success: false, userError: { error: "INVALID_LINK" } };
+            }
+            const primary = await primaryEmail(ctx, account.userId);
+            if (primary === null || primary !== account.email) {
+              return { success: false, userError: { error: "INVALID_LINK" } };
+            }
+            const userId = account.userId;
+
             const setResult = await ctx.runMutation(
               passwordComponent.public.setPassword,
-              { userId: complete.userId, password: newPassword },
+              { userId, password: newPassword },
             );
             if (!setResult.success) {
               // Unexpected: the password was validated above. Throw so the
@@ -747,19 +809,16 @@ export function setupEmailPassword<UsersTable extends string>(
             }
 
             const tokens = await ctx.convexAuth.completeSignIn({
-              providerAccountId: complete.userId,
+              providerAccountId: userId,
               profile: { email: complete.email },
             });
 
-            const to = await primaryEmail(ctx, complete.userId);
-            if (to !== null) {
-              await notify(
-                ctx,
-                to,
-                PASSWORD_CHANGED_SUBJECT,
-                PASSWORD_CHANGED_TEXT,
-              );
-            }
+            await notify(
+              ctx,
+              primary,
+              PASSWORD_CHANGED_SUBJECT,
+              PASSWORD_CHANGED_TEXT,
+            );
             return { success: true, tokens };
           },
         }),
@@ -781,12 +840,23 @@ export function setupEmailPassword<UsersTable extends string>(
             ctx,
             { code, secret, flow },
           ): Promise<ChallengeStatus> => {
-            const statusQuery = {
-              signUp: component.challenge.addEmail.getStatus,
-              changeEmail: component.challenge.setPrimaryEmail.getStatus,
-              recovery: component.challenge.passwordReset.getStatus,
-            }[flow];
-            return await ctx.runQuery(statusQuery, { code, secret });
+            switch (flow) {
+              case "signUp":
+                return await ctx.runQuery(
+                  component.challenge.addEmail.getStatus,
+                  { code, secret },
+                );
+              case "changeEmail":
+                return await ctx.runQuery(
+                  component.challenge.setPrimaryEmail.getStatus,
+                  { code, secret },
+                );
+              case "recovery":
+                return await ctx.runQuery(
+                  component.challenge.custom.getStatus,
+                  { code, secret, purpose: RECOVERY_PURPOSE, userId: null },
+                );
+            }
           },
         }),
       };

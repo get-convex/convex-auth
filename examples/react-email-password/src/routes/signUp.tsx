@@ -42,9 +42,6 @@ export function SignUp() {
                 return "That email address doesn't look valid.";
               case "EMAIL_TAKEN":
                 return "An account already exists with that email address.";
-              case "EMAIL_NOT_FOUND":
-                // Not produced by sign-up; included for the shared error union.
-                return "No account exists with that email address.";
               case "RATE_LIMITED":
                 return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
               case "PASSWORD_TOO_SHORT":

@@ -5,19 +5,25 @@ import { FunctionHandle } from "convex/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { EmailSenderConfig } from "./validation.ts";
 
-/** The kind of a stored challenge. */
-export type ChallengeKind = Doc<"challenges">["purpose"]["kind"];
-
 // --- Configuration ---------------------------------------------------------
 
-/** How long an add-email link stays valid. TODO: review this value. */
+/**
+ * How long an `addEmail` or `setPrimaryEmail` link stays valid.
+ * TODO: review this value.
+ */
 export const ADD_EMAIL_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /**
- * How long a password-reset link stays valid. OWASP ASVS v5 6.5.5 requires
- * at most 10 minutes for password-reset flows. TODO: review this value.
+ * How long a `custom` link stays valid when the caller gives no `ttlMs`, and
+ * the bounds for the value that a caller can give. The default is short: a
+ * custom flow can give access to an account (OWASP ASVS v5 6.5.5 asks for at
+ * most 10 minutes for password resets). The maximum keeps the table from
+ * holding links for days.
+ * TODO(nicolas): review the default and the bounds.
  */
-export const PASSWORD_RESET_TTL_MS = 10 * 60 * 1000; // 10 minutes
+export const CUSTOM_TTL_DEFAULT_MS = 15 * 60 * 1000; // 15 minutes
+export const CUSTOM_TTL_MIN_MS = 60 * 1000; // 1 minute
+export const CUSTOM_TTL_MAX_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Throttle for starting challenges. Each flow sends an email, so the
 // limits protect the destination mailbox from flooding and the sender's
@@ -83,36 +89,45 @@ export function emailByNormalizedEmail(
     .unique();
 }
 
+/** The lines of a challenge email that depend on the flow. */
+export type ChallengeEmailCopy = {
+  subject: string;
+  // The sentence before the link, for example "Open this link to validate
+  // your email address:".
+  intro: string;
+};
+
+/** The copy of the emails that record an address. */
+export const VALIDATE_EMAIL_COPY: ChallengeEmailCopy = {
+  subject: "Validate your email address",
+  intro: "Open this link to validate your email address:",
+};
+
+/** "10 minutes", "1 hour", "2 hours". */
+export function formatDuration(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes >= 60 && minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? "1 hour" : `${hours} hours`;
+  }
+  return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}
+
 /** The plain-text body of a challenge email. */
 export function challengeEmailText(
-  purpose: ChallengeKind,
+  intro: string,
   link: string,
+  ttlMs: number,
 ): string {
   // TODO: also offer a short code the user can type, with rate limiting on
   // attempts (a short code is guessable, unlike the 256-bit link code).
-  if (purpose === "passwordReset") {
-    return (
-      "Open this link to reset your password:\n\n" +
-      `${link}\n\n` +
-      "The link stops working after 10 minutes, and works only in the " +
-      "browser you started from.\n\n" +
-      "If you did not request this email, you can ignore it."
-    );
-  }
   return (
-    "Open this link to validate your email address:\n\n" +
+    `${intro}\n\n` +
     `${link}\n\n` +
-    "The link stops working after 1 hour, and works only in the browser " +
-    "you started from.\n\n" +
+    `The link stops working after ${formatDuration(ttlMs)}, and works only ` +
+    "in the browser you started from.\n\n" +
     "If you did not request this email, you can ignore it."
   );
-}
-
-/** The subject line of a challenge email. */
-export function challengeEmailSubject(purpose: ChallengeKind): string {
-  return purpose === "passwordReset"
-    ? "Reset your password"
-    : "Validate your email address";
 }
 
 /** Append the code to the landing URL, with `?` or `&` as needed. */
@@ -142,9 +157,12 @@ export type SendEmailHandle = FunctionHandle<
 export async function sendChallengeEmail(
   ctx: MutationCtx,
   sender: EmailSenderConfig,
-  to: string,
-  purpose: ChallengeKind,
-  link: string,
+  message: {
+    to: string;
+    copy: ChallengeEmailCopy;
+    link: string;
+    ttlMs: number;
+  },
 ): Promise<void> {
   await ctx.runMutation(sender.sendEmailHandle as SendEmailHandle, {
     options: {
@@ -154,8 +172,8 @@ export async function sendChallengeEmail(
       retryAttempts: sender.retryAttempts,
     },
     from: sender.from,
-    to: [to],
-    subject: challengeEmailSubject(purpose),
-    text: challengeEmailText(purpose, link),
+    to: [message.to],
+    subject: message.copy.subject,
+    text: challengeEmailText(message.copy.intro, message.link, message.ttlMs),
   });
 }

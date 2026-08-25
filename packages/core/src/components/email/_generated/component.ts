@@ -60,24 +60,28 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             url: string;
             userId: string;
           },
-          | { secret: string; success: true }
+          | { challengeId: string; secret: string; success: true }
           | {
               success: false;
               userError:
                 | { error: "INVALID_EMAIL" }
                 | { error: "EMAIL_TAKEN" }
-                | { error: "EMAIL_NOT_FOUND" }
                 | { error: "RATE_LIMITED"; retryAfterMs: number };
             },
           Name
         >;
       };
-      passwordReset: {
+      custom: {
         complete: FunctionReference<
           "mutation",
           "internal",
-          { code: string; secret: string },
-          | { email: string; success: true; userId: string }
+          {
+            code: string;
+            purpose: string;
+            secret: string;
+            userId: string | null;
+          },
+          | { email: string; success: true; userId: string | null }
           | {
               success: false;
               userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
@@ -87,7 +91,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         getStatus: FunctionReference<
           "query",
           "internal",
-          { code: string; secret: string },
+          {
+            code: string;
+            purpose: string;
+            secret: string;
+            userId: string | null;
+          },
           { email: string; status: "pending" } | { status: "invalid" },
           Name
         >;
@@ -105,15 +114,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               sendEmailHandle: string;
               testMode: boolean;
             };
+            intro: string;
+            purpose: string;
+            subject: string;
+            ttlMs?: number;
             url: string;
+            userId: string | null;
           },
-          | { secret: string; success: true }
+          | { challengeId: string; secret: string; success: true }
           | {
               success: false;
               userError:
                 | { error: "INVALID_EMAIL" }
                 | { error: "EMAIL_TAKEN" }
-                | { error: "EMAIL_NOT_FOUND" }
                 | { error: "RATE_LIMITED"; retryAfterMs: number };
             },
           Name
@@ -169,13 +182,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             url: string;
             userId: string;
           },
-          | { secret: string; success: true }
+          | { challengeId: string; secret: string; success: true }
           | {
               success: false;
               userError:
                 | { error: "INVALID_EMAIL" }
                 | { error: "EMAIL_TAKEN" }
-                | { error: "EMAIL_NOT_FOUND" }
                 | { error: "RATE_LIMITED"; retryAfterMs: number };
             },
           Name

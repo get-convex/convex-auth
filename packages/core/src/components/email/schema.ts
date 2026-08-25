@@ -34,14 +34,17 @@ export default defineSchema({
     // The same address after normalization (see `normalizeEmail`). Lookups
     // and the checks against `verifiedEmails` use this field, not `email`.
     normalizedEmail: v.string(),
-    // The user this challenge is for.
-    userId: v.string(),
+    // The user this challenge is for. `addEmail` and `setPrimaryEmail`
+    // always have one. A `custom` challenge stores what the caller asserted,
+    // or `null` when no user is signed in (see `challenge/custom.ts`).
+    userId: v.union(v.string(), v.null()),
     // The kind of the challenge, which is the file in `challenge/` that
-    // started it. Each kind completes in its own way.
+    // started it. Each kind completes in its own way. A `custom` challenge
+    // also carries the caller's purpose string, which is opaque here.
     purpose: v.union(
       v.object({ kind: v.literal("addEmail") }),
       v.object({ kind: v.literal("setPrimaryEmail") }),
-      v.object({ kind: v.literal("passwordReset") }),
+      v.object({ kind: v.literal("custom"), purpose: v.string() }),
     ),
     // SHA-256 of the code that travels in the emailed link. Only the hash is
     // stored, so database access alone cannot complete a challenge.

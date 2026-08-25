@@ -117,16 +117,22 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().normalize("NFC");
 }
 
+/** The purpose string of the recipe's recovery challenge. */
+const RECOVERY = {
+  kind: "custom",
+  purpose: "convexAuth/emailPassword/recovery",
+} as const;
+
 /** Seed a pending challenge, hashing the code + secret like production. */
 async function seedChallenge(
   t: T,
   args: {
     email: string;
-    userId: string;
+    userId: string | null;
     purpose:
       | { kind: "addEmail" }
       | { kind: "setPrimaryEmail" }
-      | { kind: "passwordReset" };
+      | { kind: "custom"; purpose: string };
     code: string;
     secret: string;
   },
@@ -511,11 +517,11 @@ describe("startRecovery", () => {
 describe("completeRecovery", () => {
   test("sets the new password, signs in, and notifies", async () => {
     const t = await setup();
-    const userId = await seedSignedUpUser(t);
+    await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId,
-      purpose: { kind: "passwordReset" },
+      userId: null,
+      purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
     });
@@ -541,11 +547,11 @@ describe("completeRecovery", () => {
 
   test("rejects a malformed new password without burning the link", async () => {
     const t = await setup();
-    const userId = await seedSignedUpUser(t);
+    await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId,
-      purpose: { kind: "passwordReset" },
+      userId: null,
+      purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
     });
@@ -569,6 +575,46 @@ describe("completeRecovery", () => {
     expect(good).toEqual({ success: true, tokens: SESSION_TOKENS });
   });
 
+  test("rejects a link whose address left the account", async () => {
+    const t = await setup();
+    const userId = await seedSignedUpUser(t);
+    await seedChallenge(t, {
+      email: EMAIL,
+      userId: null,
+      purpose: RECOVERY,
+      code: "code1",
+      secret: "secret1",
+    });
+    // The address is no longer verified for any account.
+    await runInComponent(t, "authEmail", async (ctx) => {
+      for (const row of await ctx.db.query("verifiedEmails").collect()) {
+        await ctx.db.delete("verifiedEmails", row._id);
+      }
+    });
+
+    const result = await t.mutation(api.auth.completeRecovery, {
+      code: "code1",
+      secret: "secret1",
+      newPassword: "brand new horse staple",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "INVALID_LINK" },
+    });
+    // Nothing was reset: with the address back, the old password still works.
+    await runInComponent(t, "authEmail", async (ctx) => {
+      await ctx.db.insert("verifiedEmails", {
+        email: EMAIL,
+        normalizedEmail: normalizeEmail(EMAIL),
+        userId,
+        isPrimary: true,
+      });
+    });
+    expect(
+      await t.mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
+    ).toEqual({ success: true, tokens: SESSION_TOKENS });
+  });
+
   test("rejects a bad code with INVALID_LINK", async () => {
     const t = await setup();
     const result = await t.mutation(api.auth.completeRecovery, {
@@ -586,11 +632,11 @@ describe("completeRecovery", () => {
 describe("getChallengeStatus", () => {
   test("reports pending for a live link and invalid otherwise", async () => {
     const t = await setup();
-    const userId = await seedSignedUpUser(t);
+    await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId,
-      purpose: { kind: "passwordReset" },
+      userId: null,
+      purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
     });

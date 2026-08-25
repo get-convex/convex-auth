@@ -46,8 +46,6 @@ export const startChallengeUserError = v.union(
   // Another user has already verified this address (`addEmail`,
   // `setPrimaryEmail`).
   v.object({ error: v.literal("EMAIL_TAKEN") }),
-  // No user has verified this address (`passwordReset`).
-  v.object({ error: v.literal("EMAIL_NOT_FOUND") }),
   v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
 );
 export type StartChallengeUserError = Infer<typeof startChallengeUserError>;

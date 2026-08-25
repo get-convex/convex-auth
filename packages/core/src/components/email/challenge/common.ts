@@ -1,11 +1,11 @@
 // Server-only code that the challenge kinds share. Each kind lives in its
-// own file (`addEmail.ts`, `setPrimaryEmail.ts`, `passwordReset.ts`) and
-// exposes `start`, `complete` and `getStatus`. The kind of a challenge is
-// the function that the caller uses: there is no purpose argument.
+// own file (`addEmail.ts`, `setPrimaryEmail.ts`, `custom.ts`) and exposes
+// `start`, `complete` and `getStatus`. The kind of a challenge is the
+// function that the caller uses.
 
 import { Infer, v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "../_generated/server.ts";
-import type { Doc } from "../_generated/dataModel.ts";
+import type { Doc, Id } from "../_generated/dataModel.ts";
 import { sha256Hex } from "../../../lib/crypto.ts";
 import {
   rateLimiter,
@@ -13,6 +13,7 @@ import {
   emailByNormalizedEmail,
   buildLink,
   sendChallengeEmail,
+  type ChallengeEmailCopy,
 } from "../helpers.ts";
 import {
   validateEmailFormat,
@@ -55,6 +56,9 @@ export const startChallengeResult = v.union(
     // The secret the client must keep (in its local storage) and present
     // again at completion. It never travels in the email.
     secret: v.string(),
+    // The new challenge. A caller that must keep data about the flow can
+    // store it in its own table, keyed by this ID.
+    challengeId: v.id("challenges"),
   }),
   v.object({ success: v.literal(false), userError: startChallengeUserError }),
 );
@@ -137,23 +141,24 @@ export async function addressTakenError(
 
 /**
  * Store the hashed code + secret and send the email. Returns the secret that
- * the starting browser keeps.
+ * the starting browser keeps, and the ID of the new row.
  */
 export async function createChallenge(
   ctx: MutationCtx,
   args: {
     email: string;
     normalizedEmail: string;
-    userId: string;
+    userId: string | null;
     purpose: ChallengePurpose;
     ttlMs: number;
     url: string;
     emailSender: EmailSenderConfig;
+    copy: ChallengeEmailCopy;
   },
-): Promise<string> {
+): Promise<{ secret: string; challengeId: Id<"challenges"> }> {
   const code = generateRandomToken();
   const secret = generateRandomToken();
-  await ctx.db.insert("challenges", {
+  const challengeId = await ctx.db.insert("challenges", {
     email: args.email,
     normalizedEmail: args.normalizedEmail,
     userId: args.userId,
@@ -162,17 +167,23 @@ export async function createChallenge(
     secretHash: await sha256Hex(secret),
     expiresAt: Date.now() + args.ttlMs,
   });
-  await sendChallengeEmail(
-    ctx,
-    args.emailSender,
-    args.email,
-    args.purpose.kind,
-    buildLink(args.url, code),
-  );
-  return secret;
+  await sendChallengeEmail(ctx, args.emailSender, {
+    to: args.email,
+    copy: args.copy,
+    link: buildLink(args.url, code),
+    ttlMs: args.ttlMs,
+  });
+  return { secret, challengeId };
 }
 
 // --- Complete and status ---------------------------------------------------
+
+/** What a completion or a status query expects to find in the row. */
+export type ExpectedChallenge = {
+  purpose: ChallengePurpose;
+  // The `userId` that the caller asserts. `undefined` skips the check.
+  userId?: string | null;
+};
 
 async function findByCode(
   ctx: QueryCtx,
@@ -186,22 +197,28 @@ async function findByCode(
 }
 
 function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
+  if (a.kind === "custom" || b.kind === "custom") {
+    return (
+      a.kind === "custom" && b.kind === "custom" && a.purpose === b.purpose
+    );
+  }
   return a.kind === b.kind;
 }
 
 /**
  * Tell whether the row can be claimed with these credentials. A wrong
- * secret, an expired link and a purpose mismatch all fail the same way, so
- * the response is not an oracle for attackers.
+ * secret, an expired link, another purpose and another `userId` all fail
+ * the same way, so the response is not an oracle for attackers.
  */
 async function matches(
   row: Doc<"challenges">,
-  args: { secret: string; purpose: ChallengePurpose },
+  args: { secret: string } & ExpectedChallenge,
 ): Promise<boolean> {
   return (
     row.secretHash === (await sha256Hex(args.secret)) &&
     row.expiresAt >= Date.now() &&
-    samePurpose(row.purpose, args.purpose)
+    samePurpose(row.purpose, args.purpose) &&
+    (args.userId === undefined || row.userId === args.userId)
   );
 }
 
@@ -211,13 +228,14 @@ async function matches(
  *
  * The claim is one-shot: the row is deleted as soon as the code matches,
  * even when the secret is wrong, the link has expired or the purpose does
- * not match, so a link can never be replayed. A purpose mismatch is an
- * application bug (the landing page called the wrong kind); the link is
- * burned anyway, out of safety.
+ * not match, so a link can never be replayed. A purpose or `userId`
+ * mismatch is an application bug (the landing page called the wrong
+ * function, or with the wrong user); the link is burned anyway, out of
+ * safety.
  */
 export async function claimChallenge(
   ctx: MutationCtx,
-  args: { code: string; secret: string; purpose: ChallengePurpose },
+  args: { code: string; secret: string } & ExpectedChallenge,
 ): Promise<Doc<"challenges"> | null> {
   const row = await findByCode(ctx, args.code);
   if (row === null) {
@@ -236,7 +254,7 @@ export async function claimChallenge(
  */
 export async function getChallengeStatus(
   ctx: QueryCtx,
-  args: { code: string; secret: string; purpose: ChallengePurpose },
+  args: { code: string; secret: string } & ExpectedChallenge,
 ): Promise<ChallengeStatus> {
   const row = await findByCode(ctx, args.code);
   if (row === null || !(await matches(row, args))) {

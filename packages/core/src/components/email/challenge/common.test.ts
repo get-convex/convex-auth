@@ -113,7 +113,7 @@ describe("the one-shot claim", () => {
     });
 
     // The landing page called the wrong kind: an application bug.
-    const wrongKind = await t.mutation(api.challenge.passwordReset.complete, {
+    const wrongKind = await t.mutation(api.challenge.setPrimaryEmail.complete, {
       code: "code1",
       secret: "secret1",
     });
