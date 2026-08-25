@@ -49,6 +49,7 @@ jobs:
             examples/react-google
             examples/react-github
             examples/react-password
+            examples/react-passkey
             examples/nextjs
           )
 
@@ -68,6 +69,7 @@ jobs:
           components=(
             packages/core/src/components/anonymous
             packages/core/src/components/core
+            packages/core/src/components/email
             packages/core/src/components/passkey
             packages/core/src/components/password
             packages/core/src/components/username
