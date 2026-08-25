@@ -72,13 +72,14 @@
  */
 
 import { Infer, v } from "convex/values";
-import type { MutationCtx } from "../_generated/server.ts";
+import type { MutationCtx, QueryCtx } from "../_generated/server.ts";
 import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   rateLimiter,
   getClientIp,
+  emailByNormalizedEmail,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -156,6 +157,9 @@ function claimFailure(
 // Start
 //------------------------------------------------------------------------------
 
+/** Tells `start` preconditions to only check the rate limits, or to consume them. */
+export type StartPreconditionsMode = "check" | "consume";
+
 /**
  * The preconditions that every `start` shares: the format of the address,
  * then the two rate limits (one for the destination address, one for the
@@ -166,7 +170,7 @@ function claimFailure(
 export async function startPreconditions(
   ctx: MutationCtx,
   email: string,
-  mode: "check" | "consume",
+  mode: StartPreconditionsMode,
 ): Promise<StartChallengeUserError | null> {
   const formatError = validateEmailFormat(email);
   if (formatError !== null) {
@@ -203,6 +207,40 @@ export async function startPreconditions(
   }
 
   return null;
+}
+
+/**
+ * Return `EMAIL_TAKEN` when a user has already verified the address, or
+ * `null` when the address is free. The kinds that record an address call
+ * this at start and again at completion.
+ *
+ * TODO: let the caller disable this check at start. It tells the caller if
+ * an address has an account, which an app that must prevent user
+ * enumeration does not want to reveal before the link is opened.
+ */
+export async function addressTakenError(
+  ctx: QueryCtx,
+  normalizedEmail: string,
+): Promise<{ error: "EMAIL_TAKEN" } | null> {
+  const existing = await emailByNormalizedEmail(ctx, normalizedEmail);
+  return existing === null ? null : { error: "EMAIL_TAKEN" };
+}
+
+/**
+ * The `start` preconditions of the kinds that record the address for a user
+ * (`addEmail`, `setPrimaryEmail`): the shared preconditions, then the
+ * address must not be verified by any user.
+ */
+export async function startFreeAddressPreconditions(
+  ctx: MutationCtx,
+  email: string,
+  mode: StartPreconditionsMode,
+): Promise<StartChallengeUserError | null> {
+  const error = await startPreconditions(ctx, email, mode);
+  if (error !== null) {
+    return error;
+  }
+  return addressTakenError(ctx, normalizeEmail(email));
 }
 
 /**
