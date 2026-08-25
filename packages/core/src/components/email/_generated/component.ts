@@ -141,6 +141,58 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           Name
         >;
       };
+      setPrimaryEmail: {
+        complete: FunctionReference<
+          "mutation",
+          "internal",
+          { code: string; secret: string; userId: string },
+          | {
+              email: string;
+              previousPrimaryEmail: string | null;
+              success: true;
+              userId: string;
+            }
+          | {
+              success: false;
+              userError: { error: "INVALID_LINK" } | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+        getStatus: FunctionReference<
+          "query",
+          "internal",
+          { code: string; secret: string; userId: string },
+          { email: string; status: "pending" } | { status: "invalid" },
+          Name
+        >;
+        start: FunctionReference<
+          "mutation",
+          "internal",
+          {
+            email: string;
+            emailSender: {
+              apiKey: string;
+              from: string;
+              initialBackoffMs: number;
+              kind: "resend";
+              retryAttempts: number;
+              sendEmailHandle: string;
+              testMode: boolean;
+            };
+            url: string;
+            userId: string;
+          },
+          | { challengeId: string; secret: string; success: true }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_EMAIL" }
+                | { error: "EMAIL_TAKEN" }
+                | { error: "RATE_LIMITED"; retryAfterMs: number };
+            },
+          Name
+        >;
+      };
     };
     verifiedEmails: {
       deleteUser: FunctionReference<
