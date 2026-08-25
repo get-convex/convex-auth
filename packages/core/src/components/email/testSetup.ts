@@ -50,6 +50,10 @@ export async function seedChallenge(
   });
 }
 
+export function ADD_EMAIL(userId: string): ChallengePurposeRow {
+  return { kind: "addEmail", userId };
+}
+
 export function CUSTOM(
   purpose: string,
   userId: string | null,

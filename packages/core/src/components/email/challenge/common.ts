@@ -1,6 +1,7 @@
 // Server-only code that the challenge kinds share. Each kind lives in its
-// own file in this directory and exposes `start`, `complete` and
-// `getStatus`. The kind of a challenge is the function that the caller uses.
+// own file (`addEmail.ts`, `setPrimaryEmail.ts`, `custom.ts`) and exposes
+// `start`, `complete` and `getStatus`. The kind of a challenge is the
+// function that the caller uses.
 
 import { Infer, v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "../_generated/server.ts";
@@ -9,6 +10,7 @@ import { sha256Hex } from "../../../lib/crypto.ts";
 import {
   rateLimiter,
   getClientIp,
+  emailByNormalizedEmail,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -119,6 +121,23 @@ export async function prepareStart(
     };
   }
   return { ok: true, email, normalizedEmail };
+}
+
+/**
+ * Return `EMAIL_TAKEN` when a user has already verified the address, or
+ * `null` when the address is free. The kinds that record an address call
+ * this at start and again at completion.
+ *
+ * TODO: let the caller disable this check at start. It tells the caller if
+ * an address has an account, which an app that must prevent user
+ * enumeration does not want to reveal before the link is opened.
+ */
+export async function addressTakenError(
+  ctx: QueryCtx,
+  normalizedEmail: string,
+): Promise<{ error: "EMAIL_TAKEN" } | null> {
+  const existing = await emailByNormalizedEmail(ctx, normalizedEmail);
+  return existing === null ? null : { error: "EMAIL_TAKEN" };
 }
 
 /**

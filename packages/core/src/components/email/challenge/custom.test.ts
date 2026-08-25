@@ -6,6 +6,7 @@ import schema from "../schema.ts";
 import {
   seedEmail,
   seedChallenge,
+  ADD_EMAIL,
   CUSTOM,
   modulesFromSubdir,
 } from "../testSetup.ts";
@@ -147,6 +148,25 @@ describe("challenge.custom.complete", () => {
         code: "code2",
         secret: "secret2",
         purpose: PURPOSE,
+        userId: "user1",
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_LINK" } });
+  });
+
+  test("a built-in challenge cannot be completed as a custom one", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: ADD_EMAIL("user1"),
+      code: "code1",
+      secret: "secret1",
+    });
+
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
+        code: "code1",
+        secret: "secret1",
+        purpose: "addEmail",
         userId: "user1",
       }),
     ).toEqual({ success: false, userError: { error: "INVALID_LINK" } });
