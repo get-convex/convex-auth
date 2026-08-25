@@ -178,7 +178,7 @@ const completeChallengeResult = v.union(
     success: v.literal(true),
     userId: v.string(),
     email: v.string(),
-    // For `setEmail`: the address that was primary before this completion
+    // For `setPrimaryEmail`: the address that was primary before this completion
     // replaced it, or `null` when there was none. Callers use it to notify
     // the old address.
     previousPrimaryEmail: v.union(v.string(), v.null()),
@@ -199,8 +199,8 @@ type CompleteChallengeResult = Infer<typeof completeChallengeResult>;
  * never be replayed. An unknown code, a wrong secret, an expired link and a
  * purpose mismatch all return the same `INVALID_LINK` error.
  *
- * For `addEmail` and `setEmail`, completion records the address (see
- * `vChallengePurposeArg` for the primary rules); `setEmail` also returns
+ * For `addEmail` and `setPrimaryEmail`, completion records the address (see
+ * `vChallengePurposeArg` for the primary rules); `setPrimaryEmail` also returns
  * the previous primary address when it replaced one. For `passwordReset`,
  * completion writes nothing and returns the `userId` as the ownership
  * proof.
@@ -248,7 +248,7 @@ export const complete = mutation({
       };
     }
 
-    // addEmail and setEmail: the address must still be free.
+    // addEmail and setPrimaryEmail: the address must still be free.
     const taken = await emailByNormalizedEmail(ctx, row.normalizedEmail);
     if (taken !== null) {
       return { success: false, userError: { error: "EMAIL_TAKEN" } };
@@ -256,7 +256,7 @@ export const complete = mutation({
 
     let previousPrimaryEmail: string | null = null;
     let isPrimary: boolean;
-    if (row.purpose.kind === "setEmail") {
+    if (row.purpose.kind === "setPrimaryEmail") {
       // Replace the old primary address. For a first email (sign-up) there
       // is nothing to replace; for a change-email flow the old address is
       // removed from the account.

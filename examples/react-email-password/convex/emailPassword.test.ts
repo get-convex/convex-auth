@@ -124,7 +124,7 @@ async function seedChallenge(
     email: string;
     userId: string;
     purpose:
-      { kind: "addEmail" } | { kind: "setEmail" } | { kind: "passwordReset" };
+      { kind: "addEmail" } | { kind: "setPrimaryEmail" } | { kind: "passwordReset" };
     code: string;
     secret: string;
   },
@@ -452,7 +452,7 @@ describe("completeChangeEmail", () => {
     await seedChallenge(t, {
       email: "new@example.com",
       userId,
-      purpose: { kind: "setEmail" },
+      purpose: { kind: "setPrimaryEmail" },
       code: "code1",
       secret: "secret1",
     });

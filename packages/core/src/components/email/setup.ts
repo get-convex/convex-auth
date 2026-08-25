@@ -609,7 +609,7 @@ export function setupEmailPassword<UsersTable extends string>(
 
             const start = await ctx.runMutation(component.challenge.start, {
               email: newEmail,
-              purpose: { kind: "setEmail", userId },
+              purpose: { kind: "setPrimaryEmail", userId },
               url: urls.changeEmail,
               emailSender: await senderConfig(),
             });
@@ -634,7 +634,7 @@ export function setupEmailPassword<UsersTable extends string>(
           ): Promise<CompleteChangeEmailResult> => {
             const complete = await ctx.runMutation(
               component.challenge.complete,
-              { code, secret, purpose: "setEmail" },
+              { code, secret, purpose: "setPrimaryEmail" },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };

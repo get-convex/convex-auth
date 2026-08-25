@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
-import { seedEmail, seedChallenge, ADD_EMAIL, SET_EMAIL } from "./testSetup.ts";
+import { seedEmail, seedChallenge, ADD_EMAIL, SET_PRIMARY_EMAIL } from "./testSetup.ts";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -74,13 +74,13 @@ describe("challenge.complete", () => {
     });
   });
 
-  test("setEmail: replaces and returns the old primary", async () => {
+  test("setPrimaryEmail: replaces and returns the old primary", async () => {
     const t = setup();
     await seedEmail(t, "user1", "old@example.com", true);
     await seedChallenge(t, {
       email: "new@example.com",
       userId: "user1",
-      purpose: SET_EMAIL,
+      purpose: SET_PRIMARY_EMAIL,
       code: "code1",
       secret: "secret1",
     });
@@ -88,7 +88,7 @@ describe("challenge.complete", () => {
     const result = await t.mutation(api.challenge.complete, {
       code: "code1",
       secret: "secret1",
-      purpose: "setEmail",
+      purpose: "setPrimaryEmail",
     });
     expect(result).toEqual({
       success: true,
@@ -245,14 +245,14 @@ describe("challenge.complete", () => {
     await seedChallenge(t, {
       email: "alice@example.com",
       userId: "user1",
-      purpose: SET_EMAIL,
+      purpose: SET_PRIMARY_EMAIL,
       code: "code1",
       secret: "secret1",
     });
     await seedChallenge(t, {
       email: "alice@example.com",
       userId: "user2",
-      purpose: SET_EMAIL,
+      purpose: SET_PRIMARY_EMAIL,
       code: "code2",
       secret: "secret2",
     });
@@ -260,7 +260,7 @@ describe("challenge.complete", () => {
     const first = await t.mutation(api.challenge.complete, {
       code: "code1",
       secret: "secret1",
-      purpose: "setEmail",
+      purpose: "setPrimaryEmail",
     });
     expect(first).toMatchObject({ success: true, userId: "user1" });
 
@@ -272,7 +272,7 @@ describe("challenge.complete", () => {
     const second = await t.mutation(api.challenge.complete, {
       code: "code2",
       secret: "secret2",
-      purpose: "setEmail",
+      purpose: "setPrimaryEmail",
     });
     expect(second).toEqual({
       success: false,
@@ -338,7 +338,7 @@ describe("challenge.getStatus", () => {
     await seedChallenge(t, {
       email: "alice@example.com",
       userId: "user1",
-      purpose: SET_EMAIL,
+      purpose: SET_PRIMARY_EMAIL,
       code: "code1",
       secret: "secret1",
     });
@@ -349,7 +349,7 @@ describe("challenge.getStatus", () => {
     });
     expect(status).toEqual({
       status: "pending",
-      purpose: "setEmail",
+      purpose: "setPrimaryEmail",
       email: "alice@example.com",
     });
 
@@ -357,7 +357,7 @@ describe("challenge.getStatus", () => {
     const result = await t.mutation(api.challenge.complete, {
       code: "code1",
       secret: "secret1",
-      purpose: "setEmail",
+      purpose: "setPrimaryEmail",
     });
     expect(result).toMatchObject({ success: true });
   });
@@ -522,14 +522,14 @@ describe("the pending challenge address", () => {
     await seedChallenge(t, {
       email: "Alice@Example.com",
       userId: "user1",
-      purpose: SET_EMAIL,
+      purpose: SET_PRIMARY_EMAIL,
       code: "code1",
       secret: "secret1",
     });
     await seedChallenge(t, {
       email: "alice@EXAMPLE.com",
       userId: "user2",
-      purpose: SET_EMAIL,
+      purpose: SET_PRIMARY_EMAIL,
       code: "code2",
       secret: "secret2",
     });
@@ -538,7 +538,7 @@ describe("the pending challenge address", () => {
       await t.mutation(api.challenge.complete, {
         code: "code1",
         secret: "secret1",
-        purpose: "setEmail",
+        purpose: "setPrimaryEmail",
       }),
     ).toMatchObject({ success: true, userId: "user1" });
 

@@ -39,7 +39,7 @@ export default defineSchema({
     // What a successful completion does. See `vChallengePurposeArg`.
     purpose: v.union(
       v.object({ kind: v.literal("addEmail") }),
-      v.object({ kind: v.literal("setEmail") }),
+      v.object({ kind: v.literal("setPrimaryEmail") }),
       v.object({ kind: v.literal("passwordReset") }),
     ),
     // SHA-256 of the code that travels in the emailed link. Only the hash is

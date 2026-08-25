@@ -44,16 +44,16 @@ export function validateEmailFormat(
  * - `addEmail`: prove that the address belongs to `userId`, then record it
  *   as an email address for the user (primary if it’s the first email address
  *   or secondary if it’s not).
- * - `setEmail`: similar to addEmail, but used in apps where users have a single
- *   email address. When the challenge is completed, we will always set the new
- *   email address as primary, and remove pre-existing email addresses.
+ * - `setPrimaryEmail`: similar to `addEmail`, but for apps where each user has
+ *   one email address. When the challenge is completed, the new address
+ *   always becomes primary, and the previous primary address is removed.
  * - `passwordReset`: prove that the person owns an address that is already
  *   verified on the account. Completion writes nothing; it returns the
  *   `userId` as the ownership proof.
  */
 export const vChallengePurposeArg = v.union(
   v.object({ kind: v.literal("addEmail"), userId: v.string() }),
-  v.object({ kind: v.literal("setEmail"), userId: v.string() }),
+  v.object({ kind: v.literal("setPrimaryEmail"), userId: v.string() }),
   v.object({ kind: v.literal("passwordReset") }),
 );
 export type ChallengePurposeArg = Infer<typeof vChallengePurposeArg>;
@@ -61,7 +61,7 @@ export type ChallengePurposeArg = Infer<typeof vChallengePurposeArg>;
 /** The purpose kind alone, for completion-side checks. */
 export const vPurposeKind = v.union(
   v.literal("addEmail"),
-  v.literal("setEmail"),
+  v.literal("setPrimaryEmail"),
   v.literal("passwordReset"),
 );
 export type PurposeKind = Infer<typeof vPurposeKind>;
@@ -73,7 +73,7 @@ export type PurposeKind = Infer<typeof vPurposeKind>;
 export const startChallengeUserError = v.union(
   emailFormatUserError,
   // Another user has already verified this address (`addEmail`,
-  // `setEmail`).
+  // `setPrimaryEmail`).
   v.object({ error: v.literal("EMAIL_TAKEN") }),
   // No user has verified this address (`passwordReset`).
   v.object({ error: v.literal("EMAIL_NOT_FOUND") }),

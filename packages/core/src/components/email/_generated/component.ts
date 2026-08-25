@@ -36,7 +36,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           code: string;
-          purpose: "addEmail" | "setEmail" | "passwordReset";
+          purpose: "addEmail" | "setPrimaryEmail" | "passwordReset";
           secret: string;
         },
         | {
@@ -57,7 +57,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         { code: string; secret: string },
         | {
             email: string;
-            purpose: "addEmail" | "setEmail" | "passwordReset";
+            purpose: "addEmail" | "setPrimaryEmail" | "passwordReset";
             status: "pending";
           }
         | { status: "invalid" },
@@ -79,7 +79,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           };
           purpose:
             | { kind: "addEmail"; userId: string }
-            | { kind: "setEmail"; userId: string }
+            | { kind: "setPrimaryEmail"; userId: string }
             | { kind: "passwordReset" };
           url: string;
         },

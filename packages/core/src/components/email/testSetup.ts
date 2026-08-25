@@ -21,7 +21,7 @@ export async function seedEmail(
 }
 
 export type ChallengePurposeRow =
-  { kind: "addEmail" } | { kind: "setEmail" } | { kind: "passwordReset" };
+  { kind: "addEmail" } | { kind: "setPrimaryEmail" } | { kind: "passwordReset" };
 
 /**
  * Seed a pending challenge row directly, hashing the code and the secret
@@ -53,4 +53,4 @@ export async function seedChallenge(
 }
 
 export const ADD_EMAIL: ChallengePurposeRow = { kind: "addEmail" };
-export const SET_EMAIL: ChallengePurposeRow = { kind: "setEmail" };
+export const SET_PRIMARY_EMAIL: ChallengePurposeRow = { kind: "setPrimaryEmail" };
