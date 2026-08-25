@@ -12,6 +12,7 @@ import type * as challenge_addEmail from "../challenge/addEmail.js";
 import type * as challenge_common from "../challenge/common.js";
 import type * as challenge_custom from "../challenge/custom.js";
 import type * as challenge_rateLimit from "../challenge/rateLimit.js";
+import type * as challenge_setPrimaryEmail from "../challenge/setPrimaryEmail.js";
 import type * as helpers from "../helpers.js";
 import type * as testSetup from "../testSetup.js";
 import type * as validation from "../validation.js";
@@ -29,6 +30,7 @@ const fullApi: ApiFromModules<{
   "challenge/common": typeof challenge_common;
   "challenge/custom": typeof challenge_custom;
   "challenge/rateLimit": typeof challenge_rateLimit;
+  "challenge/setPrimaryEmail": typeof challenge_setPrimaryEmail;
   helpers: typeof helpers;
   testSetup: typeof testSetup;
   validation: typeof validation;
