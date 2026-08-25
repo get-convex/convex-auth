@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
+import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
 import { seedEmail, seedChallenge } from "./testSetup.ts";
@@ -9,9 +10,11 @@ const modules = import.meta.glob("./**/*.ts");
 
 function setup() {
   const t = convexTest(schema, modules);
-  // The component mounts the rate limiter; register it with the test instance
-  // so `challenge.start`'s throttle has a backing component.
+  // The component mounts the rate limiter and the batch worker; register
+  // them with the test instance so `challenge.start`'s throttle and the sweep
+  // loop have backing components.
   registerRateLimiter(t);
+  registerBatchWorker(t);
   return t;
 }
 

@@ -30,7 +30,8 @@ export default defineSchema({
   // One row for each challenge. A challenge proves that the person who
   // started it owns an email address. A row is pending until `challenge.complete`
   // marks it completed (`proofHash` set), and is deleted when
-  // `verifiedEmails.add` spends the proof, or when it expires.
+  // `verifiedEmails.add` spends the proof, or by the sweep loop (see
+  // sweep.ts) once it is completed or expired.
   challenges: defineTable({
     // The address under challenge, with the case that the user gave. This is
     // the address the email goes to, and the address a spent proof records.
@@ -51,9 +52,16 @@ export default defineSchema({
     // SHA-256 of the proof that `challenge.complete` returned. Present only
     // on a completed challenge.
     proofHash: v.optional(v.string()),
+    // When `challenge.complete` completed the row. The sweep loop (see
+    // sweep.ts) deletes completed rows right after the mutation that
+    // completed them commits: a proof must be spent in that same mutation.
+    completedAt: v.optional(v.number()),
     expiresAt: v.number(),
   })
     .index("by_codeHash", ["codeHash"])
     .index("by_proofHash", ["proofHash"])
-    .index("by_userId", ["userId"]),
+    .index("by_userId", ["userId"])
+    // For the sweep loop.
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_completedAt", ["completedAt"]),
 });

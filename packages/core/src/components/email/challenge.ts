@@ -16,6 +16,7 @@ import {
   normalizeEmail,
   generateRandomToken,
 } from "./validation.ts";
+import { scheduleChallengeSweep } from "./sweep.ts";
 
 // A challenge proves that the person who started it owns an email address.
 // The component does not know what the caller does with that fact: the
@@ -164,6 +165,9 @@ export const start = mutation({
       buildLink(args.url, code),
       ttlMs,
     );
+    // The row expires at `expiresAt`; make sure the loop that deletes expired
+    // rows is running.
+    await scheduleChallengeSweep(ctx);
 
     return { success: true, secret };
   },
@@ -203,7 +207,8 @@ type CompleteChallengeResult = Infer<typeof completeChallengeResult>;
  * Completion writes nothing to `verifiedEmails`. To record the address for
  * the bound user, pass `proof` to `verifiedEmails.add` in the same mutation.
  * For recovery or re-authentication, the returned `email` and `userId` are
- * the result; the proof stays unspent and the row expires.
+ * the result; the proof stays unspent and the sweep loop deletes the row
+ * after the mutation commits. A proof cannot be spent from a later mutation.
  */
 export const complete = mutation({
   args: {
@@ -235,7 +240,11 @@ export const complete = mutation({
     const proof = generateRandomToken();
     await ctx.db.patch("challenges", row._id, {
       proofHash: await sha256Hex(proof),
+      completedAt: Date.now(),
     });
+    // The sweep loop deletes this row after the mutation commits, unless
+    // `verifiedEmails.add` spends the proof first in the same mutation.
+    await scheduleChallengeSweep(ctx);
     return {
       success: true,
       email: row.email,
