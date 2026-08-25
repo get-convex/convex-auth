@@ -8,6 +8,10 @@
  * @module
  */
 
+import type * as challenge_common from "../challenge/common.js";
+import type * as challenge_rateLimit from "../challenge/rateLimit.js";
+import type * as helpers from "../helpers.js";
+import type * as testSetup from "../testSetup.js";
 import type * as validation from "../validation.js";
 import type * as verifiedEmails from "../verifiedEmails.js";
 
@@ -19,6 +23,10 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  "challenge/common": typeof challenge_common;
+  "challenge/rateLimit": typeof challenge_rateLimit;
+  helpers: typeof helpers;
+  testSetup: typeof testSetup;
   validation: typeof validation;
   verifiedEmails: typeof verifiedEmails;
 }> = anyApi as any;
@@ -49,4 +57,6 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {};
+export const components = componentsGeneric() as unknown as {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};

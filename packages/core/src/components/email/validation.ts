@@ -2,7 +2,7 @@ import { Infer, v } from "convex/values";
 
 // The component applies only loose format rules: it rejects strings that can
 // not be a deliverable address, and nothing more. Real ownership of the
-// address is proven by the validation flow, not by format checks.
+// address is proven by the challenge, not by format checks.
 
 // The longest address SMTP can deliver to (RFC 5321: 256 octets for the path,
 // minus the angle brackets).
@@ -38,6 +38,77 @@ export function validateEmailFormat(
 }
 
 /**
+ * The user-facing errors for the `start` mutations. An application can show
+ * these errors to the end user.
+ */
+export const startChallengeUserError = v.union(
+  emailFormatUserError,
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
+export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
+
+/**
+ * The user-facing errors for the `complete` mutations. `INVALID_LINK` covers
+ * an unknown code, a wrong secret, an expired link, and a challenge of
+ * another kind: one error for all of them, so the response is not an oracle
+ * for attackers.
+ */
+export const completeChallengeUserError = v.union(
+  v.object({ error: v.literal("INVALID_LINK") }),
+);
+export type CompleteChallengeUserError = Infer<
+  typeof completeChallengeUserError
+>;
+
+/**
+ * What a `getStatus` query reports about a challenge. Landing pages use it
+ * to show which address the link is for before the user confirms.
+ */
+export const vChallengeStatus = v.union(
+  v.object({ status: v.literal("pending"), email: v.string() }),
+  v.object({ status: v.literal("invalid") }),
+);
+export type ChallengeStatus = Infer<typeof vChallengeStatus>;
+
+/**
+ * The flows of the EmailPassword provider that send a challenge link. A
+ * landing page names its flow so the backend asks the matching challenge
+ * kind for the status.
+ */
+export const vEmailPasswordFlow = v.union(
+  v.literal("signUp"),
+  v.literal("changeEmail"),
+  v.literal("recovery"),
+);
+export type EmailPasswordFlow = Infer<typeof vEmailPasswordFlow>;
+
+/**
+ * How the `start` mutations send their email. The caller (the provider recipe)
+ * resolves the function handle and the runtime options; the component only
+ * calls the handle.
+ *
+ * Only Resend is supported for now, through the `@convex-dev/resend`
+ * component's `lib.sendEmail` mutation.
+ *
+ * TODO: support other email providers.
+ * TODO: offer a first-party zero-configuration email service.
+ * TODO: let applications customize the email templates.
+ */
+export const vEmailSenderConfig = v.object({
+  kind: v.literal("resend"),
+  // Function handle for the Resend component's `lib.sendEmail` mutation.
+  sendEmailHandle: v.string(),
+  // The From address, e.g. `"My App <auth@example.com>"`.
+  from: v.string(),
+  // Runtime options that `lib.sendEmail` requires.
+  apiKey: v.string(),
+  testMode: v.boolean(),
+  initialBackoffMs: v.number(),
+  retryAttempts: v.number(),
+});
+export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
+
+/**
  * Normalize an email address for storage and comparisons.
  *
  * The function first makes the address lowercase, so that lookups are not
@@ -62,4 +133,19 @@ export function normalizeEmail(email: string): string {
   // she won’t be able to also create an account.
   // (But she won’t be able to perform account recovery to the original account,
   // as account recovery emails will be sent to Jane.Doe@example.com).
+}
+
+// Crypto helpers for the email component's challenge.
+
+export function base64UrlEncode(bytes: Uint8Array): string {
+  const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/** Cryptographically random 256-bit opaque token, base64url encoded. */
+export function generateRandomToken(): string {
+  return base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
 }

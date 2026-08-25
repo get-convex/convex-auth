@@ -23,4 +23,31 @@ export default defineSchema({
     .index("by_normalizedEmail", ["normalizedEmail"])
     .index("by_userId", ["userId"])
     .index("by_userId_isPrimary", ["userId", "isPrimary"]),
+
+  // One row for each challenge that has started and is not complete.
+  // The completion is a one-shot claim: the first `challenge.complete` call
+  // that finds the row deletes it.
+  challenges: defineTable({
+    // The address under challenge, with the case that the user gave. This is
+    // the address the email goes to, and the address a completion records.
+    // Lookups use `normalizeEmail` on this value; the row keeps no
+    // normalized copy, because nothing looks a challenge up by address.
+    email: v.string(),
+    // The kind of the challenge, which is the file in `challenge/` that
+    // started it. Each kind completes in its own way, and each carries the
+    // user that the flow is for.
+    purpose: v.union(
+      v.object({ kind: v.literal("addEmail"), userId: v.string() }),
+      v.object({ kind: v.literal("setPrimaryEmail"), userId: v.string() }),
+    ),
+    // SHA-256 of the code that travels in the emailed link. Only the hash is
+    // stored, so database access alone cannot complete a challenge.
+    codeHash: v.string(),
+    // SHA-256 of the secret that stays in the starting browser's storage.
+    // Completion requires both the code and the secret.
+    secretHash: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_codeHash", ["codeHash"])
+    .index("by_purpose_userId", ["purpose.userId"]),
 });
