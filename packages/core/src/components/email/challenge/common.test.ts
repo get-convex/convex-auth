@@ -8,7 +8,12 @@ import { convexTest } from "convex-test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import { api } from "../_generated/api.ts";
 import schema from "../schema.ts";
-import { seedChallenge, CUSTOM, modulesFromSubdir } from "../testSetup.ts";
+import {
+  seedChallenge,
+  ADD_EMAIL,
+  CUSTOM,
+  modulesFromSubdir,
+} from "../testSetup.ts";
 
 const modules = modulesFromSubdir(import.meta.glob("../**/*.ts"), "challenge");
 
@@ -167,6 +172,65 @@ describe("getStatus", () => {
         ...CLAIM,
       }),
     ).toEqual({ status: "invalid" });
+  });
+});
+
+describe("the kind of a challenge", () => {
+  test("a challenge of another kind fails with INVALID_LINK and burns the link", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: ADD_EMAIL("user1"),
+      code: "code1",
+      secret: "secret1",
+    });
+
+    // The landing page called the wrong kind: an application bug.
+    const wrongKind = await t.mutation(api.challenge.custom.complete, {
+      code: "code1",
+      secret: "secret1",
+      purpose: "addEmail",
+      userId: "user1",
+    });
+    expect(wrongKind).toEqual({
+      success: false,
+      userError: { error: "INVALID_LINK" },
+    });
+    // The link is burned out of safety, so the right kind no longer works.
+    const rightKind = await t.mutation(api.challenge.addEmail.complete, {
+      code: "code1",
+      secret: "secret1",
+      userId: "user1",
+    });
+    expect(rightKind).toEqual({
+      success: false,
+      userError: { error: "INVALID_LINK" },
+    });
+  });
+
+  test("getStatus of another kind reports invalid and keeps the row", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: CUSTOM(PURPOSE, "user1"),
+      code: "code1",
+      secret: "secret1",
+    });
+
+    expect(
+      await t.query(api.challenge.addEmail.getStatus, {
+        code: "code1",
+        secret: "secret1",
+        userId: "user1",
+      }),
+    ).toEqual({ status: "invalid" });
+    expect(
+      await t.query(api.challenge.custom.getStatus, {
+        code: "code1",
+        secret: "secret1",
+        ...CLAIM,
+      }),
+    ).toEqual({ status: "pending", email: "alice@example.com" });
   });
 });
 
