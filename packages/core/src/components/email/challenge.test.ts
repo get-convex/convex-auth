@@ -3,7 +3,12 @@ import { convexTest } from "convex-test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
-import { seedEmail, seedChallenge, ADD_EMAIL, SET_PRIMARY_EMAIL } from "./testSetup.ts";
+import {
+  seedEmail,
+  seedChallenge,
+  ADD_EMAIL,
+  SET_PRIMARY_EMAIL,
+} from "./testSetup.ts";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -239,7 +244,7 @@ describe("challenge.complete", () => {
     ).toEqual({ userId: "user2", email: "alice@example.com" });
   });
 
-  test("completing a challenge deletes sibling challenges for the email", async () => {
+  test("a concurrent challenge for the same address stays pending, then fails", async () => {
     const t = setup();
     // Two sign-ups race for one address; the first completion wins.
     await seedChallenge(t, {
@@ -264,11 +269,14 @@ describe("challenge.complete", () => {
     });
     expect(first).toMatchObject({ success: true, userId: "user1" });
 
-    // The sibling was deleted, not left to fail with EMAIL_TAKEN.
-    const remaining = await t.run(
-      async (ctx) => (await ctx.db.query("challenges").collect()).length,
-    );
-    expect(remaining).toBe(0);
+    // The other challenge is not deleted. It stays pending, and fails only
+    // when the user tries to complete it.
+    expect(
+      await t.query(api.challenge.getStatus, {
+        code: "code2",
+        secret: "secret2",
+      }),
+    ).toMatchObject({ status: "pending" });
     const second = await t.mutation(api.challenge.complete, {
       code: "code2",
       secret: "secret2",
@@ -276,7 +284,7 @@ describe("challenge.complete", () => {
     });
     expect(second).toEqual({
       success: false,
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "EMAIL_TAKEN" },
     });
   });
 
@@ -517,7 +525,7 @@ describe("the pending challenge address", () => {
     });
   });
 
-  test("completion deletes siblings that use another case of the address", async () => {
+  test("a challenge that uses another case of the address fails after completion", async () => {
     const t = setup();
     await seedChallenge(t, {
       email: "Alice@Example.com",
@@ -542,10 +550,13 @@ describe("the pending challenge address", () => {
       }),
     ).toMatchObject({ success: true, userId: "user1" });
 
-    const remaining = await t.run(
-      async (ctx) => (await ctx.db.query("challenges").collect()).length,
-    );
-    expect(remaining).toBe(0);
+    expect(
+      await t.mutation(api.challenge.complete, {
+        code: "code2",
+        secret: "secret2",
+        purpose: "setPrimaryEmail",
+      }),
+    ).toEqual({ success: false, userError: { error: "EMAIL_TAKEN" } });
   });
 });
 

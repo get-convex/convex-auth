@@ -51,6 +51,5 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("by_codeHash", ["codeHash"])
-    .index("by_userId", ["userId"])
-    .index("by_normalizedEmail", ["normalizedEmail"]),
+    .index("by_userId", ["userId"]),
 });

@@ -306,14 +306,14 @@ describe("completeSignUp", () => {
     });
     expect(first).toEqual({ success: true, tokens: SESSION_TOKENS });
 
-    // The other sign-up's link can no longer be completed.
+    // The other sign-up's link stays pending, but the address is taken now.
     const second = await t.mutation(api.auth.completeSignUp, {
       code: "code1",
       secret: "secret1",
     });
     expect(second).toEqual({
       success: false,
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "EMAIL_TAKEN" },
     });
   });
 });

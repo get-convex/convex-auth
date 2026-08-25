@@ -139,6 +139,9 @@ export const start = mutation({
       }
       userId = existing.userId;
     } else {
+      // TODO: let the caller disable this check. It tells the caller if an
+      // address has an account, which an app that must prevent user
+      // enumeration does not want to reveal before the link is opened.
       if (existing !== null) {
         return { success: false, userError: { error: "EMAIL_TAKEN" } };
       }
@@ -281,18 +284,6 @@ export const complete = mutation({
       userId: row.userId,
       isPrimary,
     });
-
-    // The address is now verified, so every other pending challenge for it
-    // can no longer succeed. Delete them instead of leaving them to fail.
-    const siblings = await ctx.db
-      .query("challenges")
-      .withIndex("by_normalizedEmail", (q) =>
-        q.eq("normalizedEmail", row.normalizedEmail),
-      )
-      .collect();
-    for (const sibling of siblings) {
-      await ctx.db.delete("challenges", sibling._id);
-    }
 
     return {
       success: true,
