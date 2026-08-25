@@ -13,6 +13,7 @@ import type * as challenge_common from "../challenge/common.js";
 import type * as challenge_custom from "../challenge/custom.js";
 import type * as challenge_rateLimit from "../challenge/rateLimit.js";
 import type * as challenge_setPrimaryEmail from "../challenge/setPrimaryEmail.js";
+import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
 import type * as react from "../react.js";
 import type * as setup from "../setup.js";
@@ -33,6 +34,7 @@ const fullApi: ApiFromModules<{
   "challenge/custom": typeof challenge_custom;
   "challenge/rateLimit": typeof challenge_rateLimit;
   "challenge/setPrimaryEmail": typeof challenge_setPrimaryEmail;
+  cleanup: typeof cleanup;
   helpers: typeof helpers;
   react: typeof react;
   setup: typeof setup;
@@ -69,4 +71,5 @@ export const internal: FilterApi<
 
 export const components = componentsGeneric() as unknown as {
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+  batchWorker: import("@convex-dev/batch-worker/_generated/component.js").ComponentApi<"batchWorker">;
 };

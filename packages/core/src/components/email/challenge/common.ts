@@ -7,6 +7,7 @@ import { Infer, v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "../_generated/server.ts";
 import type { Doc, Id } from "../_generated/dataModel.ts";
 import { sha256Hex } from "../../../lib/crypto.ts";
+import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   rateLimiter,
   getClientIp,
@@ -164,6 +165,7 @@ export async function createChallenge(
     secretHash: await sha256Hex(secret),
     expiresAt: Date.now() + args.ttlMs,
   });
+  await scheduleChallengeCleanup(ctx);
   await sendChallengeEmail(ctx, args.emailSender, {
     to: args.email,
     copy: args.copy,
@@ -208,7 +210,8 @@ async function matches(
 ): Promise<boolean> {
   return (
     row.secretHash === (await sha256Hex(args.secret)) &&
-    row.expiresAt >= Date.now() &&
+    // At exactly `expiresAt` the link is expired, like in the cleanup loop.
+    row.expiresAt > Date.now() &&
     samePurpose(row.purpose, args.purpose)
   );
 }
