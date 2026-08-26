@@ -9,10 +9,12 @@
  */
 
 import type * as authentication from "../authentication.js";
+import type * as ceremonies from "../ceremonies.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
 import type * as management_add from "../management/add.js";
 import type * as management_list from "../management/list.js";
+import type * as management_react from "../management/react.js";
 import type * as management_remove from "../management/remove.js";
 import type * as purposes from "../purposes.js";
 import type * as react from "../react.js";
@@ -30,10 +32,12 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   authentication: typeof authentication;
+  ceremonies: typeof ceremonies;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
   "management/add": typeof management_add;
   "management/list": typeof management_list;
+  "management/react": typeof management_react;
   "management/remove": typeof management_remove;
   purposes: typeof purposes;
   react: typeof react;
