@@ -70,12 +70,23 @@ const authenticateStart = {
   success: true,
   step: "authenticate",
   challenge: new ArrayBuffer(16),
-  allowCredentials: [new ArrayBuffer(8)],
+  allowCredentials: [{ id: new ArrayBuffer(8), transports: ["internal"] }],
   rpId: "localhost",
 };
 
 // A stand-in for the credential `navigator.credentials.create()` returns.
 const attestationCredential = {
+  rawId: new ArrayBuffer(8),
+  response: {
+    attestationObject: new ArrayBuffer(1),
+    clientDataJSON: new ArrayBuffer(2),
+    getTransports: () => ["internal", "hybrid"],
+  },
+};
+
+// A stand-in for an older browser, whose attestation response has no
+// `getTransports` method.
+const attestationCredentialWithoutTransports = {
   rawId: new ArrayBuffer(8),
   response: {
     attestationObject: new ArrayBuffer(1),
@@ -183,10 +194,30 @@ describe("usePasskey signIn", () => {
       username: "alice",
       attestationObject: attestationCredential.response.attestationObject,
       clientDataJSON: attestationCredential.response.clientDataJSON,
+      transports: ["internal", "hybrid"],
     });
     expect(returned).toEqual({ success: true, tokens: bundle, flow: "signUp" });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(result.current.token).toBe("access-1");
+  });
+
+  test("sends no transports when the browser has no getTransports", async () => {
+    mutations.startSignIn.mockResolvedValue(registerStart);
+    credentialsCreate.mockResolvedValue(attestationCredentialWithoutTransports);
+    mutations.finishSignUp.mockResolvedValue({ success: true, tokens: bundle });
+    const { result } = renderPasskey();
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: PasskeySignInResult;
+    await act(async () => {
+      returned = await result.current.passkey.signIn({ username: "alice" });
+    });
+
+    expect(returned.success).toBe(true);
+    const [args] = mutations.finishSignUp.mock.calls[0] as [
+      { transports?: string[] },
+    ];
+    expect(args.transports).toBe(undefined);
   });
 
   test("sign-in success runs the authentication ceremony and adopts the session", async () => {
@@ -205,6 +236,16 @@ describe("usePasskey signIn", () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
 
+    const [request] = credentialsGet.mock.calls[0] as [
+      { publicKey: PublicKeyCredentialRequestOptions },
+    ];
+    expect(request.publicKey.allowCredentials).toEqual([
+      {
+        type: "public-key",
+        id: authenticateStart.allowCredentials[0].id,
+        transports: ["internal"],
+      },
+    ]);
     // `rawId` carries the credential ID bytes, not the base64url `id`.
     expect(mutations.finishSignIn).toHaveBeenCalledWith({
       credentialId: assertionCredential.rawId,

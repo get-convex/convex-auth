@@ -49,7 +49,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         { userId?: string },
-        { allowCredentials: Array<ArrayBuffer>; challenge: ArrayBuffer },
+        {
+          allowCredentials: Array<{
+            id: ArrayBuffer;
+            transports?: Array<string>;
+          }>;
+          challenge: ArrayBuffer;
+        },
         Name
       >;
     };
@@ -95,6 +101,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           expectedOrigin: string;
           expectedRpId: string;
           name?: string;
+          transports?: Array<string>;
           verifiedUserId: string;
         },
         | { passkeyId: string; success: true }
@@ -123,7 +130,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         { userId: string | null },
         {
           challenge: ArrayBuffer;
-          excludeCredentials: Array<ArrayBuffer>;
+          excludeCredentials: Array<{
+            id: ArrayBuffer;
+            transports?: Array<string>;
+          }>;
           userHandle: ArrayBuffer;
         },
         Name

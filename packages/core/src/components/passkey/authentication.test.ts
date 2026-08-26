@@ -30,10 +30,35 @@ describe("startAuthentication", () => {
     );
     expect(new Uint8Array(challenge).length).toBe(32);
     expect(allowCredentials).toHaveLength(1);
-    expectSameBytes(allowCredentials[0], credential.credentialId);
+    expectSameBytes(allowCredentials[0].id, credential.credentialId);
     const [row] = await t.run((ctx) => ctx.db.query("challenges").collect());
     expect(row.kind).toBe("authentication");
     expect(row.kind === "authentication" && row.userId).toBe("user1");
+  });
+
+  test("returns the transports of each passkey in allowCredentials", async () => {
+    const t = setup();
+    const stored = await register(t, "user1", { transports: ["hybrid"] });
+    const withoutTransports = await register(t, "user1");
+    const { allowCredentials } = await t.mutation(
+      api.authentication.startAuthentication,
+      { userId: "user1" },
+    );
+
+    const byId = new Map(
+      allowCredentials.map((entry) => [
+        Array.from(new Uint8Array(entry.id)).join(","),
+        entry,
+      ]),
+    );
+    expect(
+      byId.get(stored.credential.credentialId.join(","))?.transports,
+    ).toEqual(["hybrid"]);
+    const absent = byId.get(
+      withoutTransports.credential.credentialId.join(","),
+    );
+    expect(absent).toBeDefined();
+    expect(absent).not.toHaveProperty("transports");
   });
 
   test("stores an unbound challenge with no allowCredentials for the discoverable flow", async () => {

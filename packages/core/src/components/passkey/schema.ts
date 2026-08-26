@@ -20,6 +20,12 @@ export default defineSchema({
     // expected to be always increasing. This component doesn’t enforce it,
     // but in theory this property could be used to detect cloned passkeys.
     counter: v.number(),
+    // The transports that the browser reported for this credential, for
+    // example "internal", "usb", or "hybrid". The field is not set when
+    // the browser did not report them. The values are plain strings,
+    // because the WebAuthn spec lets new transports appear.
+    // https://www.w3.org/TR/webauthn-3/#enum-transport
+    transports: v.optional(v.array(v.string())),
   })
     .index("by_credentialId", ["credentialId"])
     .index("by_userId", ["userId"]),

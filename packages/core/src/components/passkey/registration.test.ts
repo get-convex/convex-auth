@@ -229,12 +229,37 @@ describe("startRegistration", () => {
       api.registration.startRegistration,
       { userId: "user1" },
     );
-    const ids = excludeCredentials.map((buffer) =>
-      Array.from(new Uint8Array(buffer)).join(","),
+    const ids = excludeCredentials.map(({ id }) =>
+      Array.from(new Uint8Array(id)).join(","),
     );
     expect(ids).toHaveLength(2);
     expect(ids).toContain(first.credential.credentialId.join(","));
     expect(ids).toContain(second.credential.credentialId.join(","));
+  });
+
+  test("returns the transports of each passkey in excludeCredentials", async () => {
+    const t = setup();
+    const stored = await register(t, "user1", { transports: ["usb", "nfc"] });
+    const withoutTransports = await register(t, "user1");
+    const { excludeCredentials } = await t.mutation(
+      api.registration.startRegistration,
+      { userId: "user1" },
+    );
+
+    const byId = new Map(
+      excludeCredentials.map((entry) => [
+        Array.from(new Uint8Array(entry.id)).join(","),
+        entry,
+      ]),
+    );
+    expect(
+      byId.get(stored.credential.credentialId.join(","))?.transports,
+    ).toEqual(["usb", "nfc"]);
+    const absent = byId.get(
+      withoutTransports.credential.credentialId.join(","),
+    );
+    expect(absent).toBeDefined();
+    expect(absent).not.toHaveProperty("transports");
   });
 
   test("throws when a new handle collides with an existing handle", async () => {
@@ -312,6 +337,64 @@ describe("finishRegistration", () => {
     expect(result.success).toBe(true);
     const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
     expect(row.name).toBe("MacBook Touch ID");
+  });
+
+  test("stores the transports that the client reports", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    const result = await t.mutation(api.registration.finishRegistration, {
+      ...args,
+      transports: ["internal", "hybrid"],
+    });
+    expect(result.success).toBe(true);
+    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(row.transports).toEqual(["internal", "hybrid"]);
+  });
+
+  test("stores no transports when the client reports none", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    const result = await t.mutation(api.registration.finishRegistration, args);
+    expect(result.success).toBe(true);
+    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(row).not.toHaveProperty("transports");
+  });
+
+  test.each([
+    {
+      name: "too many transports",
+      transports: Array.from({ length: 17 }, (_, i) => `t${i}`),
+      message: "Too many transports",
+    },
+    {
+      name: "a transport that is too long",
+      transports: ["a".repeat(33)],
+      message: "has 33 characters",
+    },
+    {
+      name: "an empty transport",
+      transports: [""],
+      message: 'Invalid transport: ""',
+    },
+    {
+      name: "a transport with a non-ASCII character",
+      transports: ["üsb"],
+      message: 'Invalid transport: "üsb"',
+    },
+    {
+      name: "a transport with a space",
+      transports: ["smart card"],
+      message: 'Invalid transport: "smart card"',
+    },
+  ])("throws for $name", async ({ transports, message }) => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    await expect(
+      t.mutation(api.registration.finishRegistration, { ...args, transports }),
+    ).rejects.toThrow(message);
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
   });
 
   test("links the handle to the verified user in the new-account flow", async () => {

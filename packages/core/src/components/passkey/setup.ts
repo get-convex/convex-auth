@@ -13,6 +13,7 @@ import {
   validateUsernameFormat,
 } from "../username/validation.ts";
 import {
+  credentialDescriptor,
   finishAuthenticationUserError,
   finishRegistrationUserError,
 } from "./validation.ts";
@@ -62,7 +63,7 @@ const startSignInResult = v.union(
     success: v.literal(true),
     step: v.literal("authenticate"),
     challenge: v.bytes(),
-    allowCredentials: v.array(v.bytes()),
+    allowCredentials: v.array(credentialDescriptor),
     rpId: v.string(),
   }),
   // The username is free: register a new account with a new passkey.
@@ -72,7 +73,7 @@ const startSignInResult = v.union(
     challenge: v.bytes(),
     // The WebAuthn user handle (`user.id`) for the `create()` call.
     userHandle: v.bytes(),
-    excludeCredentials: v.array(v.bytes()),
+    excludeCredentials: v.array(credentialDescriptor),
     rpId: v.string(),
     rpName: v.string(),
   }),
@@ -284,6 +285,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             username: v.string(),
             attestationObject: v.bytes(),
             clientDataJSON: v.bytes(),
+            transports: v.optional(v.array(v.string())),
           },
           returns: finishSignUpResult,
           handler: async (ctx, args): Promise<FinishSignUpResult> => {
@@ -354,6 +356,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 verifiedUserId: tokens.userId,
                 attestationObject: args.attestationObject,
                 clientDataJSON: args.clientDataJSON,
+                transports: args.transports,
               },
             );
             if (!registrationResult.success) {

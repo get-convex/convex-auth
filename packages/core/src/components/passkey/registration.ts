@@ -12,9 +12,12 @@ import {
 import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa.ts";
 import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa.ts";
 import {
+  credentialDescriptor,
+  CredentialDescriptor,
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
+  validateTransports,
 } from "./validation.ts";
 import {
   deleteDeadChallenge,
@@ -34,7 +37,7 @@ const startRegistrationResult = v.object({
   challenge: v.bytes(),
   // The WebAuthn user handle (`user.id`) for the `create()` call.
   userHandle: v.bytes(),
-  excludeCredentials: v.array(v.bytes()),
+  excludeCredentials: v.array(credentialDescriptor),
 });
 
 /**
@@ -65,7 +68,7 @@ export const startRegistration = mutation({
   returns: startRegistrationResult,
   handler: async (ctx, { userId }) => {
     let handle: { _id: Id<"handles">; handle: ArrayBuffer } | null = null;
-    let excludeCredentials: ArrayBuffer[] = [];
+    let excludeCredentials: CredentialDescriptor[] = [];
     if (userId !== null) {
       // A user has a maximum of one handle: reuse it when it exists.
       handle = await ctx.db
@@ -76,7 +79,10 @@ export const startRegistration = mutation({
         .query("passkeys")
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .collect();
-      excludeCredentials = rows.map((row) => row.credentialId);
+      excludeCredentials = rows.map((row) => ({
+        id: row.credentialId,
+        transports: row.transports,
+      }));
     }
     if (handle === null) {
       const bytes = randomHandle();
@@ -303,6 +309,10 @@ export const checkRegistration = query({
  * - `name`: an optional label for the credential. This can be automatically
  *   inferred by the client from the authenticator (e.g. “1Password”),
  *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
+ * - `transports`: the transports that the browser reported for the new
+ *   credential. The value is a hint: a later ceremony sends it back to the
+ *   browser, and the verification does not use it. The function throws for
+ *   a value that no authenticator can report.
  *
  * The function examines the attestation as
  * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
@@ -320,9 +330,11 @@ export const finishRegistration = mutation({
     ...registrationCheckArgs,
     verifiedUserId: v.string(),
     name: v.optional(v.string()),
+    transports: v.optional(v.array(v.string())),
   },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    validateTransports(args.transports);
     const verification = await verifyRegistration(ctx, args);
 
     if (verification.userError !== null) {
@@ -372,6 +384,7 @@ export const finishRegistration = mutation({
       algorithm: verification.algorithm,
       publicKey: verification.publicKey,
       counter: verification.counter,
+      transports: args.transports,
     });
     return { success: true, passkeyId };
   },
