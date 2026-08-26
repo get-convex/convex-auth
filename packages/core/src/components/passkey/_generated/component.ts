@@ -33,6 +33,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           credentialId: ArrayBuffer;
           expectedOrigin: string;
           expectedRpId: string;
+          purpose: string;
           signature: ArrayBuffer;
         },
         | { passkeyId: string; success: true; userId: string }
@@ -48,7 +49,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       startAuthentication: FunctionReference<
         "mutation",
         "internal",
-        { userId?: string },
+        { purpose: string; userId?: string },
         {
           allowCredentials: Array<{
             id: ArrayBuffer;

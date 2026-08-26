@@ -37,6 +37,12 @@ const startAuthenticationResult = v.object({
 /**
  * Start an authentication ceremony.
  *
+ * `purpose` binds the challenge to one flow of the app (for example a
+ * sign-in, or a re-authentication before a change of a setting). The
+ * component does not parse the value. The app chooses the strings.
+ * `finishAuthentication` must receive the same purpose. A different
+ * purpose burns the challenge.
+ *
  * If `userId` is set, it will force the authentication ceremony to be
  * tied to this particular user. This is necessary in flows where the
  * user is being asked to authenticate to a particular account
@@ -49,13 +55,14 @@ const startAuthenticationResult = v.object({
  * directly to this account).
  */
 export const startAuthentication = mutation({
-  args: { userId: v.optional(v.string()) },
+  args: { purpose: v.string(), userId: v.optional(v.string()) },
   returns: startAuthenticationResult,
-  handler: async (ctx, { userId }) => {
+  handler: async (ctx, { purpose, userId }) => {
     const challenge = randomChallenge();
     await ctx.db.insert("challenges", {
       kind: "authentication",
       challenge,
+      purpose,
       userId,
     });
     await scheduleChallengeCleanup(ctx);
@@ -100,9 +107,13 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
  * data, the client data, and the assertion signature. It deletes the
  * challenge and returns the `userId` of the user. The app can then make a
  * session for that user.
+ *
+ * `purpose` must be the purpose that `startAuthentication` received. A
+ * different purpose throws.
  */
 export const finishAuthentication = mutation({
   args: {
+    purpose: v.string(),
     expectedRpId: v.string(),
     expectedOrigin: v.string(),
     credentialId: v.bytes(),
@@ -160,6 +171,14 @@ export const finishAuthentication = mutation({
     if (challengeRow === null) {
       return { success: false, userError: { error: "CHALLENGE_EXPIRED" } };
     }
+    if (challengeRow.purpose !== args.purpose) {
+      // A correct client gives the same purpose to both steps. A mismatch
+      // is probably a bug in the caller or client code, not a end-user
+      // error. Throwing will roll `consumeChallenge` back, but that’s okay
+      throw new Error(
+        "The purpose does not match the purpose of the challenge.",
+      );
+    }
     // A challenge with a `userId` (the identifier-first flow) must agree
     // with the owner of the credential. A challenge without a `userId` is a
     // discoverable-credential ceremony. In that flow, each registered
@@ -203,6 +222,7 @@ export const finishAuthentication = mutation({
     // cloned authenticators. But this would require the app to detect this
     // and using it appropriately, and most authenticators will always set it to 0 anyway.
     // https://www.imperialviolet.org/2023/08/05/signature-counters.html
+    // TODO(nicolas) Also record `lastUsedAt` here when the field exists.
     await ctx.db.patch("passkeys", passkey._id, {
       counter: authenticatorData.signatureCounter,
     });

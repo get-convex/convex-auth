@@ -56,6 +56,8 @@ export type UsernamePasskeyOptions = {
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "passkey";
 
+export const SIGN_IN_PURPOSE = "usernamePasskey:signIn";
+
 const startSignInResult = v.union(
   // The username has an account: authenticate with a passkey of that
   // account. The challenge is bound to the user.
@@ -220,7 +222,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               // TODO: Should we throw an error instead?
               const { challenge, allowCredentials } = await ctx.runMutation(
                 component.authentication.startAuthentication,
-                { userId },
+                { purpose: SIGN_IN_PURPOSE, userId },
               );
               return {
                 success: true,
@@ -258,7 +260,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
           handler: async (ctx): Promise<StartAutofillSignInResult> => {
             const { challenge } = await ctx.runMutation(
               component.authentication.startAuthentication,
-              {},
+              { purpose: SIGN_IN_PURPOSE },
             );
             return { challenge, rpId };
           },
@@ -398,6 +400,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             const authenticationResult = await ctx.runMutation(
               component.authentication.finishAuthentication,
               {
+                purpose: SIGN_IN_PURPOSE,
                 expectedRpId: rpId,
                 expectedOrigin: origin,
                 credentialId: args.credentialId,
