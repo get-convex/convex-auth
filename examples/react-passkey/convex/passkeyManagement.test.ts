@@ -20,6 +20,7 @@ import {
   type TestCredential,
 } from "@convex-dev/auth/providers/testing/passkey";
 import { registerUsername } from "@convex-dev/auth/providers/testing/username";
+import { MAX_PASSKEYS_PER_USER } from "@convex-dev/auth/providers/passkey/management/add";
 import { api } from "./_generated/api";
 import schema from "./schema";
 
@@ -289,6 +290,53 @@ describe("adding a passkey", () => {
         attest(start.challenge, credential),
       ),
     ).rejects.toThrow("The user already has a different handle");
+  });
+
+  test("refuses a user who already holds the largest number of passkeys", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    const caller = as(t, alice.userId);
+
+    // The sign-up made the first passkey; fill the remaining places.
+    for (let i = 1; i < MAX_PASSKEYS_PER_USER; i++) {
+      await addPasskey(t, alice.userId, alice.credential);
+    }
+    const list = await caller.query(api.auth.listPasskeys, {});
+    if (!list.success) throw new Error("The caller is signed in.");
+    expect(list.passkeys).toHaveLength(MAX_PASSKEYS_PER_USER);
+
+    expect(await caller.mutation(api.auth.startAddPasskey, {})).toEqual({
+      success: false,
+      userError: { error: "TOO_MANY_PASSKEYS" },
+    });
+  });
+
+  test("refuses a ceremony whose last place a second tab took", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    const caller = as(t, alice.userId);
+    for (let i = 2; i < MAX_PASSKEYS_PER_USER; i++) {
+      await addPasskey(t, alice.userId, alice.credential);
+    }
+
+    // One place is left: this ceremony starts and gets its challenge.
+    const start = await caller.mutation(api.auth.startAddPasskey, {});
+    if (!start.success) throw new Error("One place is left.");
+    const verified = await caller.mutation(
+      api.auth.verifyAddPasskey,
+      await assertWith(alice.credential, start.challenge),
+    );
+    if (!verified.success) throw new Error("The assertion is valid.");
+
+    // A second tab takes the last place before this ceremony finishes.
+    await addPasskey(t, alice.userId, alice.credential);
+
+    expect(
+      await caller.mutation(
+        api.auth.finishAddPasskey,
+        attest(verified.challenge, await generateES256Credential()),
+      ),
+    ).toEqual({ success: false, userError: { error: "TOO_MANY_PASSKEYS" } });
   });
 
   test("refuses a signed-out caller", async () => {
