@@ -94,16 +94,19 @@ what is true at creation time. Leave it out if there is nothing to do.
 
 ### Set up the public backend functions
 
-Set up the passkey provider with `setupUsernamePasskey` and export the four
-mutations it hands back once you attach the callback that creates your user
+Set up the passkey provider with `setupUsernamePasskey` and export the
+functions it hands back once you attach the callback that creates your user
 rows, in `convex/auth.ts`:
 
 <include
   lang="ts"
-  meta='title="convex/auth.ts" highlight="import { setupUsernamePasskey }" highlight="export const { startSignIn, startAutofillSignIn, finishSignUp, finishSignIn } =...}).attachUserCallbacks({ createUser: internal.users.createUser });"'
+  meta='title="convex/auth.ts" highlight="import { setupUsernamePasskey }" highlight="const passkey = setupUsernamePasskey(core, {...}).attachUserCallbacks({ createUser: internal.users.createUser });" highlight="// The four sign-in mutations...} = passkey;"'
 >
   ../../../../../examples/react-passkey-basic/convex/auth.ts
 </include>
+
+The export list holds the four sign-in mutations and the six functions of
+[Managing passkeys](#managing-passkeys) below.
 
 `rpId` and `origin` bind the passkeys to your app:
 
@@ -165,3 +168,34 @@ Copy the following code block inside of your app:
 </Step>
 
 </Steps>
+
+## Managing passkeys
+
+One passkey is rarely enough. A phone breaks, a security key gets lost, and an
+account with a single passkey then has no way back in. The provider comes with
+the functions for a settings page where a signed-in user lists their passkeys,
+adds one, and removes one.
+
+`convex/auth.ts` above already exports them: `listPasskeys`, `startAddPasskey`,
+`verifyAddPasskey`, `finishAddPasskey`, `startRemovePasskey`, and
+`finishRemovePasskey`. The `usePasskeyManagement` hook takes the module they
+live in. It subscribes to the list of passkeys and runs the browser ceremonies
+for you:
+
+<include
+  lang="tsx"
+  meta='title="src/routes/dashboard.tsx" highlight="  usePasskeyManagement," highlight="<PasskeySettings />" highlight="usePasskeyManagement(api.auth);"'
+>
+  ../../../../../examples/react-passkey/src/routes/dashboard.tsx
+</include>
+
+`addPasskey()` opens two browser dialogs one after the other. The first asks
+for a passkey the user already owns, which proves that the person at the
+keyboard owns the account. The second dialog creates the new passkey.
+
+`removePasskey(passkeyId)` opens one dialog, and the user must answer it with a
+passkey _other_ than the one that goes away. A passkey cannot authorize its own
+removal, so a stolen passkey cannot erase the passkey of the owner. The same
+rule keeps the last passkey of an account in place. The server answers that
+attempt with a `LAST_PASSKEY` error, and the example disables the Remove button
+while the account has one passkey.
