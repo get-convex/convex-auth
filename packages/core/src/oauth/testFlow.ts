@@ -95,7 +95,10 @@ export function oauthClient(storage: TokenStorage): {
   const signInApi = { mutation, action: vi.fn() } as unknown as AuthSignInApi;
   const client = new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" as const }),
+      signOut: async () => {},
+    },
     storage,
     storageNamespace: NAMESPACE,
     ambientSignIns: { signIns: [oauth()], signInApi },

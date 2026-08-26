@@ -14,7 +14,10 @@ const NAMESPACE = "https://happy-animal-123.convex.cloud";
 function makeClient() {
   return new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" as const }),
+      signOut: async () => {},
+    },
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
@@ -28,7 +31,10 @@ function makeProbeClient() {
   const probe: { values?: SignInValues } = {};
   const client = new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" as const }),
+      signOut: async () => {},
+    },
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
     ambientSignIns: {

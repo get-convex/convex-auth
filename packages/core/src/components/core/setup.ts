@@ -14,8 +14,9 @@ import {
 import { ObjectType, PropertyValidators, v, Validator } from "convex/values";
 import type { ComponentApi } from "./_generated/component.ts";
 import {
-  vTokenBundle,
   type TokenBundle,
+  vRefreshResult,
+  type RefreshResult,
   type ConvexAuthCtx,
   type UserCallbacks,
 } from "../../lib/types.ts";
@@ -98,18 +99,19 @@ export type AuthCore<UsersTable extends string = string> = {
     Promise<null>
   >;
   /**
-   * Refreshes a session using the given token, rotating the refresh token.
+   * Refreshes a session using the given token, rotating the refresh token when
+   * the presented one is current.
    *
-   * A successful refresh returns a new token bundle. A failed refresh (an
-   * unknown or expired token) returns `null` and leaves no usable session
-   * behind (an expired session is deleted as part of the same call). Callers,
-   * including the client, should treat a `null` result as signed-out and clear
-   * any stored session.
+   * Resolves to one of the {@link RefreshResult} outcomes. `rotated` carries a
+   * new token bundle to persist. `reused` means a concurrent caller had already
+   * rotated this token within its grace window: take the access token and keep
+   * the refresh token already in storage, since the winner's response carries
+   * the replacement. A `noSession` result should be treated as signed-out.
    */
   refreshSession: RegisteredMutation<
     "public",
     { refreshToken: string },
-    Promise<TokenBundle | null>
+    Promise<RefreshResult>
   >;
   /**
    * Reports whether the caller's access token identifies a signed-in user.
@@ -229,8 +231,8 @@ export function setupCore<UsersTable extends string = "users">(options: {
 
   const refreshSession = mutationGeneric({
     args: { refreshToken: v.string() },
-    returns: v.union(vTokenBundle, v.null()),
-    handler: async (ctx, args): Promise<TokenBundle | null> => {
+    returns: vRefreshResult,
+    handler: async (ctx, args): Promise<RefreshResult> => {
       return await ctx.runMutation(component.public.refresh, {
         refreshToken: args.refreshToken,
         issuer: issuer(),

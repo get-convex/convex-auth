@@ -42,7 +42,7 @@ describe("OAuth client", () => {
         new AuthClient({
           mode: "spa",
           authApi: {
-            refreshSession: async () => null,
+            refreshSession: async () => ({ kind: "noSession" as const }),
             signOut: async () => {},
           },
           storage: new InMemoryStorage(),

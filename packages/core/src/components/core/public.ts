@@ -13,6 +13,8 @@ import {
   type AuthClaims,
   vTokenBundle,
   type TokenBundle,
+  vRefreshResult,
+  type RefreshResult,
   USE_USER_ID_AS_ACCOUNT_ID,
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
@@ -587,15 +589,34 @@ async function sessionBySpentHash(
 }
 
 /**
- * Rotate a refresh token and mint a fresh access token.
+ * Exchange a refresh token for a fresh access token, rotating when the
+ * presented token is the session's current one.
  *
- * Returns `null` when the session can't be refreshed.
+ * The outcomes are the arms of {@link vRefreshResult}:
  *
- * That can happen with an unknown token, one past its refresh-token lifetime,
- * or a previously used token past the grace refresh window.
+ *  * `rotated`: the token was current. It is spent, a replacement is minted,
+ *    and the caller persists both tokens.
+ *  * `reused`: a concurrent caller had already rotated this token, and it is
+ *    still inside `REFRESH_GRACE_MS`. A fresh access token is minted
+ *    *but not a new refresh token* (more on this below).
+ *  * `noSession`: unknown token, one past its refresh-token lifetime, or a
+ *    spent token past the grace window (which also revokes the session).
+ *    The client must reflect this as being signed out.
  *
- * A dead session is a normal outcome the caller should handle by updating its
- * authenticated state.
+ * Here's why the `reused` outcome doesn't rotate or include a refresh token.
+ *
+ * If two refresh requests race with the same refresh token, and we rotated for
+ * both of them, the "winner" of the race would have their newly rotated token
+ * immediately marked as spent when the "loser" has their token also rotated.
+ * If the HTTP response to the "winner's" request came in after the "loser",
+ * that spent refresh token would be stored on the client (last writer "wins").
+ * A later attempt to refresh with that stored (and spent) token wouldn't look
+ * any different than a client presenting a stolen/leaked refresh token, and
+ * the session would be ended as a safety measure.
+ *
+ * Since we don't rotate, the loser of the refresh race above won't get a new
+ * refresh token but will be told to reuse whatever token already exists (the
+ * one issued to the winner).
  */
 export const refresh = mutation({
   args: {
@@ -604,8 +625,8 @@ export const refresh = mutation({
     accessTokenTtlSeconds: v.optional(v.number()),
     refreshTokenTtlSeconds: v.optional(v.number()),
   },
-  returns: v.union(vTokenBundle, v.null()),
-  handler: async (ctx, args): Promise<TokenBundle | null> => {
+  returns: vRefreshResult,
+  handler: async (ctx, args): Promise<RefreshResult> => {
     // Resolve the TTL config well before use below - it does some validation
     // of the config that will throw if invalid, and that should be
     // unconditional.
@@ -613,11 +634,15 @@ export const refresh = mutation({
 
     const hash = await sha256Hex(args.refreshToken);
     let { session, isValid } = await sessionByHash(ctx, hash);
+    // Whether the presented token was already rotated away by a concurrent
+    // caller, which is what separates a rotation from a grace-window reuse.
+    let isSpent = false;
     if (session === null) {
       // This is not the current refresh token - it might still be valid for refresh though.
+      isSpent = true;
       ({ session, isValid } = await sessionBySpentHash(ctx, hash));
     }
-    if (session === null) return null;
+    if (session === null) return { kind: "noSession" };
     if (!isValid) {
       // Past its refresh-token lifetime or a spent token past the grace
       // window: delete the session and grant no more tokens.
@@ -626,11 +651,33 @@ export const refresh = mutation({
           "This could be due to a bug or a leaked refresh token.",
       );
       await deleteSession(ctx, session._id);
-      return null;
+      return { kind: "noSession" };
+    }
+
+    if (isSpent) {
+      // Deliberately no writes: no spent-token insert, no session patch, not
+      // even `lastRefreshedAt`. See the note above.
+      const access = await mintAccessToken(
+        session.userId,
+        args.issuer,
+        ttl.accessTokenTtlSeconds,
+      );
+      return {
+        kind: "reused",
+        accessToken: access.token,
+        accessTokenExpiresAt: access.expiresAt,
+        // The winner's rotation already extended this; carry it so a caller
+        // storing the access token in a cookie gives it a rotation's lifetime.
+        refreshTokenExpiresAt: session.refreshTokenExpiresAt,
+        userId: session.userId,
+      };
     }
 
     const now = Date.now();
-    return await rotateSession(ctx, session, now, args.issuer, ttl);
+    return {
+      kind: "rotated",
+      tokens: await rotateSession(ctx, session, now, args.issuer, ttl),
+    };
   },
 });
 

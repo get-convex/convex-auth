@@ -34,7 +34,7 @@ function makeClient(
   const client = new AuthClient({
     mode: "spa",
     authApi: {
-      refreshSession: async () => null,
+      refreshSession: async () => ({ kind: "noSession" as const }),
       signOut: async () => {},
       ...authApi,
     },

@@ -45,7 +45,7 @@ beforeEach(() => mutationMock.mockReset());
 describe("refreshHandler", () => {
   test("rotates the session and returns access-only tokens", async () => {
     // Set up the refresh mutation to return new tokens.
-    mutationMock.mockResolvedValue(bundle(2));
+    mutationMock.mockResolvedValue({ kind: "rotated", tokens: bundle(2) });
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,
@@ -79,6 +79,41 @@ describe("refreshHandler", () => {
     expect(refresh).toContain("HttpOnly");
   });
 
+  test("a reused refresh replies like a rotation but writes only the JWT cookie", async () => {
+    // A concurrent caller had already rotated this token inside its grace
+    // window, so only an access token comes back.
+    const { refreshToken: _, ...reused } = bundle(2);
+    mutationMock.mockResolvedValue({ kind: "reused", ...reused });
+    const handler = refreshHandler({
+      convexUrl: "https://x.convex.cloud",
+      refreshSession: fnRef,
+      cookieOptions: { secure: false },
+    });
+
+    const res = await handler(requestWithRefresh("refresh-1"));
+    expect(res.status).toBe(200);
+
+    // Indistinguishable from a rotation to the browser, which never sees a
+    // refresh token under SSR and so has nothing to do differently.
+    expect(await res.json()).toEqual({
+      tokens: {
+        accessToken: "access-2",
+        accessTokenExpiresAt: 1_000,
+        userId: "user-1",
+      },
+    });
+
+    // The winning caller's response carries the replacement refresh token;
+    // writing one here would race it.
+    const setCookies = res.headers.getSetCookie();
+    expect(
+      setCookies.find((c) => c.startsWith(`${AUTH_JWT_COOKIE}=`)),
+    ).toContain("access-2");
+    expect(
+      setCookies.some((c) => c.startsWith(`${AUTH_REFRESH_COOKIE}=`)),
+    ).toBe(false);
+  });
+
   test("with no refresh cookie replies 401 without calling Convex", async () => {
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
@@ -93,8 +128,8 @@ describe("refreshHandler", () => {
   });
 
   test("replies 401 and clears cookies when the refresh token is unknown", async () => {
-    // Set up the refresh mutation to not recognize the token and to return null.
-    mutationMock.mockResolvedValue(null);
+    // Set up the refresh mutation to not recognize the token.
+    mutationMock.mockResolvedValue({ kind: "noSession" });
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,

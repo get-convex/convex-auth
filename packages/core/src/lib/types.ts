@@ -60,9 +60,12 @@ export type SlimTokenBundle = {
 
 /**
  * Strip down a {@link TokenBundle} down to a {@link SlimTokenBundle},
- * dropping the refresh token so it is never sent to the browser.
+ * dropping the refresh token so it is never sent to the browser. Also accepts a
+ * {@link ReusedSession}, which has no refresh token to drop.
  */
-export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
+export function makeSlimBundle(
+  bundle: TokenBundle | ReusedSession,
+): SlimTokenBundle {
   return {
     accessToken: bundle.accessToken,
     accessTokenExpiresAt: bundle.accessTokenExpiresAt,
@@ -101,13 +104,48 @@ export type ClientView<T> = T extends { tokens: TokenBundle }
   ? Omit<T, "tokens"> & { tokens: SlimTokenBundle }
   : T;
 
-/** The app's `refreshSession` mutation reference: exchange a refresh token for a
- * fresh {@link TokenBundle}, or `null` when the session is gone. */
+/**
+ * A session whose refresh token a concurrent caller had already rotated:
+ * everything a {@link TokenBundle} carries except the refresh token.
+ *
+ * There cannot be a refresh token here, since the current one is persisted only
+ * as a hash. `refreshTokenExpiresAt` is not secret and is carried so a caller
+ * storing the access token in a cookie can give it a rotation's lifetime.
+ */
+export type ReusedSession = Omit<TokenBundle, "refreshToken">;
+
+/**
+ * The result of refreshing a session. The `kind` will be one of:
+ *
+ *  * `rotated`: the presented token was current and has been exchanged for the
+ *    bundle in `tokens`. Persist both tokens.
+ *  * `reused`: a concurrent caller had already rotated the presented token,
+ *    which is still inside its grace window. Take the access token and treat a
+ *    previously stored refresh token as current.
+ *  * `noSession`: the token is unknown, or was rotated too long ago to honor.
+ *    Clear any stored session, treat it as signed out.
+ */
+export const vRefreshResult = v.union(
+  v.object({ kind: v.literal("rotated"), tokens: vTokenBundle }),
+  v.object({
+    kind: v.literal("reused"),
+    accessToken: v.string(),
+    accessTokenExpiresAt: v.number(),
+    refreshTokenExpiresAt: v.number(),
+    userId: v.string(),
+  }),
+  v.object({ kind: v.literal("noSession") }),
+);
+
+export type RefreshResult = Infer<typeof vRefreshResult>;
+
+/** The app's `refreshSession` mutation reference: exchange a refresh token for
+ * a fresh session. See {@link vRefreshResult} for the outcomes. */
 export type RefreshSessionFn = FunctionReference<
   "mutation",
   "public",
   { refreshToken: string },
-  TokenBundle | null
+  RefreshResult
 >;
 
 /** The app's `signOut` mutation reference: revoke the session for a refresh

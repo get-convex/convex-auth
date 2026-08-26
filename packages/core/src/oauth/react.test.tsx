@@ -108,7 +108,10 @@ describe("OAuth React client", () => {
   test("the hooks throw when oauth() is not registered", () => {
     const client = new AuthClient({
       mode: "spa",
-      authApi: { refreshSession: async () => null, signOut: async () => {} },
+      authApi: {
+        refreshSession: async () => ({ kind: "noSession" as const }),
+        signOut: async () => {},
+      },
       storage: new InMemoryStorage(),
       storageNamespace: NAMESPACE,
     });

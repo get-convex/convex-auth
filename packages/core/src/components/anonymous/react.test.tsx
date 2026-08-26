@@ -31,7 +31,10 @@ const signInAnonymous = {} as SignInAnonymousMutation;
 function renderAnonymousAuth() {
   const client = new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" as const }),
+      signOut: async () => {},
+    },
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
