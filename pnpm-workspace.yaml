@@ -13,3 +13,4 @@ minimumReleaseAge: 10080
 # to this list.
 minimumReleaseAgeExclude:
   - argon2id-wasm
+  - convex

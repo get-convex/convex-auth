@@ -1,4 +1,4 @@
-import { FunctionReference } from "convex/server";
+import { FunctionReference, FunctionReference_future } from "convex/server";
 
 import { GenericId, Infer, v, type Validator } from "convex/values";
 
@@ -254,29 +254,20 @@ export const USE_USER_ID_AS_ACCOUNT_ID = "";
  * one is only responsible for what is true at creation time.
  *
  * This is the core entrypoint for an application to integrate its user model
- * with Convex Auth. Apps install one per provider, via that provider's
- * `attachUserCallbacks`, typed with that provider's exact name and profile
- * shape. Throw a `ConvexError` to reject the sign up.
+ * with Convex Auth. Apps install one per provider, although the function that
+ * is passed in may be shared across multiple providers if it is typed to
+ * accept a union of them.
  *
  * The application keeps ownership of its users table. The core treats the
  * returned id as an opaque string at runtime; at the type level the table is
  * named by `setupCore`'s `usersTable` option, which is what makes the return
  * type `Id<usersTable>` rather than a bare string.
- *
- * The mutation's args must be declared with the provider's *exact* literal
- * types (e.g. `provider: v.object({ name: v.literal("password"), accountId:
- * v.string(), profile: v.object({ username: v.string() }) })`).
- *
- * One mutation shared across providers, declaring a union of provider names,
- * is runtime-safe but does not typecheck, because `FunctionReference` args
- * compare covariantly. For shared logic, define one thin mutation per provider
- * that delegates to a plain shared function.
  */
 export type CreateUserFn<
   ProviderName extends string,
   Profile,
   UsersTable extends string = string,
-> = FunctionReference<
+> = FunctionReference_future<
   "mutation",
   "internal",
   {
@@ -303,16 +294,12 @@ export type CreateUserFn<
  * return `null`, or leave the callback out entirely. Throw a `ConvexError` to
  * reject the sign in, which on a first sign-in rolls back the user the create
  * callback just made.
- *
- * Like {@link CreateUserFn}, the args must be declared with the provider's
- * exact literal types, and one mutation per provider (delegating to a plain
- * shared function) is how to share logic across providers.
  */
 export type OnSignInFn<
   ProviderName extends string,
   Profile,
   UsersTable extends string = string,
-> = FunctionReference<
+> = FunctionReference_future<
   "mutation",
   "internal",
   {
