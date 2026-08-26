@@ -97,15 +97,12 @@ async function addPasskey(
   authorizeWith: TestCredential,
 ): Promise<{ passkeyId: string; credential: TestCredential }> {
   const caller = as(t, userId);
-  const start = await caller.mutation(
-    api.management.passkeys.startAddPasskey,
-    {},
-  );
+  const start = await caller.mutation(api.auth.startAddPasskey, {});
   if (!start.success) {
     throw new Error(`The add could not start: ${start.userError.error}`);
   }
   const verified = await caller.mutation(
-    api.management.passkeys.verifyAddPasskey,
+    api.auth.verifyAddPasskey,
     await authenticator.assert(authorizeWith, start.challenge),
   );
   if (!verified.success) {
@@ -115,7 +112,7 @@ async function addPasskey(
   }
   const credential = await authenticator.createCredential();
   const finished = await caller.mutation(
-    api.management.passkeys.finishAddPasskey,
+    api.auth.finishAddPasskey,
     authenticator.attest(credential, verified.challenge),
   );
   if (!finished.success) {
@@ -132,10 +129,7 @@ describe("signing up and signing in", () => {
     const users = await t.run((ctx) => ctx.db.query("users").collect());
     expect(users.map((user) => user._id)).toEqual([alice.userId]);
 
-    const list = await as(t, alice.userId).query(
-      api.management.passkeys.listPasskeys,
-      {},
-    );
+    const list = await as(t, alice.userId).query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
     expect(list.passkeys).toHaveLength(1);
     expect(list.passkeys[0]).toEqual({
@@ -169,21 +163,15 @@ describe("signing up and signing in", () => {
   });
 });
 
-describe("api.management.passkeys", () => {
+describe("passkey management", () => {
   test("lists the passkeys of the caller only", async () => {
     const t = await setup();
     const alice = await signUp(t, "alice");
     const bob = await signUp(t, "bob");
     await addPasskey(t, alice.userId, alice.credential);
 
-    const forAlice = await as(t, alice.userId).query(
-      api.management.passkeys.listPasskeys,
-      {},
-    );
-    const forBob = await as(t, bob.userId).query(
-      api.management.passkeys.listPasskeys,
-      {},
-    );
+    const forAlice = await as(t, alice.userId).query(api.auth.listPasskeys, {});
+    const forBob = await as(t, bob.userId).query(api.auth.listPasskeys, {});
     if (!forAlice.success || !forBob.success) {
       throw new Error("Both callers are signed in.");
     }
@@ -198,7 +186,7 @@ describe("api.management.passkeys", () => {
   test("refuses a signed-out caller", async () => {
     const t = await setup();
     await signUp(t, "alice");
-    expect(await t.query(api.management.passkeys.listPasskeys, {})).toEqual({
+    expect(await t.query(api.auth.listPasskeys, {})).toEqual({
       success: false,
       userError: { error: "NOT_SIGNED_IN" },
     });
@@ -209,10 +197,7 @@ describe("api.management.passkeys", () => {
     const alice = await signUp(t, "alice");
     const second = await addPasskey(t, alice.userId, alice.credential);
 
-    const list = await as(t, alice.userId).query(
-      api.management.passkeys.listPasskeys,
-      {},
-    );
+    const list = await as(t, alice.userId).query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
     expect(list.passkeys.map((passkey) => passkey.passkeyId)).toContain(
       second.passkeyId,
@@ -232,10 +217,9 @@ describe("api.management.passkeys", () => {
     const second = await addPasskey(t, alice.userId, alice.credential);
     const caller = as(t, alice.userId);
 
-    const start = await caller.mutation(
-      api.management.passkeys.startRemovePasskey,
-      { passkeyId: second.passkeyId },
-    );
+    const start = await caller.mutation(api.auth.startRemovePasskey, {
+      passkeyId: second.passkeyId,
+    });
     if (!start.success) throw new Error("The account has two passkeys.");
     // The passkey that goes away cannot authorize its own removal, thus the
     // browser must not offer it.
@@ -246,13 +230,13 @@ describe("api.management.passkeys", () => {
     );
 
     expect(
-      await caller.mutation(api.management.passkeys.finishRemovePasskey, {
+      await caller.mutation(api.auth.finishRemovePasskey, {
         passkeyId: second.passkeyId,
         ...(await authenticator.assert(alice.credential, start.challenge)),
       }),
     ).toEqual({ success: true });
 
-    const list = await caller.query(api.management.passkeys.listPasskeys, {});
+    const list = await caller.query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
     expect(list.passkeys).toHaveLength(1);
     expectSameBytes(
@@ -265,11 +249,11 @@ describe("api.management.passkeys", () => {
     const t = await setup();
     const alice = await signUp(t, "alice");
     const caller = as(t, alice.userId);
-    const list = await caller.query(api.management.passkeys.listPasskeys, {});
+    const list = await caller.query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
 
     expect(
-      await caller.mutation(api.management.passkeys.startRemovePasskey, {
+      await caller.mutation(api.auth.startRemovePasskey, {
         passkeyId: list.passkeys[0].passkeyId,
       }),
     ).toEqual({ success: false, userError: { error: "LAST_PASSKEY" } });
