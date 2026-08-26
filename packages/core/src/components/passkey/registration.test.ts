@@ -930,6 +930,7 @@ describe("deleteUser", () => {
     const authenticationChallengeId = await t.run((ctx) =>
       ctx.db.insert("challenges", {
         kind: "authentication",
+        purpose: "test",
         challenge: new Uint8Array(32).fill(0xaa).buffer,
         userId: "user1",
       }),
@@ -971,6 +972,7 @@ describe("deleteUser", () => {
     const otherChallengeId = await t.run((ctx) =>
       ctx.db.insert("challenges", {
         kind: "authentication",
+        purpose: "test",
         challenge: new Uint8Array(32).fill(0xbb).buffer,
         userId: "user2",
       }),
@@ -979,6 +981,7 @@ describe("deleteUser", () => {
     const anonymousChallengeId = await t.run((ctx) =>
       ctx.db.insert("challenges", {
         kind: "authentication",
+        purpose: "test",
         challenge: new Uint8Array(32).fill(0xcc).buffer,
       }),
     );

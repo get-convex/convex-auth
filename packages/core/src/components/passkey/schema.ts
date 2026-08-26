@@ -68,6 +68,17 @@ export default defineSchema({
       v.object({
         kind: v.literal("authentication"),
         challenge: v.bytes(),
+        // The flow that this challenge is for, for example a sign-in or a
+        // re-authentication before a change of a setting. The value is
+        // opaque to the component. The start step and the finish step
+        // must give the same purpose, thus an assertion for one flow
+        // cannot complete a different flow. A different purpose
+        // at the finish step burns the challenge.
+        // The purpose string is expected to be a constant string identifying
+        // a specific flow, and should not contain dynamic information.
+        // TODO(nicolas) Make `startAuthentication` return the challenge ID too
+        //               so that callers can attach additional info if needed
+        purpose: v.string(),
         // The user that the challenge is for, if the app knows the user.
         // The field is not set for discoverable-credential ceremonies. In
         // that flow, the assertion identifies the user.

@@ -108,6 +108,7 @@ describe("consumeChallenge", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("challenges", {
         kind: "authentication",
+        purpose: "test",
         challenge: toArrayBuffer(challenge),
       });
       expect(await consumeChallenge(ctx, "authentication", challenge)).not.toBe(

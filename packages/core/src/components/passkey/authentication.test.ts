@@ -11,7 +11,15 @@ import {
   register,
 } from "./testAuthenticator.ts";
 
-const EXPECTED = { expectedRpId: RP_ID, expectedOrigin: ORIGIN };
+// The component gives no purpose of its own: each app names its own flows.
+const PURPOSE = "test/signIn";
+const OTHER_PURPOSE = "test/removePasskey";
+
+const EXPECTED = {
+  purpose: PURPOSE,
+  expectedRpId: RP_ID,
+  expectedOrigin: ORIGIN,
+};
 
 // Only the expiry test moves the clock, but the restore is global to keep the
 // other tests on the real clock.
@@ -26,7 +34,7 @@ describe("startAuthentication", () => {
     await register(t, "user2");
     const { challenge, allowCredentials } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     expect(new Uint8Array(challenge).length).toBe(32);
     expect(allowCredentials).toHaveLength(1);
@@ -34,6 +42,7 @@ describe("startAuthentication", () => {
     const [row] = await t.run((ctx) => ctx.db.query("challenges").collect());
     expect(row.kind).toBe("authentication");
     expect(row.kind === "authentication" && row.userId).toBe("user1");
+    expect(row.kind === "authentication" && row.purpose).toBe(PURPOSE);
   });
 
   test("returns the transports of each passkey in allowCredentials", async () => {
@@ -42,7 +51,7 @@ describe("startAuthentication", () => {
     const withoutTransports = await register(t, "user1");
     const { allowCredentials } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
 
     const byId = new Map(
@@ -66,7 +75,7 @@ describe("startAuthentication", () => {
     await register(t, "user1");
     const { allowCredentials } = await t.mutation(
       api.authentication.startAuthentication,
-      {},
+      { purpose: PURPOSE },
     );
     expect(allowCredentials).toEqual([]);
     const [row] = await t.run((ctx) => ctx.db.query("challenges").collect());
@@ -80,7 +89,7 @@ describe("finishAuthentication", () => {
     const { credential, passkeyId } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge, {
       counter: 7,
@@ -105,7 +114,7 @@ describe("finishAuthentication", () => {
     const { passkeyId } = await register(t, "user1", { credential });
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
@@ -120,7 +129,7 @@ describe("finishAuthentication", () => {
     const { credential, passkeyId } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      {},
+      { purpose: PURPOSE },
     );
     const assertion = await buildAssertion(credential, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
@@ -135,7 +144,7 @@ describe("finishAuthentication", () => {
     await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const unregistered = await generateES256Credential();
     const assertion = await buildAssertion(unregistered, challenge);
@@ -159,7 +168,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
     await expect(
@@ -176,7 +185,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge, {
       rpId: "evil.example.net",
@@ -194,7 +203,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     // The flag checks run before the challenge is consumed, so the same
     // challenge can serve both variants.
@@ -216,7 +225,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge, {
       type: "webauthn.create",
@@ -234,7 +243,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge, {
       origin: "https://evil.example.net",
@@ -252,7 +261,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge, {
       crossOrigin: true,
@@ -270,7 +279,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
     // The age of a challenge is the age of its `_creationTime`, thus the
@@ -293,7 +302,7 @@ describe("finishAuthentication", () => {
     const { credential: credentialB } = await register(t, "userB");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "userA" },
+      { purpose: PURPOSE, userId: "userA" },
     );
     const assertion = await buildAssertion(credentialB, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
@@ -316,7 +325,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const otherKey = await generateES256Credential();
     const assertion = await buildAssertion(credential, challenge, {
@@ -338,7 +347,7 @@ describe("finishAuthentication", () => {
     await register(t, "user1", { credential });
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
@@ -360,7 +369,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
     await expect(
@@ -377,7 +386,7 @@ describe("finishAuthentication", () => {
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
-      { userId: "user1" },
+      { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
     const first = await t.mutation(api.authentication.finishAuthentication, {
@@ -393,5 +402,58 @@ describe("finishAuthentication", () => {
       success: false,
       userError: { error: "CHALLENGE_EXPIRED" },
     });
+  });
+
+  test("throws for a different purpose and keeps the challenge bound", async () => {
+    const t = setup();
+    const { credential, passkeyId } = await register(t, "user1");
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { purpose: PURPOSE, userId: "user1" },
+    );
+    const assertion = await buildAssertion(credential, challenge);
+    await expect(
+      t.mutation(api.authentication.finishAuthentication, {
+        ...EXPECTED,
+        ...assertion,
+        purpose: OTHER_PURPOSE,
+      }),
+    ).rejects.toThrow();
+
+    // The throw rolls the delete back, thus the challenge stays usable for
+    // the flow that started it, and only for that flow.
+    const retry = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...assertion,
+    });
+    expect(retry).toEqual({ success: true, userId: "user1", passkeyId });
+  });
+
+  test("keeps the challenges of two purposes independent", async () => {
+    const t = setup();
+    const { credential, passkeyId } = await register(t, "user1");
+    const signIn = await t.mutation(api.authentication.startAuthentication, {
+      purpose: PURPOSE,
+      userId: "user1",
+    });
+    const other = await t.mutation(api.authentication.startAuthentication, {
+      purpose: OTHER_PURPOSE,
+      userId: "user1",
+    });
+
+    // The challenge of the other flow is unusable for the sign-in flow.
+    await expect(
+      t.mutation(api.authentication.finishAuthentication, {
+        ...EXPECTED,
+        ...(await buildAssertion(credential, other.challenge)),
+      }),
+    ).rejects.toThrow();
+
+    // The failed attempt leaves the challenge of the sign-in flow alone.
+    const result = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...(await buildAssertion(credential, signIn.challenge)),
+    });
+    expect(result).toEqual({ success: true, userId: "user1", passkeyId });
   });
 });
