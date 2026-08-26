@@ -14,10 +14,13 @@ import {
   vTokenBundle,
   type TokenBundle,
   USE_USER_ID_AS_ACCOUNT_ID,
+  type CreateUserArgs,
+  type CreateUserFn,
+  type OnSignInArgs,
+  type OnSignInFn,
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
-import { CreateUserFn, OnSignInFn } from "../../lib/types.ts";
 
 // --- Configuration ---------------------------------------------------------
 
@@ -145,15 +148,20 @@ async function issueSession(
   };
 }
 
+// The argument types come from `CreateUserArgs`/`OnSignInArgs` rather than
+// from the reference types' `_args`, which is `any`: the app-facing callback
+// types put `any` there so an app's callback is checked contravariantly (see
+// `AcceptsArgs`). Reading `_args` here would leave the `runMutation` calls
+// below unchecked. `_type` and `_returnType` are unaffected.
 type CreateUserFunctionHandle = FunctionHandle<
   CreateUserFn<string, unknown>["_type"],
-  CreateUserFn<string, unknown>["_args"],
+  CreateUserArgs<string, unknown>,
   CreateUserFn<string, unknown>["_returnType"]
 >;
 
 type OnSignInFunctionHandle = FunctionHandle<
   OnSignInFn<string, unknown>["_type"],
-  OnSignInFn<string, unknown>["_args"],
+  OnSignInArgs<string, unknown>,
   OnSignInFn<string, unknown>["_returnType"]
 >;
 

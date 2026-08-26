@@ -9,7 +9,10 @@ export const createUser = internalMutation({
   args: {
     provider: v.literal("passkey"),
     providerAccountId: v.string(),
-    profile: v.object({ username: v.string() }),
+    // The passkey provider's profile username is nullable: it reads the
+    // username back from the username component, which returns `null` when the
+    // app has removed it.
+    profile: v.object({ username: v.union(v.string(), v.null()) }),
   },
   returns: v.id("users"),
   handler: async (ctx) => {
