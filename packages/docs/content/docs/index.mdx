@@ -3,11 +3,22 @@ title: Convex Auth
 description: The best way to add authentication to your Convex app.
 ---
 
+<Callout id="alpha" type="warn" title="Convex Auth v2 is in alpha">
+
+Do not use Convex Auth v2 in production projects yet. The APIs are expected to
+change before the general availability release.
+
+The alpha meets the same security bar as the stable release. However, it has no
+guaranteed upgrade path to the stable v2 release, and only the newest alpha gets
+bug fixes.
+
+</Callout>
+
 Convex Auth is the best way to add authentication to your
 [Convex](https://www.convex.dev) app.
 
 - ✅ Runs inside of your app, no external auth service required.
-- ✅ Highly extensible to your app’s auth needs.
+- ✅ Passwords, passkeys, OAuth and anonymous logins out of the box.
 - ✅ 100% free and open source.
 
 ## Frequently Asked Questions
@@ -35,28 +46,24 @@ pricing](https://www.convex.dev/pricing) applies.
 
 Currently Convex Auth supports several login methods out of the box:
 
-- Password
-- Passkey
-- OAuth (Google and GitHub)
-- Anonymous
+- [Password](/login-providers/password)
+- [Passkey](/login-providers/passkey)
+- [OAuth](/login-providers/oauth) (Google and GitHub)
+- [Anonymous](/login-providers/anonymous)
 
 Additional feature will be available with the stable release.
 
 ### Will my app be secure?
 
-Convex Auth is **built around modern security practices**. Its features are
-carefully designed to avoid common security pitfalls, and to respect industry
-standards.
+Convex Auth gives you **secure defaults**. Its features are carefully designed
+to avoid common security pitfalls.
 
 When using Convex Auth, the most sensitive data is stored in
 [components](https://www.convex.dev/components) that are isolated from the rest
 of your app. This ensures that sensitive data is never exposed, and that it is
 always accessed in ways that are safe (e.g. using hashes, salts, and rate
-limits where necessary).
-
-This is the case even if you write your own code to customize Convex Auth
-features. Convex Auth components are designed so that they can only be used
-safely.
+limits where necessary). The components are designed so that they can only be
+used safely.
 
 ### Do I keep control of my user data?
 
