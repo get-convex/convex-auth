@@ -38,6 +38,8 @@ export type TokenBundle = Infer<typeof vTokenBundle>;
  * SSR auth proxy find the refresh token without knowing which provider produced
  * the response, and lets it reject a shape it doesn't recognize instead of
  * forwarding tokens to the browser.
+ *
+ * @TODO(nicolas) Publish this type to make it easier to write custom providers
  */
 export const vSignInSuccess = v.object({
   success: v.literal(true),

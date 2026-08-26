@@ -7,6 +7,10 @@
  * handlers, the {@link convexProxyHandler} that serves sign-in, and the
  * {@link setupConvexAuthServer} factory that configures them all once.
  *
+ * The shapes these modules exchange with the browser and the backend (the token
+ * bundles, the sign-in envelope) are deliberately absent: they are not SSR
+ * specific, so this is the wrong entry point to publish them from.
+ *
  * @module
  */
 
@@ -54,15 +58,5 @@ export {
   type ServerAuthChecker,
   type ServerAuthCheckerConfig,
 } from "./isAuthenticated.ts";
-export type {
-  AuthSessionResponse,
-  ClientView,
-  ConvexAuthApi,
-  IsAuthenticatedFn,
-  RefreshSessionFn,
-  SignInSuccess,
-  SignOutFn,
-  SlimTokenBundle,
-  TokenBundle,
-} from "../lib/types.ts";
-export { makeSlimBundle, vSignInSuccess } from "../lib/types.ts";
+export type { AuthSessionResponse } from "../lib/types.ts";
+export { makeSlimBundle } from "../lib/types.ts";
