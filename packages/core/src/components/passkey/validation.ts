@@ -44,6 +44,53 @@ export function transportsAreValid(values: string[] | undefined): boolean {
 }
 
 /**
+ * The largest length of a `purpose` string. A purpose names one flow of the
+ * app ("myApp:signIn"), thus a short limit is enough. The limit stops a
+ * caller from writing large data to a challenge row.
+ */
+const MAX_PURPOSE_LENGTH = 128;
+
+// The characters that a purpose can contain: printable ASCII without the
+// space. The component does not parse the value beyond this.
+const PURPOSE_PATTERN = /^[\x21-\x7e]+$/;
+
+/**
+ * Show a purpose in an error message. The value comes from the caller,
+ * thus it can be long, empty, or contain characters that are not
+ * printable. `JSON.stringify` puts it in quotation marks and replaces
+ * these characters. A long value is cut to keep the message short.
+ */
+function describePurpose(value: string) {
+  const shown =
+    value.length > MAX_PURPOSE_LENGTH
+      ? `${value.slice(0, MAX_PURPOSE_LENGTH)}…`
+      : value;
+  return JSON.stringify(shown);
+}
+
+/**
+ * Examine the `purpose` of an authentication challenge, before the component
+ * stores it or compares it.
+ *
+ * The component does not give the purposes a meaning: the app chooses the
+ * strings. It only refuses a value that no constant flow name has.
+ *
+ * @throws when the value is empty, too long, or not printable ASCII.
+ */
+export function validatePurpose(purpose: string) {
+  if (purpose.length > MAX_PURPOSE_LENGTH) {
+    throw new Error(
+      `Purpose too long: ${describePurpose(purpose)} has ${purpose.length} characters, but a purpose can have a maximum of ${MAX_PURPOSE_LENGTH}.`,
+    );
+  }
+  if (!PURPOSE_PATTERN.test(purpose)) {
+    throw new Error(
+      `Invalid purpose: ${describePurpose(purpose)} is not a non-empty string of printable ASCII characters.`,
+    );
+  }
+}
+
+/**
  * One entry of `allowCredentials` or `excludeCredentials`. The WebAuthn
  * `type` field is not included, because it is always "public-key".
  */
