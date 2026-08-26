@@ -51,9 +51,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             };
           }
         | {
-            kind: "reused";
             accessToken: string;
             accessTokenExpiresAt: number;
+            kind: "reused";
             refreshTokenExpiresAt: number;
             userId: string;
           }
