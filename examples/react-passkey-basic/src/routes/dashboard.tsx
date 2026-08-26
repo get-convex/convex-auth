@@ -106,10 +106,12 @@ function errorMessage(
     case "CEREMONY_ABORTED":
       // The most common failure: the user closed the passkey dialog.
       return "The passkey dialog was closed.";
-    case "SAME_PASSKEY":
-      // A passkey can't authorize its own removal, thus the user must
-      // answer the dialog with a different one.
-      return "Authorize this removal with a different passkey.";
+    case "PROTOCOL_ERROR":
+      // The browser sent something that violates the protocol, or the app
+      // asked for something that no correct caller asks for, such as an
+      // assertion from the passkey that goes away. The Convex logs say
+      // which check failed.
+      return "This browser sent an invalid passkey request. Please try again, or contact support if the problem persists.";
     case "LAST_PASSKEY":
       // The Remove buttons above are already disabled in this case. The
       // server refuses the removal as well, because a user with no passkey
