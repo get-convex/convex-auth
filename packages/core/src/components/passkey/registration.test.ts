@@ -361,17 +361,37 @@ describe("finishRegistration", () => {
   });
 
   test.each([
-    ["too many transports", Array.from({ length: 17 }, (_, i) => `t${i}`)],
-    ["a transport that is too long", ["a".repeat(33)]],
-    ["an empty transport", [""]],
-    ["a transport with a non-ASCII character", ["üsb"]],
-    ["a transport with a space", ["smart card"]],
-  ])("throws for %s", async (_name, transports) => {
+    {
+      name: "too many transports",
+      transports: Array.from({ length: 17 }, (_, i) => `t${i}`),
+      message: "Too many transports",
+    },
+    {
+      name: "a transport that is too long",
+      transports: ["a".repeat(33)],
+      message: "has 33 characters",
+    },
+    {
+      name: "an empty transport",
+      transports: [""],
+      message: 'Invalid transport: ""',
+    },
+    {
+      name: "a transport with a non-ASCII character",
+      transports: ["üsb"],
+      message: 'Invalid transport: "üsb"',
+    },
+    {
+      name: "a transport with a space",
+      transports: ["smart card"],
+      message: 'Invalid transport: "smart card"',
+    },
+  ])("throws for $name", async ({ transports, message }) => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1");
     await expect(
       t.mutation(api.registration.finishRegistration, { ...args, transports }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(message);
     expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
       [],
     );

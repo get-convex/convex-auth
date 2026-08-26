@@ -38,6 +38,20 @@ const MAX_TRANSPORT_LENGTH = 32;
 const TRANSPORT_PATTERN = /^[\x21-\x7e]+$/;
 
 /**
+ * Show a transport in an error message. The value comes from the client,
+ * thus it can be long, empty, or contain characters that are not
+ * printable. `JSON.stringify` puts it in quotation marks and replaces
+ * these characters. A long value is cut to keep the message short.
+ */
+function describeTransport(value: string) {
+  const shown =
+    value.length > MAX_TRANSPORT_LENGTH
+      ? `${value.slice(0, MAX_TRANSPORT_LENGTH)}…`
+      : value;
+  return JSON.stringify(shown);
+}
+
+/**
  * Examine the transports that the client reports, before the component
  * stores them.
  *
@@ -60,12 +74,12 @@ export function validateTransports(values: string[] | undefined) {
   for (const value of values) {
     if (value.length > MAX_TRANSPORT_LENGTH) {
       throw new Error(
-        `Transport too long: a transport can have a maximum of ${MAX_TRANSPORT_LENGTH} characters.`,
+        `Transport too long: ${describeTransport(value)} has ${value.length} characters, but a transport can have a maximum of ${MAX_TRANSPORT_LENGTH}.`,
       );
     }
     if (!TRANSPORT_PATTERN.test(value)) {
       throw new Error(
-        "Invalid transport: a transport must be a non-empty string of printable ASCII characters.",
+        `Invalid transport: ${describeTransport(value)} is not a non-empty string of printable ASCII characters.`,
       );
     }
   }
