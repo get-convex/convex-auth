@@ -115,6 +115,10 @@ function errorMessage(
       // server refuses the removal as well, because a user with no passkey
       // can never sign in again.
       return "You can't remove your only passkey. Add another one first.";
+    case "TOO_MANY_PASSKEYS":
+      // The server refuses to add a passkey beyond the per-user limit, thus
+      // the user must remove one first.
+      return "You have too many passkeys. Remove one before you add another.";
     case "NOT_SIGNED_IN":
       return "Your session has ended. Please log in again.";
     case "WEBAUTHN_UNSUPPORTED":
