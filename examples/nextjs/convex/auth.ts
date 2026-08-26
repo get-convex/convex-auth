@@ -15,11 +15,16 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 
 // `onSignIn` is optional, and runs on every sign-in including the first. This
 // app uses it to stamp the user's last sign-in.
+//
+// Both providers attach the *same* pair of callbacks: the callbacks' arguments
+// are checked contravariantly, so a mutation declaring a union of provider
+// names and a profile covering both is accepted by either provider. See
+// convex/users.ts.
 export const { signInAnonymous } = setupAnonymous(core, {
   component: components.authAnonymous,
 }).attachUserCallbacks({
-  createUser: internal.users.createUserAnonymous,
-  onSignIn: internal.users.onSignInAnonymous,
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
 });
 
 export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
@@ -29,6 +34,6 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
     usernameComponent: components.authUsername,
   },
 ).attachUserCallbacks({
-  createUser: internal.users.createUserPassword,
-  onSignIn: internal.users.onSignInPassword,
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
 });

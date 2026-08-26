@@ -1,14 +1,21 @@
 /**
- * Each provider configured in `convex/auth.ts` has app-owned callbacks defined here.
+ * The app-owned callbacks the providers configured in `convex/auth.ts` call.
  *
  * A provider calls `createUser` the first time it sees an account, which creates the
  * app's user row and returns its id, and then calls the optional `onSignIn` on every
- * sign-in, that first one included. Each callback has a signature that matches the
- * associated provider and the data that it supplies.
+ * sign-in, that first one included.
  *
- * In this example, the username and password provider includes the `username` in the
- * profile data that it provides, while the anonymous provider doesn't. In the app's
- * data model, the `username` is thus optional.
+ * Both providers in this example share one pair of callbacks. The callbacks are
+ * checked *contravariantly*, the way TypeScript checks an ordinary function
+ * parameter: a mutation is accepted wherever it *accepts* what the provider
+ * passes, so one that declares a union of provider names and a profile covering
+ * both is valid for either provider. Declaring a narrower mutation per provider
+ * (`provider: v.literal("password")`) works just as well, and is worth doing when
+ * the two providers have little logic in common.
+ *
+ * The password provider includes the `username` in the profile data it supplies,
+ * while the anonymous provider supplies an empty profile. In the app's data model,
+ * the `username` is thus optional.
  *
  * @module
  */
@@ -16,53 +23,26 @@ import { getAuthUserId } from "@convex-dev/auth/core";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 
-export const createUserAnonymous = internalMutation({
-  args: {
-    provider: v.literal("anonymous"),
-    providerAccountId: v.string(),
-    profile: v.object({}),
-  },
-  returns: v.id("users"),
-  handler: async (ctx) => {
-    return await ctx.db.insert("users", {});
-  },
-});
+// The arguments both providers can be served by: either provider name, and a
+// profile whose `username` is present only for password sign-ups.
+const userCallbackArgs = {
+  provider: v.union(v.literal("anonymous"), v.literal("password")),
+  providerAccountId: v.string(),
+  profile: v.object({ username: v.optional(v.string()) }),
+};
 
-export const createUserPassword = internalMutation({
-  args: {
-    provider: v.literal("password"),
-    providerAccountId: v.string(),
-    profile: v.object({ username: v.string() }),
-  },
+export const createUser = internalMutation({
+  args: userCallbackArgs,
   returns: v.id("users"),
   handler: async (ctx, args) => {
     return await ctx.db.insert("users", { username: args.profile.username });
   },
 });
 
-// Below is an exmple of using the per-sign-in hooks. Here the app is choosing to
-// record a `lastSignedInAt` timestamp for each user upon sign-in.
-
-export const onSignInAnonymous = internalMutation({
-  args: {
-    provider: v.literal("anonymous"),
-    providerAccountId: v.string(),
-    profile: v.object({}),
-    userId: v.id("users"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.patch("users", args.userId, { lastSignedInAt: Date.now() });
-  },
-});
-
-export const onSignInPassword = internalMutation({
-  args: {
-    provider: v.literal("password"),
-    providerAccountId: v.string(),
-    profile: v.object({ username: v.string() }),
-    userId: v.id("users"),
-  },
+// An example of the per-sign-in hook. Here the app records a `lastSignedInAt`
+// timestamp for each user on every sign-in, whichever provider they used.
+export const onSignIn = internalMutation({
+  args: { ...userCallbackArgs, userId: v.id("users") },
   returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch("users", args.userId, { lastSignedInAt: Date.now() });
