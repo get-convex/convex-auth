@@ -8,19 +8,6 @@ import { Infer, v } from "convex/values";
 export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
- * The ways that the browser can reach an authenticator, for example
- * "internal", "usb", or "hybrid". The browser reports them when it makes a
- * credential. A later ceremony sends them back to the browser, which then
- * shows the correct instructions to the user.
- *
- * The values are plain strings and not an enumeration. The WebAuthn spec
- * lets new transports appear, and it tells a relying party to keep an
- * unknown value without a change.
- * https://www.w3.org/TR/webauthn-3/#enum-transport
- */
-export const transports = v.optional(v.array(v.string()));
-
-/**
  * Constants used for some basic best-effort validation of the
  * `transports` strings. These limits are far above the registered
  * values. They stop a client that does not obey the spec from writing
@@ -91,7 +78,7 @@ export function validateTransports(values: string[] | undefined) {
  */
 export const credentialDescriptor = v.object({
   id: v.bytes(),
-  transports,
+  transports: v.optional(v.array(v.string())),
 });
 export type CredentialDescriptor = Infer<typeof credentialDescriptor>;
 
