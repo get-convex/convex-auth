@@ -16,7 +16,6 @@ import {
   credentialDescriptor,
   finishAuthenticationUserError,
   finishRegistrationUserError,
-  transports,
 } from "./validation.ts";
 
 /**
@@ -286,7 +285,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             username: v.string(),
             attestationObject: v.bytes(),
             clientDataJSON: v.bytes(),
-            transports,
+            transports: v.optional(v.array(v.string())),
           },
           returns: finishSignUpResult,
           handler: async (ctx, args): Promise<FinishSignUpResult> => {

@@ -17,7 +17,6 @@ import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
-  transports,
   validateTransports,
 } from "./validation.ts";
 import {
@@ -331,7 +330,7 @@ export const finishRegistration = mutation({
     ...registrationCheckArgs,
     verifiedUserId: v.string(),
     name: v.optional(v.string()),
-    transports,
+    transports: v.optional(v.array(v.string())),
   },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
