@@ -11,11 +11,7 @@ import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { registerCore } from "@convex-dev/auth/providers/testing/core";
 import {
-  buildAssertion,
-  buildAttestationObject,
-  buildAuthenticatorData,
-  buildClientDataJSON,
-  generateES256Credential,
+  createTestAuthenticator,
   registerPasskeyProvider,
   type TestCredential,
 } from "@convex-dev/auth/providers/testing/passkey";
@@ -30,19 +26,9 @@ const modules = import.meta.glob("./**/*.ts");
 const RP_ID = "localhost";
 const ORIGIN = "http://localhost:5173";
 
+const authenticator = createTestAuthenticator({ rpId: RP_ID, origin: ORIGIN });
+
 type T = TestConvex<typeof schema>;
-
-type Attestation = {
-  attestationObject: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-};
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-}
 
 /** Assert that two byte buffers hold the same bytes. */
 function expectSameBytes(
@@ -83,29 +69,12 @@ afterEach(() => {
 const as = (t: T, userId: string) => t.withIdentity({ subject: userId });
 
 /** Build the `create()` payloads of a registration ceremony. */
-function attest(
-  challenge: ArrayBuffer,
-  credential: TestCredential,
-): Attestation {
-  const authenticatorData = buildAuthenticatorData({
-    rpId: RP_ID,
-    credential,
-  });
-  return {
-    attestationObject: toArrayBuffer(buildAttestationObject(authenticatorData)),
-    clientDataJSON: toArrayBuffer(
-      buildClientDataJSON({
-        type: "webauthn.create",
-        challenge,
-        origin: ORIGIN,
-      }),
-    ),
-  };
-}
+const attest = (challenge: ArrayBuffer, credential: TestCredential) =>
+  authenticator.attest(credential, challenge);
 
 /** Build the `get()` payloads of an authentication ceremony. */
 const assertWith = (credential: TestCredential, challenge: ArrayBuffer) =>
-  buildAssertion(credential, challenge, { rpId: RP_ID, origin: ORIGIN });
+  authenticator.assert(credential, challenge);
 
 /** Register a new account with its first passkey. */
 async function signUp(
@@ -116,7 +85,7 @@ async function signUp(
   if (!start.success || start.step !== "register") {
     throw new Error("The username is not free.");
   }
-  const credential = await generateES256Credential();
+  const credential = await authenticator.createCredential();
   const result = await t.mutation(api.auth.finishSignUp, {
     username,
     ...attest(start.challenge, credential),
@@ -147,7 +116,7 @@ async function addPasskey(
       `The re-authentication failed: ${verified.userError.error}`,
     );
   }
-  const credential = await generateES256Credential();
+  const credential = await authenticator.createCredential();
   const finished = await caller.mutation(
     api.auth.finishAddPasskey,
     attest(verified.challenge, credential),
@@ -226,7 +195,7 @@ describe("adding a passkey", () => {
       alice.credential.credentialId,
     );
 
-    const credential = await generateES256Credential();
+    const credential = await authenticator.createCredential();
     const finished = await caller.mutation(
       api.auth.finishAddPasskey,
       attest(verified.challenge, credential),
@@ -261,7 +230,7 @@ describe("adding a passkey", () => {
   test("refuses a create() ceremony that no verifyAddPasskey started", async () => {
     const t = await setup();
     const alice = await signUp(t, "alice");
-    const credential = await generateES256Credential();
+    const credential = await authenticator.createCredential();
 
     // No registration challenge exists at all.
     expect(
@@ -282,7 +251,7 @@ describe("adding a passkey", () => {
     if (!start.success || start.step !== "register") {
       throw new Error("The username is free.");
     }
-    const credential = await generateES256Credential();
+    const credential = await authenticator.createCredential();
     await expect(
       as(t, alice.userId).mutation(
         api.auth.finishAddPasskey,
@@ -309,7 +278,7 @@ describe("adding a passkey", () => {
     expect(
       await t.mutation(
         api.auth.finishAddPasskey,
-        attest(new ArrayBuffer(32), await generateES256Credential()),
+        attest(new ArrayBuffer(32), await authenticator.createCredential()),
       ),
     ).toEqual(notSignedIn);
   });
