@@ -12,24 +12,35 @@ export default defineSchema({
     .index("by_provider_account", ["provider", "providerAccountId"])
     .index("by_user", ["userId"]),
 
-  // One row per active refresh token (sessions). The raw refresh token is never
-  // stored — only its SHA-256 hash.
-  //
-  // `previousRefreshTokenHash` keeps the *just-rotated* token briefly valid (a
-  // short grace window) so that two near-simultaneous refreshes presenting the
-  // same token — e.g. parallel SSR loaders, or two browser tabs sharing one
-  // cookie — don't fight: the first rotates, the second still resolves via the
-  // previous hash instead of being rejected and logging the user out.
+  // One row per active session, holding only the *current* refresh token's
+  // SHA-256 hash. The raw refresh token is never stored.
   sessions: defineTable({
     userId: v.string(),
     accountId: v.id("accounts"),
     refreshTokenHash: v.string(),
     refreshTokenExpiresAt: v.number(),
-    previousRefreshTokenHash: v.optional(v.string()),
-    previousRefreshTokenExpiresAt: v.optional(v.number()),
     lastRefreshedAt: v.number(),
   })
     .index("by_refresh_hash", ["refreshTokenHash"])
-    .index("by_previous_refresh_hash", ["previousRefreshTokenHash"])
     .index("by_user", ["userId"]),
+
+  // The hashes of refresh tokens that rotation has replaced.
+  //
+  // This allows tracing a previously rotated token back to its session. A
+  // presented token that matches a document here is one of two things,
+  // depending on the age of the document (tracked by the system-added
+  // `_creationTime` field):
+  //
+  //  - Rotated away moments ago: two near-simultaneous refreshes presenting
+  //    the same token (parallel SSR loaders, or two browser tabs sharing one
+  //    cookie). The first rotated; the second still resolves here instead of
+  //    being rejected and logging the user out.
+  //  - Rotated away longer ago: a token that should be in nobody's hands, so
+  //    it is treated as stolen and its session is revoked.
+  spentRefreshTokens: defineTable({
+    hash: v.string(),
+    sessionId: v.id("sessions"),
+  })
+    .index("by_hash", ["hash"])
+    .index("by_session", ["sessionId"]),
 });
