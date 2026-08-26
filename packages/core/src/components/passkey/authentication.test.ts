@@ -85,6 +85,25 @@ describe("startAuthentication", () => {
     const [row] = await t.run((ctx) => ctx.db.query("challenges").collect());
     expect(row.kind === "authentication" && row.userId).toBe(undefined);
   });
+
+  test("refuses a purpose that no constant flow name has", async () => {
+    const t = setup();
+    for (const purpose of ["", "test signIn", "test/sign\u0000In", "é"]) {
+      await expect(
+        t.mutation(api.authentication.startAuthentication, { purpose }),
+      ).rejects.toThrow("Invalid purpose");
+    }
+    // The error shows the start of the purpose, to help the developer find
+    // the value that the app sent.
+    await expect(
+      t.mutation(api.authentication.startAuthentication, {
+        purpose: `${"x".repeat(128)}yyy`,
+      }),
+    ).rejects.toThrow(`Purpose too long: "${"x".repeat(128)}\u2026" has 131`);
+    expect(await t.run((ctx) => ctx.db.query("challenges").collect())).toEqual(
+      [],
+    );
+  });
 });
 
 describe("finishAuthentication", () => {
