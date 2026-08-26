@@ -158,3 +158,13 @@ export const deletePasskeyUserError = v.union(
   v.object({ error: v.literal("PASSKEY_NOT_FOUND") }),
 );
 export type DeletePasskeyUserError = Infer<typeof deletePasskeyUserError>;
+
+/**
+ * The user-facing error when the caller of a passkey-management function is
+ * not signed in. Each of those functions acts on the passkeys of the
+ * caller, thus a signed-out caller has nothing to act on.
+ */
+export const notSignedInUserError = v.object({
+  error: v.literal("NOT_SIGNED_IN"),
+});
+export type NotSignedInUserError = Infer<typeof notSignedInUserError>;
