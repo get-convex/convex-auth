@@ -248,14 +248,14 @@ describe("adding a passkey", () => {
     if (!start.success || start.step !== "authenticate") {
       throw new Error("The username has an account.");
     }
-    await expect(
-      caller.mutation(
+    // A purpose that does not match is a protocol violation: the message
+    // goes to the backend logs, and the client gets `PROTOCOL_ERROR`.
+    expect(
+      await caller.mutation(
         api.auth.verifyAddPasskey,
         await assertWith(alice.credential, start.challenge),
       ),
-    ).rejects.toThrow(
-      "The purpose does not match the purpose of the challenge.",
-    );
+    ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
   });
 
   test("refuses a create() ceremony that no verifyAddPasskey started", async () => {
@@ -375,20 +375,57 @@ describe("removing a passkey", () => {
     });
     if (!start.success) throw new Error("The account has two passkeys.");
 
-    // The start step keeps the target out of `allowCredentials`, but the
+    // The start step keeps the target out of `allowCredentials`, thus a
+    // client that respects the protocol never sends this assertion. The
     // finish step is what enforces the rule.
     expect(
       await caller.mutation(api.auth.finishRemovePasskey, {
         passkeyId: second.passkeyId,
         ...(await assertWith(second.credential, start.challenge)),
       }),
-    ).toEqual({ success: false, userError: { error: "SAME_PASSKEY" } });
+    ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
 
     const list = await caller.query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
     expect(list.passkeys.map((passkey) => passkey.passkeyId)).toContain(
       second.passkeyId,
     );
+  });
+
+  test("refuses a `passkeyId` that the start step did not get", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    const second = await addPasskey(t, alice.userId, alice.credential);
+    const caller = as(t, alice.userId);
+
+    // The app starts the removal of the second passkey, thus the user
+    // answers the dialog with the first one.
+    const start = await caller.mutation(api.auth.startRemovePasskey, {
+      passkeyId: second.passkeyId,
+    });
+    if (!start.success) throw new Error("The account has two passkeys.");
+    const assertion = await assertWith(alice.credential, start.challenge);
+
+    const list = await caller.query(api.auth.listPasskeys, {});
+    if (!list.success) throw new Error("The caller is signed in.");
+    const first = list.passkeys.find(
+      (passkey) => passkey.passkeyId !== second.passkeyId,
+    );
+    if (first === undefined) throw new Error("The account has two passkeys.");
+
+    // The app then sends a different `passkeyId` than the one that made the
+    // challenge, and that `passkeyId` is the passkey that signed. No correct
+    // caller does this, thus the result is a `PROTOCOL_ERROR`.
+    expect(
+      await caller.mutation(api.auth.finishRemovePasskey, {
+        passkeyId: first.passkeyId,
+        ...assertion,
+      }),
+    ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
+
+    const after = await caller.query(api.auth.listPasskeys, {});
+    if (!after.success) throw new Error("The caller is signed in.");
+    expect(after.passkeys).toHaveLength(2);
   });
 
   test("refuses a passkey of another account", async () => {
