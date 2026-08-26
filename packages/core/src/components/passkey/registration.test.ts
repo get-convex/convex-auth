@@ -360,6 +360,23 @@ describe("finishRegistration", () => {
     expect(row).not.toHaveProperty("transports");
   });
 
+  test.each([
+    ["too many transports", Array.from({ length: 17 }, (_, i) => `t${i}`)],
+    ["a transport that is too long", ["a".repeat(33)]],
+    ["an empty transport", [""]],
+    ["a transport with a non-ASCII character", ["üsb"]],
+    ["a transport with a space", ["smart card"]],
+  ])("throws for %s", async (_name, transports) => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    await expect(
+      t.mutation(api.registration.finishRegistration, { ...args, transports }),
+    ).rejects.toThrow();
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+  });
+
   test("links the handle to the verified user in the new-account flow", async () => {
     const t = setup();
     const { userHandle, args } = await registrationArgs(t, "user1", {

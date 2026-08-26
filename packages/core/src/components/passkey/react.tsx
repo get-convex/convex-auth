@@ -268,9 +268,8 @@ function credentialDescriptors(
   return credentials.map(({ id, transports }) => ({
     type: "public-key",
     id,
-    // The DOM type lists only the transports that were known when it was
-    // written, but the WebAuthn spec lets new values appear. The stored
-    // strings go through unchanged.
+    // The database stores a string array, we’re converting here
+    // to the narrower DOM type ("internal" | "hybrid" | "usb" | "nfc" | … )
     transports: transports as AuthenticatorTransport[] | undefined,
   }));
 }

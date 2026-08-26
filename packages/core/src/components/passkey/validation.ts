@@ -21,6 +21,57 @@ export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 export const transports = v.optional(v.array(v.string()));
 
 /**
+ * Constants used for some basic best-effort validation of the
+ * `transports` strings. These limits are far above the registered
+ * values. They stop a client that does not obey the spec from writing
+ * large data to the database.
+ *
+ * The WebAuthn spec gives no limit for these values, but each registered
+ * transport is a short word of lowercase letters and hyphens ("usb",
+ * "hybrid", "smart-card").
+ */
+const MAX_TRANSPORTS = 16;
+const MAX_TRANSPORT_LENGTH = 32;
+
+// The characters that a transport can contain: printable ASCII without
+// the space.
+const TRANSPORT_PATTERN = /^[\x21-\x7e]+$/;
+
+/**
+ * Examine the transports that the client reports, before the component
+ * stores them.
+ *
+ * The component does not compare the values with a list of known
+ * transports, because the WebAuthn spec lets new transports appear. It
+ * only refuses the values that no authenticator can report.
+ *
+ * @throws when there are too many values, or when a value is empty, too
+ * long, or not printable ASCII.
+ */
+export function validateTransports(values: string[] | undefined) {
+  if (values === undefined) {
+    return;
+  }
+  if (values.length > MAX_TRANSPORTS) {
+    throw new Error(
+      `Too many transports: a credential can have a maximum of ${MAX_TRANSPORTS}.`,
+    );
+  }
+  for (const value of values) {
+    if (value.length > MAX_TRANSPORT_LENGTH) {
+      throw new Error(
+        `Transport too long: a transport can have a maximum of ${MAX_TRANSPORT_LENGTH} characters.`,
+      );
+    }
+    if (!TRANSPORT_PATTERN.test(value)) {
+      throw new Error(
+        "Invalid transport: a transport must be a non-empty string of printable ASCII characters.",
+      );
+    }
+  }
+}
+
+/**
  * One entry of `allowCredentials` or `excludeCredentials`. The WebAuthn
  * `type` field is not included, because it is always "public-key".
  */

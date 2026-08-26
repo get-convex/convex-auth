@@ -18,6 +18,7 @@ import {
   FinishRegistrationUserError,
   deletePasskeyUserError,
   transports,
+  validateTransports,
 } from "./validation.ts";
 import {
   deleteDeadChallenge,
@@ -311,7 +312,8 @@ export const checkRegistration = query({
  *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
  * - `transports`: the transports that the browser reported for the new
  *   credential. The value is a hint: a later ceremony sends it back to the
- *   browser, and the verification does not use it.
+ *   browser, and the verification does not use it. The function throws for
+ *   a value that no authenticator can report.
  *
  * The function examines the attestation as
  * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
@@ -333,6 +335,7 @@ export const finishRegistration = mutation({
   },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    validateTransports(args.transports);
     const verification = await verifyRegistration(ctx, args);
 
     if (verification.userError !== null) {
