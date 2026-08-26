@@ -621,6 +621,10 @@ export const refresh = mutation({
     if (!isValid) {
       // Past its refresh-token lifetime or a spent token past the grace
       // window: delete the session and grant no more tokens.
+      console.warn(
+        "Spent refresh token used out of grace window: deleting the associated session. " +
+          "This could be due to a bug or a leaked refresh token.",
+      );
       await deleteSession(ctx, session._id);
       return null;
     }
