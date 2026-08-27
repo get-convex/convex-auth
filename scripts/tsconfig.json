@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // The scripts run in Bun, which implements the `node:` modules that they
+    // import. They touch no DOM and no Vite globals.
+    "lib": ["ESNext"],
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

@@ -51,6 +51,9 @@ Use `pnpm install` at the root. Common tasks:
   `prepare` on install; run it by hand after changing its sources if you want
   the examples to pick the change up. (`argon2id-wasm` is consumed from npm,
   so it isn't built here — see its `prepack`.)
+- `pnpm codegen` — regenerate every Convex `_generated` directory.
+  Can also generate the codegen for a single demo or component
+  (e.g. `pnpm codegen react-passkey`)
 - `pnpm test` — run tests across packages (Vitest).
 - `pnpm typecheck` — typecheck across packages.
 - `pnpm lint` — ESLint, including the Convex ESLint plugin.
