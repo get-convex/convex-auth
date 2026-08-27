@@ -90,8 +90,6 @@ function errorMessage(
       return "That username was just taken. Try another one.";
     case "CHALLENGE_EXPIRED":
       return "The sign-in attempt took too long. Please try again.";
-    case "VERIFICATION_FAILED":
-      return "The passkey could not be verified. Please try again.";
     case "UNKNOWN_CREDENTIAL":
       return "This passkey is not registered here.";
     case "PROTOCOL_ERROR":

@@ -559,26 +559,24 @@ describe("finishRegistration", () => {
     );
   });
 
-  test("returns VERIFICATION_FAILED when the user is not present", async () => {
+  test("returns PROTOCOL_ERROR when the user is not present", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", { userPresent: false });
-    const result = await t.mutation(api.registration.finishRegistration, args);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "VERIFICATION_FAILED" },
-    });
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "no user presence or no user verification",
+    );
   });
 
-  test("returns VERIFICATION_FAILED when the user is not verified", async () => {
+  test("returns PROTOCOL_ERROR when the user is not verified", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       userVerified: false,
     });
-    const result = await t.mutation(api.registration.finishRegistration, args);
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "VERIFICATION_FAILED" },
-    });
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "no user presence or no user verification",
+    );
   });
 
   test("erases the unlinked handle when the user is not verified", async () => {
@@ -693,7 +691,7 @@ describe("finishRegistration", () => {
     const result = await t.mutation(api.registration.finishRegistration, args);
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
     // The failure burned the challenge, so the cleanup loop cannot find the
     // handle later. The mutation must delete the handle itself.
@@ -714,7 +712,7 @@ describe("finishRegistration", () => {
     const result = await t.mutation(api.registration.finishRegistration, args);
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
     // The handle belongs to user1, so the failed attempt must not remove it.
     const handles = await t.run((ctx) => ctx.db.query("handles").collect());
@@ -766,19 +764,15 @@ describe("checkRegistration", () => {
     });
   });
 
-  test("returns VERIFICATION_FAILED when the user is not verified", async () => {
+  test("returns PROTOCOL_ERROR when the user is not verified", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       userVerified: false,
     });
-    const result = await t.query(
-      api.registration.checkRegistration,
-      checkArgs(args),
+    await expectProtocolError(
+      () => t.query(api.registration.checkRegistration, checkArgs(args)),
+      "no user presence or no user verification",
     );
-    expect(result).toEqual({
-      success: false,
-      userError: { error: "VERIFICATION_FAILED" },
-    });
   });
 
   test("returns PROTOCOL_ERROR for a duplicate credential ID", async () => {

@@ -80,8 +80,6 @@ export const finishRegistrationUserError = v.union(
   // The challenge is unknown, already used, or too old. The user must start
   // the ceremony again.
   v.object({ error: v.literal("CHALLENGE_EXPIRED") }),
-  // The authenticator did not report user presence and user verification.
-  v.object({ error: v.literal("VERIFICATION_FAILED") }),
   protocolError,
 );
 export type FinishRegistrationUserError = Infer<
@@ -97,9 +95,6 @@ export const finishAuthenticationUserError = v.union(
   // authenticator still offers a passkey that the app deleted.
   v.object({ error: v.literal("UNKNOWN_CREDENTIAL") }),
   v.object({ error: v.literal("CHALLENGE_EXPIRED") }),
-  // The assertion is not valid. Possible causes: a bad signature, no user
-  // presence or user verification, or a challenge for a different user.
-  v.object({ error: v.literal("VERIFICATION_FAILED") }),
   protocolError,
 );
 export type FinishAuthenticationUserError = Infer<
