@@ -86,7 +86,7 @@ describe("startAuthentication", () => {
     expect(row.kind === "authentication" && row.userId).toBe(undefined);
   });
 
-  test("refuses a purpose that no constant flow name has", async () => {
+  test("refuses purposes with invalid formats", async () => {
     const t = setup();
     for (const purpose of ["", "test signIn", "test/sign\u0000In", "é"]) {
       await expect(
