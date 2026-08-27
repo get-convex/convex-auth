@@ -73,7 +73,8 @@ function describePurpose(value: string) {
  * stores it or compares it.
  *
  * The component does not give the purposes a meaning: the app chooses the
- * strings. It only refuses a value that no constant flow name has.
+ * strings. It only refuses a values that are not well formatted
+ * (maximum 128 non-space printable ASCII characters).
  *
  * @throws when the value is empty, too long, or not printable ASCII.
  */
