@@ -422,14 +422,47 @@ describe("finishRegistration", () => {
     expect(await handleRows(t)).toHaveLength(1);
   });
 
-  test("throws for a handle that belongs to a different user", async () => {
+  // The add-a-passkey flow, where the signed-in user changes between the
+  // start and the end of the ceremony. The caller verifies the new user,
+  // while the ceremony stays bound to the old one. An untrusted client can
+  // do this at will, thus the component returns a `userError`.
+  test("returns PROTOCOL_ERROR for a handle that belongs to a different user", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user2", {
       startUserId: "user1",
     });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("The handle belongs to a different user.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "the ceremony belongs to a different user than the verified user",
+    );
+    // No passkey for either user, and the handle of the old owner stays.
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+    expect(await handleRows(t)).toHaveLength(1);
+  });
+
+  test("burns the challenge when the verified user does not own the handle", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user2", {
+      startUserId: "user1",
+    });
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "the ceremony belongs to a different user than the verified user",
+    );
+    expect(await t.run((ctx) => ctx.db.query("challenges").collect())).toEqual(
+      [],
+    );
+    // The attestation cannot be replayed, not even by the original owner.
+    const replay = await t.mutation(api.registration.finishRegistration, {
+      ...args,
+      verifiedUserId: "user1",
+    });
+    expect(replay).toEqual({
+      success: false,
+      userError: { error: "CHALLENGE_EXPIRED" },
+    });
   });
 
   test("throws for an unlinked handle when the user already has one", async () => {

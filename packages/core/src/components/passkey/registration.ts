@@ -363,10 +363,13 @@ type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
  * transaction, so they see the same rows, and Convex fixes the transaction
  * timestamp, so the challenge TTL check cannot flip between the two calls.
  *
- * The guarantee does not cover throws. This function cannot see the
- * handle-linking invariants of `finishRegistration` (they depend on
- * `verifiedUserId`), so `finishRegistration` can still throw after a
- * successful check, and a throw aborts the transaction.
+ * The guarantee does not cover the handle-linking checks of
+ * `finishRegistration`. This function cannot see them, because they depend
+ * on `verifiedUserId`, which this function does not take. Thus
+ * `finishRegistration` can still fail after a successful check: with a
+ * `PROTOCOL_ERROR` when the ceremony belongs to a different user, or with a
+ * throw when the caller runs the new-account flow for a user that already
+ * has a handle. A throw aborts the transaction.
  */
 export const checkRegistration = query({
   args: registrationCheckArgs,
@@ -393,7 +396,10 @@ export const checkRegistration = query({
  *   "https://app.example.com").
  * - `verifiedUserId`: the user that owns the new passkey. This must always be
  *   the user name of the current user (whether it is a user created in the
- *   same transaction, or the currently logged in user).
+ *   same transaction, or the currently logged in user). When the ceremony
+ *   already has an owner (a known user adds a passkey) and the two disagree,
+ *   the result is a `PROTOCOL_ERROR`: the signed-in user changed during the
+ *   ceremony, which an untrusted client can cause at any time.
  * - `name`: an optional label for the credential. This can be automatically
  *   inferred by the client from the authenticator (e.g. “1Password”),
  *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
@@ -434,14 +440,33 @@ export const finishRegistration = mutation({
       return { success: false, userError: verification.userError };
     }
     const challengeRow = verification.challengeRow;
-    // One use only: the consumed challenge is deleted.
-    await ctx.db.delete("challenges", challengeRow._id);
 
     // Link the handle of the ceremony to the verified user.
     const handle = await ctx.db.get("handles", challengeRow.handleId);
     if (handle === null) {
       throw new Error("The handle of the challenge does not exist.");
     }
+    if (handle.userId !== null && handle.userId !== args.verifiedUserId) {
+      // The add-a-passkey flow: the handle of the ceremony has an owner, and
+      // that owner is not the user that the caller verified. The caller is
+      // not at fault. The signed-in user changed between the start and the
+      // end of the ceremony (a sign-out and a new sign-in, or a race with a
+      // sign-in in a different tab), so the caller verified the new user
+      // while the ceremony stays bound to the old one. An untrusted client
+      // can do this at will, thus the result is a `userError` and not a
+      // throw. The challenge burns, which prevents a replay of the
+      // attestation.
+      console.warn(
+        `Rejected the passkey ceremony: the ceremony belongs to a different ` +
+          `user than the verified user. The signed-in user changed during ` +
+          `the ceremony.`,
+      );
+      await deleteDeadChallenge(ctx, challengeRow);
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
+    }
+    // One use only: the consumed challenge is deleted.
+    await ctx.db.delete("challenges", challengeRow._id);
+
     if (handle.userId === null) {
       // The new-account flow: the handle was made before the user existed.
       const existingHandle = await ctx.db
@@ -458,10 +483,6 @@ export const finishRegistration = mutation({
       await ctx.db.patch("handles", handle._id, {
         userId: args.verifiedUserId,
       });
-    } else if (handle.userId !== args.verifiedUserId) {
-      throw new Error(
-        "Invariant violation: The handle belongs to a different user. finishRegistration is being called incorrectly.",
-      );
     }
 
     const passkeyId = await ctx.db.insert("passkeys", {
