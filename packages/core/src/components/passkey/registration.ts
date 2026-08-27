@@ -175,11 +175,16 @@ async function verifyRegistration(
   ctx: QueryCtx,
   args: RegistrationCheckArgs,
 ): Promise<RegistrationVerification> {
+  const PROTOCOL_ERROR = {
+    userError: { error: "PROTOCOL_ERROR" },
+    challengeRow: null,
+  } as const;
+
   if (!transportsAreValid(args.transports)) {
     console.warn(
       `Rejected the passkey ceremony: the client reported transports that seem invalid. The client sent: ${JSON.stringify(args.transports).slice(0, 200)}.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   const clientData = okOrNull(() =>
     parseClientDataJSON(new Uint8Array(args.clientDataJSON)),
@@ -188,7 +193,7 @@ async function verifyRegistration(
     console.warn(
       `Rejected the passkey ceremony: the client data JSON could not be read.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   if (clientData.type !== ClientDataType.Create) {
     console.warn(
@@ -196,7 +201,7 @@ async function verifyRegistration(
         `"webauthn.get", but a registration ceremony must send ` +
         `"webauthn.create".`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   if (clientData.origin !== args.expectedOrigin) {
     // We could allow this verification to be less strict in the future
@@ -207,7 +212,7 @@ async function verifyRegistration(
         `${JSON.stringify(args.expectedOrigin)}. Check that the \`origin\` of ` +
         `the provider matches the page that ran the ceremony.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   if (clientData.crossOrigin === true) {
     // In the future, we could allow the user to explicitly opt out to this.
@@ -215,7 +220,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the ceremony ran in a cross-origin ` +
         `frame, which is not allowed.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   const challengeRow = await findChallenge(
     ctx,
@@ -234,7 +239,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the attestation object could not be ` +
         `read.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   const authenticatorData = attestationObject.authenticatorData;
   if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
@@ -244,7 +249,7 @@ async function verifyRegistration(
         `Check that the \`rpId\` of the provider matches the page that ran ` +
         `the ceremony.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
     // The ceremony asks for `userVerification: "required"`, thus
@@ -261,7 +266,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the authenticator data carries no ` +
         `attested credential data.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
 
   const cosePublicKey = credential.publicKey;
@@ -272,7 +277,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the algorithm of the credential public ` +
         `key could not be read.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
   let algorithm: "ES256" | "RS256";
   let publicKey: Uint8Array;
@@ -283,7 +288,7 @@ async function verifyRegistration(
         `Rejected the passkey ceremony: the EC2 credential public key could ` +
           `not be read.`,
       );
-      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+      return PROTOCOL_ERROR;
     }
     if (ec2.curve !== coseEllipticCurveP256) {
       console.warn(
@@ -291,7 +296,7 @@ async function verifyRegistration(
           `curve ${ec2.curve}, but ES256 requires P-256 ` +
           `(${coseEllipticCurveP256}).`,
       );
-      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+      return PROTOCOL_ERROR;
     }
     publicKey = new ECDSAPublicKey(p256, ec2.x, ec2.y).encodeSEC1Uncompressed();
     algorithm = "ES256";
@@ -302,7 +307,7 @@ async function verifyRegistration(
         `Rejected the passkey ceremony: the RSA credential public key could ` +
           `not be read.`,
       );
-      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+      return PROTOCOL_ERROR;
     }
     publicKey = new RSAPublicKey(rsa.n, rsa.e).encodePKCS1();
     algorithm = "RS256";
@@ -312,7 +317,7 @@ async function verifyRegistration(
         `algorithm ${coseAlgorithm}, but the ceremony only offered ES256 ` +
         `(${coseAlgorithmES256}) and RS256 (${coseAlgorithmRS256}).`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
 
   const credentialId = toArrayBuffer(credential.id);
@@ -328,7 +333,7 @@ async function verifyRegistration(
     console.warn(
       `Rejected the passkey ceremony: the credential is already registered.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    return PROTOCOL_ERROR;
   }
 
   return {
