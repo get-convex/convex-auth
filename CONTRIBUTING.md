@@ -18,7 +18,7 @@ so the first `pnpm dev` prompts you to pick or create a deployment.
 
 - `examples/react-minimal` uses the core component with the anonymous provider.
 - `examples/react-password` adds the password provider.
-- `examples/react-passkey` adds the passkey provider.
+- `examples/react-passkey-no-management` adds the passkey provider.
 - `examples/react-github` adds the GitHub Oauth provider.
 - `examples/react-google` adds the Google OAuth provider.
 - `examples/nextjs` covers the Next.js integration.
