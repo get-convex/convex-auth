@@ -91,7 +91,11 @@ function sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
 
 export function startRemovePasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
-    args: { passkeyId: v.string() },
+    args: {
+      // This is used to exclude the passkey being removed from
+      // the list of passkeys suggested by the authenticator.
+      passkeyId: v.string(),
+    },
     returns: startRemovePasskeyResult,
     handler: async (ctx, { passkeyId }): Promise<StartRemovePasskeyResult> => {
       const userId = await getAuthUserId(ctx);
