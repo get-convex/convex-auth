@@ -7,11 +7,11 @@
  * file. It becomes a public entry point only when a real non-React consumer
  * asks for one.
  *
- * These functions wrap the modal WebAuthn ceremonies
- * (`navigator.credentials`). They do not depend on React and they do not
- * call any Convex function: a flow starts a ceremony with data from its
- * start mutation, runs the ceremony here, and sends the result to its
- * finish mutation.
+ * These functions wrap the WebAuthn ceremonies (`navigator.credentials`),
+ * modal and conditional. They do not depend on React and they do not call
+ * any Convex function: a flow starts a ceremony with data from its start
+ * mutation, runs the ceremony here, and sends the result to its finish
+ * mutation.
  *
  * The functions never throw. They return discriminated unions, and they
  * fold every failure into the {@link PasskeyClientError} shape, so callers
@@ -43,6 +43,16 @@ export type PasskeyClientError =
   | { error: "OTHER_ERROR"; cause: unknown };
 
 /**
+ * A failed result with a browser-side `userError`. The failure arm all the
+ * ceremony functions and hooks share; it composes with the server's own
+ * `{ success: false, userError }` results into one `userError` switch.
+ */
+export type PasskeyClientFailure = {
+  success: false;
+  userError: PasskeyClientError;
+};
+
+/**
  * The output of a registration ceremony: the fields a finish mutation needs
  * to verify the new passkey (see `finishSignUp` in the username + passkey
  * recipe).
@@ -72,16 +82,14 @@ export type PasskeyAssertion = {
  * the finish mutation, or a user-facing `userError`.
  */
 export type PasskeyRegistrationResult =
-  | { success: true; attestation: PasskeyAttestation }
-  | { success: false; userError: PasskeyClientError };
+  { success: true; attestation: PasskeyAttestation } | PasskeyClientFailure;
 
 /**
  * The result of {@link runAuthenticationCeremony}: the assertion to send to
  * the finish mutation, or a user-facing `userError`.
  */
 export type PasskeyAuthenticationResult =
-  | { success: true; assertion: PasskeyAssertion }
-  | { success: false; userError: PasskeyClientError };
+  { success: true; assertion: PasskeyAssertion } | PasskeyClientFailure;
 
 /**
  * Whether this browser can run WebAuthn ceremonies on this page. The
@@ -205,7 +213,7 @@ export async function runRegistrationCeremony(options: {
         attestation: "none",
         excludeCredentials: credentialDescriptors(options.excludeCredentials),
       },
-    })) as PublicKeyCredential | null;
+    })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
     if (credential === null) {
       return { success: false, userError: { error: "CEREMONY_ABORTED" } };
     }
@@ -255,8 +263,47 @@ export async function runAuthenticationCeremony(options: {
         allowCredentials: credentialDescriptors(options.allowCredentials),
         userVerification: "required",
       },
-    })) as PublicKeyCredential | null;
+    })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
     if (credential === null) {
+      return { success: false, userError: { error: "CEREMONY_ABORTED" } };
+    }
+    return { success: true, assertion: assertionFromCredential(credential) };
+  } catch (cause) {
+    return { success: false, userError: foldClientError(cause) };
+  }
+}
+
+/**
+ * Run a conditional-mediation ceremony: the request stays pending until the
+ * user picks a passkey in the autocompletion list of an
+ * `<input autoComplete="… webauthn">`.
+ *
+ * `signal` aborts it. This is required because the caller is expected to
+ * periodically recreate a new ceremony (because every ceremony has a timeout).
+ */
+export async function runAutofillAuthenticationCeremony(
+  options: { challenge: ArrayBuffer; rpId: string },
+  signal: AbortSignal,
+): Promise<PasskeyAuthenticationResult> {
+  if (!supportsWebAuthn()) {
+    return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
+  }
+  try {
+    const credential = (await navigator.credentials.get({
+      mediation: "conditional",
+      signal,
+      publicKey: {
+        challenge: options.challenge,
+        rpId: options.rpId,
+        // Conditional mediation requires an empty allow-list: the passkey
+        // the user picks in the autocompletion list identifies the account.
+        allowCredentials: [],
+        userVerification: "required",
+      },
+    })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
+    if (credential === null) {
+      // The spec lets `get()` resolve with `null`. No assertion means no
+      // ceremony, which is the same outcome for a caller as an abort.
       return { success: false, userError: { error: "CEREMONY_ABORTED" } };
     }
     return { success: true, assertion: assertionFromCredential(credential) };
