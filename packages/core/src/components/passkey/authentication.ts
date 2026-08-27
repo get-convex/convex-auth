@@ -42,7 +42,7 @@ const startAuthenticationResult = v.object({
  * sign-in, or a re-authentication before a change of a setting). The
  * component does not parse the value. The app chooses the strings; a
  * purpose must be a short string of printable ASCII (see
- * `validatePurpose`).
+ * {@link validatePurpose}).
  *
  * A purpose must be a constant that names the flow, for example
  * "myApp:signIn". Do not put dynamic data in it, such as a user ID, a
