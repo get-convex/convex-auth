@@ -100,6 +100,8 @@
       "types": "./dist/components/password/*.d.ts",
       "default": "./dist/components/password/*.js"
     },
+    "./providers/passkey/client": null,
+    "./providers/passkey/client.js": null,
     "./providers/passkey/*.js": {
       "types": "./dist/components/passkey/*.d.ts",
       "default": "./dist/components/passkey/*.js"

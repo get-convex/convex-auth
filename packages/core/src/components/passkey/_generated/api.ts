@@ -10,6 +10,7 @@
 
 import type * as authentication from "../authentication.js";
 import type * as cleanup from "../cleanup.js";
+import type * as client from "../client.js";
 import type * as helpers from "../helpers.js";
 import type * as management_add from "../management/add.js";
 import type * as management_list from "../management/list.js";
@@ -30,6 +31,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 const fullApi: ApiFromModules<{
   authentication: typeof authentication;
   cleanup: typeof cleanup;
+  client: typeof client;
   helpers: typeof helpers;
   "management/add": typeof management_add;
   "management/list": typeof management_list;
