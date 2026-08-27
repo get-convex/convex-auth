@@ -168,7 +168,12 @@ async function findByCode(
 }
 
 function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
-  return a.kind === b.kind && a.userId === b.userId;
+  if (a.kind !== b.kind || a.userId !== b.userId) {
+    return false;
+  }
+  // Two `custom` challenges match only when the caller's purpose string is
+  // the same one that started the flow.
+  return a.kind !== "custom" || b.kind !== "custom" || a.purpose === b.purpose;
 }
 
 /**
