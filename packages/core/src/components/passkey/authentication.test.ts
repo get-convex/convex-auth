@@ -206,7 +206,7 @@ describe("finishAuthentication", () => {
     );
   });
 
-  test("returns VERIFICATION_FAILED when the user is not present or not verified", async () => {
+  test("returns PROTOCOL_ERROR when the user is not present or not verified", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -223,7 +223,7 @@ describe("finishAuthentication", () => {
       });
       expect(result).toEqual({
         success: false,
-        userError: { error: "VERIFICATION_FAILED" },
+        userError: { error: "PROTOCOL_ERROR" },
       });
     }
   });
@@ -310,7 +310,7 @@ describe("finishAuthentication", () => {
     });
   });
 
-  test("returns VERIFICATION_FAILED when the challenge is bound to another user", async () => {
+  test("returns PROTOCOL_ERROR when the challenge is bound to another user", async () => {
     const t = setup();
     await register(t, "userA");
     const { credential: credentialB } = await register(t, "userB");
@@ -325,7 +325,7 @@ describe("finishAuthentication", () => {
     });
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
     // The mismatch happens after consumption: the challenge is burned.
     const challenges = await t.run((ctx) =>
@@ -334,7 +334,7 @@ describe("finishAuthentication", () => {
     expect(challenges).toEqual([]);
   });
 
-  test("returns VERIFICATION_FAILED for an ES256 signature by the wrong key", async () => {
+  test("returns PROTOCOL_ERROR for an ES256 signature by the wrong key", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -351,11 +351,11 @@ describe("finishAuthentication", () => {
     });
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
   });
 
-  test("returns VERIFICATION_FAILED for invalid RS256 signature bytes", async () => {
+  test("returns PROTOCOL_ERROR for invalid RS256 signature bytes", async () => {
     const t = setup();
     const credential = await generateRS256Credential();
     await register(t, "user1", { credential });
@@ -371,11 +371,11 @@ describe("finishAuthentication", () => {
     });
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
   });
 
-  test("returns VERIFICATION_FAILED for an empty RS256 signature", async () => {
+  test("returns PROTOCOL_ERROR for an empty RS256 signature", async () => {
     // The RSA verification decodes the signature as a big integer, which
     // refuses zero bytes. The mutation must not throw.
     const t = setup();
@@ -393,11 +393,11 @@ describe("finishAuthentication", () => {
     });
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
   });
 
-  test("returns VERIFICATION_FAILED for ES256 signature bytes that are not DER", async () => {
+  test("returns PROTOCOL_ERROR for ES256 signature bytes that are not DER", async () => {
     // No authenticator sends bytes that the decoder refuses.
     const t = setup();
     const { credential } = await register(t, "user1");
@@ -413,11 +413,11 @@ describe("finishAuthentication", () => {
     });
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
   });
 
-  test("returns VERIFICATION_FAILED for an ES256 signature where s is the order of the curve", async () => {
+  test("returns PROTOCOL_ERROR for an ES256 signature where s is the order of the curve", async () => {
     // The DER is correct, but `s` has no inverse modulo the order of the
     // curve. The verification must not throw.
     const t = setup();
@@ -441,7 +441,7 @@ describe("finishAuthentication", () => {
     });
     expect(result).toEqual({
       success: false,
-      userError: { error: "VERIFICATION_FAILED" },
+      userError: { error: "PROTOCOL_ERROR" },
     });
   });
 

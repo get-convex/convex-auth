@@ -451,7 +451,7 @@ describe("usePasskey autofill", () => {
     mutations.finishSignIn
       .mockResolvedValueOnce({
         success: false,
-        userError: { error: "VERIFICATION_FAILED" },
+        userError: { error: "CHALLENGE_EXPIRED" },
       })
       .mockResolvedValueOnce({
         success: true,
