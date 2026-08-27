@@ -1,4 +1,4 @@
-# react-passkey-no-management example
+# react-passkey-basic example
 
 > [!WARNING]
 > This demo is intentionally kept incomplete because it is used as a first step in the passkey tutorial. You should probably not implement an app that doesn’t support passkey management. See [**react-passkey**](../react-passkey/README.md) for a full demo.

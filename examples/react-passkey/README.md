@@ -1,7 +1,7 @@
 # react-passkey example
 
 > [!WARNING]
-> **Work in progress**: this demo doesn’t have frontend code yet. See [react-passkey-no-management](../react-passkey-no-management/README.md) if you need a full demo.
+> **Work in progress**: this demo doesn’t have frontend code yet. See [react-passkey-basic](../react-passkey-basic/README.md) if you need a full demo.
 
 <!-- TODO(nicolas) Remove this ↑ -->
 
