@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   consumeChallenge,
+  deleteDeadChallenge,
   randomChallenge,
   randomHandle,
   toArrayBuffer,
@@ -180,6 +181,41 @@ describe("consumeChallenge", () => {
       expect(await consumeChallenge(ctx, "registration", challenge)).not.toBe(
         null,
       );
+    });
+  });
+});
+
+describe("deleteDeadChallenge", () => {
+  test("deletes a registration challenge and its unlinked handle", async () => {
+    const t = setup();
+    await t.run(async (ctx) => {
+      const handleId = await insertHandle(ctx);
+      const id = await ctx.db.insert("challenges", {
+        kind: "registration",
+        challenge: randomChallenge(),
+        handleId,
+      });
+      await deleteDeadChallenge(ctx, (await ctx.db.get("challenges", id))!);
+      expect(await ctx.db.query("challenges").collect()).toEqual([]);
+      expect(await ctx.db.query("handles").collect()).toEqual([]);
+    });
+  });
+
+  test("keeps the handle of a registration challenge that a user owns", async () => {
+    const t = setup();
+    await t.run(async (ctx) => {
+      const handleId = await ctx.db.insert("handles", {
+        handle: randomHandle(),
+        userId: "user1",
+      });
+      const id = await ctx.db.insert("challenges", {
+        kind: "registration",
+        challenge: randomChallenge(),
+        handleId,
+      });
+      await deleteDeadChallenge(ctx, (await ctx.db.get("challenges", id))!);
+      expect(await ctx.db.query("challenges").collect()).toEqual([]);
+      expect(await ctx.db.query("handles").collect()).toHaveLength(1);
     });
   });
 });
