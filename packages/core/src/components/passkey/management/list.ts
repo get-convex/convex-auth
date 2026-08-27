@@ -1,3 +1,9 @@
+/**
+ * Allows logged-in users to see the passkeys set up on their account.
+ *
+ * @module
+ */
+
 import { queryGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import { getAuthUserId } from "../../core/userId.ts";

@@ -1,3 +1,27 @@
+/**
+ * The flow that removes a passkey from a signed-in account.
+ *
+ * A different passkey of the same account must authorize the removal. Thus
+ * the flow is one authentication ceremony (`get()`) around the deletion, and
+ * the user can never remove their last passkey.
+ *
+ * ```
+ *  Client                                 Provider
+ *    │                                       │
+ *    │  startRemovePasskey(passkeyId)        │
+ *    ├──────────────────────────────────────▶│  start the authentication
+ *    │◀──────────────────────────────────────┤  (removed passkey excluded)
+ *    │                                       │
+ *    ├─▶ navigator.credentials.get()         │
+ *    │                                       │
+ *    │  finishRemovePasskey(id, assertion)   │
+ *    ├──────────────────────────────────────▶│  verify it, delete the passkey
+ *    │◀──────────────────────────────────────┤
+ *    │                                       │
+ * ```
+ *
+ * @module
+ */
 import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import { getAuthUserId } from "../../core/userId.ts";
@@ -39,10 +63,6 @@ const startRemovePasskeyResult = v.union(
   }),
 );
 
-/**
- * The result of `startRemovePasskey`: the data for a `get()` call that
- * authorizes the removal, or a user-facing `userError`.
- */
 export type StartRemovePasskeyResult = Infer<typeof startRemovePasskeyResult>;
 
 const finishRemovePasskeyResult = v.union(
@@ -51,18 +71,12 @@ const finishRemovePasskeyResult = v.union(
     success: v.literal(false),
     userError: v.union(
       notSignedInUserError,
-      // `PROTOCOL_ERROR` covers an assertion from the passkey that goes
-      // away. See the check in `finishRemovePasskey`.
       finishAuthenticationUserError,
       deletePasskeyUserError,
     ),
   }),
 );
 
-/**
- * The result of `finishRemovePasskey`: the removal happened, or a
- * user-facing `userError`.
- */
 export type FinishRemovePasskeyResult = Infer<typeof finishRemovePasskeyResult>;
 
 /** Tell if two credential IDs hold the same bytes. */
@@ -75,12 +89,6 @@ function sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
   return left.every((byte, index) => byte === right[index]);
 }
 
-/**
- * Build the `startRemovePasskey` mutation of the provider.
- *
- * The removal needs an assertion from a passkey that is not the passkey
- * that goes away, thus the user keeps at least one usable passkey.
- */
 export function startRemovePasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
     args: { passkeyId: v.string() },
@@ -124,17 +132,6 @@ export function startRemovePasskey(config: UsernamePasskeyConfig) {
   });
 }
 
-/**
- * Build the `finishRemovePasskey` mutation of the provider.
- *
- * The mutation runs every check itself, because the challenge does not
- * carry the target: the purpose must agree, the assertion must come from a
- * different passkey than the target, and the target must belong to the
- * caller.
- *
- * TODO(nicolas) The sessions that the removed passkey started stay valid. A
- * later change could end them with the removal.
- */
 export function finishRemovePasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
     args: {
@@ -167,22 +164,19 @@ export function finishRemovePasskey(config: UsernamePasskeyConfig) {
         return { success: false, userError: authenticationResult.userError };
       }
       if (authenticationResult.userId !== userId) {
-        // Not possible: `startRemovePasskey` binds the challenge to the
-        // caller, and `finishAuthentication` refuses an assertion from a
-        // passkey of a different user. Throwing rolls the burned challenge
-        // back.
-        throw new Error(
-          "Invariant violation: the assertion authenticates a different user than the caller.",
+        // The identity of the caller changed between `startRemovePasskey`
+        // and this call
+        console.warn(
+          "Rejected a passkey removal because the assertion authenticates a " +
+            "different user than the caller. The caller signed in as a " +
+            "different user after the `startRemovePasskey` call.",
         );
+        return { success: false, userError: { error: "PROTOCOL_ERROR" } };
       }
       if (authenticationResult.passkeyId === args.passkeyId) {
-        // A passkey cannot authorize its own removal: a person who holds one
-        // stolen passkey must not be able to erase the passkey of the owner
-        // and keep the account. No correct caller reaches this: the browser
-        // never gets the target in `allowCredentials`, and an app that sends
-        // a `passkeyId` other than the one it started with contradicts its
-        // own challenge. Thus the result is a `PROTOCOL_ERROR`, and the
-        // message goes to the backend logs only.
+        // A passkey cannot authorize its own removal.
+        // This should not happen because we exclude the removed passkey
+        // from `allowCredentials` in `startRemovePasskey`.
         console.warn(
           "Rejected a passkey removal because the assertion comes from the " +
             "passkey that goes away. Check that `finishRemovePasskey` gets " +
@@ -191,6 +185,15 @@ export function finishRemovePasskey(config: UsernamePasskeyConfig) {
         );
         return { success: false, userError: { error: "PROTOCOL_ERROR" } };
       }
+
+      // Note that here, we don’t validate that the passkey ID matches the one
+      // passed to startRemovePasskey. This is okay: if we reached that point,
+      // we know that the passkey’s owner has been re-authenticated, and this is
+      // what we actually care about.
+      // The reason why startRemovePasskey takes a passkeyId is because we want
+      // to exclude the removed passkey from allowCredentials, so that the
+      // user’s authenticator doesn’t suggest it. This is a UX improvement,
+      // but it’s not necessary from a security point of view.
 
       const deleteResult = await ctx.runMutation(
         config.component.registration.deletePasskey,
