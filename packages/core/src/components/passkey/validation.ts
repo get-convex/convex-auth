@@ -25,51 +25,22 @@ const MAX_TRANSPORT_LENGTH = 32;
 const TRANSPORT_PATTERN = /^[\x21-\x7e]+$/;
 
 /**
- * Show a transport in an error message. The value comes from the client,
- * thus it can be long, empty, or contain characters that are not
- * printable. `JSON.stringify` puts it in quotation marks and replaces
- * these characters. A long value is cut to keep the message short.
- */
-function describeTransport(value: string) {
-  const shown =
-    value.length > MAX_TRANSPORT_LENGTH
-      ? `${value.slice(0, MAX_TRANSPORT_LENGTH)}…`
-      : value;
-  return JSON.stringify(shown);
-}
-
-/**
  * Examine the transports that the client reports, before the component
  * stores them.
  *
  * The component does not compare the values with a list of known
  * transports, because the WebAuthn spec lets new transports appear. It
  * only refuses the values that no authenticator can report.
- *
- * @throws when there are too many values, or when a value is empty, too
- * long, or not printable ASCII.
  */
-export function validateTransports(values: string[] | undefined) {
-  if (values === undefined) {
-    return;
-  }
-  if (values.length > MAX_TRANSPORTS) {
-    throw new Error(
-      `Too many transports: a credential can have a maximum of ${MAX_TRANSPORTS}.`,
-    );
-  }
-  for (const value of values) {
-    if (value.length > MAX_TRANSPORT_LENGTH) {
-      throw new Error(
-        `Transport too long: ${describeTransport(value)} has ${value.length} characters, but a transport can have a maximum of ${MAX_TRANSPORT_LENGTH}.`,
-      );
-    }
-    if (!TRANSPORT_PATTERN.test(value)) {
-      throw new Error(
-        `Invalid transport: ${describeTransport(value)} is not a non-empty string of printable ASCII characters.`,
-      );
-    }
-  }
+export function transportsAreValid(values: string[] | undefined): boolean {
+  if (values === undefined) return true;
+
+  if (values.length > MAX_TRANSPORTS) return false;
+
+  return values.every(
+    (value) =>
+      value.length <= MAX_TRANSPORT_LENGTH && TRANSPORT_PATTERN.test(value),
+  );
 }
 
 /**
@@ -83,15 +54,27 @@ export const credentialDescriptor = v.object({
 export type CredentialDescriptor = Infer<typeof credentialDescriptor>;
 
 /**
+ * The client broke the WebAuthn protocol: an unexpected origin, an
+ * attestation that no parser can read, a key algorithm that the ceremony
+ * never offered, an assertion that no compliant authenticator makes, and so
+ * on.
+ *
+ * This is the HTTP 400 of the component. Most of the time the client is at
+ * fault, but the same code also covers a configuration mistake of the app
+ * (an `rpId` or an `origin` that does not match the page). The two are not
+ * separated, exactly as a 400 does not say whether the caller wrote a bad
+ * request or configured a bad base URL.
+ *
+ * The end user cannot correct this, so an app shows a generic message. The
+ * component writes which check failed to the backend logs, and never sends
+ * the details to the client.
+ */
+const protocolError = v.object({ error: v.literal("PROTOCOL_ERROR") });
+
+/**
  * The user-facing errors for `finishRegistration`. An app can show these
  * errors to the end user. The `error` field is a machine-readable code and
  * the discriminant of the union.
- *
- * Protocol violations (an unexpected origin, a malformed attestation, an
- * unsupported algorithm, …) are not part of this union. They show a
- * configuration error or a tampered client, not a condition that the user
- * can correct. For these violations, the component throws an error. The
- * error also aborts the transaction around the call.
  */
 export const finishRegistrationUserError = v.union(
   // The challenge is unknown, already used, or too old. The user must start
@@ -99,6 +82,7 @@ export const finishRegistrationUserError = v.union(
   v.object({ error: v.literal("CHALLENGE_EXPIRED") }),
   // The authenticator did not report user presence and user verification.
   v.object({ error: v.literal("VERIFICATION_FAILED") }),
+  protocolError,
 );
 export type FinishRegistrationUserError = Infer<
   typeof finishRegistrationUserError
@@ -109,12 +93,14 @@ export type FinishRegistrationUserError = Infer<
  * errors to the end user.
  */
 export const finishAuthenticationUserError = v.union(
-  // No stored passkey has the credential ID from the assertion.
+  // No stored passkey has the credential ID from the assertion. The
+  // authenticator still offers a passkey that the app deleted.
   v.object({ error: v.literal("UNKNOWN_CREDENTIAL") }),
   v.object({ error: v.literal("CHALLENGE_EXPIRED") }),
   // The assertion is not valid. Possible causes: a bad signature, no user
   // presence or user verification, or a challenge for a different user.
   v.object({ error: v.literal("VERIFICATION_FAILED") }),
+  protocolError,
 );
 export type FinishAuthenticationUserError = Infer<
   typeof finishAuthenticationUserError

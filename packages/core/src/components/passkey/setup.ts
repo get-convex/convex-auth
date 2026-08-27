@@ -274,8 +274,8 @@ export function setupUsernamePasskey<UsersTable extends string>(
          * The order of the steps gives that guarantee:
          * 1. Checks that write nothing: the username format, the username
          *    conflict, and `checkRegistration` (the full WebAuthn
-         *    verification as a query). Each correctable failure returns a
-         *    `userError` here, before anything exists.
+         *    verification as a query). Each failure, correctable or not,
+         *    returns a `userError` here, before anything exists.
          * 2. Writes that cannot fail after the checks: `completeSignUp` mints
          *    the user, the account, and the session, `setUsername` stores the
          *    username, and `finishRegistration` stores the passkey. None of
@@ -314,6 +314,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 expectedOrigin: origin,
                 attestationObject: args.attestationObject,
                 clientDataJSON: args.clientDataJSON,
+                transports: args.transports,
               },
             );
             if (!checkResult.success) {

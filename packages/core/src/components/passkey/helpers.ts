@@ -2,6 +2,17 @@ import { Doc, Id } from "./_generated/dataModel.ts";
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
 
+/**
+ * Run `read` and return its value. Return `null` when it throws.
+ */
+export function okOrNull<T>(read: () => T): T | null {
+  try {
+    return read();
+  } catch {
+    return null;
+  }
+}
+
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
     ? (bytes.buffer as ArrayBuffer)
