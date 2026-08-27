@@ -1,0 +1,8 @@
+{
+  "name": "convex-auth-codegen-host",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "convex": "^1.43.0"
+  }
+}

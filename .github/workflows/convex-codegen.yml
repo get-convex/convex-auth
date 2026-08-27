@@ -11,6 +11,8 @@ on:
     branches: ["**"]
     paths:
       - ".github/workflows/convex-codegen.yml"
+      - "scripts/**"
+      - "pnpm-workspace.yaml"
       - "examples/**"
       - "packages/**"
   workflow_dispatch:
@@ -41,56 +43,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Convex code
-        run: |
-          set -euo pipefail
-
-          apps=(
-            examples/react-minimal
-            examples/react-google
-            examples/react-github
-            examples/react-password
-            examples/react-passkey
-            examples/nextjs
-          )
-
-          # Create an anonymous local deployment for each app. This gives the
-          # codegen command a deployment to analyze without requiring CI
-          # credentials or modifying a cloud deployment.
-          for app in "${apps[@]}"; do
-            deployment="anonymous:anonymous-codegen-${app##*/}"
-            (
-              cd "$app"
-              CONVEX_DEPLOYMENT="$deployment" \
-                pnpm exec convex dev --once --skip-push --codegen disable --typecheck disable
-              pnpm exec convex codegen --typecheck disable
-            )
-          done
-
-          components=(
-            packages/core/src/components/anonymous
-            packages/core/src/components/core
-            packages/core/src/components/email
-            packages/core/src/components/passkey
-            packages/core/src/components/password
-            packages/core/src/components/username
-            packages/core/src/oauth/component
-          )
-
-          # Component codegen uses the app deployment selected above, while
-          # --component-dir directs the generated files into the component.
-          for component in "${components[@]}"; do
-            (
-              cd examples/nextjs
-              pnpm exec convex codegen \
-                --component-dir "../../$component" \
-                --typecheck disable
-            )
-          done
+        run: pnpm codegen
 
       - name: Verify generated code is committed
         run: |
           if ! git diff --quiet; then
-            echo "Generated Convex code is out of date. Run the Convex codegen commands and commit the result."
+            echo 'Generated Convex code is out of date. Run "pnpm codegen" and commit the result.'
             git diff --stat
             git diff
             exit 1

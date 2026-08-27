@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "examples/*"
+  - "scripts/*"
 
 # Prevents by default all dependency versions released within the last 7 days
 # (10080 minutes) from being installed. If necessary (e.g. to install an urgent
