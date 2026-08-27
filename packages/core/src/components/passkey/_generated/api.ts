@@ -14,7 +14,6 @@ import type * as helpers from "../helpers.js";
 import type * as management_add from "../management/add.js";
 import type * as management_list from "../management/list.js";
 import type * as management_remove from "../management/remove.js";
-import type * as protocol from "../protocol.js";
 import type * as purposes from "../purposes.js";
 import type * as react from "../react.js";
 import type * as registration from "../registration.js";
@@ -36,7 +35,6 @@ const fullApi: ApiFromModules<{
   "management/add": typeof management_add;
   "management/list": typeof management_list;
   "management/remove": typeof management_remove;
-  protocol: typeof protocol;
   purposes: typeof purposes;
   react: typeof react;
   registration: typeof registration;
