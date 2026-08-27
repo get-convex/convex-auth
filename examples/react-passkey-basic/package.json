@@ -1,5 +1,5 @@
 {
-  "name": "example-react-passkey-no-management",
+  "name": "example-react-passkey-basic",
   "version": "0.0.0",
   "private": true,
   "type": "module",
