@@ -148,6 +148,7 @@ export const finishAuthentication = mutation({
   },
   returns: finishAuthenticationResult,
   handler: async (ctx, args): Promise<FinishAuthenticationResult> => {
+    validatePurpose(args.purpose);
     const passkey = await ctx.db
       .query("passkeys")
       .withIndex("by_credentialId", (q) =>
