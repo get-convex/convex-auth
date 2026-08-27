@@ -27,7 +27,7 @@ export default defineSchema({
   // One row for each challenge that has started and is not complete.
   // The completion is a one-shot claim: the first `challenge.complete` call
   // that finds the row deletes it.
-  challenges: defineTable({
+  challenges:  defineTable({
     // The address under challenge, with the case that the user gave. This is
     // the address the email goes to, and the address a completion records.
     // Lookups use `normalizeEmail` on this value; the row keeps no
@@ -57,5 +57,7 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("by_codeHash", ["codeHash"])
-    .index("by_purpose_userId", ["purpose.userId"]),
+    .index("by_purpose_userId", ["purpose.userId"])
+    // For the cleanup loop (see cleanup.ts).
+    .index("by_expiresAt", ["expiresAt"]),
 });
