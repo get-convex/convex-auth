@@ -667,16 +667,13 @@ describe("finishRegistration", () => {
       () => t.mutation(api.registration.finishRegistration, args),
       "the credential is already registered",
     );
-    // The check runs before any write, so the challenge and its unlinked
-    // handle stay, and the cleanup loop erases them after the TTL.
+    // The attempt burns the challenge, and the unlinked handle of the new
+    // account goes away with it.
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
     );
-    expect(challenges).toHaveLength(1);
-    expect((await handleRows(t)).map((row) => row.userId)).toEqual([
-      "user1",
-      null,
-    ]);
+    expect(challenges).toEqual([]);
+    expect((await handleRows(t)).map((row) => row.userId)).toEqual(["user1"]);
   });
 
   test("deletes the unlinked handle when verification fails in the new-account flow", async () => {
