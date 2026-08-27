@@ -98,6 +98,12 @@ export function startAddPasskey(config: UsernamePasskeyConfig) {
         config.component.authentication.startAuthentication,
         { purpose: ADD_PASSKEY_PURPOSE, userId },
       );
+      if (allowCredentials.length === 0) {
+        // TODO: When auth flows are more composable, we should just ask the user to reauthenticate another way.
+        throw new Error(
+          "The signed-in user has no passkey. They can’t add a new passkey, because we can’t ask them to reauthenticate.",
+        );
+      }
       return { success: true, challenge, allowCredentials, rpId: config.rpId };
     },
   });
@@ -195,6 +201,12 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
         },
       );
       if (!registrationResult.success) {
+        // A `PROTOCOL_ERROR` here also covers a registration ceremony that
+        // belongs to a different user than the caller, which happens when the
+        // caller signs in as a different user after the `verifyAddPasskey`
+        // call. `finishRegistration` compares the owner of the ceremony with
+        // `verifiedUserId`, thus this call needs no check of its own. See the
+        // same case in `verifyAddPasskey`.
         return { success: false, userError: registrationResult.userError };
       }
       return { success: true, passkeyId: registrationResult.passkeyId };
