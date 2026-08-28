@@ -90,15 +90,13 @@ function errorMessage(
       return "That username was just taken. Try another one.";
     case "CHALLENGE_EXPIRED":
       return "The sign-in attempt took too long. Please try again.";
-    case "VERIFICATION_FAILED":
-      return "The passkey could not be verified. Please try again.";
     case "UNKNOWN_CREDENTIAL":
       return "This passkey is not registered here.";
     case "PROTOCOL_ERROR":
       // The browser sent something that violates the protocol.
       // This might be caused by a misbehaving client, or by a configuration error.
       // The Convex logs contain more information about the source of the error.
-      return "This browser sent an invalid passkey request. Please try again, or contact support if the problem persists.";
+      return "This passkey request could not be verified. Please try again, or contact support if the problem persists.";
     case "CEREMONY_ABORTED":
       // The most common failure: the user closed the passkey dialog.
       return "Sign-in was cancelled. Please try again.";
