@@ -126,7 +126,7 @@ export const startRegistrationForNewUser = mutation({
  * when a signed-in user adds a passkey to their account.
  */
 export const startRegistrationForExistingUser = mutation({
-  args: { userId: v.string() },
+  args: { verifiedUserId: v.string() },
   returns: v.object({
     challenge: v.bytes(),
     userHandle: v.bytes(),
@@ -134,15 +134,15 @@ export const startRegistrationForExistingUser = mutation({
     // to make a second passkey for a credential that the user already has.
     excludeCredentials: v.array(credentialDescriptor),
   }),
-  handler: async (ctx, { userId }) => {
+  handler: async (ctx, { verifiedUserId }) => {
     const existing = await ctx.db
       .query("handles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .withIndex("by_userId", (q) => q.eq("userId", verifiedUserId))
       .unique();
-    const handle = existing ?? (await insertHandle(ctx, userId));
+    const handle = existing ?? (await insertHandle(ctx, verifiedUserId));
     const passkeys = await ctx.db
       .query("passkeys")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .withIndex("by_userId", (q) => q.eq("userId", verifiedUserId))
       .collect();
     const challenge = await insertRegistrationChallenge(ctx, handle._id);
     return {

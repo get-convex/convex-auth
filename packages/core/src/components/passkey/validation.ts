@@ -120,9 +120,9 @@ export type CredentialDescriptor = Infer<typeof credentialDescriptor>;
 const protocolError = v.object({ error: v.literal("PROTOCOL_ERROR") });
 
 /**
- * The user-facing errors for `finishRegistration`. An app can show these
- * errors to the end user. The `error` field is a machine-readable code and
- * the discriminant of the union.
+ * The user-facing errors for the registration finish functions. An app can
+ * show these errors to the end user. The `error` field is a machine-readable
+ * code and the discriminant of the union.
  */
 export const finishRegistrationUserError = v.union(
   // The challenge is unknown, already used, or too old. The user must start

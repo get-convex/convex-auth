@@ -70,7 +70,7 @@ export async function register(
   const credential = options.credential ?? (await generateES256Credential());
   const { challenge } = await t.mutation(
     api.registration.startRegistrationForExistingUser,
-    { userId },
+    { verifiedUserId: userId },
   );
   const authData = await buildAuthenticatorData({
     rpId: RP_ID,

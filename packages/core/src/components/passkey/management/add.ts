@@ -157,7 +157,7 @@ export function verifyAddPasskey(config: UsernamePasskeyConfig) {
       const { challenge, userHandle, excludeCredentials } =
         await ctx.runMutation(
           config.component.registration.startRegistrationForExistingUser,
-          { userId },
+          { verifiedUserId: userId },
         );
       const username = await ctx.runQuery(
         config.usernameComponent.public.getUsername,

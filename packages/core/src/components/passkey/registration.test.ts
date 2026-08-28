@@ -94,7 +94,7 @@ async function registrationArgs(
       startUserId === null
         ? await t.mutation(api.registration.startRegistrationForNewUser, {})
         : await t.mutation(api.registration.startRegistrationForExistingUser, {
-            userId: startUserId,
+            verifiedUserId: startUserId,
           });
     challenge = started.challenge;
     userHandle = started.userHandle;
@@ -211,7 +211,7 @@ describe("startRegistrationForExistingUser", () => {
     const t = setup();
     const { challenge } = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     expect(new Uint8Array(challenge).length).toBe(32);
     const rows = await t.run((ctx) => ctx.db.query("challenges").collect());
@@ -229,7 +229,7 @@ describe("startRegistrationForExistingUser", () => {
     const t = setup();
     const { userHandle } = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     const handles = await handleRows(t);
     expect(handles).toHaveLength(1);
@@ -241,11 +241,11 @@ describe("startRegistrationForExistingUser", () => {
     const t = setup();
     const first = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     const second = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
 
     expectSameBytes(second.userHandle, first.userHandle);
@@ -270,11 +270,11 @@ describe("startRegistrationForExistingUser", () => {
     const t = setup();
     const first = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     const second = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user2" },
+      { verifiedUserId: "user2" },
     );
 
     expect(new Uint8Array(second.userHandle)).not.toEqual(
@@ -291,7 +291,7 @@ describe("startRegistrationForExistingUser", () => {
     );
     const started = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
 
     expect(new Uint8Array(started.userHandle)).not.toEqual(
@@ -310,7 +310,7 @@ describe("startRegistrationForExistingUser", () => {
     await register(t, "user2");
     const { excludeCredentials } = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     const ids = excludeCredentials.map(({ id }) =>
       Array.from(new Uint8Array(id)).join(","),
@@ -325,7 +325,7 @@ describe("startRegistrationForExistingUser", () => {
     await register(t, "user1");
     const { excludeCredentials } = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user2" },
+      { verifiedUserId: "user2" },
     );
     expect(excludeCredentials).toEqual([]);
   });
@@ -336,7 +336,7 @@ describe("startRegistrationForExistingUser", () => {
     const withoutTransports = await register(t, "user1");
     const { excludeCredentials } = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
 
     const byId = new Map(
@@ -360,11 +360,11 @@ describe("startRegistrationForExistingUser", () => {
     const restore = collideHandles();
     try {
       await t.mutation(api.registration.startRegistrationForExistingUser, {
-        userId: "user1",
+        verifiedUserId: "user1",
       });
       await expect(
         t.mutation(api.registration.startRegistrationForExistingUser, {
-          userId: "user2",
+          verifiedUserId: "user2",
         }),
       ).rejects.toThrow("collides with an existing handle");
     } finally {
@@ -1021,7 +1021,7 @@ describe("deletePasskey", () => {
     expect(handles[0].userId).toBe("user1");
     const next = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     expectSameBytes(next.userHandle, handle.handle);
   });
@@ -1105,7 +1105,7 @@ describe("deleteUser", () => {
     await register(t, "user1");
     // An in-flight ceremony that adds a passkey to the user.
     await t.mutation(api.registration.startRegistrationForExistingUser, {
-      userId: "user1",
+      verifiedUserId: "user1",
     });
 
     await t.mutation(api.registration.deleteUser, { userId: "user1" });
@@ -1163,7 +1163,7 @@ describe("deleteUser", () => {
 
     const second = await t.mutation(
       api.registration.startRegistrationForExistingUser,
-      { userId: "user1" },
+      { verifiedUserId: "user1" },
     );
     expect(new Uint8Array(second.userHandle)).not.toEqual(
       new Uint8Array(first.handle),

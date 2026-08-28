@@ -149,7 +149,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       startRegistrationForExistingUser: FunctionReference<
         "mutation",
         "internal",
-        { userId: string },
+        { verifiedUserId: string },
         {
           challenge: ArrayBuffer;
           excludeCredentials: Array<{
