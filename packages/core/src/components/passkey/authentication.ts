@@ -21,6 +21,7 @@ import { sha256 } from "../../vendor/oslo/crypto/sha2.ts";
 import {
   credentialDescriptor,
   finishAuthenticationUserError,
+  validatePurpose,
 } from "./validation.ts";
 import { consumeChallenge, okOrNull, randomChallenge } from "./helpers.ts";
 import { scheduleChallengeCleanup } from "./cleanup.ts";
@@ -39,7 +40,14 @@ const startAuthenticationResult = v.object({
  *
  * `purpose` binds the challenge to one flow of the app (for example a
  * sign-in, or a re-authentication before a change of a setting). The
- * component does not parse the value. The app chooses the strings.
+ * component does not parse the value. The app chooses the strings; a
+ * purpose must be a short string of printable ASCII (see
+ * {@link validatePurpose}).
+ *
+ * A purpose must be a constant that names the flow, for example
+ * "myApp:signIn". Do not put dynamic data in it, such as a user ID, a
+ * time, or a nonce.
+ *
  * `finishAuthentication` must receive the same purpose. A different
  * purpose gets `PROTOCOL_ERROR`.
  *
@@ -58,6 +66,7 @@ export const startAuthentication = mutation({
   args: { purpose: v.string(), userId: v.optional(v.string()) },
   returns: startAuthenticationResult,
   handler: async (ctx, { purpose, userId }) => {
+    validatePurpose(purpose);
     const challenge = randomChallenge();
     await ctx.db.insert("challenges", {
       kind: "authentication",
@@ -139,6 +148,7 @@ export const finishAuthentication = mutation({
   },
   returns: finishAuthenticationResult,
   handler: async (ctx, args): Promise<FinishAuthenticationResult> => {
+    validatePurpose(args.purpose);
     const passkey = await ctx.db
       .query("passkeys")
       .withIndex("by_credentialId", (q) =>
