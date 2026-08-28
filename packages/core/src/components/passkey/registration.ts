@@ -1,5 +1,5 @@
 import { Infer, v } from "convex/values";
-import { mutation, query, QueryCtx } from "./_generated/server.ts";
+import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import {
   ClientDataType,
@@ -86,33 +86,49 @@ export const startRegistration = mutation({
       }));
     }
     if (handle === null) {
-      const bytes = randomHandle();
-      // A handle is 64 random bytes, so a collision is not expected. The
-      // check is here for safety: two users with the same handle would let
-      // one of them authenticate as the other.
-      const collision = await ctx.db
-        .query("handles")
-        .withIndex("by_handle", (q) => q.eq("handle", bytes))
-        .first();
-      if (collision !== null) {
-        throw new Error(
-          "The new user handle collides with an existing handle.",
-        );
-      }
-      const id = await ctx.db.insert("handles", { handle: bytes, userId });
-      handle = { _id: id, handle: bytes };
+      handle = await insertHandle(ctx, userId);
     }
-
-    const challenge = randomChallenge();
-    await ctx.db.insert("challenges", {
-      kind: "registration",
-      challenge,
-      handleId: handle._id,
-    });
-    await scheduleChallengeCleanup(ctx);
+    const challenge = await insertRegistrationChallenge(ctx, handle._id);
     return { challenge, userHandle: handle.handle, excludeCredentials };
   },
 });
+
+/**
+ * Make a WebAuthn user handle. `userId` is `null` in the new-user flow,
+ * where the account does not exist yet.
+ */
+async function insertHandle(
+  ctx: MutationCtx,
+  userId: string | null,
+): Promise<{ _id: Id<"handles">; handle: ArrayBuffer }> {
+  const handle = randomHandle();
+  // A handle is 64 random bytes, so a collision is not expected. The
+  // check is here for safety: two users with the same handle would let
+  // one of them authenticate as the other.
+  const collision = await ctx.db
+    .query("handles")
+    .withIndex("by_handle", (q) => q.eq("handle", handle))
+    .first();
+  if (collision !== null) {
+    throw new Error("The new user handle collides with an existing handle.");
+  }
+  const _id = await ctx.db.insert("handles", { handle, userId });
+  return { _id, handle };
+}
+
+async function insertRegistrationChallenge(
+  ctx: MutationCtx,
+  handleId: Id<"handles">,
+): Promise<ArrayBuffer> {
+  const challenge = randomChallenge();
+  await ctx.db.insert("challenges", {
+    kind: "registration",
+    challenge,
+    handleId,
+  });
+  await scheduleChallengeCleanup(ctx);
+  return challenge;
+}
 
 const finishRegistrationResult = v.union(
   v.object({ success: v.literal(true), passkeyId: v.string() }),
@@ -523,6 +539,7 @@ export const finishRegistration = mutation({
       publicKey: verification.credential.publicKey,
       counter: verification.credential.counter,
     });
+
     return { success: true, passkeyId };
   },
 });
