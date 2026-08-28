@@ -247,7 +247,13 @@ async function verifyRegistration(
     return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
   if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
-    return { userError: { error: "VERIFICATION_FAILED" }, challengeRow };
+    // The ceremony asks for `userVerification: "required"`, thus
+    // `userVerified`/`userPresent` should be set
+    console.warn(
+      `Rejected the passkey ceremony: the authenticator data reports no ` +
+        `user presence or no user verification.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
   }
   const credential = authenticatorData.credential;
   if (credential === null) {

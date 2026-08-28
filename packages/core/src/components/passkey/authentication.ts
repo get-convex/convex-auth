@@ -170,7 +170,13 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
-      return { success: false, userError: { error: "VERIFICATION_FAILED" } };
+      // The ceremony asks for `userVerification: "required"`, thus
+      // `userVerified`/`userPresent` should be set
+      console.warn(
+        `Rejected the passkey ceremony: the authenticator data reports ` +
+          `no user presence or no user verification.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
     const clientDataJSONBytes = new Uint8Array(args.clientDataJSON);
@@ -244,7 +250,14 @@ export const finishAuthentication = mutation({
       challengeRow.userId !== undefined &&
       challengeRow.userId !== passkey.userId
     ) {
-      return { success: false, userError: { error: "VERIFICATION_FAILED" } };
+      // A challenge with a `userId` always carries the passkeys of that user
+      // in `allowCredentials`, thus a compliant client cannot send an
+      // assertion from a passkey of a different user.
+      console.warn(
+        `Rejected the passkey ceremony: the challenge was created for a ` +
+          `different user than the owner of the credential.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
     const hash = sha256(
@@ -273,7 +286,11 @@ export const finishAuthentication = mutation({
         ) ?? false;
     }
     if (!valid) {
-      return { success: false, userError: { error: "VERIFICATION_FAILED" } };
+      console.warn(
+        `Rejected the passkey ceremony: the assertion signature does not ` +
+          `match the public key of the credential.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
     // Here we could compare the signature counter with the stored value to find
