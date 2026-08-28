@@ -1,3 +1,70 @@
+/**
+ * The registration ceremonies that make a passkey and store it.
+ *
+ * A ceremony runs in one of two flows, and the component gives each flow
+ * its own pair of functions:
+ *
+ * - The new-user flow (`…ForNewUser`), where the user does not exist yet.
+ *   The ceremony gets a handle with no owner, and the finish step links that
+ *   handle to the user that the caller creates in the same transaction.
+ *
+ * ```
+ *  Client                Provider                         Component
+ *    │                     │                                 │
+ *    │  start the sign-up  │                                 │
+ *    ├────────────────────▶│                                 │
+ *    │                     │  startRegistrationForNewUser()  │
+ *    │                     ├────────────────────────────────▶│     make a handle with no owner
+ *    │                     │◀────────────────────────────────┤
+ *    │◀────────────────────┤                                 │
+ *    │                     │                                 │
+ *    ├─▶ navigator.credentials.create()                      │
+ *    │                     │                                 │
+ *    │  finish the sign-up │                                 │
+ *    ├────────────────────▶│                                 │  ┐  one mutation
+ *    │                     │  checkRegistrationForNewUser()  │  │
+ *    │                     ├────────────────────────────────▶│  │  verify it, write nothing
+ *    │                     │◀────────────────────────────────┤  │
+ *    │                     ├─▶ create the user               │  │
+ *    │                     │  finishRegistrationForNewUser() │  │
+ *    │                     ├────────────────────────────────▶│  │  store the passkey, own the handle
+ *    │                     │◀────────────────────────────────┤  │
+ *    │◀────────────────────┤                                 │  ┘
+ *    │                     │                                 │
+ * ```
+ *
+ * - The existing-user flow (`…ForExistingUser`), where a signed-in user adds
+ *   a passkey. The ceremony reuses the handle of the user, and it excludes
+ *   the passkeys that the user already has.
+ *
+ * ```
+ *  Client                     Provider                                   Component
+ *    │                          │                                           │
+ *    │  start adding a passkey  │                                           │
+ *    ├─────────────────────────▶│                                           │
+ *    │                          │  startRegistrationForExistingUser(userId) │
+ *    │                          ├──────────────────────────────────────────▶│     reuse the handle of the user
+ *    │                          │◀──────────────────────────────────────────┤
+ *    │◀─────────────────────────┤                                           │
+ *    │                          │                                           │
+ *    ├─▶ navigator.credentials.create()                                     │
+ *    │                          │                                           │
+ *    │  finish adding a passkey │                                           │
+ *    ├─────────────────────────▶│                                           │
+ *    │                          │  finishRegistrationForExistingUser()      │
+ *    │                          ├──────────────────────────────────────────▶│     store the passkey
+ *    │                          │◀──────────────────────────────────────────┤
+ *    │◀─────────────────────────┤                                           │
+ *    │                          │                                           │
+ * ```
+ *
+ * The flows never mix: a finish function refuses a ceremony that the other
+ * start function made. The owner of the handle of the ceremony says which
+ * flow started it, thus no extra field is stored.
+ *
+ * @module
+ */
+
 import { Infer, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
@@ -13,7 +80,6 @@ import { ECDSAPublicKey, p256 } from "../../vendor/oslo/crypto/ecdsa.ts";
 import { RSAPublicKey } from "../../vendor/oslo/crypto/rsa.ts";
 import {
   credentialDescriptor,
-  CredentialDescriptor,
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
@@ -34,66 +100,59 @@ import { scheduleChallengeCleanup } from "./cleanup.ts";
 // Start registration
 //------------------------------------------------------------------------------
 
-// The challenge, the credential IDs, and the user handle travel as raw bytes
-// (Convex `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API
-// in the browser makes and accepts the same bytes, so no base64 conversion
-// is necessary.
-const startRegistrationResult = v.object({
-  challenge: v.bytes(),
-  // The WebAuthn user handle (`user.id`) for the `create()` call.
-  userHandle: v.bytes(),
-  excludeCredentials: v.array(credentialDescriptor),
+/**
+ * Start a registration ceremony for a user that does not exist yet.
+ *
+ * The function makes a handle with no owner, because the user row does not
+ * exist when the ceremony starts. `finishRegistrationForNewUser` links the
+ * handle to the user that the caller creates in the same transaction.
+ */
+export const startRegistrationForNewUser = mutation({
+  args: {},
+  returns: v.object({
+    challenge: v.bytes(),
+    // The WebAuthn user handle (`user.id`) for the `create()` call.
+    userHandle: v.bytes(),
+  }),
+  handler: async (ctx) => {
+    const handle = await insertHandle(ctx, null);
+    const challenge = await insertRegistrationChallenge(ctx, handle._id);
+    return { challenge, userHandle: handle.handle };
+  },
 });
 
 /**
- * Start a registration ceremony.
- *
- * The function stores a one-use `registration` challenge and returns the
- * challenge bytes. The challenge has no identity: it is simply a random
- * string used to avoid replay attacks.
- *
- * The function also returns the `userHandle` for the ceremony:
- * - Give a `userId` when a known user adds a passkey to their account. The
- *   function reuses the handle of the user, or makes one when the user has
- *   none. It also returns the existing credential IDs of the user. This is
- *   used by the authenticator to ensure there isn’t already a passkey that
- *   exists for the user.
- * - Give `null` in the new-account flow (the user row does not exist yet).
- *   The function makes a new handle with no user. `finishRegistration` links
- *   the handle to the verified user.
- *
- * The `userId` argument is required, not optional: the two flows behave
- * differently, so the caller must state which flow it runs. (Compare with
- * `startAuthentication`, where the argument is optional.)
- *
- * TODO(nicolas) Split this into two methods
+ * Start a registration ceremony for a user that already exists, for example
+ * when a signed-in user adds a passkey to their account.
  */
-export const startRegistration = mutation({
-  args: { userId: v.union(v.string(), v.null()) },
-  returns: startRegistrationResult,
+export const startRegistrationForExistingUser = mutation({
+  args: { userId: v.string() },
+  returns: v.object({
+    challenge: v.bytes(),
+    userHandle: v.bytes(),
+    // The user’s existing credential IDs, so the authenticator refuses
+    // to make a second passkey for a credential that the user already has.
+    excludeCredentials: v.array(credentialDescriptor),
+  }),
   handler: async (ctx, { userId }) => {
-    let handle: { _id: Id<"handles">; handle: ArrayBuffer } | null = null;
-    let excludeCredentials: CredentialDescriptor[] = [];
-    if (userId !== null) {
-      // A user has a maximum of one handle: reuse it when it exists.
-      handle = await ctx.db
-        .query("handles")
-        .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .unique();
-      const rows = await ctx.db
-        .query("passkeys")
-        .withIndex("by_userId", (q) => q.eq("userId", userId))
-        .collect();
-      excludeCredentials = rows.map((row) => ({
+    const existing = await ctx.db
+      .query("handles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    const handle = existing ?? (await insertHandle(ctx, userId));
+    const passkeys = await ctx.db
+      .query("passkeys")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    const challenge = await insertRegistrationChallenge(ctx, handle._id);
+    return {
+      challenge,
+      userHandle: handle.handle,
+      excludeCredentials: passkeys.map((row) => ({
         id: row.credentialId,
         transports: row.transports,
-      }));
-    }
-    if (handle === null) {
-      handle = await insertHandle(ctx, userId);
-    }
-    const challenge = await insertRegistrationChallenge(ctx, handle._id);
-    return { challenge, userHandle: handle.handle, excludeCredentials };
+      })),
+    };
   },
 });
 
@@ -135,20 +194,34 @@ async function insertRegistrationChallenge(
 }
 
 //------------------------------------------------------------------------------
-// checkRegistration
+// checkRegistrationForNewUser
 //------------------------------------------------------------------------------
 
-// The arguments that the shared verification helper examines.
+// The arguments that the shared verification helpers examine.
 const registrationCheckArgs = {
+  // The expected relying party ID, usually the registrable domain
+  // at which the app is served (for example, "example.com", "subdomain.example.com",
+  // or "localhost"). Only web pages on the same domain (or their subdomains)
+  // will be able to use that passkey.
+  // See https://web.dev/articles/webauthn-rp-id
   expectedRpId: v.string(),
+  // The expected origin of the ceremony (for example, "https://app.example.com").
   expectedOrigin: v.string(),
   attestationObject: v.bytes(),
   clientDataJSON: v.bytes(),
+  // The transports that the browser reported for the new
+  // credential. The value is a hint: a later ceremony sends it back to the
+  // browser, and the verification does not use it.
   transports: v.optional(v.array(v.string())),
 };
 
 const _vRegistrationCheckArgs = v.object(registrationCheckArgs);
 type RegistrationCheckArgs = Infer<typeof _vRegistrationCheckArgs>;
+
+const finishRegistrationArgs = {
+  ...registrationCheckArgs,
+  name: v.optional(v.string()),
+};
 
 const checkRegistrationResult = v.union(
   v.object({ success: v.literal(true) }),
@@ -160,37 +233,33 @@ const checkRegistrationResult = v.union(
 type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
 
 /**
- * Run the verifications of `finishRegistration`, without any write.
+ * Run the verifications of `finishRegistrationForNewUser`, without any
+ * write if the registration can succeed.
  *
  * A transactional sign-up flow calls this query first, before it creates
  * the user. Because this is a query, the runtime enforces that nothing is
  * stored: there is no way to store an unverified credential through it.
  *
- * Guarantee: when `checkRegistration` returns `success: true` inside a
- * mutation, a `finishRegistration` call with the same arguments in the
- * same mutation does not return a `userError`. The two calls run in one
- * transaction, so they see the same rows, and Convex fixes the transaction
- * timestamp, so the challenge TTL check cannot flip between the two calls.
- *
- * The guarantee does not cover throws. This function cannot see the
- * handle-linking invariants of `finishRegistration` (they depend on
- * `verifiedUserId`), so `finishRegistration` can still throw after a
- * successful check, and a throw aborts the transaction.
+ * Guarantee: when `checkRegistrationForNewUser` returns `success: true`
+ * inside a mutation, a `finishRegistrationForNewUser` call with the same
+ * arguments in the same mutation does not return a `userError`.
  */
-export const checkRegistration = query({
+export const checkRegistrationForNewUser = query({
   args: registrationCheckArgs,
   returns: checkRegistrationResult,
   handler: async (ctx, args): Promise<CheckRegistrationResult> => {
-    const verification = await verifyRegistration(ctx, args);
-    if (verification.userError !== null) {
-      return { success: false, userError: verification.userError };
+    const ceremony = await verifyRegistrationAttempt(ctx, args, {
+      kind: "newUser",
+    });
+    if (ceremony.userError !== null) {
+      return { success: false, userError: ceremony.userError };
     }
     return { success: true };
   },
 });
 
 //------------------------------------------------------------------------------
-// Finish registration
+// Finish registration functions
 //------------------------------------------------------------------------------
 
 const finishRegistrationResult = v.union(
@@ -203,154 +272,183 @@ const finishRegistrationResult = v.union(
 type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
 
 /**
- * Finish a registration ceremony.
+ * Finish a registration ceremony that `startRegistrationForNewUser` started.
  *
- * The app supplies:
- * - `expectedRpId`: the expected relying party ID, usually the registrable domain
- *   at which the app is served (for example, "example.com", "subdomain.example.com",
- *   or "localhost"). Only web pages on the same domain (or their subdomains)
- *   will be able to use that passkey.
- *   See https://web.dev/articles/webauthn-rp-id
- * - `expectedOrigin`: the expected origin of the ceremony (for example,
- *   "https://app.example.com").
- * - `verifiedUserId`: the user that owns the new passkey. This must always be
- *   the user name of the current user (whether it is a user created in the
- *   same transaction, or the currently logged in user).
- * - `name`: an optional label for the credential. This can be automatically
- *   inferred by the client from the authenticator (e.g. “1Password”),
- *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
- * - `transports`: the transports that the browser reported for the new
- *   credential. The value is a hint: a later ceremony sends it back to the
- *   browser, and the verification does not use it. A value that no
- *   authenticator can report gets `PROTOCOL_ERROR`.
- *
- * The function examines the attestation as
- * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
- * the credential and deletes the challenge.
+ * `newUserId` is the user that the caller creates in the same transaction.
+ * The function links the handle of the ceremony to that user and stores the
+ * credential.
  *
  * Each failure comes back as a `userError`. A client that does not respect
  * the WebAuthn protocol gets `PROTOCOL_ERROR`, and the backend logs say
  * which check failed.
  *
- * A caller that must be sure that this call succeeds before it creates
- * data runs `checkRegistration` first, in the same mutation.
+ * A caller that wants to be sure that this call succeeds before it creates
+ * data can call {@link checkRegistrationForNewUser} first, in the same mutation.
  */
-export const finishRegistration = mutation({
-  args: {
-    ...registrationCheckArgs,
-    verifiedUserId: v.string(),
-    name: v.optional(v.string()),
-    transports: v.optional(v.array(v.string())),
-  },
+export const finishRegistrationForNewUser = mutation({
+  args: { ...finishRegistrationArgs, newUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
-    const verification = await verifyRegistration(ctx, args);
-
-    if (verification.userError !== null) {
-      // The challenge burns on each finish attempt, also when the
-      // verification fails. The ceremony can never complete: the unlinked
-      // handle of the ceremony goes away with the challenge.
-      if (verification.challengeRow !== null) {
-        await deleteDeadChallenge(ctx, verification.challengeRow);
-      }
-      return { success: false, userError: verification.userError };
+    const result = await consumeRegistration(ctx, args, { kind: "newUser" });
+    if (result.userError !== null) {
+      return { success: false, userError: result.userError };
     }
-    const challengeRow = verification.challengeRow;
-    // One use only: the consumed challenge is deleted.
-    await ctx.db.delete("challenges", challengeRow._id);
-
-    // Link the handle of the ceremony to the verified user.
-    const handle = await ctx.db.get("handles", challengeRow.handleId);
-    if (handle === null) {
-      throw new Error("The handle of the challenge does not exist.");
-    }
-    if (handle.userId === null) {
-      // The new-account flow: the handle was made before the user existed.
-      const existingHandle = await ctx.db
-        .query("handles")
-        .withIndex("by_userId", (q) => q.eq("userId", args.verifiedUserId))
-        .first();
-      if (existingHandle !== null) {
-        // Invariant: the new-account flow only runs for a brand-new user,
-        // which cannot have a handle already.
-        throw new Error(
-          "Invariant violation: The user already has a different handle. finishRegistration is being called incorrectly.",
-        );
-      }
-      await ctx.db.patch("handles", handle._id, {
-        userId: args.verifiedUserId,
-      });
-    } else if (handle.userId !== args.verifiedUserId) {
+    const existingHandle = await ctx.db
+      .query("handles")
+      .withIndex("by_userId", (q) => q.eq("userId", args.newUserId))
+      .first();
+    if (existingHandle !== null) {
+      // Invariant: the new-user flow only runs for a brand-new user, which
+      // cannot have a handle already.
       throw new Error(
-        "Invariant violation: The handle belongs to a different user. finishRegistration is being called incorrectly.",
+        "Invariant violation: The user already has a different handle. finishRegistrationForNewUser is being called for a user that is not new.",
       );
     }
-
+    await ctx.db.patch("handles", result.handle._id, {
+      userId: args.newUserId,
+    });
     const passkeyId = await ctx.db.insert("passkeys", {
-      userId: args.verifiedUserId,
+      userId: args.newUserId,
       name: args.name,
       transports: args.transports,
-      credentialId: verification.credential.credentialId,
-      algorithm: verification.credential.algorithm,
-      publicKey: verification.credential.publicKey,
-      counter: verification.credential.counter,
+      credentialId: result.credential.credentialId,
+      algorithm: result.credential.algorithm,
+      publicKey: result.credential.publicKey,
+      counter: result.credential.counter,
     });
-
     return { success: true, passkeyId };
   },
 });
 
+/**
+ * Finish a registration ceremony that `startRegistrationForExistingUser`
+ * started.
+ *
+ * `verifiedUserId` is the signed-in user that adds the passkey. The caller
+ * must have authenticated that user. It must be the same user that started
+ * the ceremony.
+ *
+ * The function examines the attestation as
+ * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
+ * the credential.
+ *
+ * Each failure comes back as a `userError`. A client that does not respect
+ * the WebAuthn protocol gets `PROTOCOL_ERROR`, and the backend logs say
+ * which check failed. A ceremony that `startRegistrationForNewUser` started
+ * gets `PROTOCOL_ERROR` too: only `finishRegistrationForNewUser` can finish
+ * it. A ceremony that a different user started gets `PROTOCOL_ERROR` too.
+ */
+export const finishRegistrationForExistingUser = mutation({
+  args: { ...finishRegistrationArgs, verifiedUserId: v.string() },
+  returns: finishRegistrationResult,
+  handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    const result = await consumeRegistration(ctx, args, {
+      kind: "existingUser",
+      userId: args.verifiedUserId,
+    });
+    if (result.userError !== null) {
+      return { success: false, userError: result.userError };
+    }
+    const passkeyId = await ctx.db.insert("passkeys", {
+      userId: args.verifiedUserId,
+      name: args.name,
+      transports: args.transports,
+      credentialId: result.credential.credentialId,
+      algorithm: result.credential.algorithm,
+      publicKey: result.credential.publicKey,
+      counter: result.credential.counter,
+    });
+    return { success: true, passkeyId };
+  },
+});
+
+/**
+ * Verify a finish step and burn its challenge.
+ *
+ * The challenge is deleted in every case where the lookup found it, also
+ * when the verification fails. On a failure, the unlinked handle of the
+ * ceremony is deleted too.
+ */
+async function consumeRegistration(
+  ctx: MutationCtx,
+  args: RegistrationCheckArgs,
+  flow: RegistrationFlow,
+): Promise<RegistrationCeremony> {
+  const ceremony = await verifyRegistrationAttempt(ctx, args, flow);
+  if (ceremony.userError === null) {
+    await ctx.db.delete("challenges", ceremony.challengeRow._id);
+  } else if (ceremony.challengeRow !== null) {
+    await deleteDeadChallenge(ctx, ceremony.challengeRow);
+  }
+  return ceremony;
+}
+
 //------------------------------------------------------------------------------
 // Verification logic for a registration attempt
 //------------------------------------------------------------------------------
+
+type RegistrationFlow =
+  { kind: "newUser" } | { kind: "existingUser"; userId: string };
 
 type RegistrationChallengeDoc = Extract<
   Doc<"challenges">,
   { kind: "registration" }
 >;
 
-// The result of `verifyRegistration`. On a `userError`, `challengeRow` is
-// the raw challenge row when one exists (live or expired):
-// `finishRegistration` burns it. On success, `challengeRow` is the live row.
-type RegistrationVerification =
+type RegistrationCeremony =
   | {
       userError: FinishRegistrationUserError;
+      // The challenge that the ceremony names, when the lookup found it.
       challengeRow: RegistrationChallengeDoc | null;
     }
   | {
       userError: null;
       challengeRow: RegistrationChallengeDoc;
+      handle: Doc<"handles">;
       credential: VerifiedCredential;
     };
 
-/**
- * The complete verification body of `finishRegistration`, without any
- * write: the client data checks, the challenge lookup with its TTL, the
- * attestation checks, the key extraction, and the duplicate-credential
- * check.
- *
- * The function takes a read-only ctx. `QueryCtx` is structurally satisfied
- * by `MutationCtx`, so both `checkRegistration` (a query) and
- * `finishRegistration` (a mutation) run the exact same code.
- *
- * Failures that the user can correct come back as a `userError`. A client
- * that does not respect the WebAuthn protocol gets `PROTOCOL_ERROR`, and
- * the backend logs say which check failed.
- */
-async function verifyRegistration(
+async function verifyRegistrationAttempt(
   ctx: QueryCtx,
   args: RegistrationCheckArgs,
-): Promise<RegistrationVerification> {
+  flow: RegistrationFlow,
+): Promise<RegistrationCeremony> {
   const lookup = await lookupRegistrationChallenge(ctx, args);
   if (lookup.userError !== null) {
     return lookup;
   }
+
   const verification = await verifyAttestation(ctx, args);
   const { challengeRow } = lookup;
   if (verification.userError !== null) {
     return { userError: verification.userError, challengeRow };
   }
-  return { userError: null, challengeRow, credential: verification.credential };
+
+  const handle = await ctx.db.get("handles", challengeRow.handleId);
+  if (handle === null) {
+    throw new Error("The handle of the challenge does not exist.");
+  }
+
+  const startedBy = handle.userId === null ? "newUser" : "existingUser";
+  if (startedBy !== flow.kind) {
+    console.warn(
+      `Rejected the passkey ceremony: the ceremony comes from \`${startedBy}\`, while the function for ${flow.kind} was called.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+  }
+
+  if (flow.kind === "existingUser" && handle.userId !== flow.userId) {
+    console.warn(
+      "Rejecting registration of a new passkey because the passkey was created for a different user than the current user. This can happen if the user logged in and logged out during the registration process.",
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+  }
+  return {
+    userError: null,
+    challengeRow,
+    handle,
+    credential: verification.credential,
+  };
 }
 
 async function lookupRegistrationChallenge(
@@ -598,6 +696,10 @@ export const listPasskeys = query({
   },
 });
 
+//------------------------------------------------------------------------------
+// Delete passkey
+//------------------------------------------------------------------------------
+
 const deletePasskeyResult = v.union(
   v.object({ success: v.literal(true) }),
   v.object({ success: v.literal(false), userError: deletePasskeyUserError }),
@@ -642,9 +744,9 @@ export const deletePasskey = mutation({
  * holds an old credential stops working (see `deletePasskey`).
  *
  * Caveat: an in-flight registration challenge that points at the handle of
- * the user survives until its TTL. That is safe: `finishRegistration` throws
- * when the handle of the challenge no longer exists, and the cleanup loop
- * erases the challenge after the TTL.
+ * the user survives until its TTL. That is safe: the finish step throws when
+ * the handle of the challenge no longer exists, and the cleanup loop erases
+ * the challenge after the TTL.
  */
 export const deleteUser = mutation({
   args: { userId: v.string() },

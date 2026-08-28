@@ -243,29 +243,33 @@ export async function register(
   } = {},
 ): Promise<{ credential: TestCredential; passkeyId: string }> {
   const credential = options.credential ?? (await generateES256Credential());
-  const { challenge } = await t.mutation(api.registration.startRegistration, {
-    userId,
-  });
+  const { challenge } = await t.mutation(
+    api.registration.startRegistrationForExistingUser,
+    { userId },
+  );
   const authData = buildAuthenticatorData({
     rpId: RP_ID,
     counter: options.counter ?? 0,
     credential,
   });
-  const result = await t.mutation(api.registration.finishRegistration, {
-    expectedRpId: RP_ID,
-    expectedOrigin: ORIGIN,
-    verifiedUserId: userId,
-    name: options.name,
-    transports: options.transports,
-    attestationObject: toArrayBuffer(buildAttestationObject(authData)),
-    clientDataJSON: toArrayBuffer(
-      buildClientDataJSON({
-        type: "webauthn.create",
-        challenge,
-        origin: ORIGIN,
-      }),
-    ),
-  });
+  const result = await t.mutation(
+    api.registration.finishRegistrationForExistingUser,
+    {
+      expectedRpId: RP_ID,
+      expectedOrigin: ORIGIN,
+      verifiedUserId: userId,
+      name: options.name,
+      transports: options.transports,
+      attestationObject: toArrayBuffer(buildAttestationObject(authData)),
+      clientDataJSON: toArrayBuffer(
+        buildClientDataJSON({
+          type: "webauthn.create",
+          challenge,
+          origin: ORIGIN,
+        }),
+      ),
+    },
+  );
   if (!result.success) {
     throw new Error(`Test registration failed: ${result.userError.error}`);
   }

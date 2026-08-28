@@ -61,7 +61,6 @@ const registerStart = {
   step: "register",
   challenge: new ArrayBuffer(16),
   userHandle: new ArrayBuffer(16),
-  excludeCredentials: [],
   rpId: "localhost",
   rpName: "Test app",
 };
