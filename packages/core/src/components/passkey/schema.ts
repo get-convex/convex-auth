@@ -73,7 +73,7 @@ export default defineSchema({
         // opaque to the component. The start step and the finish step
         // must give the same purpose, thus an assertion for one flow
         // cannot complete a different flow. A different purpose
-        // at the finish step burns the challenge.
+        // at the finish step is a protocol violation.
         // The purpose string is expected to be a constant string identifying
         // a specific flow, and should not contain dynamic information.
         // TODO(nicolas) Make `startAuthentication` return the challenge ID too

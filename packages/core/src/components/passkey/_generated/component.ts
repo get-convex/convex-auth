@@ -42,7 +42,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             userError:
               | { error: "UNKNOWN_CREDENTIAL" }
               | { error: "CHALLENGE_EXPIRED" }
-              | { error: "VERIFICATION_FAILED" };
+              | { error: "VERIFICATION_FAILED" }
+              | { error: "PROTOCOL_ERROR" };
           },
         Name
       >;
@@ -69,12 +70,15 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           clientDataJSON: ArrayBuffer;
           expectedOrigin: string;
           expectedRpId: string;
+          transports?: Array<string>;
         },
         | { success: true }
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "VERIFICATION_FAILED" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "VERIFICATION_FAILED" }
+              | { error: "PROTOCOL_ERROR" };
           },
         Name
       >;
@@ -109,7 +113,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "VERIFICATION_FAILED" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "VERIFICATION_FAILED" }
+              | { error: "PROTOCOL_ERROR" };
           },
         Name
       >;

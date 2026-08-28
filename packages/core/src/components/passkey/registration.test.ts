@@ -3,7 +3,11 @@ import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa.ts";
 import { api } from "./_generated/api.ts";
 import { toArrayBuffer } from "./helpers.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
-import { expectSameBytes, setup } from "../passkeyTestSetup.ts";
+import {
+  expectProtocolError,
+  expectSameBytes,
+  setup,
+} from "../passkeyTestSetup.ts";
 import {
   ORIGIN,
   RP_ID,
@@ -364,34 +368,24 @@ describe("finishRegistration", () => {
     {
       name: "too many transports",
       transports: Array.from({ length: 17 }, (_, i) => `t${i}`),
-      message: "Too many transports",
     },
-    {
-      name: "a transport that is too long",
-      transports: ["a".repeat(33)],
-      message: "has 33 characters",
-    },
-    {
-      name: "an empty transport",
-      transports: [""],
-      message: 'Invalid transport: ""',
-    },
-    {
-      name: "a transport with a non-ASCII character",
-      transports: ["üsb"],
-      message: 'Invalid transport: "üsb"',
-    },
-    {
-      name: "a transport with a space",
-      transports: ["smart card"],
-      message: 'Invalid transport: "smart card"',
-    },
-  ])("throws for $name", async ({ transports, message }) => {
+    { name: "a transport that is too long", transports: ["a".repeat(33)] },
+    { name: "an empty transport", transports: [""] },
+    { name: "a transport with a non-ASCII character", transports: ["üsb"] },
+    { name: "a transport with a space", transports: ["smart card"] },
+  ])("returns PROTOCOL_ERROR for $name", async ({ transports }) => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1");
-    await expect(
-      t.mutation(api.registration.finishRegistration, { ...args, transports }),
-    ).rejects.toThrow(message);
+    // One message covers every rule, thus the values are what the logs
+    // carry about this rejection.
+    await expectProtocolError(
+      () =>
+        t.mutation(api.registration.finishRegistration, {
+          ...args,
+          transports,
+        }),
+      `The client sent: ${JSON.stringify(transports)}.`,
+    );
     expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
       [],
     );
@@ -518,24 +512,26 @@ describe("finishRegistration", () => {
     expect(await handleRows(t)).toHaveLength(1);
   });
 
-  test("throws for an authentication client data type", async () => {
+  test("returns PROTOCOL_ERROR for an authentication client data type", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       clientDataType: "webauthn.get",
     });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Unexpected client data type.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      'a registration ceremony must send "webauthn.create"',
+    );
   });
 
-  test("throws for an unexpected origin without consuming the challenge", async () => {
+  test("returns PROTOCOL_ERROR for an unexpected origin without consuming the challenge", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       origin: "https://evil.example.net",
     });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Unexpected WebAuthn origin.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      'the ceremony ran at the origin "https://evil.example.net"',
+    );
     // The origin check happens before the challenge is consumed.
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
@@ -543,22 +539,24 @@ describe("finishRegistration", () => {
     expect(challenges).toHaveLength(1);
   });
 
-  test("throws for a cross-origin ceremony", async () => {
+  test("returns PROTOCOL_ERROR for a cross-origin ceremony", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", { crossOrigin: true });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Cross-origin WebAuthn ceremonies are not allowed.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "the ceremony ran in a cross-origin frame",
+    );
   });
 
-  test("throws for a relying party ID hash mismatch", async () => {
+  test("returns PROTOCOL_ERROR for a relying party ID hash mismatch", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       authDataRpId: "evil.example.net",
     });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Relying party ID hash mismatch.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      `does not match the expected relying party ID "${RP_ID}"`,
+    );
   });
 
   test("returns VERIFICATION_FAILED when the user is not present", async () => {
@@ -607,17 +605,18 @@ describe("finishRegistration", () => {
     expect((await handleRows(t)).map((row) => row.userId)).toEqual(["user1"]);
   });
 
-  test("throws when the attested credential data is missing", async () => {
+  test("returns PROTOCOL_ERROR when the attested credential data is missing", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       includeCredential: false,
     });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Missing attested credential data.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "carries no attested credential data",
+    );
   });
 
-  test("throws for an unsupported public key algorithm", async () => {
+  test("returns PROTOCOL_ERROR for an unsupported public key algorithm", async () => {
     const t = setup();
     const credential = await generateES256Credential();
     // An EdDSA (-8) COSE key.
@@ -630,12 +629,13 @@ describe("finishRegistration", () => {
       ]),
     );
     const { args } = await registrationArgs(t, "user1", { credential });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Unsupported public key algorithm.");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "the credential uses the COSE key algorithm -8",
+    );
   });
 
-  test("throws for an unsupported elliptic curve", async () => {
+  test("returns PROTOCOL_ERROR for an unsupported elliptic curve", async () => {
     const t = setup();
     const credential = await generateES256Credential();
     // ES256 with a P-384 (crv 2) key.
@@ -649,26 +649,27 @@ describe("finishRegistration", () => {
       ]),
     );
     const { args } = await registrationArgs(t, "user1", { credential });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("Unsupported elliptic curve (expected P-256).");
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "the credential uses the elliptic curve 2",
+    );
   });
 
-  test("throws for a duplicate credential ID", async () => {
+  test("returns PROTOCOL_ERROR for a duplicate credential ID", async () => {
     const t = setup();
     await register(t, "user1");
     const { credential } = await register(t, "user1");
     // A second ceremony for a new account, with a credential that exists.
-    // A compliant client cannot cause this, so the mutation throws instead
-    // of returning a user error.
+    // A compliant client cannot cause this.
     const { args } = await registrationArgs(t, "user2", {
       isNewAccountFlow: true,
       credential,
     });
-    await expect(
-      t.mutation(api.registration.finishRegistration, args),
-    ).rejects.toThrow("The credential is already registered.");
-    // The throw rolls back the mutation: the challenge and its unlinked
+    await expectProtocolError(
+      () => t.mutation(api.registration.finishRegistration, args),
+      "the credential is already registered",
+    );
+    // The check runs before any write, so the challenge and its unlinked
     // handle stay, and the cleanup loop erases them after the TTL.
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
@@ -780,23 +781,38 @@ describe("checkRegistration", () => {
     });
   });
 
-  test("throws for a duplicate credential ID", async () => {
+  test("returns PROTOCOL_ERROR for a duplicate credential ID", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { args } = await registrationArgs(t, "user2", { credential });
-    await expect(
-      t.query(api.registration.checkRegistration, checkArgs(args)),
-    ).rejects.toThrow("The credential is already registered.");
+    await expectProtocolError(
+      () => t.query(api.registration.checkRegistration, checkArgs(args)),
+      "the credential is already registered",
+    );
   });
 
-  test("throws for an unexpected origin, like the finish call", async () => {
+  test("returns PROTOCOL_ERROR for an unexpected origin, like the finish call", async () => {
     const t = setup();
     const { args } = await registrationArgs(t, "user1", {
       origin: "https://evil.example.net",
     });
-    await expect(
-      t.query(api.registration.checkRegistration, checkArgs(args)),
-    ).rejects.toThrow("Unexpected WebAuthn origin.");
+    await expectProtocolError(
+      () => t.query(api.registration.checkRegistration, checkArgs(args)),
+      'the ceremony ran at the origin "https://evil.example.net"',
+    );
+  });
+
+  test("returns PROTOCOL_ERROR for transports that the client made up", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    await expectProtocolError(
+      () =>
+        t.query(api.registration.checkRegistration, {
+          ...checkArgs(args),
+          transports: ["smart card"],
+        }),
+      'The client sent: ["smart card"].',
+    );
   });
 
   test("a finish with the same arguments succeeds after a successful check", async () => {

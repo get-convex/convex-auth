@@ -17,12 +17,13 @@ import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
-  validateTransports,
+  transportsAreValid,
 } from "./validation.ts";
 import {
   deleteDeadChallenge,
   findChallenge,
   isChallengeExpired,
+  okOrNull,
   randomChallenge,
   randomHandle,
   toArrayBuffer,
@@ -128,6 +129,7 @@ const registrationCheckArgs = {
   expectedOrigin: v.string(),
   attestationObject: v.bytes(),
   clientDataJSON: v.bytes(),
+  transports: v.optional(v.array(v.string())),
 };
 
 const _vRegistrationCheckArgs = v.object(registrationCheckArgs);
@@ -165,26 +167,55 @@ type RegistrationVerification =
  * by `MutationCtx`, so both `checkRegistration` (a query) and
  * `finishRegistration` (a mutation) run the exact same code.
  *
- * Failures that the user can correct come back as a `userError`. For a
- * protocol violation, the function throws an error (see
- * `finishRegistration`).
+ * Failures that the user can correct come back as a `userError`. A client
+ * that does not respect the WebAuthn protocol gets `PROTOCOL_ERROR`, and
+ * the backend logs say which check failed.
  */
 async function verifyRegistration(
   ctx: QueryCtx,
   args: RegistrationCheckArgs,
 ): Promise<RegistrationVerification> {
-  const clientData = parseClientDataJSON(new Uint8Array(args.clientDataJSON));
+  if (!transportsAreValid(args.transports)) {
+    console.warn(
+      `Rejected the passkey ceremony: the client reported transports that seem invalid. The client sent: ${JSON.stringify(args.transports).slice(0, 200)}.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+  }
+  const clientData = okOrNull(() =>
+    parseClientDataJSON(new Uint8Array(args.clientDataJSON)),
+  );
+  if (clientData === null) {
+    console.warn(
+      `Rejected the passkey ceremony: the client data JSON could not be read.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+  }
   if (clientData.type !== ClientDataType.Create) {
-    throw new Error("Unexpected client data type.");
+    console.warn(
+      `Rejected the passkey ceremony: the client data type is ` +
+        `"webauthn.get", but a registration ceremony must send ` +
+        `"webauthn.create".`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
   if (clientData.origin !== args.expectedOrigin) {
     // We could allow this verification to be less strict in the future
     // (see the comment in `finishAuthentication`).
-    throw new Error("Unexpected WebAuthn origin.");
+    console.warn(
+      `Rejected the passkey ceremony: the ceremony ran at the origin ` +
+        `${JSON.stringify(clientData.origin)}, but the expected origin is ` +
+        `${JSON.stringify(args.expectedOrigin)}. Check that the \`origin\` of ` +
+        `the provider matches the page that ran the ceremony.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
   if (clientData.crossOrigin === true) {
     // In the future, we could allow the user to explicitly opt out to this.
-    throw new Error("Cross-origin WebAuthn ceremonies are not allowed.");
+    console.warn(
+      `Rejected the passkey ceremony: the ceremony ran in a cross-origin ` +
+        `frame, which is not allowed.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
   const challengeRow = await findChallenge(
     ctx,
@@ -195,37 +226,87 @@ async function verifyRegistration(
     return { userError: { error: "CHALLENGE_EXPIRED" }, challengeRow };
   }
 
-  const attestationObject = parseAttestationObject(
-    new Uint8Array(args.attestationObject),
+  const attestationObject = okOrNull(() =>
+    parseAttestationObject(new Uint8Array(args.attestationObject)),
   );
+  if (attestationObject === null) {
+    console.warn(
+      `Rejected the passkey ceremony: the attestation object could not be ` +
+        `read.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+  }
   const authenticatorData = attestationObject.authenticatorData;
   if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
-    throw new Error("Relying party ID hash mismatch.");
+    console.warn(
+      `Rejected the passkey ceremony: the authenticator data does not match ` +
+        `the expected relying party ID ${JSON.stringify(args.expectedRpId)}. ` +
+        `Check that the \`rpId\` of the provider matches the page that ran ` +
+        `the ceremony.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
   if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
     return { userError: { error: "VERIFICATION_FAILED" }, challengeRow };
   }
   const credential = authenticatorData.credential;
   if (credential === null) {
-    throw new Error("Missing attested credential data.");
+    console.warn(
+      `Rejected the passkey ceremony: the authenticator data carries no ` +
+        `attested credential data.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
 
   const cosePublicKey = credential.publicKey;
+  // The algorithm is a number, so `null` is never a valid value.
+  const coseAlgorithm = okOrNull(() => cosePublicKey.algorithm());
+  if (coseAlgorithm === null) {
+    console.warn(
+      `Rejected the passkey ceremony: the algorithm of the credential public ` +
+        `key could not be read.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+  }
   let algorithm: "ES256" | "RS256";
   let publicKey: Uint8Array;
-  if (cosePublicKey.algorithm() === coseAlgorithmES256) {
-    const ec2 = cosePublicKey.ec2();
+  if (coseAlgorithm === coseAlgorithmES256) {
+    const ec2 = okOrNull(() => cosePublicKey.ec2());
+    if (ec2 === null) {
+      console.warn(
+        `Rejected the passkey ceremony: the EC2 credential public key could ` +
+          `not be read.`,
+      );
+      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    }
     if (ec2.curve !== coseEllipticCurveP256) {
-      throw new Error("Unsupported elliptic curve (expected P-256).");
+      console.warn(
+        `Rejected the passkey ceremony: the credential uses the elliptic ` +
+          `curve ${ec2.curve}, but ES256 requires P-256 ` +
+          `(${coseEllipticCurveP256}).`,
+      );
+      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
     }
     publicKey = new ECDSAPublicKey(p256, ec2.x, ec2.y).encodeSEC1Uncompressed();
     algorithm = "ES256";
-  } else if (cosePublicKey.algorithm() === coseAlgorithmRS256) {
-    const rsa = cosePublicKey.rsa();
+  } else if (coseAlgorithm === coseAlgorithmRS256) {
+    const rsa = okOrNull(() => cosePublicKey.rsa());
+    if (rsa === null) {
+      console.warn(
+        `Rejected the passkey ceremony: the RSA credential public key could ` +
+          `not be read.`,
+      );
+      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
+    }
     publicKey = new RSAPublicKey(rsa.n, rsa.e).encodePKCS1();
     algorithm = "RS256";
   } else {
-    throw new Error("Unsupported public key algorithm.");
+    console.warn(
+      `Rejected the passkey ceremony: the credential uses the COSE key ` +
+        `algorithm ${coseAlgorithm}, but the ceremony only offered ES256 ` +
+        `(${coseAlgorithmES256}) and RS256 (${coseAlgorithmRS256}).`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
 
   const credentialId = toArrayBuffer(credential.id);
@@ -238,7 +319,10 @@ async function verifyRegistration(
     // random credential ID for each ceremony, and `excludeCredentials`
     // makes the authenticator refuse a duplicate for this RP. A duplicate
     // here shows a replayed or tampered registration.
-    throw new Error("The credential is already registered.");
+    console.warn(
+      `Rejected the passkey ceremony: the credential is already registered.`,
+    );
+    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow: null };
   }
 
   return {
@@ -276,9 +360,7 @@ type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
  * The guarantee does not cover throws. This function cannot see the
  * handle-linking invariants of `finishRegistration` (they depend on
  * `verifiedUserId`), so `finishRegistration` can still throw after a
- * successful check, and a throw aborts the transaction. The function throws
- * on the same protocol violations that make `finishRegistration` throw, so
- * a caller transaction aborts identically for those.
+ * successful check, and a throw aborts the transaction.
  */
 export const checkRegistration = query({
   args: registrationCheckArgs,
@@ -311,16 +393,16 @@ export const checkRegistration = query({
  *   or provided by the user (e.g. “Nicolas’s MacBook Pro”).
  * - `transports`: the transports that the browser reported for the new
  *   credential. The value is a hint: a later ceremony sends it back to the
- *   browser, and the verification does not use it. The function throws for
- *   a value that no authenticator can report.
+ *   browser, and the verification does not use it. A value that no
+ *   authenticator can report gets `PROTOCOL_ERROR`.
  *
  * The function examines the attestation as
  * https://webauthn.oslojs.dev/examples/registration shows. Then it stores
  * the credential and deletes the challenge.
  *
- * Failures that the user can correct come back as a `userError`. For a
- * protocol violation, the function throws an error. The error aborts the
- * transaction around the call, so a new user row rolls back with it.
+ * Each failure comes back as a `userError`. A client that does not respect
+ * the WebAuthn protocol gets `PROTOCOL_ERROR`, and the backend logs say
+ * which check failed.
  *
  * A caller that must be sure that this call succeeds before it creates
  * data runs `checkRegistration` first, in the same mutation.
@@ -334,7 +416,6 @@ export const finishRegistration = mutation({
   },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
-    validateTransports(args.transports);
     const verification = await verifyRegistration(ctx, args);
 
     if (verification.userError !== null) {

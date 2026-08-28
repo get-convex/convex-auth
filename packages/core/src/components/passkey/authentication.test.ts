@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
-import { expectSameBytes, setup } from "../passkeyTestSetup.ts";
+import {
+  expectProtocolError,
+  expectSameBytes,
+  setup,
+} from "../passkeyTestSetup.ts";
 import {
   ORIGIN,
   RP_ID,
@@ -163,7 +167,7 @@ describe("finishAuthentication", () => {
     expect(challenges).toHaveLength(1);
   });
 
-  test("throws for authenticator data that is too short", async () => {
+  test("returns PROTOCOL_ERROR for authenticator data that is too short", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -171,16 +175,18 @@ describe("finishAuthentication", () => {
       { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-        authenticatorData: new Uint8Array(10).buffer,
-      }),
-    ).rejects.toThrow("Failed to parse authenticator data");
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+          authenticatorData: new Uint8Array(10).buffer,
+        }),
+      "the authenticator data could not be read",
+    );
   });
 
-  test("throws for a relying party ID hash mismatch", async () => {
+  test("returns PROTOCOL_ERROR for a relying party ID hash mismatch", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -190,12 +196,14 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge, {
       rpId: "evil.example.net",
     });
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-      }),
-    ).rejects.toThrow("Relying party ID hash mismatch.");
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+        }),
+      `does not match the expected relying party ID "${RP_ID}"`,
+    );
   });
 
   test("returns VERIFICATION_FAILED when the user is not present or not verified", async () => {
@@ -220,7 +228,7 @@ describe("finishAuthentication", () => {
     }
   });
 
-  test("throws for a registration client data type", async () => {
+  test("returns PROTOCOL_ERROR for a registration client data type", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -230,15 +238,17 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge, {
       type: "webauthn.create",
     });
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-      }),
-    ).rejects.toThrow("Unexpected client data type.");
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+        }),
+      'an authentication ceremony must send "webauthn.get"',
+    );
   });
 
-  test("throws for an unexpected origin", async () => {
+  test("returns PROTOCOL_ERROR for an unexpected origin", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -248,15 +258,17 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge, {
       origin: "https://evil.example.net",
     });
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-      }),
-    ).rejects.toThrow("Unexpected WebAuthn origin.");
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+        }),
+      'the ceremony ran at the origin "https://evil.example.net"',
+    );
   });
 
-  test("throws for a cross-origin ceremony", async () => {
+  test("returns PROTOCOL_ERROR for a cross-origin ceremony", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -266,12 +278,14 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge, {
       crossOrigin: true,
     });
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-      }),
-    ).rejects.toThrow("Cross-origin WebAuthn ceremonies are not allowed.");
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+        }),
+      "the ceremony ran in a cross-origin frame",
+    );
   });
 
   test("returns CHALLENGE_EXPIRED for an expired challenge", async () => {
@@ -361,10 +375,30 @@ describe("finishAuthentication", () => {
     });
   });
 
-  test("throws for ES256 signature bytes that are not DER", async () => {
-    // Pins the current behavior: a signature that does not even decode as
-    // DER throws (aborting the transaction) instead of returning
-    // VERIFICATION_FAILED.
+  test("returns VERIFICATION_FAILED for an empty RS256 signature", async () => {
+    // The RSA verification decodes the signature as a big integer, which
+    // refuses zero bytes. The mutation must not throw.
+    const t = setup();
+    const credential = await generateRS256Credential();
+    await register(t, "user1", { credential });
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { purpose: PURPOSE, userId: "user1" },
+    );
+    const assertion = await buildAssertion(credential, challenge);
+    const result = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...assertion,
+      signature: new Uint8Array(0).buffer,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "VERIFICATION_FAILED" },
+    });
+  });
+
+  test("returns VERIFICATION_FAILED for ES256 signature bytes that are not DER", async () => {
+    // No authenticator sends bytes that the decoder refuses.
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -372,13 +406,75 @@ describe("finishAuthentication", () => {
       { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-        signature: new Uint8Array(10).buffer,
-      }),
-    ).rejects.toThrow("Failed to decode signature");
+    const result = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...assertion,
+      signature: new Uint8Array(10).buffer,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "VERIFICATION_FAILED" },
+    });
+  });
+
+  test("returns VERIFICATION_FAILED for an ES256 signature where s is the order of the curve", async () => {
+    // The DER is correct, but `s` has no inverse modulo the order of the
+    // curve. The verification must not throw.
+    const t = setup();
+    const { credential } = await register(t, "user1");
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { purpose: PURPOSE, userId: "user1" },
+    );
+    const assertion = await buildAssertion(credential, challenge);
+    // SEQUENCE { INTEGER 1, INTEGER n } where n is the order of P-256.
+    const signature = Uint8Array.from([
+      0x30, 0x26, 0x02, 0x01, 0x01, 0x02, 0x21, 0x00, 0xff, 0xff, 0xff, 0xff,
+      0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+      0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17, 0x9e, 0x84, 0xf3, 0xb9, 0xca, 0xc2,
+      0xfc, 0x63, 0x25, 0x51,
+    ]);
+    const result = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...assertion,
+      signature: signature.buffer,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "VERIFICATION_FAILED" },
+    });
+  });
+
+  test("a PROTOCOL_ERROR of a check before the challenge lookup keeps it", async () => {
+    const t = setup();
+    const { credential } = await register(t, "user1");
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { purpose: PURPOSE, userId: "user1" },
+    );
+    // Every protocol check runs before the challenge is consumed, so the
+    // same challenge serves each variant in turn.
+    const variants = [
+      { rpId: "evil.example.net" },
+      { type: "webauthn.create" as const },
+      { origin: "https://evil.example.net" },
+      { crossOrigin: true },
+    ];
+    for (const variant of variants) {
+      const assertion = await buildAssertion(credential, challenge, variant);
+      await expectProtocolError(
+        () =>
+          t.mutation(api.authentication.finishAuthentication, {
+            ...EXPECTED,
+            ...assertion,
+          }),
+        "Rejected the passkey ceremony",
+      );
+    }
+    const challenges = await t.run((ctx) =>
+      ctx.db.query("challenges").collect(),
+    );
+    expect(challenges).toHaveLength(1);
   });
 
   test("rejects a replayed assertion with CHALLENGE_EXPIRED", async () => {
@@ -404,29 +500,34 @@ describe("finishAuthentication", () => {
     });
   });
 
-  test("throws for a different purpose and keeps the challenge bound", async () => {
+  test("returns PROTOCOL_ERROR for a different purpose and burns the challenge", async () => {
     const t = setup();
-    const { credential, passkeyId } = await register(t, "user1");
+    const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
       { purpose: PURPOSE, userId: "user1" },
     );
     const assertion = await buildAssertion(credential, challenge);
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...assertion,
-        purpose: OTHER_PURPOSE,
-      }),
-    ).rejects.toThrow();
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+          purpose: OTHER_PURPOSE,
+        }),
+      `the challenge was created for the purpose "${PURPOSE}", but the ceremony was finished for the purpose "${OTHER_PURPOSE}"`,
+    );
 
-    // The throw rolls the delete back, thus the challenge stays usable for
-    // the flow that started it, and only for that flow.
+    // The purpose check runs after the delete. A mismatch comes from the
+    // code of the app, so the same ceremony would fail again anyway.
     const retry = await t.mutation(api.authentication.finishAuthentication, {
       ...EXPECTED,
       ...assertion,
     });
-    expect(retry).toEqual({ success: true, userId: "user1", passkeyId });
+    expect(retry).toEqual({
+      success: false,
+      userError: { error: "CHALLENGE_EXPIRED" },
+    });
   });
 
   test("keeps the challenges of two purposes independent", async () => {
@@ -442,12 +543,15 @@ describe("finishAuthentication", () => {
     });
 
     // The challenge of the other flow is unusable for the sign-in flow.
-    await expect(
-      t.mutation(api.authentication.finishAuthentication, {
-        ...EXPECTED,
-        ...(await buildAssertion(credential, other.challenge)),
-      }),
-    ).rejects.toThrow();
+    const otherAssertion = await buildAssertion(credential, other.challenge);
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...otherAssertion,
+        }),
+      "the challenge was created for the purpose",
+    );
 
     // The failed attempt leaves the challenge of the sign-in flow alone.
     const result = await t.mutation(api.authentication.finishAuthentication, {

@@ -22,7 +22,7 @@ import {
   credentialDescriptor,
   finishAuthenticationUserError,
 } from "./validation.ts";
-import { consumeChallenge, randomChallenge } from "./helpers.ts";
+import { consumeChallenge, okOrNull, randomChallenge } from "./helpers.ts";
 import { scheduleChallengeCleanup } from "./cleanup.ts";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
@@ -41,7 +41,7 @@ const startAuthenticationResult = v.object({
  * sign-in, or a re-authentication before a change of a setting). The
  * component does not parse the value. The app chooses the strings.
  * `finishAuthentication` must receive the same purpose. A different
- * purpose burns the challenge.
+ * purpose gets `PROTOCOL_ERROR`.
  *
  * If `userId` is set, it will force the authentication ceremony to be
  * tied to this particular user. This is necessary in flows where the
@@ -84,6 +84,23 @@ export const startAuthentication = mutation({
   },
 });
 
+/**
+ * Verify an ES256 assertion signature.
+ *
+ * @throws on invalid input
+ */
+function verifyES256Signature(
+  storedPublicKey: Uint8Array,
+  hash: Uint8Array,
+  signature: Uint8Array,
+): boolean {
+  return verifyECDSASignature(
+    decodeSEC1PublicKey(p256, storedPublicKey),
+    hash,
+    decodePKIXECDSASignature(signature),
+  );
+}
+
 const finishAuthenticationResult = v.union(
   v.object({
     success: v.literal(true),
@@ -108,8 +125,7 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
  * challenge and returns the `userId` of the user. The app can then make a
  * session for that user.
  *
- * `purpose` must be the purpose that `startAuthentication` received. A
- * different purpose throws.
+ * `purpose` must be the purpose that `startAuthentication` received.
  */
 export const finishAuthentication = mutation({
   args: {
@@ -134,18 +150,45 @@ export const finishAuthentication = mutation({
     }
 
     const authenticatorDataBytes = new Uint8Array(args.authenticatorData);
-    const authenticatorData = parseAuthenticatorData(authenticatorDataBytes);
+    const authenticatorData = okOrNull(() =>
+      parseAuthenticatorData(authenticatorDataBytes),
+    );
+    if (authenticatorData === null) {
+      console.warn(
+        `Rejected the passkey ceremony: the authenticator data could not be ` +
+          `read.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
+    }
     if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
-      throw new Error("Relying party ID hash mismatch.");
+      console.warn(
+        `Rejected the passkey ceremony: the authenticator data does not ` +
+          `match the expected relying party ID ${JSON.stringify(args.expectedRpId)}. ` +
+          `Check that the \`rpId\` of the provider matches the page that ran ` +
+          `the ceremony.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
     }
 
     const clientDataJSONBytes = new Uint8Array(args.clientDataJSON);
-    const clientData = parseClientDataJSON(clientDataJSONBytes);
+    const clientData = okOrNull(() => parseClientDataJSON(clientDataJSONBytes));
+    if (clientData === null) {
+      console.warn(
+        `Rejected the passkey ceremony: the client data JSON could not be ` +
+          `read.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
+    }
     if (clientData.type !== ClientDataType.Get) {
-      throw new Error("Unexpected client data type.");
+      console.warn(
+        `Rejected the passkey ceremony: the client data type is ` +
+          `"webauthn.create", but an authentication ceremony must send ` +
+          `"webauthn.get".`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     if (clientData.origin !== args.expectedOrigin) {
       // Note: This forces the app to provide a single accepted origin.
@@ -157,11 +200,21 @@ export const finishAuthentication = mutation({
       //   [auth.example.com, dashboard.example.com] but NOT marketing.example.com)
       // For these reasons, we will probably want to offer more customization options
       // for this check in the future.
-      throw new Error("Unexpected WebAuthn origin.");
+      console.warn(
+        `Rejected the passkey ceremony: the ceremony ran at the origin ` +
+          `${JSON.stringify(clientData.origin)}, but the expected origin is ` +
+          `${JSON.stringify(args.expectedOrigin)}. Check that the \`origin\` of ` +
+          `the provider matches the page that ran the ceremony.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     if (clientData.crossOrigin === true) {
       // In the future, we could allow the user to explicitly opt out to this.
-      throw new Error("Cross-origin WebAuthn ceremonies are not allowed.");
+      console.warn(
+        `Rejected the passkey ceremony: the ceremony ran in a cross-origin ` +
+          `frame, which is not allowed.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     const challengeRow = await consumeChallenge(
       ctx,
@@ -172,12 +225,16 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "CHALLENGE_EXPIRED" } };
     }
     if (challengeRow.purpose !== args.purpose) {
-      // A correct client gives the same purpose to both steps. A mismatch
-      // is probably a bug in the caller or client code, not a end-user
-      // error. Throwing will roll `consumeChallenge` back, but that’s okay
-      throw new Error(
-        "The purpose does not match the purpose of the challenge.",
+      // A client that redeems an assertion in a flow other than the one
+      // that asked for it does not respect the protocol. The challenge is
+      // consumed at this point: a mismatch comes from the code of the app,
+      // so the same ceremony would fail again anyway.
+      console.warn(
+        `Rejected the passkey ceremony: the challenge was created for the ` +
+          `purpose ${JSON.stringify(challengeRow.purpose)}, but the ceremony ` +
+          `was finished for the purpose ${JSON.stringify(args.purpose)}.`,
       );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     // A challenge with a `userId` (the identifier-first flow) must agree
     // with the owner of the credential. A challenge without a `userId` is a
@@ -200,19 +257,20 @@ export const finishAuthentication = mutation({
     const storedPublicKey = new Uint8Array(passkey.publicKey);
     let valid: boolean;
     if (passkey.algorithm === "ES256") {
-      valid = verifyECDSASignature(
-        decodeSEC1PublicKey(p256, storedPublicKey),
-        hash,
-        // WebAuthn ECDSA signatures use the DER (PKIX) encoding.
-        decodePKIXECDSASignature(signature),
-      );
+      valid =
+        okOrNull(() =>
+          verifyES256Signature(storedPublicKey, hash, signature),
+        ) ?? false;
     } else {
-      valid = verifyRSASSAPKCS1v15Signature(
-        decodePKCS1RSAPublicKey(storedPublicKey),
-        sha256ObjectIdentifier,
-        hash,
-        signature,
-      );
+      valid =
+        okOrNull(() =>
+          verifyRSASSAPKCS1v15Signature(
+            decodePKCS1RSAPublicKey(storedPublicKey),
+            sha256ObjectIdentifier,
+            hash,
+            signature,
+          ),
+        ) ?? false;
     }
     if (!valid) {
       return { success: false, userError: { error: "VERIFICATION_FAILED" } };
