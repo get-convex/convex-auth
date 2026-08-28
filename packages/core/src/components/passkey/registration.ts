@@ -135,7 +135,7 @@ const registrationCheckArgs = {
 const _vRegistrationCheckArgs = v.object(registrationCheckArgs);
 type RegistrationCheckArgs = Infer<typeof _vRegistrationCheckArgs>;
 
-type RegistrationChallengeRow = Extract<
+type RegistrationChallengeDoc = Extract<
   Doc<"challenges">,
   { kind: "registration" }
 >;
@@ -146,15 +146,12 @@ type RegistrationChallengeRow = Extract<
 type RegistrationVerification =
   | {
       userError: FinishRegistrationUserError;
-      challengeRow: RegistrationChallengeRow | null;
+      challengeRow: RegistrationChallengeDoc | null;
     }
   | {
       userError: null;
-      challengeRow: RegistrationChallengeRow;
-      credentialId: ArrayBuffer;
-      algorithm: "ES256" | "RS256";
-      publicKey: ArrayBuffer;
-      counter: number;
+      challengeRow: RegistrationChallengeDoc;
+      credential: VerifiedCredential;
     };
 
 /**
@@ -175,6 +172,31 @@ async function verifyRegistration(
   ctx: QueryCtx,
   args: RegistrationCheckArgs,
 ): Promise<RegistrationVerification> {
+  const lookup = await lookupRegistrationChallenge(ctx, args);
+  if (lookup.userError !== null) {
+    return lookup;
+  }
+  const verification = await verifyAttestation(ctx, args);
+  const { challengeRow } = lookup;
+  if (verification.userError !== null) {
+    return { userError: verification.userError, challengeRow };
+  }
+  return { userError: null, challengeRow, credential: verification.credential };
+}
+
+async function lookupRegistrationChallenge(
+  ctx: QueryCtx,
+  args: RegistrationCheckArgs,
+): Promise<
+  | {
+      userError: FinishRegistrationUserError;
+      // The challenge that the ceremony names, when it exists. An expired
+      // challenge comes back with `CHALLENGE_EXPIRED`, thus the caller can
+      // erase it.
+      challengeRow: RegistrationChallengeDoc | null;
+    }
+  | { userError: null; challengeRow: RegistrationChallengeDoc }
+> {
   const PROTOCOL_ERROR = {
     userError: { error: "PROTOCOL_ERROR" },
     challengeRow: null,
@@ -230,6 +252,28 @@ async function verifyRegistration(
   if (challengeRow === null || isChallengeExpired(challengeRow)) {
     return { userError: { error: "CHALLENGE_EXPIRED" }, challengeRow };
   }
+  return { userError: null, challengeRow };
+}
+
+// The credential that a verified ceremony carries, ready to store.
+type VerifiedCredential = {
+  credentialId: ArrayBuffer;
+  algorithm: "ES256" | "RS256";
+  publicKey: ArrayBuffer;
+  counter: number;
+};
+
+/**
+ * Verifies the WebAuthn attestation sent by the user.
+ */
+async function verifyAttestation(
+  ctx: QueryCtx,
+  args: RegistrationCheckArgs,
+): Promise<
+  | { userError: FinishRegistrationUserError }
+  | { userError: null; credential: VerifiedCredential }
+> {
+  const PROTOCOL_ERROR = { userError: { error: "PROTOCOL_ERROR" } } as const;
 
   const attestationObject = okOrNull(() =>
     parseAttestationObject(new Uint8Array(args.attestationObject)),
@@ -239,7 +283,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the attestation object could not be ` +
         `read.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
   const authenticatorData = attestationObject.authenticatorData;
   if (!authenticatorData.verifyRelyingPartyIdHash(args.expectedRpId)) {
@@ -249,7 +293,7 @@ async function verifyRegistration(
         `Check that the \`rpId\` of the provider matches the page that ran ` +
         `the ceremony.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
   if (!authenticatorData.userPresent || !authenticatorData.userVerified) {
     // The ceremony asks for `userVerification: "required"`, thus
@@ -258,7 +302,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the authenticator data reports no ` +
         `user presence or no user verification.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
   const credential = authenticatorData.credential;
   if (credential === null) {
@@ -266,7 +310,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the authenticator data carries no ` +
         `attested credential data.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
 
   const cosePublicKey = credential.publicKey;
@@ -277,7 +321,7 @@ async function verifyRegistration(
       `Rejected the passkey ceremony: the algorithm of the credential public ` +
         `key could not be read.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
   let algorithm: "ES256" | "RS256";
   let publicKey: Uint8Array;
@@ -288,7 +332,7 @@ async function verifyRegistration(
         `Rejected the passkey ceremony: the EC2 credential public key could ` +
           `not be read.`,
       );
-      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+      return PROTOCOL_ERROR;
     }
     if (ec2.curve !== coseEllipticCurveP256) {
       console.warn(
@@ -296,7 +340,7 @@ async function verifyRegistration(
           `curve ${ec2.curve}, but ES256 requires P-256 ` +
           `(${coseEllipticCurveP256}).`,
       );
-      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+      return PROTOCOL_ERROR;
     }
     publicKey = new ECDSAPublicKey(p256, ec2.x, ec2.y).encodeSEC1Uncompressed();
     algorithm = "ES256";
@@ -307,7 +351,7 @@ async function verifyRegistration(
         `Rejected the passkey ceremony: the RSA credential public key could ` +
           `not be read.`,
       );
-      return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+      return PROTOCOL_ERROR;
     }
     publicKey = new RSAPublicKey(rsa.n, rsa.e).encodePKCS1();
     algorithm = "RS256";
@@ -317,7 +361,7 @@ async function verifyRegistration(
         `algorithm ${coseAlgorithm}, but the ceremony only offered ES256 ` +
         `(${coseAlgorithmES256}) and RS256 (${coseAlgorithmRS256}).`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
 
   const credentialId = toArrayBuffer(credential.id);
@@ -333,16 +377,17 @@ async function verifyRegistration(
     console.warn(
       `Rejected the passkey ceremony: the credential is already registered.`,
     );
-    return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
+    return PROTOCOL_ERROR;
   }
 
   return {
     userError: null,
-    challengeRow,
-    credentialId,
-    algorithm,
-    publicKey: toArrayBuffer(publicKey),
-    counter: authenticatorData.signatureCounter,
+    credential: {
+      credentialId,
+      algorithm,
+      publicKey: toArrayBuffer(publicKey),
+      counter: authenticatorData.signatureCounter,
+    },
   };
 }
 
@@ -472,11 +517,11 @@ export const finishRegistration = mutation({
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.verifiedUserId,
       name: args.name,
-      credentialId: verification.credentialId,
-      algorithm: verification.algorithm,
-      publicKey: verification.publicKey,
-      counter: verification.counter,
       transports: args.transports,
+      credentialId: verification.credential.credentialId,
+      algorithm: verification.credential.algorithm,
+      publicKey: verification.credential.publicKey,
+      counter: verification.credential.counter,
     });
     return { success: true, passkeyId };
   },
