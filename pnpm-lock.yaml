@@ -214,7 +214,7 @@ importers:
         specifier: ^8.0.16
         version: 8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12)
 
-  examples/react-passkey:
+  examples/react-passkey-basic:
     dependencies:
       '@convex-dev/auth':
         specifier: workspace:*
