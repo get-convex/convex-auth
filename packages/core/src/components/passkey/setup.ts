@@ -17,6 +17,17 @@ import {
   finishAuthenticationUserError,
   finishRegistrationUserError,
 } from "./validation.ts";
+import {
+  finishAddPasskey,
+  startAddPasskey,
+  verifyAddPasskey,
+} from "./management/add.ts";
+import { listPasskeys } from "./management/list.ts";
+import {
+  finishRemovePasskey,
+  startRemovePasskey,
+} from "./management/remove.ts";
+import { SIGN_IN_PURPOSE } from "./purposes.ts";
 
 /**
  * Options for {@link setupUsernamePasskey}.
@@ -53,10 +64,15 @@ export type UsernamePasskeyOptions = {
   rpName?: string;
 };
 
+/**
+ * {@link UsernamePasskeyOptions} with the defaults applied. The provider
+ * functions, including the passkey-management ones, close over this
+ * value.
+ */
+export type UsernamePasskeyConfig = Required<UsernamePasskeyOptions>;
+
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "passkey";
-
-export const SIGN_IN_PURPOSE = "usernamePasskey:signIn";
 
 const startSignInResult = v.union(
   // The username has an account: authenticate with a passkey of that
@@ -139,36 +155,45 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  * An identifier-first username + passkey recipe: the user types a username;
  * when the username has an account, the user authenticates with a passkey
  * of that account; when the username is free, the user registers a new
- * account immediately. Wire it up in `convex/auth.ts`:
+ * account immediately.
+ *
+ * Logged in users can add or remove passkeys.
+ *
+ * Wire it up in `convex/auth.ts`:
  *
  * ```ts
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { startSignIn, startAutofillSignIn, finishSignUp, finishSignIn } =
- *   setupUsernamePasskey(core, {
- *     component: components.authPasskey,
- *     usernameComponent: components.authUsername,
- *     rpId: "localhost",
- *     origin: "http://localhost:5173",
- *   }).attachUserCallbacks({ createUser: internal.users.createUserPasskey });
- * ```
+ * const {
+ *   startSignIn,
+ *   startAutofillSignIn,
+ *   finishSignUp,
+ *   finishSignIn,
  *
- * The app re-exports the returned `startSignIn` / `startAutofillSignIn` /
- * `finishSignUp` / `finishSignIn` mutations so its clients can call them.
- * The React hooks in `@convex-dev/auth/providers/passkey/react` drive the
- * WebAuthn ceremonies in the browser against these four functions.
+ *   listPasskeys,
+ *
+ *   startAddPasskey,
+ *   verifyAddPasskey,
+ *   finishAddPasskey,
+ *
+ *   startRemovePasskey,
+ *   finishRemovePasskey,
+ * } = setupUsernamePasskey(core, {
+ *   component: components.authPasskey,
+ *   usernameComponent: components.authUsername,
+ *   rpId: "localhost",
+ *   origin: "http://localhost:5173",
+ * }).attachUserCallbacks({ createUser: internal.users.createUserPasskey });
+ * ```
  */
-// TODO(nicolas) There is no flow yet to add more passkeys to an
-// existing account, or to delete one, from this provider. The
-// component supports it (`startRegistration` with a `userId`,
-// `deletePasskey`); the provider does not expose it yet.
 export function setupUsernamePasskey<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: UsernamePasskeyOptions,
 ) {
   const { component, usernameComponent, rpId, origin } = options;
   const rpName = options.rpName ?? rpId;
+  const config: UsernamePasskeyConfig = { ...options, rpName };
 
   return {
     /**
@@ -430,6 +455,27 @@ export function setupUsernamePasskey<UsersTable extends string>(
             return { success: true, tokens, username };
           },
         }),
+
+        // The passkey-management functions of a signed-in user.
+        //
+        // TODO(nicolas) These functions do not compose with the other auth
+        // providers yet. They assume that a passkey is the only way into the
+        // account: `startAddPasskey` re-authenticates with an existing
+        // passkey, thus a user who signed in with a different provider and
+        // has no passkey cannot add a first one; and `finishRemovePasskey`
+        // refuses the last passkey, even when the user keeps another way to
+        // sign in.
+        //
+        // None of them mints a session, thus none of them goes through
+        // `authMutation`. Each one resolves the caller with the session of
+        // the request and refuses a signed-out caller. Each mutation
+        // composes the functions of the component in one transaction.
+        listPasskeys: listPasskeys(config),
+        startAddPasskey: startAddPasskey(config),
+        verifyAddPasskey: verifyAddPasskey(config),
+        finishAddPasskey: finishAddPasskey(config),
+        startRemovePasskey: startRemovePasskey(config),
+        finishRemovePasskey: finishRemovePasskey(config),
       };
     },
   };

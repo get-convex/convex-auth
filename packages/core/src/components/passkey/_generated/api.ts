@@ -11,6 +11,10 @@
 import type * as authentication from "../authentication.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
+import type * as management_add from "../management/add.js";
+import type * as management_list from "../management/list.js";
+import type * as management_remove from "../management/remove.js";
+import type * as purposes from "../purposes.js";
 import type * as react from "../react.js";
 import type * as registration from "../registration.js";
 import type * as setup from "../setup.js";
@@ -28,6 +32,10 @@ const fullApi: ApiFromModules<{
   authentication: typeof authentication;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
+  "management/add": typeof management_add;
+  "management/list": typeof management_list;
+  "management/remove": typeof management_remove;
+  purposes: typeof purposes;
   react: typeof react;
   registration: typeof registration;
   setup: typeof setup;
