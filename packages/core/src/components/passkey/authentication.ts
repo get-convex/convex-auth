@@ -127,7 +127,7 @@ type FinishAuthenticationResult = Infer<typeof finishAuthenticationResult>;
  * Finish an authentication ceremony.
  *
  * The app supplies `expectedRpId` and `expectedOrigin`, as it does for
- * `finishRegistration`.
+ * the registration finish functions.
  *
  * The function finds the credential. Then it examines the authenticator
  * data, the client data, and the assertion signature. It deletes the

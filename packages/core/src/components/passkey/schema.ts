@@ -38,7 +38,7 @@ export default defineSchema({
   // handle in the auth flows where the user is created transactionally with
   // the passkey registration: the user row does not exist yet when
   // the registration ceremony starts. The handle is created first, and
-  // `finishRegistration` links it to the user.
+  // `finishRegistrationForNewUser` links it to the user.
   handles: defineTable({
     // 64 random bytes (the WebAuthn maximum length for `user.id`).
     handle: v.bytes(),

@@ -11,7 +11,7 @@ import { expectSameBytes, setup } from "../passkeyTestSetup.ts";
 import { MutationCtx } from "./_generated/server.ts";
 import { Id } from "./_generated/dataModel.ts";
 
-/** Insert an unlinked handle, as `startRegistration` does. */
+/** Insert an unlinked handle, as `startRegistrationForNewUser` does. */
 function insertHandle(ctx: MutationCtx): Promise<Id<"handles">> {
   return ctx.db.insert("handles", { handle: randomHandle(), userId: null });
 }
