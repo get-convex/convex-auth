@@ -1,13 +1,9 @@
-# react-passkey example
+# react-passkey-basic example
 
-This demo shows:
+> [!WARNING]
+> This demo is intentionally kept incomplete because it is used as a first step in the passkey tutorial. You should probably not implement an app that doesn’t support passkey management. See [**react-passkey**](../react-passkey/README.md) for a full demo.
 
-- The core component.
-- The passkey component, with the identifier-first `UsernamePasskey`
-  provider: one username field. A free username creates a new account with
-  a passkey; an existing username asks for a passkey of that account. The
-  login field also offers passkey autofill (WebAuthn conditional
-  mediation).
+This demo is a simplified version of the [react-passkey](../react-passkey/README.md) demo that doesn’t support passkey management (i.e. the ability for user to add or remove passkeys).
 
 ## Generate code / run
 
