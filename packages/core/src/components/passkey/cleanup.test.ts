@@ -18,7 +18,7 @@ function handle(byte: number, userId: string | null = null) {
 
 /**
  * Insert a handle and a registration challenge that points at it, as
- * `startRegistration` does. The age of a challenge is the age of its
+ * `startRegistrationForNewUser` does. The age of a challenge is the age of its
  * `_creationTime`, thus the tests set the clock to `createdAt` before the
  * insert. The handle goes in one millisecond earlier, in its own transaction,
  * so that the challenge gets `createdAt` exactly.
@@ -210,7 +210,7 @@ describe("the cleanup loop", () => {
     );
 
     vi.setSystemTime(START);
-    await t.mutation(api.registration.startRegistration, { userId: null });
+    await t.mutation(api.registration.startRegistrationForNewUser, {});
     // The loop runs in scheduled functions; let them all complete.
     await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 

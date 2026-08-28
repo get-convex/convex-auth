@@ -279,19 +279,21 @@ describe("adding a passkey", () => {
     const t = await setup();
     const alice = await signUp(t, "alice");
 
-    // The sign-up branch mints a challenge with no user, thus its handle
-    // cannot link to an account that already has one.
+    // The sign-up branch mints a challenge with no user, thus it belongs to
+    // the new-user flow. `finishAddPasskey` runs the existing-user flow, and
+    // the flows never mix: the mismatch is a protocol violation, the message
+    // goes to the backend logs, and the client gets `PROTOCOL_ERROR`.
     const start = await t.mutation(api.auth.startSignIn, { username: "carol" });
     if (!start.success || start.step !== "register") {
       throw new Error("The username is free.");
     }
     const credential = await generateES256Credential();
-    await expect(
-      as(t, alice.userId).mutation(
+    expect(
+      await as(t, alice.userId).mutation(
         api.auth.finishAddPasskey,
         await attest(start.challenge, credential),
       ),
-    ).rejects.toThrow("The user already has a different handle");
+    ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
   });
 
   test("refuses a signed-out caller", async () => {

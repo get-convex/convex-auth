@@ -155,9 +155,10 @@ export function verifyAddPasskey(config: UsernamePasskeyConfig) {
       }
 
       const { challenge, userHandle, excludeCredentials } =
-        await ctx.runMutation(config.component.registration.startRegistration, {
-          userId,
-        });
+        await ctx.runMutation(
+          config.component.registration.startRegistrationForExistingUser,
+          { userId },
+        );
       const username = await ctx.runQuery(
         config.usernameComponent.public.getUsername,
         { userId },
@@ -190,7 +191,7 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
         return { success: false, userError: { error: "NOT_SIGNED_IN" } };
       }
       const registrationResult = await ctx.runMutation(
-        config.component.registration.finishRegistration,
+        config.component.registration.finishRegistrationForExistingUser,
         {
           expectedRpId: config.rpId,
           expectedOrigin: config.origin,
@@ -204,9 +205,9 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
         // A `PROTOCOL_ERROR` here also covers a registration ceremony that
         // belongs to a different user than the caller, which happens when the
         // caller signs in as a different user after the `verifyAddPasskey`
-        // call. `finishRegistration` compares the owner of the ceremony with
-        // `verifiedUserId`, thus this call needs no check of its own. See the
-        // same case in `verifyAddPasskey`.
+        // call. `finishRegistrationForExistingUser` compares the owner of the
+        // ceremony with `verifiedUserId`, thus this call needs no check of its
+        // own. See the same case in `verifyAddPasskey`.
         return { success: false, userError: registrationResult.userError };
       }
       return { success: true, passkeyId: registrationResult.passkeyId };
