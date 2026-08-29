@@ -1,4 +1,4 @@
-# Convex Auth v2
+# Convex Auth v2.0.0-alpha.0
 
 This branch contains a WIP implementation of Convex Auth v2.
 
