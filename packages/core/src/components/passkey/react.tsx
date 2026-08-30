@@ -10,6 +10,10 @@
  * (conditional mediation), where the user selects an account directly in
  * the autocompletion list.
  *
+ * {@link useAddPasskey} and {@link useRemovePasskey} (from
+ * `management/react.tsx`) drive the passkey settings page of a signed-in
+ * user.
+ *
  * @module
  */
 "use client";
@@ -29,6 +33,14 @@ import {
   type AlreadyPendingFailure,
 } from "./react_impl.tsx";
 
+export {
+  useAddPasskey,
+  useRemovePasskey,
+  type AddPasskeyApi,
+  type AddPasskeyResult,
+  type RemovePasskeyApi,
+  type RemovePasskeyResult,
+} from "./management/react.tsx";
 // Apps read the WebAuthn JSON types and the browser-side failure shapes
 // from here, so they never depend on `@simplewebauthn/*` directly.
 export type {

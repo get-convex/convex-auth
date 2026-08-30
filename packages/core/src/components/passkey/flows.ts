@@ -1,5 +1,5 @@
 /**
- * The code that orchestrates the “standard” (non-autofill) passkey sign-in flow,
+ * The client code that orchestrates the “standard” (non-autofill) passkey sign-in flow,
  * i.e. the code that runs whenever the user enters a username to sign in or sign up.
  *
  * @module
