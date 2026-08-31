@@ -2,6 +2,8 @@ import { Infer, v } from "convex/values";
 import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
+  type SignInError,
+  type SignInSuccess,
   type UserCallbacks,
 } from "../../lib/types.ts";
 import type { AuthCore } from "../core/setup.ts";
@@ -37,15 +39,19 @@ export type UsernamePasswordOptions = {
   usernameComponent: UsernameComponentApi;
 };
 
+/** This provider's correctable-failure vocabularies. */
+const signInUserError = v.union(
+  verifyPasswordUserError,
+  v.object({ error: v.literal("USER_NOT_FOUND") }),
+);
+const signUpUserError = v.union(setPasswordUserError, setUsernameUserError);
+
+type SignInUserError = Infer<typeof signInUserError>;
+type SignUpUserError = Infer<typeof signUpUserError>;
+
 const signInResult = v.union(
   vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(
-      verifyPasswordUserError,
-      v.object({ error: v.literal("USER_NOT_FOUND") }),
-    ),
-  }),
+  v.object({ status: v.literal("error"), userError: signInUserError }),
 );
 
 /**
@@ -53,14 +59,11 @@ const signInResult = v.union(
  *
  * On success the minted session tokens, otherwise a user-facing `userError`.
  */
-export type SignInResult = Infer<typeof signInResult>;
+export type SignInResult = SignInSuccess | SignInError<SignInUserError>;
 
 const signUpResult = v.union(
   vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(setPasswordUserError, setUsernameUserError),
-  }),
+  v.object({ status: v.literal("error"), userError: signUpUserError }),
 );
 
 /**
@@ -68,7 +71,7 @@ const signUpResult = v.union(
  *
  * On success the minted session tokens, otherwise a user-facing `userError`.
  */
-export type SignUpResult = Infer<typeof signUpResult>;
+export type SignUpResult = SignInSuccess | SignInError<SignUpUserError>;
 
 /**
  * The simplest password recipe: every account is a `(username, password)` pair,
@@ -134,11 +137,11 @@ export function setupUsernamePassword<UsersTable extends string>(
             // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
             const usernameError = validateUsernameFormat(username);
             if (usernameError !== null) {
-              return { success: false, userError: usernameError };
+              return { status: "error", userError: usernameError };
             }
             const userError = validateNewPassword(password);
             if (userError !== null) {
-              return { success: false, userError };
+              return { status: "error", userError };
             }
 
             const existing = await ctx.runQuery(
@@ -146,7 +149,10 @@ export function setupUsernamePassword<UsersTable extends string>(
               { username },
             );
             if (existing !== null) {
-              return { success: false, userError: { error: "USERNAME_TAKEN" } };
+              return {
+                status: "error",
+                userError: { error: "USERNAME_TAKEN" },
+              };
             }
 
             // Create the account + app user (via the app's createUser) and
@@ -200,7 +206,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               );
             }
 
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -224,7 +230,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             );
             if (userId === null) {
               return {
-                success: false,
+                status: "error",
                 userError: { error: "USER_NOT_FOUND" },
               };
             }
@@ -234,7 +240,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               { userId, password },
             );
             if (!verifyResult.success) {
-              return { success: false, userError: verifyResult.userError };
+              return { status: "error", userError: verifyResult.userError };
             }
 
             // The username resolved to a user id and its password verified, so
@@ -244,7 +250,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               providerAccountId: userId,
               profile: { username },
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
       };

@@ -38,7 +38,7 @@ export function LogIn() {
         e.preventDefault();
         setError(null);
         const result = await signIn({ username });
-        if (result.success) {
+        if (result.status === "complete") {
           return;
         }
         setError(errorMessage(result.userError));
@@ -74,7 +74,7 @@ export function LogIn() {
 
 function errorMessage(
   userError:
-    | Extract<PasskeySignInResult, { success: false }>["userError"]
+    | Extract<PasskeySignInResult, { status: "error" }>["userError"]
     | PasskeyAutofillError,
 ): string {
   switch (userError.error) {

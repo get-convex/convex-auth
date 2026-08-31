@@ -31,20 +31,31 @@ export const vTokenBundle = v.object({
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
 /**
- * The success arm of every provider's sign-in result.
+ * The arms of every provider's terminal sign-in result, discriminated by
+ * `status`. Providers compose their result union from these rather than
+ * declaring the arms themselves, so the vocabulary cannot drift between
+ * providers — and so the SSR auth proxy can classify any provider's reply by
+ * name, find the refresh token without knowing which provider produced it,
+ * and fail closed on a shape it does not recognize.
  *
- * Providers compose this into their result union rather than declaring the
- * success arm themselves. Fixing where the minted bundle sits is what lets the
- * SSR auth proxy find the refresh token without knowing which provider produced
- * the response, and lets it reject a shape it doesn't recognize instead of
- * forwarding tokens to the browser.
+ * Declared here, with the other wire contracts, because they are what crosses
+ * the wire. Each provider composes its own result union from them, next to the
+ * handlers that return it.
  */
+
+/** The success arm, `complete`: a session was minted. */
 export const vSignInSuccess = v.object({
-  success: v.literal(true),
+  status: v.literal("complete"),
   tokens: vTokenBundle,
 });
 
 export type SignInSuccess = Infer<typeof vSignInSuccess>;
+
+/** The error arm: a correctable, provider-specific failure. */
+export type SignInError<UserError> = {
+  status: "error";
+  userError: UserError;
+};
 
 /**
  * The token bundle that an SSR route hands back to the client. It is a slimmed

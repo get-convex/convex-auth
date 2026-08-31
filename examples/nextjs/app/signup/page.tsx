@@ -27,7 +27,7 @@ export default function SignUp() {
           e.preventDefault();
           setError(null);
           const result = await signUp({ username, password });
-          if (result.success) {
+          if (result.status === "complete") {
             router.push("/");
             return;
           }

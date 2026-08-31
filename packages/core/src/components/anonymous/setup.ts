@@ -74,7 +74,7 @@ export function setupAnonymous<UsersTable extends string>(
               providerAccountId: anonymousId,
               profile: {},
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
       };

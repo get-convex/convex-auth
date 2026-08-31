@@ -102,7 +102,7 @@ export type StartAutofillSignInResult = Infer<typeof startAutofillSignInResult>;
 const finishSignUpResult = v.union(
   vSignInSuccess,
   v.object({
-    success: v.literal(false),
+    status: v.literal("error"),
     userError: v.union(finishRegistrationUserError, setUsernameUserError),
   }),
 );
@@ -115,14 +115,14 @@ const finishSignUpResult = v.union(
 export type FinishSignUpResult = Infer<typeof finishSignUpResult>;
 
 const finishSignInResult = v.union(
+  // This provider widens the shared success arm with the account's username,
+  // for display. It is `null` when the app removed the user's username.
   v.object({
     ...vSignInSuccess.fields,
-    // The username of the account, for display. `null` when the app
-    // removed the username of the user.
     username: v.union(v.string(), v.null()),
   }),
   v.object({
-    success: v.literal(false),
+    status: v.literal("error"),
     userError: finishAuthenticationUserError,
   }),
 );
@@ -294,7 +294,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             const { username } = args;
             const usernameError = validateUsernameFormat(username);
             if (usernameError !== null) {
-              return { success: false, userError: usernameError };
+              return { status: "error", userError: usernameError };
             }
 
             // Fail early if the username is taken
@@ -303,7 +303,10 @@ export function setupUsernamePasskey<UsersTable extends string>(
               { username },
             );
             if (existing !== null) {
-              return { success: false, userError: { error: "USERNAME_TAKEN" } };
+              return {
+                status: "error",
+                userError: { error: "USERNAME_TAKEN" },
+              };
             }
 
             // Fail early if the passkey registration fails
@@ -317,7 +320,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               },
             );
             if (!checkResult.success) {
-              return { success: false, userError: checkResult.userError };
+              return { status: "error", userError: checkResult.userError };
             }
 
             // Create the account + app user (via the app's createUser) and
@@ -371,7 +374,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               );
             }
 
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -411,7 +414,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             );
             if (!authenticationResult.success) {
               return {
-                success: false,
+                status: "error",
                 userError: authenticationResult.userError,
               };
             }
@@ -426,7 +429,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               providerAccountId: userId,
               profile: { username },
             });
-            return { success: true, tokens, username };
+            return { status: "complete", tokens, username };
           },
         }),
       };
