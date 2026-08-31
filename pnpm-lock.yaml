@@ -235,6 +235,9 @@ importers:
       '@convex-dev/batch-worker':
         specifier: ^0.3.0
         version: 0.3.0(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+      '@convex-dev/passkey-test-authenticator':
+        specifier: workspace:*
+        version: link:../../packages/passkey-test-authenticator
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -388,6 +391,9 @@ importers:
         specifier: ^9.4.1
         version: 9.4.1
     devDependencies:
+      '@convex-dev/passkey-test-authenticator':
+        specifier: workspace:*
+        version: link:../passkey-test-authenticator
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -494,6 +500,21 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/passkey-test-authenticator:
+    devDependencies:
+      '@edge-runtime/vm':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@types/node':
+        specifier: ^24.12.4
+        version: 24.13.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.9(@edge-runtime/vm@5.0.0)(@types/node@24.13.2)(jsdom@29.1.1)(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
 
   scripts/codegen-host:
     dependencies:

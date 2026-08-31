@@ -1,0 +1,23 @@
+{
+  "name": "@convex-dev/passkey-test-authenticator",
+  "version": "0.0.0",
+  "description": "A software WebAuthn authenticator for the tests of this repository",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "@types/node": "^24.12.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.0"
+  }
+}

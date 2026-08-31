@@ -154,6 +154,7 @@
     "ora": "^9.4.1"
   },
   "devDependencies": {
+    "@convex-dev/passkey-test-authenticator": "workspace:*",
     "@edge-runtime/vm": "^5.0.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@convex-dev/batch-worker": "^0.3.0",
+    "@convex-dev/passkey-test-authenticator": "workspace:*",
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^24.12.4",
     "@types/react": "^19.2.17",

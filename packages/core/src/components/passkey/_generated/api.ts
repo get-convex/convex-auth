@@ -18,7 +18,6 @@ import type * as purposes from "../purposes.js";
 import type * as react from "../react.js";
 import type * as registration from "../registration.js";
 import type * as setup from "../setup.js";
-import type * as testAuthenticator from "../testAuthenticator.js";
 import type * as validation from "../validation.js";
 
 import type {
@@ -39,7 +38,6 @@ const fullApi: ApiFromModules<{
   react: typeof react;
   registration: typeof registration;
   setup: typeof setup;
-  testAuthenticator: typeof testAuthenticator;
   validation: typeof validation;
 }> = anyApi as any;
 
