@@ -304,8 +304,8 @@ export function setupUsernamePasskey<UsersTable extends string>(
             );
             if (existing !== null) {
               return {
-                status: "error",
-                userError: { error: "USERNAME_TAKEN" },
+                status: "error" as const,
+                userError: { error: "USERNAME_TAKEN" as const },
               };
             }
 
@@ -331,14 +331,23 @@ export function setupUsernamePasskey<UsersTable extends string>(
             // internal key ("" at sign-up, the user id afterwards) with no
             // meaning to the app. We will probably improve this when
             // providers support typesafe profiles.
-            const tokens = await ctx.convexAuth.completeSignUp({
+            const outcome = await ctx.convexAuth.completeSignUp({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
               profile: { username },
             });
+            if (outcome.status !== "session-created") {
+              // Unreachable: this provider registers no requirements, so the
+              // core has nothing to withhold the session for.
+              throw new Error(
+                "Passkey sign-up came back without a session: " +
+                  outcome.status,
+              );
+            }
+            const { userId } = outcome.tokens;
 
             const setUsernameResult = await ctx.runMutation(
               usernameComponent.public.setUsername,
-              { userId: tokens.userId, username },
+              { userId, username },
             );
             if (!setUsernameResult.success) {
               // Not possible: the username format was validated and the
@@ -358,7 +367,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               {
                 expectedRpId: rpId,
                 expectedOrigin: origin,
-                verifiedUserId: tokens.userId,
+                verifiedUserId: userId,
                 attestationObject: args.attestationObject,
                 clientDataJSON: args.clientDataJSON,
                 transports: args.transports,
@@ -374,7 +383,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               );
             }
 
-            return { status: "complete", tokens };
+            return { status: "complete", tokens: outcome.tokens };
           },
         }),
 
@@ -425,11 +434,18 @@ export function setupUsernamePasskey<UsersTable extends string>(
               { userId },
             );
 
-            const tokens = await ctx.convexAuth.completeSignIn({
+            const outcome = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
               profile: { username },
             });
-            return { status: "complete", tokens, username };
+            if (outcome.status !== "session-created") {
+              // Unreachable: see the note in `finishSignUp`.
+              throw new Error(
+                "Passkey sign-in came back without a session: " +
+                  outcome.status,
+              );
+            }
+            return { status: "complete", tokens: outcome.tokens, username };
           },
         }),
       };

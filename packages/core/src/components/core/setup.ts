@@ -18,8 +18,17 @@ import {
   type TokenBundle,
   type ConvexAuthCtx,
   type UserCallbacks,
+  type BoundAuthHelpers,
+  type ProviderRequirement,
   type ProviderSignInOutcome,
+  type ProviderContinueOutcome,
+  type AttemptContext,
 } from "../../lib/types.ts";
+import type { SignInRequirements } from "../../lib/requirements.ts";
+
+// Re-exported so capability modules (a second factor, a verifier) can type a
+// `components.auth`-shaped parameter without reaching into `_generated`.
+export type { ComponentApi } from "./_generated/component.ts";
 
 /**
  * A type for a factory that returns a `RegisteredMutation` with a handler that
@@ -138,6 +147,12 @@ export type AuthCore<UsersTable extends string = string> = {
    * `createUser` is the app's user-creating callback for this provider and
    * `onSignIn` is its optional per-sign-in hook (see {@link UserCallbacks}).
    *
+   * `requirements` are the app-registered requirement specs, when the provider
+   * setup was given any via its `signInRequirements` option; attaching them
+   * without an `onSignIn` to evaluate them throws. `providerRequirements` are
+   * requirements the provider itself registers from its own config options,
+   * checked by the framework rather than by the app's callback.
+   *
    * Provider setup functions call this from inside their `attachUserCallbacks`,
    * once the app has supplied the callbacks, so the builders can close over
    * them and a provider with no way to create users cannot exist. It is not
@@ -146,6 +161,8 @@ export type AuthCore<UsersTable extends string = string> = {
   bindProvider<Provider extends string, Profile>(
     options: {
       name: Provider;
+      requirements?: SignInRequirements;
+      providerRequirements?: ProviderRequirement[];
     } & UserCallbacks<Provider, Profile, UsersTable>,
   ): ProviderBuilders<Profile>;
 };
@@ -269,17 +286,19 @@ export function setupCore<UsersTable extends string = "users">(options: {
   // two providers on the same core, whose accounts would silently share rows.
   const boundProviderNames = new Set<string>();
 
-  const bindProvider = <Provider extends string, Profile>({
-    name,
-    createUser,
-    onSignIn,
-  }: {
-    name: Provider;
-  } & UserCallbacks<
-    Provider,
-    Profile,
-    UsersTable
-  >): ProviderBuilders<Profile> => {
+  // Either helper ctx flavor: both mutation and action ctxs expose the
+  // compatible `runMutation`/`runQuery` the helpers need.
+  type HelperCtx =
+    GenericActionCtx<GenericDataModel> | GenericMutationCtx<GenericDataModel>;
+
+  const bindProvider = <Provider extends string, Profile>(
+    options: {
+      name: Provider;
+      requirements?: SignInRequirements;
+      providerRequirements?: ProviderRequirement[];
+    } & UserCallbacks<Provider, Profile, UsersTable>,
+  ): ProviderBuilders<Profile> => {
+    const { name, createUser, onSignIn } = options;
     if (boundProviderNames.has(name)) {
       throw new Error(
         `A provider named "${name}" is already bound to this auth core. ` +
@@ -289,108 +308,119 @@ export function setupCore<UsersTable extends string = "users">(options: {
     }
     boundProviderNames.add(name);
 
-    // Undefined when the app attached no `onSignIn`, which tells the core to
-    // mint the session without notifying the app.
+    if (options.requirements !== undefined && onSignIn === undefined) {
+      throw new Error(
+        `Provider "${name}" was bound with sign-in requirements but no ` +
+          `onSignIn callback; something has to evaluate the requirements.`,
+      );
+    }
+
     const onSignInHandle = async (): Promise<string | undefined> =>
       onSignIn === undefined ? undefined : await createFunctionHandle(onSignIn);
 
-    // The helpers close over the live ctx; both mutation and action ctxs
-    // expose the compatible `runMutation`/`runQuery` these need.
-    // The component reports an *outcome* now: a session was created, or
-    // requirements are outstanding and the sign-in is parked. Nothing
-    // registers requirements yet — no provider passes `providerRequirements`
-    // and no app callback can return a verdict a provider would understand —
-    // so the helpers keep their bundle-returning signature and treat the
-    // parked arm as the invariant violation it would be.
-    //
-    // TODO: the next change hands providers the outcome itself, along with
-    // the helpers that continue a parked attempt, and this unwrapping goes
-    // away.
-    const expectSession = (outcome: ProviderSignInOutcome): TokenBundle => {
-      if (outcome.status !== "session-created") {
-        throw new Error(
-          `Invariant violation: provider "${name}" registers no sign-in ` +
-            "requirements, but the sign-in was parked as incomplete.",
-        );
-      }
-      return outcome.tokens;
-    };
+    const claimsFor = (args: {
+      providerAccountId: string;
+      profile: Profile;
+    }) => ({
+      provider: name,
+      providerAccountId: args.providerAccountId,
+      profile: args.profile,
+    });
 
-    const makeHelpers = (
-      ctx:
-        | GenericActionCtx<GenericDataModel>
-        | GenericMutationCtx<GenericDataModel>,
-    ) => ({
-      completeSignUp: async (args: {
-        providerAccountId: string;
-        profile: Profile;
-      }): Promise<TokenBundle> => {
-        return expectSession(
-          await ctx.runMutation(component.public.signUp, {
-            claims: {
-              provider: name,
-              providerAccountId: args.providerAccountId,
-              profile: args.profile,
-            },
-            createUserHandle: await createFunctionHandle(createUser),
-            onSignInHandle: await onSignInHandle(),
-            issuer: issuer(),
-            accessTokenTtlSeconds,
-            refreshTokenTtlSeconds,
-          }),
-        );
-      },
-      completeSignIn: async (args: {
-        providerAccountId: string;
-        profile: Profile;
-      }): Promise<TokenBundle> => {
-        return expectSession(
-          await ctx.runMutation(component.public.signIn, {
-            claims: {
-              provider: name,
-              providerAccountId: args.providerAccountId,
-              profile: args.profile,
-            },
-            onSignInHandle: await onSignInHandle(),
-            issuer: issuer(),
-            accessTokenTtlSeconds,
-            refreshTokenTtlSeconds,
-          }),
-        );
-      },
-      resolveUserId: async (
-        providerAccountId: string,
-      ): Promise<string | null> => {
+    const resolveUserId =
+      (ctx: HelperCtx) =>
+      async (providerAccountId: string): Promise<string | null> => {
         return await ctx.runQuery(component.public.getUserIdByAccount, {
           provider: name,
           providerAccountId,
         });
+      };
+
+    const providerRequirements = options.providerRequirements ?? [];
+
+    const makeHelpers = (ctx: HelperCtx): BoundAuthHelpers<Profile> => ({
+      completeSignUp: async (args): Promise<ProviderSignInOutcome> => {
+        return await ctx.runMutation(component.public.signUp, {
+          claims: claimsFor(args),
+          createUserHandle: await createFunctionHandle(createUser),
+          onSignInHandle: await onSignInHandle(),
+          providerRequirements,
+          issuer: issuer(),
+          accessTokenTtlSeconds,
+          refreshTokenTtlSeconds,
+        });
+      },
+      completeSignIn: async (args): Promise<ProviderSignInOutcome> => {
+        return await ctx.runMutation(component.public.signIn, {
+          claims: claimsFor(args),
+          onSignInHandle: await onSignInHandle(),
+          providerRequirements,
+          issuer: issuer(),
+          accessTokenTtlSeconds,
+          refreshTokenTtlSeconds,
+        });
+      },
+      continueSignIn: async (args): Promise<ProviderContinueOutcome> => {
+        return await ctx.runMutation(component.public.continueSignIn, {
+          attemptToken: args.attemptToken,
+          onSignInHandle: await onSignInHandle(),
+          providerRequirements,
+          issuer: issuer(),
+          accessTokenTtlSeconds,
+          refreshTokenTtlSeconds,
+        });
+      },
+      resolveUserId: resolveUserId(ctx),
+      getAttemptContext: async (
+        attemptToken: string,
+      ): Promise<AttemptContext | null> => {
+        return await ctx.runQuery(component.public.getAttemptContext, {
+          attemptToken,
+        });
+      },
+      recordAttemptFacts: async (
+        attemptToken: string,
+        facts: Record<string, unknown>,
+        scope?: "app" | "provider",
+      ): Promise<boolean> => {
+        return await ctx.runMutation(component.public.recordAttemptFacts, {
+          attemptToken,
+          facts,
+          scope,
+        });
+      },
+      penalizeAttempt: async (attemptToken: string): Promise<boolean> => {
+        return await ctx.runMutation(component.public.penalizeAttempt, {
+          attemptToken,
+        });
       },
     });
 
-    const authMutation: AuthMutationBuilder<Profile> = (fn) =>
+    const authMutation = (fn: {
+      args: PropertyValidators;
+      returns?: Validator<unknown, "required", string> | PropertyValidators;
+      handler: (ctx: unknown, args: unknown) => unknown;
+    }) =>
       mutationGeneric({
-        args: fn.args as PropertyValidators,
+        args: fn.args,
         returns: fn.returns,
         handler: (ctx, args) =>
-          fn.handler(
-            { ...ctx, convexAuth: makeHelpers(ctx) },
-            args as Parameters<typeof fn.handler>[1],
-          ),
+          fn.handler({ ...ctx, convexAuth: makeHelpers(ctx) }, args),
       });
 
-    const authAction: AuthActionBuilder<Profile> = (fn) =>
+    const authAction = (fn: {
+      args: PropertyValidators;
+      returns?: Validator<unknown, "required", string> | PropertyValidators;
+      handler: (ctx: unknown, args: unknown) => unknown;
+    }) =>
       actionGeneric({
-        args: fn.args as PropertyValidators,
+        args: fn.args,
         returns: fn.returns,
         handler: (ctx, args) =>
-          fn.handler(
-            { ...ctx, convexAuth: makeHelpers(ctx) },
-            args as Parameters<typeof fn.handler>[1],
-          ),
+          fn.handler({ ...ctx, convexAuth: makeHelpers(ctx) }, args),
       });
 
-    return { authMutation, authAction };
+    return { authMutation, authAction } as ProviderBuilders<Profile>;
   };
 
   return { usersTable, signOut, refreshSession, isAuthenticated, bindProvider };

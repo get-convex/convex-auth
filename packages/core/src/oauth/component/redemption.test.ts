@@ -81,12 +81,20 @@ const FAKE_CORE = {
         if (helperFailure.error !== undefined) {
           throw helperFailure.error;
         }
-        return FAKE_BUNDLE;
+        return { status: "session-created" as const, tokens: FAKE_BUNDLE };
       };
+    const unused = (helper: string) => () => {
+      throw new Error(`${helper} is not used by redemption`);
+    };
     const convexAuth: BoundAuthHelpers<Profile> = {
       completeSignUp: record("signUp"),
       completeSignIn: record("signIn"),
       resolveUserId: async () => resolvedUserId.value,
+      // Redemption never parks an attempt, so nothing below is reachable.
+      continueSignIn: unused("continueSignIn"),
+      getAttemptContext: unused("getAttemptContext"),
+      recordAttemptFacts: unused("recordAttemptFacts"),
+      penalizeAttempt: unused("penalizeAttempt"),
     };
     const authMutation: AuthMutationBuilder<Profile> = (fn) =>
       mutationGeneric({

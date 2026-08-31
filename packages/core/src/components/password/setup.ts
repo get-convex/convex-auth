@@ -166,14 +166,22 @@ export function setupUsernamePassword<UsersTable extends string>(
             // is an internal key ("" at sign-up, the user id afterwards) with
             // no meaning to the app. We will probably improve this when
             // providers support typesafe profiles.
-            const tokens = await ctx.convexAuth.completeSignUp({
+            const outcome = await ctx.convexAuth.completeSignUp({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
               profile: { username },
             });
+            if (outcome.status !== "session-created") {
+              // Unreachable: this provider registers no requirements, so the
+              // core has nothing to withhold the session for.
+              throw new Error(
+                "Password sign-up came back without a session: " +
+                  outcome.status,
+              );
+            }
 
             const setUsernameResult = await ctx.runMutation(
               usernameComponent.public.setUsername,
-              { userId: tokens.userId, username },
+              { userId: outcome.tokens.userId, username },
             );
             if (!setUsernameResult.success) {
               // Unexpected: we validated the username above, and this handler
@@ -190,7 +198,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             const setResult = await ctx.runMutation(
               component.public.setPassword,
               {
-                userId: tokens.userId,
+                userId: outcome.tokens.userId,
                 password,
               },
             );
@@ -206,7 +214,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               );
             }
 
-            return { status: "complete", tokens };
+            return { status: "complete", tokens: outcome.tokens };
           },
         }),
 
@@ -246,11 +254,18 @@ export function setupUsernamePassword<UsersTable extends string>(
             // The username resolved to a user id and its password verified, so
             // the account exists and `completeSignIn` (which throws otherwise)
             // is the right helper.
-            const tokens = await ctx.convexAuth.completeSignIn({
+            const outcome = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
               profile: { username },
             });
-            return { status: "complete", tokens };
+            if (outcome.status !== "session-created") {
+              // Unreachable: see the note in `signUpWithPassword`.
+              throw new Error(
+                "Password sign-in came back without a session: " +
+                  outcome.status,
+              );
+            }
+            return { status: "complete", tokens: outcome.tokens };
           },
         }),
       };

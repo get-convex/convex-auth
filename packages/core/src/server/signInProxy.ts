@@ -31,6 +31,7 @@ import {
 import {
   makeSlimBundle,
   type SignInError,
+  type SignInIncomplete,
   type SignInSuccess,
   type TokenBundle,
 } from "../lib/types.ts";
@@ -53,7 +54,7 @@ export type ExposedSignInFn = FunctionReference<
   "mutation" | "action",
   "public",
   DefaultFunctionArgs,
-  SignInSuccess | SignInError<unknown>
+  SignInSuccess | SignInIncomplete | SignInError<unknown>
 >;
 
 /** Configuration for {@link convexProxyHandler}. */
@@ -151,6 +152,9 @@ function classifyResult(
   }
   const result = value as Record<string, unknown>;
   switch (result.status) {
+    // An incomplete sign-in mints no session, so there is nothing to move
+    // into a cookie; it is forwarded to the client whole, like a failure.
+    case "incomplete":
     case "error":
       return { kind: "failure" };
     case "complete":

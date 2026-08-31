@@ -70,11 +70,19 @@ export function setupAnonymous<UsersTable extends string>(
               component.provider.createAnonymousAccount,
               {},
             );
-            const tokens = await ctx.convexAuth.completeSignUp({
+            const outcome = await ctx.convexAuth.completeSignUp({
               providerAccountId: anonymousId,
               profile: {},
             });
-            return { status: "complete", tokens };
+            if (outcome.status !== "session-created") {
+              // Unreachable: this provider registers no requirements, so the
+              // core has nothing to withhold the session for.
+              throw new Error(
+                "Anonymous sign-in came back without a session: " +
+                  outcome.status,
+              );
+            }
+            return { status: "complete", tokens: outcome.tokens };
           },
         }),
       };
