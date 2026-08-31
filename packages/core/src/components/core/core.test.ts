@@ -26,6 +26,7 @@ import {
 import {
   type AuthClaims,
   type TokenBundle,
+  type RefreshResult,
   USE_USER_ID_AS_ACCOUNT_ID,
 } from "../../lib/types.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
@@ -90,10 +91,21 @@ async function signIn(t: ConvexTestApi, c: AuthClaims) {
   });
 }
 
-/** Assert a refresh succeeded (a session was minted) and narrow away `null`. */
-function expectBundle(bundle: TokenBundle | null): TokenBundle {
-  expect(bundle).not.toBeNull();
-  return bundle as TokenBundle;
+/** Assert a refresh rotated the token, and narrow to the new bundle. */
+function expectRotated(result: RefreshResult): TokenBundle {
+  expect(result.kind).toBe("rotated");
+  return (result as Extract<RefreshResult, { kind: "rotated" }>).tokens;
+}
+
+/**
+ * Assert a refresh resolved through the grace window without rotating, and
+ * narrow to the access-only session.
+ */
+function expectReused(
+  result: RefreshResult,
+): Extract<RefreshResult, { kind: "reused" }> {
+  expect(result.kind).toBe("reused");
+  return result as Extract<RefreshResult, { kind: "reused" }>;
 }
 
 /** Exchange a refresh token, as a client rotating its session does. */
@@ -387,47 +399,69 @@ describe("refresh", () => {
     const t = setup();
     const bundle = await signUp(t, claims());
 
-    const rotated = expectBundle(
-      await t.mutation(api.public.refresh, {
-        refreshToken: bundle.refreshToken,
-        issuer: ISSUER,
-      }),
-    );
+    const rotated = expectRotated(await refresh(t, bundle.refreshToken));
     expect(rotated.refreshToken).not.toBe(bundle.refreshToken);
     expect(rotated.userId).toBe(bundle.userId);
 
     // The newly minted refresh token works for the next rotation.
-    const again = expectBundle(
-      await t.mutation(api.public.refresh, {
-        refreshToken: rotated.refreshToken,
-        issuer: ISSUER,
-      }),
-    );
+    const again = expectRotated(await refresh(t, rotated.refreshToken));
     expect(again.refreshToken).not.toBe(rotated.refreshToken);
   });
 
-  test("honors the grace window for a just-rotated token (concurrent refresh)", async () => {
+  test("a just-rotated token resolves via the grace window without rotating again", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
 
-    await t.mutation(api.public.refresh, {
-      refreshToken: bundle.refreshToken,
-      issuer: ISSUER,
-    });
+    await refresh(t, bundle.refreshToken);
 
     // A second refresh presenting the ORIGINAL (now previous) token still
-    // resolves via the grace window rather than being rejected.
-    const viaGrace = expectBundle(
-      await t.mutation(api.public.refresh, {
-        refreshToken: bundle.refreshToken,
-        issuer: ISSUER,
-      }),
-    );
-    expect(viaGrace.refreshToken).toBeTruthy();
+    // resolves via the grace window rather than being rejected — but reports
+    // `reused` and mints only an access token.
+    const viaGrace = expectReused(await refresh(t, bundle.refreshToken));
+    expect(viaGrace.accessToken).toBeTruthy();
     expect(viaGrace.userId).toBe(bundle.userId);
+    expect(viaGrace).not.toHaveProperty("refreshToken");
   });
 
-  test("returns null and clears the session once the refresh token has expired", async () => {
+  test("a grace-window refresh leaves the winner's token current", async () => {
+    const t = setup();
+    const bundle = await signUp(t, claims());
+
+    // The caller that wins the race rotates and is handed the replacement.
+    const winner = expectRotated(await refresh(t, bundle.refreshToken));
+    const hashAfterWin = await currentHash(t);
+    const spentAfterWin = await spentHashes(t);
+
+    // The straggler presents the token the winner already spent.
+    expectReused(await refresh(t, bundle.refreshToken));
+
+    // Rotating here would spend the winner's brand-new token, and the winner
+    // would be signed out — as suspected theft — once it left the grace window.
+    // So the grace arm must write nothing at all.
+    expect(await currentHash(t)).toBe(hashAfterWin);
+    expect(await spentHashes(t)).toEqual(spentAfterWin);
+
+    // The winner's token is still the live one.
+    expectRotated(await refresh(t, winner.refreshToken));
+  });
+
+  test("every racer sharing one token succeeds, and exactly one rotates", async () => {
+    const t = setup();
+    const bundle = await signUp(t, claims());
+
+    const kinds: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      kinds.push((await refresh(t, bundle.refreshToken)).kind);
+    }
+
+    // Nobody is signed out, and the chain forks nowhere: one rotation, and one
+    // spent hash to show for it.
+    expect(kinds).toEqual(["rotated", "reused", "reused", "reused", "reused"]);
+    expect(await sessionCount(t)).toBe(1);
+    expect(await spentHashes(t)).toHaveLength(1);
+  });
+
+  test("reports no session and clears it once the refresh token has expired", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
 
@@ -439,38 +473,29 @@ describe("refresh", () => {
       });
     });
 
-    const result = await t.mutation(api.public.refresh, {
-      refreshToken: bundle.refreshToken,
-      issuer: ISSUER,
-    });
-    expect(result).toBeNull();
+    const result = await refresh(t, bundle.refreshToken);
+    expect(result.kind).toBe("noSession");
 
     // The dead session was removed in the same transaction.
-    const remaining = await t.run(
-      async (ctx) => (await ctx.db.query("sessions").collect()).length,
-    );
-    expect(remaining).toBe(0);
+    expect(await sessionCount(t)).toBe(0);
   });
 
-  test("returns null for an unknown refresh token", async () => {
+  test("reports no session for an unknown refresh token", async () => {
     const t = setup();
-    const result = await t.mutation(api.public.refresh, {
-      refreshToken: "not-a-real-token",
-      issuer: ISSUER,
-    });
-    expect(result).toBeNull();
+    const result = await refresh(t, "not-a-real-token");
+    expect(result.kind).toBe("noSession");
   });
 
   test("an unknown token revokes nothing", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
 
-    expect(await refresh(t, "not-a-real-token")).toBeNull();
+    expect((await refresh(t, "not-a-real-token")).kind).toBe("noSession");
 
     // Revoking on an unrecognized token would let anyone sign anyone else out
     // by presenting a made-up string. The live session is untouched.
     expect(await sessionCount(t)).toBe(1);
-    expect(expectBundle(await refresh(t, bundle.refreshToken))).toBeTruthy();
+    expect(expectRotated(await refresh(t, bundle.refreshToken))).toBeTruthy();
   });
 
   test("retires the rotated-away hash and never the current one", async () => {
@@ -478,13 +503,13 @@ describe("refresh", () => {
     const bundle = await signUp(t, claims());
 
     const first = await currentHash(t);
-    const rotated = expectBundle(await refresh(t, bundle.refreshToken));
+    const rotated = expectRotated(await refresh(t, bundle.refreshToken));
     const second = await currentHash(t);
 
     expect(second).not.toBe(first);
     expect(await spentHashes(t)).toEqual([first]);
 
-    expectBundle(await refresh(t, rotated.refreshToken));
+    expectRotated(await refresh(t, rotated.refreshToken));
     // One spent hash per rotation, and the live token is never among them.
     expect(await spentHashes(t)).toEqual([first, second]);
     expect(await spentHashes(t)).not.toContain(await currentHash(t));
@@ -507,18 +532,18 @@ describe("refresh-token reuse detection", () => {
     const stolen = await signUp(t, claims());
 
     // The thief gets there first, so the session's live token is now theirs.
-    const thief = expectBundle(await refresh(t, stolen.refreshToken));
+    const thief = expectRotated(await refresh(t, stolen.refreshToken));
     vi.advanceTimersByTime(REFRESH_GRACE_MS + 1);
 
     // The victim presents the token they still hold. It was rotated away too
     // long ago to be a concurrent refresh, so the session dies.
-    expect(await refresh(t, stolen.refreshToken)).toBeNull();
+    expect((await refresh(t, stolen.refreshToken)).kind).toBe("noSession");
     expect(await sessionCount(t)).toBe(0);
     expect(await spentHashes(t)).toEqual([]);
 
     // Revocation is mutual: the thief's token stops working too, which is the
     // whole point — otherwise they keep renewing the session forever.
-    expect(await refresh(t, thief.refreshToken)).toBeNull();
+    expect((await refresh(t, thief.refreshToken)).kind).toBe("noSession");
   });
 
   test("detects a replay several rotations back", async () => {
@@ -529,58 +554,58 @@ describe("refresh-token reuse detection", () => {
     // fixed-size history. Retention is by age, so depth doesn't save them.
     let latest = stolen;
     for (let i = 0; i < 5; i++) {
-      latest = expectBundle(await refresh(t, latest.refreshToken));
+      latest = expectRotated(await refresh(t, latest.refreshToken));
     }
     expect(await spentHashes(t)).toHaveLength(5);
     vi.advanceTimersByTime(REFRESH_GRACE_MS + 1);
 
-    expect(await refresh(t, stolen.refreshToken)).toBeNull();
+    expect((await refresh(t, stolen.refreshToken)).kind).toBe("noSession");
     expect(await sessionCount(t)).toBe(0);
-    expect(await refresh(t, latest.refreshToken)).toBeNull();
+    expect((await refresh(t, latest.refreshToken)).kind).toBe("noSession");
   });
 
   test("a replay inside the grace window is still a concurrent refresh", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
 
-    expectBundle(await refresh(t, bundle.refreshToken));
+    expectRotated(await refresh(t, bundle.refreshToken));
     vi.advanceTimersByTime(REFRESH_GRACE_MS - 1_000);
 
     // Two tabs sharing a cookie land here routinely; it must not be mistaken
     // for theft.
-    expect(expectBundle(await refresh(t, bundle.refreshToken))).toBeTruthy();
+    expectReused(await refresh(t, bundle.refreshToken));
     expect(await sessionCount(t)).toBe(1);
   });
 
   test("a replay after the session is already gone is a no-op", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
-    const rotated = expectBundle(await refresh(t, bundle.refreshToken));
+    const rotated = expectRotated(await refresh(t, bundle.refreshToken));
     await t.mutation(api.public.signOut, {
       refreshToken: rotated.refreshToken,
     });
     vi.advanceTimersByTime(REFRESH_GRACE_MS + 1);
 
     // Two replays racing each other both resolve a session the other deleted.
-    await expect(refresh(t, bundle.refreshToken)).resolves.toBeNull();
+    expect((await refresh(t, bundle.refreshToken)).kind).toBe("noSession");
   });
 
   test("pruning retires spent hashes, and with them the detection", async () => {
     const t = setup();
     const stolen = await signUp(t, claims());
-    const live = expectBundle(await refresh(t, stolen.refreshToken));
+    const live = expectRotated(await refresh(t, stolen.refreshToken));
     expect(await spentHashes(t)).toHaveLength(1);
 
     vi.advanceTimersByTime(SPENT_TOKEN_HORIZON_MS + 1);
     // The next rotation pays for the row it adds by erasing the expired one.
-    const next = expectBundle(await refresh(t, live.refreshToken));
+    const next = expectRotated(await refresh(t, live.refreshToken));
     expect(await spentHashes(t)).toEqual([await sha256Hex(live.refreshToken)]);
 
     // Past the horizon the stolen token is merely unknown, so it revokes
     // nothing. Detection is best-effort by construction.
-    expect(await refresh(t, stolen.refreshToken)).toBeNull();
+    expect((await refresh(t, stolen.refreshToken)).kind).toBe("noSession");
     expect(await sessionCount(t)).toBe(1);
-    expectBundle(await refresh(t, next.refreshToken));
+    expectRotated(await refresh(t, next.refreshToken));
   });
 
   test("the detection horizon outlives the grace window", () => {
@@ -604,17 +629,13 @@ describe("signOut", () => {
     expect(remaining).toBe(0);
 
     // Refreshing the signed-out session is no longer possible.
-    const afterSignOut = await t.mutation(api.public.refresh, {
-      refreshToken: bundle.refreshToken,
-      issuer: ISSUER,
-    });
-    expect(afterSignOut).toBeNull();
+    expect((await refresh(t, bundle.refreshToken)).kind).toBe("noSession");
   });
 
   test("revokes when given a token a refresh just rotated away", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
-    const rotated = expectBundle(await refresh(t, bundle.refreshToken));
+    const rotated = expectRotated(await refresh(t, bundle.refreshToken));
 
     // A tab that signs out just after a sibling refreshed presents the token
     // it still holds. Matching only the current hash would no-op here and
@@ -623,13 +644,13 @@ describe("signOut", () => {
 
     expect(await sessionCount(t)).toBe(0);
     expect(await spentHashes(t)).toEqual([]);
-    expect(await refresh(t, rotated.refreshToken)).toBeNull();
+    expect((await refresh(t, rotated.refreshToken)).kind).toBe("noSession");
   });
 
   test("erases the session's spent hashes along with it", async () => {
     const t = setup();
     const bundle = await signUp(t, claims());
-    const rotated = expectBundle(await refresh(t, bundle.refreshToken));
+    const rotated = expectRotated(await refresh(t, bundle.refreshToken));
     expect(await spentHashes(t)).toHaveLength(1);
 
     await t.mutation(api.public.signOut, {
@@ -690,7 +711,7 @@ describe("token lifetime configuration", () => {
     );
 
     // The rotated token gets the configured lifetime too.
-    const rotated = expectBundle(
+    const rotated = expectRotated(
       await t.mutation(api.public.refresh, {
         refreshToken: bundle.refreshToken,
         issuer: ISSUER,

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import type { TokenBundle } from "../lib/types.ts";
+import type { RefreshResult, TokenBundle } from "../lib/types.ts";
 import {
   AuthCookieOptions,
   CookieDeleteOptions,
@@ -56,8 +56,24 @@ class FakeCookies implements CookieStore {
   }
 }
 
+/** A `rotated` refresh outcome carrying `bundle`. */
+function rotated(bundle: TokenBundle): RefreshResult {
+  return { kind: "rotated", tokens: bundle };
+}
+
+/** A `reused` outcome: a concurrent caller already rotated the presented token. */
+function reused(bundle: TokenBundle): RefreshResult {
+  return {
+    kind: "reused",
+    accessToken: bundle.accessToken,
+    accessTokenExpiresAt: bundle.accessTokenExpiresAt,
+    refreshTokenExpiresAt: bundle.refreshTokenExpiresAt,
+    userId: bundle.userId,
+  };
+}
+
 function newSession(
-  refreshSession: RefreshSession = async () => null,
+  refreshSession: RefreshSession = async () => ({ kind: "noSession" }),
   cookies = new FakeCookies(),
   cookieOptions: AuthCookieOptions = { secure: false },
 ) {
@@ -72,7 +88,7 @@ function newSession(
 describe("ServerAuthSession", () => {
   test("getToken returns a comfortably-valid cookie token without refreshing", async () => {
     vi.spyOn(Date, "now").mockReturnValue(nowMs);
-    const refreshSession = vi.fn(async () => newTokenBundle(2));
+    const refreshSession = vi.fn(async () => rotated(newTokenBundle(2)));
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 60));
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
@@ -88,7 +104,7 @@ describe("ServerAuthSession", () => {
     const next = newTokenBundle(2);
     const refreshSession = vi.fn(async (rt: string) => {
       expect(rt).toBe("refresh-1");
-      return next;
+      return rotated(next);
     });
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5)); // within the 10s skew
@@ -103,9 +119,28 @@ describe("ServerAuthSession", () => {
     vi.restoreAllMocks();
   });
 
+  test("a reused refresh writes only the JWT cookie, leaving the refresh cookie", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(nowMs);
+    const next = newTokenBundle(2);
+    const refreshSession = vi.fn(async () => reused(next));
+    const cookies = new FakeCookies();
+    cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5)); // within the 10s skew
+    cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
+    const { session } = newSession(refreshSession, cookies);
+
+    expect(await session.getToken()).toBe(next.accessToken);
+    expect(cookies.get(AUTH_JWT_COOKIE)).toBe(next.accessToken);
+    // The concurrent caller that won the rotation carries the replacement in
+    // its own response. Writing one here would race that, and the loser holds a
+    // token that is signed out once it leaves the grace window.
+    expect(cookies.get(AUTH_REFRESH_COOKIE)).toBe("refresh-1");
+    expect(cookies.options.get(AUTH_JWT_COOKIE)?.httpOnly).toBe(true);
+    vi.restoreAllMocks();
+  });
+
   test("getToken refreshes when the JWT cookie is missing", async () => {
     vi.spyOn(Date, "now").mockReturnValue(nowMs);
-    const refreshSession = vi.fn(async () => newTokenBundle(2));
+    const refreshSession = vi.fn(async () => rotated(newTokenBundle(2)));
     const cookies = new FakeCookies();
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
     const { session } = newSession(refreshSession, cookies);
@@ -115,12 +150,15 @@ describe("ServerAuthSession", () => {
     vi.restoreAllMocks();
   });
 
-  test("a null refresh clears both cookies and yields no token", async () => {
+  test("a noSession refresh clears both cookies and yields no token", async () => {
     vi.spyOn(Date, "now").mockReturnValue(nowMs);
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5));
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession(async () => null, cookies);
+    const { session } = newSession(
+      async () => ({ kind: "noSession" }),
+      cookies,
+    );
 
     expect(await session.getToken()).toBeNull();
     expect(cookies.get(AUTH_JWT_COOKIE)).toBeUndefined();
@@ -133,11 +171,15 @@ describe("ServerAuthSession", () => {
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5));
     cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession(async () => null, cookies, {
-      secure: false,
-      path: "/app",
-      domain: "example.com",
-    });
+    const { session } = newSession(
+      async () => ({ kind: "noSession" }),
+      cookies,
+      {
+        secure: false,
+        path: "/app",
+        domain: "example.com",
+      },
+    );
 
     expect(await session.getToken()).toBeNull();
     for (const name of [AUTH_JWT_COOKIE, AUTH_REFRESH_COOKIE]) {
@@ -151,7 +193,7 @@ describe("ServerAuthSession", () => {
 
   test("getToken returns null when there is no refresh cookie", async () => {
     vi.spyOn(Date, "now").mockReturnValue(nowMs);
-    const refreshSession = vi.fn(async () => newTokenBundle(2));
+    const refreshSession = vi.fn(async () => rotated(newTokenBundle(2)));
     const cookies = new FakeCookies();
     cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5)); // expiring, and nothing to refresh with
     const { session } = newSession(refreshSession, cookies);

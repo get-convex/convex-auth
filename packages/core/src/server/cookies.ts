@@ -16,7 +16,7 @@ import {
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "../browser/storage.ts";
-import type { TokenBundle } from "../lib/types.ts";
+import type { ReusedSession, TokenBundle } from "../lib/types.ts";
 
 /** The cookie holding the current access token (a JWT). */
 export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;
@@ -106,37 +106,67 @@ function invariantCookieOptions(): Omit<CookieOptions, "secure"> {
 }
 
 /**
+ * The attributes an auth cookie is written with: the invariant ones merged under
+ * the deployment-specific ones, and a lifetime taken from the refresh token's
+ * expiry. Both cookies live that long; the access token expires sooner and gets
+ * refreshed via {@link ServerAuthSession.getToken}.
+ */
+function authCookieOptions(
+  refreshTokenExpiresAt: number,
+  options: AuthCookieOptions,
+): CookieOptions {
+  // Pick the allowed fields rather than spreading, so a wider object
+  // (e.g. from untyped JS) cannot override the invariant attributes.
+  return {
+    ...invariantCookieOptions(),
+    path: options.path ?? "/",
+    domain: options.domain,
+    secure: options.secure,
+    expires: new Date(refreshTokenExpiresAt),
+  };
+}
+
+/**
  * Write the tokens in a `bundle` as cookies.
  *
- * The access token is stored in in {@link AUTH_JWT_COOKIE} and the refresh
- * token in {@link AUTH_REFRESH_COOKIE}. Both live as long as the refresh
- * token, although the access token will likely expire sooner and need to be
- * refreshed). The invariant attributes (httpOnly etc.) are merged in, so the
- * refresh cookie is httpOnly and never reaches client JS.
+ * The access token is stored in {@link AUTH_JWT_COOKIE} and the refresh token
+ * in {@link AUTH_REFRESH_COOKIE}. The invariant attributes (httpOnly etc.) are
+ * merged in, so the refresh cookie is httpOnly and never reaches client JS.
  *
- * This is the one place that knows which cookies hold a session and how their
- * lifetimes derive from the bundle, so refresh, the proxy, and every provider's
- * sign-in handler shape cookies identically.
+ * This is the one place that knows which cookies hold a session, so refresh,
+ * the proxy, and every provider's sign-in handler shape writes cookies
+ * identically.
  */
 export async function writeAuthCookies(
   cookies: CookieStore,
   bundle: TokenBundle,
   options: AuthCookieOptions,
 ): Promise<void> {
-  // Pick the allowed fields rather than spreading, so a wider object
-  // (e.g. from untyped JS) cannot override the invariant attributes.
-  const base = {
-    ...invariantCookieOptions(),
-    path: options.path ?? "/",
-    domain: options.domain,
-    secure: options.secure,
-  };
-  const expires = new Date(bundle.refreshTokenExpiresAt);
-  await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, { ...base, expires });
-  await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, {
-    ...base,
-    expires,
-  });
+  const attributes = authCookieOptions(bundle.refreshTokenExpiresAt, options);
+  await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, attributes);
+  await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, attributes);
+}
+
+/**
+ * Write only the access-token cookie, leaving {@link AUTH_REFRESH_COOKIE} as it
+ * was.
+ *
+ * For the `reused` outcome of a refresh, where a prior concurrent caller's
+ * response carries the replacement refresh token: writing one here would race
+ * it, and could leave the browser holding a token about to fall out of its
+ * grace window. The access token is still written, since for an SSR host the
+ * cookie is the only channel from a request-level refresh to the render.
+ */
+export async function writeAccessCookie(
+  cookies: CookieStore,
+  session: ReusedSession,
+  options: AuthCookieOptions,
+): Promise<void> {
+  await cookies.set(
+    AUTH_JWT_COOKIE,
+    session.accessToken,
+    authCookieOptions(session.refreshTokenExpiresAt, options),
+  );
 }
 
 /**

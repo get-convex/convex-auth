@@ -12,32 +12,33 @@
  * top of an HTTP client and a {@link CookieStore} built on its
  * request/response cookies, and tests supply a fake. The SSR host accesses the
  * refresh token (from the cookie), passes it in a refresh request to the
- * Convex backend and gets back a full {@link TokenBundle}. It uses that bundle
- * to update the cookie values and communicate the refreshed access token to
- * the client.
+ * Convex backend and gets back a {@link RefreshResult}. It uses that to update
+ * the cookie values and communicate the refreshed access token to the client.
+ *
+ * Which cookies get written depends on the outcome; see
+ * {@link ServerAuthSession.refresh}.
  *
  * @module
  */
 
-import type { TokenBundle } from "../lib/types.ts";
+import type { RefreshResult, TokenBundle } from "../lib/types.ts";
 import {
   AUTH_JWT_COOKIE,
   AUTH_REFRESH_COOKIE,
   AuthCookieOptions,
   CookieStore,
   clearAuthCookies,
+  writeAccessCookie,
   writeAuthCookies,
 } from "./cookies.ts";
 import { isTokenExpiring } from "./jwt.ts";
 
 /**
- * Rotate a refresh token into a fresh {@link TokenBundle}, or `null` when the
- * session is gone (unknown or expired refresh token). A framework binding
- * usually implements this over a Convex HTTP client; tests pass a fake.
+ * Exchange a refresh token for a fresh session, resolving to one of the
+ * {@link RefreshResult} outcomes. A framework binding usually implements this
+ * over a Convex HTTP client; tests pass a fake.
  */
-export type RefreshSession = (
-  refreshToken: string,
-) => Promise<TokenBundle | null>;
+export type RefreshSession = (refreshToken: string) => Promise<RefreshResult>;
 
 /** Configuration for a {@link ServerAuthSession}. */
 export interface ServerAuthSessionConfig {
@@ -81,27 +82,46 @@ export class ServerAuthSession {
     if (token !== null && !isTokenExpiring(token, this.#refreshSkewSeconds)) {
       return token;
     }
-    const bundle = await this.refresh();
-    return bundle?.accessToken ?? null;
+    // Both `rotated` and `reused` carry a usable access token.
+    const result = await this.refresh();
+    switch (result.kind) {
+      case "rotated":
+        return result.tokens.accessToken;
+      case "reused":
+        return result.accessToken;
+      case "noSession":
+        return null;
+    }
   }
 
   /**
-   * Force a refresh from the refresh-token cookie. On success rotates the
-   * tokens and rewrites both cookies; on failure (unknown/expired token) clears
-   * them. Returns the new bundle or `null`.
+   * Force a refresh from the refresh-token cookie, updating the cookies to match
+   * the outcome:
+   *
+   *  * `rotated`: rewrite both cookies with the new bundle.
+   *  * `reused`: rewrite only the access-token cookie. A previous concurrent
+   *     caller already received a new refresh token which will be used for future
+   *     refreshes.
+   *  * `noSession`: clear both.
    */
-  async refresh(): Promise<TokenBundle | null> {
+  async refresh(): Promise<RefreshResult> {
     const refreshToken = (await this.#cookies.get(AUTH_REFRESH_COOKIE)) ?? null;
     if (refreshToken === null) {
-      return null;
+      return { kind: "noSession" };
     }
-    const bundle = await this.#refreshSession(refreshToken);
-    if (bundle === null) {
-      await this.#clear();
-      return null;
+    const result = await this.#refreshSession(refreshToken);
+    switch (result.kind) {
+      case "rotated":
+        await this.setTokens(result.tokens);
+        break;
+      case "reused":
+        await writeAccessCookie(this.#cookies, result, this.#cookieOptions);
+        break;
+      case "noSession":
+        await this.#clear();
+        break;
     }
-    await this.setTokens(bundle);
-    return bundle;
+    return result;
   }
 
   /**

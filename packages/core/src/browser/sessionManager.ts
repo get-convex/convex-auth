@@ -1,4 +1,8 @@
-import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
+import type {
+  RefreshResult,
+  SlimTokenBundle,
+  TokenBundle,
+} from "../lib/types.ts";
 import { KeyedStore, type SignInValuesReader } from "./keyedStore.ts";
 import { runWithMutex } from "./mutex.ts";
 import type {
@@ -17,12 +21,13 @@ import {
  * The refresh and sign-out API for a **SPA** client, where JS holds the
  * refresh token directly.
  *
- * Refreshing rotates the token and returns a full {@link TokenBundle}
- * (including the next refresh token to persist), or `null` when the session is
- * gone.
+ * Refreshing resolves to a {@link RefreshResult}: `rotated` carries the next
+ * refresh token to persist, `reused` means a concurrent caller had already
+ * rotated this one and only an access token comes back, and `noSession` means
+ * the session is gone.
  */
 export interface SpaAuthApi {
-  refreshSession: (refreshToken: string) => Promise<TokenBundle | null>;
+  refreshSession: (refreshToken: string) => Promise<RefreshResult>;
   signOut: (refreshToken: string) => Promise<void>;
 }
 
@@ -46,7 +51,7 @@ interface AuthClientConfigBase {
   /** Namespace for storage keys; typically the deployment URL. */
   storageNamespace: string;
   /**
-   * An access token to adopt on {@link AuthClient.init}, typically provided by
+   * An access token to store on {@link AuthClient.init}, typically provided by
    * an SSR host.
    */
   initialAccessToken?: string | null;
@@ -110,6 +115,24 @@ function hasRefreshToken(
 }
 
 /**
+ * A refresh outcome in the terms this client persists it, normalized across the
+ * two session models:
+ *
+ *  - `rotated`: a session to store whole. A full {@link TokenBundle} under SPA or
+ *    an access-only {@link SlimTokenBundle} under SSR where the host moved the
+ *    refresh token into the cookie.
+ *  - `reused`: a concurrent caller had already rotated the token we presented,
+ *    inside its grace window. Take the access token and leave the existing
+ *    stored refresh token alone. Only SPA sees this arm; under SSR the host
+ *    resolves a reuse itself and the browser gets an ordinary access-only reply.
+ *  - `noSession`: the session is gone; clear it.
+ */
+type RefreshOutcome =
+  | { kind: "rotated"; session: TokenBundle | SlimTokenBundle }
+  | { kind: "reused"; accessToken: string }
+  | { kind: "noSession" };
+
+/**
  * Returns the global `window` object when it supports DOM event listeners,
  * otherwise `null`.
  *
@@ -141,18 +164,20 @@ function domEventTarget(): Pick<
  * a token bundle.
  */
 export class AuthClient {
-  /**
-   * Rotate the session, resolving to the new bundle or `null` when the session
-   * is gone.
-   */
-  readonly #refresh: () => Promise<TokenBundle | SlimTokenBundle | null>;
+  /** Refresh the session, resolving to one of the {@link RefreshOutcome} arms. */
+  readonly #refresh: () => Promise<RefreshOutcome>;
   /** Revoke the session on the server. */
   readonly #signOutInternal: () => Promise<void>;
   readonly #storage: NamespacedStorage;
   readonly #verbose: boolean;
   readonly #lockKey: string;
   readonly #initialAccessToken: string | null;
-  /** Which side owns the refresh token. Enforced in {@link AuthClient.#adopt}. */
+  /**
+   * Which side owns the refresh token: this client (SPA) or an httpOnly cookie
+   * (SSR). Enforced in {@link AuthClient.#storeFullTokenResult}, and decides in
+   * {@link AuthClient.#storeAccessOnly} whether a stored refresh token is ours
+   * to keep when only an access token comes back.
+   */
   readonly #mode: "spa" | "ssr";
 
   #accessToken: string | null = null;
@@ -185,8 +210,16 @@ export class AuthClient {
       this.#refresh = async () => {
         const refreshToken = await this.#currentRefreshToken();
         // No token means there's no session to refresh — don't call the API.
-        if (refreshToken === null) return null;
-        return authApi.refreshSession(refreshToken);
+        if (refreshToken === null) return { kind: "noSession" };
+        const result = await authApi.refreshSession(refreshToken);
+        switch (result.kind) {
+          case "rotated":
+            return { kind: "rotated", session: result.tokens };
+          case "reused":
+            return { kind: "reused", accessToken: result.accessToken };
+          case "noSession":
+            return { kind: "noSession" };
+        }
       };
       this.#signOutInternal = async () => {
         const refreshToken = await this.#currentRefreshToken();
@@ -195,8 +228,15 @@ export class AuthClient {
     } else {
       const { authApi } = config;
       // The refresh token is in an httpOnly cookie that the API reads
-      // server-side, so it isn't passed directly.
-      this.#refresh = () => authApi.refreshSession();
+      // server-side, so it isn't passed directly. The host collapses a rotation
+      // and a grace-window reuse into the same access-only reply, having already
+      // written whichever cookies each case calls for.
+      this.#refresh = async () => {
+        const session = await authApi.refreshSession();
+        return session === null
+          ? { kind: "noSession" }
+          : { kind: "rotated", session };
+      };
       this.#signOutInternal = () => authApi.signOut();
     }
 
@@ -360,7 +400,7 @@ export class AuthClient {
   setSession = async (
     session: TokenBundle | SlimTokenBundle,
   ): Promise<void> => {
-    await this.#adopt(session);
+    await this.#storeFullTokenResult(session);
   };
 
   /**
@@ -421,7 +461,7 @@ export class AuthClient {
         () => this.#refresh(),
         (message) => this.#log(`refresh: ${message}`),
       );
-      await this.#adopt(result);
+      await this.#handleRefresh(result);
       return this.#accessToken;
     });
   };
@@ -436,12 +476,35 @@ export class AuthClient {
   }
 
   /**
-   * Adopt a sign-in or refresh result, persisting it by its shape:
+   * Persist the outcome of a refresh.
+   *
+   * This either extends/updates the signed in state via new tokens or
+   * transitions the client to signed out.
+   */
+  async #handleRefresh(result: RefreshOutcome): Promise<void> {
+    switch (result.kind) {
+      case "noSession":
+        await this.#storeTokens(null);
+        return;
+      case "rotated":
+        await this.#storeFullTokenResult(result.session);
+        return;
+      case "reused":
+        this.#log("refresh reused a concurrently rotated token");
+        await this.#storeAccessOnly(result);
+        return;
+    }
+  }
+
+  /**
+   * Store the tokens for a sign-in or refresh result, persisting it by its shape:
    *  - a full {@link TokenBundle} stores both refresh and access tokens
    *  - a {@link SlimTokenBundle} stores just the access token
    *  - `null` clears the session
    */
-  async #adopt(result: TokenBundle | SlimTokenBundle | null): Promise<void> {
+  async #storeFullTokenResult(
+    result: TokenBundle | SlimTokenBundle | null,
+  ): Promise<void> {
     if (result === null) {
       await this.#storeTokens(null);
       return;
@@ -496,13 +559,19 @@ export class AuthClient {
 
   /**
    * Stores just the access token and notifies subscribers.
+   *
+   * Any stored refresh token is left in place when this client owns one (SPA),
+   * since the only way to get here in that mode is a grace-window reuse, where
+   * the stored token is the live replacement a concurrent caller persisted.
    */
-  async #storeAccessOnly(session: SlimTokenBundle): Promise<void> {
-    // Null out/remove any existing refresh token. It shouldn't be set unless
-    // this was somehow a client instance configured for SPA use being
-    // "upgraded" to SSR use.
-    this.#refreshToken = null;
-    await this.#storage.remove(REFRESH_TOKEN_STORAGE_KEY);
+  async #storeAccessOnly(session: { accessToken: string }): Promise<void> {
+    if (this.#mode === "ssr") {
+      // Null out/remove any existing refresh token. It shouldn't be set unless
+      // this was somehow a client instance configured for SPA use being
+      // "upgraded" to SSR use.
+      this.#refreshToken = null;
+      await this.#storage.remove(REFRESH_TOKEN_STORAGE_KEY);
+    }
 
     this.#accessToken = session.accessToken;
     await this.#storage.set(JWT_STORAGE_KEY, session.accessToken);

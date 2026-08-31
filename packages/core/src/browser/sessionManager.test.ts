@@ -1,6 +1,10 @@
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
+import type {
+  RefreshResult,
+  SlimTokenBundle,
+  TokenBundle,
+} from "../lib/types.ts";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
@@ -46,6 +50,27 @@ function bundle(n: number): TokenBundle {
   };
 }
 
+/** A `rotated` refresh outcome carrying `bundle(n)`. */
+function rotated(n: number): RefreshResult {
+  return { kind: "rotated", tokens: bundle(n) };
+}
+
+/**
+ * A `reused` outcome: a concurrent caller had already rotated the token we
+ * presented, so only an access token comes back.
+ */
+function reused(n: number): RefreshResult {
+  const { accessToken, accessTokenExpiresAt, refreshTokenExpiresAt, userId } =
+    bundle(n);
+  return {
+    kind: "reused",
+    accessToken,
+    accessTokenExpiresAt,
+    refreshTokenExpiresAt,
+    userId,
+  };
+}
+
 // `storage` is typed as the interface rather than the concrete default so the
 // async-store tests below can pass their own implementation.
 function makeClient(
@@ -55,7 +80,7 @@ function makeClient(
   const client = new AuthClient({
     mode: "spa",
     authApi: {
-      refreshSession: async () => null,
+      refreshSession: async () => ({ kind: "noSession" }),
       signOut: async () => {},
       ...authApi,
     },
@@ -128,7 +153,7 @@ describe("AuthClient", () => {
   });
 
   test("fetchAccessToken returns the cached token without forcing", async () => {
-    const refreshSession = vi.fn(async () => bundle(2));
+    const refreshSession = vi.fn(async () => rotated(2));
     const { client } = makeClient({ refreshSession });
     await client.init();
     await client.setSession(bundle(1));
@@ -141,7 +166,7 @@ describe("AuthClient", () => {
   test("forced fetch rotates the session via refreshSession", async () => {
     const refreshSession = vi.fn(async (rt: string) => {
       expect(rt).toBe("refresh-1");
-      return bundle(2);
+      return rotated(2);
     });
     const { client, storage } = makeClient({ refreshSession });
     await client.init();
@@ -155,9 +180,52 @@ describe("AuthClient", () => {
     );
   });
 
-  test("a null refresh clears the session", async () => {
+  test("a reused refresh takes the access token and keeps the stored refresh token", async () => {
+    const refreshSession = vi.fn(async () => reused(2));
+    const { client, storage } = makeClient({ refreshSession });
+    await client.init();
+    await client.setSession(bundle(1));
+
+    const token = await client.fetchAccessToken({ forceRefreshToken: true });
+
+    // A concurrent caller already rotated `refresh-1` and persisted the
+    // replacement. Clearing ours here would leave this client with no way to
+    // rotate, and it would expire silently at the next access-token expiry.
+    expect(token).toBe("access-2");
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-2");
+    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      "refresh-1",
+    );
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: true,
+      token: "access-2",
+    });
+  });
+
+  test("a reused refresh is not a sign-out", async () => {
+    // The next forced fetch must still reach the server with the stored token,
+    // rather than short-circuiting as if there were no session.
+    const refreshSession = vi
+      .fn<(rt: string) => Promise<RefreshResult>>()
+      .mockResolvedValueOnce(reused(2))
+      .mockResolvedValueOnce(rotated(3));
+    const { client, storage } = makeClient({ refreshSession });
+    await client.init();
+    await client.setSession(bundle(1));
+
+    await client.fetchAccessToken({ forceRefreshToken: true });
+    expect(await client.fetchAccessToken({ forceRefreshToken: true })).toBe(
+      "access-3",
+    );
+    expect(refreshSession).toHaveBeenNthCalledWith(2, "refresh-1");
+    expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
+      "refresh-3",
+    );
+  });
+
+  test("a noSession refresh result clears the session", async () => {
     const { client, storage } = makeClient({
-      refreshSession: async () => null,
+      refreshSession: async () => ({ kind: "noSession" }),
     });
     await client.init();
     await client.setSession(bundle(1));
@@ -175,7 +243,7 @@ describe("AuthClient", () => {
     const { promise, resolve } = Promise.withResolvers<void>();
     const refreshSession = vi.fn(async () => {
       await promise;
-      return bundle(2);
+      return rotated(2);
     });
     const { client } = makeClient({ refreshSession });
     await client.init();
@@ -364,7 +432,10 @@ function makeClientWithSignIns(
 ) {
   const client = new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" }),
+      signOut: async () => {},
+    },
     storage,
     storageNamespace: NAMESPACE,
     ambientSignIns: { signIns, signInApi: SIGN_IN_API },
@@ -742,7 +813,7 @@ describe("AuthClient (async storage)", () => {
       // The rotated token must be read back out of the async store, not just
       // held in memory.
       expect(rt).toBe("refresh-1");
-      return bundle(2);
+      return rotated(2);
     });
     const storage = new AsyncTokenStorage();
     const { client } = makeClient({ refreshSession }, storage);

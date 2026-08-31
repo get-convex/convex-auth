@@ -40,13 +40,24 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           refreshToken: string;
           refreshTokenTtlSeconds?: number;
         },
-        {
-          accessToken: string;
-          accessTokenExpiresAt: number;
-          refreshToken: string;
-          refreshTokenExpiresAt: number;
-          userId: string;
-        } | null,
+        | {
+            kind: "rotated";
+            tokens: {
+              accessToken: string;
+              accessTokenExpiresAt: number;
+              refreshToken: string;
+              refreshTokenExpiresAt: number;
+              userId: string;
+            };
+          }
+        | {
+            accessToken: string;
+            accessTokenExpiresAt: number;
+            kind: "reused";
+            refreshTokenExpiresAt: number;
+            userId: string;
+          }
+        | { kind: "noSession" },
         Name
       >;
       signIn: FunctionReference<
