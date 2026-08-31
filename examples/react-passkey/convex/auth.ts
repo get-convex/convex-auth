@@ -12,6 +12,7 @@ export const {
   finishSignIn,
 
   listPasskeys,
+  renamePasskey,
 
   startAddPasskey,
   verifyAddPasskey,
