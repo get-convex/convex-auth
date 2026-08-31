@@ -145,12 +145,23 @@ export function buildClientDataJSON({
   );
 }
 
+/** Parse an AAGUID in its UUID form into its 16 bytes. */
+export function aaguidBytes(aaguid: string): Uint8Array {
+  const hex = aaguid.replaceAll("-", "");
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) {
+    bytes[i] = parseInt(hex.slice(2 * i, 2 * i + 2), 16);
+  }
+  return bytes;
+}
+
 export async function buildAuthenticatorData({
   rpId,
   userPresent = true,
   userVerified = true,
   counter = 0,
   credential,
+  aaguid,
 }: {
   rpId: string;
   userPresent?: boolean;
@@ -158,6 +169,9 @@ export async function buildAuthenticatorData({
   counter?: number;
   // When set, the attested credential data block is included (AT flag).
   credential?: Pick<TestCredential, "credentialId" | "cosePublicKey">;
+  // The authenticator model in the attested credential data. Zeroed by
+  // default, like an authenticator that hides its model.
+  aaguid?: Uint8Array;
 }): Promise<Uint8Array> {
   let flags = 0;
   if (userPresent) flags |= 0x01;
@@ -172,7 +186,7 @@ export async function buildAuthenticatorData({
     counter & 0xff,
   ];
   if (credential !== undefined) {
-    parts.push(...new Array(16).fill(0)); // AAGUID
+    parts.push(...(aaguid ?? new Uint8Array(16))); // AAGUID
     parts.push(
       (credential.credentialId.length >> 8) & 0xff,
       credential.credentialId.length & 0xff,

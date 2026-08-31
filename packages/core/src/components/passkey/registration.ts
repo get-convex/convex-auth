@@ -88,6 +88,7 @@ import {
   transportsAreValid,
 } from "./validation.ts";
 import { SUPPORTED_ALGORITHM_IDS } from "./constants.ts";
+import { defaultPasskeyName } from "./aaguids.ts";
 import {
   deleteDeadChallenge,
   findChallenge,
@@ -326,7 +327,7 @@ export const finishRegistrationForNewUser = mutation({
     });
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.newUserId,
-      name: args.name,
+      name: args.name ?? defaultPasskeyName(result.credential.aaguid),
       transports: args.response.response.transports,
       credentialId: result.credential.credentialId,
       publicKey: result.credential.publicKey,
@@ -370,7 +371,7 @@ export const finishRegistrationForExistingUser = mutation({
     }
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.verifiedUserId,
-      name: args.name,
+      name: args.name ?? defaultPasskeyName(result.credential.aaguid),
       transports: args.response.response.transports,
       credentialId: result.credential.credentialId,
       publicKey: result.credential.publicKey,
@@ -553,6 +554,9 @@ type VerifiedCredential = {
   // The COSE public key, exactly as `verifyRegistrationResponse` returns it.
   publicKey: ArrayBuffer;
   counter: number;
+  // The authenticator model, for the default passkey name (see
+  // `defaultPasskeyName`).
+  aaguid: string;
 };
 
 /**
@@ -671,6 +675,7 @@ async function verifyAttestation(
       credentialId: storedCredentialId,
       publicKey: toArrayBuffer(credential.publicKey),
       counter: credential.counter,
+      aaguid: verification.registrationInfo.aaguid,
     },
   };
 }
