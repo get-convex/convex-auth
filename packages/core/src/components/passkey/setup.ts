@@ -34,6 +34,7 @@ import {
   finishRemovePasskey,
   startRemovePasskey,
 } from "./management/remove.ts";
+import { renamePasskey } from "./management/rename.ts";
 import { SIGN_IN_PURPOSE } from "./purposes.ts";
 
 /**
@@ -171,6 +172,7 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  *   finishSignIn,
  *
  *   listPasskeys,
+ *   renamePasskey,
  *
  *   startAddPasskey,
  *   verifyAddPasskey,
@@ -476,6 +478,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
         // the request and refuses a signed-out caller. Each mutation
         // composes the functions of the component in one transaction.
         listPasskeys: listPasskeys(config),
+        renamePasskey: renamePasskey(config),
         startAddPasskey: startAddPasskey(config),
         verifyAddPasskey: verifyAddPasskey(config),
         finishAddPasskey: finishAddPasskey(config),

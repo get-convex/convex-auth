@@ -134,7 +134,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "PROTOCOL_ERROR" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "PROTOCOL_ERROR" }
+              | { error: "INVALID_NAME" };
           },
         Name
       >;
@@ -162,7 +164,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "PROTOCOL_ERROR" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "PROTOCOL_ERROR" }
+              | { error: "INVALID_NAME" };
           },
         Name
       >;
@@ -176,6 +180,18 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           name?: string;
           passkeyId: string;
         }>,
+        Name
+      >;
+      renamePasskey: FunctionReference<
+        "mutation",
+        "internal",
+        { name: string; passkeyId: string; userId: string },
+        | { success: true }
+        | {
+            success: false;
+            userError:
+              { error: "PASSKEY_NOT_FOUND" } | { error: "INVALID_NAME" };
+          },
         Name
       >;
       startRegistrationForExistingUser: FunctionReference<

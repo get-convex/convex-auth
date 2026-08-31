@@ -82,6 +82,9 @@ import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
+  renamePasskeyUserError,
+  invalidNameUserError,
+  passkeyNameIsValid,
   transportsAreValid,
 } from "./validation.ts";
 import { SUPPORTED_ALGORITHM_IDS } from "./constants.ts";
@@ -267,7 +270,7 @@ const finishRegistrationResult = v.union(
   v.object({ success: v.literal(true), passkeyId: v.string() }),
   v.object({
     success: v.literal(false),
-    userError: finishRegistrationUserError,
+    userError: v.union(finishRegistrationUserError, invalidNameUserError),
   }),
 );
 type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
@@ -290,6 +293,12 @@ export const finishRegistrationForNewUser = mutation({
   args: { ...finishRegistrationArgs, newUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    // Before the ceremony is consumed: a name the component cannot store
+    // must not burn the challenge of a ceremony that could otherwise run
+    // again with a name that it can.
+    if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
     const result = await consumeRegistration(ctx, args, { kind: "newUser" });
     if (result.userError !== null) {
       return { success: false, userError: result.userError };
@@ -341,6 +350,10 @@ export const finishRegistrationForExistingUser = mutation({
   args: { ...finishRegistrationArgs, verifiedUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    // See the note in `finishRegistrationForNewUser`.
+    if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
     const result = await consumeRegistration(ctx, args, {
       kind: "existingUser",
       userId: args.verifiedUserId,
@@ -724,6 +737,46 @@ export const deletePasskey = mutation({
       return { success: false, userError: { error: "PASSKEY_NOT_FOUND" } };
     }
     await ctx.db.delete("passkeys", id);
+    return { success: true };
+  },
+});
+
+//------------------------------------------------------------------------------
+// Rename passkey
+//------------------------------------------------------------------------------
+
+const renamePasskeyResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), userError: renamePasskeyUserError }),
+);
+type RenamePasskeyResult = Infer<typeof renamePasskeyResult>;
+
+/**
+ * Rename one passkey of `userId`, for example from a settings page.
+ *
+ * The `userId` check makes the function safe for an ID that comes directly
+ * from the client: a user can only rename their own passkeys. The name must
+ * be a short label (see {@link passkeyNameIsValid}).
+ */
+export const renamePasskey = mutation({
+  args: { userId: v.string(), passkeyId: v.string(), name: v.string() },
+  returns: renamePasskeyResult,
+  handler: async (
+    ctx,
+    { userId, passkeyId, name },
+  ): Promise<RenamePasskeyResult> => {
+    if (!passkeyNameIsValid(name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
+    const id = ctx.db.normalizeId("passkeys", passkeyId);
+    if (id === null) {
+      return { success: false, userError: { error: "PASSKEY_NOT_FOUND" } };
+    }
+    const row = await ctx.db.get("passkeys", id);
+    if (row === null || row.userId !== userId) {
+      return { success: false, userError: { error: "PASSKEY_NOT_FOUND" } };
+    }
+    await ctx.db.patch("passkeys", id, { name });
     return { success: true };
   },
 });
