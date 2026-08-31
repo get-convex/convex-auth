@@ -260,7 +260,7 @@ function assertionArgs(credential: PublicKeyCredential): AssertionArgs {
 
 /**
  * Turn the credential descriptors from the server into the WebAuthn shape
- * of `allowCredentials` and `excludeCredentials`.
+ * of `allowCredentials`.
  */
 function credentialDescriptors(
   credentials: CredentialDescriptor[],
@@ -312,7 +312,6 @@ async function runRegistrationCeremony(
         userVerification: "required",
       },
       attestation: "none",
-      excludeCredentials: credentialDescriptors(start.excludeCredentials),
     },
   })) as PublicKeyCredential | null;
   if (credential === null) {

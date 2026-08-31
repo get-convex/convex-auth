@@ -91,7 +91,6 @@ const startSignInResult = v.union(
     challenge: v.bytes(),
     // The WebAuthn user handle (`user.id`) for the `create()` call.
     userHandle: v.bytes(),
-    excludeCredentials: v.array(credentialDescriptor),
     rpId: v.string(),
     rpName: v.string(),
   }),
@@ -258,16 +257,15 @@ export function setupUsernamePasskey<UsersTable extends string>(
               };
             }
 
-            const { challenge, userHandle, excludeCredentials } =
-              await ctx.runMutation(component.registration.startRegistration, {
-                userId: null,
-              });
+            const { challenge, userHandle } = await ctx.runMutation(
+              component.registration.startRegistrationForNewUser,
+              {},
+            );
             return {
               success: true,
               step: "register",
               challenge,
               userHandle,
-              excludeCredentials,
               rpId,
               rpName,
             };
@@ -298,12 +296,13 @@ export function setupUsernamePasskey<UsersTable extends string>(
          *
          * The order of the steps gives that guarantee:
          * 1. Checks that write nothing: the username format, the username
-         *    conflict, and `checkRegistration` (the full WebAuthn
+         *    conflict, and `checkRegistrationForNewUser` (the full WebAuthn
          *    verification as a query). Each failure, correctable or not,
          *    returns a `userError` here, before anything exists.
          * 2. Writes that cannot fail after the checks: `completeSignUp` mints
          *    the user, the account, and the session, `setUsername` stores the
-         *    username, and `finishRegistration` stores the passkey. None of
+         *    username, and `finishRegistrationForNewUser` stores the
+         *    passkey. None of
          *    them can fail after step 1 inside the same transaction, so a
          *    failure throws and rolls everything back.
          */
@@ -333,7 +332,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
 
             // Fail early if the passkey registration fails
             const checkResult = await ctx.runQuery(
-              component.registration.checkRegistration,
+              component.registration.checkRegistrationForNewUser,
               {
                 expectedRpId: rpId,
                 expectedOrigin: origin,
@@ -377,19 +376,20 @@ export function setupUsernamePasskey<UsersTable extends string>(
             // Store the verified credential, link the handle to the new
             // user, and consume the challenge.
             const registrationResult = await ctx.runMutation(
-              component.registration.finishRegistration,
+              component.registration.finishRegistrationForNewUser,
               {
                 expectedRpId: rpId,
                 expectedOrigin: origin,
-                verifiedUserId: tokens.userId,
+                newUserId: tokens.userId,
                 attestationObject: args.attestationObject,
                 clientDataJSON: args.clientDataJSON,
                 transports: args.transports,
               },
             );
             if (!registrationResult.success) {
-              // Not possible: `checkRegistration` succeeded above, in the
-              // same transaction. Throwing rolls everything back.
+              // Not possible: `checkRegistrationForNewUser` succeeded
+              // above, in the same transaction. Throwing rolls everything
+              // back.
               throw new Error(
                 "Unexpected error when storing the passkey: " +
                   registrationResult.userError.error,

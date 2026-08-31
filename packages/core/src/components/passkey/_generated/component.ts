@@ -61,7 +61,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     registration: {
-      checkRegistration: FunctionReference<
+      checkRegistrationForNewUser: FunctionReference<
         "query",
         "internal",
         {
@@ -94,7 +94,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         null,
         Name
       >;
-      finishRegistration: FunctionReference<
+      finishRegistrationForExistingUser: FunctionReference<
         "mutation",
         "internal",
         {
@@ -105,6 +105,26 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           name?: string;
           transports?: Array<string>;
           verifiedUserId: string;
+        },
+        | { passkeyId: string; success: true }
+        | {
+            success: false;
+            userError:
+              { error: "CHALLENGE_EXPIRED" } | { error: "PROTOCOL_ERROR" };
+          },
+        Name
+      >;
+      finishRegistrationForNewUser: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          attestationObject: ArrayBuffer;
+          clientDataJSON: ArrayBuffer;
+          expectedOrigin: string;
+          expectedRpId: string;
+          name?: string;
+          newUserId: string;
+          transports?: Array<string>;
         },
         | { passkeyId: string; success: true }
         | {
@@ -126,10 +146,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         }>,
         Name
       >;
-      startRegistration: FunctionReference<
+      startRegistrationForExistingUser: FunctionReference<
         "mutation",
         "internal",
-        { userId: string | null },
+        { verifiedUserId: string },
         {
           challenge: ArrayBuffer;
           excludeCredentials: Array<{
@@ -138,6 +158,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           }>;
           userHandle: ArrayBuffer;
         },
+        Name
+      >;
+      startRegistrationForNewUser: FunctionReference<
+        "mutation",
+        "internal",
+        {},
+        { challenge: ArrayBuffer; userHandle: ArrayBuffer },
         Name
       >;
     };

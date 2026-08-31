@@ -13,8 +13,7 @@ import batchWorker from "@convex-dev/batch-worker/convex.config.js";
  * loop that erases the expired challenges (see cleanup.ts).
  *
  * The component has no configuration. The app passes the relying party ID
- * and the origin as arguments to `finishRegistration` and
- * `finishAuthentication`.
+ * and the origin as arguments to the finish functions.
  */
 const component = defineComponent("authPasskey");
 component.use(batchWorker);
