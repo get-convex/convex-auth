@@ -49,6 +49,8 @@ export const onSignInAnonymous = internalMutation({
     providerAccountId: v.string(),
     profile: v.object({}),
     userId: v.id("users"),
+    // Always sent; empty because this app registers no sign-in requirements.
+    facts: v.object({}),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -62,6 +64,7 @@ export const onSignInPassword = internalMutation({
     providerAccountId: v.string(),
     profile: v.object({ username: v.string() }),
     userId: v.id("users"),
+    facts: v.object({}),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

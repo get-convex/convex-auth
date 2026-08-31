@@ -14,6 +14,14 @@ import {
   vTokenBundle,
   type TokenBundle,
   USE_USER_ID_AS_ACCOUNT_ID,
+  vProviderSignInOutcome,
+  type ProviderSignInOutcome,
+  vProviderContinueOutcome,
+  type ProviderContinueOutcome,
+  vProviderRequirement,
+  type ProviderRequirement,
+  type SignInRequirement,
+  vAttemptContext,
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
@@ -37,6 +45,13 @@ export const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
 // reuse-detection horizon: past it the row is gone and a replayed token reads
 // as unknown, which revokes nothing but also grants nothing.
 export const SPENT_TOKEN_HORIZON_MS = 60 * 60 * 1000; // 1 hour
+// How long a parked incomplete sign-in stays continuable. Long enough for a
+// user to answer a challenge, short enough that parked sign-ins don't linger.
+const ATTEMPT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+// How many times a single attempt may be continued (or penalized) before it
+// is discarded — a brute-force/looping guard (e.g. guessing a second-factor
+// challenge).
+const MAX_CONTINUE_COUNT = 10;
 
 // The issuer (CONVEX_SITE_URL) is passed in by the app rather than read here:
 // inside a component the system var arrives prefixed with the mount's
@@ -274,7 +289,6 @@ function asUserId(userId: string): GenericId<string> {
  * session needs: the account id and its app user id. The claims are passed to
  * the `createUser` callback.
  *
- * Both `signUp` and the sessionless `signUpWithoutSession` build on this.
  */
 async function createAccount(
   ctx: MutationCtx,
@@ -336,24 +350,189 @@ async function createAccount(
   return { accountId, userId };
 }
 
+// --- Sign-in attempts (incomplete sign-ins) ---------------------------------
+
+/** Look up the (at most one) pending attempt for a provider identity. */
+function attemptByIdentity(
+  ctx: QueryCtx,
+  provider: string,
+  providerAccountId: string,
+): Promise<Doc<"pendingSignInAttempts"> | null> {
+  return ctx.db
+    .query("pendingSignInAttempts")
+    .withIndex("by_provider_account", (q) =>
+      q.eq("provider", provider).eq("providerAccountId", providerAccountId),
+    )
+    .unique();
+}
+
 /**
- * Run the app's sign-in callback, if it attached one. Every sign-in goes
- * through here, a first one included, so per-sign-in work in the app has a
- * single home.
+ * Load the live attempt a bearer token names, or `null` — deleting the row —
+ * when the token is unknown, the attempt has expired, or it is over its
+ * continuation cap. Shared by {@link continueSignIn} and the fact primitives
+ * below so every touch applies the same hygiene.
  */
-async function notifySignIn(
+async function liveAttemptByToken(
   ctx: MutationCtx,
-  claims: AuthClaims,
+  attemptToken: string,
+): Promise<Doc<"pendingSignInAttempts"> | null> {
+  const attemptTokenHash = await sha256Hex(attemptToken);
+  const attempt = await ctx.db
+    .query("pendingSignInAttempts")
+    .withIndex("by_token_hash", (q) =>
+      q.eq("attemptTokenHash", attemptTokenHash),
+    )
+    .unique();
+  if (attempt === null) return null;
+  if (
+    attempt.expiresAt < Date.now() ||
+    attempt.continueCount >= MAX_CONTINUE_COUNT
+  ) {
+    await ctx.db.delete("pendingSignInAttempts", attempt._id);
+    return null;
+  }
+  return attempt;
+}
+
+/**
+ * Run one round of sign-in evaluation and collect the outstanding
+ * requirements.
+ *
+ * Two checks compose, in a fixed order:
+ *
+ *  1. *Provider-registered* requirements (injected by the provider's setup
+ *     from its config options) are checked by the framework itself: one is
+ *     outstanding until every one of its `factFields` is present in the
+ *     attempt's provider-scoped facts bag.
+ *  2. The app's `onSignIn` callback, when one is attached, judges the
+ *     sign-in against the app-scoped facts bag and returns its verdict. An
+ *     app with no requirements returns `null` every time, which is how a
+ *     plain per-sign-in hook and a full evaluator are the same callback.
+ *
+ * The two facts bags are disjoint on purpose: the app's callback never sees
+ * provider facts, so its strictly-validated `facts` arg can't be broken by
+ * fields it never declared. A provider-registered requirement is therefore
+ * checked even when the app attached no callback at all.
+ *
+ * The callback runs on *every* round — first sign-in, returning sign-in, and
+ * each continuation — and is deliberately blind to which round this is: it
+ * judges `(user, profile, facts)` and nothing else. `providerAccountId` is
+ * always the *resolved* id (the attempt's key), never a sign-up placeholder.
+ */
+async function evaluateSignIn(
+  ctx: MutationCtx,
+  identity: { provider: string; providerAccountId: string; profile: unknown },
   userId: string,
-  onSignInHandle: string | undefined,
-): Promise<void> {
-  if (onSignInHandle === undefined) return;
-  await ctx.runMutation(onSignInHandle as OnSignInFunctionHandle, {
-    provider: claims.provider,
-    providerAccountId: claims.providerAccountId,
-    profile: claims.profile,
+  facts: Record<string, unknown>,
+  providerFacts: Record<string, unknown>,
+  onSignInHandle: OnSignInFunctionHandle | undefined,
+  providerRequirements: ProviderRequirement[],
+): Promise<SignInRequirement[]> {
+  const outstanding = providerRequirements
+    .filter(
+      (requirement) =>
+        !requirement.factFields.every(
+          (field) => providerFacts[field] !== undefined,
+        ),
+    )
+    .map((requirement) => ({
+      kind: requirement.kind,
+      data: requirement.data,
+    }));
+  if (onSignInHandle === undefined) return outstanding;
+  const verdict = await ctx.runMutation(onSignInHandle, {
+    provider: identity.provider,
+    providerAccountId: identity.providerAccountId,
+    profile: identity.profile,
     userId: asUserId(userId),
+    facts,
   });
+  return [...outstanding, ...(verdict === null ? [] : verdict.requirements)];
+}
+
+/**
+ * Finish a *fresh* (non-continuation) sign-in round: evaluate with empty
+ * facts bags, then either mint the session or park the sign-in as an attempt.
+ *
+ * Any pending attempt for the identity is superseded either way: a fresh
+ * sign-in that completes deletes it, and one that stays incomplete replaces
+ * it wholesale — new token, facts reset (a fresh sign-in re-proves its
+ * factors, the conservative default), continuation budget restored. That
+ * also means a second device signing in invalidates the first device's
+ * attempt token.
+ */
+async function finishSignIn(
+  ctx: MutationCtx,
+  opts: {
+    identity: {
+      provider: string;
+      providerAccountId: string;
+      profile: unknown;
+    };
+    accountId: Id<"accounts">;
+    userId: string;
+    onSignInHandle: OnSignInFunctionHandle | undefined;
+    providerRequirements: ProviderRequirement[];
+    issuer: string;
+    ttl: TtlConfig;
+  },
+): Promise<ProviderSignInOutcome> {
+  const { identity, userId } = opts;
+  const pending = await attemptByIdentity(
+    ctx,
+    identity.provider,
+    identity.providerAccountId,
+  );
+  const requirements = await evaluateSignIn(
+    ctx,
+    identity,
+    userId,
+    {},
+    {},
+    opts.onSignInHandle,
+    opts.providerRequirements,
+  );
+
+  if (requirements.length === 0) {
+    if (pending !== null) {
+      await ctx.db.delete("pendingSignInAttempts", pending._id);
+    }
+    const tokens = await issueSession(
+      ctx,
+      opts.accountId,
+      userId,
+      opts.issuer,
+      opts.ttl,
+    );
+    return { status: "session-created", tokens };
+  }
+
+  const attemptToken = generateRefreshToken();
+  const attempt = {
+    provider: identity.provider,
+    providerAccountId: identity.providerAccountId,
+    profile: identity.profile,
+    // Filled in by `recordAttemptFacts` as verification endpoints succeed; a
+    // fresh sign-in always starts with empty bags.
+    facts: {},
+    providerFacts: {},
+    userId,
+    attemptTokenHash: await sha256Hex(attemptToken),
+    expiresAt: Date.now() + ATTEMPT_TTL_MS,
+    continueCount: 0,
+  };
+  if (pending !== null) {
+    await ctx.db.patch("pendingSignInAttempts", pending._id, attempt);
+  } else {
+    await ctx.db.insert("pendingSignInAttempts", attempt);
+  }
+  return {
+    status: "pending-requirements",
+    requirements,
+    attemptToken,
+    expiresAt: attempt.expiresAt,
+    userId,
+  };
 }
 
 // --- Component API ------------------------------------------------------------
@@ -371,6 +550,13 @@ async function notifySignIn(
  * other sign-in. An `onSignIn` that throws therefore rolls back the user
  * `createUser` just made, since both are subtransactions of this one.
  *
+ * The sign-in may come back `pending-requirements` when requirements are outstanding —
+ * the app's `onSignIn` asked for more, or a provider-registered requirement
+ * is unmet. The user and account are created eagerly either way, and only the
+ * session is withheld, which makes abandoned incomplete sign-ups
+ * self-healing: signing *in* later resolves the same user and re-prompts,
+ * instead of failing or minting a duplicate.
+ *
  * The JWT accessToken in the return value is issued with `issuer` as its
  * `iss`. Token lifetimes default to 1m (access) and 30d (refresh) unless
  * `accessTokenTtlSeconds` / `refreshTokenTtlSeconds` are supplied (the app
@@ -384,20 +570,39 @@ export const signUp = mutation({
     claims: vAuthClaims,
     createUserHandle: v.string(),
     onSignInHandle: v.optional(v.string()),
+    providerRequirements: v.optional(v.array(vProviderRequirement)),
     issuer: v.string(),
     accessTokenTtlSeconds: v.optional(v.number()),
     refreshTokenTtlSeconds: v.optional(v.number()),
   },
-  returns: vTokenBundle,
-  handler: async (ctx, args): Promise<TokenBundle> => {
+  returns: vProviderSignInOutcome,
+  handler: async (ctx, args): Promise<ProviderSignInOutcome> => {
     const ttl = resolveTtlConfig(args);
     const { accountId, userId } = await createAccount(
       ctx,
       args.claims,
       args.createUserHandle as CreateUserFunctionHandle,
     );
-    await notifySignIn(ctx, args.claims, userId, args.onSignInHandle);
-    return await issueSession(ctx, accountId, userId, args.issuer, ttl);
+    return await finishSignIn(ctx, {
+      identity: {
+        provider: args.claims.provider,
+        // The resolved key, which for USE_USER_ID_AS_ACCOUNT_ID providers is
+        // the user id `createUser` just minted — evaluation always sees (and
+        // attempts are always keyed by) the resolved id, never the sign-up
+        // placeholder.
+        providerAccountId:
+          args.claims.providerAccountId === USE_USER_ID_AS_ACCOUNT_ID
+            ? userId
+            : args.claims.providerAccountId,
+        profile: args.claims.profile,
+      },
+      accountId,
+      userId,
+      onSignInHandle: args.onSignInHandle as OnSignInFunctionHandle | undefined,
+      providerRequirements: args.providerRequirements ?? [],
+      issuer: args.issuer,
+      ttl,
+    });
   },
 });
 
@@ -415,18 +620,24 @@ export const signUp = mutation({
  * `accessTokenTtlSeconds` / `refreshTokenTtlSeconds` are supplied (the app
  * sets these once via `setupCore`).
  *
+ * The sign-in may come back `pending-requirements` when requirements are outstanding:
+ * no session is minted, the sign-in is parked as an attempt, and the returned
+ * `attemptToken` continues it via {@link continueSignIn}. An identity has at
+ * most one live attempt — a fresh sign-in supersedes it.
+ *
  * Throws when the identity has no account.
  */
 export const signIn = mutation({
   args: {
     claims: vAuthClaims,
     onSignInHandle: v.optional(v.string()),
+    providerRequirements: v.optional(v.array(vProviderRequirement)),
     issuer: v.string(),
     accessTokenTtlSeconds: v.optional(v.number()),
     refreshTokenTtlSeconds: v.optional(v.number()),
   },
-  returns: vTokenBundle,
-  handler: async (ctx, args): Promise<TokenBundle> => {
+  returns: vProviderSignInOutcome,
+  handler: async (ctx, args): Promise<ProviderSignInOutcome> => {
     const ttl = resolveTtlConfig(args);
     const { claims } = args;
     const account = await accountByIdentity(
@@ -441,44 +652,213 @@ export const signIn = mutation({
           `A first sign-in for an identity must go through signUp.`,
       );
     }
-    await notifySignIn(ctx, claims, account.userId, args.onSignInHandle);
-    return await issueSession(
-      ctx,
-      account._id,
-      account.userId,
-      args.issuer,
+    return await finishSignIn(ctx, {
+      identity: {
+        provider: claims.provider,
+        providerAccountId: claims.providerAccountId,
+        profile: claims.profile,
+      },
+      accountId: account._id,
+      userId: account.userId,
+      onSignInHandle: args.onSignInHandle as OnSignInFunctionHandle | undefined,
+      providerRequirements: args.providerRequirements ?? [],
+      issuer: args.issuer,
       ttl,
-    );
+    });
   },
 });
 
 /**
- * Create the account and the app user for a provider's verified identity
- * claims, without minting a session.
+ * Continue a parked sign-in attempt, re-running evaluation against the facts
+ * verification endpoints have recorded since the last round.
  *
- * Providers use this (via the `signUpWithoutSession` helper the core hands
- * them) when the user must complete a step before the first sign-in — for
- * example, an email validation. Account creation follows the same rules as
- * `signUp` (the app's `createUser` mutation mints the user,
- * `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted user id, and an
- * identity that already has an account is refused), but no session is minted
- * and `onSignIn` does not run: the user cannot make authenticated calls until
- * a later `signIn` succeeds.
+ * When nothing is outstanding anymore the attempt is deleted and a session
+ * minted; otherwise the attempt burns one unit of continuation budget and
+ * reports the remaining requirements (its token and expiry are unchanged —
+ * continuing never extends an attempt's lifetime). Returns `expired` —
+ * deleting the row where one exists — for an unknown token, an attempt past
+ * its lifetime, or one over its continuation cap; the caller should restart
+ * the sign-in from scratch.
+ *
+ * The attempt token is the continuation credential: random, stored only as a
+ * hash, short-lived, and budgeted. Providers do not re-verify their own
+ * factor (the password, say) on continuation.
  */
-export const signUpWithoutSession = mutation({
+export const continueSignIn = mutation({
   args: {
-    claims: vAuthClaims,
-    createUserHandle: v.string(),
+    attemptToken: v.string(),
+    onSignInHandle: v.optional(v.string()),
+    providerRequirements: v.optional(v.array(vProviderRequirement)),
+    issuer: v.string(),
+    accessTokenTtlSeconds: v.optional(v.number()),
+    refreshTokenTtlSeconds: v.optional(v.number()),
   },
-  returns: v.object({ userId: v.string() }),
-  handler: async (ctx, args): Promise<{ userId: string }> => {
-    // TODO: This API is kind of awkward. We might want to reconsider it before the GA v2 release.
-    const { userId } = await createAccount(
+  returns: vProviderContinueOutcome,
+  handler: async (ctx, args): Promise<ProviderContinueOutcome> => {
+    const ttl = resolveTtlConfig(args);
+    const attempt = await liveAttemptByToken(ctx, args.attemptToken);
+    if (attempt === null) return { status: "expired" };
+
+    const requirements = await evaluateSignIn(
       ctx,
-      args.claims,
-      args.createUserHandle as CreateUserFunctionHandle,
+      {
+        provider: attempt.provider,
+        providerAccountId: attempt.providerAccountId,
+        profile: attempt.profile,
+      },
+      attempt.userId,
+      (attempt.facts ?? {}) as Record<string, unknown>,
+      (attempt.providerFacts ?? {}) as Record<string, unknown>,
+      args.onSignInHandle as OnSignInFunctionHandle | undefined,
+      args.providerRequirements ?? [],
     );
-    return { userId };
+
+    if (requirements.length === 0) {
+      await ctx.db.delete("pendingSignInAttempts", attempt._id);
+      const account = await accountByIdentity(
+        ctx,
+        attempt.provider,
+        attempt.providerAccountId,
+      );
+      if (account === null) {
+        // Accounts are created eagerly before any attempt is parked, so a
+        // missing one means the account was deleted mid-flow.
+        throw new Error(
+          `Invariant violation: no account for provider = ${JSON.stringify(attempt.provider)} ` +
+            `and provider account ID = ${JSON.stringify(attempt.providerAccountId)} ` +
+            `behind a live sign-in attempt`,
+        );
+      }
+      const tokens = await issueSession(
+        ctx,
+        account._id,
+        attempt.userId,
+        args.issuer,
+        ttl,
+      );
+      return { status: "session-created", tokens };
+    }
+
+    await ctx.db.patch("pendingSignInAttempts", attempt._id, {
+      continueCount: attempt.continueCount + 1,
+    });
+    return {
+      status: "pending-requirements",
+      requirements,
+      attemptToken: args.attemptToken,
+      expiresAt: attempt.expiresAt,
+      userId: attempt.userId,
+    };
+  },
+});
+
+// --- Verification-fact primitives --------------------------------------------
+//
+// The building blocks for endpoints that *verify* a requirement server-side
+// (a second factor, a CAPTCHA, an email link) and record the proof as a fact
+// on the pending attempt. Like every function here they are
+// component-internal — callable from app/provider server code, never from
+// clients — so the only path to a recorded fact runs through whatever
+// verification the calling endpoint performed. The shape of such an endpoint:
+//
+//   1. `getAttemptContext` — resolve the attempt's *subject* and verify
+//      against it (never against caller-supplied identity).
+//   2. On success: `recordAttemptFacts` — the evaluator sees the fact on the
+//      next round and stops demanding the requirement.
+//   3. On failure: `penalizeAttempt` — a failed verification must burn
+//      continuation budget, or the endpoint is an unmetered guessing oracle.
+
+/**
+ * Resolve a live attempt's subject: which provider identity is mid-sign-in
+ * and which user the flow is anchored to. Returns `null` for an unknown,
+ * expired or over-cap token (surface that as "start over").
+ *
+ * A query, so it cannot lazily delete a dead attempt the way mutating
+ * touches do — the row is simply treated as gone.
+ */
+export const getAttemptContext = query({
+  args: { attemptToken: v.string() },
+  returns: v.union(vAttemptContext, v.null()),
+  handler: async (ctx, args) => {
+    const attemptTokenHash = await sha256Hex(args.attemptToken);
+    const attempt = await ctx.db
+      .query("pendingSignInAttempts")
+      .withIndex("by_token_hash", (q) =>
+        q.eq("attemptTokenHash", attemptTokenHash),
+      )
+      .unique();
+    if (
+      attempt === null ||
+      attempt.expiresAt < Date.now() ||
+      attempt.continueCount >= MAX_CONTINUE_COUNT
+    ) {
+      return null;
+    }
+    return {
+      provider: attempt.provider,
+      providerAccountId: attempt.providerAccountId,
+      userId: attempt.userId,
+    };
+  },
+});
+
+/**
+ * Record verification facts on a pending attempt (shallow merge, later
+ * writes win). This is the *only* write path into the trusted facts bags —
+ * there is no client-writable channel into either. `scope` picks the bag:
+ * `"app"` (the default) is what the app's evaluator reads; `"provider"`
+ * backs provider-registered requirements and stays invisible to the app.
+ * Returns `false` when the attempt is gone (unknown/expired/over-cap) — the
+ * verification succeeded but there is nothing left to record it on, so the
+ * caller should surface "start over".
+ */
+export const recordAttemptFacts = mutation({
+  args: {
+    attemptToken: v.string(),
+    facts: v.any(),
+    scope: v.optional(v.union(v.literal("app"), v.literal("provider"))),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const attempt = await liveAttemptByToken(ctx, args.attemptToken);
+    if (attempt === null) return false;
+    const scope = args.scope ?? "app";
+    if (scope === "provider") {
+      await ctx.db.patch("pendingSignInAttempts", attempt._id, {
+        providerFacts: {
+          ...(attempt.providerFacts ?? {}),
+          ...(args.facts ?? {}),
+        },
+      });
+    } else {
+      await ctx.db.patch("pendingSignInAttempts", attempt._id, {
+        facts: { ...(attempt.facts ?? {}), ...(args.facts ?? {}) },
+      });
+    }
+    return true;
+  },
+});
+
+/**
+ * Meter a *failed* verification against the attempt's continuation cap.
+ * Successes are self-limiting (there are only so many facts to record);
+ * failures are the brute-force surface, and only reach the core through this
+ * call. Returns `false` when the attempt was already gone or this failure
+ * exhausted the cap (the row is deleted either way it dies).
+ */
+export const penalizeAttempt = mutation({
+  args: { attemptToken: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args): Promise<boolean> => {
+    const attempt = await liveAttemptByToken(ctx, args.attemptToken);
+    if (attempt === null) return false;
+    const continueCount = attempt.continueCount + 1;
+    if (continueCount >= MAX_CONTINUE_COUNT) {
+      await ctx.db.delete("pendingSignInAttempts", attempt._id);
+      return false;
+    }
+    await ctx.db.patch("pendingSignInAttempts", attempt._id, { continueCount });
+    return true;
   },
 });
 

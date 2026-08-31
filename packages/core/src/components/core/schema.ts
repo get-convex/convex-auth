@@ -43,4 +43,33 @@ export default defineSchema({
   })
     .index("by_hash", ["hash"])
     .index("by_session", ["sessionId"]),
+  // One row per *parked* incomplete sign-in: the app's evaluating `onSignIn`
+  // returned outstanding requirements, so the session is withheld and the
+  // sign-in waits here to be continued. The user and account already exist
+  // (creation is eager); the attempt only remembers what evaluation needs to
+  // re-run. At most one live attempt exists per (provider, providerAccountId)
+  // — a fresh sign-in supersedes it. The raw attempt token is never stored,
+  // only its SHA-256 hash.
+  pendingSignInAttempts: defineTable({
+    provider: v.string(),
+    // The *resolved* provider account id (for providers keyed by the app user
+    // id, that user id — never the sign-up placeholder).
+    providerAccountId: v.string(),
+    profile: v.any(),
+    // Server-verified facts the app's evaluator sees, recorded only via
+    // `recordAttemptFacts` (scope "app"). Never client-writable.
+    facts: v.optional(v.any()),
+    // Facts backing provider-registered requirements, checked by the
+    // framework itself and invisible to the app's evaluator (scope
+    // "provider").
+    providerFacts: v.optional(v.any()),
+    userId: v.string(),
+    attemptTokenHash: v.string(),
+    expiresAt: v.number(),
+    // How many times this attempt has been continued or penalized; the cap
+    // is the brute-force guard on requirement verification.
+    continueCount: v.number(),
+  })
+    .index("by_token_hash", ["attemptTokenHash"])
+    .index("by_provider_account", ["provider", "providerAccountId"]),
 });

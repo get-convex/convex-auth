@@ -69,3 +69,90 @@ export const onSignInThatThrows = internalMutation({
     throw new Error("no sign-ins for you");
   },
 });
+
+/**
+ * The shape of an evaluating `onSignIn` call, mirroring what the core sends
+ * to `evaluateSignInHandle` (test-only).
+ */
+export const vEvaluateSignIn = v.object({
+  ...vOnSignIn.fields,
+  facts: v.any(),
+});
+type EvaluateSignInCall = Infer<typeof vEvaluateSignIn>;
+const evaluateSignInCalls: EvaluateSignInCall[] = [];
+
+/** Read the recorded evaluator calls (test-only). */
+export function getEvaluateSignInCalls(): readonly EvaluateSignInCall[] {
+  return evaluateSignInCalls;
+}
+
+/** Clear the recorded evaluator calls (test-only). */
+export function resetEvaluateSignInCalls(): void {
+  evaluateSignInCalls.length = 0;
+}
+
+const vTestVerdict = v.union(
+  v.null(),
+  v.object({
+    status: v.literal("requirements-needed"),
+    requirements: v.array(
+      v.object({ kind: v.string(), data: v.optional(v.any()) }),
+    ),
+  }),
+);
+
+/**
+ * Stand-in for an app's evaluating `onSignIn`: demands the `verified` fact,
+ * accepting the sign-in only once a verification endpoint has recorded it.
+ */
+export const evaluateSignIn = internalMutation({
+  args: vEvaluateSignIn,
+  returns: vTestVerdict,
+  handler: async (_ctx, args) => {
+    evaluateSignInCalls.push({ ...args });
+    const facts = args.facts as Record<string, unknown>;
+    if (facts.verified === undefined) {
+      return {
+        status: "requirements-needed" as const,
+        requirements: [{ kind: "test:verify", data: { hint: "prove it" } }],
+      };
+    }
+    return null;
+  },
+});
+
+/** An evaluator that accepts every sign-in outright (test-only). */
+export const evaluateSignInAlwaysComplete = internalMutation({
+  args: vEvaluateSignIn,
+  returns: vTestVerdict,
+  handler: async (_ctx, args) => {
+    evaluateSignInCalls.push({ ...args });
+    return null;
+  },
+});
+
+/**
+ * An evaluator that always throws, for asserting that a rejected first
+ * sign-in rolls back everything the same call created (test-only).
+ */
+export const evaluateSignInThatThrows = internalMutation({
+  args: vEvaluateSignIn,
+  returns: vTestVerdict,
+  handler: async () => {
+    throw new Error("no sign-ins for you");
+  },
+});
+
+/**
+ * A `createUser` that mints the user id from the profile instead of echoing
+ * the provider account id — what the `USE_USER_ID_AS_ACCOUNT_ID` tests need,
+ * since there the incoming account id is the empty placeholder (test-only).
+ */
+export const createUserFromProfileName = internalMutation({
+  args: vCreateUser,
+  returns: v.string(),
+  handler: async (_ctx, args) => {
+    createUserCalls.push({ ...args });
+    return (args.profile as { name: string }).name;
+  },
+});

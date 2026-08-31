@@ -20,13 +20,15 @@ import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
 import {
   getCreateUserCalls,
+  getEvaluateSignInCalls,
   getOnSignInCalls,
+  resetEvaluateSignInCalls,
   resetUserCallbackCalls,
 } from "./testApp.ts";
 import {
   type AuthClaims,
+  type ProviderSignInOutcome,
   type TokenBundle,
-  USE_USER_ID_AS_ACCOUNT_ID,
 } from "../../lib/types.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import { REFRESH_GRACE_MS, SPENT_TOKEN_HORIZON_MS } from "./public.ts";
@@ -71,23 +73,38 @@ function setup() {
 
 type ConvexTestApi = ReturnType<typeof setup>;
 
+/**
+ * Assert a sign-in outcome is `session-created` and unwrap its token bundle. Without
+ * an evaluating callback attached (everything in this suite except the
+ * incomplete-sign-in tests) that is the only outcome the core produces.
+ */
+function expectComplete(outcome: ProviderSignInOutcome): TokenBundle {
+  expect(outcome.status).toBe("session-created");
+  if (outcome.status !== "session-created") throw new Error("unreachable");
+  return outcome.tokens;
+}
+
 /** Establish a brand new identity: the account, its app user, and a session. */
 async function signUp(t: ConvexTestApi, c: AuthClaims) {
-  return await t.mutation(api.public.signUp, {
-    claims: c,
-    createUserHandle: CREATE_USER_HANDLE,
-    onSignInHandle: ON_SIGN_IN_HANDLE,
-    issuer: ISSUER,
-  });
+  return expectComplete(
+    await t.mutation(api.public.signUp, {
+      claims: c,
+      createUserHandle: CREATE_USER_HANDLE,
+      onSignInHandle: ON_SIGN_IN_HANDLE,
+      issuer: ISSUER,
+    }),
+  );
 }
 
 /** Sign a known identity back in, as an app that attached an `onSignIn` does. */
 async function signIn(t: ConvexTestApi, c: AuthClaims) {
-  return await t.mutation(api.public.signIn, {
-    claims: c,
-    onSignInHandle: ON_SIGN_IN_HANDLE,
-    issuer: ISSUER,
-  });
+  return expectComplete(
+    await t.mutation(api.public.signIn, {
+      claims: c,
+      onSignInHandle: ON_SIGN_IN_HANDLE,
+      issuer: ISSUER,
+    }),
+  );
 }
 
 /** Assert a refresh succeeded (a session was minted) and narrow away `null`. */
@@ -172,6 +189,8 @@ describe("signUp", () => {
         providerAccountId: "alice",
         profile: { name: "Alice" },
         userId: "alice",
+        // Always passed, and empty for a sign-in with no requirements.
+        facts: {},
       },
     ]);
   });
@@ -180,11 +199,13 @@ describe("signUp", () => {
     const t = setup();
     resetUserCallbackCalls();
 
-    const bundle = await t.mutation(api.public.signUp, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-      issuer: ISSUER,
-    });
+    const bundle = expectComplete(
+      await t.mutation(api.public.signUp, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        issuer: ISSUER,
+      }),
+    );
 
     expect(bundle.userId).toBe("alice");
     expect(getCreateUserCalls()).toHaveLength(1);
@@ -265,6 +286,7 @@ describe("signIn", () => {
       providerAccountId: "alice",
       profile: { name: "Alice 2.0" },
       userId: "alice",
+      facts: {},
     });
   });
 
@@ -274,10 +296,12 @@ describe("signIn", () => {
     resetUserCallbackCalls();
 
     // No `onSignInHandle` is what an app that left `onSignIn` out sends.
-    const bundle = await t.mutation(api.public.signIn, {
-      claims: claims(),
-      issuer: ISSUER,
-    });
+    const bundle = expectComplete(
+      await t.mutation(api.public.signIn, {
+        claims: claims(),
+        issuer: ISSUER,
+      }),
+    );
 
     expect(bundle.userId).toBe("alice");
     expect(getOnSignInCalls()).toHaveLength(0);
@@ -296,89 +320,6 @@ describe("signIn", () => {
       async (ctx) => (await ctx.db.query("sessions").collect()).length,
     );
     expect(sessions).toBe(0);
-  });
-});
-
-describe("signUpWithoutSession", () => {
-  test("creates the user and the account, but no session", async () => {
-    const t = setup();
-    resetUserCallbackCalls();
-
-    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-    });
-
-    // The app's createUser echoes the providerAccountId as the user id.
-    expect(userId).toBe("alice");
-    expect(getCreateUserCalls()).toHaveLength(1);
-    // No sign-in happened, so onSignIn does not run.
-    expect(getOnSignInCalls()).toHaveLength(0);
-
-    // The account exists, but no session was minted.
-    const counts = await t.run(async (ctx) => ({
-      accounts: (await ctx.db.query("accounts").collect()).length,
-      sessions: (await ctx.db.query("sessions").collect()).length,
-    }));
-    expect(counts).toEqual({ accounts: 1, sessions: 0 });
-  });
-
-  test("a later signIn resolves the same user and mints a session", async () => {
-    const t = setup();
-    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-    });
-
-    const bundle = await signIn(t, claims());
-    expect(bundle.userId).toBe(userId);
-
-    // The sign-in reused the account that signUpWithoutSession made.
-    const counts = await t.run(async (ctx) => ({
-      accounts: (await ctx.db.query("accounts").collect()).length,
-      sessions: (await ctx.db.query("sessions").collect()).length,
-    }));
-    expect(counts).toEqual({ accounts: 1, sessions: 1 });
-  });
-
-  test("keys the account by the minted user id with USE_USER_ID_AS_ACCOUNT_ID", async () => {
-    const t = setup();
-    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
-      claims: claims({
-        providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-        profile: { email: "alice@example.com" },
-      }),
-      createUserHandle: CREATE_USER_HANDLE,
-    });
-
-    // The account's identifier is the user id the app minted, so a later
-    // sign-in that passes the user id resolves the same user.
-    const bundle = await signIn(t, claims({ providerAccountId: userId }));
-    expect(bundle.userId).toBe(userId);
-
-    const accounts = await t.run(
-      async (ctx) => await ctx.db.query("accounts").collect(),
-    );
-    expect(accounts).toHaveLength(1);
-    expect(accounts[0].providerAccountId).toBe(userId);
-  });
-
-  test("refuses an identity that already has an account", async () => {
-    const t = setup();
-    await signUp(t, claims());
-
-    // Like signUp: a second app user for the same identity is never minted.
-    await expect(
-      t.mutation(api.public.signUpWithoutSession, {
-        claims: claims(),
-        createUserHandle: CREATE_USER_HANDLE,
-      }),
-    ).rejects.toThrow(/already\s+exists/i);
-
-    const accounts = await t.run(
-      async (ctx) => (await ctx.db.query("accounts").collect()).length,
-    );
-    expect(accounts).toBe(1);
   });
 });
 
@@ -655,12 +596,14 @@ describe("token lifetime configuration", () => {
   test("honors a custom access-token TTL on sign-up", async () => {
     const t = setup();
     const before = Date.now();
-    const bundle = await t.mutation(api.public.signUp, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-      issuer: ISSUER,
-      accessTokenTtlSeconds: 300, // 5 minutes
-    });
+    const bundle = expectComplete(
+      await t.mutation(api.public.signUp, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        issuer: ISSUER,
+        accessTokenTtlSeconds: 300, // 5 minutes
+      }),
+    );
     // The JWT `exp` is floored to the second, so allow a small window.
     expect(bundle.accessTokenExpiresAt).toBeGreaterThanOrEqual(
       before + 300_000 - 1000,
@@ -676,12 +619,14 @@ describe("token lifetime configuration", () => {
     const oneHourMs = oneHourSeconds * 1000;
 
     const before = Date.now();
-    const bundle = await t.mutation(api.public.signUp, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-      issuer: ISSUER,
-      refreshTokenTtlSeconds: oneHourSeconds,
-    });
+    const bundle = expectComplete(
+      await t.mutation(api.public.signUp, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        issuer: ISSUER,
+        refreshTokenTtlSeconds: oneHourSeconds,
+      }),
+    );
     expect(bundle.refreshTokenExpiresAt).toBeGreaterThanOrEqual(
       before + oneHourMs,
     );
@@ -747,5 +692,434 @@ describe("getUserIdByAccount", () => {
       providerAccountId: "alice",
     });
     expect(other).toBeNull();
+  });
+});
+
+// --- Incomplete sign-ins (requirements) --------------------------------------
+
+const EVALUATE_HANDLE = "testApp:evaluateSignIn";
+const COMPLETING_EVALUATE_HANDLE = "testApp:evaluateSignInAlwaysComplete";
+const THROWING_EVALUATE_HANDLE = "testApp:evaluateSignInThatThrows";
+
+/** Sign up with the evaluating callback attached (requirements mode). */
+async function signUpEvaluated(
+  t: ReturnType<typeof setup>,
+  c: AuthClaims,
+  handle: string = EVALUATE_HANDLE,
+) {
+  return await t.mutation(api.public.signUp, {
+    claims: c,
+    createUserHandle: CREATE_USER_HANDLE,
+    onSignInHandle: handle,
+    issuer: ISSUER,
+  });
+}
+
+/** Sign a known identity back in with the evaluating callback attached. */
+async function signInEvaluated(
+  t: ReturnType<typeof setup>,
+  c: AuthClaims,
+  handle: string = EVALUATE_HANDLE,
+) {
+  return await t.mutation(api.public.signIn, {
+    claims: c,
+    onSignInHandle: handle,
+    issuer: ISSUER,
+  });
+}
+
+/** Narrow an outcome to its incomplete arm. */
+function expectIncomplete(outcome: ProviderSignInOutcome) {
+  expect(outcome.status).toBe("pending-requirements");
+  if (outcome.status !== "pending-requirements") throw new Error("unreachable");
+  return outcome;
+}
+
+async function attemptRows(t: ReturnType<typeof setup>) {
+  return await t.run(
+    async (ctx) => await ctx.db.query("pendingSignInAttempts").collect(),
+  );
+}
+
+describe("incomplete sign-ins", () => {
+  test("an accepting evaluator completes the sign-up and sees empty facts", async () => {
+    const t = setup();
+    resetEvaluateSignInCalls();
+
+    const outcome = await signUpEvaluated(
+      t,
+      claims(),
+      COMPLETING_EVALUATE_HANDLE,
+    );
+
+    const bundle = expectComplete(outcome);
+    expect(bundle.userId).toBe("alice");
+    expect(getEvaluateSignInCalls()).toEqual([
+      {
+        provider: "password",
+        providerAccountId: "alice",
+        profile: { name: "Alice" },
+        userId: "alice",
+        facts: {},
+      },
+    ]);
+    expect(await attemptRows(t)).toHaveLength(0);
+  });
+
+  test("a demanding evaluator parks the sign-up: user + account exist, session withheld", async () => {
+    const t = setup();
+
+    const outcome = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    expect(outcome.requirements).toEqual([
+      { kind: "test:verify", data: { hint: "prove it" } },
+    ]);
+    expect(outcome.attemptToken).toBeTruthy();
+    expect(outcome.expiresAt).toBeGreaterThan(Date.now());
+    expect(outcome.userId).toBe("alice");
+
+    const counts = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+      attempts: (await ctx.db.query("pendingSignInAttempts").collect()).length,
+    }));
+    // Eager creation: the account exists; only the session is withheld.
+    expect(counts).toEqual({ accounts: 1, sessions: 0, attempts: 1 });
+
+    // The raw token is never stored.
+    const [attempt] = await attemptRows(t);
+    expect(attempt.attemptTokenHash).not.toBe(outcome.attemptToken);
+  });
+
+  test("an evaluator that throws on sign-up rolls back the user it just created", async () => {
+    const t = setup();
+
+    await expect(
+      signUpEvaluated(t, claims(), THROWING_EVALUATE_HANDLE),
+    ).rejects.toThrow(/no sign-ins for you/);
+
+    const counts = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+      attempts: (await ctx.db.query("pendingSignInAttempts").collect()).length,
+    }));
+    expect(counts).toEqual({ accounts: 0, sessions: 0, attempts: 0 });
+  });
+
+  test("continueSignIn stays incomplete until the fact is recorded, then completes", async () => {
+    const t = setup();
+    const parked = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    // Nothing verified yet: still incomplete, budget burned.
+    const stillIncomplete = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(stillIncomplete.status).toBe("pending-requirements");
+    const [afterFirst] = await attemptRows(t);
+    expect(afterFirst.continueCount).toBe(1);
+    // Continuing never extends the attempt's lifetime.
+    expect(afterFirst.expiresAt).toBe(parked.expiresAt);
+
+    // A verification endpoint records the fact...
+    const recorded = await t.mutation(api.public.recordAttemptFacts, {
+      attemptToken: parked.attemptToken,
+      facts: { verified: true },
+    });
+    expect(recorded).toBe(true);
+
+    // ...and the next round completes: attempt gone, session minted.
+    resetEvaluateSignInCalls();
+    const done = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(done.status).toBe("session-created");
+    if (done.status !== "session-created") throw new Error("unreachable");
+    expect(done.tokens.userId).toBe("alice");
+    expect(getEvaluateSignInCalls()[0].facts).toEqual({ verified: true });
+
+    const counts = await t.run(async (ctx) => ({
+      sessions: (await ctx.db.query("sessions").collect()).length,
+      attempts: (await ctx.db.query("pendingSignInAttempts").collect()).length,
+    }));
+    expect(counts).toEqual({ sessions: 1, attempts: 0 });
+  });
+
+  test("an unknown attempt token reports expired", async () => {
+    const t = setup();
+    const outcome = await t.mutation(api.public.continueSignIn, {
+      attemptToken: "no-such-token",
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(outcome).toEqual({ status: "expired" });
+  });
+
+  test("an attempt past its TTL reports expired and is deleted", async () => {
+    const t = setup();
+    const parked = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    await t.run(async (ctx) => {
+      const [attempt] = await ctx.db.query("pendingSignInAttempts").collect();
+      await ctx.db.patch("pendingSignInAttempts", attempt._id, {
+        expiresAt: Date.now() - 1,
+      });
+    });
+
+    const outcome = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(outcome).toEqual({ status: "expired" });
+    expect(await attemptRows(t)).toHaveLength(0);
+  });
+
+  test("an attempt over its continuation cap reports expired and is deleted", async () => {
+    const t = setup();
+    const parked = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    await t.run(async (ctx) => {
+      const [attempt] = await ctx.db.query("pendingSignInAttempts").collect();
+      await ctx.db.patch("pendingSignInAttempts", attempt._id, {
+        continueCount: 10,
+      });
+    });
+
+    const outcome = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(outcome).toEqual({ status: "expired" });
+    expect(await attemptRows(t)).toHaveLength(0);
+  });
+
+  test("a fresh sign-in supersedes the pending attempt and resets its facts", async () => {
+    const t = setup();
+    const first = expectIncomplete(await signUpEvaluated(t, claims()));
+    await t.mutation(api.public.recordAttemptFacts, {
+      attemptToken: first.attemptToken,
+      facts: { verified: true },
+    });
+
+    // A second device signs in fresh (the account now exists): the pending
+    // attempt is replaced wholesale — facts reset, so the factor must be
+    // re-proven — and the first device's token dies with it.
+    const second = expectIncomplete(
+      await signInEvaluated(t, claims({ providerAccountId: "alice" })),
+    );
+    expect(second.attemptToken).not.toBe(first.attemptToken);
+
+    const rows = await attemptRows(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].facts).toEqual({});
+    expect(rows[0].continueCount).toBe(0);
+
+    const firstContinued = await t.mutation(api.public.continueSignIn, {
+      attemptToken: first.attemptToken,
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(firstContinued).toEqual({ status: "expired" });
+  });
+
+  test("a fresh completing sign-in deletes the pending attempt", async () => {
+    const t = setup();
+    const parked = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    const outcome = await signInEvaluated(
+      t,
+      claims(),
+      COMPLETING_EVALUATE_HANDLE,
+    );
+    expectComplete(outcome);
+    expect(await attemptRows(t)).toHaveLength(0);
+
+    const continued = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: EVALUATE_HANDLE,
+      issuer: ISSUER,
+    });
+    expect(continued).toEqual({ status: "expired" });
+  });
+
+  test("getAttemptContext resolves the subject of a live attempt only", async () => {
+    const t = setup();
+    const parked = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    const context = await t.query(api.public.getAttemptContext, {
+      attemptToken: parked.attemptToken,
+    });
+    expect(context).toEqual({
+      provider: "password",
+      providerAccountId: "alice",
+      userId: "alice",
+    });
+
+    expect(
+      await t.query(api.public.getAttemptContext, {
+        attemptToken: "no-such-token",
+      }),
+    ).toBeNull();
+  });
+
+  test("penalizeAttempt burns budget and deletes the attempt at the cap", async () => {
+    const t = setup();
+    const parked = expectIncomplete(await signUpEvaluated(t, claims()));
+
+    expect(
+      await t.mutation(api.public.penalizeAttempt, {
+        attemptToken: parked.attemptToken,
+      }),
+    ).toBe(true);
+    const [row] = await attemptRows(t);
+    expect(row.continueCount).toBe(1);
+
+    await t.run(async (ctx) => {
+      const [attempt] = await ctx.db.query("pendingSignInAttempts").collect();
+      await ctx.db.patch("pendingSignInAttempts", attempt._id, {
+        continueCount: 9,
+      });
+    });
+    // This failure exhausts the cap: the attempt dies.
+    expect(
+      await t.mutation(api.public.penalizeAttempt, {
+        attemptToken: parked.attemptToken,
+      }),
+    ).toBe(false);
+    expect(await attemptRows(t)).toHaveLength(0);
+  });
+
+  test("recordAttemptFacts reports a dead attempt instead of resurrecting it", async () => {
+    const t = setup();
+    expect(
+      await t.mutation(api.public.recordAttemptFacts, {
+        attemptToken: "no-such-token",
+        facts: { verified: true },
+      }),
+    ).toBe(false);
+  });
+
+  test("provider requirements are checked even with no app onSignIn attached", async () => {
+    // Before the callback paths were unified, a provider that registered its
+    // own requirement while the app attached no `onSignIn` fell down the
+    // notify-only path and had its requirement silently dropped.
+    const t = setup();
+    const providerRequirements = [
+      {
+        kind: "emailValidation",
+        data: { address: "a…@example.com" },
+        factFields: ["emailVerified"],
+      },
+    ];
+
+    const parked = expectIncomplete(
+      await t.mutation(api.public.signUp, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        providerRequirements,
+        issuer: ISSUER,
+      }),
+    );
+    expect(parked.requirements).toEqual([
+      { kind: "emailValidation", data: { address: "a…@example.com" } },
+    ]);
+
+    await t.mutation(api.public.recordAttemptFacts, {
+      attemptToken: parked.attemptToken,
+      facts: { emailVerified: true },
+      scope: "provider",
+    });
+    const done = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      providerRequirements,
+      issuer: ISSUER,
+    });
+    expect(done.status).toBe("session-created");
+  });
+
+  test("provider requirements gate completion until their provider facts exist", async () => {
+    const t = setup();
+    resetEvaluateSignInCalls();
+    const providerRequirements = [
+      {
+        kind: "emailValidation",
+        data: { address: "a…@example.com" },
+        factFields: ["emailVerified"],
+      },
+    ];
+
+    // The app's evaluator accepts, but the provider requirement is
+    // outstanding, so the sign-up parks.
+    const parked = expectIncomplete(
+      await t.mutation(api.public.signUp, {
+        claims: claims(),
+        createUserHandle: CREATE_USER_HANDLE,
+        onSignInHandle: COMPLETING_EVALUATE_HANDLE,
+        providerRequirements,
+        issuer: ISSUER,
+      }),
+    );
+    expect(parked.requirements).toEqual([
+      { kind: "emailValidation", data: { address: "a…@example.com" } },
+    ]);
+
+    // Recording the fact under the *app* scope must not satisfy it...
+    await t.mutation(api.public.recordAttemptFacts, {
+      attemptToken: parked.attemptToken,
+      facts: { emailVerified: true },
+      scope: "app",
+    });
+    const still = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: COMPLETING_EVALUATE_HANDLE,
+      providerRequirements,
+      issuer: ISSUER,
+    });
+    expect(still.status).toBe("pending-requirements");
+
+    // ...but the provider scope does. The app's evaluator never sees the
+    // provider bag (its facts stay what the app scope accumulated).
+    await t.mutation(api.public.recordAttemptFacts, {
+      attemptToken: parked.attemptToken,
+      facts: { emailVerified: true },
+      scope: "provider",
+    });
+    resetEvaluateSignInCalls();
+    const done = await t.mutation(api.public.continueSignIn, {
+      attemptToken: parked.attemptToken,
+      onSignInHandle: COMPLETING_EVALUATE_HANDLE,
+      providerRequirements,
+      issuer: ISSUER,
+    });
+    expect(done.status).toBe("session-created");
+    expect(getEvaluateSignInCalls()[0].facts).toEqual({ emailVerified: true });
+  });
+
+  test("USE_USER_ID_AS_ACCOUNT_ID sign-ups key the attempt by the resolved user id", async () => {
+    const t = setup();
+    const parked = expectIncomplete(
+      await t.mutation(api.public.signUp, {
+        claims: claims({ providerAccountId: "" }),
+        // Mints the user id from the profile ("Alice"): the empty placeholder
+        // account id must never leak into the attempt or the evaluator.
+        createUserHandle: "testApp:createUserFromProfileName",
+        onSignInHandle: EVALUATE_HANDLE,
+        issuer: ISSUER,
+      }),
+    );
+    expect(parked.userId).toBe("Alice");
+    const context = await t.query(api.public.getAttemptContext, {
+      attemptToken: parked.attemptToken,
+    });
+    expect(context).toEqual({
+      provider: "password",
+      providerAccountId: "Alice",
+      userId: "Alice",
+    });
   });
 });

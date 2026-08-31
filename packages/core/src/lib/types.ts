@@ -32,6 +32,20 @@ export const vTokenBundle = v.object({
 
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
+/**
+ * One pending sign-in requirement as it crosses the wire: its registered
+ * `kind` plus the payload the server sends down with it (a CAPTCHA
+ * challenge, a label to display, …).
+ *
+ * The core treats requirements as opaque payloads of this shape.
+ */
+export const vSignInRequirement = v.object({
+  kind: v.string(),
+  data: v.optional(v.any()),
+});
+
+export type SignInRequirement = Infer<typeof vSignInRequirement>;
+
 /** The success arm, `complete`: a session was minted. */
 export const vSignInSuccess = v.object({
   status: v.literal("complete"),
@@ -40,11 +54,102 @@ export const vSignInSuccess = v.object({
 
 export type SignInSuccess = Infer<typeof vSignInSuccess>;
 
+/**
+ * The incomplete arm: the credentials verified, but sign-in requirements
+ * remain outstanding. `attemptToken` resumes the parked sign-in.
+ *
+ * The server-side counterpart is {@link ProviderSignInOutcome}'s
+ * `pending-requirements` arm, which additionally carries a server-only
+ * `userId`.
+ */
+export type SignInIncomplete<Req = SignInRequirement> = {
+  status: "incomplete";
+  requirements: Req[];
+  attemptToken: string;
+  expiresAt: number;
+};
+
 /** The error arm: a correctable, provider-specific failure. */
 export type SignInError<UserError> = {
   status: "error";
   userError: UserError;
 };
+
+/**
+ * The verdict an evaluating `onSignIn` callback returns: `null` accepts the
+ * sign-in (a session is minted), `requirements-needed` withholds the session
+ * and surfaces the still-outstanding requirements to the client.
+ *
+ * The value reads as the directive it is — it *asks* the core for the
+ * requirements it names. What the core then reports to provider code is
+ * {@link ProviderSignInOutcome}'s `pending-requirements` arm.
+ */
+export type OnSignInVerdict = null | {
+  status: "requirements-needed";
+  requirements: SignInRequirement[];
+};
+
+/**
+ * A *provider-registered* requirement, injected by a provider's setup
+ * function based on its config options (as opposed to the app-registered
+ * requirements the `onSignIn` evaluator judges). The framework itself checks
+ * it: the requirement is outstanding until every field in `factFields` is
+ * present in the attempt's provider-scoped facts bag, which provider-owned
+ * verification endpoints populate via `recordAttemptFacts(..., "provider")`.
+ * Invisible to the app's `onSignIn`.
+ */
+export const vProviderRequirement = v.object({
+  kind: v.string(),
+  data: v.optional(v.any()),
+  factFields: v.array(v.string()),
+});
+
+export type ProviderRequirement = Infer<typeof vProviderRequirement>;
+
+/**
+ * The outcome of a sign-in as the core component reports it to provider
+ * code: `session-created` with the minted tokens, or `pending-requirements`
+ * with the outstanding requirements and the attempt token that continues it.
+ *
+ * These values deliberately differ from the `complete`/`incomplete` the
+ * client arms use ({@link SignInSuccess}, {@link SignInIncomplete}). Both
+ * layers discriminate on `status`, so distinct vocabularies are what stop a
+ * server-side outcome — which carries the server-only `userId` — from
+ * satisfying a client arm structurally and reaching the browser unstripped.
+ * They also read as what they are: a statement about the *session*, not about
+ * the shape of a reply.
+ *
+ * The `pending-requirements` arm is always stateful: the sign-in is parked as
+ * an attempt row and `attemptToken` is the credential that resumes it (until
+ * `expiresAt`). `userId` is server-only — the user exists even though the
+ * sign-in is incomplete (user creation is eager; only the session is
+ * withheld) — and providers strip it before returning results to clients.
+ */
+export const vProviderSignInOutcome = v.union(
+  v.object({ status: v.literal("session-created"), tokens: vTokenBundle }),
+  v.object({
+    status: v.literal("pending-requirements"),
+    requirements: v.array(vSignInRequirement),
+    attemptToken: v.string(),
+    expiresAt: v.number(),
+    userId: v.string(),
+  }),
+);
+
+export type ProviderSignInOutcome = Infer<typeof vProviderSignInOutcome>;
+
+/**
+ * The outcome of continuing a parked sign-in attempt: the sign-in outcomes
+ * plus `expired` for an attempt that is gone — an unknown token, a lapsed
+ * TTL, or an exhausted continuation budget, deliberately indistinguishable
+ * from one another.
+ */
+export const vProviderContinueOutcome = v.union(
+  ...vProviderSignInOutcome.members,
+  v.object({ status: v.literal("expired") }),
+);
+
+export type ProviderContinueOutcome = Infer<typeof vProviderContinueOutcome>;
 
 /**
  * The token bundle that an SSR route hands back to the client. It is a slimmed
@@ -182,6 +287,8 @@ export const vOnSignIn = v.object({
   providerAccountId: v.string(),
   profile: v.any(),
   userId: v.string(),
+  // Always sent, and always empty for an app with no sign-in requirements.
+  facts: v.any(),
 });
 
 /**
@@ -226,18 +333,31 @@ export type CreateUserFn<
 
 /**
  * The type of an app defined sign-in mutation: an optional hook that runs on
- * *every* sign-in.
+ * *every* sign-in — the first one (right after {@link CreateUserFn} has
+ * minted the user) and every one after it, including each continuation of a
+ * sign-in that is waiting on requirements.
  *
- * That includes the first one, where it runs immediately after
- * {@link CreateUserFn} has minted the user. So per-sign-in work (a last-seen
- * timestamp, an audit row, syncing the user record from the latest `profile`,
- * which the core does not store) belongs here and nowhere else.
+ * It is the app's sign-in *evaluator*, and it is deliberately blind to which
+ * round it is: it judges `(user, profile, facts)` and nothing else. Per
+ * sign-in work (a last-seen timestamp, an audit row, syncing the user record
+ * from the latest `profile`, which the core does not store) belongs here and
+ * nowhere else.
  *
- * The core resolves the account to its app user first, so `userId` is always
- * present and there is nothing to return. Declare `returns: v.null()` and
- * return `null`, or leave the callback out entirely. Throw a `ConvexError` to
- * reject the sign in, which on a first sign-in rolls back the user the create
- * callback just made.
+ * Return `null` to accept the sign-in and have a session minted — an app with
+ * no sign-in requirements returns `null` unconditionally, so `returns:
+ * v.null()` is the whole contract. With requirements registered, return a
+ * `requirements-needed` verdict listing what is still outstanding: the session
+ * is withheld, but the user and account already exist (creation is eager)
+ * and, unlike a throw, the verdict *commits* the callback's writes. Throwing
+ * a `ConvexError` remains the hard rejection and, on a first sign-in, rolls
+ * back the user the create callback just made.
+ *
+ * `facts` is the accumulated, server-verified evidence for this sign-in. It
+ * is always passed and always empty for an app with no requirements (declare
+ * `facts: v.object({})`).
+ *
+ * `providerAccountId` is always the *resolved* account id, never a provider's
+ * internal sign-up placeholder.
  *
  * Like {@link CreateUserFn}, the args must be declared with the provider's
  * exact literal types, and one mutation per provider (delegating to a plain
@@ -255,8 +375,9 @@ export type OnSignInFn<
     providerAccountId: string;
     profile: Profile;
     userId: GenericId<UsersTable>;
+    facts: Record<string, unknown>;
   },
-  null
+  null | { status: "requirements-needed"; requirements: SignInRequirement[] }
 >;
 
 /**
@@ -272,6 +393,22 @@ export type UserCallbacks<
   createUser: CreateUserFn<Provider, Profile, UsersTable>;
   onSignIn?: OnSignInFn<Provider, Profile, UsersTable>;
 };
+
+/**
+ * The subject of a parked sign-in attempt, as verification endpoints resolve
+ * it from an attempt token.
+ *
+ * Endpoints must verify factors against this subject — never against a
+ * caller-supplied identity — so "confirm the factor" cannot become "confirm
+ * as anyone".
+ */
+export const vAttemptContext = v.object({
+  provider: v.string(),
+  providerAccountId: v.string(),
+  userId: v.string(),
+});
+
+export type AttemptContext = Infer<typeof vAttemptContext>;
 
 /**
  * The helpers that `authMutation`/`authAction` inject onto `ctx` for a
@@ -312,20 +449,6 @@ export type BoundAuthHelpers<Profile> = {
     providerAccountId: string;
     profile: Profile;
   }): Promise<TokenBundle>;
-  /**
-   * Create the account and the app user for a verified identity, but do not
-   * mint a session.
-   *
-   * Call this when the user must complete a step (for example, an email
-   * validation) before the first sign-in. Account creation follows the same
-   * rules as `completeSignUp`: the app's `createUser` mints the user, and an
-   * identity that already has an account is refused. `onSignIn` does not run.
-   * The provider signs the user in later with `completeSignIn`.
-   */
-  signUpWithoutSession(args: {
-    providerAccountId: string;
-    profile: Profile;
-  }): Promise<{ userId: string }>;
   /**
    * Look up the app user id for a given `providerAccountId`.
    *
