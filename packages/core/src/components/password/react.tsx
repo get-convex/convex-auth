@@ -59,7 +59,7 @@ type SignUpWithPasswordMutation = FunctionReference<
  * on `cause` for callers that want to inspect or log it.
  */
 type UnexpectedFailure = {
-  success: false;
+  status: "error";
   userError: { error: "OTHER_ERROR"; cause: unknown };
 };
 
@@ -81,7 +81,7 @@ export type SignUpWithPasswordResult =
  * The `pending` flag returned will let you know if the credentials are
  * currently being validated.
  *
- * After calling `signIn`, check the `success` flag on the return value to see
+ * After calling `signIn`, check the `status` field on the return value to see
  * whether the sign-in was successful or if you need to handle an error.
  *
  * ```tsx
@@ -95,7 +95,7 @@ export type SignUpWithPasswordResult =
  *       onSubmit={async (e) => {
  *         e.preventDefault();
  *         const result = await signIn({ username, password });
- *         if (!result.success) {
+ *         if (result.status !== "complete") {
  *           // map result.userError to a message
  *         }
  *       }}
@@ -116,12 +116,12 @@ export function useSignInWithPassword(
     /**
      * Passes up the given crendentials to perform a username/password sign in.
      *
-     * Returns an object with a `success` boolean flag.
+     * Returns an object with a `status` discriminant.
      *
-     * If it is `true` the sign-in was successful and the client will establish
+     * `"complete"` means the sign-in succeeded and the client will establish
      * an authenticated session with the Convex backend server.
      *
-     * If it is `false` the returned object will have a `userError` field with
+     * `"error"` means the returned object has a `userError` field with
      * additional details about why sign-in failed.
      */
     signIn: run,
@@ -140,7 +140,7 @@ export function useSignInWithPassword(
  * The `pending` flag returned will let you know if the credentials are
  * currently being validated.
  *
- * After calling `signUp`, check the `success` flag on the return value to see
+ * After calling `signUp`, check the `status` field on the return value to see
  * whether the sign-up was successful or if you need to handle an error.
  *
  * ```tsx
@@ -163,12 +163,12 @@ export function useSignUpWithPassword(
     /**
      * Passes up the given crendentials to perform a username/password sign up.
      *
-     * Returns an object with a `success` boolean flag.
+     * Returns an object with a `status` discriminant.
      *
-     * If it is `true` the sign-up was successful and the client will establish
+     * `"complete"` means the sign-up succeeded and the client will establish
      * an authenticated session with the Convex backend server.
      *
-     * If it is `false` the returned object will have a `userError` field with
+     * `"error"` means the returned object has a `userError` field with
      * additional details about why sign-up failed.
      */
     signUp: run,
@@ -197,7 +197,7 @@ function usePasswordFlow<
       setPending(true);
       try {
         const result = await signInApi.mutation(mutation, credentials);
-        if (result.success) {
+        if (result.status === "complete") {
           await setSession(result.tokens);
         }
         return result;
@@ -206,7 +206,10 @@ function usePasswordFlow<
         // the same discriminated result as `OTHER_ERROR`, preserving the thrown
         // value on `cause`, so the caller handles it alongside every other
         // failure and can still inspect or log the original error if it wants.
-        return { success: false, userError: { error: "OTHER_ERROR", cause } };
+        return {
+          status: "error",
+          userError: { error: "OTHER_ERROR", cause },
+        };
       } finally {
         // Reset even when the mutation throws.
         setPending(false);

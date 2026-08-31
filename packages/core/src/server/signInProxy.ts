@@ -30,6 +30,7 @@ import {
 } from "convex/server";
 import {
   makeSlimBundle,
+  type SignInError,
   type SignInSuccess,
   type TokenBundle,
 } from "../lib/types.ts";
@@ -42,15 +43,17 @@ import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.ts";
 /**
  * A sign-in function exposed through the proxy.
  *
- * Any public mutation or action returning the shared {@link SignInSuccess}
- * envelope. Args are typed loosely because the proxy never inspects them; it
- * forwards the caller's encoded args untouched.
+ * Any public mutation or action returning the shared sign-in envelope — its
+ * arms, spelled out from the same declarations providers compose their
+ * results from, so this and {@link classifyResult} cannot drift apart. Args
+ * are typed loosely because the proxy never inspects them; it forwards the
+ * caller's encoded args untouched.
  */
 export type ExposedSignInFn = FunctionReference<
   "mutation" | "action",
   "public",
   DefaultFunctionArgs,
-  SignInSuccess | { success: false }
+  SignInSuccess | SignInError<unknown>
 >;
 
 /** Configuration for {@link convexProxyHandler}. */
@@ -132,10 +135,13 @@ function isEncodedTokenBundle(value: unknown): value is TokenBundle {
 }
 
 /**
- * Classify a sign-in function's return value.
+ * Classify a sign-in function's return value by its `status` discriminant.
  *
  * `null` means "not the envelope this proxy knows how to handle", which the
- * caller turns into a 500 rather than forwarding.
+ * caller turns into a 500 rather than forwarding. Every arm is matched by
+ * name, so an unrecognized shape fails closed here instead of being waved
+ * through as "not a success" — which is how a future arm carrying a token
+ * could otherwise reach the browser unstripped.
  */
 function classifyResult(
   value: unknown,
@@ -144,11 +150,16 @@ function classifyResult(
     return null;
   }
   const result = value as Record<string, unknown>;
-  if (result.success === false) return { kind: "failure" };
-  if (result.success !== true) return null;
-  return isEncodedTokenBundle(result.tokens)
-    ? { kind: "success", tokens: result.tokens }
-    : null;
+  switch (result.status) {
+    case "error":
+      return { kind: "failure" };
+    case "complete":
+      return isEncodedTokenBundle(result.tokens)
+        ? { kind: "success", tokens: result.tokens }
+        : null;
+    default:
+      return null;
+  }
 }
 
 /** A plain-text error. `ConvexHttpClient` throws its body as an `Error`. */

@@ -1,7 +1,3 @@
-import { FunctionReference } from "convex/server";
-
-import { GenericId, Infer, v } from "convex/values";
-
 /**
  * Shared contracts that cross a module boundary within Convex Auth. That includes
  * validators (and their inferred types) for what the core's session functions
@@ -13,7 +9,13 @@ import { GenericId, Infer, v } from "convex/values";
  * This module deliberately depends on nothing else in the package, which is what
  * lets both the server and the browser halves import from it without either
  * reaching into the other's tree.
+ *
+ * @module
  */
+
+import { FunctionReference } from "convex/server";
+
+import { GenericId, Infer, v } from "convex/values";
 
 /**
  * The session a successful sign-in (or refresh) mints: a short-lived access
@@ -30,21 +32,19 @@ export const vTokenBundle = v.object({
 
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
-/**
- * The success arm of every provider's sign-in result.
- *
- * Providers compose this into their result union rather than declaring the
- * success arm themselves. Fixing where the minted bundle sits is what lets the
- * SSR auth proxy find the refresh token without knowing which provider produced
- * the response, and lets it reject a shape it doesn't recognize instead of
- * forwarding tokens to the browser.
- */
+/** The success arm, `complete`: a session was minted. */
 export const vSignInSuccess = v.object({
-  success: v.literal(true),
+  status: v.literal("complete"),
   tokens: vTokenBundle,
 });
 
 export type SignInSuccess = Infer<typeof vSignInSuccess>;
+
+/** The error arm: a correctable, provider-specific failure. */
+export type SignInError<UserError> = {
+  status: "error";
+  userError: UserError;
+};
 
 /**
  * The token bundle that an SSR route hands back to the client. It is a slimmed

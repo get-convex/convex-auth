@@ -30,7 +30,7 @@ export default function SignIn() {
           e.preventDefault();
           setError(null);
           const result = await signIn({ username, password });
-          if (result.success) {
+          if (result.status === "complete") {
             router.push("/");
             return;
           }

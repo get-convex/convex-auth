@@ -54,14 +54,14 @@ const signIn = (
 
 type PasswordResult =
   Awaited<ReturnType<typeof signUp>> | Awaited<ReturnType<typeof signIn>>;
-type PasswordSuccess = Extract<PasswordResult, { success: true }>;
+type PasswordSuccess = Extract<PasswordResult, { status: "complete" }>;
 
 describe("setupUsernamePassword", () => {
   test("signs up a new user and returns a session", async () => {
     const t = await setup();
     const result = await signUp(t, "alice", PASSWORD);
     expect(result).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: expect.any(String),
         accessTokenExpiresAt: expect.any(Number),
@@ -77,7 +77,7 @@ describe("setupUsernamePassword", () => {
     const up = await signUp(t, "alice", PASSWORD);
     const inResult = await signIn(t, "alice", PASSWORD);
     expect(up).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: expect.any(String),
         accessTokenExpiresAt: expect.any(Number),
@@ -87,7 +87,7 @@ describe("setupUsernamePassword", () => {
       },
     });
     expect(inResult).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: expect.any(String),
         accessTokenExpiresAt: expect.any(Number),
@@ -106,8 +106,8 @@ describe("setupUsernamePassword", () => {
     const t = await setup();
     const alice = await signUp(t, "alice", PASSWORD);
     const bob = await signUp(t, "bob", "different horse battery staple");
-    expect(alice).toMatchObject({ success: true });
-    expect(bob).toMatchObject({ success: true });
+    expect(alice).toMatchObject({ status: "complete" });
+    expect(bob).toMatchObject({ status: "complete" });
     expect((bob as PasswordSuccess).tokens.userId).not.toBe(
       (alice as PasswordSuccess).tokens.userId,
     );
@@ -128,7 +128,7 @@ describe("setupUsernamePassword", () => {
     await signUp(t, "alice", PASSWORD);
     const result = await signIn(t, "alice", "wrong horse battery staple");
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_CREDENTIALS" },
     });
   });
@@ -137,7 +137,7 @@ describe("setupUsernamePassword", () => {
     const t = await setup();
     const result = await signIn(t, "nobody", PASSWORD);
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "USER_NOT_FOUND" },
     });
   });
@@ -147,7 +147,7 @@ describe("setupUsernamePassword", () => {
     await signUp(t, "alice", PASSWORD);
     const result = await signUp(t, "alice", PASSWORD);
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "USERNAME_TAKEN" },
     });
   });
@@ -156,7 +156,7 @@ describe("setupUsernamePassword", () => {
     const t = await setup();
     const up = await signUp(t, "Alice", PASSWORD);
     expect(up).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: expect.any(String),
         accessTokenExpiresAt: expect.any(Number),
@@ -169,7 +169,7 @@ describe("setupUsernamePassword", () => {
     // A different casing is treated as the same account for both sign-in...
     const inResult = await signIn(t, "ALICE", PASSWORD);
     expect(inResult).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: expect.any(String),
         accessTokenExpiresAt: expect.any(Number),
@@ -185,7 +185,7 @@ describe("setupUsernamePassword", () => {
     // ...and the taken-username check.
     const dup = await signUp(t, "alice", PASSWORD);
     expect(dup).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "USERNAME_TAKEN" },
     });
   });
@@ -194,7 +194,7 @@ describe("setupUsernamePassword", () => {
     const t = await setup();
     const up = await signUp(t, "", PASSWORD);
     expect(up).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "USERNAME_TOO_SHORT", minimumLength: 1 },
     });
   });
@@ -214,14 +214,14 @@ describe("setupUsernamePassword", () => {
     const t = await setup();
     const up = await signUp(t, "alice", "short");
     expect(up).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
     });
 
     // No account was created, so a later sign-up with a valid password works.
     const retry = await signUp(t, "alice", PASSWORD);
     expect(retry).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: expect.any(String),
         accessTokenExpiresAt: expect.any(Number),

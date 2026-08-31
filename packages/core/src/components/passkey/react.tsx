@@ -107,7 +107,7 @@ export type PasskeyApi = {
  *   callers that want to inspect or log it.
  */
 type ClientFailure = {
-  success: false;
+  status: "error";
   userError:
     | { error: "CEREMONY_ABORTED" }
     | { error: "WEBAUTHN_UNSUPPORTED" }
@@ -121,15 +121,20 @@ type ClientFailure = {
  * created a new account, `"signIn"` when it authenticated an existing one.
  */
 export type PasskeySignInResult =
-  | (Extract<ClientView<FinishSignUpResult>, { success: true }> & {
+  | (Extract<ClientView<FinishSignUpResult>, { status: "complete" }> & {
       flow: "signUp";
     })
-  | (Extract<ClientView<FinishSignInResult>, { success: true }> & {
+  | (Extract<ClientView<FinishSignInResult>, { status: "complete" }> & {
       flow: "signIn";
     })
-  | Extract<ClientView<FinishSignUpResult>, { success: false }>
-  | Extract<ClientView<FinishSignInResult>, { success: false }>
-  | Extract<StartSignInResult, { success: false }>
+  | Extract<ClientView<FinishSignUpResult>, { status: "error" }>
+  | Extract<ClientView<FinishSignInResult>, { status: "error" }>
+  // `startSignIn` reports which ceremony to run rather than a sign-in, so it
+  // keeps its own `success` shape; its failure is folded in as an error arm.
+  | {
+      status: "error";
+      userError: Extract<StartSignInResult, { success: false }>["userError"];
+    }
   | ClientFailure;
 
 /**
@@ -139,7 +144,7 @@ export type PasskeySignInResult =
  * shape, so callers handle every failure through the one `error` switch.
  */
 export type PasskeyAutofillError =
-  | Extract<FinishSignInResult, { success: false }>["userError"]
+  | Extract<FinishSignInResult, { status: "error" }>["userError"]
   | ClientFailure["userError"];
 
 /**
@@ -378,7 +383,7 @@ async function runAuthenticationCeremony(
  *       onSubmit={async (e) => {
  *         e.preventDefault();
  *         const result = await signIn({ username });
- *         if (!result.success) {
+ *         if (result.status !== "complete") {
  *           // map result.userError to a message
  *         }
  *       }}
@@ -454,7 +459,7 @@ export function usePasskey(
       // autofill pause/resume protocol, and the browser rejects a second
       // modal ceremony anyway.
       if (pendingRef.current) {
-        return { success: false, userError: { error: "CEREMONY_ABORTED" } };
+        return { status: "error", userError: { error: "CEREMONY_ABORTED" } };
       }
       pendingRef.current = true;
       setPending(true);
@@ -467,7 +472,7 @@ export function usePasskey(
       try {
         if (!supportsWebAuthn()) {
           return {
-            success: false,
+            status: "error",
             userError: { error: "WEBAUTHN_UNSUPPORTED" },
           };
         }
@@ -478,19 +483,22 @@ export function usePasskey(
           username,
         });
         if (!start.success) {
-          return start;
+          return { status: "error", userError: start.userError };
         }
 
         if (start.step === "register") {
           const args = await runRegistrationCeremony(username, start);
           if (args === null) {
-            return { success: false, userError: { error: "CEREMONY_ABORTED" } };
+            return {
+              status: "error",
+              userError: { error: "CEREMONY_ABORTED" },
+            };
           }
           const result = await signInApi.mutation(
             passkeyApi.finishSignUp,
             args,
           );
-          if (!result.success) {
+          if (result.status !== "complete") {
             return result;
           }
           await setSession(result.tokens);
@@ -499,16 +507,16 @@ export function usePasskey(
 
         const args = await runAuthenticationCeremony(start);
         if (args === null) {
-          return { success: false, userError: { error: "CEREMONY_ABORTED" } };
+          return { status: "error", userError: { error: "CEREMONY_ABORTED" } };
         }
         const result = await signInApi.mutation(passkeyApi.finishSignIn, args);
-        if (!result.success) {
+        if (result.status !== "complete") {
           return result;
         }
         await setSession(result.tokens);
         return { ...result, flow: "signIn" };
       } catch (cause) {
-        return { success: false, userError: foldClientError(cause) };
+        return { status: "error", userError: foldClientError(cause) };
       } finally {
         autofillHandle?.resume();
         // Reset even when something throws.
@@ -697,7 +705,7 @@ export function usePasskey(
             passkeyApi.finishSignIn,
             assertionArgs(credential),
           );
-          if (result.success) {
+          if (result.status === "complete") {
             // Residual race with the modal flow: when the user resolves
             // the autofill assertion just before the modal flow pauses us,
             // and the modal ceremony also completes, `setSession` runs
@@ -773,16 +781,15 @@ export function usePasskey(
     /**
      * Runs the identifier-first passkey flow for the given username.
      *
-     * Returns an object with a `success` boolean flag.
+     * Returns an object discriminated by `status`.
      *
-     * If it is `true` the sign-in (or the account creation) was successful
-     * and the client will establish an authenticated session with the
-     * Convex backend server. The `flow` field tells which one it was:
-     * `"signUp"` created a new account, `"signIn"` authenticated an
-     * existing one.
+     * On `"complete"` the sign-in (or the account creation) worked and the
+     * client will establish an authenticated session with the Convex
+     * backend server. The `flow` field tells which one it was: `"signUp"`
+     * created a new account, `"signIn"` authenticated an existing one.
      *
-     * If it is `false` the returned object will have a `userError` field
-     * with additional details about why sign-in failed.
+     * On `"error"` the returned object has a `userError` field with
+     * additional details about why sign-in failed.
      */
     signIn,
     /** `true` while a `signIn` attempt is running. */

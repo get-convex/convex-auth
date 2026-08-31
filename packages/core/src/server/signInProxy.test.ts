@@ -75,14 +75,17 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("token interception", () => {
   test("moves the refresh token into an httpOnly cookie and slims the body", async () => {
-    upstream({ status: "success", value: { success: true, tokens: bundle() } });
+    upstream({
+      status: "success",
+      value: { status: "complete", tokens: bundle() },
+    });
 
     const response = await handler(call(envelope()));
     expect(response.status).toBe(200);
 
     const body = await response.json();
     // The envelope survives; only the refresh half of the bundle is removed.
-    expect(body.value.success).toBe(true);
+    expect(body.value.status).toBe("complete");
     expect(body.value.tokens).toEqual({
       accessToken: "access-1",
       accessTokenExpiresAt: 1_000,
@@ -101,7 +104,7 @@ describe("token interception", () => {
     // tokens. The refresh token is the only thing the proxy removes.
     upstream({
       status: "success",
-      value: { success: true, tokens: bundle(), username: "alice" },
+      value: { status: "complete", tokens: bundle(), username: "alice" },
     });
 
     const body = await (await handler(call(envelope()))).json();
@@ -112,13 +115,13 @@ describe("token interception", () => {
   test("passes a failure arm through untouched and writes no cookies", async () => {
     upstream({
       status: "success",
-      value: { success: false, userError: { error: "INVALID_CREDENTIALS" } },
+      value: { status: "error", userError: { error: "INVALID_CREDENTIALS" } },
     });
 
     const response = await handler(call(envelope()));
     const body = await response.json();
     expect(body.value).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_CREDENTIALS" },
     });
     // A failed sign-in is a successful call: the transport says 200 and the
@@ -139,6 +142,22 @@ describe("token interception", () => {
     const response = await handler(call(envelope()));
     expect(response.status).toBe(500);
     expect(await response.text()).toContain("did not return a sign-in result");
+  });
+
+  test("fails closed on an unknown arm that carries tokens", async () => {
+    // The arms are matched by name, so a shape the proxy does not know is
+    // refused even though it looks like a failure. Classifying "not a
+    // success" as a failure would forward this verbatim — tokens included,
+    // since only the success path strips them.
+    upstream({
+      status: "success",
+      value: { success: false, tokens: bundle() },
+    });
+
+    const response = await handler(call(envelope()));
+    expect(response.status).toBe(500);
+    expect(await response.text()).toContain("did not return a sign-in result");
+    expect(setCookies(response)).toBe("");
   });
 
   test("fails closed when an exposed function returns an unrecognized shape", async () => {
@@ -216,7 +235,7 @@ describe("forwarding", () => {
   test("forwards args in the caller's encoding, and the caller's auth header", async () => {
     const fetchSpy = upstream({
       status: "success",
-      value: { success: true, tokens: bundle() },
+      value: { status: "complete", tokens: bundle() },
     });
 
     await handler(
@@ -241,7 +260,7 @@ describe("forwarding", () => {
   test("routes each endpoint to its counterpart on the deployment", async () => {
     const fetchSpy = upstream({
       status: "success",
-      value: { success: true, tokens: bundle() },
+      value: { status: "complete", tokens: bundle() },
     });
     await handler(call(envelope(), { kind: "mutation" }));
     expect(fetchSpy.mock.calls[0][0]).toBe(`${CONVEX_URL}/api/mutation`);
@@ -250,7 +269,7 @@ describe("forwarding", () => {
   test("never forwards the browser's cookies to the deployment", async () => {
     const fetchSpy = upstream({
       status: "success",
-      value: { success: true, tokens: bundle() },
+      value: { status: "complete", tokens: bundle() },
     });
     await handler(
       call(envelope(), {
@@ -266,7 +285,7 @@ describe("forwarding", () => {
   test("forwards server log lines so a proxied call logs like a direct one", async () => {
     upstream({
       status: "success",
-      value: { success: true, tokens: bundle() },
+      value: { status: "complete", tokens: bundle() },
       logLines: ["from the function's console.log"],
     });
     const body = await (await handler(call(envelope()))).json();
@@ -335,7 +354,7 @@ describe("ConvexHttpClient wire contract", () => {
       return new Response(
         JSON.stringify({
           status: "success",
-          value: { success: true, tokens: bundle() },
+          value: { status: "complete", tokens: bundle() },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
@@ -354,7 +373,7 @@ describe("ConvexHttpClient wire contract", () => {
 
     // The client parsed the proxy's reply, and the refresh token is gone.
     expect(result).toEqual({
-      success: true,
+      status: "complete",
       tokens: {
         accessToken: "access-1",
         accessTokenExpiresAt: 1_000,
