@@ -322,15 +322,25 @@ export function setupOauth<
       // resolve the identity to pick a path. This handler is a mutation, so the
       // lookup and the write it decides on are one transaction.
       const existingUserId = await ctx.convexAuth.resolveUserId(profile.id);
-      return existingUserId === null
-        ? await ctx.convexAuth.completeSignUp({
-            providerAccountId: profile.id,
-            profile,
-          })
-        : await ctx.convexAuth.completeSignIn({
-            providerAccountId: profile.id,
-            profile,
-          });
+      const outcome =
+        existingUserId === null
+          ? await ctx.convexAuth.completeSignUp({
+              providerAccountId: profile.id,
+              profile,
+            })
+          : await ctx.convexAuth.completeSignIn({
+              providerAccountId: profile.id,
+              profile,
+            });
+      // This provider registers no requirements, so the outcome is always
+      // `session-created`.
+      if (outcome.status !== "session-created") {
+        throw new Error(
+          "Invariant violation: the oauth provider registers no sign-in " +
+            "requirements, but the sign-in was parked as incomplete.",
+        );
+      }
+      return outcome.tokens;
     },
   });
 

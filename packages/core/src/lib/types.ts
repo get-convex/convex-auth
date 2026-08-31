@@ -37,7 +37,9 @@ export type TokenBundle = Infer<typeof vTokenBundle>;
  * `kind` plus the payload the server sends down with it (a CAPTCHA
  * challenge, a label to display, …).
  *
- * The core treats requirements as opaque payloads of this shape.
+ * The core treats requirements as opaque payloads of this shape; apps close
+ * the vocabulary with `@convex-dev/auth/lib/requirements`, which narrows
+ * both ends of the wire to the declared kinds.
  */
 export const vSignInRequirement = v.object({
   kind: v.string(),
@@ -60,7 +62,10 @@ export type SignInSuccess = Infer<typeof vSignInSuccess>;
  *
  * The server-side counterpart is {@link ProviderSignInOutcome}'s
  * `pending-requirements` arm, which additionally carries a server-only
- * `userId`.
+ * `userId`. Nothing but the differing `status` values keeps that arm from
+ * satisfying this type structurally, so a provider must build this arm from
+ * the outcome's fields rather than forwarding it — see the note on
+ * `vProviderSignInOutcome`.
  */
 export type SignInIncomplete<Req = SignInRequirement> = {
   status: "incomplete";
@@ -92,11 +97,11 @@ export type OnSignInVerdict = null | {
 /**
  * A *provider-registered* requirement, injected by a provider's setup
  * function based on its config options (as opposed to the app-registered
- * requirements the `onSignIn` evaluator judges). The framework itself checks
- * it: the requirement is outstanding until every field in `factFields` is
- * present in the attempt's provider-scoped facts bag, which provider-owned
- * verification endpoints populate via `recordAttemptFacts(..., "provider")`.
- * Invisible to the app's `onSignIn`.
+ * requirement specs the `onSignIn` evaluator judges). The framework itself
+ * checks it: the requirement is outstanding until every field in
+ * `factFields` is present in the attempt's provider-scoped facts bag, which
+ * provider-owned verification endpoints populate via
+ * `recordAttemptFacts(..., "provider")`. Invisible to the app's `onSignIn`.
  */
 export const vProviderRequirement = v.object({
   kind: v.string(),
@@ -111,9 +116,9 @@ export type ProviderRequirement = Infer<typeof vProviderRequirement>;
  * code: `session-created` with the minted tokens, or `pending-requirements`
  * with the outstanding requirements and the attempt token that continues it.
  *
- * These values deliberately differ from the `complete`/`incomplete` the
- * client arms use ({@link SignInSuccess}, {@link SignInIncomplete}). Both
- * layers discriminate on `status`, so distinct vocabularies are what stop a
+ * These values deliberately differ from the `success`/`incomplete` the client
+ * arms use ({@link SignInSuccess}, {@link SignInIncomplete}). Both layers
+ * discriminate on `status`, so distinct vocabularies are what stop a
  * server-side outcome — which carries the server-only `userId` — from
  * satisfying a client arm structurally and reaching the browser unstripped.
  * They also read as what they are: a statement about the *session*, not about
@@ -150,6 +155,17 @@ export const vProviderContinueOutcome = v.union(
 );
 
 export type ProviderContinueOutcome = Infer<typeof vProviderContinueOutcome>;
+
+/**
+ * The `userError` a provider reports for a continuation whose attempt is gone
+ * — the client-facing translation of the `expired` outcome above. It is the
+ * one user-correctable condition the core raises rather than the provider, so
+ * the vocabulary is declared here with the outcome instead of per provider.
+ * The user restarts the sign-in.
+ */
+export const vAttemptExpiredError = v.object({
+  error: v.literal("ATTEMPT_EXPIRED"),
+});
 
 /**
  * The token bundle that an SSR route hands back to the client. It is a slimmed
@@ -346,15 +362,20 @@ export type CreateUserFn<
  * Return `null` to accept the sign-in and have a session minted — an app with
  * no sign-in requirements returns `null` unconditionally, so `returns:
  * v.null()` is the whole contract. With requirements registered, return a
- * `requirements-needed` verdict listing what is still outstanding: the session
- * is withheld, but the user and account already exist (creation is eager)
- * and, unlike a throw, the verdict *commits* the callback's writes. Throwing
- * a `ConvexError` remains the hard rejection and, on a first sign-in, rolls
+ * `requirements-needed` verdict listing what is still outstanding: the session is
+ * withheld, but the user and account already exist (creation is eager) and,
+ * unlike a throw, the verdict *commits* the callback's writes. Throwing a
+ * `ConvexError` remains the hard rejection and, on a first sign-in, rolls
  * back the user the create callback just made.
  *
  * `facts` is the accumulated, server-verified evidence for this sign-in. It
  * is always passed and always empty for an app with no requirements (declare
- * `facts: v.object({})`).
+ * `facts: v.object({})`, or the `vFacts` that
+ * `@convex-dev/auth/lib/requirements` derives from the registered specs).
+ * `Facts` and `Requirement` derive from those same specs; the compile-time
+ * check is covariant-only, catching a callback that *emits* an undeclared
+ * kind, while a callback that misses a declared kind is caught at runtime by
+ * validators derived from the same specs.
  *
  * `providerAccountId` is always the *resolved* account id, never a provider's
  * internal sign-up placeholder.
@@ -367,6 +388,8 @@ export type OnSignInFn<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
+  Facts = Record<string, unknown>,
+  Requirement extends SignInRequirement = SignInRequirement,
 > = FunctionReference<
   "mutation",
   "internal",
@@ -375,23 +398,27 @@ export type OnSignInFn<
     providerAccountId: string;
     profile: Profile;
     userId: GenericId<UsersTable>;
-    facts: Record<string, unknown>;
+    facts: Facts;
   },
-  null | { status: "requirements-needed"; requirements: SignInRequirement[] }
+  null | { status: "requirements-needed"; requirements: Requirement[] }
 >;
 
 /**
  * The app's user callbacks for one provider, as its `attachUserCallbacks`
  * takes them: {@link CreateUserFn} is required (something has to create the
- * user record), {@link OnSignInFn} is optional.
+ * user record), {@link OnSignInFn} is optional — though a provider that
+ * registers sign-in requirements must attach one, since something has to
+ * evaluate them.
  */
 export type UserCallbacks<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
+  Facts = Record<string, unknown>,
+  Requirement extends SignInRequirement = SignInRequirement,
 > = {
   createUser: CreateUserFn<Provider, Profile, UsersTable>;
-  onSignIn?: OnSignInFn<Provider, Profile, UsersTable>;
+  onSignIn?: OnSignInFn<Provider, Profile, UsersTable, Facts, Requirement>;
 };
 
 /**
@@ -414,47 +441,90 @@ export type AttemptContext = Infer<typeof vAttemptContext>;
  * The helpers that `authMutation`/`authAction` inject onto `ctx` for a
  * provider's handlers.
  *
+ * The sign-in helpers return a {@link ProviderSignInOutcome} rather than a
+ * bare bundle: a sign-in is `session-created` when nothing is outstanding,
+ * and `pending-requirements` when requirements remain, whether the app
+ * registered them or the provider did. A provider with neither only ever sees
+ * `session-created`, and narrows to it rather than declaring an arm that
+ * cannot occur.
+ *
+ * These stay loosely typed (open requirement and facts shapes): the precise
+ * static types are applied once, at the provider setup's public API.
+ *
  * This API is used for building auth providers.
  */
 export type BoundAuthHelpers<Profile> = {
   /**
    * Exchange a *newly established* account identity for a session.
    *
-   * Call this when the provider has just created the account. The core records
-   * the account, calls the app's `createUser` to mint the app user, then its
-   * `onSignIn` like any other sign-in, and returns the tokens a client needs to
-   * make authenticated calls.
+   * Call this when the provider has just created the account. The core
+   * records the account, calls the app's `createUser` to mint the app user,
+   * then runs its `onSignIn` like any other sign-in.
    *
-   * Throws if the identity already has an account. A provider that cannot tell
-   * a first sign-in from a return visit should call
+   * Throws if the identity already has an account. A provider that cannot
+   * tell a first sign-in from a return visit should call
    * {@link BoundAuthHelpers.resolveUserId} first and pick the right helper.
    */
   completeSignUp(args: {
     providerAccountId: string;
     profile: Profile;
-  }): Promise<TokenBundle>;
+  }): Promise<ProviderSignInOutcome>;
   /**
    * Exchange a verified *existing* account identity for a session.
    *
    * Call this once the provider has authenticated a known account its own way
-   * (checking a password, say). The core resolves the account to its app user,
-   * runs the app's `onSignIn` callback if one is attached, and returns the
-   * tokens a client needs to make authenticated calls.
+   * (checking a password, say). The core resolves the account to its app user
+   * and runs the app's `onSignIn` callback if one is attached.
    *
    * Throws if the identity has no account: reaching this helper is the
-   * provider's assertion that the account exists, so a miss is a bug rather
-   * than an authentication failure to report to the user.
+   * provider asserting the account exists.
    */
   completeSignIn(args: {
     providerAccountId: string;
     profile: Profile;
-  }): Promise<TokenBundle>;
+  }): Promise<ProviderSignInOutcome>;
+  /**
+   * Re-evaluate a parked sign-in attempt, after a verification endpoint has
+   * recorded new facts. Completes the sign-in when nothing is outstanding,
+   * reports the remaining requirements otherwise, and reports `expired` for
+   * an attempt that is gone.
+   */
+  continueSignIn(args: {
+    attemptToken: string;
+  }): Promise<ProviderContinueOutcome>;
   /**
    * Look up the app user id for a given `providerAccountId`.
    *
    * Returns `null` when no user id is found for the account.
    */
   resolveUserId(providerAccountId: string): Promise<string | null>;
+  /**
+   * Resolve the subject of a live attempt from its token, or `null` when the
+   * attempt is gone.
+   *
+   * Step 1 of the recipe for an endpoint that *verifies* a requirement
+   * server-side: resolve the subject and verify the factor against it, then
+   * {@link BoundAuthHelpers.recordAttemptFacts} on success or
+   * {@link BoundAuthHelpers.penalizeAttempt} on failure — without the latter
+   * the endpoint is an unmetered guessing oracle.
+   */
+  getAttemptContext(attemptToken: string): Promise<AttemptContext | null>;
+  /**
+   * Record server-verified facts on a live attempt (shallow merge). Returns
+   * `false` when the attempt is gone. `scope` defaults to `"app"` — facts the
+   * app's `onSignIn` sees; `"provider"` facts live in a separate bag only the
+   * framework's provider-requirement checks read.
+   */
+  recordAttemptFacts(
+    attemptToken: string,
+    facts: Record<string, unknown>,
+    scope?: "app" | "provider",
+  ): Promise<boolean>;
+  /**
+   * Burn continuation budget on a live attempt after a *failed*
+   * verification. Returns `false` when the attempt is gone.
+   */
+  penalizeAttempt(attemptToken: string): Promise<boolean>;
 };
 
 /**
