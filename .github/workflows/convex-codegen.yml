@@ -49,6 +49,7 @@ jobs:
             examples/react-google
             examples/react-github
             examples/react-password
+            examples/react-password-requirements
             examples/react-passkey
             examples/nextjs
           )

@@ -1,0 +1,108 @@
+import { useSignInWithPassword } from "@convex-dev/auth/providers/password/react";
+import { useState } from "react";
+import { api } from "../../convex/_generated/api";
+import { RequirementsStep, type IncompleteResult } from "./requirementsStep";
+
+export function LogIn() {
+  const { signIn, pending } = useSignInWithPassword(
+    api.auth.signInWithPassword,
+    api.auth.continueSignInWithPassword,
+  );
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  // An incomplete sign-in parked mid-flow (the math second factor).
+  const [step, setStep] = useState<IncompleteResult | null>(null);
+
+  if (step !== null) {
+    return (
+      <RequirementsStep
+        initial={step}
+        onRestart={(message) => {
+          setStep(null);
+          setError(message);
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setError(null);
+          const result = await signIn({ username, password });
+          if (result.status === "complete") {
+            return;
+          }
+          if (result.status === "incomplete") {
+            // Credentials are fine, but requirements are outstanding: hand
+            // the flow to the requirements step.
+            setStep(result);
+            return;
+          }
+          setError(() => {
+            switch (result.userError.error) {
+              case "USER_NOT_FOUND":
+                return "No account exists with that username.";
+              case "INVALID_CREDENTIALS":
+                return "Incorrect username or password.";
+              case "PASSWORD_TOO_SHORT":
+                return `Password must be at least ${result.userError.minimumLength} characters.`;
+              case "PASSWORD_TOO_LONG":
+                return `Password must be at most ${result.userError.maximumLength} characters.`;
+              case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+                return "Password can't start or end with whitespace.";
+              case "RATE_LIMITED":
+                return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+              case "OTHER_ERROR":
+                // The mutation threw unexpectedly; the original error is
+                // available on `cause` if you want to log or inspect it.
+                console.error("Sign-in failed:", result.userError.cause);
+                return "Something went wrong. Please try again.";
+              default:
+                result.userError satisfies never;
+                return `Unknown error: ` + result.userError;
+            }
+          });
+        }}
+      >
+        <h1>Log in</h1>
+        <label>
+          Username
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+            disabled={pending}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            disabled={pending}
+          />
+        </label>
+        {error ? (
+          <p role="alert">
+            <strong>{error}</strong>
+          </p>
+        ) : null}
+        <button type="submit" disabled={pending}>
+          {pending ? "Logging in…" : "Log in"}
+        </button>
+      </form>
+      <p>
+        Don't have an account? <a href="/signup">Sign up</a>
+      </p>
+    </>
+  );
+}
