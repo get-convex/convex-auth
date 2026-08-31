@@ -18,6 +18,7 @@ import {
   type TokenBundle,
   type ConvexAuthCtx,
   type UserCallbacks,
+  type ProviderSignInOutcome,
 } from "../../lib/types.ts";
 
 /**
@@ -295,6 +296,26 @@ export function setupCore<UsersTable extends string = "users">(options: {
 
     // The helpers close over the live ctx; both mutation and action ctxs
     // expose the compatible `runMutation`/`runQuery` these need.
+    // The component reports an *outcome* now: a session was created, or
+    // requirements are outstanding and the sign-in is parked. Nothing
+    // registers requirements yet — no provider passes `providerRequirements`
+    // and no app callback can return a verdict a provider would understand —
+    // so the helpers keep their bundle-returning signature and treat the
+    // parked arm as the invariant violation it would be.
+    //
+    // TODO: the next change hands providers the outcome itself, along with
+    // the helpers that continue a parked attempt, and this unwrapping goes
+    // away.
+    const expectSession = (outcome: ProviderSignInOutcome): TokenBundle => {
+      if (outcome.status !== "session-created") {
+        throw new Error(
+          `Invariant violation: provider "${name}" registers no sign-in ` +
+            "requirements, but the sign-in was parked as incomplete.",
+        );
+      }
+      return outcome.tokens;
+    };
+
     const makeHelpers = (
       ctx:
         | GenericActionCtx<GenericDataModel>
@@ -304,50 +325,38 @@ export function setupCore<UsersTable extends string = "users">(options: {
         providerAccountId: string;
         profile: Profile;
       }): Promise<TokenBundle> => {
-        return await ctx.runMutation(component.public.signUp, {
-          claims: {
-            provider: name,
-            providerAccountId: args.providerAccountId,
-            profile: args.profile,
-          },
-          createUserHandle: await createFunctionHandle(createUser),
-          onSignInHandle: await onSignInHandle(),
-          issuer: issuer(),
-          accessTokenTtlSeconds,
-          refreshTokenTtlSeconds,
-        });
+        return expectSession(
+          await ctx.runMutation(component.public.signUp, {
+            claims: {
+              provider: name,
+              providerAccountId: args.providerAccountId,
+              profile: args.profile,
+            },
+            createUserHandle: await createFunctionHandle(createUser),
+            onSignInHandle: await onSignInHandle(),
+            issuer: issuer(),
+            accessTokenTtlSeconds,
+            refreshTokenTtlSeconds,
+          }),
+        );
       },
       completeSignIn: async (args: {
         providerAccountId: string;
         profile: Profile;
       }): Promise<TokenBundle> => {
-        return await ctx.runMutation(component.public.signIn, {
-          claims: {
-            provider: name,
-            providerAccountId: args.providerAccountId,
-            profile: args.profile,
-          },
-          onSignInHandle: await onSignInHandle(),
-          issuer: issuer(),
-          accessTokenTtlSeconds,
-          refreshTokenTtlSeconds,
-        });
-      },
-      // Creates the app user + account without a session, for providers where
-      // the user must complete a step (e.g. an email validation) before the
-      // first sign-in.
-      signUpWithoutSession: async (args: {
-        providerAccountId: string;
-        profile: Profile;
-      }): Promise<{ userId: string }> => {
-        return await ctx.runMutation(component.public.signUpWithoutSession, {
-          claims: {
-            provider: name,
-            providerAccountId: args.providerAccountId,
-            profile: args.profile,
-          },
-          createUserHandle: await createFunctionHandle(createUser),
-        });
+        return expectSession(
+          await ctx.runMutation(component.public.signIn, {
+            claims: {
+              provider: name,
+              providerAccountId: args.providerAccountId,
+              profile: args.profile,
+            },
+            onSignInHandle: await onSignInHandle(),
+            issuer: issuer(),
+            accessTokenTtlSeconds,
+            refreshTokenTtlSeconds,
+          }),
+        );
       },
       resolveUserId: async (
         providerAccountId: string,
