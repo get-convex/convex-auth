@@ -94,7 +94,7 @@ const FOREIGN_CEREMONY_WARNING =
  * │  └────────────────────────────────────────┘  │
  * │  ╭────────────────────────────────────────────────╮
  * │  │ 🔑  ada                                        │
- * │  │     Passkey · iCloud Keychain                  │
+ * │  │     Passkey · Apple Passwords                  │
  * │  │ 🔑  charles                                    │
  * └──│     Passkey · 1Password                        │
  *    ├────────────────────────────────────────────────┤
