@@ -1,4 +1,5 @@
 import { Infer, v } from "convex/values";
+import type { GenericDataModel, GenericMutationCtx } from "convex/server";
 import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
@@ -102,6 +103,112 @@ export function setupUsernamePassword<UsersTable extends string>(
 ) {
   const { component, usernameComponent } = options;
 
+  type Ctx = GenericMutationCtx<GenericDataModel>;
+
+  /**
+   * The sign-up prechecks: validate the username and the password *before*
+   * creating anything, so invalid input never mints a user. (`setUsername`
+   * and `setPassword` do the same checks again, but by then the account
+   * would already exist.)
+   */
+  // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
+  const precheckSignUp = async (
+    ctx: Ctx,
+    username: string,
+    password: string,
+  ): Promise<SignInError<SignUpUserError> | null> => {
+    const usernameError = validateUsernameFormat(username);
+    if (usernameError !== null) {
+      return { status: "error", userError: usernameError };
+    }
+    const userError = validateNewPassword(password);
+    if (userError !== null) {
+      return { status: "error", userError };
+    }
+    const existing = await ctx.runQuery(
+      usernameComponent.public.getUserIdByUsername,
+      { username },
+    );
+    if (existing !== null) {
+      return { status: "error", userError: { error: "USERNAME_TAKEN" } };
+    }
+    return null;
+  };
+
+  /**
+   * Store the credentials against the app user id, once sign-up has minted
+   * it.
+   */
+  const storeCredentials = async (
+    ctx: Ctx,
+    userId: string,
+    username: string,
+    password: string,
+  ): Promise<void> => {
+    const setUsernameResult = await ctx.runMutation(
+      usernameComponent.public.setUsername,
+      { userId, username },
+    );
+    if (!setUsernameResult.success) {
+      // Unexpected: we validated the username in the precheck, and this
+      // handler is a mutation, thus the conflict check and this call are in
+      // the same transaction. Throwing so that the transaction doesn't
+      // commit.
+      throw new Error(
+        "Unexpected error when setting the username: " +
+          setUsernameResult.userError.error,
+        { cause: setUsernameResult.userError },
+      );
+    }
+    const setResult = await ctx.runMutation(component.public.setPassword, {
+      userId,
+      password,
+    });
+    if (!setResult.success) {
+      // Unexpected: we pre-validated the password, so this call should not
+      // fail. Throwing so that the transaction doesn't commit.
+      //
+      // TODO(nicolas) can we improve this?
+      throw new Error(
+        "Unexpected error when setting the password: " +
+          setResult.userError.error,
+        { cause: setResult.userError },
+      );
+    }
+  };
+
+  /**
+   * The sign-in prelude: resolve the username and verify the password.
+   * Returns `USER_NOT_FOUND` when the username has no account and
+   * `INVALID_CREDENTIALS` when the password is wrong, so callers can tell
+   * the two apart. (Account existence is already observable via sign-up's
+   * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
+   */
+  const resolveAndVerify = async (
+    ctx: Ctx,
+    username: string,
+    password: string,
+  ): Promise<{ userId: string } | SignInError<SignInUserError>> => {
+    const userId = await ctx.runQuery(
+      usernameComponent.public.getUserIdByUsername,
+      { username },
+    );
+    if (userId === null) {
+      return { status: "error", userError: { error: "USER_NOT_FOUND" } };
+    }
+    const verifyResult = await ctx.runMutation(
+      component.public.verifyPassword,
+      {
+        userId,
+        password,
+      },
+    );
+    if (!verifyResult.success) {
+      return { status: "error", userError: verifyResult.userError };
+    }
+    return { userId };
+  };
+
   return {
     /**
      * Supply the app's user callbacks (see {@link UserCallbacks} for how their
@@ -130,30 +237,8 @@ export function setupUsernamePassword<UsersTable extends string>(
             ctx,
             { username, password },
           ): Promise<SignUpResult> => {
-            // Validate the username and the password *before* creating
-            // anything, so invalid input never mints a session.
-            // (`setUsername` and `setPassword` do the same checks again, but by
-            // then the account would already exist.)
-            // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
-            const usernameError = validateUsernameFormat(username);
-            if (usernameError !== null) {
-              return { status: "error", userError: usernameError };
-            }
-            const userError = validateNewPassword(password);
-            if (userError !== null) {
-              return { status: "error", userError };
-            }
-
-            const existing = await ctx.runQuery(
-              usernameComponent.public.getUserIdByUsername,
-              { username },
-            );
-            if (existing !== null) {
-              return {
-                status: "error",
-                userError: { error: "USERNAME_TAKEN" },
-              };
-            }
+            const precheck = await precheckSignUp(ctx, username, password);
+            if (precheck !== null) return precheck;
 
             // Create the account + app user (via the app's createUser) and
             // mint the session. Password accounts are keyed by the app user id,
@@ -171,40 +256,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               profile: { username },
             });
 
-            const setUsernameResult = await ctx.runMutation(
-              usernameComponent.public.setUsername,
-              { userId: tokens.userId, username },
-            );
-            if (!setUsernameResult.success) {
-              // Unexpected: we validated the username above, and this handler
-              // is a mutation, thus the check for a conflict above and this
-              // call are in the same transaction.
-              // Throwing so that the transaction doesn’t commit.
-              throw new Error(
-                "Unexpected error when setting the username: " +
-                  setUsernameResult.userError.error,
-                { cause: setUsernameResult.userError },
-              );
-            }
-
-            const setResult = await ctx.runMutation(
-              component.public.setPassword,
-              {
-                userId: tokens.userId,
-                password,
-              },
-            );
-            if (!setResult.success) {
-              // Unexpected: we pre-validated the password above,
-              // so this call should not fail.
-              // Throwing so that the transaction doesn’t commit.
-              //
-              // TODO(nicolas) can we improve this?
-              throw new Error(
-                "Unexpected error when setting the password: " + userError,
-                { cause: userError },
-              );
-            }
+            await storeCredentials(ctx, tokens.userId, username, password);
 
             return { status: "complete", tokens };
           },
@@ -224,30 +276,14 @@ export function setupUsernamePassword<UsersTable extends string>(
             ctx,
             { username, password },
           ): Promise<SignInResult> => {
-            const userId = await ctx.runQuery(
-              usernameComponent.public.getUserIdByUsername,
-              { username },
-            );
-            if (userId === null) {
-              return {
-                status: "error",
-                userError: { error: "USER_NOT_FOUND" },
-              };
-            }
-
-            const verifyResult = await ctx.runMutation(
-              component.public.verifyPassword,
-              { userId, password },
-            );
-            if (!verifyResult.success) {
-              return { status: "error", userError: verifyResult.userError };
-            }
+            const verified = await resolveAndVerify(ctx, username, password);
+            if ("status" in verified) return verified;
 
             // The username resolved to a user id and its password verified, so
             // the account exists and `completeSignIn` (which throws otherwise)
             // is the right helper.
             const tokens = await ctx.convexAuth.completeSignIn({
-              providerAccountId: userId,
+              providerAccountId: verified.userId,
               profile: { username },
             });
             return { status: "complete", tokens };
