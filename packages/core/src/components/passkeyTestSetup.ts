@@ -1,6 +1,17 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { expect, vi } from "vitest";
 import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
+import {
+  ORIGIN,
+  RP_ID,
+  buildAttestationObject,
+  buildAuthenticatorData,
+  buildClientDataJSON,
+  generateES256Credential,
+  type TestCredential,
+} from "@convex-dev/passkey-test-authenticator";
+import { api } from "./passkey/_generated/api.ts";
+import { toArrayBuffer } from "./passkey/helpers.ts";
 import schema from "./passkey/schema.ts";
 
 export const modules = import.meta.glob("./passkey/**/*.ts");
@@ -43,4 +54,45 @@ export async function expectProtocolError(
   } finally {
     warn.mockRestore();
   }
+}
+
+/** Run a full registration ceremony and return the stored credential. */
+export async function register(
+  t: TestConvex<typeof schema>,
+  userId: string,
+  options: {
+    name?: string;
+    credential?: TestCredential;
+    counter?: number;
+    transports?: string[];
+  } = {},
+): Promise<{ credential: TestCredential; passkeyId: string }> {
+  const credential = options.credential ?? (await generateES256Credential());
+  const { challenge } = await t.mutation(api.registration.startRegistration, {
+    userId,
+  });
+  const authData = await buildAuthenticatorData({
+    rpId: RP_ID,
+    counter: options.counter ?? 0,
+    credential,
+  });
+  const result = await t.mutation(api.registration.finishRegistration, {
+    expectedRpId: RP_ID,
+    expectedOrigin: ORIGIN,
+    verifiedUserId: userId,
+    name: options.name,
+    transports: options.transports,
+    attestationObject: toArrayBuffer(buildAttestationObject(authData)),
+    clientDataJSON: toArrayBuffer(
+      buildClientDataJSON({
+        type: "webauthn.create",
+        challenge,
+        origin: ORIGIN,
+      }),
+    ),
+  });
+  if (!result.success) {
+    throw new Error(`Test registration failed: ${result.userError.error}`);
+  }
+  return { credential, passkeyId: result.passkeyId };
 }

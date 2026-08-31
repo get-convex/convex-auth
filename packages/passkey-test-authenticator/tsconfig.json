@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The package ships as source, thus its relative imports use the
+    // extension of the file on disk (`.ts`). See `packages/core/tsconfig.json`.
+    "module": "Node16",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}

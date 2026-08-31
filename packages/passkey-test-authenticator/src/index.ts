@@ -1,23 +1,25 @@
-import type { TestConvex } from "convex-test";
-import {
-  encodeASN1,
-  ASN1EncodableSequence,
-  ASN1Integer,
-} from "../../vendor/oslo/asn1/index.ts";
-import { bigIntFromBytes } from "../../vendor/oslo/binary/index.ts";
-import { sha256 } from "../../vendor/oslo/crypto/sha2.ts";
-import { decodeBase64urlIgnorePadding } from "../../vendor/oslo/encoding/index.ts";
-import { api } from "./_generated/api.ts";
-import { toArrayBuffer } from "./helpers.ts";
-import type schema from "./schema.ts";
-
 /**
  * A minimal software authenticator for tests. It builds the WebAuthn
  * payloads (client data, authenticator data, attestation objects) and signs
- * assertions with real WebCrypto keys, so the component's parsing and
- * signature verification run against genuine ceremony bytes.
+ * assertions with real WebCrypto keys, so a test runs the parsing and the
+ * signature verification of a relying party against genuine ceremony bytes.
  */
+import {
+  decodeBase64url,
+  encodeBase64url,
+  sha256,
+  toArrayBuffer,
+  toDERSignature,
+} from "./bytes.ts";
+import { encodeCBOR, type CBORValue } from "./cbor.ts";
 
+export { encodeCBOR, type CBORValue };
+
+/**
+ * The relying party that the authenticator uses when a caller names none. An
+ * app under test has a relying party of its own, thus it passes `rpId` and
+ * `origin` to each builder.
+ */
 export const RP_ID = "example.com";
 export const ORIGIN = "https://app.example.com";
 
@@ -26,43 +28,6 @@ export interface TestCredential {
   credentialId: Uint8Array;
   privateKey: CryptoKey;
   cosePublicKey: Uint8Array;
-}
-
-type CBORValue = number | string | Uint8Array | Map<number | string, CBORValue>;
-
-function cborHead(majorType: number, value: number): number[] {
-  if (value < 24) {
-    return [(majorType << 5) | value];
-  }
-  if (value < 0x100) {
-    return [(majorType << 5) | 24, value];
-  }
-  if (value < 0x10000) {
-    return [(majorType << 5) | 25, value >> 8, value & 0xff];
-  }
-  throw new Error("Value too large for the test CBOR encoder");
-}
-
-/** Encode a small CBOR value (enough for COSE keys and attestation objects). */
-export function encodeCBOR(value: CBORValue): Uint8Array {
-  const encode = (value: CBORValue): number[] => {
-    if (typeof value === "number") {
-      return value >= 0 ? cborHead(0, value) : cborHead(1, -1 - value);
-    }
-    if (typeof value === "string") {
-      const bytes = new TextEncoder().encode(value);
-      return [...cborHead(3, bytes.length), ...bytes];
-    }
-    if (value instanceof Uint8Array) {
-      return [...cborHead(2, value.length), ...value];
-    }
-    const out = cborHead(5, value.size);
-    for (const [key, entry] of value) {
-      out.push(...encode(key), ...encode(entry));
-    }
-    return out;
-  };
-  return new Uint8Array(encode(value));
 }
 
 export async function generateES256Credential(): Promise<TestCredential> {
@@ -108,8 +73,8 @@ export async function generateRS256Credential(): Promise<TestCredential> {
     new Map<number, CBORValue>([
       [1, 3], // kty: RSA
       [3, -257], // alg: RS256
-      [-1, decodeBase64urlIgnorePadding(jwk.n!)], // n (256 bytes)
-      [-2, decodeBase64urlIgnorePadding(jwk.e!)], // e (3 bytes)
+      [-1, decodeBase64url(jwk.n!)], // n (256 bytes)
+      [-2, decodeBase64url(jwk.e!)], // e (3 bytes)
     ]),
   );
   return {
@@ -133,21 +98,17 @@ export function buildClientDataJSON({
 }): Uint8Array {
   const bytes =
     challenge instanceof Uint8Array ? challenge : new Uint8Array(challenge);
-  const base64url = btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
   return new TextEncoder().encode(
     JSON.stringify({
       type,
-      challenge: base64url,
+      challenge: encodeBase64url(bytes),
       origin,
       ...(crossOrigin !== undefined ? { crossOrigin } : {}),
     }),
   );
 }
 
-export function buildAuthenticatorData({
+export async function buildAuthenticatorData({
   rpId,
   userPresent = true,
   userVerified = true,
@@ -160,13 +121,13 @@ export function buildAuthenticatorData({
   counter?: number;
   // When set, the attested credential data block is included (AT flag).
   credential?: Pick<TestCredential, "credentialId" | "cosePublicKey">;
-}): Uint8Array {
+}): Promise<Uint8Array> {
   let flags = 0;
   if (userPresent) flags |= 0x01;
   if (userVerified) flags |= 0x04;
   if (credential !== undefined) flags |= 0x40;
   const parts: number[] = [
-    ...sha256(new TextEncoder().encode(rpId)),
+    ...(await sha256(new TextEncoder().encode(rpId))),
     flags,
     (counter >>> 24) & 0xff,
     (counter >>> 16) & 0xff,
@@ -202,22 +163,18 @@ export async function signAssertion(
 ): Promise<Uint8Array> {
   const message = new Uint8Array(authenticatorData.length + 32);
   message.set(authenticatorData);
-  message.set(sha256(clientDataJSON), authenticatorData.length);
+  message.set(await sha256(clientDataJSON), authenticatorData.length);
   if (credential.algorithm === "ES256") {
     // WebCrypto emits the IEEE P1363 encoding (r || s); WebAuthn transports
-    // the DER (PKIX) encoding, which is what the component expects.
-    const p1363 = new Uint8Array(
-      await crypto.subtle.sign(
-        { name: "ECDSA", hash: "SHA-256" },
-        credential.privateKey,
-        message,
+    // the DER (PKIX) encoding, which is what a relying party expects.
+    return toDERSignature(
+      new Uint8Array(
+        await crypto.subtle.sign(
+          { name: "ECDSA", hash: "SHA-256" },
+          credential.privateKey,
+          message,
+        ),
       ),
-    );
-    return encodeASN1(
-      new ASN1EncodableSequence([
-        new ASN1Integer(bigIntFromBytes(p1363.slice(0, 32))),
-        new ASN1Integer(bigIntFromBytes(p1363.slice(32))),
-      ]),
     );
   }
   return new Uint8Array(
@@ -229,50 +186,7 @@ export async function signAssertion(
   );
 }
 
-type T = TestConvex<typeof schema>;
-
-/** Run a full registration ceremony and return the stored credential. */
-export async function register(
-  t: T,
-  userId: string,
-  options: {
-    name?: string;
-    credential?: TestCredential;
-    counter?: number;
-    transports?: string[];
-  } = {},
-): Promise<{ credential: TestCredential; passkeyId: string }> {
-  const credential = options.credential ?? (await generateES256Credential());
-  const { challenge } = await t.mutation(api.registration.startRegistration, {
-    userId,
-  });
-  const authData = buildAuthenticatorData({
-    rpId: RP_ID,
-    counter: options.counter ?? 0,
-    credential,
-  });
-  const result = await t.mutation(api.registration.finishRegistration, {
-    expectedRpId: RP_ID,
-    expectedOrigin: ORIGIN,
-    verifiedUserId: userId,
-    name: options.name,
-    transports: options.transports,
-    attestationObject: toArrayBuffer(buildAttestationObject(authData)),
-    clientDataJSON: toArrayBuffer(
-      buildClientDataJSON({
-        type: "webauthn.create",
-        challenge,
-        origin: ORIGIN,
-      }),
-    ),
-  });
-  if (!result.success) {
-    throw new Error(`Test registration failed: ${result.userError.error}`);
-  }
-  return { credential, passkeyId: result.passkeyId };
-}
-
-/** Build the assertion arguments for `finishAuthentication`. */
+/** Build the arguments of an authentication ceremony. */
 export async function buildAssertion(
   credential: TestCredential,
   challenge: ArrayBuffer | Uint8Array,
@@ -299,7 +213,7 @@ export async function buildAssertion(
     origin: options.origin ?? ORIGIN,
     crossOrigin: options.crossOrigin,
   });
-  const authenticatorData = buildAuthenticatorData({
+  const authenticatorData = await buildAuthenticatorData({
     rpId: options.rpId ?? RP_ID,
     counter: options.counter ?? 1,
     userPresent: options.userPresent,

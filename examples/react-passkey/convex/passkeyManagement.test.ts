@@ -10,15 +10,18 @@ import { convexTest, type TestConvex } from "convex-test";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { registerCore } from "@convex-dev/auth/providers/testing/core";
+import { registerPasskeyProvider } from "@convex-dev/auth/providers/testing/passkey";
+// The software authenticator is a private package of this repository, not a
+// part of the public API of `@convex-dev/auth`. An app writes an authenticator
+// of its own, or it drives a real one.
 import {
   buildAssertion,
   buildAttestationObject,
   buildAuthenticatorData,
   buildClientDataJSON,
   generateES256Credential,
-  registerPasskeyProvider,
   type TestCredential,
-} from "@convex-dev/auth/providers/testing/passkey";
+} from "@convex-dev/passkey-test-authenticator";
 import { registerUsername } from "@convex-dev/auth/providers/testing/username";
 import { api } from "./_generated/api";
 import schema from "./schema";
@@ -83,11 +86,11 @@ afterEach(() => {
 const as = (t: T, userId: string) => t.withIdentity({ subject: userId });
 
 /** Build the `create()` payloads of a registration ceremony. */
-function attest(
+async function attest(
   challenge: ArrayBuffer,
   credential: TestCredential,
-): Attestation {
-  const authenticatorData = buildAuthenticatorData({
+): Promise<Attestation> {
+  const authenticatorData = await buildAuthenticatorData({
     rpId: RP_ID,
     credential,
   });
@@ -119,7 +122,7 @@ async function signUp(
   const credential = await generateES256Credential();
   const result = await t.mutation(api.auth.finishSignUp, {
     username,
-    ...attest(start.challenge, credential),
+    ...(await attest(start.challenge, credential)),
   });
   if (!result.success) {
     throw new Error(`The sign-up failed: ${result.userError.error}`);
@@ -150,7 +153,7 @@ async function addPasskey(
   const credential = await generateES256Credential();
   const finished = await caller.mutation(
     api.auth.finishAddPasskey,
-    attest(verified.challenge, credential),
+    await attest(verified.challenge, credential),
   );
   if (!finished.success) {
     throw new Error(`The add failed: ${finished.userError.error}`);
@@ -229,7 +232,7 @@ describe("adding a passkey", () => {
     const credential = await generateES256Credential();
     const finished = await caller.mutation(
       api.auth.finishAddPasskey,
-      attest(verified.challenge, credential),
+      await attest(verified.challenge, credential),
     );
     expect(finished).toEqual({ success: true, passkeyId: expect.any(String) });
 
@@ -267,7 +270,7 @@ describe("adding a passkey", () => {
     expect(
       await as(t, alice.userId).mutation(
         api.auth.finishAddPasskey,
-        attest(new ArrayBuffer(32), credential),
+        await attest(new ArrayBuffer(32), credential),
       ),
     ).toEqual({ success: false, userError: { error: "CHALLENGE_EXPIRED" } });
   });
@@ -286,7 +289,7 @@ describe("adding a passkey", () => {
     await expect(
       as(t, alice.userId).mutation(
         api.auth.finishAddPasskey,
-        attest(start.challenge, credential),
+        await attest(start.challenge, credential),
       ),
     ).rejects.toThrow("The user already has a different handle");
   });
@@ -309,7 +312,7 @@ describe("adding a passkey", () => {
     expect(
       await t.mutation(
         api.auth.finishAddPasskey,
-        attest(new ArrayBuffer(32), await generateES256Credential()),
+        await attest(new ArrayBuffer(32), await generateES256Credential()),
       ),
     ).toEqual(notSignedIn);
   });

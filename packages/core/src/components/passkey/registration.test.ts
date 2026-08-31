@@ -4,11 +4,6 @@ import { api } from "./_generated/api.ts";
 import { toArrayBuffer } from "./helpers.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
 import {
-  expectProtocolError,
-  expectSameBytes,
-  setup,
-} from "../passkeyTestSetup.ts";
-import {
   ORIGIN,
   RP_ID,
   buildAttestationObject,
@@ -17,8 +12,13 @@ import {
   encodeCBOR,
   generateES256Credential,
   generateRS256Credential,
+} from "@convex-dev/passkey-test-authenticator";
+import {
+  expectProtocolError,
+  expectSameBytes,
   register,
-} from "./testAuthenticator.ts";
+  setup,
+} from "../passkeyTestSetup.ts";
 
 function handleRows(t: ReturnType<typeof setup>) {
   return t.run((ctx) => ctx.db.query("handles").collect());
@@ -77,7 +77,7 @@ async function registrationArgs(
     challenge = started.challenge;
     userHandle = started.userHandle;
   }
-  const authData = buildAuthenticatorData({
+  const authData = await buildAuthenticatorData({
     rpId: options.authDataRpId ?? RP_ID,
     counter: options.counter ?? 0,
     userPresent: options.userPresent,

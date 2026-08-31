@@ -32,8 +32,4 @@ export function registerPasskeyProvider(
   registerBatchWorker(t, `${name}/batchWorker`);
 }
 
-// The software authenticator that the tests of this repo drive. It ships with
-// the other testing helpers so that an app can write its own passkey tests.
-export * from "../passkey/testAuthenticator.ts";
-
 export default { registerPasskeyProvider, schema, modules };
