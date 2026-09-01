@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { decodePKCS1RSAPublicKey } from "../../vendor/oslo/crypto/rsa.ts";
 import { api } from "./_generated/api.ts";
 import { toArrayBuffer } from "./helpers.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
@@ -512,13 +511,10 @@ describe("finishRegistrationForExistingUser", () => {
     const row = passkeys[0];
     expect(result).toEqual({ success: true, passkeyId: row._id });
     expect(row.userId).toBe("user1");
-    expect(row.algorithm).toBe("ES256");
     expectSameBytes(row.credentialId, credential.credentialId);
     expect(row.counter).toBe(5);
-    // SEC1 uncompressed P-256 point: 0x04 || x || y.
-    const publicKey = new Uint8Array(row.publicKey);
-    expect(publicKey.length).toBe(65);
-    expect(publicKey[0]).toBe(0x04);
+    // The stored key is the COSE key from the attestation, unchanged.
+    expectSameBytes(row.publicKey, credential.cosePublicKey);
 
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
@@ -641,7 +637,7 @@ describe("finishRegistrationForExistingUser", () => {
 // tests drive them through the existing-user flow: the new-user flow runs
 // the exact same code.
 describe("finishRegistration verification", () => {
-  test("stores an RS256 passkey with a PKCS#1 public key", async () => {
+  test("stores an RS256 passkey as its COSE key", async () => {
     const t = setup();
     const credential = await generateRS256Credential();
     const { finish } = await registrationArgs(t, "user1", { credential });
@@ -649,9 +645,8 @@ describe("finishRegistration verification", () => {
     expect(result.success).toBe(true);
 
     const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
-    expect(row.algorithm).toBe("RS256");
-    const decoded = decodePKCS1RSAPublicKey(new Uint8Array(row.publicKey));
-    expect(decoded.e).toBe(65537n);
+    // A COSE key names its own algorithm, so RS256 needs no separate column.
+    expectSameBytes(row.publicKey, credential.cosePublicKey);
   });
 
   test.each([
@@ -781,6 +776,24 @@ describe("finishRegistration verification", () => {
     await expectProtocolError(finish, "carries no attested credential data");
   });
 
+  test("returns PROTOCOL_ERROR when the client data JSON carries no challenge", async () => {
+    const t = setup();
+    const { args } = await registrationArgs(t, "user1");
+    await expectProtocolError(
+      () =>
+        t.mutation(api.registration.finishRegistrationForExistingUser, {
+          ...args,
+          verifiedUserId: "user1",
+          clientDataJSON: toArrayBuffer(
+            new TextEncoder().encode(
+              JSON.stringify({ type: "webauthn.create", origin: ORIGIN }),
+            ),
+          ),
+        }),
+      "the client data JSON carries no challenge",
+    );
+  });
+
   test("returns PROTOCOL_ERROR for an unsupported public key algorithm", async () => {
     const t = setup();
     const credential = await generateES256Credential();
@@ -794,30 +807,10 @@ describe("finishRegistration verification", () => {
       ]),
     );
     const { finish } = await registrationArgs(t, "user1", { credential });
-    await expectProtocolError(
-      finish,
-      "the credential uses the COSE key algorithm -8",
-    );
-  });
-
-  test("returns PROTOCOL_ERROR for an unsupported elliptic curve", async () => {
-    const t = setup();
-    const credential = await generateES256Credential();
-    // ES256 with a P-384 (crv 2) key.
-    credential.cosePublicKey = encodeCBOR(
-      new Map<number, number | Uint8Array>([
-        [1, 2], // kty: EC2
-        [3, -7], // alg: ES256
-        [-1, 2], // crv: P-384
-        [-2, new Uint8Array(32)],
-        [-3, new Uint8Array(32)],
-      ]),
-    );
-    const { finish } = await registrationArgs(t, "user1", { credential });
-    await expectProtocolError(
-      finish,
-      "the credential uses the elliptic curve 2",
-    );
+    // The message of `@simplewebauthn/server` names the algorithms the
+    // ceremony offered. The assertion stays on the wrapper this component
+    // adds, because the wording of the library is not part of its contract.
+    await expectProtocolError(finish, "the attestation did not verify");
   });
 
   test("returns PROTOCOL_ERROR for a duplicate credential ID", async () => {

@@ -7,6 +7,16 @@ import { Infer, v } from "convex/values";
 // https://www.w3.org/TR/webauthn-3/#sctn-timeout-recommended-range
 export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// The COSE signature algorithms this provider accepts, as IANA identifiers
+// (https://www.iana.org/assignments/cose/cose.xhtml#algorithms). This list
+// is enforced when the attestation is verified. The client offers its own
+// `pubKeyCredParams` literal in `react.tsx`, so keep the two lists in sync
+// by hand. `@simplewebauthn/server` also verifies Ed25519 (-8).
+export const SUPPORTED_ALGORITHM_IDS = [
+  -7, // ES256
+  -257, // RS256
+];
+
 /**
  * Constants used for some basic best-effort validation of the
  * `transports` strings. These limits are far above the registered

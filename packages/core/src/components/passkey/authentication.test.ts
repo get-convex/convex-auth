@@ -1,6 +1,3 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { api } from "./_generated/api.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
 import {
   ORIGIN,
   RP_ID,
@@ -8,12 +5,16 @@ import {
   generateES256Credential,
   generateRS256Credential,
 } from "@convex-dev/passkey-test-authenticator";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   expectProtocolError,
   expectSameBytes,
   register,
   setup,
 } from "../passkeyTestSetup.ts";
+import { api } from "./_generated/api.ts";
+import { toArrayBuffer } from "./helpers.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
 
 // The component gives no purpose of its own: each app names its own flows.
 const PURPOSE = "test/signIn";
@@ -131,6 +132,36 @@ describe("finishAuthentication", () => {
     expect(challenges).toEqual([]);
   });
 
+  test("accepts an assertion whose counter did not increase", async () => {
+    // The component deliberately does not enforce counter growth: most
+    // authenticators always report 0, and a synced passkey can report a
+    // counter that moved backwards (see the `counter: 0` override in
+    // `finishAuthentication`).
+    const t = setup();
+    const { credential } = await register(t, "user1");
+    const authenticate = async (counter: number) => {
+      const { challenge } = await t.mutation(
+        api.authentication.startAuthentication,
+        { purpose: PURPOSE, userId: "user1" },
+      );
+      const assertion = await buildAssertion(credential, challenge, {
+        counter,
+      });
+      return t.mutation(api.authentication.finishAuthentication, {
+        ...EXPECTED,
+        ...assertion,
+      });
+    };
+
+    expect((await authenticate(7)).success).toBe(true);
+    // The same counter, and a counter that moved backwards, both pass.
+    expect((await authenticate(7)).success).toBe(true);
+    expect((await authenticate(3)).success).toBe(true);
+    // The reported value is still recorded for a future flow.
+    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(row.counter).toBe(3);
+  });
+
   test("authenticates with an RS256 passkey", async () => {
     const t = setup();
     const credential = await generateRS256Credential();
@@ -202,6 +233,29 @@ describe("finishAuthentication", () => {
           authenticatorData: new Uint8Array(10).buffer,
         }),
       "the authenticator data could not be read",
+    );
+  });
+
+  test("returns PROTOCOL_ERROR when the client data JSON carries no challenge", async () => {
+    const t = setup();
+    const { credential } = await register(t, "user1");
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { purpose: PURPOSE, userId: "user1" },
+    );
+    const assertion = await buildAssertion(credential, challenge);
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...assertion,
+          clientDataJSON: toArrayBuffer(
+            new TextEncoder().encode(
+              JSON.stringify({ type: "webauthn.get", origin: ORIGIN }),
+            ),
+          ),
+        }),
+      "the client data JSON carries no challenge",
     );
   });
 
@@ -464,14 +518,18 @@ describe("finishAuthentication", () => {
     });
   });
 
-  test("a PROTOCOL_ERROR of a check before the challenge lookup keeps it", async () => {
+  // The checks below run before the challenge lookup, so each one keeps the
+  // challenge. This is an ordering of the checks, not a guarantee about
+  // protocol errors: a check that runs after the lookup consumes the
+  // challenge, and a bad signature is one of them.
+  test("the checks before the challenge lookup keep the challenge", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
       { purpose: PURPOSE, userId: "user1" },
     );
-    // Every protocol check runs before the challenge is consumed, so the
+    // Each of these checks runs before the challenge is consumed, so the
     // same challenge serves each variant in turn.
     const variants = [
       { rpId: "evil.example.net" },
