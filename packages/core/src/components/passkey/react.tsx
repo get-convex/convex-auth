@@ -35,6 +35,8 @@ import type {
 } from "./setup.ts";
 import { CHALLENGE_TTL_MS } from "./validation.ts";
 
+export type { PasskeyClientError } from "./client.ts";
+
 /**
  * The `startSignIn` mutation the app re-exports from its `setupCore`.
  */
