@@ -63,7 +63,7 @@ export function decodeJwtPayloadUnverified(
  * ticket code, which is 256 bits of randomness.
  */
 async function deriveTicketPayloadKey(ticketCode: string): Promise<CryptoKey> {
-  // The prefix matters: the ticket row stores SHA-256(code) as its lookup
+  // The prefix matters: the ticket stores SHA-256(code) as its lookup
   // hash, so hashing the bare code here would make the stored hash the key.
   const keyBytes = await crypto.subtle.digest(
     "SHA-256",
