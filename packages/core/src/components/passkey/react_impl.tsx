@@ -153,12 +153,12 @@ export function usePasskeyAutofill<E = never>(options: {
   const wakeRef = useRef<(() => void) | null>(null);
   // The `AbortController` of the conditional request that this hook has in
   // flight, or `null` when it has none. The hook owns it, rather than
-  // letting the request loop own it, because an `AbortSignal` latches: an
-  // abort holds whether it arrives before, during, or after the `get()`
-  // call, so `pause` needs no acknowledgement from the loop and no ordering
-  // rule. It is also how the loop knows *who* ended a request: this hook
-  // aborts this controller and nobody else does, so an abort here is never
-  // another ceremony taking the browser's ceremony slot.
+  // letting `@simplewebauthn/browser` own the ceremony slot, because an
+  // `AbortSignal` latches: an abort holds whether it arrives before, during,
+  // or after the `get()` call, so `pause` needs no acknowledgement from the
+  // loop and no ordering rule. It is also how the loop knows *who* ended a
+  // request: this hook aborts this controller and nobody else does, so an
+  // abort here is never another ceremony taking the browser's ceremony slot.
   const controllerRef = useRef<AbortController | null>(null);
 
   // The loop reads the options through a ref: the callback identities

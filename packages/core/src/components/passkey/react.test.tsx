@@ -16,7 +16,7 @@ import {
 } from "./react.tsx";
 import { usePasskeyAutofill, usePasskeyCeremonySlot } from "./react_impl.tsx";
 
-import { fromBase64URL, toBase64URL } from "./base64url.ts";
+import { toBase64URL } from "./base64url.ts";
 
 const noopAutofill = { pause: () => {}, resume: () => {} };
 
@@ -50,24 +50,28 @@ const passkeyApi = {
 // The fake browser ceremonies
 //------------------------------------------------------------------------------
 //
-// jsdom has no WebAuthn, so the tests stub `navigator.credentials`. The
-// modal and the conditional ceremonies share one ceremony slot, the way the
-// browser does: starting any ceremony displaces a pending one, which
-// rejects with an `AbortError`. The tests own what each ceremony resolves
-// with through `ceremonyCreate` / `ceremonyGet` / `conditionalGet`.
+// Modal ceremonies run through `@simplewebauthn/browser`, which the tests
+// mock; the conditional request runs through `navigator.credentials`, which
+// they stub. Both share one ceremony slot, the way the browser does:
+// starting any ceremony displaces a pending one, which rejects with an
+// `AbortError`. The tests own what each ceremony resolves with through
+// `ceremonyCreate` / `ceremonyGet` / `conditionalGet`.
 
 const ceremonyCreate = vi.fn();
 const ceremonyGet = vi.fn();
-// The conditional request has its own control: the hook drives it with an
-// `AbortSignal` it owns, which the modal ceremonies do not take.
+// The conditional request does not go through the library (the hook owns
+// its `AbortSignal`), so it has its own control. It resolves with a
+// `PublicKeyCredential`, the way `navigator.credentials.get` does, rather
+// than with the JSON the library returns.
 const conditionalGet = vi.fn();
 
-// What a browser rejects an aborted ceremony with.
 function abortError() {
-  return new DOMException("Ceremony was aborted", "AbortError");
+  const error = new Error("Ceremony was aborted");
+  error.name = "AbortError";
+  return error;
 }
 
-let abortPending: ((reason: DOMException) => void) | null = null;
+let abortPending: ((reason: Error) => void) | null = null;
 
 function runInCeremonySlot<T>(run: () => Promise<T>): Promise<T> {
   abortPending?.(abortError());
@@ -88,39 +92,46 @@ function runInCeremonySlot<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /**
- * The fake `navigator.credentials`. Every ceremony goes through the slot,
- * and the conditional request honours the caller's signal: an
- * already-aborted one is refused on entry, which is the property the hook
- * relies on.
+ * The fake `navigator.credentials`, which the conditional path calls. It
+ * shares the ceremony slot with the library fake, the way the browser does,
+ * and it honours the caller's signal: an already-aborted one is refused on
+ * entry, which is the property the hook relies on.
  */
 function stubCredentials() {
   Object.defineProperty(globalThis.navigator, "credentials", {
     configurable: true,
     value: {
-      create: (options: unknown) =>
-        runInCeremonySlot(() => ceremonyCreate(options)),
-      get: (options: { mediation?: string; signal?: AbortSignal }) =>
-        options.mediation !== "conditional"
-          ? runInCeremonySlot(() => ceremonyGet(options))
-          : runInCeremonySlot(
-              () =>
-                new Promise((resolve, reject) => {
-                  const signal = options.signal;
-                  if (signal?.aborted) {
-                    reject(abortError());
-                    return;
-                  }
-                  signal?.addEventListener(
-                    "abort",
-                    () => reject(abortError()),
-                    { once: true },
-                  );
-                  conditionalGet(options).then(resolve, reject);
-                }),
-            ),
+      get: (options: { signal?: AbortSignal }) =>
+        runInCeremonySlot(
+          () =>
+            new Promise((resolve, reject) => {
+              const signal = options.signal;
+              if (signal?.aborted) {
+                reject(abortError());
+                return;
+              }
+              signal?.addEventListener("abort", () => reject(abortError()), {
+                once: true,
+              });
+              conditionalGet(options).then(resolve, reject);
+            }),
+        ),
     },
   });
 }
+
+vi.mock("@simplewebauthn/browser", () => ({
+  startRegistration: (options: unknown) =>
+    runInCeremonySlot(() => ceremonyCreate(options)),
+  startAuthentication: (options: unknown) =>
+    runInCeremonySlot(() => ceremonyGet(options)),
+  WebAuthnAbortService: {
+    cancelCeremony: () => {
+      abortPending?.(abortError());
+      abortPending = null;
+    },
+  },
+}));
 
 /** A ceremony that stays pending until the slot aborts it, like a real
  * conditional-mediation request until the user picks a passkey. */
@@ -176,8 +187,8 @@ const requestOptions = {
   userVerification: "required" as const,
 };
 
-// A stand-in for the credential `navigator.credentials.get()` returns, for
-// the modal and the conditional path alike. It encodes back to
+// The same assertion in the shape `navigator.credentials.get` resolves
+// with: bytes rather than base64url. It encodes back to
 // `wireAuthenticationResponse`.
 const conditionalCredential = {
   id: wire("cred-1"),
@@ -203,36 +214,45 @@ const authenticateStart = {
   options: requestOptions,
 };
 
-// A stand-in for the credential `navigator.credentials.create()` returns.
-// It encodes back to `wireRegistrationResponse`.
-const attestationCredential = {
-  id: wire("cred-1"),
-  rawId: bytes("cred-1"),
+// What the library resolves a `create()` ceremony with, including the
+// convenience fields that the hooks must prune off the wire.
+const registrationResponse = {
+  id: "cred-1",
+  rawId: "cred-1",
   response: {
-    clientDataJSON: bytes("client-data"),
-    attestationObject: bytes("attestation"),
-    getTransports: () => ["internal", "hybrid"],
+    clientDataJSON: "client-data",
+    attestationObject: "attestation",
+    transports: ["internal", "hybrid"],
+    publicKey: "public-key",
+    publicKeyAlgorithm: -7,
+    authenticatorData: "auth-data",
   },
+  authenticatorAttachment: "platform",
+  clientExtensionResults: { credProps: { rk: true } },
   type: "public-key",
 };
 
-// A stand-in for an older browser, whose attestation response has no
-// `getTransports` method.
-const attestationCredentialWithoutTransports = {
-  ...attestationCredential,
-  response: {
-    clientDataJSON: bytes("client-data"),
-    attestationObject: bytes("attestation"),
-  },
-};
-
-// The wire forms of the two responses, as the finish mutations receive them.
-const wireRegistrationResponse = {
+// What the library resolves a `get()` ceremony with.
+const authenticationResponse = {
   id: wire("cred-1"),
   rawId: wire("cred-1"),
   response: {
     clientDataJSON: wire("client-data"),
-    attestationObject: wire("attestation"),
+    authenticatorData: wire("auth-data"),
+    signature: wire("signature"),
+    userHandle: wire("handle-1"),
+  },
+  clientExtensionResults: {},
+  type: "public-key",
+};
+
+// The wire forms of the two responses, as the finish mutations receive them.
+const wireRegistrationResponse = {
+  id: "cred-1",
+  rawId: "cred-1",
+  response: {
+    clientDataJSON: "client-data",
+    attestationObject: "attestation",
     transports: ["internal", "hybrid"],
   },
   clientExtensionResults: {},
@@ -303,7 +323,7 @@ function renderPasskey() {
 describe("useUsernamePasskeySignIn signIn", () => {
   test("sign-up success runs the registration ceremony and adopts the session", async () => {
     mutations.startSignIn.mockResolvedValue(registerStart);
-    ceremonyCreate.mockResolvedValue(attestationCredential);
+    ceremonyCreate.mockResolvedValue(registrationResponse);
     mutations.finishSignUp.mockResolvedValue({ success: true, tokens: bundle });
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
@@ -314,20 +334,11 @@ describe("useUsernamePasskeySignIn signIn", () => {
     });
 
     expect(mutations.startSignIn).toHaveBeenCalledWith({ username: "alice" });
-    // The server-built options reach the browser with their binary fields
-    // decoded and everything else untouched.
-    const [createCall] = ceremonyCreate.mock.calls[0] as [
-      { publicKey: PublicKeyCredentialCreationOptions },
-    ];
-    expect(createCall.publicKey.challenge).toEqual(
-      fromBase64URL(creationOptions.challenge),
-    );
-    expect(createCall.publicKey.user.id).toEqual(
-      fromBase64URL(creationOptions.user.id),
-    );
-    expect(createCall.publicKey.rp).toEqual(creationOptions.rp);
-    expect(createCall.publicKey.attestation).toBe("none");
-    // The response reaches the finish mutation in the wire shape.
+    // The server-built options go to the browser untouched.
+    expect(ceremonyCreate).toHaveBeenCalledWith({
+      optionsJSON: creationOptions,
+    });
+    // The response reaches the finish mutation pruned to the wire shape.
     expect(mutations.finishSignUp).toHaveBeenCalledWith({
       username: "alice",
       response: wireRegistrationResponse,
@@ -337,28 +348,9 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(result.current.token).toBe("access-1");
   });
 
-  test("sends no transports when the browser has no getTransports", async () => {
-    mutations.startSignIn.mockResolvedValue(registerStart);
-    ceremonyCreate.mockResolvedValue(attestationCredentialWithoutTransports);
-    mutations.finishSignUp.mockResolvedValue({ success: true, tokens: bundle });
-    const { result } = renderPasskey();
-    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-
-    let returned!: UsernamePasskeySignInResult;
-    await act(async () => {
-      returned = await result.current.passkey.signIn({ username: "alice" });
-    });
-
-    expect(returned.success).toBe(true);
-    const [args] = mutations.finishSignUp.mock.calls[0] as [
-      { response: { response: { transports?: string[] } } },
-    ];
-    expect(args.response.response).not.toHaveProperty("transports");
-  });
-
   test("sign-in success runs the authentication ceremony and adopts the session", async () => {
     mutations.startSignIn.mockResolvedValue(authenticateStart);
-    ceremonyGet.mockResolvedValue(conditionalCredential);
+    ceremonyGet.mockResolvedValue(authenticationResponse);
     mutations.finishSignIn.mockResolvedValue({
       success: true,
       tokens: bundle,
@@ -372,19 +364,9 @@ describe("useUsernamePasskeySignIn signIn", () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
 
-    const [getCall] = ceremonyGet.mock.calls[0] as [
-      { publicKey: PublicKeyCredentialRequestOptions },
-    ];
-    expect(getCall.publicKey.challenge).toEqual(
-      fromBase64URL(requestOptions.challenge),
-    );
-    expect(getCall.publicKey.rpId).toBe(requestOptions.rpId);
-    expect(getCall.publicKey.allowCredentials).toEqual(
-      requestOptions.allowCredentials.map((descriptor) => ({
-        ...descriptor,
-        id: fromBase64URL(descriptor.id),
-      })),
-    );
+    expect(ceremonyGet).toHaveBeenCalledWith({
+      optionsJSON: requestOptions,
+    });
     expect(mutations.finishSignIn).toHaveBeenCalledWith({
       response: wireAuthenticationResponse,
     });
@@ -475,7 +457,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     // The first call still completes normally.
     let firstResult!: UsernamePasskeySignInResult;
     await act(async () => {
-      resolveCeremony(conditionalCredential);
+      resolveCeremony(authenticationResponse);
       firstResult = await first;
     });
     expect(firstResult).toEqual({
@@ -613,7 +595,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
       // ceremony started. The signal latches, thus this holds whether the
       // pause landed while the request was pending or still starting.
       expect(conditionalSignal?.aborted).toBe(true);
-      return Promise.resolve(conditionalCredential);
+      return Promise.resolve(authenticationResponse);
     });
     mutations.startSignIn.mockResolvedValue(authenticateStart);
     mutations.finishSignIn.mockResolvedValue({

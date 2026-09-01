@@ -7,11 +7,10 @@
  * file. It becomes a public entry point only when a real non-React consumer
  * asks for one.
  *
- * These functions wrap the WebAuthn ceremonies (`navigator.credentials`),
- * modal and conditional. They do not depend on React and they do not call
- * any Convex function: a flow starts a ceremony with data from its start
- * mutation, runs the ceremony here, and sends the result to its finish
- * mutation.
+ * These functions wrap the modal WebAuthn ceremonies through
+ * `@simplewebauthn/browser`. They do not call any Convex function: a flow
+ * gets an `options` object from its start mutation, runs the ceremony here,
+ * and sends the response to its finish mutation.
  *
  * The functions never throw. They return discriminated unions, and they
  * fold every failure into the {@link PasskeyClientError} shape, so callers
@@ -22,6 +21,17 @@
  * @module
  */
 
+import {
+  startAuthentication,
+  startRegistration,
+  WebAuthnAbortService,
+} from "@simplewebauthn/browser";
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from "@simplewebauthn/browser";
 import type {
   WireAuthenticationResponse,
   WireCreationOptions,
@@ -30,8 +40,15 @@ import type {
 } from "./validation.ts";
 import { fromBase64URL, toBase64URL } from "./base64url.ts";
 
-// Apps and custom flows read the wire shapes from here: they are the exact
-// shapes of the provider's mutations.
+// Apps and custom flows read the WebAuthn JSON types from here, so they
+// never depend on `@simplewebauthn/*` directly. The `Wire…` variants are
+// the exact shapes of the provider's mutations.
+export type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+};
 export type {
   WireAuthenticationResponse,
   WireCreationOptions,
@@ -43,9 +60,13 @@ export type {
  * The failures the browser side produces (the server never returns these):
  *
  * - `CEREMONY_ABORTED`: the user dismissed the passkey dialog, the browser
- *   refused the ceremony (`NotAllowedError`), or the caller aborted it
- *   through an `AbortSignal`. This is the most common failure; show a calm
- *   "sign-in was cancelled" message.
+ *   refused the ceremony (`NotAllowedError`), or another ceremony displaced
+ *   this one. This is the most common failure; show a calm "sign-in was
+ *   cancelled" message.
+ * - `PASSKEY_ALREADY_REGISTERED`: the authenticator refused a registration
+ *   because it already holds a passkey for this account
+ *   (`InvalidStateError`, usually via `excludeCredentials`). Tell the user
+ *   they can sign in with the passkey they already have.
  * - `WEBAUTHN_UNSUPPORTED`: the browser has no WebAuthn support, or the
  *   page is not a secure context.
  * - `OTHER_ERROR`: everything else thrown (a network blip, a bug, an
@@ -54,6 +75,7 @@ export type {
  */
 export type PasskeyClientError =
   | { error: "CEREMONY_ABORTED" }
+  | { error: "PASSKEY_ALREADY_REGISTERED" }
   | { error: "WEBAUTHN_UNSUPPORTED" }
   | { error: "OTHER_ERROR"; cause: unknown };
 
@@ -97,112 +119,86 @@ export function supportsWebAuthn(): boolean {
 
 /**
  * Fold a thrown value into the {@link PasskeyClientError} shape, so callers
- * handle every failure through one `userError` switch. Useful for custom
- * flows that call `navigator.credentials` or a mutation themselves.
+ * handle every failure through one `userError` switch.
+ *
+ * The browser errors keep their `name` when `@simplewebauthn/browser` wraps
+ * them in a `WebAuthnError`, so one check covers both the wrapped and the
+ * raw form:
+ *
+ * - `NotAllowedError` is what the browser throws when the user dismisses
+ *   the dialog, when the ceremony times out, and when the page is not
+ *   allowed to run one. `AbortError` is a ceremony that another one
+ *   displaced (see {@link cancelPendingCeremony}). A `null` credential
+ *   cannot happen through `@simplewebauthn/browser` (it throws instead).
+ * - `InvalidStateError` is the authenticator refusing to make a second
+ *   passkey for a credential in `excludeCredentials`.
  */
 export function foldClientError(cause: unknown): PasskeyClientError {
-  // `NotAllowedError` is what the browser throws when the user dismisses
-  // the dialog, when the ceremony times out, and when the page is not
-  // allowed to run one. `AbortError` is what an `AbortSignal` produces.
-  // A `null` credential is handled separately.
-  if (
-    cause instanceof DOMException &&
-    (cause.name === "NotAllowedError" || cause.name === "AbortError")
-  ) {
-    return { error: "CEREMONY_ABORTED" };
+  // `DOMException` does not extend `Error` in every runtime.
+  if (cause instanceof Error || cause instanceof DOMException) {
+    if (cause.name === "NotAllowedError" || cause.name === "AbortError") {
+      return { error: "CEREMONY_ABORTED" };
+    }
+    if (cause.name === "InvalidStateError") {
+      return { error: "PASSKEY_ALREADY_REGISTERED" };
+    }
   }
   return { error: "OTHER_ERROR", cause };
 }
 
 /**
- * Turn the JSON credential descriptors of the wire into the DOM shape of
- * `allowCredentials` and `excludeCredentials`.
+ * Keep only the fields of a registration response that the finish
+ * mutations accept. `@simplewebauthn/browser` adds convenience fields
+ * (`publicKey`, `publicKeyAlgorithm`, `authenticatorData`,
+ * `authenticatorAttachment`) that duplicate data from the attestation
+ * object, and the exact server validators refuse them.
  */
-function descriptorsFromJSON(
-  descriptors: WireRequestOptions["allowCredentials"],
-): PublicKeyCredentialDescriptor[] {
-  return descriptors.map(({ id, type, transports }) => ({
-    id: fromBase64URL(id),
-    type,
-    // The wire keeps `transports` as free-form strings, because the
-    // WebAuthn spec lets new transports appear; the DOM type does not.
-    transports: transports as AuthenticatorTransport[] | undefined,
-  }));
-}
-
-/**
- * Turn the creation options of the wire into the DOM shape that
- * `navigator.credentials.create()` takes: every binary field is base64url
- * on the wire and a `BufferSource` in the API.
- */
-function creationOptionsFromJSON(
-  options: WireCreationOptions,
-): PublicKeyCredentialCreationOptions {
-  return {
-    rp: options.rp,
-    user: {
-      id: fromBase64URL(options.user.id),
-      name: options.user.name,
-      displayName: options.user.displayName,
-    },
-    challenge: fromBase64URL(options.challenge),
-    pubKeyCredParams: options.pubKeyCredParams,
-    timeout: options.timeout,
-    excludeCredentials: descriptorsFromJSON(options.excludeCredentials),
-    authenticatorSelection: options.authenticatorSelection,
-    attestation: options.attestation,
-    extensions: options.extensions,
-  };
-}
-
-/** Turn the request options of the wire into the DOM shape that
- * `navigator.credentials.get()` takes (see
- * {@link creationOptionsFromJSON}). */
-function requestOptionsFromJSON(
-  options: WireRequestOptions,
-): PublicKeyCredentialRequestOptions {
-  return {
-    challenge: fromBase64URL(options.challenge),
-    timeout: options.timeout,
-    rpId: options.rpId,
-    allowCredentials: descriptorsFromJSON(options.allowCredentials),
-    userVerification: options.userVerification,
-  };
-}
-
-/**
- * Put an attestation credential from a `create()` call into the wire
- * shape.
- */
-function attestationToJSON(
-  credential: PublicKeyCredential,
+function pruneRegistrationResponse(
+  response: RegistrationResponseJSON,
 ): WireRegistrationResponse {
-  const response = credential.response as AuthenticatorAttestationResponse;
-  // Older browsers have no `getTransports`. Then the server stores no
-  // transports for this credential.
-  const transports =
-    typeof response.getTransports === "function"
-      ? response.getTransports()
-      : undefined;
   return {
-    id: credential.id,
-    rawId: toBase64URL(credential.rawId),
+    id: response.id,
+    rawId: response.rawId,
     response: {
-      clientDataJSON: toBase64URL(response.clientDataJSON),
-      attestationObject: toBase64URL(response.attestationObject),
-      ...(transports !== undefined ? { transports } : {}),
+      clientDataJSON: response.response.clientDataJSON,
+      attestationObject: response.response.attestationObject,
+      ...(response.response.transports !== undefined
+        ? { transports: response.response.transports }
+        : {}),
     },
     // The options request no extensions, so there is nothing to report.
     clientExtensionResults: {},
-    type: "public-key",
+    type: response.type,
+  };
+}
+
+/** Keep only the fields of an authentication response that the finish
+ * mutations accept (see {@link pruneRegistrationResponse}). */
+function pruneAuthenticationResponse(
+  response: AuthenticationResponseJSON,
+): WireAuthenticationResponse {
+  return {
+    id: response.id,
+    rawId: response.rawId,
+    response: {
+      clientDataJSON: response.response.clientDataJSON,
+      authenticatorData: response.response.authenticatorData,
+      signature: response.response.signature,
+      ...(response.response.userHandle !== undefined
+        ? { userHandle: response.response.userHandle }
+        : {}),
+    },
+    clientExtensionResults: {},
+    type: response.type,
   };
 }
 
 /**
  * Run a modal registration ceremony (a WebAuthn `create()` call).
  *
- * `options` comes from a start mutation, ready for the browser: this
- * function only decodes its binary fields.
+ * `options` comes from a start mutation, ready for the browser. Starting a
+ * ceremony displaces a pending one anywhere on the page (they share one
+ * browser-level slot; see {@link cancelPendingCeremony}).
  */
 export async function register(
   options: WireCreationOptions,
@@ -211,13 +207,13 @@ export async function register(
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
   try {
-    const credential = (await navigator.credentials.create({
-      publicKey: creationOptionsFromJSON(options),
-    })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
-    if (credential === null) {
-      return { success: false, userError: { error: "CEREMONY_ABORTED" } };
-    }
-    return { success: true, response: attestationToJSON(credential) };
+    const response = await startRegistration({
+      // The wire keeps `transports` as free-form strings, because the
+      // WebAuthn spec lets new transports appear; the library type does
+      // not.
+      optionsJSON: options as PublicKeyCredentialCreationOptionsJSON,
+    });
+    return { success: true, response: pruneRegistrationResponse(response) };
   } catch (cause) {
     return { success: false, userError: foldClientError(cause) };
   }
@@ -226,8 +222,9 @@ export async function register(
 /**
  * Run a modal authentication ceremony (a WebAuthn `get()` call).
  *
- * `options` comes from a start mutation, ready for the browser: this
- * function only decodes its binary fields.
+ * `options` comes from a start mutation, ready for the browser. Starting a
+ * ceremony displaces a pending one anywhere on the page (they share one
+ * browser-level slot; see {@link cancelPendingCeremony}).
  *
  * For the conditional-mediation flow, which stays pending until the user
  * picks a passkey in the autocompletion list of an
@@ -241,13 +238,11 @@ export async function authenticate(
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
   try {
-    const credential = (await navigator.credentials.get({
-      publicKey: requestOptionsFromJSON(options),
-    })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
-    if (credential === null) {
-      return { success: false, userError: { error: "CEREMONY_ABORTED" } };
-    }
-    return { success: true, response: assertionToJSON(credential) };
+    const response = await startAuthentication({
+      // See the `transports` note in `register`.
+      optionsJSON: options as PublicKeyCredentialRequestOptionsJSON,
+    });
+    return { success: true, response: pruneAuthenticationResponse(response) };
   } catch (cause) {
     return { success: false, userError: foldClientError(cause) };
   }
@@ -260,6 +255,19 @@ export async function authenticate(
  *
  * `signal` aborts it. This is required because the caller is expected to
  * periodically recreate a new ceremony (because every ceremony has a timeout).
+ *
+ * This one call does not go through `@simplewebauthn/browser`, and the
+ * reason is `signal`. `startAuthentication` always overwrites the abort
+ * signal with one from its own singleton, which it creates *after* it
+ * awaits its autofill-support probe. A caller that aborts in that window
+ * aborts nothing, and the request then takes the ceremony slot from
+ * whoever the caller was making room for. An `AbortSignal` the caller owns
+ * has neither problem: it latches, so `get()` refuses an already-aborted
+ * one on entry, and no ordering matters.
+ *
+ * The caller feature-detects conditional mediation once, so this function
+ * does not repeat the probe (which is the `await` that opens that window
+ * in the library).
  */
 export async function authenticateWithAutofill(
   options: WireRequestOptions,
@@ -297,7 +305,8 @@ export async function authenticateWithAutofill(
 }
 
 /**
- * Put an assertion credential from a `get()` call into the wire shape.
+ * Put a `PublicKeyCredential` from a `get()` call into the wire shape, the
+ * way `startAuthentication` of `@simplewebauthn/browser` does.
  */
 function assertionToJSON(
   credential: PublicKeyCredential,
@@ -317,4 +326,18 @@ function assertionToJSON(
     clientExtensionResults: {},
     type: "public-key",
   };
+}
+
+/**
+ * Cancel the pending WebAuthn ceremony of this page, if one exists. The
+ * pending request rejects with an `AbortError`, which
+ * {@link foldClientError} folds into `CEREMONY_ABORTED`.
+ *
+ * The browser runs one ceremony at a time per page, and
+ * `@simplewebauthn/browser` manages that slot with a singleton: starting a
+ * new ceremony displaces the pending one the same way. The singleton stays
+ * an implementation detail behind this function.
+ */
+export function cancelPendingCeremony(): void {
+  WebAuthnAbortService.cancelCeremony();
 }
