@@ -19,13 +19,23 @@ import type { FunctionReference } from "convex/server";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
+import {
+  assertionFromCredential,
+  foldClientError,
+  runAuthenticationCeremony,
+  runRegistrationCeremony,
+  supportsWebAuthn,
+  type PasskeyClientError,
+} from "./client.ts";
 import type {
   FinishSignInResult,
   FinishSignUpResult,
   StartAutofillSignInResult,
   StartSignInResult,
 } from "./setup.ts";
-import { CHALLENGE_TTL_MS, type CredentialDescriptor } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
+
+export type { PasskeyClientError } from "./client.ts";
 
 /**
  * The `startSignIn` mutation the app re-exports from its `setupCore`.
@@ -91,27 +101,16 @@ export type PasskeyApi = {
 };
 
 /**
- * Failures the client produces that the server never returns. The hook
- * folds them into the result so callers handle *every* failure through the
- * one `userError` switch and never need their own `try`/`catch`:
- *
- * - `CEREMONY_ABORTED`: the user dismissed the passkey dialog, the browser
- *   refused the ceremony (`NotAllowedError`), or a second `signIn` call
- *   came in while one was already running (the browser would refuse the
- *   second modal ceremony anyway). This is the most common failure; show a
- *   calm "sign-in was cancelled" message.
- * - `WEBAUTHN_UNSUPPORTED`: the browser has no WebAuthn support, or the
- *   page is not a secure context.
- * - `OTHER_ERROR`: everything else thrown (a network blip, a bug, an
- *   unexpected server error). The thrown value is preserved on `cause` for
- *   callers that want to inspect or log it.
+ * Failures the client produces that the server never returns (see
+ * {@link PasskeyClientError}). The hook folds them into the result so
+ * callers handle *every* failure through the one `userError` switch and
+ * never need their own `try`/`catch`. A second `signIn` call while one is
+ * already running also folds into `CEREMONY_ABORTED` (the browser would
+ * refuse the second modal ceremony anyway).
  */
 type ClientFailure = {
   success: false;
-  userError:
-    | { error: "CEREMONY_ABORTED" }
-    | { error: "WEBAUTHN_UNSUPPORTED" }
-    | { error: "OTHER_ERROR"; cause: unknown };
+  userError: PasskeyClientError;
 };
 
 /**
@@ -178,32 +177,6 @@ type AutofillHandle = {
   resume: () => void;
 };
 
-function supportsWebAuthn(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof PublicKeyCredential !== "undefined" &&
-    window.isSecureContext
-  );
-}
-
-function isCeremonyAborted(cause: unknown): boolean {
-  // `NotAllowedError` is what the browser throws when the user dismisses
-  // the dialog, when the ceremony times out, and when the page is not
-  // allowed to run one. A `null` credential is handled separately.
-  return cause instanceof DOMException && cause.name === "NotAllowedError";
-}
-
-/**
- * Fold a thrown value into the {@link ClientFailure} `userError` shape, so
- * callers handle every failure through the one `userError` switch.
- */
-function foldClientError(cause: unknown): ClientFailure["userError"] {
-  if (isCeremonyAborted(cause)) {
-    return { error: "CEREMONY_ABORTED" };
-  }
-  return { error: "OTHER_ERROR", cause };
-}
-
 /**
  * When the thrown value is the abort of the given signal, return the abort
  * reason. Return `null` for every other error, even when the signal aborted
@@ -232,124 +205,6 @@ function autofillAbortReason(
     return "STOP";
   }
   return null;
-}
-
-/** The `finishSignIn` arguments derived from a WebAuthn assertion. */
-type AssertionArgs = {
-  credentialId: ArrayBuffer;
-  authenticatorData: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  signature: ArrayBuffer;
-};
-
-/**
- * Turn an assertion credential into the `finishSignIn` arguments. Shared
- * between the modal authenticate path and the autofill path.
- */
-function assertionArgs(credential: PublicKeyCredential): AssertionArgs {
-  const response = credential.response as AuthenticatorAssertionResponse;
-  return {
-    // `rawId` carries the credential ID bytes; `credential.id` is the
-    // base64url form and must not be sent.
-    credentialId: credential.rawId,
-    authenticatorData: response.authenticatorData,
-    clientDataJSON: response.clientDataJSON,
-    signature: response.signature,
-  };
-}
-
-/**
- * Turn the credential descriptors from the server into the WebAuthn shape
- * of `allowCredentials`.
- */
-function credentialDescriptors(
-  credentials: CredentialDescriptor[],
-): PublicKeyCredentialDescriptor[] {
-  return credentials.map(({ id, transports }) => ({
-    type: "public-key",
-    id,
-    // The database stores a string array, we’re converting here
-    // to the narrower DOM type ("internal" | "hybrid" | "usb" | "nfc" | … )
-    transports: transports as AuthenticatorTransport[] | undefined,
-  }));
-}
-
-/**
- * Run the modal registration ceremony and return the `finishSignUp`
- * arguments, or `null` when the browser returns no credential.
- */
-async function runRegistrationCeremony(
-  username: string,
-  start: Extract<StartSignInResult, { step: "register" }>,
-): Promise<{
-  username: string;
-  attestationObject: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  transports?: string[];
-} | null> {
-  const credential = (await navigator.credentials.create({
-    publicKey: {
-      challenge: start.challenge,
-      rp: { id: start.rpId, name: start.rpName },
-      // The handle comes from the server: the app user id cannot be used,
-      // because the user row does not exist yet.
-      user: {
-        id: start.userHandle,
-        name: username,
-        displayName: username,
-      },
-      // Exactly the algorithms the server accepts (ES256 and RS256; see
-      // the verification in `registration.ts`).
-      pubKeyCredParams: [
-        { type: "public-key", alg: -7 }, // ES256
-        { type: "public-key", alg: -257 }, // RS256
-      ],
-      // A discoverable credential is required for autofill, and the
-      // server hard-requires user verification.
-      authenticatorSelection: {
-        residentKey: "required",
-        requireResidentKey: true,
-        userVerification: "required",
-      },
-      attestation: "none",
-    },
-  })) as PublicKeyCredential | null;
-  if (credential === null) {
-    return null;
-  }
-  const response = credential.response as AuthenticatorAttestationResponse;
-  return {
-    username,
-    attestationObject: response.attestationObject,
-    clientDataJSON: response.clientDataJSON,
-    // Older browsers have no `getTransports`. Then the server stores no
-    // transports for this credential.
-    transports:
-      typeof response.getTransports === "function"
-        ? response.getTransports()
-        : undefined,
-  };
-}
-
-/**
- * Run the modal authentication ceremony and return the `finishSignIn`
- * arguments, or `null` when the browser returns no credential.
- */
-async function runAuthenticationCeremony(
-  start: Extract<StartSignInResult, { step: "authenticate" }>,
-): Promise<AssertionArgs | null> {
-  const credential = (await navigator.credentials.get({
-    publicKey: {
-      challenge: start.challenge,
-      rpId: start.rpId,
-      allowCredentials: credentialDescriptors(start.allowCredentials),
-      userVerification: "required",
-    },
-  })) as PublicKeyCredential | null;
-  if (credential === null) {
-    return null;
-  }
-  return assertionArgs(credential);
 }
 
 /**
@@ -481,14 +336,26 @@ export function usePasskey(
         }
 
         if (start.step === "register") {
-          const args = await runRegistrationCeremony(username, start);
-          if (args === null) {
-            return { success: false, userError: { error: "CEREMONY_ABORTED" } };
+          const ceremony = await runRegistrationCeremony({
+            challenge: start.challenge,
+            rpId: start.rpId,
+            rpName: start.rpName,
+            // The handle comes from the server: the app user id cannot be
+            // used, because the user row does not exist yet.
+            userHandle: start.userHandle,
+            userName: username,
+            userDisplayName: username,
+            // A sign-up ceremony makes the first passkey of a brand-new
+            // user, so there are no credentials to exclude.
+            excludeCredentials: [],
+          });
+          if (!ceremony.success) {
+            return ceremony;
           }
-          const result = await signInApi.mutation(
-            passkeyApi.finishSignUp,
-            args,
-          );
+          const result = await signInApi.mutation(passkeyApi.finishSignUp, {
+            username,
+            ...ceremony.attestation,
+          });
           if (!result.success) {
             return result;
           }
@@ -496,11 +363,18 @@ export function usePasskey(
           return { ...result, flow: "signUp" };
         }
 
-        const args = await runAuthenticationCeremony(start);
-        if (args === null) {
-          return { success: false, userError: { error: "CEREMONY_ABORTED" } };
+        const ceremony = await runAuthenticationCeremony({
+          challenge: start.challenge,
+          rpId: start.rpId,
+          allowCredentials: start.allowCredentials,
+        });
+        if (!ceremony.success) {
+          return ceremony;
         }
-        const result = await signInApi.mutation(passkeyApi.finishSignIn, args);
+        const result = await signInApi.mutation(
+          passkeyApi.finishSignIn,
+          ceremony.assertion,
+        );
         if (!result.success) {
           return result;
         }
@@ -694,7 +568,7 @@ export function usePasskey(
           const { passkeyApi, signInApi, setSession } = currentRef.current;
           const result = await signInApi.mutation(
             passkeyApi.finishSignIn,
-            assertionArgs(credential),
+            assertionFromCredential(credential),
           );
           if (result.success) {
             // Residual race with the modal flow: when the user resolves
