@@ -1,14 +1,7 @@
 import { v } from "convex/values";
 import { env, internalMutation, mutation } from "./_generated/server.ts";
-import { CALLBACK_PATH } from "./constants.ts";
-
-/** How long an authorization request stays claimable by the callback. */
-const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000; // 10m
-
-/** How long a minted ticket stays redeemable. Redemption is normally the
- * page load right after the callback redirect, so this only needs slack
- * for slow devices and networks. */
-const TICKET_TTL_MS = 2 * 60 * 1000;
+import type { Doc } from "./_generated/dataModel.ts";
+import * as db from "../shared/db.ts";
 
 /**
  * Record an in-flight authorization request. Called by the app-side
@@ -33,32 +26,13 @@ export const createAuthorizationRequest = mutation({
     callbackUrl: v.string(),
   }),
   handler: async (ctx, args) => {
-    // System env vars are only visible inside components on backends with
-    // get-convex/convex-backend@64c163a (July 2026); cloud always has it,
-    // self-hosted may not.
-    // TODO: remove this check when no longer needed.
-    const siteUrl = process.env.CONVEX_SITE_URL;
-    if (siteUrl === undefined) {
-      throw new Error(
-        "CONVEX_SITE_URL is not visible inside the oauth component. " +
-          "This requires a Convex backend with system env vars in component " +
-          "functions (get-convex/convex-backend@64c163a, July 2026).",
-      );
-    }
-    const callbackUrl = `${siteUrl}${CALLBACK_PATH}`;
-    await ctx.db.insert("authorizationRequests", {
-      ...args,
-      callbackUrl,
-      expiresAt: Date.now() + AUTHORIZATION_REQUEST_TTL_MS,
-    });
+    const { callbackUrl } = await db.insertAuthorizationRequest(ctx, args);
     return { clientId: env.CLIENT_ID, callbackUrl };
   },
 });
 
 /**
- * The second half of the OAuth flow: after the user authenticates, the
- * provider redirects back to this component's HTTP callback route, which
- * calls this to claim the matching request by state hash.
+ * Claim the authorization request the provider's callback is answering.
  *
  * If the request record has expired, it is deleted and its `redirectTo` is
  * returned so the callback can send the user back to the app instead of
@@ -87,27 +61,26 @@ export const claimAuthorizationRequest = internalMutation({
     }),
   ),
   handler: async (ctx, args) => {
-    const request = await ctx.db
-      .query("authorizationRequests")
-      .withIndex("stateHash", (q) => q.eq("stateHash", args.stateHash))
-      .unique();
-    if (request === null) {
+    const claimed = await db.claimAuthorizationRequest<
+      Doc<"authorizationRequests">
+    >(ctx, args.stateHash);
+    if (claimed === null) {
       return null;
     }
-    await ctx.db.delete("authorizationRequests", request._id);
-    if (request.expiresAt < Date.now()) {
-      return { expired: true as const, redirectTo: request.redirectTo };
+    if (claimed.expired) {
+      return { expired: true as const, redirectTo: claimed.redirectTo };
     }
+    const { doc } = claimed;
     return {
       expired: false as const,
-      providerName: request.providerName,
-      stateHash: request.stateHash,
-      redirectTo: request.redirectTo,
-      callbackUrl: request.callbackUrl,
-      codeVerifier: request.codeVerifier,
-      tokenEndpoint: request.tokenEndpoint,
-      userInfoEndpoints: request.userInfoEndpoints,
-      issuers: request.issuers,
+      providerName: doc.providerName,
+      stateHash: doc.stateHash,
+      redirectTo: doc.redirectTo,
+      callbackUrl: doc.callbackUrl,
+      codeVerifier: doc.codeVerifier,
+      tokenEndpoint: doc.tokenEndpoint,
+      userInfoEndpoints: doc.userInfoEndpoints,
+      issuers: doc.issuers,
     };
   },
 });
@@ -126,13 +99,7 @@ export const createTicket = internalMutation({
     encryptedPayload: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.insert("tickets", {
-      ...args,
-      expiresAt: Date.now() + TICKET_TTL_MS,
-    });
-    return null;
-  },
+  handler: async (ctx, args) => await db.insertTicket(ctx, args),
 });
 
 /**
@@ -156,27 +123,10 @@ export const claimTicket = mutation({
       encryptedPayload: v.string(),
     }),
   ),
-  handler: async (ctx, args) => {
-    const ticket = await ctx.db
-      .query("tickets")
-      .withIndex("ticketCodeHash", (q) =>
-        q.eq("ticketCodeHash", args.ticketCodeHash),
-      )
-      .unique();
-    if (ticket === null) {
-      return null;
-    }
-    if (ticket.expiresAt < Date.now()) {
-      await ctx.db.delete("tickets", ticket._id);
-      return null;
-    }
-    if (
-      ticket.stateHash !== args.stateHash ||
-      ticket.providerName !== args.providerName
-    ) {
-      return null;
-    }
-    await ctx.db.delete("tickets", ticket._id);
-    return { encryptedPayload: ticket.encryptedPayload };
-  },
+  handler: async (ctx, args) =>
+    await db.claimTicket<Doc<"tickets">>(ctx, {
+      ticketCodeHash: args.ticketCodeHash,
+      stateHash: args.stateHash,
+      match: (ticket) => ticket.providerName === args.providerName,
+    }),
 });

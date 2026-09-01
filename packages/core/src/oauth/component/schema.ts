@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authorizationRequestFields, ticketFields } from "../shared/schema.ts";
 
 export default defineSchema({
   /**
@@ -7,14 +8,9 @@ export default defineSchema({
    * provider callback.
    */
   authorizationRequests: defineTable({
+    ...authorizationRequestFields,
     /** Provider the request was issued for, e.g. "google". */
     providerName: v.string(),
-    /** Hash of the server-minted state. The raw value is never stored. */
-    stateHash: v.string(),
-    /** Post-login destination, validated against allowed redirects at sign-in. */
-    redirectTo: v.string(),
-    /** The OAuth `redirect_uri`. */
-    callbackUrl: v.string(),
     /**
      * PKCE code verifier, present only when the provider config enables PKCE.
      * Stored raw because it must be sent to the provider at code exchange.
@@ -33,8 +29,6 @@ export default defineSchema({
      * id_tokens, copied from app-side config. Absent for non-oidc providers.
      */
     issuers: v.optional(v.array(v.string())),
-    /** The callback rejects requests older than this. */
-    expiresAt: v.number(),
   }).index("stateHash", ["stateHash"]),
 
   /**
@@ -43,35 +37,14 @@ export default defineSchema({
    * caller presenting the raw ticket code plus the original client state.
    * Nothing user-visible (accounts, users, sessions) is created until
    * redemption.
+   *
+   * The encrypted payload holds `{ claims, userInfoResponses }`. Which of the
+   * two is present depends on what the app configured its provider with, and
+   * at least one always is.
    */
   tickets: defineTable({
+    ...ticketFields,
     /** Provider that authenticated the user, e.g. "google". */
     providerName: v.string(),
-    /**
-     * Carried over from the authorization request. Redemption re-checks the
-     * caller-presented state against it, binding completion to the browser
-     * or server that initiated the flow.
-     */
-    stateHash: v.string(),
-    /**
-     * sha256 of the server-minted ticket code. The raw value appears only
-     * in the callback redirect URL and is never stored.
-     */
-    ticketCodeHash: v.string(),
-    /**
-     * Redemption rejects tickets past this. Set at mint from
-     * `TICKET_TTL_MS` in provider.ts (2 minutes).
-     */
-    expiresAt: v.number(),
-    /**
-     * The identity the provider attested: JSON of
-     * `{ claims, userInfoResponses }` (id_token claims when the provider
-     * returned one, userinfo responses keyed by the configured endpoint
-     * names; at least one is present), AES-GCM encrypted with a key derived
-     * from the raw ticket code. The raw code is never stored, so
-     * database access alone cannot read the payload, and provider-chosen
-     * JSON keys never become Convex field names.
-     */
-    encryptedPayload: v.string(),
   }).index("ticketCodeHash", ["ticketCodeHash"]),
 });
