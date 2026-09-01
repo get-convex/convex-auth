@@ -8,12 +8,48 @@ import {
   decodeBase64url,
   encodeBase64url,
   sha256,
-  toArrayBuffer,
   toDERSignature,
 } from "./bytes.ts";
 import { encodeCBOR, type CBORValue } from "./cbor.ts";
 
 export { encodeCBOR, type CBORValue };
+
+/**
+ * The `RegistrationResponseJSON` wire envelope of a `create()` call, pruned
+ * to the fields that the exact validators of a relying party accept.
+ */
+export type RegistrationResponseEnvelope = {
+  id: string;
+  rawId: string;
+  response: {
+    clientDataJSON: string;
+    attestationObject: string;
+    transports?: string[];
+  };
+  clientExtensionResults: Record<string, never>;
+  type: "public-key";
+};
+
+/** The `AuthenticationResponseJSON` wire envelope of a `get()` call. */
+export type AuthenticationResponseEnvelope = {
+  id: string;
+  rawId: string;
+  response: {
+    clientDataJSON: string;
+    authenticatorData: string;
+    signature: string;
+    userHandle?: string;
+  };
+  clientExtensionResults: Record<string, never>;
+  type: "public-key";
+};
+
+/** Encode ceremony bytes the way the JSON wire carries them. */
+export function toBase64URL(bytes: Uint8Array | ArrayBuffer): string {
+  return encodeBase64url(
+    bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes),
+  );
+}
 
 /**
  * The relying party that the authenticator uses when a caller names none. An
@@ -92,16 +128,17 @@ export function buildClientDataJSON({
   crossOrigin,
 }: {
   type: "webauthn.create" | "webauthn.get";
-  challenge: ArrayBuffer | Uint8Array;
+  // Raw challenge bytes, or the base64url string of an options object.
+  challenge: ArrayBuffer | Uint8Array | string;
   origin: string;
   crossOrigin?: boolean;
 }): Uint8Array {
-  const bytes =
-    challenge instanceof Uint8Array ? challenge : new Uint8Array(challenge);
+  const base64url =
+    typeof challenge === "string" ? challenge : toBase64URL(challenge);
   return new TextEncoder().encode(
     JSON.stringify({
       type,
-      challenge: encodeBase64url(bytes),
+      challenge: base64url,
       origin,
       ...(crossOrigin !== undefined ? { crossOrigin } : {}),
     }),
@@ -186,10 +223,32 @@ export async function signAssertion(
   );
 }
 
-/** Build the arguments of an authentication ceremony. */
+export function registrationResponse(options: {
+  credential: Pick<TestCredential, "credentialId">;
+  attestationObject: Uint8Array;
+  clientDataJSON: Uint8Array;
+  transports?: string[];
+}): RegistrationResponseEnvelope {
+  const id = toBase64URL(options.credential.credentialId);
+  return {
+    id,
+    rawId: id,
+    response: {
+      clientDataJSON: toBase64URL(options.clientDataJSON),
+      attestationObject: toBase64URL(options.attestationObject),
+      ...(options.transports !== undefined
+        ? { transports: options.transports }
+        : {}),
+    },
+    clientExtensionResults: {},
+    type: "public-key",
+  };
+}
+
+/** Build the `response` argument of an authentication finish mutation. */
 export async function buildAssertion(
   credential: TestCredential,
-  challenge: ArrayBuffer | Uint8Array,
+  challenge: ArrayBuffer | Uint8Array | string,
   options: {
     type?: "webauthn.create" | "webauthn.get";
     origin?: string;
@@ -201,12 +260,7 @@ export async function buildAssertion(
     // Sign with a different key than `credential` (an invalid signature).
     signWith?: TestCredential;
   } = {},
-): Promise<{
-  credentialId: ArrayBuffer;
-  authenticatorData: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  signature: ArrayBuffer;
-}> {
+): Promise<{ response: AuthenticationResponseEnvelope }> {
   const clientDataJSON = buildClientDataJSON({
     type: options.type ?? "webauthn.get",
     challenge,
@@ -224,10 +278,20 @@ export async function buildAssertion(
     authenticatorData,
     clientDataJSON,
   );
+  const id = toBase64URL(credential.credentialId);
   return {
-    credentialId: toArrayBuffer(credential.credentialId),
-    authenticatorData: toArrayBuffer(authenticatorData),
-    clientDataJSON: toArrayBuffer(clientDataJSON),
-    signature: toArrayBuffer(signature),
+    // Wrapped in `{ response }`, so tests can spread the result into the
+    // arguments of a finish mutation.
+    response: {
+      id,
+      rawId: id,
+      response: {
+        clientDataJSON: toBase64URL(clientDataJSON),
+        authenticatorData: toBase64URL(authenticatorData),
+        signature: toBase64URL(signature),
+      },
+      clientExtensionResults: {},
+      type: "public-key",
+    },
   };
 }

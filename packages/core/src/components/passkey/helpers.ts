@@ -1,7 +1,7 @@
 import { isoUint8Array, toHash } from "@simplewebauthn/server/helpers";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./constants.ts";
 
 /**
  * Run `read` and return its value. Return `null` when it throws.

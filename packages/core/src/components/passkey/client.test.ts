@@ -1,85 +1,92 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
-  assertionFromCredential,
+  authenticate,
+  authenticateWithAutofill,
   foldClientError,
-  runAuthenticationCeremony,
-  runAutofillAuthenticationCeremony,
-  runRegistrationCeremony,
+  register,
   supportsWebAuthn,
 } from "./client.ts";
+import { fromBase64URL, toBase64URL } from "./base64url.ts";
 
-// The browser WebAuthn surface. jsdom has none, so the tests install a
-// fake `PublicKeyCredential` and `navigator.credentials`.
+// The ceremonies run through `navigator.credentials`, which jsdom has not.
+// The tests stub it and check what the wrappers add on top: the support
+// check, the decoding of the options, the encoding of the response, and
+// the error fold.
 const credentialsCreate = vi.fn();
 const credentialsGet = vi.fn();
 
 class FakePublicKeyCredential {}
 
-// A stand-in for the credential `navigator.credentials.create()` returns.
+const bytes = (text: string) =>
+  Uint8Array.from(text, (character) => character.charCodeAt(0)).buffer;
+
+/**
+ * base64url of a short ASCII string. The ceremonies decode the options they
+ * are given, so the fixtures have to be real base64url.
+ */
+const wire = (text: string) => toBase64URL(bytes(text));
+
+// An attestation credential the way `navigator.credentials.create()`
+// returns one.
 const attestationCredential = {
-  rawId: new ArrayBuffer(8),
+  id: wire("credential-id"),
+  rawId: bytes("credential-id"),
   response: {
-    attestationObject: new ArrayBuffer(1),
-    clientDataJSON: new ArrayBuffer(2),
+    clientDataJSON: bytes("client-data"),
+    attestationObject: bytes("attestation"),
     getTransports: () => ["internal", "hybrid"],
   },
+  type: "public-key",
 };
 
-// A stand-in for the credential `navigator.credentials.get()` returns.
+// An assertion credential the way `navigator.credentials.get()` returns
+// one.
 const assertionCredential = {
-  rawId: new ArrayBuffer(8),
+  id: wire("credential-id"),
+  rawId: bytes("credential-id"),
   response: {
-    authenticatorData: new ArrayBuffer(1),
-    clientDataJSON: new ArrayBuffer(2),
-    signature: new ArrayBuffer(3),
+    clientDataJSON: bytes("client-data"),
+    authenticatorData: bytes("auth-data"),
+    signature: bytes("signature"),
+    userHandle: bytes("user-handle"),
   },
+  type: "public-key",
 };
 
-const registrationOptions = {
-  challenge: new ArrayBuffer(16),
+const creationOptions = {
+  rp: { id: "localhost", name: "Test app" },
+  user: { id: wire("handle"), name: "alice", displayName: "alice" },
+  challenge: wire("challenge"),
+  pubKeyCredParams: [{ alg: -7, type: "public-key" as const }],
+  timeout: 600000,
+  excludeCredentials: [],
+  authenticatorSelection: {
+    residentKey: "required" as const,
+    requireResidentKey: true as const,
+    userVerification: "required" as const,
+  },
+  attestation: "none" as const,
+  extensions: {},
+};
+
+const requestOptions = {
+  challenge: wire("challenge"),
+  timeout: 600000,
   rpId: "localhost",
-  rpName: "Test app",
-  userHandle: new ArrayBuffer(16),
-  userName: "alice",
-  userDisplayName: "Alice",
-  excludeCredentials: [{ id: new ArrayBuffer(4), transports: ["internal"] }],
+  allowCredentials: [],
+  userVerification: "required" as const,
 };
-
-const authenticationOptions = {
-  challenge: new ArrayBuffer(16),
-  rpId: "localhost",
-  allowCredentials: [{ id: new ArrayBuffer(8) }],
-};
-
-const autofillOptions = {
-  challenge: new ArrayBuffer(16),
-  rpId: "localhost",
-};
-
-// `vi.unstubAllGlobals()` does not undo `Object.defineProperty`, so the
-// tests restore the original `navigator.credentials` own property (or its
-// absence) themselves.
-const originalCredentials = Object.getOwnPropertyDescriptor(
-  window.navigator,
-  "credentials",
-);
 
 beforeEach(() => {
   vi.stubGlobal("PublicKeyCredential", FakePublicKeyCredential);
   vi.stubGlobal("isSecureContext", true);
-  Object.defineProperty(window.navigator, "credentials", {
-    value: { create: credentialsCreate, get: credentialsGet },
-    configurable: true,
+  vi.stubGlobal("navigator", {
+    credentials: { create: credentialsCreate, get: credentialsGet },
   });
 });
 
 afterEach(() => {
-  if (originalCredentials === undefined) {
-    delete (window.navigator as { credentials?: unknown }).credentials;
-  } else {
-    Object.defineProperty(window.navigator, "credentials", originalCredentials);
-  }
   vi.unstubAllGlobals();
   credentialsCreate.mockReset();
   credentialsGet.mockReset();
@@ -120,73 +127,60 @@ describe("foldClientError", () => {
   });
 });
 
-describe("runRegistrationCeremony", () => {
-  test("maps the options onto the create() call and returns the attestation", async () => {
+describe("register", () => {
+  test("decodes the options for create() and encodes the response", async () => {
     credentialsCreate.mockResolvedValue(attestationCredential);
 
-    const result = await runRegistrationCeremony(registrationOptions);
+    const result = await register(creationOptions);
 
+    // The wire carries base64url; the WebAuthn API takes bytes. Everything
+    // else reaches the browser as the server built it.
+    const [call] = credentialsCreate.mock.calls[0];
+    expect(call.publicKey.challenge).toEqual(
+      fromBase64URL(creationOptions.challenge),
+    );
+    expect(call.publicKey.user.id).toEqual(
+      fromBase64URL(creationOptions.user.id),
+    );
+    expect(call.publicKey.rp).toEqual(creationOptions.rp);
+    expect(call.publicKey.attestation).toBe("none");
+    expect(call.publicKey.authenticatorSelection).toEqual(
+      creationOptions.authenticatorSelection,
+    );
     expect(result).toEqual({
       success: true,
-      attestation: {
-        attestationObject: attestationCredential.response.attestationObject,
-        clientDataJSON: attestationCredential.response.clientDataJSON,
-        transports: ["internal", "hybrid"],
-      },
-    });
-    expect(credentialsCreate).toHaveBeenCalledWith({
-      signal: undefined,
-      publicKey: {
-        challenge: registrationOptions.challenge,
-        rp: { id: "localhost", name: "Test app" },
-        user: {
-          id: registrationOptions.userHandle,
-          name: "alice",
-          displayName: "Alice",
+      response: {
+        id: wire("credential-id"),
+        rawId: wire("credential-id"),
+        response: {
+          clientDataJSON: wire("client-data"),
+          attestationObject: wire("attestation"),
+          transports: ["internal", "hybrid"],
         },
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 },
-          { type: "public-key", alg: -257 },
-        ],
-        authenticatorSelection: {
-          residentKey: "required",
-          requireResidentKey: true,
-          userVerification: "required",
-        },
-        attestation: "none",
-        excludeCredentials: [
-          {
-            type: "public-key",
-            id: registrationOptions.excludeCredentials[0].id,
-            transports: ["internal"],
-          },
-        ],
+        clientExtensionResults: {},
+        type: "public-key",
       },
     });
   });
 
-  test("a response without getTransports reports no transports", async () => {
+  test("a browser without getTransports reports no transports", async () => {
     credentialsCreate.mockResolvedValue({
-      rawId: attestationCredential.rawId,
+      ...attestationCredential,
       response: {
-        attestationObject: attestationCredential.response.attestationObject,
-        clientDataJSON: attestationCredential.response.clientDataJSON,
+        clientDataJSON: bytes("client-data"),
+        attestationObject: bytes("attestation"),
       },
     });
-    const result = await runRegistrationCeremony(registrationOptions);
-    expect(result).toEqual({
-      success: true,
-      attestation: {
-        attestationObject: attestationCredential.response.attestationObject,
-        clientDataJSON: attestationCredential.response.clientDataJSON,
-        transports: undefined,
-      },
-    });
+    const result = await register(creationOptions);
+    expect(result.success).toBe(true);
+    expect(result.success && result.response.response).not.toHaveProperty(
+      "transports",
+    );
   });
 
   test("a null credential folds into CEREMONY_ABORTED", async () => {
     credentialsCreate.mockResolvedValue(null);
-    expect(await runRegistrationCeremony(registrationOptions)).toEqual({
+    expect(await register(creationOptions)).toEqual({
       success: false,
       userError: { error: "CEREMONY_ABORTED" },
     });
@@ -196,7 +190,7 @@ describe("runRegistrationCeremony", () => {
     credentialsCreate.mockRejectedValue(
       new DOMException("cancelled", "NotAllowedError"),
     );
-    expect(await runRegistrationCeremony(registrationOptions)).toEqual({
+    expect(await register(creationOptions)).toEqual({
       success: false,
       userError: { error: "CEREMONY_ABORTED" },
     });
@@ -205,7 +199,7 @@ describe("runRegistrationCeremony", () => {
   test("an unexpected throw folds into OTHER_ERROR with the cause", async () => {
     const cause = new Error("boom");
     credentialsCreate.mockRejectedValue(cause);
-    expect(await runRegistrationCeremony(registrationOptions)).toEqual({
+    expect(await register(creationOptions)).toEqual({
       success: false,
       userError: { error: "OTHER_ERROR", cause },
     });
@@ -213,7 +207,7 @@ describe("runRegistrationCeremony", () => {
 
   test("no WebAuthn support folds into WEBAUTHN_UNSUPPORTED", async () => {
     vi.stubGlobal("PublicKeyCredential", undefined);
-    expect(await runRegistrationCeremony(registrationOptions)).toEqual({
+    expect(await register(creationOptions)).toEqual({
       success: false,
       userError: { error: "WEBAUTHN_UNSUPPORTED" },
     });
@@ -221,63 +215,75 @@ describe("runRegistrationCeremony", () => {
   });
 });
 
-describe("runAuthenticationCeremony", () => {
-  test("maps the options onto the get() call and returns the assertion", async () => {
+describe("authenticate", () => {
+  test("decodes the options for get() and encodes the response", async () => {
     credentialsGet.mockResolvedValue(assertionCredential);
 
-    const result = await runAuthenticationCeremony(authenticationOptions);
+    const result = await authenticate({
+      ...requestOptions,
+      allowCredentials: [
+        { id: wire("credential-id"), type: "public-key", transports: ["usb"] },
+      ],
+    });
 
+    const [call] = credentialsGet.mock.calls[0];
+    expect(call.publicKey.challenge).toEqual(
+      fromBase64URL(requestOptions.challenge),
+    );
+    expect(call.publicKey.rpId).toBe(requestOptions.rpId);
+    expect(call.publicKey.userVerification).toBe("required");
+    expect(call.publicKey.allowCredentials).toEqual([
+      {
+        id: fromBase64URL(wire("credential-id")),
+        type: "public-key",
+        transports: ["usb"],
+      },
+    ]);
     expect(result).toEqual({
       success: true,
-      assertion: {
-        // `rawId` carries the credential ID bytes, not the base64url `id`.
-        credentialId: assertionCredential.rawId,
-        authenticatorData: assertionCredential.response.authenticatorData,
-        clientDataJSON: assertionCredential.response.clientDataJSON,
-        signature: assertionCredential.response.signature,
-      },
-    });
-    expect(credentialsGet).toHaveBeenCalledWith({
-      signal: undefined,
-      publicKey: {
-        challenge: authenticationOptions.challenge,
-        rpId: "localhost",
-        allowCredentials: [
-          {
-            type: "public-key",
-            id: authenticationOptions.allowCredentials[0].id,
-            transports: undefined,
-          },
-        ],
-        userVerification: "required",
+      response: {
+        id: wire("credential-id"),
+        rawId: wire("credential-id"),
+        response: {
+          clientDataJSON: wire("client-data"),
+          authenticatorData: wire("auth-data"),
+          signature: wire("signature"),
+          userHandle: wire("user-handle"),
+        },
+        clientExtensionResults: {},
+        type: "public-key",
       },
     });
   });
 
+  test("an assertion without a user handle carries none", async () => {
+    credentialsGet.mockResolvedValue({
+      ...assertionCredential,
+      response: {
+        clientDataJSON: bytes("client-data"),
+        authenticatorData: bytes("auth-data"),
+        signature: bytes("signature"),
+        userHandle: null,
+      },
+    });
+    const result = await authenticate(requestOptions);
+    expect(result.success).toBe(true);
+    expect(result.success && result.response.response).not.toHaveProperty(
+      "userHandle",
+    );
+  });
+
   test("a null credential folds into CEREMONY_ABORTED", async () => {
     credentialsGet.mockResolvedValue(null);
-    expect(await runAuthenticationCeremony(authenticationOptions)).toEqual({
+    expect(await authenticate(requestOptions)).toEqual({
       success: false,
       userError: { error: "CEREMONY_ABORTED" },
     });
   });
 
-  test("an aborted signal folds into CEREMONY_ABORTED", async () => {
-    credentialsGet.mockImplementation(({ signal }: { signal?: AbortSignal }) =>
-      Promise.reject(
-        signal?.aborted
-          ? new DOMException("aborted", "AbortError")
-          : new Error("expected an aborted signal"),
-      ),
-    );
-    const controller = new AbortController();
-    controller.abort();
-    expect(
-      await runAuthenticationCeremony({
-        ...authenticationOptions,
-        signal: controller.signal,
-      }),
-    ).toEqual({
+  test("an aborted ceremony folds into CEREMONY_ABORTED", async () => {
+    credentialsGet.mockRejectedValue(new DOMException("aborted", "AbortError"));
+    expect(await authenticate(requestOptions)).toEqual({
       success: false,
       userError: { error: "CEREMONY_ABORTED" },
     });
@@ -285,7 +291,7 @@ describe("runAuthenticationCeremony", () => {
 
   test("no WebAuthn support folds into WEBAUTHN_UNSUPPORTED", async () => {
     vi.stubGlobal("PublicKeyCredential", undefined);
-    expect(await runAuthenticationCeremony(authenticationOptions)).toEqual({
+    expect(await authenticate(requestOptions)).toEqual({
       success: false,
       userError: { error: "WEBAUTHN_UNSUPPORTED" },
     });
@@ -293,89 +299,132 @@ describe("runAuthenticationCeremony", () => {
   });
 });
 
-describe("runAutofillAuthenticationCeremony", () => {
+describe("authenticateWithAutofill", () => {
+  // The conditional path calls `navigator.credentials.get` itself, so that
+  // the caller can own the `AbortSignal`; see the comment on the function.
+  const credentialsGet = vi.fn();
+
+  function stubCredentials() {
+    vi.stubGlobal("navigator", { credentials: { get: credentialsGet } });
+  }
+
+  /** A `PublicKeyCredential` the way the browser returns one. */
+  function assertion({ userHandle }: { userHandle: ArrayBuffer | null }) {
+    return {
+      id: wire("credential-id"),
+      rawId: fromBase64URL(wire("credential-id")),
+      response: {
+        clientDataJSON: fromBase64URL(wire("client-data")),
+        authenticatorData: fromBase64URL(wire("auth-data")),
+        signature: fromBase64URL(wire("signature")),
+        userHandle,
+      },
+      type: "public-key",
+    };
+  }
+
+  afterEach(() => {
+    credentialsGet.mockReset();
+  });
+
   test("asks for a conditional request with the caller's signal", async () => {
-    credentialsGet.mockResolvedValue(assertionCredential);
+    stubCredentials();
+    credentialsGet.mockResolvedValue(assertion({ userHandle: null }));
     const controller = new AbortController();
 
-    const result = await runAutofillAuthenticationCeremony(
-      autofillOptions,
-      controller.signal,
+    await authenticateWithAutofill(requestOptions, controller.signal);
+
+    expect(credentialsGet).toHaveBeenCalledTimes(1);
+    const options = credentialsGet.mock.calls[0][0];
+    expect(options.mediation).toBe("conditional");
+    expect(options.signal).toBe(controller.signal);
+    // Conditional mediation requires an empty allow-list.
+    expect(options.publicKey.allowCredentials).toEqual([]);
+    expect(options.publicKey.rpId).toBe(requestOptions.rpId);
+    expect(options.publicKey.timeout).toBe(requestOptions.timeout);
+    expect(options.publicKey.userVerification).toBe("required");
+    expect(toBase64URL(options.publicKey.challenge)).toBe(
+      requestOptions.challenge,
+    );
+  });
+
+  test("puts the assertion into the wire shape", async () => {
+    stubCredentials();
+    credentialsGet.mockResolvedValue(
+      assertion({ userHandle: fromBase64URL(wire("user-handle")) }),
     );
 
-    expect(result).toEqual({
+    expect(
+      await authenticateWithAutofill(
+        requestOptions,
+        new AbortController().signal,
+      ),
+    ).toEqual({
       success: true,
-      assertion: {
-        credentialId: assertionCredential.rawId,
-        authenticatorData: assertionCredential.response.authenticatorData,
-        clientDataJSON: assertionCredential.response.clientDataJSON,
-        signature: assertionCredential.response.signature,
-      },
-    });
-    expect(credentialsGet).toHaveBeenCalledWith({
-      mediation: "conditional",
-      signal: controller.signal,
-      publicKey: {
-        challenge: autofillOptions.challenge,
-        rpId: "localhost",
-        // Conditional mediation requires an empty allow-list.
-        allowCredentials: [],
-        userVerification: "required",
+      response: {
+        id: wire("credential-id"),
+        rawId: wire("credential-id"),
+        response: {
+          clientDataJSON: wire("client-data"),
+          authenticatorData: wire("auth-data"),
+          signature: wire("signature"),
+          userHandle: wire("user-handle"),
+        },
+        clientExtensionResults: {},
+        type: "public-key",
       },
     });
   });
 
-  test("a null credential folds into CEREMONY_ABORTED", async () => {
-    credentialsGet.mockResolvedValue(null);
+  test("a discoverable assertion without a user handle carries none", async () => {
+    stubCredentials();
+    credentialsGet.mockResolvedValue(assertion({ userHandle: null }));
+
+    const result = await authenticateWithAutofill(
+      requestOptions,
+      new AbortController().signal,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.response.response).not.toHaveProperty(
+      "userHandle",
+    );
+  });
+
+  test("an abort folds into CEREMONY_ABORTED", async () => {
+    stubCredentials();
+    credentialsGet.mockRejectedValue(new DOMException("aborted", "AbortError"));
+
     expect(
-      await runAutofillAuthenticationCeremony(
-        autofillOptions,
+      await authenticateWithAutofill(
+        requestOptions,
         new AbortController().signal,
       ),
     ).toEqual({ success: false, userError: { error: "CEREMONY_ABORTED" } });
   });
 
-  test("an aborted signal folds into CEREMONY_ABORTED", async () => {
-    credentialsGet.mockImplementation(({ signal }: { signal: AbortSignal }) =>
-      Promise.reject(
-        signal.aborted
-          ? new DOMException("aborted", "AbortError")
-          : new Error("expected an aborted signal"),
-      ),
-    );
-    const controller = new AbortController();
-    controller.abort();
+  test("a null credential folds into CEREMONY_ABORTED", async () => {
+    stubCredentials();
+    credentialsGet.mockResolvedValue(null);
+
     expect(
-      await runAutofillAuthenticationCeremony(
-        autofillOptions,
-        controller.signal,
+      await authenticateWithAutofill(
+        requestOptions,
+        new AbortController().signal,
       ),
     ).toEqual({ success: false, userError: { error: "CEREMONY_ABORTED" } });
   });
 
   test("no WebAuthn support folds into WEBAUTHN_UNSUPPORTED", async () => {
+    stubCredentials();
     vi.stubGlobal("PublicKeyCredential", undefined);
+
     expect(
-      await runAutofillAuthenticationCeremony(
-        autofillOptions,
+      await authenticateWithAutofill(
+        requestOptions,
         new AbortController().signal,
       ),
     ).toEqual({ success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } });
     expect(credentialsGet).not.toHaveBeenCalled();
-  });
-});
-
-describe("assertionFromCredential", () => {
-  test("uses rawId and the assertion response fields", () => {
-    expect(
-      assertionFromCredential(
-        assertionCredential as unknown as PublicKeyCredential,
-      ),
-    ).toEqual({
-      credentialId: assertionCredential.rawId,
-      authenticatorData: assertionCredential.response.authenticatorData,
-      clientDataJSON: assertionCredential.response.clientDataJSON,
-      signature: assertionCredential.response.signature,
-    });
   });
 });

@@ -10,14 +10,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  authenticateWithAutofill,
   foldClientError,
-  runAutofillAuthenticationCeremony,
   supportsWebAuthn,
-  type PasskeyAssertion,
   type PasskeyClientError,
   type PasskeyClientFailure,
+  type WireRequestOptions,
 } from "./client.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./constants.ts";
+import type { WireAuthenticationResponse } from "./validation.ts";
 
 //------------------------------------------------------------------------------
 // Autofill
@@ -110,11 +111,11 @@ export function usePasskeyAutofill<E = never>(options: {
    */
   enabled?: boolean;
   /**
-   * Mint a fresh challenge for a conditional-mediation request, usually
-   * through the start mutation of the flow (the `startAutofillSignIn`
-   * mutation of a passkey recipe).
+   * Mint fresh options (with a fresh challenge) for a
+   * conditional-mediation request, usually through the start mutation of
+   * the flow (the `startAutofillSignIn` mutation of a passkey recipe).
    */
-  start: () => Promise<{ challenge: ArrayBuffer; rpId: string }>;
+  start: () => Promise<WireRequestOptions>;
   /**
    * Handle the assertion of the passkey the user picked, usually by
    * sending it to the flow's finish mutation. Return `success: false` with
@@ -122,7 +123,7 @@ export function usePasskeyAutofill<E = never>(options: {
    * a small cap); return `success: true` to end the flow as `"signedIn"`.
    */
   onAssertion: (
-    assertion: PasskeyAssertion,
+    response: WireAuthenticationResponse,
   ) => Promise<{ success: true } | { success: false; userError: E }>;
 }) {
   // The implementation flows from the following constraints:
@@ -278,7 +279,7 @@ export function usePasskeyAutofill<E = never>(options: {
           AUTOFILL_REFRESH_MS,
         );
 
-        const result = await runAutofillAuthenticationCeremony(
+        const result = await authenticateWithAutofill(
           requestOptions,
           controller.signal,
         );
@@ -315,7 +316,7 @@ export function usePasskeyAutofill<E = never>(options: {
         setStatus("signingIn");
         let outcome;
         try {
-          outcome = await optionsRef.current.onAssertion(result.assertion);
+          outcome = await optionsRef.current.onAssertion(result.response);
         } catch (cause) {
           if (!alive) {
             return;

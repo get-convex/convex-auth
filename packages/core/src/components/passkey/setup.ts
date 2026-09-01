@@ -13,10 +13,17 @@ import {
   validateUsernameFormat,
 } from "../username/validation.ts";
 import {
-  credentialDescriptor,
   finishAuthenticationUserError,
   finishRegistrationUserError,
+  vAuthenticationResponseJSON,
+  vPublicKeyCredentialCreationOptionsJSON,
+  vPublicKeyCredentialRequestOptionsJSON,
+  vRegistrationResponseJSON,
 } from "./validation.ts";
+import {
+  buildAuthenticationOptions,
+  buildRegistrationOptions,
+} from "./options.ts";
 import {
   finishAddPasskey,
   startAddPasskey,
@@ -80,19 +87,13 @@ const startSignInResult = v.union(
   v.object({
     success: v.literal(true),
     step: v.literal("authenticate"),
-    challenge: v.bytes(),
-    allowCredentials: v.array(credentialDescriptor),
-    rpId: v.string(),
+    options: vPublicKeyCredentialRequestOptionsJSON,
   }),
   // The username is free: register a new account with a new passkey.
   v.object({
     success: v.literal(true),
     step: v.literal("register"),
-    challenge: v.bytes(),
-    // The WebAuthn user handle (`user.id`) for the `create()` call.
-    userHandle: v.bytes(),
-    rpId: v.string(),
-    rpName: v.string(),
+    options: vPublicKeyCredentialCreationOptionsJSON,
   }),
   v.object({ success: v.literal(false), userError: setUsernameUserError }),
 );
@@ -104,8 +105,7 @@ const startSignInResult = v.union(
 export type StartSignInResult = Infer<typeof startSignInResult>;
 
 const startAutofillSignInResult = v.object({
-  challenge: v.bytes(),
-  rpId: v.string(),
+  options: vPublicKeyCredentialRequestOptionsJSON,
 });
 
 /**
@@ -251,9 +251,11 @@ export function setupUsernamePasskey<UsersTable extends string>(
               return {
                 success: true,
                 step: "authenticate",
-                challenge,
-                allowCredentials,
-                rpId,
+                options: buildAuthenticationOptions({
+                  rpId,
+                  challenge,
+                  allowCredentials,
+                }),
               };
             }
 
@@ -264,10 +266,19 @@ export function setupUsernamePasskey<UsersTable extends string>(
             return {
               success: true,
               step: "register",
-              challenge,
-              userHandle,
-              rpId,
-              rpName,
+              options: buildRegistrationOptions({
+                rpId,
+                rpName,
+                challenge,
+                userHandle,
+                // What the browser shows for the new passkey in its passkey manager.
+                // TODO(nicolas) Think of how we could allow the app to customize this
+                userName: username,
+                userDisplayName: username,
+                // A sign-up ceremony makes the first passkey of a brand-new
+                // user, so there are no credentials to exclude.
+                excludeCredentials: [],
+              }),
             };
           },
         }),
@@ -285,7 +296,13 @@ export function setupUsernamePasskey<UsersTable extends string>(
               component.authentication.startAuthentication,
               { purpose: SIGN_IN_PURPOSE },
             );
-            return { challenge, rpId };
+            return {
+              options: buildAuthenticationOptions({
+                rpId,
+                challenge,
+                allowCredentials: [],
+              }),
+            };
           },
         }),
 
@@ -309,9 +326,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
         finishSignUp: authMutation({
           args: {
             username: v.string(),
-            attestationObject: v.bytes(),
-            clientDataJSON: v.bytes(),
-            transports: v.optional(v.array(v.string())),
+            response: vRegistrationResponseJSON,
           },
           returns: finishSignUpResult,
           handler: async (ctx, args): Promise<FinishSignUpResult> => {
@@ -336,9 +351,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               {
                 expectedRpId: rpId,
                 expectedOrigin: origin,
-                attestationObject: args.attestationObject,
-                clientDataJSON: args.clientDataJSON,
-                transports: args.transports,
+                response: args.response,
               },
             );
             if (!checkResult.success) {
@@ -381,9 +394,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 expectedRpId: rpId,
                 expectedOrigin: origin,
                 newUserId: tokens.userId,
-                attestationObject: args.attestationObject,
-                clientDataJSON: args.clientDataJSON,
-                transports: args.transports,
+                response: args.response,
               },
             );
             if (!registrationResult.success) {
@@ -416,10 +427,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
          */
         finishSignIn: authMutation({
           args: {
-            credentialId: v.bytes(),
-            authenticatorData: v.bytes(),
-            clientDataJSON: v.bytes(),
-            signature: v.bytes(),
+            response: vAuthenticationResponseJSON,
           },
           returns: finishSignInResult,
           handler: async (ctx, args): Promise<FinishSignInResult> => {
@@ -429,10 +437,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 purpose: SIGN_IN_PURPOSE,
                 expectedRpId: rpId,
                 expectedOrigin: origin,
-                credentialId: args.credentialId,
-                authenticatorData: args.authenticatorData,
-                clientDataJSON: args.clientDataJSON,
-                signature: args.signature,
+                response: args.response,
               },
             );
             if (!authenticationResult.success) {
