@@ -101,6 +101,10 @@ function errorMessage(
       // This might be caused by a misbehaving client, or by a configuration error.
       // The Convex logs contain more information about the source of the error.
       return "This passkey request could not be verified. Please try again, or contact support if the problem persists.";
+    case "PASSKEY_ALREADY_REGISTERED":
+      // The authenticator refused to make a second passkey for this
+      // account (usually via `excludeCredentials`).
+      return "You already have a passkey for this account on this device. Sign in with it instead.";
     case "CEREMONY_ABORTED":
       // The most common failure: the user closed the passkey dialog.
       return "Sign-in was cancelled. Please try again.";
