@@ -1,18 +1,19 @@
 ---
-title: OAuth (Google and GitHub)
+title: OAuth (Apple, Google, and GitHub)
 description: Allow users to sign-in with an account on a supported provider.
 ---
 
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-The `oauth` component and supporting provider functions (`setupGoogle`,
-`setupGithub`) allow your users to login via their existing Google or GitHub
-accounts.
+The oauth components and supporting provider functions (`setupApple`,
+`setupGoogle`, `setupGithub`) allow your users to login via their existing
+Apple, Google, or GitHub accounts.
 
-The steps below will guide you through configuring Google and/or GitHub
-login. In the end, your Convex deployment will host HTTP routes for handling
-the OAuth callbacks and redirect back to your application for handling the result.
+The steps below will guide you through configuring Apple, Google, and/or
+GitHub login. In the end, your Convex deployment will host HTTP routes for
+handling the OAuth callbacks and redirect back to your application for handling
+the result.
 
 <Callout type="info">
   Support for using other OAuth identity providers isn't included yet.
@@ -20,9 +21,9 @@ the OAuth callbacks and redirect back to your application for handling the resul
 
 ## Common setup
 
-These steps are the same whichever provider you use. Install the `oauth`
-component once per identity provider, so an app offering both Google and GitHub
-login repeats the provider-specific steps below for each of them.
+These steps are the same whichever provider you use. Each identity provider
+gets its own component, so an app offering both Google and GitHub login
+repeats the provider-specific steps below for each of them.
 
 <Steps>
 
@@ -90,7 +91,142 @@ Pick the provider you want to wire up:
 
 {/* prettier-ignore-start */}
 
-<Tabs items={["Google", "GitHub"]}>
+<Tabs items={["Apple", "Google", "GitHub"]}>
+
+<Tab value="Apple">
+
+<Steps>
+
+<Step>
+
+**Register the Services ID, the key, and their environment variables**
+
+Sign in with Apple is set up in [Certificates, Identifiers &
+Profiles](https://developer.apple.com/account/resources/), and needs a paid
+Apple Developer Program membership.
+
+<Callout type="info">
+The callback lives on your deployment's `convex.site` host rather than on your
+app, so a cloud deployment works as it is and your app can stay on
+`localhost`. Apple never sees where the flow returns to.
+
+Apple does reject `localhost` and IP addresses as return URLs, so a deployment
+that is not publicly reachable, meaning a local backend or self-hosting on
+localhost, needs a public HTTPS hostname before Apple will accept its callback.
+</Callout>
+
+1. **Register an App ID with Sign in with Apple enabled**, as a primary App
+   ID. Websites attach to an App ID, so you need one even with no native app.
+2. **Register a Services ID.** Its identifier (something like
+   `com.example.app.web`) is your client ID. Select Sign in with Apple, click
+   Configure, choose the App ID from step 1, and under Website URLs enter your
+   deployment's site host (`happy-animal-123.convex.site`) as the domain and
+   `https://happy-animal-123.convex.site/oauth/apple/callback` as the return
+   URL. Nothing has to be uploaded to your server. Individual accounts can
+   register 10 website URLs, organizations 100.
+3. **Create a key** with Sign in with Apple enabled, choosing the App ID from
+   step 1 as its primary App ID, and download its `AuthKey_XXXXXXXXXX.p8`
+   file. Apple only lets you download it once. The 10-character `XXXXXXXXXX`
+   is your key ID.
+4. **Note your team id**, the 10-character value in the top right of the
+   developer account page.
+
+You can get the site host the return URL is built from with:
+
+```sh
+npx convex env get CONVEX_SITE_URL
+```
+
+Store all four values as [environment
+variables](https://docs.convex.dev/production/environment-variables#declaring)
+on your Convex deployment. The private key is multi-line, so read it from the
+file rather than passing it as an argument:
+
+```sh
+npx convex env set AUTH_APPLE_CLIENT_ID <your-services-id>
+npx convex env set AUTH_APPLE_TEAM_ID <your-team-id>
+npx convex env set AUTH_APPLE_KEY_ID <your-key-id>
+npx convex env set AUTH_APPLE_PRIVATE_KEY < AuthKey_XXXXXXXXXX.p8
+```
+
+Apple issues no static client secret. The component signs a short-lived one
+for each token exchange out of the team id, key id, and private key, which is
+why it takes four values where the other providers take two.
+
+</Step>
+
+<Step>
+
+**Install the component**
+
+Register the Apple OAuth component alongside the core in
+`convex/convex.config.ts`. You will declare the environment variables that you
+created above as part of your application's `env` and then pass those values to
+the component.
+
+<include
+  lang="ts"
+  meta='title="convex/convex.config.ts" highlight="import apple from" highlight="app.use(apple, {...});" highlight="AUTH_APPLE_CLIENT_ID:" highlight="AUTH_APPLE_PRIVATE_KEY:"'
+>
+  ../../../../../examples/react-apple/convex/convex.config.ts
+</include>
+
+</Step>
+
+<Step>
+
+**Set up user creation**
+
+Write a `createUser` mutation that creates a row in your `users` table and
+returns its id. The provider calls it the first time it sees an account.
+
+Apple is different from the other providers here. It sends the user's name
+only on the very first authorization and never again, so store it when it
+arrives and leave the stored one alone on later sign-ins. The `onSignIn`
+mutation below does exactly that. The name is also the one part of the profile
+that reaches you through the browser rather than from Apple directly, so treat
+it as untrusted text entered by a user.
+
+<include lang="ts" meta='title="convex/users.ts"'>
+  ../../../../../examples/react-apple/convex/users.ts
+</include>
+
+</Step>
+
+<Step>
+
+**Set up the public backend functions**
+
+Set up the Apple provider with `setupApple` and export the mutations for
+starting and completing OAuth login that it hands back once you attach the
+callbacks, in `convex/auth.ts`:
+
+<include
+  lang="ts"
+  meta='title="convex/auth.ts" highlight="import { setupApple }" highlight="export const { startSignInApple...});"'
+>
+  ../../../../../examples/react-apple/convex/auth.ts
+</include>
+
+</Step>
+
+<Step>
+
+**Set up the authentication UI**
+
+In your front-end, install hooks and attach listeners for initiating OAuth login.
+
+Include an `App.tsx` like the following in your application:
+
+<include lang="tsx" meta='title="src/App.tsx"'>
+  ../../../../../examples/react-apple/src/App.tsx
+</include>
+
+</Step>
+
+</Steps>
+
+</Tab>
 
 <Tab value="Google">
 

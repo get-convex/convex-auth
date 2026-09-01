@@ -10,6 +10,7 @@ import {
   parseUrl,
   validateAllowedRedirectOrigins,
   type OidcClaims,
+  type TicketPayload,
 } from "../shared/redemption.ts";
 
 export type { OidcClaims };
@@ -231,7 +232,7 @@ export function setupOauth<
    * Complete an OAuth sign-in by redeeming the one-time `code` from the
    * callback redirect together with the state held since `startSignIn`.
    */
-  const completeSignIn = buildCompleteSignIn<Profile, UserInfo>({
+  const completeSignIn = buildCompleteSignIn<Profile, TicketPayload<UserInfo>>({
     providerName,
     authMutation,
     claimTicket: (ctx, args) =>
