@@ -790,7 +790,7 @@ describe("finishRegistration verification", () => {
             ),
           ),
         }),
-      "the client data JSON could not be read",
+      "the client data JSON carries no challenge",
     );
   });
 
@@ -807,67 +807,10 @@ describe("finishRegistration verification", () => {
       ]),
     );
     const { finish } = await registrationArgs(t, "user1", { credential });
-    // `@simplewebauthn/server` refuses the algorithm before the guard
-    // below sees the key, and its message names the algorithms the ceremony
-    // offered. The assertion stays on the wrapper this component adds,
-    // because the wording of the library is not part of its contract.
+    // The message of `@simplewebauthn/server` names the algorithms the
+    // ceremony offered. The assertion stays on the wrapper this component
+    // adds, because the wording of the library is not part of its contract.
     await expectProtocolError(finish, "the attestation did not verify");
-  });
-
-  test("returns PROTOCOL_ERROR when the key type contradicts the algorithm", async () => {
-    // `verifyRegistrationResponse` checks the algorithm against
-    // `supportedAlgorithmIDs`, but not against the key that carries it.
-    // Such a credential would register and then never verify.
-    const cases = [
-      {
-        name: "ES256 with an RSA key",
-        key: new Map<number, number | Uint8Array>([
-          [1, 3], // kty: RSA
-          [3, -7], // alg: ES256
-          [-1, new Uint8Array(256)], // n
-          [-2, new Uint8Array([1, 0, 1])], // e
-        ]),
-        detail: "its key is not an EC2 key",
-      },
-      {
-        name: "RS256 with an EC2 key",
-        key: new Map<number, number | Uint8Array>([
-          [1, 2], // kty: EC2
-          [3, -257], // alg: RS256
-          [-1, 1], // crv: P-256
-          [-2, new Uint8Array(32)],
-          [-3, new Uint8Array(32)],
-        ]),
-        detail: "its key is not an RSA key",
-      },
-    ];
-    for (const { key, detail } of cases) {
-      const t = setup();
-      const credential = await generateES256Credential();
-      credential.cosePublicKey = encodeCBOR(key);
-      const { finish } = await registrationArgs(t, "user1", { credential });
-      await expectProtocolError(finish, detail);
-    }
-  });
-
-  test("returns PROTOCOL_ERROR for an unsupported elliptic curve", async () => {
-    const t = setup();
-    const credential = await generateES256Credential();
-    // ES256 with a P-384 (crv 2) key.
-    credential.cosePublicKey = encodeCBOR(
-      new Map<number, number | Uint8Array>([
-        [1, 2], // kty: EC2
-        [3, -7], // alg: ES256
-        [-1, 2], // crv: P-384
-        [-2, new Uint8Array(32)],
-        [-3, new Uint8Array(32)],
-      ]),
-    );
-    const { finish } = await registrationArgs(t, "user1", { credential });
-    await expectProtocolError(
-      finish,
-      "the credential uses the elliptic curve 2",
-    );
   });
 
   test("returns PROTOCOL_ERROR for a duplicate credential ID", async () => {

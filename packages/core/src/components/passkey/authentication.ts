@@ -182,13 +182,9 @@ export const finishAuthentication = mutation({
     //               the manual client data parsing by using the
     //               callback variant of the `expectedChallenge`
     //               argument of `verifyAuthenticationResponse`.`
-    const clientData = okOrNull(() => {
-      const parsed = decodeClientDataJSON(toBase64URL(args.clientDataJSON));
-      // The challenge is decoded inside this guarded read. A client data
-      // JSON that carries no `challenge` is a protocol violation, and must
-      // be refused like any other, not thrown out of the mutation.
-      return { ...parsed, challenge: isoBase64URL.toBuffer(parsed.challenge) };
-    });
+    const clientData = okOrNull(() =>
+      decodeClientDataJSON(toBase64URL(args.clientDataJSON)),
+    );
 
     // Here we perform a few checks manually. These checks are also done later by
     // SimpleWebAuthn’s verifyAuthenticationResponse function, but doing these checks
@@ -235,10 +231,20 @@ export const finishAuthentication = mutation({
       );
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
+    const challenge = okOrNull(() =>
+      isoBase64URL.toBuffer(clientData.challenge),
+    );
+    if (challenge === null) {
+      console.warn(
+        `Rejected the passkey ceremony: the client data JSON carries no ` +
+          `challenge.`,
+      );
+      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
+    }
     const challengeRow = await consumeChallenge(
       ctx,
       "authentication",
-      clientData.challenge,
+      challenge,
     );
     if (challengeRow === null) {
       return { success: false, userError: { error: "CHALLENGE_EXPIRED" } };
@@ -286,11 +292,6 @@ export const finishAuthentication = mutation({
       type: "public-key",
     };
 
-    // The relying party ID hash, the user-presence and user-verification
-    // flags, and the assertion signature are all checked here. The stored
-    // key is a COSE key, which names its own algorithm, so there is no
-    // ES256/RS256 branch: `verifyAuthenticationResponse` reads the algorithm
-    // out of the key and picks the verifier.
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
@@ -301,17 +302,19 @@ export const finishAuthentication = mutation({
         credential: {
           id: credentialId,
           publicKey: new Uint8Array(passkey.publicKey),
-          // Deliberately 0, never the stored counter.
-          // `verifyAuthenticationResponse` otherwise refuses an assertion
-          // whose counter did not grow, and this component does not enforce
-          // the counter: most authenticators always report 0, and a synced
-          // passkey can report a counter that moved backwards. The value
-          // below is still recorded, so a future flow can use it.
-          // https://www.imperialviolet.org/2023/08/05/signature-counters.html
+          // Passkey attestations can carry a counter that can be used by
+          // applications to detect duplicated passkeys. The goal is to let
+          // applications revoke passkeys that have been tampered with.
+          // In this component, we can’t take any sensible action: automatically
+          // revoking the passkey could lock the user out of their account,
+          // and simply throwing wouldn’t prevent the duplicate owner from
+          // issuing valid attestations with a higher counter.
+          // So we deliberately provide 0 as if it were the counter value stored
+          // in the database, which effectively disables the counter check behavior.
+          // See also: https://www.imperialviolet.org/2023/08/05/signature-counters.html
           counter: 0,
-          // The database keeps the transports as free-form strings, because
-          // the WebAuthn spec lets new ones appear.
           transports: passkey.transports as
+            // Casting string to a more precise union of literals
             AuthenticatorTransportFuture[] | undefined,
         },
         requireUserVerification: true,
@@ -337,10 +340,6 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
-    // Here we could compare the signature counter with the stored value to find
-    // cloned authenticators. But this would require the app to detect this
-    // and using it appropriately, and most authenticators will always set it to 0 anyway.
-    // https://www.imperialviolet.org/2023/08/05/signature-counters.html
     // TODO(nicolas) Also record `lastUsedAt` here when the field exists.
     await ctx.db.patch("passkeys", passkey._id, {
       counter: verification.authenticationInfo.newCounter,

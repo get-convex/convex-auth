@@ -11,8 +11,7 @@ export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 // (https://www.iana.org/assignments/cose/cose.xhtml#algorithms). This list
 // is enforced when the attestation is verified. The client offers its own
 // `pubKeyCredParams` literal in `react.tsx`, so keep the two lists in sync
-// by hand, and with the key shapes that `coseKeyShapeError` accepts.
-// `@simplewebauthn/server` also verifies Ed25519 (-8).
+// by hand. `@simplewebauthn/server` also verifies Ed25519 (-8).
 export const SUPPORTED_ALGORITHM_IDS = [
   -7, // ES256
   -257, // RS256

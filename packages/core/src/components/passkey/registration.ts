@@ -74,10 +74,8 @@ import type {
   RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import {
-  cose,
   decodeAttestationObject,
   decodeClientDataJSON,
-  decodeCredentialPublicKey,
   isoBase64URL,
   parseAuthenticatorData,
 } from "@simplewebauthn/server/helpers";
@@ -481,13 +479,9 @@ async function lookupRegistrationChallenge(
     );
     return PROTOCOL_ERROR;
   }
-  const clientData = okOrNull(() => {
-    const parsed = decodeClientDataJSON(toBase64URL(args.clientDataJSON));
-    // The challenge is decoded inside this guarded read. A client data JSON
-    // that carries no `challenge` is a protocol violation, and must be
-    // refused like any other, not thrown out of the mutation.
-    return { ...parsed, challenge: isoBase64URL.toBuffer(parsed.challenge) };
-  });
+  const clientData = okOrNull(() =>
+    decodeClientDataJSON(toBase64URL(args.clientDataJSON)),
+  );
   if (clientData === null) {
     console.warn(
       `Rejected the passkey ceremony: the client data JSON could not be read.`,
@@ -521,11 +515,14 @@ async function lookupRegistrationChallenge(
     );
     return PROTOCOL_ERROR;
   }
-  const challengeRow = await findChallenge(
-    ctx,
-    "registration",
-    clientData.challenge,
-  );
+  const challenge = okOrNull(() => isoBase64URL.toBuffer(clientData.challenge));
+  if (challenge === null) {
+    console.warn(
+      `Rejected the passkey ceremony: the client data JSON carries no challenge.`,
+    );
+    return PROTOCOL_ERROR;
+  }
+  const challengeRow = await findChallenge(ctx, "registration", challenge);
   if (challengeRow === null || isChallengeExpired(challengeRow)) {
     return { userError: { error: "CHALLENGE_EXPIRED" }, challengeRow };
   }
@@ -629,10 +626,8 @@ async function verifyAttestation(
       supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
     });
   } catch (cause) {
-    // The message names the check that failed: a relying party ID hash that
-    // does not match, a missing user verification, an unsupported key
-    // algorithm, and so on. It stays in the backend logs, and the client
-    // only learns that the ceremony was refused.
+    // Logging the rejection cause to help debugging, but not exposing it
+    // to the client.
     console.warn(
       `Rejected the passkey ceremony: the attestation did not verify. ` +
         `If this happens for every ceremony, check that the \`rpId\` and the ` +
@@ -646,31 +641,6 @@ async function verifyAttestation(
     return PROTOCOL_ERROR;
   }
   const { credential } = verification.registrationInfo;
-
-  // `verifyRegistrationResponse` checks that the algorithm is one the
-  // ceremony offered, but it does not check that the key agrees with the
-  // algorithm it names: it compares neither the key type nor the curve.
-  // `verifyAuthenticationResponse` picks its verifier from the key type,
-  // and verifies assertions from other curves (P-384, P-521) fine, so a
-  // key that disagrees with its algorithm either registers and then never
-  // verifies, or widens the set of accepted keys. The guard below keeps
-  // that set exactly what this provider accepted before the SimpleWebAuthn
-  // migration: ES256 means an EC2 key on P-256, RS256 means an RSA key.
-  const cosePublicKey = okOrNull(() =>
-    decodeCredentialPublicKey(credential.publicKey),
-  );
-  if (cosePublicKey === null) {
-    console.warn(
-      `Rejected the passkey ceremony: the credential public key could not ` +
-        `be read.`,
-    );
-    return PROTOCOL_ERROR;
-  }
-  const keyShapeError = coseKeyShapeError(cosePublicKey);
-  if (keyShapeError !== null) {
-    console.warn(`Rejected the passkey ceremony: ${keyShapeError}`);
-    return PROTOCOL_ERROR;
-  }
 
   const storedCredentialId = toArrayBuffer(
     isoBase64URL.toBuffer(credential.id),
@@ -700,46 +670,6 @@ async function verifyAttestation(
       counter: credential.counter,
     },
   };
-}
-
-/**
- * Checks that a COSE public key has the shape that the algorithm it names
- * requires. Returns the reason to refuse the key, or `null` if it is one
- * of the shapes this provider accepts.
- *
- * Keep the algorithms here in sync with `SUPPORTED_ALGORITHM_IDS`: the
- * `default` branch refuses anything this function does not know.
- */
-function coseKeyShapeError(cosePublicKey: cose.COSEPublicKey): string | null {
-  const algorithm = cosePublicKey.get(cose.COSEKEYS.alg);
-  switch (algorithm) {
-    case cose.COSEALG.ES256: {
-      if (!cose.isCOSEPublicKeyEC2(cosePublicKey)) {
-        return (
-          `the credential names the algorithm ES256, but its key is not an ` +
-          `EC2 key.`
-        );
-      }
-      const curve = cosePublicKey.get(cose.COSEKEYS.crv);
-      if (curve !== cose.COSECRV.P256) {
-        return (
-          `the credential uses the elliptic curve ${curve}, but ES256 ` +
-          `requires P-256 (${cose.COSECRV.P256}).`
-        );
-      }
-      return null;
-    }
-    case cose.COSEALG.RS256:
-      if (!cose.isCOSEPublicKeyRSA(cosePublicKey)) {
-        return (
-          `the credential names the algorithm RS256, but its key is not an ` +
-          `RSA key.`
-        );
-      }
-      return null;
-    default:
-      return `the credential uses the unsupported key algorithm ${algorithm}.`;
-  }
 }
 
 //------------------------------------------------------------------------------

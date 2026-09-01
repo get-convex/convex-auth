@@ -255,7 +255,7 @@ describe("finishAuthentication", () => {
             ),
           ),
         }),
-      "the client data JSON could not be read",
+      "the client data JSON carries no challenge",
     );
   });
 
