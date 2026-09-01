@@ -22,7 +22,22 @@
  * @module
  */
 
-import type { CredentialDescriptor } from "./validation.ts";
+import type {
+  WireAuthenticationResponse,
+  WireCreationOptions,
+  WireRegistrationResponse,
+  WireRequestOptions,
+} from "./validation.ts";
+import { fromBase64URL, toBase64URL } from "./base64url.ts";
+
+// Apps and custom flows read the wire shapes from here: they are the exact
+// shapes of the provider's mutations.
+export type {
+  WireAuthenticationResponse,
+  WireCreationOptions,
+  WireRegistrationResponse,
+  WireRequestOptions,
+} from "./validation.ts";
 
 /**
  * The failures the browser side produces (the server never returns these):
@@ -53,43 +68,19 @@ export type PasskeyClientFailure = {
 };
 
 /**
- * The output of a registration ceremony: the fields a finish mutation needs
- * to verify the new passkey (see `finishSignUp` in the username + passkey
- * recipe).
- */
-export type PasskeyAttestation = {
-  attestationObject: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  // Older browsers have no `getTransports`. Then the server stores no
-  // transports for this credential.
-  transports?: string[];
-};
-
-/**
- * The output of an authentication ceremony: the fields a finish mutation
- * needs to verify the signature (see `finishSignIn` in the username +
- * passkey recipe).
- */
-export type PasskeyAssertion = {
-  credentialId: ArrayBuffer;
-  authenticatorData: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-  signature: ArrayBuffer;
-};
-
-/**
- * The result of {@link runRegistrationCeremony}: the attestation to send to
- * the finish mutation, or a user-facing `userError`.
+ * The result of {@link register}: the response to send to the finish
+ * mutation, or a user-facing `userError`.
  */
 export type PasskeyRegistrationResult =
-  { success: true; attestation: PasskeyAttestation } | PasskeyClientFailure;
+  { success: true; response: WireRegistrationResponse } | PasskeyClientFailure;
 
 /**
- * The result of {@link runAuthenticationCeremony}: the assertion to send to
- * the finish mutation, or a user-facing `userError`.
+ * The result of {@link authenticate}: the response to send to the finish
+ * mutation, or a user-facing `userError`.
  */
 export type PasskeyAuthenticationResult =
-  { success: true; assertion: PasskeyAssertion } | PasskeyClientFailure;
+  | { success: true; response: WireAuthenticationResponse }
+  | PasskeyClientFailure;
 
 /**
  * Whether this browser can run WebAuthn ceremonies on this page. The
@@ -104,170 +95,159 @@ export function supportsWebAuthn(): boolean {
   );
 }
 
-function isCeremonyAborted(cause: unknown): boolean {
-  // `NotAllowedError` is what the browser throws when the user dismisses
-  // the dialog, when the ceremony times out, and when the page is not
-  // allowed to run one. `AbortError` is what an `AbortSignal` produces.
-  // A `null` credential is handled separately.
-  return (
-    cause instanceof DOMException &&
-    (cause.name === "NotAllowedError" || cause.name === "AbortError")
-  );
-}
-
 /**
  * Fold a thrown value into the {@link PasskeyClientError} shape, so callers
  * handle every failure through one `userError` switch. Useful for custom
  * flows that call `navigator.credentials` or a mutation themselves.
  */
 export function foldClientError(cause: unknown): PasskeyClientError {
-  if (isCeremonyAborted(cause)) {
+  // `NotAllowedError` is what the browser throws when the user dismisses
+  // the dialog, when the ceremony times out, and when the page is not
+  // allowed to run one. `AbortError` is what an `AbortSignal` produces.
+  // A `null` credential is handled separately.
+  if (
+    cause instanceof DOMException &&
+    (cause.name === "NotAllowedError" || cause.name === "AbortError")
+  ) {
     return { error: "CEREMONY_ABORTED" };
   }
   return { error: "OTHER_ERROR", cause };
 }
 
 /**
- * Turn the credential descriptors from the server into the WebAuthn shape
- * of `allowCredentials` and `excludeCredentials`.
+ * Turn the JSON credential descriptors of the wire into the DOM shape of
+ * `allowCredentials` and `excludeCredentials`.
  */
-function credentialDescriptors(
-  credentials: CredentialDescriptor[],
+function descriptorsFromJSON(
+  descriptors: WireRequestOptions["allowCredentials"],
 ): PublicKeyCredentialDescriptor[] {
-  return credentials.map(({ id, transports }) => ({
-    type: "public-key",
-    id,
-    // The database stores a string array, we’re converting here
-    // to the narrower DOM type ("internal" | "hybrid" | "usb" | "nfc" | … )
+  return descriptors.map(({ id, type, transports }) => ({
+    id: fromBase64URL(id),
+    type,
+    // The wire keeps `transports` as free-form strings, because the
+    // WebAuthn spec lets new transports appear; the DOM type does not.
     transports: transports as AuthenticatorTransport[] | undefined,
   }));
 }
 
 /**
- * Turn an assertion credential from `navigator.credentials.get()` into a
- * {@link PasskeyAssertion}. Useful for custom flows that run the `get()`
- * call themselves, for example with conditional mediation.
+ * Turn the creation options of the wire into the DOM shape that
+ * `navigator.credentials.create()` takes: every binary field is base64url
+ * on the wire and a `BufferSource` in the API.
  */
-export function assertionFromCredential(
-  credential: PublicKeyCredential,
-): PasskeyAssertion {
-  const response = credential.response as AuthenticatorAssertionResponse;
+function creationOptionsFromJSON(
+  options: WireCreationOptions,
+): PublicKeyCredentialCreationOptions {
   return {
-    // `rawId` carries the credential ID bytes; `credential.id` is the
-    // base64url form and must not be sent.
-    credentialId: credential.rawId,
-    authenticatorData: response.authenticatorData,
-    clientDataJSON: response.clientDataJSON,
-    signature: response.signature,
+    rp: options.rp,
+    user: {
+      id: fromBase64URL(options.user.id),
+      name: options.user.name,
+      displayName: options.user.displayName,
+    },
+    challenge: fromBase64URL(options.challenge),
+    pubKeyCredParams: options.pubKeyCredParams,
+    timeout: options.timeout,
+    excludeCredentials: descriptorsFromJSON(options.excludeCredentials),
+    authenticatorSelection: options.authenticatorSelection,
+    attestation: options.attestation,
+    extensions: options.extensions,
+  };
+}
+
+/** Turn the request options of the wire into the DOM shape that
+ * `navigator.credentials.get()` takes (see
+ * {@link creationOptionsFromJSON}). */
+function requestOptionsFromJSON(
+  options: WireRequestOptions,
+): PublicKeyCredentialRequestOptions {
+  return {
+    challenge: fromBase64URL(options.challenge),
+    timeout: options.timeout,
+    rpId: options.rpId,
+    allowCredentials: descriptorsFromJSON(options.allowCredentials),
+    userVerification: options.userVerification,
   };
 }
 
 /**
- * Run a modal registration ceremony (`navigator.credentials.create()`).
- *
- * The `challenge`, `userHandle`, and `excludeCredentials` come from a start
- * mutation. The `userName` and `userDisplayName` are what the browser shows
- * for the new passkey in its passkey manager; the flow chooses them (for
- * example, the username the user typed).
- *
- * The created passkey is discoverable (required for autofill) and requires
- * user verification, which is what the server-side verification demands.
- *
- * @param options.signal Abort the ceremony (folds into `CEREMONY_ABORTED`).
+ * Put an attestation credential from a `create()` call into the wire
+ * shape.
  */
-export async function runRegistrationCeremony(options: {
-  challenge: ArrayBuffer;
-  rpId: string;
-  rpName: string;
-  userHandle: ArrayBuffer;
-  userName: string;
-  userDisplayName: string;
-  excludeCredentials: CredentialDescriptor[];
-  signal?: AbortSignal;
-}): Promise<PasskeyRegistrationResult> {
+function attestationToJSON(
+  credential: PublicKeyCredential,
+): WireRegistrationResponse {
+  const response = credential.response as AuthenticatorAttestationResponse;
+  // Older browsers have no `getTransports`. Then the server stores no
+  // transports for this credential.
+  const transports =
+    typeof response.getTransports === "function"
+      ? response.getTransports()
+      : undefined;
+  return {
+    id: credential.id,
+    rawId: toBase64URL(credential.rawId),
+    response: {
+      clientDataJSON: toBase64URL(response.clientDataJSON),
+      attestationObject: toBase64URL(response.attestationObject),
+      ...(transports !== undefined ? { transports } : {}),
+    },
+    // The options request no extensions, so there is nothing to report.
+    clientExtensionResults: {},
+    type: "public-key",
+  };
+}
+
+/**
+ * Run a modal registration ceremony (a WebAuthn `create()` call).
+ *
+ * `options` comes from a start mutation, ready for the browser: this
+ * function only decodes its binary fields.
+ */
+export async function register(
+  options: WireCreationOptions,
+): Promise<PasskeyRegistrationResult> {
   if (!supportsWebAuthn()) {
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
   try {
     const credential = (await navigator.credentials.create({
-      signal: options.signal,
-      publicKey: {
-        challenge: options.challenge,
-        rp: { id: options.rpId, name: options.rpName },
-        user: {
-          id: options.userHandle,
-          name: options.userName,
-          displayName: options.userDisplayName,
-        },
-        // Exactly the algorithms the server accepts (ES256 and RS256; see
-        // the verification in `registration.ts`).
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 }, // ES256
-          { type: "public-key", alg: -257 }, // RS256
-        ],
-        authenticatorSelection: {
-          residentKey: "required",
-          requireResidentKey: true,
-          userVerification: "required",
-        },
-        attestation: "none",
-        excludeCredentials: credentialDescriptors(options.excludeCredentials),
-      },
+      publicKey: creationOptionsFromJSON(options),
     })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
     if (credential === null) {
       return { success: false, userError: { error: "CEREMONY_ABORTED" } };
     }
-    const response = credential.response as AuthenticatorAttestationResponse;
-    return {
-      success: true,
-      attestation: {
-        attestationObject: response.attestationObject,
-        clientDataJSON: response.clientDataJSON,
-        // Older browsers have no `getTransports`. Then the server stores
-        // no transports for this credential.
-        transports:
-          typeof response.getTransports === "function"
-            ? response.getTransports()
-            : undefined,
-      },
-    };
+    return { success: true, response: attestationToJSON(credential) };
   } catch (cause) {
     return { success: false, userError: foldClientError(cause) };
   }
 }
 
 /**
- * Run a modal authentication ceremony (`navigator.credentials.get()`).
+ * Run a modal authentication ceremony (a WebAuthn `get()` call).
  *
- * The `challenge` and `allowCredentials` come from a start mutation. An
- * empty `allowCredentials` lets the user pick any passkey of this relying
- * party; the picked passkey then identifies the account.
+ * `options` comes from a start mutation, ready for the browser: this
+ * function only decodes its binary fields.
  *
- * @param options.signal Abort the ceremony (folds into `CEREMONY_ABORTED`).
+ * For the conditional-mediation flow, which stays pending until the user
+ * picks a passkey in the autocompletion list of an
+ * `<input autoComplete="… webauthn">`, use
+ * {@link authenticateWithAutofill}.
  */
-export async function runAuthenticationCeremony(options: {
-  challenge: ArrayBuffer;
-  rpId: string;
-  allowCredentials: CredentialDescriptor[];
-  signal?: AbortSignal;
-}): Promise<PasskeyAuthenticationResult> {
+export async function authenticate(
+  options: WireRequestOptions,
+): Promise<PasskeyAuthenticationResult> {
   if (!supportsWebAuthn()) {
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
   try {
     const credential = (await navigator.credentials.get({
-      signal: options.signal,
-      publicKey: {
-        challenge: options.challenge,
-        rpId: options.rpId,
-        allowCredentials: credentialDescriptors(options.allowCredentials),
-        userVerification: "required",
-      },
+      publicKey: requestOptionsFromJSON(options),
     })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
     if (credential === null) {
       return { success: false, userError: { error: "CEREMONY_ABORTED" } };
     }
-    return { success: true, assertion: assertionFromCredential(credential) };
+    return { success: true, response: assertionToJSON(credential) };
   } catch (cause) {
     return { success: false, userError: foldClientError(cause) };
   }
@@ -281,33 +261,60 @@ export async function runAuthenticationCeremony(options: {
  * `signal` aborts it. This is required because the caller is expected to
  * periodically recreate a new ceremony (because every ceremony has a timeout).
  */
-export async function runAutofillAuthenticationCeremony(
-  options: { challenge: ArrayBuffer; rpId: string },
+export async function authenticateWithAutofill(
+  options: WireRequestOptions,
   signal: AbortSignal,
 ): Promise<PasskeyAuthenticationResult> {
   if (!supportsWebAuthn()) {
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
   try {
-    const credential = (await navigator.credentials.get({
+    const credential = await navigator.credentials.get({
       mediation: "conditional",
       signal,
       publicKey: {
-        challenge: options.challenge,
+        challenge: fromBase64URL(options.challenge),
+        timeout: options.timeout,
         rpId: options.rpId,
         // Conditional mediation requires an empty allow-list: the passkey
         // the user picks in the autocompletion list identifies the account.
         allowCredentials: [],
-        userVerification: "required",
+        userVerification: options.userVerification,
       },
-    })) as PublicKeyCredential | null; // navigator.credentials.get is typed as returning `Credential | null`, but with these arguments it returns a PublicKeyCredential
+    });
     if (credential === null) {
       // The spec lets `get()` resolve with `null`. No assertion means no
       // ceremony, which is the same outcome for a caller as an abort.
       return { success: false, userError: { error: "CEREMONY_ABORTED" } };
     }
-    return { success: true, assertion: assertionFromCredential(credential) };
+    return {
+      success: true,
+      response: assertionToJSON(credential as PublicKeyCredential),
+    };
   } catch (cause) {
     return { success: false, userError: foldClientError(cause) };
   }
+}
+
+/**
+ * Put an assertion credential from a `get()` call into the wire shape.
+ */
+function assertionToJSON(
+  credential: PublicKeyCredential,
+): WireAuthenticationResponse {
+  const response = credential.response as AuthenticatorAssertionResponse;
+  return {
+    id: credential.id,
+    rawId: toBase64URL(credential.rawId),
+    response: {
+      clientDataJSON: toBase64URL(response.clientDataJSON),
+      authenticatorData: toBase64URL(response.authenticatorData),
+      signature: toBase64URL(response.signature),
+      ...(response.userHandle !== null
+        ? { userHandle: toBase64URL(response.userHandle) }
+        : {}),
+    },
+    clientExtensionResults: {},
+    type: "public-key",
+  };
 }

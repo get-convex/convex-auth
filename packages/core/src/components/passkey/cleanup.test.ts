@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api.ts";
 import type { Id } from "./_generated/dataModel.ts";
 import { WORKER_NAME } from "./cleanup.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./constants.ts";
 import { setup } from "../passkeyTestSetup.ts";
 
 const START = new Date("2026-01-01T00:00:00Z").getTime();

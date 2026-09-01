@@ -14,8 +14,8 @@ import type {
   TokenBundle,
 } from "../../lib/types.ts";
 import {
-  runAuthenticationCeremony,
-  runRegistrationCeremony,
+  authenticate,
+  register,
   supportsWebAuthn,
   type PasskeyClientError,
   type PasskeyClientFailure,
@@ -26,6 +26,10 @@ import type {
   StartAutofillSignInResult,
   StartSignInResult,
 } from "./setup.ts";
+import type {
+  WireAuthenticationResponse,
+  WireRegistrationResponse,
+} from "./validation.ts";
 
 type StartSignInMutation = FunctionReference<
   "mutation",
@@ -44,24 +48,14 @@ type StartAutofillSignInMutation = FunctionReference<
 type FinishSignUpMutation = FunctionReference<
   "mutation",
   "public",
-  {
-    username: string;
-    attestationObject: ArrayBuffer;
-    clientDataJSON: ArrayBuffer;
-    transports?: string[];
-  },
+  { username: string; response: WireRegistrationResponse },
   ClientView<FinishSignUpResult>
 >;
 
 type FinishSignInMutation = FunctionReference<
   "mutation",
   "public",
-  {
-    credentialId: ArrayBuffer;
-    authenticatorData: ArrayBuffer;
-    clientDataJSON: ArrayBuffer;
-    signature: ArrayBuffer;
-  },
+  { response: WireAuthenticationResponse },
   ClientView<FinishSignInResult>
 >;
 
@@ -132,25 +126,16 @@ export async function runSignInOrSignUpFlow(
   }
 
   if (start.step === "register") {
-    const ceremony = await runRegistrationCeremony({
-      challenge: start.challenge,
-      rpId: start.rpId,
-      rpName: start.rpName,
-      // The handle comes from the server: the app user id cannot be
-      // used, because the user row does not exist yet.
-      userHandle: start.userHandle,
-      userName: username,
-      userDisplayName: username,
-      // A sign-up ceremony makes the first passkey of a brand-new
-      // user, so there are no credentials to exclude.
-      excludeCredentials: [],
-    });
+    // TODO(nicolas) Consider not showing the registration UI immediately,
+    // but instead showing a screen that tells the user they have no account
+    // and suggest creating one.
+    const ceremony = await register(start.options);
     if (!ceremony.success) {
       return ceremony;
     }
     const result = await signInApi.mutation(api.finishSignUp, {
       username,
-      ...ceremony.attestation,
+      response: ceremony.response,
     });
     if (!result.success) {
       return result;
@@ -159,15 +144,13 @@ export async function runSignInOrSignUpFlow(
     return { ...result, flow: "signUp" };
   }
 
-  const ceremony = await runAuthenticationCeremony({
-    challenge: start.challenge,
-    rpId: start.rpId,
-    allowCredentials: start.allowCredentials,
-  });
+  const ceremony = await authenticate(start.options);
   if (!ceremony.success) {
     return ceremony;
   }
-  const result = await signInApi.mutation(api.finishSignIn, ceremony.assertion);
+  const result = await signInApi.mutation(api.finishSignIn, {
+    response: ceremony.response,
+  });
   if (!result.success) {
     return result;
   }

@@ -100,19 +100,37 @@
       "types": "./dist/components/password/*.d.ts",
       "default": "./dist/components/password/*.js"
     },
-    "./providers/passkey/client": null,
-    "./providers/passkey/client.js": null,
-    "./providers/passkey/flows": null,
-    "./providers/passkey/flows.js": null,
-    "./providers/passkey/react_impl": null,
-    "./providers/passkey/react_impl.js": null,
-    "./providers/passkey/*.js": {
-      "types": "./dist/components/passkey/*.d.ts",
-      "default": "./dist/components/passkey/*.js"
+    "./providers/passkey/convex.config.js": {
+      "types": "./dist/components/passkey/convex.config.d.ts",
+      "default": "./dist/components/passkey/convex.config.js"
     },
-    "./providers/passkey/*": {
-      "types": "./dist/components/passkey/*.d.ts",
-      "default": "./dist/components/passkey/*.js"
+    "./providers/passkey/convex.config": {
+      "types": "./dist/components/passkey/convex.config.d.ts",
+      "default": "./dist/components/passkey/convex.config.js"
+    },
+    "./providers/passkey/_generated/component.js": {
+      "types": "./dist/components/passkey/_generated/component.d.ts",
+      "default": "./dist/components/passkey/_generated/component.js"
+    },
+    "./providers/passkey/_generated/component": {
+      "types": "./dist/components/passkey/_generated/component.d.ts",
+      "default": "./dist/components/passkey/_generated/component.js"
+    },
+    "./providers/passkey/setup.js": {
+      "types": "./dist/components/passkey/setup.d.ts",
+      "default": "./dist/components/passkey/setup.js"
+    },
+    "./providers/passkey/setup": {
+      "types": "./dist/components/passkey/setup.d.ts",
+      "default": "./dist/components/passkey/setup.js"
+    },
+    "./providers/passkey/react.js": {
+      "types": "./dist/components/passkey/react.d.ts",
+      "default": "./dist/components/passkey/react.js"
+    },
+    "./providers/passkey/react": {
+      "types": "./dist/components/passkey/react.d.ts",
+      "default": "./dist/components/passkey/react.js"
     },
     "./email/*.js": {
       "types": "./dist/components/email/*.d.ts",

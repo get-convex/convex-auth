@@ -9,13 +9,16 @@
  */
 
 import type * as authentication from "../authentication.js";
+import type * as base64url from "../base64url.js";
 import type * as cleanup from "../cleanup.js";
 import type * as client from "../client.js";
+import type * as constants from "../constants.js";
 import type * as flows from "../flows.js";
 import type * as helpers from "../helpers.js";
 import type * as management_add from "../management/add.js";
 import type * as management_list from "../management/list.js";
 import type * as management_remove from "../management/remove.js";
+import type * as options from "../options.js";
 import type * as purposes from "../purposes.js";
 import type * as react from "../react.js";
 import type * as react_impl from "../react_impl.js";
@@ -32,13 +35,16 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   authentication: typeof authentication;
+  base64url: typeof base64url;
   cleanup: typeof cleanup;
   client: typeof client;
+  constants: typeof constants;
   flows: typeof flows;
   helpers: typeof helpers;
   "management/add": typeof management_add;
   "management/list": typeof management_list;
   "management/remove": typeof management_remove;
+  options: typeof options;
   purposes: typeof purposes;
   react: typeof react;
   react_impl: typeof react_impl;
