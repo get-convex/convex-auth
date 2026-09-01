@@ -36,15 +36,20 @@ export type OidcClaims = {
  * - `claims`: validated id_token claims, for a provider that returns one.
  * - `userInfoResponses`: the responses from the configured userinfo
  *   endpoints, keyed as configured.
+ * - `callbackParams`: extra data the provider sent to the callback itself
+ *   as a query or form field rather than through a token, already sanitized
+ *   by the component that accepted it. It is browser-relayed and therefore
+ *   user-controlled, unlike the other two.
  *
- * At least one of them is always present: the callback refuses a flow that
- * produced neither.
+ * At least one of `claims` and `userInfoResponses` is always present: the
+ * callback refuses a flow that produced neither.
  */
 export type TicketPayload<
   UserInfo extends Record<string, unknown> = Record<string, unknown>,
 > = {
   claims?: OidcClaims;
   userInfoResponses?: UserInfo;
+  callbackParams?: Record<string, unknown>;
 };
 
 /** `new URL` without the exception: returns null on unparseable input. */
@@ -113,7 +118,7 @@ type MutationCtx = GenericMutationCtx<GenericDataModel>;
 // providers do, instead of a bare bundle or null.
 export function buildCompleteSignIn<
   Profile extends { id: string },
-  UserInfo extends Record<string, unknown> = Record<string, unknown>,
+  Payload extends TicketPayload = TicketPayload,
 >(options: {
   /** The provider's name, for the error message when a mapping returns no id. */
   providerName: string;
@@ -125,7 +130,7 @@ export function buildCompleteSignIn<
     args: { ticketCodeHash: string; stateHash: string },
   ) => Promise<{ encryptedPayload: string } | null>;
   /** Map what the provider attested to the account profile. */
-  profile: (payload: TicketPayload<UserInfo>) => Profile;
+  profile: (payload: Payload) => Profile;
 }) {
   return options.authMutation({
     args: {
@@ -146,7 +151,7 @@ export function buildCompleteSignIn<
       // encrypted under, so decryption only fails on corruption.
       const payload = JSON.parse(
         await decryptTicketPayload(args.code, ticket.encryptedPayload),
-      ) as TicketPayload<UserInfo>;
+      ) as Payload;
 
       const profile = options.profile(payload);
       if (typeof profile.id !== "string" || profile.id === "") {

@@ -148,6 +148,29 @@ export function useSignInWithGoogle(api: {
   return { signInGoogle: signIn };
 }
 
+/** What {@link useSignInWithApple} returns. */
+export type UseSignInWithAppleReturn = {
+  /** Start Apple's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
+  signInApple: UseOauthSignInReturn["signIn"];
+};
+
+/**
+ * Sign in with Apple. Pass the module exporting the provider's functions
+ * (usually the generated `api.auth`), or an object mapping the canonical keys
+ * to renamed exports.
+ */
+export function useSignInWithApple(api: {
+  startSignInApple: OauthProviderApi["startSignIn"];
+  completeSignInApple: OauthProviderApi["completeSignIn"];
+}): UseSignInWithAppleReturn {
+  const { signIn } = useOauthSignIn({
+    providerName: "apple",
+    startSignIn: api.startSignInApple,
+    completeSignIn: api.completeSignInApple,
+  });
+  return { signInApple: signIn };
+}
+
 /** What {@link useSignInWithGithub} returns. */
 export type UseSignInWithGithubReturn = {
   /** Start GitHub's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
