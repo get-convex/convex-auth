@@ -1,4 +1,4 @@
-import { FunctionReference } from "convex/server";
+import { DefaultFunctionArgs, FunctionReference } from "convex/server";
 
 import { GenericId, Infer, v } from "convex/values";
 
@@ -200,6 +200,58 @@ export const vAuthClaims = v.object({
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
 /**
+ * A phantom slot (never present at runtime) that reads `convex`'s
+ * `_contraArgs` marker on {@link FunctionReference}, putting `Args` in a
+ * contravariant position.
+ *
+ * A bare `FunctionReference` compares its arguments *covariantly*, which is
+ * backwards for a callback the library calls rather than the app: a mutation
+ * demanding *more* than the core will pass is accepted (and then fails at
+ * runtime), while one accepting *broader* arguments — a union of provider
+ * names, say — is rejected even though calling it is safe.
+ *
+ * Intersecting this with a `FunctionReference` reverses both, so a callback is
+ * checked the way TypeScript checks an ordinary function parameter. See
+ * {@link CallbackFn} for how it is applied, and the `_contraArgs` docs in
+ * `convex/server` for why each piece is shaped the way it is.
+ *
+ * The slot must stay a *property* with an explicit `| undefined`: method
+ * syntax is compared bivariantly (checking nothing) and a non-optional
+ * `undefined` is rejected under `exactOptionalPropertyTypes`.
+ */
+export type AcceptsArgs<Args> = {
+  _contraArgs?: ((args: Args) => void) | undefined;
+};
+
+/**
+ * An app-supplied internal mutation the core calls with `Args`, checked
+ * contravariantly via {@link AcceptsArgs}.
+ *
+ * `Args` must be `any` in the `FunctionReference` itself — anything narrower
+ * and TypeScript compares the two argument positions covariantly again, losing
+ * the property. Intersecting (rather than restating the reference's slots) is
+ * what keeps the result assignable back to a plain `FunctionReference`, so the
+ * core can still hand these to `createFunctionHandle`.
+ *
+ * The cost of that `any` is that it also lands in the reference's `_args`
+ * slot, so anything read back off this type (`CallbackFn[...]["_args"]`) is
+ * unchecked. Nothing should: the core describes the payloads it sends with
+ * {@link CreateUserArgs} and {@link OnSignInArgs}, which the callback types
+ * are built from, so its own call sites stay checked without reading `_args`.
+ */
+type CallbackFn<
+  Args extends DefaultFunctionArgs,
+  ReturnType,
+> = FunctionReference<
+  "mutation",
+  "internal",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any,
+  ReturnType
+> &
+  AcceptsArgs<Args>;
+
+/**
  * The `providerAccountId` a provider sends to `completeSignUp` when it has no
  * identifier of its own. The core then keys the new account by the app user id
  * `createUser` returns, and later sign-ins send that user id as the account
@@ -223,6 +275,22 @@ export const vOnSignIn = v.object({
 });
 
 /**
+ * The payload the core sends to a {@link CreateUserFn}.
+ *
+ * Named separately from the reference type because {@link CallbackFn} puts
+ * `any` in the reference's own argument slot (that `any` is what makes the
+ * app's callback compare contravariantly). Reading `CreateUserFn["_args"]`
+ * therefore yields `any`, so the core's own `runMutation` call sites take this
+ * type instead and stay checked. Both are built from this one declaration, so
+ * the two cannot drift.
+ */
+export type CreateUserArgs<Provider extends string, Profile> = {
+  provider: Provider;
+  providerAccountId: string;
+  profile: Profile;
+};
+
+/**
  * The type of an app defined user-creating mutation: create the app's user
  * record for an identity the core has not seen before, and return its id. It
  * runs once per account, and {@link OnSignInFn} runs right after it, so this
@@ -238,29 +306,22 @@ export const vOnSignIn = v.object({
  * named by `setupCore`'s `usersTable` option, which is what makes the return
  * type `Id<usersTable>` rather than a bare string.
  *
- * The mutation's args must be declared with the provider's *exact* literal
- * types (e.g. `provider: v.literal("password")`, `profile: v.object({ username:
- * v.string() })`).
- *
- * One mutation shared across providers, declaring a union of provider names,
- * is runtime-safe but does not typecheck, because `FunctionReference` args
- * compare covariantly. For shared logic, define one thin mutation per provider
- * that delegates to a plain shared function.
+ * The mutation's args are checked contravariantly (see {@link CallbackFn}), so
+ * they must *accept* what the core passes rather than match it exactly. A
+ * mutation declaring the provider's own literal types works (`provider:
+ * v.literal("password")`, `profile: v.object({ username: v.string() })`), and
+ * so does one declared more broadly: a single mutation shared across providers
+ * can declare a union of provider names (`v.union(v.literal("password"),
+ * v.literal("google"))`) and a profile covering both. What is rejected is a
+ * mutation demanding *more* than the core will pass — an extra required arg, or
+ * a profile field this provider does not produce — which is exactly the case
+ * that would fail at runtime.
  */
 export type CreateUserFn<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
-> = FunctionReference<
-  "mutation",
-  "internal",
-  {
-    provider: Provider;
-    providerAccountId: string;
-    profile: Profile;
-  },
-  GenericId<UsersTable>
->;
+> = CallbackFn<CreateUserArgs<Provider, Profile>, GenericId<UsersTable>>;
 
 /**
  * The type of an app defined sign-in mutation: an optional hook that runs on
@@ -277,25 +338,25 @@ export type CreateUserFn<
  * reject the sign in, which on a first sign-in rolls back the user the create
  * callback just made.
  *
- * Like {@link CreateUserFn}, the args must be declared with the provider's
- * exact literal types, and one mutation per provider (delegating to a plain
- * shared function) is how to share logic across providers.
+ * Like {@link CreateUserFn}, the args are checked contravariantly, so one
+ * mutation declaring a union of provider names can be shared across providers.
  */
+/**
+ * The payload the core sends to an {@link OnSignInFn}: a
+ * {@link CreateUserArgs} plus the resolved app user id. Separate from the
+ * reference type for the same reason as {@link CreateUserArgs}.
+ */
+export type OnSignInArgs<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = CreateUserArgs<Provider, Profile> & { userId: GenericId<UsersTable> };
+
 export type OnSignInFn<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
-> = FunctionReference<
-  "mutation",
-  "internal",
-  {
-    provider: Provider;
-    providerAccountId: string;
-    profile: Profile;
-    userId: GenericId<UsersTable>;
-  },
-  null
->;
+> = CallbackFn<OnSignInArgs<Provider, Profile, UsersTable>, null>;
 
 /**
  * The app's user callbacks for one provider, as its `attachUserCallbacks`
