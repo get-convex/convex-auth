@@ -587,7 +587,7 @@ async function verifyAttestation(
   }
   if (!authenticatorData.flags.up || !authenticatorData.flags.uv) {
     // The ceremony asks for `userVerification: "required"`, thus
-    // `userVerified`/`userPresent` should be set
+    // the user present/user verified flags should be set
     console.warn(
       `Rejected the passkey ceremony: the authenticator data reports no ` +
         `user presence or no user verification.`,

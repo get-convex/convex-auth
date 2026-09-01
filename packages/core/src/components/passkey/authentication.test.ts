@@ -1,7 +1,3 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { api } from "./_generated/api.ts";
-import { toArrayBuffer } from "./helpers.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
 import {
   ORIGIN,
   RP_ID,
@@ -9,12 +5,16 @@ import {
   generateES256Credential,
   generateRS256Credential,
 } from "@convex-dev/passkey-test-authenticator";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   expectProtocolError,
   expectSameBytes,
   register,
   setup,
 } from "../passkeyTestSetup.ts";
+import { api } from "./_generated/api.ts";
+import { toArrayBuffer } from "./helpers.ts";
+import { CHALLENGE_TTL_MS } from "./validation.ts";
 
 // The component gives no purpose of its own: each app names its own flows.
 const PURPOSE = "test/signIn";

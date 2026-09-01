@@ -1,27 +1,27 @@
-import { Infer, v } from "convex/values";
-import { mutation } from "./_generated/server.ts";
-import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import type {
   AuthenticationResponseJSON,
   AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
+import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import {
   decodeClientDataJSON,
   isoBase64URL,
   parseAuthenticatorData,
 } from "@simplewebauthn/server/helpers";
-import {
-  credentialDescriptor,
-  finishAuthenticationUserError,
-  validatePurpose,
-} from "./validation.ts";
+import { Infer, v } from "convex/values";
+import { mutation } from "./_generated/server.ts";
+import { scheduleChallengeCleanup } from "./cleanup.ts";
 import {
   consumeChallenge,
   okOrNull,
   randomChallenge,
   rpIdHashMatches,
 } from "./helpers.ts";
-import { scheduleChallengeCleanup } from "./cleanup.ts";
+import {
+  credentialDescriptor,
+  finishAuthenticationUserError,
+  validatePurpose,
+} from "./validation.ts";
 
 // The challenge and the credential IDs travel as raw bytes (Convex
 // `v.bytes()` carries `ArrayBuffer`s end to end). The WebAuthn API in the
@@ -167,7 +167,7 @@ export const finishAuthentication = mutation({
     }
     if (!authenticatorData.flags.up || !authenticatorData.flags.uv) {
       // The ceremony asks for `userVerification: "required"`, thus
-      // `userVerified`/`userPresent` should be set
+      // the user present/user verified flags should be set
       console.warn(
         `Rejected the passkey ceremony: the authenticator data reports ` +
           `no user presence or no user verification.`,
