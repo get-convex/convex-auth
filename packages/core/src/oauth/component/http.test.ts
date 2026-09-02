@@ -560,6 +560,20 @@ describe("oauth callback", () => {
       expect(loggedText(errors)).toContain("authorized party does not match");
     });
 
+    test("an id_token with no subject is refused", async () => {
+      const t = setup();
+      const errors = spyConsoleError();
+      const response = await callbackWithIdToken(
+        t,
+        ID_TOKEN_REQUEST,
+        unsignedJwt(idTokenClaims({ sub: undefined })),
+      );
+      expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe(
+        "oauth_error",
+      );
+      expect(loggedText(errors)).toContain("no subject claim");
+    });
+
     test("an expired id_token is refused", async () => {
       const t = setup();
       const errors = spyConsoleError();
