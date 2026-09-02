@@ -159,6 +159,8 @@ export async function exchangeCode(args: {
  * - `iss` must match one of the configured `issuers`, which are required
  *   whenever an id_token comes back: `sub` is only unique within an issuer,
  *   and a shared or multi-tenant token endpoint can serve several.
+ * - `sub` must be a non-empty string. It becomes the provider account id, so
+ *   without it there is no identity to sign anyone in as.
  * - `aud` must be exactly CLIENT_ID. Multi-audience tokens are rejected
  *   because no other audience is trusted.
  * - `azp`, when present, must be CLIENT_ID.
@@ -172,7 +174,7 @@ export function validateIdToken(
   idToken: IssuerDeliveredJwt,
   expectedIssuers: string[] | undefined,
   clientId: string,
-): Record<string, unknown> {
+): OidcClaims {
   if (expectedIssuers === undefined) {
     throw new Error(
       "The provider returned an id_token but no issuer is configured; set `issuer` in the provider options so the token can be validated",
@@ -181,6 +183,9 @@ export function validateIdToken(
   const claims = decodeJwtPayloadUnverified(idToken);
   if (typeof claims.iss !== "string" || !expectedIssuers.includes(claims.iss)) {
     throw new Error("id_token issuer does not match the configured issuer");
+  }
+  if (typeof claims.sub !== "string" || claims.sub === "") {
+    throw new Error("id_token has no subject claim");
   }
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (audiences.length !== 1 || audiences[0] !== clientId) {
@@ -192,7 +197,11 @@ export function validateIdToken(
   if (typeof claims.exp !== "number" || claims.exp * 1000 < Date.now()) {
     throw new Error("id_token is expired");
   }
-  return claims;
+  // This asserts only what was checked. `sub` is the one required field of
+  // OidcClaims and the check above covers it. The optional claims (`email`,
+  // `name`, `picture`) are the provider's word, and each provider's profile
+  // validator checks them at runtime.
+  return claims as OidcClaims;
 }
 
 /**
@@ -362,11 +371,7 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
     const claims =
       idToken === undefined
         ? undefined
-        : (validateIdToken(
-            idToken,
-            config.issuers,
-            config.clientId,
-          ) as OidcClaims);
+        : validateIdToken(idToken, config.issuers, config.clientId);
 
     if (config.userInfoEndpoints !== undefined && accessToken === undefined) {
       throw new Error("Token exchange returned no access_token");
