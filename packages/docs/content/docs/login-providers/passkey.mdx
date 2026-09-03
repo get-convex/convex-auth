@@ -166,3 +166,49 @@ Copy the following code block inside of your app:
 </Step>
 
 </Steps>
+
+## Managing passkeys
+
+One passkey is rarely enough. A phone breaks, a security key gets lost, and an
+account with a single passkey then has no way back in. The provider comes with
+the functions for a settings page where a signed-in user lists their passkeys,
+renames one, adds one, and removes one.
+
+Export them from `convex/auth.ts` next to the sign-in mutations:
+`listPasskeys`, `renamePasskey`, `startAddPasskey`, `verifyAddPasskey`,
+`finishAddPasskey`, `startRemovePasskey`, and `finishRemovePasskey`.
+
+<include
+  lang="ts"
+  meta='title="convex/auth.ts" highlight="  listPasskeys,...  finishRemovePasskey,"'
+>
+  ../../../../../examples/react-passkey/convex/auth.ts
+</include>
+
+On the page, `listPasskeys` is a plain reactive query: read it with
+`useQuery(api.auth.listPasskeys, {})` and the list updates live after every
+change, also from another tab. The `useAddPasskey` and `useRemovePasskey`
+hooks run the browser ceremonies of the two flows, and `renamePasskey` is a
+plain mutation:
+
+<include
+  lang="tsx"
+  meta='title="src/routes/dashboard.tsx" highlight="  useAddPasskey," highlight="  useRemovePasskey," highlight="useQuery(api.auth.listPasskeys, {});" highlight="useAddPasskey(api.auth);" highlight="useRemovePasskey(api.auth);" highlight="useMutation(api.auth.renamePasskey);"'
+>
+  ../../../../../examples/react-passkey/src/routes/dashboard.tsx
+</include>
+
+`addPasskey()` opens two browser dialogs one after the other. The first asks
+for a passkey the user already owns, which proves that the person at the
+keyboard owns the account. The second dialog creates the new passkey.
+
+`removePasskey(passkeyId)` opens one dialog, and the user must answer it with a
+passkey _other_ than the one that goes away. A passkey cannot authorize its own
+removal, so a stolen passkey cannot erase the passkey of the owner. The same
+rule keeps the last passkey of an account in place. The server answers that
+attempt with a `LAST_PASSKEY` error, and the example disables the Remove button
+while the account has one passkey.
+
+A new passkey gets a default name from its authenticator ("iCloud Keychain",
+"Google Password Manager", …) when the flow gives none, and `renamePasskey`
+lets the user replace it with their own label of up to 50 characters.
