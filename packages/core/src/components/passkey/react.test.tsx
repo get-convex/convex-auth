@@ -215,7 +215,7 @@ const authenticateStart = {
 };
 
 // What the library resolves a `create()` ceremony with, including the
-// convenience fields that the hooks must prune off the wire.
+// convenience fields that the hooks send to the wire unchanged.
 const registrationResponse = {
   id: "cred-1",
   rawId: "cred-1",
@@ -246,19 +246,7 @@ const authenticationResponse = {
   type: "public-key",
 };
 
-// The wire forms of the two responses, as the finish mutations receive them.
-const wireRegistrationResponse = {
-  id: "cred-1",
-  rawId: "cred-1",
-  response: {
-    clientDataJSON: "client-data",
-    attestationObject: "attestation",
-    transports: ["internal", "hybrid"],
-  },
-  clientExtensionResults: {},
-  type: "public-key",
-};
-
+// The wire form of the assertion, as the finish mutations receive it.
 const wireAuthenticationResponse = {
   id: wire("cred-1"),
   rawId: wire("cred-1"),
@@ -338,10 +326,10 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(ceremonyCreate).toHaveBeenCalledWith({
       optionsJSON: creationOptions,
     });
-    // The response reaches the finish mutation pruned to the wire shape.
+    // The response reaches the finish mutation unchanged.
     expect(mutations.finishSignUp).toHaveBeenCalledWith({
       username: "alice",
-      response: wireRegistrationResponse,
+      response: registrationResponse,
     });
     expect(returned).toEqual({ success: true, tokens: bundle, flow: "signUp" });
     expect(result.current.auth.isAuthenticated).toBe(true);

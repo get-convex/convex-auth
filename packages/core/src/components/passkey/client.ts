@@ -41,7 +41,7 @@ import { fromBase64URL, toBase64URL } from "./base64url.ts";
 
 // Apps and custom flows read the WebAuthn JSON types from here, so they
 // never depend on `@simplewebauthn/*` directly. The `Wire…` variants are
-// the exact shapes of the provider's mutations.
+// the shapes of the provider's mutations.
 export type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
@@ -156,53 +156,6 @@ function foldRegistrationError(cause: unknown): PasskeyClientError {
 }
 
 /**
- * Keep only the fields of a registration response that the finish
- * mutations accept. `@simplewebauthn/browser` adds convenience fields
- * (`publicKey`, `publicKeyAlgorithm`, `authenticatorData`,
- * `authenticatorAttachment`) that duplicate data from the attestation
- * object, and the exact server validators refuse them.
- */
-function pruneRegistrationResponse(
-  response: RegistrationResponseJSON,
-): WireRegistrationResponse {
-  return {
-    id: response.id,
-    rawId: response.rawId,
-    response: {
-      clientDataJSON: response.response.clientDataJSON,
-      attestationObject: response.response.attestationObject,
-      ...(response.response.transports !== undefined
-        ? { transports: response.response.transports }
-        : {}),
-    },
-    // The options request no extensions, so there is nothing to report.
-    clientExtensionResults: {},
-    type: response.type,
-  };
-}
-
-/** Keep only the fields of an authentication response that the finish
- * mutations accept (see {@link pruneRegistrationResponse}). */
-function pruneAuthenticationResponse(
-  response: AuthenticationResponseJSON,
-): WireAuthenticationResponse {
-  return {
-    id: response.id,
-    rawId: response.rawId,
-    response: {
-      clientDataJSON: response.response.clientDataJSON,
-      authenticatorData: response.response.authenticatorData,
-      signature: response.response.signature,
-      ...(response.response.userHandle !== undefined
-        ? { userHandle: response.response.userHandle }
-        : {}),
-    },
-    clientExtensionResults: {},
-    type: response.type,
-  };
-}
-
-/**
  * Run a modal registration ceremony (a WebAuthn `create()` call).
  *
  * `options` comes from a start mutation, ready for the browser. Starting a
@@ -223,7 +176,7 @@ export async function register(
       // not.
       optionsJSON: options as PublicKeyCredentialCreationOptionsJSON,
     });
-    return { success: true, response: pruneRegistrationResponse(response) };
+    return { success: true, response };
   } catch (cause) {
     return { success: false, userError: foldRegistrationError(cause) };
   }
@@ -253,7 +206,7 @@ export async function authenticate(
       // See the `transports` note in `register`.
       optionsJSON: options as PublicKeyCredentialRequestOptionsJSON,
     });
-    return { success: true, response: pruneAuthenticationResponse(response) };
+    return { success: true, response };
   } catch (cause) {
     return { success: false, userError: foldClientError(cause) };
   }
