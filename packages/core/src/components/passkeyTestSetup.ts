@@ -8,10 +8,10 @@ import {
   buildAuthenticatorData,
   buildClientDataJSON,
   generateES256Credential,
+  registrationResponse,
   type TestCredential,
 } from "@convex-dev/passkey-test-authenticator";
 import { api } from "./passkey/_generated/api.ts";
-import { toArrayBuffer } from "./passkey/helpers.ts";
 import schema from "./passkey/schema.ts";
 
 export const modules = import.meta.glob("./passkey/**/*.ts");
@@ -84,15 +84,16 @@ export async function register(
       expectedOrigin: ORIGIN,
       verifiedUserId: userId,
       name: options.name,
-      transports: options.transports,
-      attestationObject: toArrayBuffer(buildAttestationObject(authData)),
-      clientDataJSON: toArrayBuffer(
-        buildClientDataJSON({
+      response: registrationResponse({
+        credential,
+        attestationObject: buildAttestationObject(authData),
+        clientDataJSON: buildClientDataJSON({
           type: "webauthn.create",
           challenge,
           origin: ORIGIN,
         }),
-      ),
+        transports: options.transports,
+      }),
     },
   );
   if (!result.success) {

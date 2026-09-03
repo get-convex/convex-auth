@@ -27,12 +27,15 @@ import { Infer, v } from "convex/values";
 import { getAuthUserId } from "../../core/userId.ts";
 import { REMOVE_PASSKEY_PURPOSE } from "../purposes.ts";
 import type { UsernamePasskeyConfig } from "../setup.ts";
+import { toBase64URL } from "../base64url.ts";
 import {
-  credentialDescriptor,
   deletePasskeyUserError,
   finishAuthenticationUserError,
   notSignedInUserError,
+  vAuthenticationResponseJSON,
+  vPublicKeyCredentialRequestOptionsJSON,
 } from "../validation.ts";
+import { buildAuthenticationOptions } from "../options.ts";
 
 /**
  * The user-facing error when the user tries to remove their only passkey.
@@ -49,9 +52,9 @@ const lastPasskeyUserError = v.object({ error: v.literal("LAST_PASSKEY") });
 const startRemovePasskeyResult = v.union(
   v.object({
     success: v.literal(true),
-    challenge: v.bytes(),
-    allowCredentials: v.array(credentialDescriptor),
-    rpId: v.string(),
+    // Ready for the authorization `get()` call. The `allowCredentials`
+    // list excludes the passkey that goes away.
+    options: vPublicKeyCredentialRequestOptionsJSON,
   }),
   v.object({
     success: v.literal(false),
@@ -78,16 +81,6 @@ const finishRemovePasskeyResult = v.union(
 );
 
 export type FinishRemovePasskeyResult = Infer<typeof finishRemovePasskeyResult>;
-
-/** Tell if two credential IDs hold the same bytes. */
-function sameBytes(a: ArrayBuffer, b: ArrayBuffer): boolean {
-  if (a.byteLength !== b.byteLength) {
-    return false;
-  }
-  const left = new Uint8Array(a);
-  const right = new Uint8Array(b);
-  return left.every((byte, index) => byte === right[index]);
-}
 
 export function startRemovePasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
@@ -123,14 +116,18 @@ export function startRemovePasskey(config: UsernamePasskeyConfig) {
       );
       return {
         success: true,
-        challenge,
-        // The filter helps the user only: the browser then does not offer
-        // the passkey that goes away. `finishRemovePasskey` refuses such an
-        // assertion again, and that check is the enforcement.
-        allowCredentials: allowCredentials.filter(
-          (candidate) => !sameBytes(candidate.id, target.credentialId),
-        ),
-        rpId: config.rpId,
+        options: buildAuthenticationOptions({
+          rpId: config.rpId,
+          challenge,
+          // The filter helps the user only: the browser then does not offer
+          // the passkey that goes away. `finishRemovePasskey` refuses such
+          // an assertion again, and that check is the enforcement.
+          // (`listPasskeys` returns base64url credential IDs, the component
+          // start function returns bytes.)
+          allowCredentials: allowCredentials.filter(
+            (candidate) => toBase64URL(candidate.id) !== target.credentialId,
+          ),
+        }),
       };
     },
   });
@@ -140,10 +137,7 @@ export function finishRemovePasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
     args: {
       passkeyId: v.string(),
-      credentialId: v.bytes(),
-      authenticatorData: v.bytes(),
-      clientDataJSON: v.bytes(),
-      signature: v.bytes(),
+      response: vAuthenticationResponseJSON,
     },
     returns: finishRemovePasskeyResult,
     handler: async (ctx, args): Promise<FinishRemovePasskeyResult> => {
@@ -158,10 +152,7 @@ export function finishRemovePasskey(config: UsernamePasskeyConfig) {
           purpose: REMOVE_PASSKEY_PURPOSE,
           expectedRpId: config.rpId,
           expectedOrigin: config.origin,
-          credentialId: args.credentialId,
-          authenticatorData: args.authenticatorData,
-          clientDataJSON: args.clientDataJSON,
-          signature: args.signature,
+          response: args.response,
         },
       );
       if (!authenticationResult.success) {

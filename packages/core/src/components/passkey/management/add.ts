@@ -33,18 +33,24 @@ import { getAuthUserId } from "../../core/userId.ts";
 import { ADD_PASSKEY_PURPOSE } from "../purposes.ts";
 import type { UsernamePasskeyConfig } from "../setup.ts";
 import {
-  credentialDescriptor,
   finishAuthenticationUserError,
   finishRegistrationUserError,
   notSignedInUserError,
+  vAuthenticationResponseJSON,
+  vPublicKeyCredentialCreationOptionsJSON,
+  vPublicKeyCredentialRequestOptionsJSON,
+  vRegistrationResponseJSON,
 } from "../validation.ts";
+import {
+  buildAuthenticationOptions,
+  buildRegistrationOptions,
+} from "../options.ts";
 
 const startAddPasskeyResult = v.union(
   v.object({
     success: v.literal(true),
-    challenge: v.bytes(),
-    allowCredentials: v.array(credentialDescriptor),
-    rpId: v.string(),
+    // Ready for the re-authentication `get()` call.
+    options: vPublicKeyCredentialRequestOptionsJSON,
   }),
   v.object({ success: v.literal(false), userError: notSignedInUserError }),
 );
@@ -54,16 +60,7 @@ export type StartAddPasskeyResult = Infer<typeof startAddPasskeyResult>;
 const verifyAddPasskeyResult = v.union(
   v.object({
     success: v.literal(true),
-    challenge: v.bytes(),
-    // The WebAuthn user handle (`user.id`) for the `create()` call.
-    userHandle: v.bytes(),
-    excludeCredentials: v.array(credentialDescriptor),
-    rpId: v.string(),
-    rpName: v.string(),
-    // The WebAuthn `user.name` and `user.displayName` for the `create()`
-    // call. `null` when the app removed the username of the user; then the
-    // client chooses what to show.
-    username: v.union(v.string(), v.null()),
+    options: vPublicKeyCredentialCreationOptionsJSON,
   }),
   v.object({
     success: v.literal(false),
@@ -104,7 +101,14 @@ export function startAddPasskey(config: UsernamePasskeyConfig) {
           "The signed-in user has no passkey. They can’t add a new passkey, because we can’t ask them to reauthenticate.",
         );
       }
-      return { success: true, challenge, allowCredentials, rpId: config.rpId };
+      return {
+        success: true,
+        options: buildAuthenticationOptions({
+          rpId: config.rpId,
+          challenge,
+          allowCredentials,
+        }),
+      };
     },
   });
 }
@@ -112,10 +116,7 @@ export function startAddPasskey(config: UsernamePasskeyConfig) {
 export function verifyAddPasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
     args: {
-      credentialId: v.bytes(),
-      authenticatorData: v.bytes(),
-      clientDataJSON: v.bytes(),
-      signature: v.bytes(),
+      response: vAuthenticationResponseJSON,
     },
     returns: verifyAddPasskeyResult,
     handler: async (ctx, args): Promise<VerifyAddPasskeyResult> => {
@@ -130,10 +131,7 @@ export function verifyAddPasskey(config: UsernamePasskeyConfig) {
           purpose: ADD_PASSKEY_PURPOSE,
           expectedRpId: config.rpId,
           expectedOrigin: config.origin,
-          credentialId: args.credentialId,
-          authenticatorData: args.authenticatorData,
-          clientDataJSON: args.clientDataJSON,
-          signature: args.signature,
+          response: args.response,
         },
       );
       if (!authenticationResult.success) {
@@ -163,14 +161,29 @@ export function verifyAddPasskey(config: UsernamePasskeyConfig) {
         config.usernameComponent.public.getUsername,
         { userId },
       );
+      if (username === null) {
+        // WebAuthn requires `user.name` and `user.displayName`, and the
+        // browser keeps them in its passkey manager for the life of the
+        // passkey. Only the app can remove a username, so this is an app
+        // state the flow cannot serve, not a user error. Throwing rolls
+        // back the registration challenge.
+        throw new Error(
+          "The signed-in user has no username. Give them a username before they add a passkey.",
+        );
+      }
       return {
         success: true,
-        challenge,
-        userHandle,
-        excludeCredentials,
-        rpId: config.rpId,
-        rpName: config.rpName,
-        username,
+        options: buildRegistrationOptions({
+          rpId: config.rpId,
+          rpName: config.rpName,
+          challenge,
+          userHandle,
+          // What the browser shows for the new passkey in its passkey
+          // manager.
+          userName: username,
+          userDisplayName: username,
+          excludeCredentials,
+        }),
       };
     },
   });
@@ -179,9 +192,7 @@ export function verifyAddPasskey(config: UsernamePasskeyConfig) {
 export function finishAddPasskey(config: UsernamePasskeyConfig) {
   return mutationGeneric({
     args: {
-      attestationObject: v.bytes(),
-      clientDataJSON: v.bytes(),
-      transports: v.optional(v.array(v.string())),
+      response: vRegistrationResponseJSON,
     },
     returns: finishAddPasskeyResult,
     handler: async (ctx, args): Promise<FinishAddPasskeyResult> => {
@@ -196,9 +207,7 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
           expectedRpId: config.rpId,
           expectedOrigin: config.origin,
           verifiedUserId: userId,
-          attestationObject: args.attestationObject,
-          clientDataJSON: args.clientDataJSON,
-          transports: args.transports,
+          response: args.response,
         },
       );
       if (!registrationResult.success) {

@@ -28,13 +28,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          authenticatorData: ArrayBuffer;
-          clientDataJSON: ArrayBuffer;
-          credentialId: ArrayBuffer;
           expectedOrigin: string;
           expectedRpId: string;
           purpose: string;
-          signature: ArrayBuffer;
+          response: {
+            clientExtensionResults: {};
+            id: string;
+            rawId: string;
+            response: {
+              authenticatorData: string;
+              clientDataJSON: string;
+              signature: string;
+              userHandle?: string;
+            };
+            type: "public-key";
+          };
         },
         | { passkeyId: string; success: true; userId: string }
         | {
@@ -65,11 +73,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "query",
         "internal",
         {
-          attestationObject: ArrayBuffer;
-          clientDataJSON: ArrayBuffer;
           expectedOrigin: string;
           expectedRpId: string;
-          transports?: Array<string>;
+          response: {
+            clientExtensionResults: {};
+            id: string;
+            rawId: string;
+            response: {
+              attestationObject: string;
+              clientDataJSON: string;
+              transports?: Array<string>;
+            };
+            type: "public-key";
+          };
         },
         | { success: true }
         | {
@@ -98,12 +114,20 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          attestationObject: ArrayBuffer;
-          clientDataJSON: ArrayBuffer;
           expectedOrigin: string;
           expectedRpId: string;
           name?: string;
-          transports?: Array<string>;
+          response: {
+            clientExtensionResults: {};
+            id: string;
+            rawId: string;
+            response: {
+              attestationObject: string;
+              clientDataJSON: string;
+              transports?: Array<string>;
+            };
+            type: "public-key";
+          };
           verifiedUserId: string;
         },
         | { passkeyId: string; success: true }
@@ -118,13 +142,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          attestationObject: ArrayBuffer;
-          clientDataJSON: ArrayBuffer;
           expectedOrigin: string;
           expectedRpId: string;
           name?: string;
           newUserId: string;
-          transports?: Array<string>;
+          response: {
+            clientExtensionResults: {};
+            id: string;
+            rawId: string;
+            response: {
+              attestationObject: string;
+              clientDataJSON: string;
+              transports?: Array<string>;
+            };
+            type: "public-key";
+          };
         },
         | { passkeyId: string; success: true }
         | {
@@ -140,7 +172,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         { userId: string },
         Array<{
           createdAt: number;
-          credentialId: ArrayBuffer;
+          credentialId: string;
           name?: string;
           passkeyId: string;
         }>,

@@ -6,7 +6,7 @@ import {
   randomHandle,
   toArrayBuffer,
 } from "./helpers.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./constants.ts";
 import { expectSameBytes, setup } from "../passkeyTestSetup.ts";
 import { MutationCtx } from "./_generated/server.ts";
 import { Id } from "./_generated/dataModel.ts";

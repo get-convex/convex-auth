@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
 import { toArrayBuffer } from "./helpers.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./constants.ts";
 import {
   ORIGIN,
   RP_ID,
@@ -11,6 +11,8 @@ import {
   encodeCBOR,
   generateES256Credential,
   generateRS256Credential,
+  registrationResponse,
+  toBase64URL,
 } from "@convex-dev/passkey-test-authenticator";
 import {
   expectProtocolError,
@@ -105,30 +107,31 @@ async function registrationArgs(
     userVerified: options.userVerified,
     credential: options.includeCredential === false ? undefined : credential,
   });
-  const args = {
+  const buildArgs = (extra: { transports?: string[] } = {}) => ({
     expectedRpId: RP_ID,
     expectedOrigin: ORIGIN,
     name: options.name,
-    attestationObject: toArrayBuffer(buildAttestationObject(authData)),
-    clientDataJSON: toArrayBuffer(
-      buildClientDataJSON({
+    response: registrationResponse({
+      credential,
+      attestationObject: buildAttestationObject(authData),
+      clientDataJSON: buildClientDataJSON({
         type: options.clientDataType ?? "webauthn.create",
         challenge,
         origin: options.origin ?? ORIGIN,
         crossOrigin: options.crossOrigin,
       }),
-    ),
-  };
+      transports: extra.transports,
+    }),
+  });
+  const args = buildArgs();
   const finish = (extra: { transports?: string[] } = {}) =>
     startUserId === null
       ? t.mutation(api.registration.finishRegistrationForNewUser, {
-          ...args,
-          ...extra,
+          ...buildArgs(extra),
           newUserId: userId,
         })
       : t.mutation(api.registration.finishRegistrationForExistingUser, {
-          ...args,
-          ...extra,
+          ...buildArgs(extra),
           verifiedUserId: userId,
         });
   return { credential, userHandle, args, finish };
@@ -784,11 +787,17 @@ describe("finishRegistration verification", () => {
         t.mutation(api.registration.finishRegistrationForExistingUser, {
           ...args,
           verifiedUserId: "user1",
-          clientDataJSON: toArrayBuffer(
-            new TextEncoder().encode(
-              JSON.stringify({ type: "webauthn.create", origin: ORIGIN }),
-            ),
-          ),
+          response: {
+            ...args.response,
+            response: {
+              ...args.response.response,
+              clientDataJSON: toBase64URL(
+                new TextEncoder().encode(
+                  JSON.stringify({ type: "webauthn.create", origin: ORIGIN }),
+                ),
+              ),
+            },
+          },
         }),
       "the client data JSON carries no challenge",
     );
@@ -839,10 +848,9 @@ describe("checkRegistrationForNewUser", () => {
   function checkArgs({
     expectedRpId,
     expectedOrigin,
-    attestationObject,
-    clientDataJSON,
+    response,
   }: Awaited<ReturnType<typeof registrationArgs>>["args"]) {
-    return { expectedRpId, expectedOrigin, attestationObject, clientDataJSON };
+    return { expectedRpId, expectedOrigin, response };
   }
 
   test("returns success for a valid attestation and writes nothing", async () => {
@@ -936,7 +944,13 @@ describe("checkRegistrationForNewUser", () => {
       () =>
         t.query(api.registration.checkRegistrationForNewUser, {
           ...checkArgs(args),
-          transports: ["smart card"],
+          response: {
+            ...args.response,
+            response: {
+              ...args.response.response,
+              transports: ["smart card"],
+            },
+          },
         }),
       'The client sent: ["smart card"].',
     );
@@ -978,7 +992,7 @@ describe("listPasskeys", () => {
     expect(result).toHaveLength(1);
     expect(result[0].passkeyId).toBe(passkeyId);
     expect(result[0].name).toBe("MacBook");
-    expectSameBytes(result[0].credentialId, credential.credentialId);
+    expect(result[0].credentialId).toBe(toBase64URL(credential.credentialId));
     expect(typeof result[0].createdAt).toBe("number");
     // The key material never leaves the component.
     expect(result[0]).not.toHaveProperty("publicKey");

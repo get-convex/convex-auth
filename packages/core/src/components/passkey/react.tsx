@@ -28,7 +28,15 @@ import {
   type AlreadyPendingFailure,
 } from "./react_impl.tsx";
 
-export type { PasskeyClientError } from "./client.ts";
+// Apps read the wire shapes and the browser-side failure shapes from here.
+export type {
+  PasskeyClientError,
+  PasskeyClientFailure,
+  WireAuthenticationResponse,
+  WireCreationOptions,
+  WireRegistrationResponse,
+  WireRequestOptions,
+} from "./client.ts";
 export type {
   UsernamePasskeyApi,
   UsernamePasskeyAutofillError,
@@ -110,13 +118,14 @@ export function useUsernamePasskeySignIn(
   ctxRef.current = { convex, api: usernamePasskeyApi, signInApi, setSession };
 
   const autofill = usePasskeyAutofill<UsernamePasskeyAutofillError>({
-    start: () => {
+    start: async () => {
       const { convex, api } = ctxRef.current;
-      return convex.mutation(api.startAutofillSignIn, {});
+      const { options } = await convex.mutation(api.startAutofillSignIn, {});
+      return options;
     },
-    onAssertion: async (assertion) => {
+    onAssertion: async (response) => {
       const { api, signInApi, setSession } = ctxRef.current;
-      const result = await signInApi.mutation(api.finishSignIn, assertion);
+      const result = await signInApi.mutation(api.finishSignIn, { response });
       if (!result.success) {
         return result;
       }

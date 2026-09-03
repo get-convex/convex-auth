@@ -16,6 +16,8 @@ import {
 } from "./react.tsx";
 import { usePasskeyAutofill, usePasskeyCeremonySlot } from "./react_impl.tsx";
 
+import { fromBase64URL, toBase64URL } from "./base64url.ts";
+
 const noopAutofill = { pause: () => {}, resume: () => {} };
 
 // The hook calls several different mutations, so both call paths dispatch on
@@ -124,6 +126,15 @@ function stubCredentials() {
  * conditional-mediation request until the user picks a passkey. */
 const pendingForever = () => new Promise<never>(() => {});
 
+const bytes = (text: string) =>
+  Uint8Array.from(text, (character) => character.charCodeAt(0)).buffer;
+
+/**
+ * The wire form of a short ASCII string: canonical base64url, so that a
+ * value decoded from it encodes back to exactly the same string.
+ */
+const wire = (text: string) => toBase64URL(bytes(text));
+
 class FakePublicKeyCredential {
   static isConditionalMediationAvailable = async () => true;
 }
@@ -138,54 +149,107 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
+// The options objects the start mutations return, ready for the browser.
+const creationOptions = {
+  rp: { id: "localhost", name: "Test app" },
+  user: { id: "handle-1", name: "alice", displayName: "alice" },
+  challenge: "challenge-1",
+  pubKeyCredParams: [{ alg: -7, type: "public-key" as const }],
+  timeout: 600000,
+  excludeCredentials: [],
+  authenticatorSelection: {
+    residentKey: "required" as const,
+    requireResidentKey: true as const,
+    userVerification: "required" as const,
+  },
+  attestation: "none" as const,
+  extensions: {},
+};
+
+const requestOptions = {
+  challenge: "challenge-1",
+  timeout: 600000,
+  rpId: "localhost",
+  allowCredentials: [
+    { id: "cred-1", type: "public-key" as const, transports: ["internal"] },
+  ],
+  userVerification: "required" as const,
+};
+
+// A stand-in for the credential `navigator.credentials.get()` returns, for
+// the modal and the conditional path alike. It encodes back to
+// `wireAuthenticationResponse`.
+const conditionalCredential = {
+  id: wire("cred-1"),
+  rawId: bytes("cred-1"),
+  response: {
+    clientDataJSON: bytes("client-data"),
+    authenticatorData: bytes("auth-data"),
+    signature: bytes("signature"),
+    userHandle: bytes("handle-1"),
+  },
+  type: "public-key",
+};
+
 const registerStart = {
   success: true,
   step: "register",
-  challenge: new ArrayBuffer(16),
-  userHandle: new ArrayBuffer(16),
-  rpId: "localhost",
-  rpName: "Test app",
+  options: creationOptions,
 };
 
 const authenticateStart = {
   success: true,
   step: "authenticate",
-  challenge: new ArrayBuffer(16),
-  allowCredentials: [{ id: new ArrayBuffer(8), transports: ["internal"] }],
-  rpId: "localhost",
+  options: requestOptions,
 };
 
-// What an autofill start mutation returns for a conditional request.
-const requestOptions = { challenge: new ArrayBuffer(16), rpId: "localhost" };
-
 // A stand-in for the credential `navigator.credentials.create()` returns.
+// It encodes back to `wireRegistrationResponse`.
 const attestationCredential = {
-  rawId: new ArrayBuffer(8),
+  id: wire("cred-1"),
+  rawId: bytes("cred-1"),
   response: {
-    attestationObject: new ArrayBuffer(1),
-    clientDataJSON: new ArrayBuffer(2),
+    clientDataJSON: bytes("client-data"),
+    attestationObject: bytes("attestation"),
     getTransports: () => ["internal", "hybrid"],
   },
+  type: "public-key",
 };
 
 // A stand-in for an older browser, whose attestation response has no
 // `getTransports` method.
 const attestationCredentialWithoutTransports = {
-  rawId: new ArrayBuffer(8),
+  ...attestationCredential,
   response: {
-    attestationObject: new ArrayBuffer(1),
-    clientDataJSON: new ArrayBuffer(2),
+    clientDataJSON: bytes("client-data"),
+    attestationObject: bytes("attestation"),
   },
 };
 
-// A stand-in for the credential `navigator.credentials.get()` returns.
-const assertionCredential = {
-  rawId: new ArrayBuffer(8),
+// The wire forms of the two responses, as the finish mutations receive them.
+const wireRegistrationResponse = {
+  id: wire("cred-1"),
+  rawId: wire("cred-1"),
   response: {
-    authenticatorData: new ArrayBuffer(1),
-    clientDataJSON: new ArrayBuffer(2),
-    signature: new ArrayBuffer(3),
+    clientDataJSON: wire("client-data"),
+    attestationObject: wire("attestation"),
+    transports: ["internal", "hybrid"],
   },
+  clientExtensionResults: {},
+  type: "public-key",
+};
+
+const wireAuthenticationResponse = {
+  id: wire("cred-1"),
+  rawId: wire("cred-1"),
+  response: {
+    clientDataJSON: wire("client-data"),
+    authenticatorData: wire("auth-data"),
+    signature: wire("signature"),
+    userHandle: wire("handle-1"),
+  },
+  clientExtensionResults: {},
+  type: "public-key",
 };
 
 beforeEach(() => {
@@ -250,11 +314,23 @@ describe("useUsernamePasskeySignIn signIn", () => {
     });
 
     expect(mutations.startSignIn).toHaveBeenCalledWith({ username: "alice" });
+    // The server-built options reach the browser with their binary fields
+    // decoded and everything else untouched.
+    const [createCall] = ceremonyCreate.mock.calls[0] as [
+      { publicKey: PublicKeyCredentialCreationOptions },
+    ];
+    expect(createCall.publicKey.challenge).toEqual(
+      fromBase64URL(creationOptions.challenge),
+    );
+    expect(createCall.publicKey.user.id).toEqual(
+      fromBase64URL(creationOptions.user.id),
+    );
+    expect(createCall.publicKey.rp).toEqual(creationOptions.rp);
+    expect(createCall.publicKey.attestation).toBe("none");
+    // The response reaches the finish mutation in the wire shape.
     expect(mutations.finishSignUp).toHaveBeenCalledWith({
       username: "alice",
-      attestationObject: attestationCredential.response.attestationObject,
-      clientDataJSON: attestationCredential.response.clientDataJSON,
-      transports: ["internal", "hybrid"],
+      response: wireRegistrationResponse,
     });
     expect(returned).toEqual({ success: true, tokens: bundle, flow: "signUp" });
     expect(result.current.auth.isAuthenticated).toBe(true);
@@ -275,14 +351,14 @@ describe("useUsernamePasskeySignIn signIn", () => {
 
     expect(returned.success).toBe(true);
     const [args] = mutations.finishSignUp.mock.calls[0] as [
-      { transports?: string[] },
+      { response: { response: { transports?: string[] } } },
     ];
-    expect(args.transports).toBe(undefined);
+    expect(args.response.response).not.toHaveProperty("transports");
   });
 
   test("sign-in success runs the authentication ceremony and adopts the session", async () => {
     mutations.startSignIn.mockResolvedValue(authenticateStart);
-    ceremonyGet.mockResolvedValue(assertionCredential);
+    ceremonyGet.mockResolvedValue(conditionalCredential);
     mutations.finishSignIn.mockResolvedValue({
       success: true,
       tokens: bundle,
@@ -296,22 +372,21 @@ describe("useUsernamePasskeySignIn signIn", () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
 
-    const [request] = ceremonyGet.mock.calls[0] as [
+    const [getCall] = ceremonyGet.mock.calls[0] as [
       { publicKey: PublicKeyCredentialRequestOptions },
     ];
-    expect(request.publicKey.allowCredentials).toEqual([
-      {
-        type: "public-key",
-        id: authenticateStart.allowCredentials[0].id,
-        transports: ["internal"],
-      },
-    ]);
-    // `rawId` carries the credential ID bytes, not the base64url `id`.
+    expect(getCall.publicKey.challenge).toEqual(
+      fromBase64URL(requestOptions.challenge),
+    );
+    expect(getCall.publicKey.rpId).toBe(requestOptions.rpId);
+    expect(getCall.publicKey.allowCredentials).toEqual(
+      requestOptions.allowCredentials.map((descriptor) => ({
+        ...descriptor,
+        id: fromBase64URL(descriptor.id),
+      })),
+    );
     expect(mutations.finishSignIn).toHaveBeenCalledWith({
-      credentialId: assertionCredential.rawId,
-      authenticatorData: assertionCredential.response.authenticatorData,
-      clientDataJSON: assertionCredential.response.clientDataJSON,
-      signature: assertionCredential.response.signature,
+      response: wireAuthenticationResponse,
     });
     expect(returned).toEqual({
       success: true,
@@ -400,7 +475,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     // The first call still completes normally.
     let firstResult!: UsernamePasskeySignInResult;
     await act(async () => {
-      resolveCeremony(assertionCredential);
+      resolveCeremony(conditionalCredential);
       firstResult = await first;
     });
     expect(firstResult).toEqual({
@@ -422,7 +497,9 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("signIn keeps one identity while the autofill status changes", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue(requestOptions);
+    mutations.startAutofillSignIn.mockResolvedValue({
+      options: requestOptions,
+    });
     conditionalGet.mockImplementation(pendingForever);
     const { result, unmount } = renderPasskey();
     // Captured before the loop reports anything, so the assertion below
@@ -457,8 +534,10 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("a picked passkey signs the user in: waiting → signedIn", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue(requestOptions);
-    conditionalGet.mockResolvedValue(assertionCredential);
+    mutations.startAutofillSignIn.mockResolvedValue({
+      options: requestOptions,
+    });
+    conditionalGet.mockResolvedValue(conditionalCredential);
     mutations.finishSignIn.mockResolvedValue({
       success: true,
       tokens: bundle,
@@ -476,10 +555,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     expect(call.signal).toBeInstanceOf(AbortSignal);
     expect(call.publicKey.rpId).toBe(requestOptions.rpId);
     expect(mutations.finishSignIn).toHaveBeenCalledWith({
-      credentialId: assertionCredential.rawId,
-      authenticatorData: assertionCredential.response.authenticatorData,
-      clientDataJSON: assertionCredential.response.clientDataJSON,
-      signature: assertionCredential.response.signature,
+      response: wireAuthenticationResponse,
     });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(result.current.passkey.autofill.lastError).toBe(null);
@@ -489,8 +565,10 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("a success after a failed assertion clears lastError", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue(requestOptions);
-    conditionalGet.mockResolvedValue(assertionCredential);
+    mutations.startAutofillSignIn.mockResolvedValue({
+      options: requestOptions,
+    });
+    conditionalGet.mockResolvedValue(conditionalCredential);
     // The first assertion fails on the server; the loop retries with a
     // fresh challenge and the second one succeeds.
     mutations.finishSignIn
@@ -518,7 +596,9 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("signIn pauses the pending autofill request and resumes it after", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue(requestOptions);
+    mutations.startAutofillSignIn.mockResolvedValue({
+      options: requestOptions,
+    });
     // The conditional (autofill) request stays pending until aborted; the
     // modal ceremony resolves. A modal ceremony while a conditional
     // request is still pending would displace it (the slot enforces this),
@@ -533,7 +613,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
       // ceremony started. The signal latches, thus this holds whether the
       // pause landed while the request was pending or still starting.
       expect(conditionalSignal?.aborted).toBe(true);
-      return Promise.resolve(assertionCredential);
+      return Promise.resolve(conditionalCredential);
     });
     mutations.startSignIn.mockResolvedValue(authenticateStart);
     mutations.finishSignIn.mockResolvedValue({
@@ -673,8 +753,8 @@ describe("usePasskeyCeremonySlot", () => {
 });
 
 describe("usePasskeyAutofill", () => {
-  test("hands the picked assertion to onAssertion and reports success", async () => {
-    conditionalGet.mockResolvedValue(assertionCredential);
+  test("hands the picked response to onAssertion and reports success", async () => {
+    conditionalGet.mockResolvedValue(conditionalCredential);
     const start = vi.fn(async () => requestOptions);
     const onAssertion = vi.fn(async () => ({ success: true as const }));
     const { result, unmount } = renderHook(() =>
@@ -684,19 +764,14 @@ describe("usePasskeyAutofill", () => {
     await waitFor(() => expect(result.current.status).toBe("signedIn"));
     expect(result.current.available).toBe(true);
     expect(result.current.lastError).toBe(null);
-    expect(onAssertion).toHaveBeenCalledWith({
-      credentialId: assertionCredential.rawId,
-      authenticatorData: assertionCredential.response.authenticatorData,
-      clientDataJSON: assertionCredential.response.clientDataJSON,
-      signature: assertionCredential.response.signature,
-    });
+    expect(onAssertion).toHaveBeenCalledWith(wireAuthenticationResponse);
 
     unmount();
     await act(async () => {});
   });
 
   test("stops after three failed assertions in a row", async () => {
-    conditionalGet.mockResolvedValue(assertionCredential);
+    conditionalGet.mockResolvedValue(conditionalCredential);
     const start = vi.fn(async () => requestOptions);
     const flowError = { error: "VERIFICATION_FAILED" as const };
     const onAssertion = vi.fn(async () => ({

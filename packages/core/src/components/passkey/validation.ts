@@ -1,21 +1,10 @@
 import { Infer, v } from "convex/values";
-
-// How long a stored challenge stays valid. The WebAuthn spec recommends
-// ceremony timeouts of 5–10 minutes to leave room for user interaction
-// (PIN entry, cross-device flows); we match the upper bound. Expiring
-// challenges bounds the window for replay of an intercepted challenge.
-// https://www.w3.org/TR/webauthn-3/#sctn-timeout-recommended-range
-export const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-// The COSE signature algorithms this provider accepts, as IANA identifiers
-// (https://www.iana.org/assignments/cose/cose.xhtml#algorithms). This list
-// is enforced when the attestation is verified. The client offers its own
-// `pubKeyCredParams` literal in `react.tsx`, so keep the two lists in sync
-// by hand. `@simplewebauthn/server` also verifies Ed25519 (-8).
-export const SUPPORTED_ALGORITHM_IDS = [
-  -7, // ES256
-  -257, // RS256
-];
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from "@simplewebauthn/server";
 
 /**
  * Constants used for some basic best-effort validation of the
@@ -110,6 +99,160 @@ export const credentialDescriptor = v.object({
   transports: v.optional(v.array(v.string())),
 });
 export type CredentialDescriptor = Infer<typeof credentialDescriptor>;
+
+//------------------------------------------------------------------------------
+// The WebAuthn JSON wire format
+//------------------------------------------------------------------------------
+//
+// The wire between the client and the provider carries the spec's JSON
+// shapes (https://w3c.github.io/webauthn/#dictdef-registrationresponsejson
+// and friends): base64url strings for the binary fields, options assembled
+// on the server by `options.ts`, and responses fed to
+// `verifyRegistrationResponse` / `verifyAuthenticationResponse` unchanged.
+//
+// The validators are exact: they list every field the server produces or
+// reads, and nothing else. A client must prune the convenience fields that
+// `@simplewebauthn/browser` adds to a response (`publicKey`,
+// `publicKeyAlgorithm`, `authenticatorData`, `authenticatorAttachment`)
+// before it calls a mutation; the React hooks do that pruning.
+
+/**
+ * A library type with every `transports` list widened to plain strings.
+ * The wire keeps the transports open because the WebAuthn spec lets new
+ * transports appear, and the component stores them as free-form strings.
+ * Used only by the `_…Matches` pins below.
+ */
+type OpenTransports<T> = T extends readonly (infer E)[]
+  ? OpenTransports<E>[]
+  : T extends object
+    ? {
+        [K in keyof T]: K extends "transports"
+          ? string[]
+          : OpenTransports<T[K]>;
+      }
+    : T;
+
+/** Require `A` to be assignable to `B` (used as a compile-time pin). */
+type Extends<A extends B, B> = A;
+
+/** The JSON form of {@link credentialDescriptor}, for the options objects. */
+const credentialDescriptorJSON = v.object({
+  id: v.string(),
+  type: v.literal("public-key"),
+  transports: v.optional(v.array(v.string())),
+});
+
+/**
+ * The `PublicKeyCredentialCreationOptionsJSON` that the start mutations of a
+ * registration ceremony return. Pass it to the WebAuthn `create()` call
+ * (for example through `startRegistration` of `@simplewebauthn/browser`).
+ *
+ * The shape is exactly what `generateRegistrationOptions` produces with the
+ * settings of this provider: `attestation: "none"`, a discoverable
+ * credential with required user verification, and no extensions.
+ */
+export const vPublicKeyCredentialCreationOptionsJSON = v.object({
+  rp: v.object({ id: v.string(), name: v.string() }),
+  user: v.object({
+    id: v.string(),
+    name: v.string(),
+    displayName: v.string(),
+  }),
+  challenge: v.string(),
+  pubKeyCredParams: v.array(
+    v.object({ alg: v.number(), type: v.literal("public-key") }),
+  ),
+  timeout: v.number(),
+  excludeCredentials: v.array(credentialDescriptorJSON),
+  authenticatorSelection: v.object({
+    residentKey: v.literal("required"),
+    requireResidentKey: v.literal(true),
+    userVerification: v.literal("required"),
+  }),
+  attestation: v.literal("none"),
+  extensions: v.object({}),
+});
+export type WireCreationOptions = Infer<
+  typeof vPublicKeyCredentialCreationOptionsJSON
+>;
+type _CreationOptionsMatch = Extends<
+  WireCreationOptions,
+  OpenTransports<PublicKeyCredentialCreationOptionsJSON>
+>;
+
+/**
+ * The `PublicKeyCredentialRequestOptionsJSON` that the start mutations of an
+ * authentication ceremony return. Pass it to the WebAuthn `get()` call (for
+ * example through `startAuthentication` of `@simplewebauthn/browser`).
+ *
+ * An empty `allowCredentials` list means a discoverable-credential ceremony:
+ * the passkey the user picks identifies the account.
+ */
+export const vPublicKeyCredentialRequestOptionsJSON = v.object({
+  challenge: v.string(),
+  timeout: v.number(),
+  rpId: v.string(),
+  allowCredentials: v.array(credentialDescriptorJSON),
+  userVerification: v.literal("required"),
+});
+export type WireRequestOptions = Infer<
+  typeof vPublicKeyCredentialRequestOptionsJSON
+>;
+type _RequestOptionsMatch = Extends<
+  WireRequestOptions,
+  OpenTransports<PublicKeyCredentialRequestOptionsJSON>
+>;
+
+/**
+ * The `RegistrationResponseJSON` that the finish mutations of a registration
+ * ceremony take, without the convenience fields that duplicate data from the
+ * attestation object (`publicKey`, `publicKeyAlgorithm`,
+ * `authenticatorData`, `authenticatorAttachment`).
+ *
+ * `clientExtensionResults` must be empty because the options request no
+ * extensions.
+ */
+export const vRegistrationResponseJSON = v.object({
+  id: v.string(),
+  rawId: v.string(),
+  response: v.object({
+    clientDataJSON: v.string(),
+    attestationObject: v.string(),
+    transports: v.optional(v.array(v.string())),
+  }),
+  clientExtensionResults: v.object({}),
+  type: v.literal("public-key"),
+});
+export type WireRegistrationResponse = Infer<typeof vRegistrationResponseJSON>;
+type _RegistrationResponseMatch = Extends<
+  WireRegistrationResponse,
+  OpenTransports<RegistrationResponseJSON>
+>;
+
+/**
+ * The `AuthenticationResponseJSON` that the finish mutations of an
+ * authentication ceremony take. `clientExtensionResults` must be empty
+ * because the options request no extensions.
+ */
+export const vAuthenticationResponseJSON = v.object({
+  id: v.string(),
+  rawId: v.string(),
+  response: v.object({
+    clientDataJSON: v.string(),
+    authenticatorData: v.string(),
+    signature: v.string(),
+    userHandle: v.optional(v.string()),
+  }),
+  clientExtensionResults: v.object({}),
+  type: v.literal("public-key"),
+});
+export type WireAuthenticationResponse = Infer<
+  typeof vAuthenticationResponseJSON
+>;
+type _AuthenticationResponseMatch = Extends<
+  WireAuthenticationResponse,
+  AuthenticationResponseJSON
+>;
 
 /**
  * The client broke the WebAuthn protocol: an unexpected origin, an

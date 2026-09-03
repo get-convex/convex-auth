@@ -20,10 +20,12 @@ import {
   buildAuthenticatorData,
   buildClientDataJSON,
   generateES256Credential,
+  registrationResponse,
+  toBase64URL,
   type TestCredential,
 } from "@convex-dev/passkey-test-authenticator";
 import { registerUsername } from "@convex-dev/auth/providers/testing/username";
-import { api } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -34,26 +36,6 @@ const RP_ID = "localhost";
 const ORIGIN = "http://localhost:5173";
 
 type T = TestConvex<typeof schema>;
-
-type Attestation = {
-  attestationObject: ArrayBuffer;
-  clientDataJSON: ArrayBuffer;
-};
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-}
-
-/** Assert that two byte buffers hold the same bytes. */
-function expectSameBytes(
-  a: ArrayBuffer | Uint8Array,
-  b: ArrayBuffer | Uint8Array,
-): void {
-  expect(new Uint8Array(a)).toEqual(new Uint8Array(b));
-}
 
 async function setup(): Promise<T> {
   // The core signs JWTs from these env vars. Mint a real RS256 key pair for
@@ -85,29 +67,30 @@ afterEach(() => {
 /** The caller as a signed-in user, the way a real access token identifies one. */
 const as = (t: T, userId: string) => t.withIdentity({ subject: userId });
 
-/** Build the `create()` payloads of a registration ceremony. */
+/** Build the `response` of a `create()` ceremony, spreadable into args. */
 async function attest(
-  challenge: ArrayBuffer,
+  challenge: string,
   credential: TestCredential,
-): Promise<Attestation> {
+): Promise<{ response: ReturnType<typeof registrationResponse> }> {
   const authenticatorData = await buildAuthenticatorData({
     rpId: RP_ID,
     credential,
   });
   return {
-    attestationObject: toArrayBuffer(buildAttestationObject(authenticatorData)),
-    clientDataJSON: toArrayBuffer(
-      buildClientDataJSON({
+    response: registrationResponse({
+      credential,
+      attestationObject: buildAttestationObject(authenticatorData),
+      clientDataJSON: buildClientDataJSON({
         type: "webauthn.create",
         challenge,
         origin: ORIGIN,
       }),
-    ),
+    }),
   };
 }
 
-/** Build the `get()` payloads of an authentication ceremony. */
-const assertWith = (credential: TestCredential, challenge: ArrayBuffer) =>
+/** Build the `response` of a `get()` ceremony, spreadable into args. */
+const assertWith = (credential: TestCredential, challenge: string) =>
   buildAssertion(credential, challenge, { rpId: RP_ID, origin: ORIGIN });
 
 /** Register a new account with its first passkey. */
@@ -122,7 +105,7 @@ async function signUp(
   const credential = await generateES256Credential();
   const result = await t.mutation(api.auth.finishSignUp, {
     username,
-    ...(await attest(start.challenge, credential)),
+    ...(await attest(start.options.challenge, credential)),
   });
   if (!result.success) {
     throw new Error(`The sign-up failed: ${result.userError.error}`);
@@ -143,7 +126,7 @@ async function addPasskey(
   }
   const verified = await caller.mutation(
     api.auth.verifyAddPasskey,
-    await assertWith(authorizeWith, start.challenge),
+    await assertWith(authorizeWith, start.options.challenge),
   );
   if (!verified.success) {
     throw new Error(
@@ -153,7 +136,7 @@ async function addPasskey(
   const credential = await generateES256Credential();
   const finished = await caller.mutation(
     api.auth.finishAddPasskey,
-    await attest(verified.challenge, credential),
+    await attest(verified.options.challenge, credential),
   );
   if (!finished.success) {
     throw new Error(`The add failed: ${finished.userError.error}`);
@@ -177,12 +160,11 @@ describe("listPasskeys", () => {
     expect(forBob.passkeys).toHaveLength(1);
     expect(forAlice.passkeys[0]).toEqual({
       passkeyId: expect.any(String),
-      credentialId: expect.any(ArrayBuffer),
+      credentialId: expect.any(String),
       createdAt: expect.any(Number),
     });
-    expectSameBytes(
-      forBob.passkeys[0].credentialId,
-      bob.credential.credentialId,
+    expect(forBob.passkeys[0].credentialId).toBe(
+      toBase64URL(bob.credential.credentialId),
     );
   });
 
@@ -204,35 +186,34 @@ describe("adding a passkey", () => {
 
     const start = await caller.mutation(api.auth.startAddPasskey, {});
     if (!start.success) throw new Error("The caller is signed in.");
-    expect(start.rpId).toBe(RP_ID);
+    expect(start.options.rpId).toBe(RP_ID);
     // Each passkey of the account can authorize the add.
-    expect(start.allowCredentials).toHaveLength(1);
-    expectSameBytes(
-      start.allowCredentials[0].id,
-      alice.credential.credentialId,
+    expect(start.options.allowCredentials).toHaveLength(1);
+    expect(start.options.allowCredentials[0].id).toBe(
+      toBase64URL(alice.credential.credentialId),
     );
 
     const verified = await caller.mutation(
       api.auth.verifyAddPasskey,
-      await assertWith(alice.credential, start.challenge),
+      await assertWith(alice.credential, start.options.challenge),
     );
     if (!verified.success) throw new Error("The assertion is valid.");
-    expect(verified.rpId).toBe(RP_ID);
+    expect(verified.options.rp.id).toBe(RP_ID);
     // `auth.ts` names no `rpName`, thus the relying party ID stands in for it.
-    expect(verified.rpName).toBe(RP_ID);
-    expect(verified.username).toBe("alice");
+    expect(verified.options.rp.name).toBe(RP_ID);
+    expect(verified.options.user.name).toBe("alice");
+    expect(verified.options.user.displayName).toBe("alice");
     // The authenticator must not make a second credential for a passkey the
     // account already holds.
-    expect(verified.excludeCredentials).toHaveLength(1);
-    expectSameBytes(
-      verified.excludeCredentials[0].id,
-      alice.credential.credentialId,
+    expect(verified.options.excludeCredentials).toHaveLength(1);
+    expect(verified.options.excludeCredentials[0].id).toBe(
+      toBase64URL(alice.credential.credentialId),
     );
 
     const credential = await generateES256Credential();
     const finished = await caller.mutation(
       api.auth.finishAddPasskey,
-      await attest(verified.challenge, credential),
+      await attest(verified.options.challenge, credential),
     );
     expect(finished).toEqual({ success: true, passkeyId: expect.any(String) });
 
@@ -256,9 +237,32 @@ describe("adding a passkey", () => {
     expect(
       await caller.mutation(
         api.auth.verifyAddPasskey,
-        await assertWith(alice.credential, start.challenge),
+        await assertWith(alice.credential, start.options.challenge),
       ),
     ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
+  });
+
+  test("refuses to name a passkey for a user without a username", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    await t.run((ctx) =>
+      ctx.runMutation(components.authUsername.public.deleteUsername, {
+        userId: alice.userId,
+      }),
+    );
+    const caller = as(t, alice.userId);
+
+    const start = await caller.mutation(api.auth.startAddPasskey, {});
+    if (!start.success) throw new Error("The caller is signed in.");
+    // The re-authentication succeeds, but the server cannot build the
+    // `user.name` for the new passkey. Only the app can remove a username,
+    // so the failure is an error for the developer, not a `userError`.
+    await expect(
+      caller.mutation(
+        api.auth.verifyAddPasskey,
+        await assertWith(alice.credential, start.options.challenge),
+      ),
+    ).rejects.toThrow("no username");
   });
 
   test("refuses a create() ceremony that no verifyAddPasskey started", async () => {
@@ -270,7 +274,7 @@ describe("adding a passkey", () => {
     expect(
       await as(t, alice.userId).mutation(
         api.auth.finishAddPasskey,
-        await attest(new ArrayBuffer(32), credential),
+        await attest(toBase64URL(new ArrayBuffer(32)), credential),
       ),
     ).toEqual({ success: false, userError: { error: "CHALLENGE_EXPIRED" } });
   });
@@ -291,7 +295,7 @@ describe("adding a passkey", () => {
     expect(
       await as(t, alice.userId).mutation(
         api.auth.finishAddPasskey,
-        await attest(start.challenge, credential),
+        await attest(start.options.challenge, credential),
       ),
     ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
   });
@@ -308,13 +312,16 @@ describe("adding a passkey", () => {
     expect(
       await t.mutation(
         api.auth.verifyAddPasskey,
-        await assertWith(alice.credential, new ArrayBuffer(32)),
+        await assertWith(alice.credential, toBase64URL(new ArrayBuffer(32))),
       ),
     ).toEqual(notSignedIn);
     expect(
       await t.mutation(
         api.auth.finishAddPasskey,
-        await attest(new ArrayBuffer(32), await generateES256Credential()),
+        await attest(
+          toBase64URL(new ArrayBuffer(32)),
+          await generateES256Credential(),
+        ),
       ),
     ).toEqual(notSignedIn);
   });
@@ -331,28 +338,26 @@ describe("removing a passkey", () => {
       passkeyId: second.passkeyId,
     });
     if (!start.success) throw new Error("The account has two passkeys.");
-    expect(start.rpId).toBe(RP_ID);
+    expect(start.options.rpId).toBe(RP_ID);
     // The passkey that goes away cannot authorize its own removal, thus the
     // browser must not offer it.
-    expect(start.allowCredentials).toHaveLength(1);
-    expectSameBytes(
-      start.allowCredentials[0].id,
-      alice.credential.credentialId,
+    expect(start.options.allowCredentials).toHaveLength(1);
+    expect(start.options.allowCredentials[0].id).toBe(
+      toBase64URL(alice.credential.credentialId),
     );
 
     expect(
       await caller.mutation(api.auth.finishRemovePasskey, {
         passkeyId: second.passkeyId,
-        ...(await assertWith(alice.credential, start.challenge)),
+        ...(await assertWith(alice.credential, start.options.challenge)),
       }),
     ).toEqual({ success: true });
 
     const list = await caller.query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
     expect(list.passkeys).toHaveLength(1);
-    expectSameBytes(
-      list.passkeys[0].credentialId,
-      alice.credential.credentialId,
+    expect(list.passkeys[0].credentialId).toBe(
+      toBase64URL(alice.credential.credentialId),
     );
   });
 
@@ -386,7 +391,7 @@ describe("removing a passkey", () => {
     expect(
       await caller.mutation(api.auth.finishRemovePasskey, {
         passkeyId: second.passkeyId,
-        ...(await assertWith(second.credential, start.challenge)),
+        ...(await assertWith(second.credential, start.options.challenge)),
       }),
     ).toEqual({ success: false, userError: { error: "PROTOCOL_ERROR" } });
 
@@ -409,7 +414,10 @@ describe("removing a passkey", () => {
       passkeyId: second.passkeyId,
     });
     if (!start.success) throw new Error("The account has two passkeys.");
-    const assertion = await assertWith(alice.credential, start.challenge);
+    const assertion = await assertWith(
+      alice.credential,
+      start.options.challenge,
+    );
 
     const list = await caller.query(api.auth.listPasskeys, {});
     if (!list.success) throw new Error("The caller is signed in.");
@@ -466,7 +474,7 @@ describe("removing a passkey", () => {
     expect(
       await caller.mutation(api.auth.finishRemovePasskey, {
         passkeyId: bobList.passkeys[0].passkeyId,
-        ...(await assertWith(alice.credential, start.challenge)),
+        ...(await assertWith(alice.credential, start.options.challenge)),
       }),
     ).toEqual({ success: false, userError: { error: "PASSKEY_NOT_FOUND" } });
 
@@ -492,7 +500,10 @@ describe("removing a passkey", () => {
     expect(
       await t.mutation(api.auth.finishRemovePasskey, {
         passkeyId: second.passkeyId,
-        ...(await assertWith(alice.credential, new ArrayBuffer(32))),
+        ...(await assertWith(
+          alice.credential,
+          toBase64URL(new ArrayBuffer(32)),
+        )),
       }),
     ).toEqual(notSignedIn);
   });
