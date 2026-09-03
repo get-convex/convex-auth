@@ -46,13 +46,38 @@ import {
   buildRegistrationOptions,
 } from "../options.ts";
 
+/**
+ * The largest number of passkeys that one user can hold.
+ *
+ * Each passkey of the user goes into the `allowCredentials` list of every
+ * sign-in and into the `excludeCredentials` list of every registration, thus
+ * an unbounded list grows the payload of every ceremony. The limit is far
+ * above the number of authenticators that a person uses, and the user can
+ * remove a passkey to make room for a new one.
+ *
+ * The component stays permissive; the provider makes the policy, like it does
+ * for the removal of the last passkey.
+ */
+export const MAX_PASSKEYS_PER_USER = 20;
+
+/**
+ * The user-facing error when the user already holds the largest number of
+ * passkeys.
+ */
+const tooManyPasskeysUserError = v.object({
+  error: v.literal("TOO_MANY_PASSKEYS"),
+});
+
 const startAddPasskeyResult = v.union(
   v.object({
     success: v.literal(true),
     // Ready for the re-authentication `get()` call.
     options: vPublicKeyCredentialRequestOptionsJSON,
   }),
-  v.object({ success: v.literal(false), userError: notSignedInUserError }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(notSignedInUserError, tooManyPasskeysUserError),
+  }),
 );
 
 export type StartAddPasskeyResult = Infer<typeof startAddPasskeyResult>;
@@ -76,7 +101,11 @@ const finishAddPasskeyResult = v.union(
   v.object({ success: v.literal(true), passkeyId: v.string() }),
   v.object({
     success: v.literal(false),
-    userError: v.union(notSignedInUserError, finishRegistrationUserError),
+    userError: v.union(
+      notSignedInUserError,
+      finishRegistrationUserError,
+      tooManyPasskeysUserError,
+    ),
   }),
 );
 
@@ -91,6 +120,15 @@ export function startAddPasskey(config: UsernamePasskeyConfig) {
       if (userId === null) {
         return { success: false, userError: { error: "NOT_SIGNED_IN" } };
       }
+      const passkeys = await ctx.runQuery(
+        config.component.registration.listPasskeys,
+        { userId },
+      );
+
+      if (passkeys.length >= MAX_PASSKEYS_PER_USER) {
+        return { success: false, userError: { error: "TOO_MANY_PASSKEYS" } };
+      }
+
       const { challenge, allowCredentials } = await ctx.runMutation(
         config.component.authentication.startAuthentication,
         { purpose: ADD_PASSKEY_PURPOSE, userId },
@@ -196,11 +234,18 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
     },
     returns: finishAddPasskeyResult,
     handler: async (ctx, args): Promise<FinishAddPasskeyResult> => {
-      // TODO(nicolas) Add a limit to how many paskseys can be registered
       const userId = await getAuthUserId(ctx);
       if (userId === null) {
         return { success: false, userError: { error: "NOT_SIGNED_IN" } };
       }
+      const passkeys = await ctx.runQuery(
+        config.component.registration.listPasskeys,
+        { userId },
+      );
+      if (passkeys.length >= MAX_PASSKEYS_PER_USER) {
+        return { success: false, userError: { error: "TOO_MANY_PASSKEYS" } };
+      }
+
       const registrationResult = await ctx.runMutation(
         config.component.registration.finishRegistrationForExistingUser,
         {
