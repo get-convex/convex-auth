@@ -15,8 +15,8 @@ import { encodeCBOR, type CBORValue } from "./cbor.ts";
 export { encodeCBOR, type CBORValue };
 
 /**
- * The `RegistrationResponseJSON` wire envelope of a `create()` call, pruned
- * to the fields that the exact validators of a relying party accept.
+ * The `RegistrationResponseJSON` wire envelope of a `create()` call, with
+ * only the fields that a relying party reads.
  */
 export type RegistrationResponseEnvelope = {
   id: string;

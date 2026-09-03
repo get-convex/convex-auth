@@ -110,11 +110,12 @@ export type CredentialDescriptor = Infer<typeof credentialDescriptor>;
 // on the server by `options.ts`, and responses fed to
 // `verifyRegistrationResponse` / `verifyAuthenticationResponse` unchanged.
 //
-// The validators are exact: they list every field the server produces or
-// reads, and nothing else. A client must prune the convenience fields that
-// `@simplewebauthn/browser` adds to a response (`publicKey`,
-// `publicKeyAlgorithm`, `authenticatorData`, `authenticatorAttachment`)
-// before it calls a mutation; the React hooks do that pruning.
+// The option validators are exact: they list every field the server
+// produces, and nothing else. The response validators accept everything
+// that `startRegistration` / `startAuthentication` of
+// `@simplewebauthn/browser` return, so a client sends the library result
+// to a mutation unchanged. The fields marked "unused" are convenience
+// fields and extension outputs that the server does not read.
 
 /**
  * A library type with every `transports` list widened to plain strings.
@@ -134,6 +135,19 @@ type OpenTransports<T> = T extends readonly (infer E)[]
 
 /** Require `A` to be assignable to `B` (used as a compile-time pin). */
 type Extends<A extends B, B> = A;
+
+/**
+ * `true` when `A` and `B` declare the same keys (used as a compile-time pin).
+ *
+ * `Extends` alone lets `A` miss a key of `B`, because TypeScript allows
+ * extra properties. The response pins add this check so that a new field in
+ * a `@simplewebauthn` response type fails the build here, before the
+ * validator rejects it at runtime.
+ */
+type SameKeys<A, B> =
+  Exclude<keyof A, keyof B> | Exclude<keyof B, keyof A> extends never
+  ? true
+  : false;
 
 /** The JSON form of {@link credentialDescriptor}, for the options objects. */
 const credentialDescriptorJSON = v.object({
@@ -205,12 +219,13 @@ type _RequestOptionsMatch = Extends<
 
 /**
  * The `RegistrationResponseJSON` that the finish mutations of a registration
- * ceremony take, without the convenience fields that duplicate data from the
- * attestation object (`publicKey`, `publicKeyAlgorithm`,
- * `authenticatorData`, `authenticatorAttachment`).
+ * ceremony take, as `startRegistration` of `@simplewebauthn/browser` returns
+ * it.
  *
- * `clientExtensionResults` must be empty because the options request no
- * extensions.
+ * The server reads `attestationObject` and ignores the convenience fields
+ * that duplicate its content (`publicKey`, `publicKeyAlgorithm`,
+ * `authenticatorData`). The options request no extensions, so the server
+ * ignores `clientExtensionResults` too.
  */
 export const vRegistrationResponseJSON = v.object({
   id: v.string(),
@@ -219,8 +234,12 @@ export const vRegistrationResponseJSON = v.object({
     clientDataJSON: v.string(),
     attestationObject: v.string(),
     transports: v.optional(v.array(v.string())),
+    authenticatorData: v.optional(v.any()), // unused
+    publicKey: v.optional(v.any()), // unused
+    publicKeyAlgorithm: v.optional(v.any()), // unused
   }),
-  clientExtensionResults: v.object({}),
+  authenticatorAttachment: v.optional(v.any()), // unused
+  clientExtensionResults: v.any(), // unused
   type: v.literal("public-key"),
 });
 export type WireRegistrationResponse = Infer<typeof vRegistrationResponseJSON>;
@@ -228,11 +247,22 @@ type _RegistrationResponseMatch = Extends<
   WireRegistrationResponse,
   OpenTransports<RegistrationResponseJSON>
 >;
+type _RegistrationResponseKeys = Extends<
+  [
+    SameKeys<WireRegistrationResponse, RegistrationResponseJSON>,
+    SameKeys<
+      WireRegistrationResponse["response"],
+      RegistrationResponseJSON["response"]
+    >,
+  ],
+  [true, true]
+>;
 
 /**
  * The `AuthenticationResponseJSON` that the finish mutations of an
- * authentication ceremony take. `clientExtensionResults` must be empty
- * because the options request no extensions.
+ * authentication ceremony take, as `startAuthentication` of
+ * `@simplewebauthn/browser` returns it. The options request no extensions,
+ * so the server ignores `clientExtensionResults`.
  */
 export const vAuthenticationResponseJSON = v.object({
   id: v.string(),
@@ -243,7 +273,8 @@ export const vAuthenticationResponseJSON = v.object({
     signature: v.string(),
     userHandle: v.optional(v.string()),
   }),
-  clientExtensionResults: v.object({}),
+  authenticatorAttachment: v.optional(v.any()), // unused
+  clientExtensionResults: v.any(), // unused
   type: v.literal("public-key"),
 });
 export type WireAuthenticationResponse = Infer<
@@ -252,6 +283,16 @@ export type WireAuthenticationResponse = Infer<
 type _AuthenticationResponseMatch = Extends<
   WireAuthenticationResponse,
   AuthenticationResponseJSON
+>;
+type _AuthenticationResponseKeys = Extends<
+  [
+    SameKeys<WireAuthenticationResponse, AuthenticationResponseJSON>,
+    SameKeys<
+      WireAuthenticationResponse["response"],
+      AuthenticationResponseJSON["response"]
+    >,
+  ],
+  [true, true]
 >;
 
 /**
