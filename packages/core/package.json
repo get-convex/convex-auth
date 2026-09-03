@@ -104,6 +104,8 @@
       "types": "./dist/components/passkey/convex.config.d.ts",
       "default": "./dist/components/passkey/convex.config.js"
     },
+    "./providers/passkey/management/flows": null,
+    "./providers/passkey/management/flows.js": null,
     "./providers/passkey/convex.config": {
       "types": "./dist/components/passkey/convex.config.d.ts",
       "default": "./dist/components/passkey/convex.config.js"

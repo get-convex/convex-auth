@@ -399,9 +399,9 @@ export type AlreadyPendingFailure = {
  *   {@link AlreadyPendingFailure} instead. A second modal ceremony would be
  *   rejected by the browser, and a nested call would deadlock the autofill
  *   pause/resume protocol.
- * - It pauses the given autofill flow before `fn` and resumes it when `fn`
- *   is done, whatever the outcome. The ceremony of `fn` displaces the
- *   pending conditional request anyway (the browser runs one ceremony at a
+ * - It pauses the autofill flow of the page, when there is one, before
+ *   `fn` and resumes it when `fn` is done, whatever the outcome. The
+ *   ceremony of `fn` displaces the pending conditional request anyway (the browser runs one ceremony at a
  *   time per page); the pause keeps the autofill loop from starting a new
  *   request mid-ceremony, and the resume restarts it.
  * - It folds every value `fn` throws into a {@link PasskeyClientFailure},
@@ -416,13 +416,17 @@ export type AlreadyPendingFailure = {
  * by the autofill loop.
  */
 export function usePasskeyCeremonySlot(options: {
-  autofill: PasskeyAutofillGates;
+  /**
+   * The gates of the autofill flow of the page, or `null` when the page
+   * runs none, which is the case of a settings page.
+   */
+  autofill: PasskeyAutofillGates | null;
 }) {
   // The two gates, not the object that carries them: the whole return
   // value of `usePasskeyAutofill` changes identity whenever the reported
   // state does, while each gate keeps its identity for the life of that
   // hook. Reading them here is what lets `run` stay stable.
-  const { pause, resume } = options.autofill;
+  const { pause, resume } = options.autofill ?? {};
 
   const [pending, setPending] = useState(false);
   // The re-entry guard reads through a ref: `pending` from `useState`
@@ -448,13 +452,13 @@ export function usePasskeyCeremonySlot(options: {
       // flow mid-ceremony. The pauses are counted by the autofill hook
       // itself, so the pair stays balanced even when its effect restarts
       // mid-ceremony.
-      pause();
+      pause?.();
       try {
         return await fn();
       } catch (cause) {
         return { success: false, userError: foldClientError(cause) };
       } finally {
-        resume();
+        resume?.();
         pendingRef.current = false;
         setPending(false);
       }
