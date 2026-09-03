@@ -224,6 +224,8 @@ type RegistrationCheckArgs = Infer<typeof _vRegistrationCheckArgs>;
 
 const finishRegistrationArgs = {
   ...registrationCheckArgs,
+  // The name of the passkey, for display in a settings list. See
+  // {@link passkeyNameIsValid}.
   name: v.optional(v.string()),
 };
 
@@ -231,7 +233,7 @@ const checkRegistrationResult = v.union(
   v.object({ success: v.literal(true) }),
   v.object({
     success: v.literal(false),
-    userError: finishRegistrationUserError,
+    userError: v.union(finishRegistrationUserError, invalidNameUserError),
   }),
 );
 type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
@@ -249,9 +251,14 @@ type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
  * arguments in the same mutation does not return a `userError`.
  */
 export const checkRegistrationForNewUser = query({
-  args: registrationCheckArgs,
+  args: finishRegistrationArgs,
   returns: checkRegistrationResult,
   handler: async (ctx, args): Promise<CheckRegistrationResult> => {
+    // The same check as in `finishRegistrationForNewUser`, so that the
+    // guarantee above holds for the `name` argument too.
+    if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
     const ceremony = await verifyRegistrationAttempt(ctx, args, {
       kind: "newUser",
     });
