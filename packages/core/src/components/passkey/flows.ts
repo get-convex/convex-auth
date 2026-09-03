@@ -90,7 +90,7 @@ type FinishSignInMutation = FunctionReference<
 >;
 
 /** The mutation references the sign-in flows drive. */
-export type PasskeyApi = {
+export type UsernamePasskeyApi = {
   startSignIn: StartSignInMutation;
   startAutofillSignIn: StartAutofillSignInMutation;
   finishSignIn: FinishSignInMutation;
@@ -102,7 +102,7 @@ export type SignInFlowContext = {
   /** The Convex client of the surrounding provider. */
   convex: ConvexReactClient;
   /** The mutation references the app re-exported from its `setupCore`. */
-  api: PasskeyApi;
+  api: UsernamePasskeyApi;
   /**
    * Runs a mutation that mints a session. The finishing mutations go
    * through this, and not through `convex`, because they must work under
@@ -132,7 +132,7 @@ export type SignInFlowResult =
   | PasskeyClientFailure;
 
 /** The errors the autofill sign-in flow reports. */
-export type PasskeyAutofillError =
+export type UsernamePasskeyAutofillError =
   | Extract<FinishSignInResult, { success: false }>["userError"]
   | PasskeyClientError;
 

@@ -1,7 +1,7 @@
 import {
-  PasskeyAutofillError,
-  PasskeySignInResult,
-  usePasskey,
+  UsernamePasskeyAutofillError,
+  UsernamePasskeySignInResult,
+  useUsernamePasskeySignIn,
 } from "@convex-dev/auth/providers/passkey/react";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
@@ -10,7 +10,7 @@ export function LogIn() {
   // While this hook is mounted, the browser also offers stored passkeys in
   // the autocompletion list of the username field below (the field carries
   // autoComplete="username webauthn"). Picking one signs in directly.
-  const { signIn, pending, autofill } = usePasskey({
+  const { signIn, pending, autofill } = useUsernamePasskeySignIn({
     startSignIn: api.auth.startSignIn,
     startAutofillSignIn: api.auth.startAutofillSignIn,
     finishSignIn: api.auth.finishSignIn,
@@ -74,8 +74,8 @@ export function LogIn() {
 
 function errorMessage(
   userError:
-    | Extract<PasskeySignInResult, { success: false }>["userError"]
-    | PasskeyAutofillError,
+    | Extract<UsernamePasskeySignInResult, { success: false }>["userError"]
+    | UsernamePasskeyAutofillError,
 ): string | null {
   switch (userError.error) {
     case "ALREADY_PENDING":

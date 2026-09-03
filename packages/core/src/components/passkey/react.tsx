@@ -2,12 +2,12 @@
  * React client for the passkey provider, exported at
  * `@convex-dev/auth/providers/passkey/react`.
  *
- * {@link usePasskey} is the batteries-included hook for the username +
- * passkey login form. It drives the browser-side WebAuthn ceremonies (see
- * `@convex-dev/auth/providers/passkey/client`) against the mutations of a
- * passkey recipe, and it handles both the identifier-first modal flow and
- * passkey autofill (conditional mediation), where the user selects an
- * account directly in the autocompletion list.
+ * {@link useUsernamePasskeySignIn} is the batteries-included hook for the
+ * username + passkey login form. It drives the browser-side WebAuthn
+ * ceremonies (see `@convex-dev/auth/providers/passkey/client`) against the
+ * mutations of a passkey recipe, and it handles both the identifier-first
+ * modal flow and passkey autofill (conditional mediation), where the user
+ * selects an account directly in the autocompletion list.
  *
  * @module
  */
@@ -18,8 +18,8 @@ import { useCallback, useMemo, useRef } from "react";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 import {
   runSignInOrSignUpFlow,
-  type PasskeyApi,
-  type PasskeyAutofillError,
+  type UsernamePasskeyApi,
+  type UsernamePasskeyAutofillError,
   type SignInFlowResult,
 } from "./flows.ts";
 import {
@@ -29,21 +29,25 @@ import {
 } from "./react_impl.tsx";
 
 export type { PasskeyClientError } from "./client.ts";
-export type { PasskeyApi, PasskeyAutofillError } from "./flows.ts";
+export type {
+  UsernamePasskeyApi,
+  UsernamePasskeyAutofillError,
+} from "./flows.ts";
 export type {
   AlreadyPendingFailure,
   PasskeyAutofillStatus,
 } from "./react_impl.tsx";
 
 /**
- * The result of the `signIn` callback from {@link usePasskey}.
+ * The result of the `signIn` callback from {@link useUsernamePasskeySignIn}.
  *
  * A success carries a `flow` discriminant: `"signUp"` when the ceremony
  * created a new account, `"signIn"` when it authenticated an existing one.
  * `ALREADY_PENDING` comes back when a `signIn` call runs while the
  * previous one still does.
  */
-export type PasskeySignInResult = SignInFlowResult | AlreadyPendingFailure;
+export type UsernamePasskeySignInResult =
+  SignInFlowResult | AlreadyPendingFailure;
 
 /**
  * Client for the log in page in the “username + passkey” auth flow.
@@ -55,11 +59,11 @@ export type PasskeySignInResult = SignInFlowResult | AlreadyPendingFailure;
  *   directly in the autocompletion list.
  *
  * ```tsx
- * import { usePasskey } from "@convex-dev/auth/providers/passkey/react";
+ * import { useUsernamePasskeySignIn } from "@convex-dev/auth/providers/passkey/react";
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
- *   const { signIn, pending, autofill } = usePasskey({
+ *   const { signIn, pending, autofill } = useUsernamePasskeySignIn({
  *     startSignIn: api.auth.startSignIn,
  *     startAutofillSignIn: api.auth.startAutofillSignIn,
  *     finishSignIn: api.auth.finishSignIn,
@@ -82,9 +86,11 @@ export type PasskeySignInResult = SignInFlowResult | AlreadyPendingFailure;
  * }
  * ```
  *
- * @param passkeyApi The app's re-exported passkey mutation references.
+ * @param usernamePasskeyApi The app's re-exported passkey mutation references.
  */
-export function usePasskey(passkeyApi: PasskeyApi) {
+export function useUsernamePasskeySignIn(
+  usernamePasskeyApi: UsernamePasskeyApi,
+) {
   const { setSession } = useAuthActions();
 
   // Using useAuthSignInApi for mutations that return a session to support SSR
@@ -95,10 +101,15 @@ export function usePasskey(passkeyApi: PasskeyApi) {
   // referentially stable across renders. We only need to access them in
   // event callbacks, so using a ref ensures we always use the latest
   // function reference from the callback.
-  const ctxRef = useRef({ convex, api: passkeyApi, signInApi, setSession });
-  ctxRef.current = { convex, api: passkeyApi, signInApi, setSession };
+  const ctxRef = useRef({
+    convex,
+    api: usernamePasskeyApi,
+    signInApi,
+    setSession,
+  });
+  ctxRef.current = { convex, api: usernamePasskeyApi, signInApi, setSession };
 
-  const autofill = usePasskeyAutofill<PasskeyAutofillError>({
+  const autofill = usePasskeyAutofill<UsernamePasskeyAutofillError>({
     start: () => {
       const { convex, api } = ctxRef.current;
       return convex.mutation(api.startAutofillSignIn, {});
@@ -123,7 +134,11 @@ export function usePasskey(passkeyApi: PasskeyApi) {
   const { run, pending } = usePasskeyCeremonySlot({ autofill });
 
   const signIn = useCallback(
-    ({ username }: { username: string }): Promise<PasskeySignInResult> =>
+    ({
+      username,
+    }: {
+      username: string;
+    }): Promise<UsernamePasskeySignInResult> =>
       run(() => runSignInOrSignUpFlow(ctxRef.current, { username })),
     [run],
   );
