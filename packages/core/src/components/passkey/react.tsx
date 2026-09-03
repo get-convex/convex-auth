@@ -4,10 +4,11 @@
  *
  * {@link useUsernamePasskeySignIn} is the batteries-included hook for the
  * username + passkey login form. It drives the browser-side WebAuthn
- * ceremonies (see `@convex-dev/auth/providers/passkey/client`) against the
- * mutations of a passkey recipe, and it handles both the identifier-first
- * modal flow and passkey autofill (conditional mediation), where the user
- * selects an account directly in the autocompletion list.
+ * ceremonies (through the internal client module built on
+ * `@simplewebauthn/browser`) against the mutations of a passkey recipe,
+ * and it handles both the identifier-first modal flow and passkey autofill
+ * (conditional mediation), where the user selects an account directly in
+ * the autocompletion list.
  *
  * @module
  */
@@ -28,10 +29,15 @@ import {
   type AlreadyPendingFailure,
 } from "./react_impl.tsx";
 
-// Apps read the wire shapes and the browser-side failure shapes from here.
+// Apps read the WebAuthn JSON types and the browser-side failure shapes
+// from here, so they never depend on `@simplewebauthn/*` directly.
 export type {
+  AuthenticationResponseJSON,
   PasskeyClientError,
   PasskeyClientFailure,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
   WireAuthenticationResponse,
   WireCreationOptions,
   WireRegistrationResponse,
