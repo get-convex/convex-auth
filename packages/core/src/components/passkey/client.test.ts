@@ -153,7 +153,7 @@ describe("foldClientError", () => {
 });
 
 describe("register", () => {
-  test("hands the options to startRegistration and prunes the response", async () => {
+  test("hands the options to startRegistration and the response back", async () => {
     startRegistration.mockResolvedValue(registrationResponse);
 
     const result = await register(creationOptions);
@@ -161,23 +161,9 @@ describe("register", () => {
     expect(startRegistration).toHaveBeenCalledWith({
       optionsJSON: creationOptions,
     });
-    // The convenience fields (`publicKey`, `publicKeyAlgorithm`,
-    // `authenticatorData`, `authenticatorAttachment`) and the extension
-    // outputs are gone: the exact server validators refuse them.
-    expect(result).toEqual({
-      success: true,
-      response: {
-        id: "credential-id",
-        rawId: "credential-id",
-        response: {
-          clientDataJSON: "client-data",
-          attestationObject: "attestation",
-          transports: ["internal", "hybrid"],
-        },
-        clientExtensionResults: {},
-        type: "public-key",
-      },
-    });
+    // The response reaches the caller unchanged: the server validators
+    // accept the convenience fields and the extension outputs.
+    expect(result).toEqual({ success: true, response: registrationResponse });
   });
 
   test("a response without transports carries none", async () => {
@@ -231,7 +217,7 @@ describe("register", () => {
 });
 
 describe("authenticate", () => {
-  test("hands the options to startAuthentication and prunes the response", async () => {
+  test("hands the options to startAuthentication and the response back", async () => {
     startAuthentication.mockResolvedValue(authenticationResponse);
 
     const result = await authenticate(requestOptions);
@@ -239,21 +225,7 @@ describe("authenticate", () => {
     expect(startAuthentication).toHaveBeenCalledWith({
       optionsJSON: requestOptions,
     });
-    expect(result).toEqual({
-      success: true,
-      response: {
-        id: "credential-id",
-        rawId: "credential-id",
-        response: {
-          clientDataJSON: "client-data",
-          authenticatorData: "auth-data",
-          signature: "signature",
-          userHandle: "user-handle",
-        },
-        clientExtensionResults: {},
-        type: "public-key",
-      },
-    });
+    expect(result).toEqual({ success: true, response: authenticationResponse });
   });
 
   test("a response without userHandle carries none", async () => {
