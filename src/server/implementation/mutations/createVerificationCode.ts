@@ -24,7 +24,10 @@ export async function createVerificationCodeImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  logWithLevel(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", args);
+  logWithLevel(LOG_LEVELS.DEBUG, "createVerificationCodeImpl args:", {
+    ...args,
+    code: "<redacted>",
+  });
   const {
     email,
     phone,

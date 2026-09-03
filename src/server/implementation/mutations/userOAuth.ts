@@ -3,7 +3,12 @@ import { ActionCtx, MutationCtx } from "../types.js";
 import * as Provider from "../provider.js";
 import { OAuthConfig } from "@auth/core/providers/oauth.js";
 import { upsertUserAndAccount } from "../users.js";
-import { generateRandomString, logWithLevel, sha256 } from "../utils.js";
+import {
+  generateRandomString,
+  logWithLevel,
+  maybeRedact,
+  sha256,
+} from "../utils.js";
 
 const OAUTH_SIGN_IN_EXPIRATION_MS = 1000 * 60 * 2; // 2 minutes
 
@@ -22,7 +27,10 @@ export async function userOAuthImpl(
   getProviderOrThrow: Provider.GetProviderOrThrowFunc,
   config: Provider.Config,
 ): Promise<ReturnType> {
-  logWithLevel("DEBUG", "userOAuthImpl args:", args);
+  logWithLevel("DEBUG", "userOAuthImpl args:", {
+    ...args,
+    signature: maybeRedact(args.signature),
+  });
   const { profile, provider, providerAccountId, signature } = args;
   const providerConfig = getProviderOrThrow(provider) as OAuthConfig<any>;
   const existingAccount = await ctx.db

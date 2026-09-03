@@ -23,7 +23,6 @@ async function createCookie(
 
   logWithLevel("DEBUG", `CREATE_${name.toUpperCase()}`, {
     name: cookie.name,
-    payload,
     COOKIE_TTL,
     expires,
   });
@@ -61,7 +60,9 @@ function useCookie(
     const { provider } = options;
     if (!provider?.checks?.includes(check)) return;
     const cookieValue = cookies?.[options.cookies[name].name];
-    logWithLevel("DEBUG", `USE_${name.toUpperCase()}`, { value: cookieValue });
+    logWithLevel("DEBUG", `USE_${name.toUpperCase()}`, {
+      present: cookieValue !== undefined,
+    });
     clearCookie(name, options, resCookies);
     return cookieValue;
   };
