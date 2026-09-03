@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   authenticate,
   authenticateWithAutofill,
-  cancelPendingCeremony,
   foldClientError,
   register,
   supportsWebAuthn,
@@ -15,12 +14,10 @@ import { fromBase64URL, toBase64URL } from "./base64url.ts";
 // check, the error fold, and the pruning of the response.
 const startRegistration = vi.fn();
 const startAuthentication = vi.fn();
-const cancelCeremony = vi.fn();
 
 vi.mock("@simplewebauthn/browser", () => ({
   startRegistration: (...args: unknown[]) => startRegistration(...args),
   startAuthentication: (...args: unknown[]) => startAuthentication(...args),
-  WebAuthnAbortService: { cancelCeremony: () => cancelCeremony() },
 }));
 
 class FakePublicKeyCredential {}
@@ -107,7 +104,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   startRegistration.mockReset();
   startAuthentication.mockReset();
-  cancelCeremony.mockReset();
 });
 
 describe("supportsWebAuthn", () => {
@@ -145,10 +141,9 @@ describe("foldClientError", () => {
     });
   });
 
-  test("InvalidStateError folds into PASSKEY_ALREADY_REGISTERED", () => {
-    expect(foldClientError(browserError("InvalidStateError"))).toEqual({
-      error: "PASSKEY_ALREADY_REGISTERED",
-    });
+  test("InvalidStateError folds into OTHER_ERROR outside a registration", () => {
+    const cause = browserError("InvalidStateError");
+    expect(foldClientError(cause)).toEqual({ error: "OTHER_ERROR", cause });
   });
 
   test("everything else folds into OTHER_ERROR with the cause", () => {
@@ -282,6 +277,15 @@ describe("authenticate", () => {
     expect(await authenticate(requestOptions)).toEqual({
       success: false,
       userError: { error: "CEREMONY_ABORTED" },
+    });
+  });
+
+  test("an InvalidStateError is not a duplicate registration", async () => {
+    const cause = browserError("InvalidStateError");
+    startAuthentication.mockRejectedValue(cause);
+    expect(await authenticate(requestOptions)).toEqual({
+      success: false,
+      userError: { error: "OTHER_ERROR", cause },
     });
   });
 
@@ -422,12 +426,5 @@ describe("authenticateWithAutofill", () => {
       ),
     ).toEqual({ success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } });
     expect(credentialsGet).not.toHaveBeenCalled();
-  });
-});
-
-describe("cancelPendingCeremony", () => {
-  test("delegates to the ceremony slot of the library", () => {
-    cancelPendingCeremony();
-    expect(cancelCeremony).toHaveBeenCalledTimes(1);
   });
 });
