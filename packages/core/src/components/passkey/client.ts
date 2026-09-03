@@ -24,7 +24,6 @@
 import {
   startAuthentication,
   startRegistration,
-  WebAuthnAbortService,
 } from "@simplewebauthn/browser";
 import type {
   AuthenticationResponseJSON,
@@ -123,15 +122,11 @@ export function supportsWebAuthn(): boolean {
  *
  * The browser errors keep their `name` when `@simplewebauthn/browser` wraps
  * them in a `WebAuthnError`, so one check covers both the wrapped and the
- * raw form:
- *
- * - `NotAllowedError` is what the browser throws when the user dismisses
- *   the dialog, when the ceremony times out, and when the page is not
- *   allowed to run one. `AbortError` is a ceremony that another one
- *   displaced (see {@link cancelPendingCeremony}). A `null` credential
- *   cannot happen through `@simplewebauthn/browser` (it throws instead).
- * - `InvalidStateError` is the authenticator refusing to make a second
- *   passkey for a credential in `excludeCredentials`.
+ * raw form. `NotAllowedError` is what the browser throws when the user
+ * dismisses the dialog, when the ceremony times out, and when the page is
+ * not allowed to run one. `AbortError` is a ceremony that another one
+ * displaced. A `null` credential cannot happen through
+ * `@simplewebauthn/browser` (it throws instead).
  */
 export function foldClientError(cause: unknown): PasskeyClientError {
   // `DOMException` does not extend `Error` in every runtime.
@@ -139,11 +134,25 @@ export function foldClientError(cause: unknown): PasskeyClientError {
     if (cause.name === "NotAllowedError" || cause.name === "AbortError") {
       return { error: "CEREMONY_ABORTED" };
     }
-    if (cause.name === "InvalidStateError") {
-      return { error: "PASSKEY_ALREADY_REGISTERED" };
-    }
   }
   return { error: "OTHER_ERROR", cause };
+}
+
+/**
+ * Fold a thrown value from a registration ceremony, which has one failure
+ * that no other ceremony produces: `InvalidStateError`, the authenticator
+ * refusing to make a second passkey for a credential in
+ * `excludeCredentials`. An authentication ceremony that somehow throws it
+ * means something else, so that fold stays in {@link foldClientError}.
+ */
+function foldRegistrationError(cause: unknown): PasskeyClientError {
+  if (
+    (cause instanceof Error || cause instanceof DOMException) &&
+    cause.name === "InvalidStateError"
+  ) {
+    return { error: "PASSKEY_ALREADY_REGISTERED" };
+  }
+  return foldClientError(cause);
 }
 
 /**
@@ -197,8 +206,9 @@ function pruneAuthenticationResponse(
  * Run a modal registration ceremony (a WebAuthn `create()` call).
  *
  * `options` comes from a start mutation, ready for the browser. Starting a
- * ceremony displaces a pending one anywhere on the page (they share one
- * browser-level slot; see {@link cancelPendingCeremony}).
+ * ceremony displaces a pending one anywhere on the page: the browser runs
+ * one ceremony at a time, and the pending one rejects with an
+ * `AbortError`.
  */
 export async function register(
   options: WireCreationOptions,
@@ -215,7 +225,7 @@ export async function register(
     });
     return { success: true, response: pruneRegistrationResponse(response) };
   } catch (cause) {
-    return { success: false, userError: foldClientError(cause) };
+    return { success: false, userError: foldRegistrationError(cause) };
   }
 }
 
@@ -223,8 +233,9 @@ export async function register(
  * Run a modal authentication ceremony (a WebAuthn `get()` call).
  *
  * `options` comes from a start mutation, ready for the browser. Starting a
- * ceremony displaces a pending one anywhere on the page (they share one
- * browser-level slot; see {@link cancelPendingCeremony}).
+ * ceremony displaces a pending one anywhere on the page: the browser runs
+ * one ceremony at a time, and the pending one rejects with an
+ * `AbortError`.
  *
  * For the conditional-mediation flow, which stays pending until the user
  * picks a passkey in the autocompletion list of an
@@ -256,18 +267,9 @@ export async function authenticate(
  * `signal` aborts it. This is required because the caller is expected to
  * periodically recreate a new ceremony (because every ceremony has a timeout).
  *
- * This one call does not go through `@simplewebauthn/browser`, and the
- * reason is `signal`. `startAuthentication` always overwrites the abort
- * signal with one from its own singleton, which it creates *after* it
- * awaits its autofill-support probe. A caller that aborts in that window
- * aborts nothing, and the request then takes the ceremony slot from
- * whoever the caller was making room for. An `AbortSignal` the caller owns
- * has neither problem: it latches, so `get()` refuses an already-aborted
- * one on entry, and no ordering matters.
- *
- * The caller feature-detects conditional mediation once, so this function
- * does not repeat the probe (which is the `await` that opens that window
- * in the library).
+ * This one call does not go through `@simplewebauthn/browser`, because its
+ * autofill integration doesn’t handle correctly restarting autofill requests
+ * after modal passkey ceremonies failed.
  */
 export async function authenticateWithAutofill(
   options: WireRequestOptions,
@@ -326,18 +328,4 @@ function assertionToJSON(
     clientExtensionResults: {},
     type: "public-key",
   };
-}
-
-/**
- * Cancel the pending WebAuthn ceremony of this page, if one exists. The
- * pending request rejects with an `AbortError`, which
- * {@link foldClientError} folds into `CEREMONY_ABORTED`.
- *
- * The browser runs one ceremony at a time per page, and
- * `@simplewebauthn/browser` manages that slot with a singleton: starting a
- * new ceremony displaces the pending one the same way. The singleton stays
- * an implementation detail behind this function.
- */
-export function cancelPendingCeremony(): void {
-  WebAuthnAbortService.cancelCeremony();
 }
