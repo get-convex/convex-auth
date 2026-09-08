@@ -16,7 +16,7 @@ import { notSignedInUserError } from "../validation.ts";
 const passkeyMetadata = v.object({
   passkeyId: v.string(),
   name: v.optional(v.string()),
-  credentialId: v.bytes(),
+  credentialId: v.string(), // as base64url
   createdAt: v.number(),
 });
 

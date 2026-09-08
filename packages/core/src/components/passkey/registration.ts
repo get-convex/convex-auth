@@ -69,10 +69,7 @@ import { Infer, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
-import type {
-  AuthenticatorTransportFuture,
-  RegistrationResponseJSON,
-} from "@simplewebauthn/server";
+import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import {
   decodeAttestationObject,
   decodeClientDataJSON,
@@ -81,12 +78,13 @@ import {
 } from "@simplewebauthn/server/helpers";
 import {
   credentialDescriptor,
+  vRegistrationResponseJSON,
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
   transportsAreValid,
-  SUPPORTED_ALGORITHM_IDS,
 } from "./validation.ts";
+import { SUPPORTED_ALGORITHM_IDS } from "./constants.ts";
 import {
   deleteDeadChallenge,
   findChallenge,
@@ -215,12 +213,7 @@ const registrationCheckArgs = {
   expectedRpId: v.string(),
   // The expected origin of the ceremony (for example, "https://app.example.com").
   expectedOrigin: v.string(),
-  attestationObject: v.bytes(),
-  clientDataJSON: v.bytes(),
-  // The transports that the browser reported for the new
-  // credential. The value is a hint: a later ceremony sends it back to the
-  // browser, and the verification does not use it.
-  transports: v.optional(v.array(v.string())),
+  response: vRegistrationResponseJSON,
 };
 
 const _vRegistrationCheckArgs = v.object(registrationCheckArgs);
@@ -318,7 +311,7 @@ export const finishRegistrationForNewUser = mutation({
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.newUserId,
       name: args.name,
-      transports: args.transports,
+      transports: args.response.response.transports,
       credentialId: result.credential.credentialId,
       publicKey: result.credential.publicKey,
       counter: result.credential.counter,
@@ -358,7 +351,7 @@ export const finishRegistrationForExistingUser = mutation({
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.verifiedUserId,
       name: args.name,
-      transports: args.transports,
+      transports: args.response.response.transports,
       credentialId: result.credential.credentialId,
       publicKey: result.credential.publicKey,
       counter: result.credential.counter,
@@ -473,14 +466,15 @@ async function lookupRegistrationChallenge(
     challengeRow: null,
   } as const;
 
-  if (!transportsAreValid(args.transports)) {
+  const { transports } = args.response.response;
+  if (!transportsAreValid(transports)) {
     console.warn(
-      `Rejected the passkey ceremony: the client reported transports that seem invalid. The client sent: ${JSON.stringify(args.transports).slice(0, 200)}.`,
+      `Rejected the passkey ceremony: the client reported transports that seem invalid. The client sent: ${JSON.stringify(transports).slice(0, 200)}.`,
     );
     return PROTOCOL_ERROR;
   }
   const clientData = okOrNull(() =>
-    decodeClientDataJSON(toBase64URL(args.clientDataJSON)),
+    decodeClientDataJSON(args.response.response.clientDataJSON),
   );
   if (clientData === null) {
     console.warn(
@@ -559,14 +553,13 @@ async function verifyAttestation(
 > {
   const PROTOCOL_ERROR = { userError: { error: "PROTOCOL_ERROR" } } as const;
 
-  // The wire carries raw ceremony bytes, not the WebAuthn JSON envelope, so
-  // the envelope is rebuilt here. `verifyRegistrationResponse` wants `id`
-  // and `rawId`, which the client never sends: they are read back out of
-  // the attested credential data, the same place the verification itself
-  // takes the authoritative credential ID from.
-  const attestationBytes = new Uint8Array(args.attestationObject);
+  // `verifyRegistrationResponse` runs all of these checks again.
+  // We still perform them manually so that we can log error messages
+  // that are more helpful.
   const authenticatorData = okOrNull(() => {
-    const attestation = decodeAttestationObject(attestationBytes);
+    const attestation = decodeAttestationObject(
+      isoBase64URL.toBuffer(args.response.response.attestationObject),
+    );
     return parseAuthenticatorData(attestation.get("authData"));
   });
   if (authenticatorData === null) {
@@ -601,24 +594,14 @@ async function verifyAttestation(
     );
     return PROTOCOL_ERROR;
   }
-  const credentialId = isoBase64URL.fromBuffer(authenticatorData.credentialID);
-
-  const response: RegistrationResponseJSON = {
-    id: credentialId,
-    rawId: credentialId,
-    response: {
-      clientDataJSON: toBase64URL(args.clientDataJSON),
-      attestationObject: toBase64URL(args.attestationObject),
-      transports: args.transports as AuthenticatorTransportFuture[] | undefined,
-    },
-    clientExtensionResults: {},
-    type: "public-key",
-  };
 
   let verification;
   try {
     verification = await verifyRegistrationResponse({
-      response,
+      // The wire type keeps `transports` as free-form strings, because the
+      // WebAuthn spec lets new transports appear; the library type does
+      // not. The verification does not read the transports.
+      response: args.response as RegistrationResponseJSON,
       expectedChallenge: toBase64URL(challengeRow.challenge),
       expectedOrigin: args.expectedOrigin,
       expectedRPID: args.expectedRpId,
@@ -688,7 +671,7 @@ export const listPasskeys = query({
     v.object({
       passkeyId: v.string(),
       name: v.optional(v.string()),
-      credentialId: v.bytes(),
+      credentialId: v.string(),
       createdAt: v.number(),
     }),
   ),
@@ -700,7 +683,7 @@ export const listPasskeys = query({
     return rows.map((row) => ({
       passkeyId: row._id,
       name: row.name,
-      credentialId: row.credentialId,
+      credentialId: toBase64URL(row.credentialId),
       createdAt: row._creationTime,
     }));
   },

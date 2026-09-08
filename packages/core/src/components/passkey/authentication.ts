@@ -1,8 +1,6 @@
-import type {
-  AuthenticationResponseJSON,
-  AuthenticatorTransportFuture,
-} from "@simplewebauthn/server";
+import type { AuthenticatorTransportFuture } from "@simplewebauthn/server";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import { vAuthenticationResponseJSON } from "./validation.ts";
 import {
   decodeClientDataJSON,
   isoBase64URL,
@@ -16,6 +14,7 @@ import {
   okOrNull,
   randomChallenge,
   rpIdHashMatches,
+  toArrayBuffer,
 } from "./helpers.ts";
 import {
   credentialDescriptor,
@@ -126,26 +125,35 @@ export const finishAuthentication = mutation({
     purpose: v.string(),
     expectedRpId: v.string(),
     expectedOrigin: v.string(),
-    credentialId: v.bytes(),
-    authenticatorData: v.bytes(),
-    clientDataJSON: v.bytes(),
-    signature: v.bytes(),
+    response: vAuthenticationResponseJSON,
   },
   returns: finishAuthenticationResult,
   handler: async (ctx, args): Promise<FinishAuthenticationResult> => {
     validatePurpose(args.purpose);
+    const credentialId = toArrayBuffer(
+      // args.response contains the credential ID twice: in `args.response.id`
+      // and `args.response.rawId`. They are identical by definition (and SimpleWebAuthn
+      // checks for their equality), so we can use either one here.
+      // Why do we send the same data twice over our wire format? Because our
+      // wire format matches the `AuthenticationResponseJSON` DOM type
+      // (https://w3c.github.io/webauthn/#dictdef-authenticationresponsejson).
+      // Using the DOM type as the wire format makes the implementation easier both on
+      // the client (argument serialization is simple) and on the server
+      // (SimpleWebAuthn accepts `args.response` directly).
+      isoBase64URL.toBuffer(args.response.rawId),
+    );
     const passkey = await ctx.db
       .query("passkeys")
-      .withIndex("by_credentialId", (q) =>
-        q.eq("credentialId", args.credentialId),
-      )
+      .withIndex("by_credentialId", (q) => q.eq("credentialId", credentialId))
       .first();
     if (passkey === null) {
       return { success: false, userError: { error: "UNKNOWN_CREDENTIAL" } };
     }
 
     const authenticatorData = okOrNull(() =>
-      parseAuthenticatorData(new Uint8Array(args.authenticatorData)),
+      parseAuthenticatorData(
+        isoBase64URL.toBuffer(args.response.response.authenticatorData),
+      ),
     );
     if (authenticatorData === null) {
       console.warn(
@@ -183,7 +191,7 @@ export const finishAuthentication = mutation({
     //               callback variant of the `expectedChallenge`
     //               argument of `verifyAuthenticationResponse`.`
     const clientData = okOrNull(() =>
-      decodeClientDataJSON(toBase64URL(args.clientDataJSON)),
+      decodeClientDataJSON(args.response.response.clientDataJSON),
     );
 
     // Here we perform a few checks manually. These checks are also done later by
@@ -279,28 +287,15 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
 
-    const credentialId = toBase64URL(args.credentialId);
-    const response: AuthenticationResponseJSON = {
-      id: credentialId,
-      rawId: credentialId,
-      response: {
-        clientDataJSON: toBase64URL(args.clientDataJSON),
-        authenticatorData: toBase64URL(args.authenticatorData),
-        signature: toBase64URL(args.signature),
-      },
-      clientExtensionResults: {},
-      type: "public-key",
-    };
-
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
-        response,
+        response: args.response,
         expectedChallenge: toBase64URL(challengeRow.challenge),
         expectedOrigin: args.expectedOrigin,
         expectedRPID: args.expectedRpId,
         credential: {
-          id: credentialId,
+          id: args.response.rawId,
           publicKey: new Uint8Array(passkey.publicKey),
           // Passkey attestations can carry a counter that can be used by
           // applications to detect duplicated passkeys. The goal is to let

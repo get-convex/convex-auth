@@ -4,6 +4,7 @@ import {
   buildAssertion,
   generateES256Credential,
   generateRS256Credential,
+  toBase64URL,
 } from "@convex-dev/passkey-test-authenticator";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
@@ -13,8 +14,8 @@ import {
   setup,
 } from "../passkeyTestSetup.ts";
 import { api } from "./_generated/api.ts";
-import { toArrayBuffer } from "./helpers.ts";
-import { CHALLENGE_TTL_MS } from "./validation.ts";
+import { type WireAuthenticationResponse } from "./validation.ts";
+import { CHALLENGE_TTL_MS } from "./constants.ts";
 
 // The component gives no purpose of its own: each app names its own flows.
 const PURPOSE = "test/signIn";
@@ -31,6 +32,19 @@ const EXPECTED = {
 afterEach(() => {
   vi.useRealTimers();
 });
+
+/** Replace fields inside the inner `response` of an assertion envelope. */
+function withInner(
+  assertion: { response: WireAuthenticationResponse },
+  fields: Partial<WireAuthenticationResponse["response"]>,
+) {
+  return {
+    response: {
+      ...assertion.response,
+      response: { ...assertion.response.response, ...fields },
+    },
+  };
+}
 
 describe("startAuthentication", () => {
   test("stores a user-bound challenge and returns the user's credential IDs", async () => {
@@ -229,8 +243,9 @@ describe("finishAuthentication", () => {
       () =>
         t.mutation(api.authentication.finishAuthentication, {
           ...EXPECTED,
-          ...assertion,
-          authenticatorData: new Uint8Array(10).buffer,
+          ...withInner(assertion, {
+            authenticatorData: toBase64URL(new Uint8Array(10)),
+          }),
         }),
       "the authenticator data could not be read",
     );
@@ -248,12 +263,13 @@ describe("finishAuthentication", () => {
       () =>
         t.mutation(api.authentication.finishAuthentication, {
           ...EXPECTED,
-          ...assertion,
-          clientDataJSON: toArrayBuffer(
-            new TextEncoder().encode(
-              JSON.stringify({ type: "webauthn.get", origin: ORIGIN }),
+          ...withInner(assertion, {
+            clientDataJSON: toBase64URL(
+              new TextEncoder().encode(
+                JSON.stringify({ type: "webauthn.get", origin: ORIGIN }),
+              ),
             ),
-          ),
+          }),
         }),
       "the client data JSON carries no challenge",
     );
@@ -439,8 +455,9 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
       ...EXPECTED,
-      ...assertion,
-      signature: crypto.getRandomValues(new Uint8Array(256)).buffer,
+      ...withInner(assertion, {
+        signature: toBase64URL(crypto.getRandomValues(new Uint8Array(256))),
+      }),
     });
     expect(result).toEqual({
       success: false,
@@ -461,8 +478,7 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
       ...EXPECTED,
-      ...assertion,
-      signature: new Uint8Array(0).buffer,
+      ...withInner(assertion, { signature: toBase64URL(new Uint8Array(0)) }),
     });
     expect(result).toEqual({
       success: false,
@@ -481,8 +497,7 @@ describe("finishAuthentication", () => {
     const assertion = await buildAssertion(credential, challenge);
     const result = await t.mutation(api.authentication.finishAuthentication, {
       ...EXPECTED,
-      ...assertion,
-      signature: new Uint8Array(10).buffer,
+      ...withInner(assertion, { signature: toBase64URL(new Uint8Array(10)) }),
     });
     expect(result).toEqual({
       success: false,
@@ -509,8 +524,7 @@ describe("finishAuthentication", () => {
     ]);
     const result = await t.mutation(api.authentication.finishAuthentication, {
       ...EXPECTED,
-      ...assertion,
-      signature: signature.buffer,
+      ...withInner(assertion, { signature: toBase64URL(signature) }),
     });
     expect(result).toEqual({
       success: false,
