@@ -12,7 +12,10 @@ import { useAuthToken } from "../../react/index.tsx";
 import { PasskeyApi, PasskeySignInResult, usePasskey } from "./react.tsx";
 import { usePasskeyAutofill, usePasskeyCeremonySlot } from "./react_impl.tsx";
 
-const noopAutofill = { pause: () => {}, resume: () => {} };
+const noopAutofill = {
+  pauseAutofillFlow: () => {},
+  resumeAutofillFlow: () => {},
+};
 
 // The hook calls several different mutations, so both call paths dispatch on
 // the reference (a string sentinel here) to one mock per mutation.
@@ -650,10 +653,10 @@ describe("usePasskeyCeremonySlot", () => {
   test("run pauses the autofill gates around the callback, also on a throw", async () => {
     const calls: string[] = [];
     const autofill = {
-      pause: () => {
+      pauseAutofillFlow: () => {
         calls.push("pause");
       },
-      resume: () => {
+      resumeAutofillFlow: () => {
         calls.push("resume");
       },
     };
@@ -724,13 +727,13 @@ describe("usePasskeyAutofill", () => {
     // Pause right away, while feature detection is still in flight: the
     // loop must park before it mints its first challenge.
     act(() => {
-      result.current.pause();
+      result.current.pauseAutofillFlow();
     });
     await act(async () => {});
     expect(start).not.toHaveBeenCalled();
 
     act(() => {
-      result.current.resume();
+      result.current.resumeAutofillFlow();
     });
     await waitFor(() => expect(result.current.status).toBe("waiting"));
     expect(start).toHaveBeenCalledTimes(1);
@@ -766,7 +769,7 @@ describe("usePasskeyAutofill", () => {
     // reach the browser: the loop would take the ceremony slot from
     // whoever the pause was making room for.
     act(() => {
-      result.current.pause();
+      result.current.pauseAutofillFlow();
     });
     await act(async () => {
       mintChallenge();
@@ -774,7 +777,7 @@ describe("usePasskeyAutofill", () => {
     expect(conditionalGet).not.toHaveBeenCalled();
 
     act(() => {
-      result.current.resume();
+      result.current.resumeAutofillFlow();
     });
     await waitFor(() => expect(conditionalGet).toHaveBeenCalledTimes(1));
 

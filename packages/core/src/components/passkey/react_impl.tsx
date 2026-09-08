@@ -39,12 +39,12 @@ export type PasskeyAutofillStatus =
 
 /**
  * The pause/resume gates of an autofill flow, which
- * {@link usePasskeyAutofill} returns among its fields. `pause()` aborts the
- * in-flight browser request and keeps the loop parked; `resume()` lets the
- * loop start a fresh request. The pauses are reference-counted, so two
- * modal flows on one page compose, and they act on the hook, so they
- * survive a restart of the autofill effect. Both callbacks keep their
- * identity for the life of the hook.
+ * {@link usePasskeyAutofill} returns among its fields.
+ * `pauseAutofillFlow()` aborts the in-flight browser request and keeps the
+ * loop parked; `resumeAutofillFlow()` lets the loop start a fresh request.
+ * The pauses are reference-counted, so two modal flows on one page compose,
+ * and they act on the hook, so they survive a restart of the autofill
+ * effect. Both callbacks keep their identity for the life of the hook.
  *
  * The browser runs one WebAuthn ceremony at a time per page, thus **every**
  * modal ceremony on a page that runs autofill must pause the autofill flow
@@ -52,8 +52,8 @@ export type PasskeyAutofillStatus =
  * pending autofill request, which the flow can only answer by stopping.
  */
 export type PasskeyAutofillGates = {
-  pause: () => void;
-  resume: () => void;
+  pauseAutofillFlow: () => void;
+  resumeAutofillFlow: () => void;
 };
 
 // A pending autofill request refreshes its challenge before the server's
@@ -166,12 +166,12 @@ export function usePasskeyAutofill<E = never>(options: {
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  const pause = useCallback(() => {
+  const pauseAutofillFlow = useCallback(() => {
     pauseCountRef.current += 1;
     controllerRef.current?.abort();
   }, []);
 
-  const resume = useCallback(() => {
+  const resumeAutofillFlow = useCallback(() => {
     pauseCountRef.current = Math.max(0, pauseCountRef.current - 1);
     if (pauseCountRef.current === 0) {
       wakeRef.current?.();
@@ -366,11 +366,11 @@ export function usePasskeyAutofill<E = never>(options: {
       /** The most recent failure, for display or logging. */
       lastError,
       /** Pause the flow; see {@link PasskeyAutofillGates}. */
-      pause,
+      pauseAutofillFlow,
       /** Resume the flow; see {@link PasskeyAutofillGates}. */
-      resume,
+      resumeAutofillFlow,
     }),
-    [available, status, lastError, pause, resume],
+    [available, status, lastError, pauseAutofillFlow, resumeAutofillFlow],
   );
 }
 
@@ -421,7 +421,7 @@ export function usePasskeyCeremonySlot(options: {
   // value of `usePasskeyAutofill` changes identity whenever the reported
   // state does, while each gate keeps its identity for the life of that
   // hook. Reading them here is what lets `run` stay stable.
-  const { pause, resume } = options.autofill;
+  const { pauseAutofillFlow, resumeAutofillFlow } = options.autofill;
 
   const [pending, setPending] = useState(false);
   // The re-entry guard reads through a ref: `pending` from `useState`
@@ -447,18 +447,18 @@ export function usePasskeyCeremonySlot(options: {
       // flow mid-ceremony. The pauses are counted by the autofill hook
       // itself, so the pair stays balanced even when its effect restarts
       // mid-ceremony.
-      pause();
+      pauseAutofillFlow();
       try {
         return await fn();
       } catch (cause) {
         return { success: false, userError: foldClientError(cause) };
       } finally {
-        resume();
+        resumeAutofillFlow();
         pendingRef.current = false;
         setPending(false);
       }
     },
-    [pause, resume],
+    [pauseAutofillFlow, resumeAutofillFlow],
   );
 
   return {
