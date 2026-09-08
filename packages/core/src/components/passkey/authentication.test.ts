@@ -247,7 +247,7 @@ describe("finishAuthentication", () => {
             authenticatorData: toBase64URL(new Uint8Array(10)),
           }),
         }),
-      "the authenticator data could not be read",
+      "the assertion did not verify",
     );
   });
 
@@ -293,20 +293,20 @@ describe("finishAuthentication", () => {
           ...EXPECTED,
           ...assertion,
         }),
-      `does not match the expected relying party ID "${RP_ID}"`,
+      "the assertion did not verify",
     );
   });
 
   test("returns PROTOCOL_ERROR when the user is not present or not verified", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
-    const { challenge } = await t.mutation(
-      api.authentication.startAuthentication,
-      { purpose: PURPOSE, userId: "user1" },
-    );
-    // The flag checks run before the challenge is consumed, so the same
-    // challenge can serve both variants.
+    // Each attempt consumes its challenge, so every variant starts a
+    // ceremony of its own.
     for (const flags of [{ userPresent: false }, { userVerified: false }]) {
+      const { challenge } = await t.mutation(
+        api.authentication.startAuthentication,
+        { purpose: PURPOSE, userId: "user1" },
+      );
       const assertion = await buildAssertion(credential, challenge, flags);
       const result = await t.mutation(api.authentication.finishAuthentication, {
         ...EXPECTED,
@@ -335,7 +335,7 @@ describe("finishAuthentication", () => {
           ...EXPECTED,
           ...assertion,
         }),
-      'an authentication ceremony must send "webauthn.get"',
+      "the assertion did not verify",
     );
   });
 
@@ -355,11 +355,11 @@ describe("finishAuthentication", () => {
           ...EXPECTED,
           ...assertion,
         }),
-      'the ceremony ran at the origin "https://evil.example.net"',
+      "the assertion did not verify",
     );
   });
 
-  test("returns PROTOCOL_ERROR for a cross-origin ceremony", async () => {
+  test("returns PROTOCOL_ERROR for a cross-origin ceremony that names its top origin", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
@@ -368,6 +368,7 @@ describe("finishAuthentication", () => {
     );
     const assertion = await buildAssertion(credential, challenge, {
       crossOrigin: true,
+      topOrigin: "https://evil.example.net",
     });
     await expectProtocolError(
       () =>
@@ -375,8 +376,28 @@ describe("finishAuthentication", () => {
           ...EXPECTED,
           ...assertion,
         }),
-      "the ceremony ran in a cross-origin frame",
+      "the assertion did not verify",
     );
+  });
+
+  test("accepts a cross-origin ceremony that names no top origin", async () => {
+    const t = setup();
+    const { credential, passkeyId } = await register(t, "user1");
+    const { challenge } = await t.mutation(
+      api.authentication.startAuthentication,
+      { purpose: PURPOSE, userId: "user1" },
+    );
+    const assertion = await buildAssertion(credential, challenge, {
+      crossOrigin: true,
+    });
+    // `verifyAuthenticationResponse` refuses an embedded ceremony only when
+    // the client sends `topOrigin`, which Safari does not. This test pins
+    // the gap: see the note about `crossOrigin` in `registration.ts`.
+    const result = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...assertion,
+    });
+    expect(result).toEqual({ success: true, userId: "user1", passkeyId });
   });
 
   test("returns CHALLENGE_EXPIRED for an expired challenge", async () => {
@@ -534,40 +555,41 @@ describe("finishAuthentication", () => {
     });
   });
 
-  // The checks below run before the challenge lookup, so each one keeps the
-  // challenge. This is an ordering of the checks, not a guarantee about
-  // protocol errors: a check that runs after the lookup consumes the
-  // challenge, and a bad signature is one of them.
-  test("the checks before the challenge lookup keep the challenge", async () => {
+  // `expectedChallenge` consumes the row while the verification runs, so
+  // every attempt that names a live challenge burns it, whichever check
+  // then refuses the assertion. Only the credential lookup runs earlier
+  // (see the `UNKNOWN_CREDENTIAL` test above).
+  test("a refused assertion consumes the challenge", async () => {
     const t = setup();
     const { credential } = await register(t, "user1");
     const { challenge } = await t.mutation(
       api.authentication.startAuthentication,
       { purpose: PURPOSE, userId: "user1" },
     );
-    // Each of these checks runs before the challenge is consumed, so the
-    // same challenge serves each variant in turn.
-    const variants = [
-      { rpId: "evil.example.net" },
-      { type: "webauthn.create" as const },
-      { origin: "https://evil.example.net" },
-      { crossOrigin: true },
-    ];
-    for (const variant of variants) {
-      const assertion = await buildAssertion(credential, challenge, variant);
-      await expectProtocolError(
-        () =>
-          t.mutation(api.authentication.finishAuthentication, {
-            ...EXPECTED,
-            ...assertion,
-          }),
-        "Rejected the passkey ceremony",
-      );
-    }
+    const refused = await buildAssertion(credential, challenge, {
+      origin: "https://evil.example.net",
+    });
+    await expectProtocolError(
+      () =>
+        t.mutation(api.authentication.finishAuthentication, {
+          ...EXPECTED,
+          ...refused,
+        }),
+      "the assertion did not verify",
+    );
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
     );
-    expect(challenges).toHaveLength(1);
+    expect(challenges).toEqual([]);
+    // A well-formed retry of the same ceremony finds nothing to redeem.
+    const retry = await t.mutation(api.authentication.finishAuthentication, {
+      ...EXPECTED,
+      ...(await buildAssertion(credential, challenge)),
+    });
+    expect(retry).toEqual({
+      success: false,
+      userError: { error: "CHALLENGE_EXPIRED" },
+    });
   });
 
   test("rejects a replayed assertion with CHALLENGE_EXPIRED", async () => {

@@ -166,3 +166,15 @@ Copy the following code block inside of your app:
 </Step>
 
 </Steps>
+
+## Ceremonies inside a frame
+
+The component does not refuse a ceremony that runs inside a frame of a
+different site. `@simplewebauthn/server`, which does the WebAuthn
+verification, ignores the `crossOrigin` field of the client data during a
+registration. During an authentication, it uses the field only when the
+browser also sends a top origin, which Safari does not send.
+
+If a page of your app runs a ceremony, and no other site must embed that
+page, send the `Content-Security-Policy: frame-ancestors 'none'` header for
+it.

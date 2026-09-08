@@ -1,19 +1,14 @@
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { vAuthenticationResponseJSON } from "./validation.ts";
-import {
-  decodeClientDataJSON,
-  isoBase64URL,
-  parseAuthenticatorData,
-} from "@simplewebauthn/server/helpers";
+import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Infer, v } from "convex/values";
 import { mutation } from "./_generated/server.ts";
 import { scheduleChallengeCleanup } from "./cleanup.ts";
 import {
   consumeChallenge,
-  okOrNull,
   randomChallenge,
-  rpIdHashMatches,
   toArrayBuffer,
+  warnRejectedCeremony,
 } from "./helpers.ts";
 import {
   credentialDescriptor,
@@ -144,98 +139,14 @@ export const finishAuthentication = mutation({
       return { success: false, userError: { error: "UNKNOWN_CREDENTIAL" } };
     }
 
-    const authenticatorData = okOrNull(() =>
-      parseAuthenticatorData(
-        isoBase64URL.toBuffer(args.response.response.authenticatorData),
-      ),
-    );
-    if (authenticatorData === null) {
-      console.warn(
-        `Rejected the passkey ceremony: the authenticator data could not be ` +
-          `read.`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-    if (
-      !(await rpIdHashMatches(authenticatorData.rpIdHash, args.expectedRpId))
-    ) {
-      console.warn(
-        `Rejected the passkey ceremony: the authenticator data does not ` +
-          `match the expected relying party ID ${JSON.stringify(args.expectedRpId)}. ` +
-          `Check that the \`rpId\` of the provider matches the page that ran ` +
-          `the ceremony.`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-    if (!authenticatorData.flags.up || !authenticatorData.flags.uv) {
-      // The ceremony asks for `userVerification: "required"`, thus
-      // the user present/user verified flags should be set
-      console.warn(
-        `Rejected the passkey ceremony: the authenticator data reports ` +
-          `no user presence or no user verification.`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-
-    // This read only supports the tailored diagnostics below and the
-    // component's stricter cross-origin policy. It does not extract the
-    // challenge: `verifyAuthenticationResponse` decodes the client data and
-    // gives the challenge to `expectedChallenge` below. The verifier checks
-    // the type and origin again over the signed bytes.
-    const clientData = okOrNull(() =>
-      decodeClientDataJSON(args.response.response.clientDataJSON),
-    );
-
-    // Here we perform a few checks manually. These checks are also done later by
-    // SimpleWebAuthn’s verifyAuthenticationResponse function, but doing these checks
-    // early allows us to give better error messages.
-    if (clientData === null) {
-      console.warn(
-        `Rejected the passkey ceremony: the client data JSON could not be ` +
-          `read.`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-    if (clientData.type !== "webauthn.get") {
-      console.warn(
-        `Rejected the passkey ceremony: the client data type is ` +
-          `"webauthn.create", but an authentication ceremony must send ` +
-          `"webauthn.get".`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-    if (clientData.origin !== args.expectedOrigin) {
-      // Note: This forces the app to provide a single accepted origin.
-      // In some cases, the server might need to accept multiple origins, for instance:
-      // - a dev server running on localhost might want to accept all ports
-      //   (RP ID = localhost, allowed origin = localhost:*)
-      // - an app might want to use origin verification to only allow a specific list
-      //   of subdomains (RP ID = example.com, allowed origins =
-      //   [auth.example.com, dashboard.example.com] but NOT marketing.example.com)
-      // For these reasons, we will probably want to offer more customization options
-      // for this check in the future. `expectedOrigin` already takes an array
-      // in `@simplewebauthn/server`, so the list case is a small change.
-      console.warn(
-        `Rejected the passkey ceremony: the ceremony ran at the origin ` +
-          `${JSON.stringify(clientData.origin)}, but the expected origin is ` +
-          `${JSON.stringify(args.expectedOrigin)}. Check that the \`origin\` of ` +
-          `the provider matches the page that ran the ceremony.`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-    if (clientData.crossOrigin === true) {
-      // In the future, we could allow the user to explicitly opt out to this.
-      console.warn(
-        `Rejected the passkey ceremony: the ceremony ran in a cross-origin ` +
-          `frame, which is not allowed.`,
-      );
-      return { success: false, userError: { error: "PROTOCOL_ERROR" } };
-    }
-    // The relying party ID hash, the user-presence and user-verification
-    // flags, and the assertion signature are all checked here. The stored
+    // `verifyAuthenticationResponse` runs every protocol check: the client
+    // data type, the origin, the relying party ID hash, the user-presence
+    // and user-verification flags, and the assertion signature. The stored
     // key is a COSE key, which names its own algorithm, so there is no
-    // ES256/RS256 branch: `verifyAuthenticationResponse` reads the algorithm
-    // out of the key and picks the verifier.
+    // ES256/RS256 branch: the verifier reads the algorithm out of the key
+    // and picks the verifier. It ignores `crossOrigin`, and only refuses an
+    // embedded ceremony when the client sends `topOrigin` (see the note in
+    // `registration.ts`).
     //
     // `expectedChallenge` runs during the verification and records here why
     // it accepted or refused the challenge, because the verifier only
@@ -275,10 +186,10 @@ export const finishAuthentication = mutation({
             // challenge is consumed at this point: a mismatch comes from
             // the code of the app, so the same ceremony would fail again
             // anyway.
-            console.warn(
-              `Rejected the passkey ceremony: the challenge was created for the ` +
-                `purpose ${JSON.stringify(challengeRow.purpose)}, but the ceremony ` +
-                `was finished for the purpose ${JSON.stringify(args.purpose)}.`,
+            warnRejectedCeremony(
+              `the challenge was created for the purpose ` +
+                `${JSON.stringify(challengeRow.purpose)}, but the ceremony was ` +
+                `finished for the purpose ${JSON.stringify(args.purpose)}.`,
             );
             challenge.outcome = "refused";
             return false;
@@ -295,9 +206,9 @@ export const finishAuthentication = mutation({
             // A challenge with a `userId` always carries the passkeys of
             // that user in `allowCredentials`, thus a compliant client
             // cannot send an assertion from a passkey of a different user.
-            console.warn(
-              `Rejected the passkey ceremony: the challenge was created for a ` +
-                `different user than the owner of the credential.`,
+            warnRejectedCeremony(
+              `the challenge was created for a different user than the owner ` +
+                `of the credential.`,
             );
             challenge.outcome = "refused";
             return false;
@@ -333,22 +244,20 @@ export const finishAuthentication = mutation({
         // `expectedChallenge` already logged the reason.
         return { success: false, userError: { error: "PROTOCOL_ERROR" } };
       }
-      // The message names the check that failed: a relying party ID hash
-      // that does not match, a missing user verification, a bad signature,
-      // and so on. It stays in the backend logs, and the client only learns
-      // that the ceremony was refused.
-      console.warn(
-        `Rejected the passkey ceremony: the assertion did not verify. ` +
-          `If this happens for every ceremony, check that the \`rpId\` and ` +
-          `the \`origin\` of the provider match the page that ran it. ` +
-          `${String(cause)}`,
+      // The message of the library names the check that failed: an origin
+      // that does not match, a relying party ID hash that does not match, a
+      // missing user verification, and so on.
+      warnRejectedCeremony(
+        `the assertion did not verify. If this happens for every ceremony, ` +
+          `check that the \`rpId\` and the \`origin\` of the provider match ` +
+          `the page that ran it. ${String(cause)}`,
       );
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }
     if (!verification.verified) {
-      console.warn(
-        `Rejected the passkey ceremony: the assertion signature does not ` +
-          `match the public key of the credential.`,
+      warnRejectedCeremony(
+        `the assertion signature does not match the public key of the ` +
+          `credential.`,
       );
       return { success: false, userError: { error: "PROTOCOL_ERROR" } };
     }

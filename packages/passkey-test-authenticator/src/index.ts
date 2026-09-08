@@ -126,12 +126,16 @@ export function buildClientDataJSON({
   challenge,
   origin,
   crossOrigin,
+  topOrigin,
 }: {
   type: "webauthn.create" | "webauthn.get";
   // Raw challenge bytes, or the base64url string of an options object.
   challenge: ArrayBuffer | Uint8Array | string;
   origin: string;
   crossOrigin?: boolean;
+  // The origin of the top-level page. A browser sends it only for a
+  // cross-origin ceremony, and Safari never sends it.
+  topOrigin?: string;
 }): Uint8Array {
   const base64url =
     typeof challenge === "string" ? challenge : toBase64URL(challenge);
@@ -141,6 +145,7 @@ export function buildClientDataJSON({
       challenge: base64url,
       origin,
       ...(crossOrigin !== undefined ? { crossOrigin } : {}),
+      ...(topOrigin !== undefined ? { topOrigin } : {}),
     }),
   );
 }
@@ -253,6 +258,7 @@ export async function buildAssertion(
     type?: "webauthn.create" | "webauthn.get";
     origin?: string;
     crossOrigin?: boolean;
+    topOrigin?: string;
     rpId?: string;
     counter?: number;
     userPresent?: boolean;
@@ -266,6 +272,7 @@ export async function buildAssertion(
     challenge,
     origin: options.origin ?? ORIGIN,
     crossOrigin: options.crossOrigin,
+    topOrigin: options.topOrigin,
   });
   const authenticatorData = await buildAuthenticatorData({
     rpId: options.rpId ?? RP_ID,

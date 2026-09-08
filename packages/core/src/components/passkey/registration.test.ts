@@ -705,37 +705,35 @@ describe("finishRegistration verification", () => {
     const { finish } = await registrationArgs(t, "user1", {
       clientDataType: "webauthn.get",
     });
-    await expectProtocolError(
-      finish,
-      'a registration ceremony must send "webauthn.create"',
-    );
+    await expectProtocolError(finish, "the attestation did not verify");
   });
 
-  test("returns PROTOCOL_ERROR for an unexpected origin without consuming the challenge", async () => {
+  test("returns PROTOCOL_ERROR for an unexpected origin and burns the challenge", async () => {
     const t = setup();
     const { finish } = await registrationArgs(t, "user1", {
       origin: "https://evil.example.net",
     });
-    await expectProtocolError(
-      finish,
-      'the ceremony ran at the origin "https://evil.example.net"',
-    );
-    // The origin check happens before the challenge is consumed.
+    await expectProtocolError(finish, "the attestation did not verify");
+    // The lookup finds the challenge before the verification refuses the
+    // ceremony, so the failed attempt burns it.
     const challenges = await t.run((ctx) =>
       ctx.db.query("challenges").collect(),
     );
-    expect(challenges).toHaveLength(1);
+    expect(challenges).toEqual([]);
   });
 
-  test("returns PROTOCOL_ERROR for a cross-origin ceremony", async () => {
+  test("accepts a cross-origin ceremony", async () => {
     const t = setup();
     const { finish } = await registrationArgs(t, "user1", {
       crossOrigin: true,
     });
-    await expectProtocolError(
-      finish,
-      "the ceremony ran in a cross-origin frame",
-    );
+    // `verifyRegistrationResponse` ignores `crossOrigin` altogether. This
+    // test pins the gap: see the note about `crossOrigin` above
+    // `lookupRegistrationChallenge`.
+    expect(await finish()).toEqual({
+      success: true,
+      passkeyId: expect.any(String),
+    });
   });
 
   test("returns PROTOCOL_ERROR for a relying party ID hash mismatch", async () => {
@@ -743,10 +741,7 @@ describe("finishRegistration verification", () => {
     const { finish } = await registrationArgs(t, "user1", {
       authDataRpId: "evil.example.net",
     });
-    await expectProtocolError(
-      finish,
-      `does not match the expected relying party ID "${RP_ID}"`,
-    );
+    await expectProtocolError(finish, "the attestation did not verify");
   });
 
   test("returns PROTOCOL_ERROR when the user is not present", async () => {
@@ -754,10 +749,7 @@ describe("finishRegistration verification", () => {
     const { finish } = await registrationArgs(t, "user1", {
       userPresent: false,
     });
-    await expectProtocolError(
-      finish,
-      "no user presence or no user verification",
-    );
+    await expectProtocolError(finish, "the attestation did not verify");
   });
 
   test("returns PROTOCOL_ERROR when the user is not verified", async () => {
@@ -765,10 +757,7 @@ describe("finishRegistration verification", () => {
     const { finish } = await registrationArgs(t, "user1", {
       userVerified: false,
     });
-    await expectProtocolError(
-      finish,
-      "no user presence or no user verification",
-    );
+    await expectProtocolError(finish, "the attestation did not verify");
   });
 
   test("returns PROTOCOL_ERROR when the attested credential data is missing", async () => {
@@ -776,7 +765,7 @@ describe("finishRegistration verification", () => {
     const { finish } = await registrationArgs(t, "user1", {
       includeCredential: false,
     });
-    await expectProtocolError(finish, "carries no attested credential data");
+    await expectProtocolError(finish, "the attestation did not verify");
   });
 
   test("returns PROTOCOL_ERROR when the client data JSON carries no challenge", async () => {
@@ -906,7 +895,7 @@ describe("checkRegistrationForNewUser", () => {
     await expectProtocolError(
       () =>
         t.query(api.registration.checkRegistrationForNewUser, checkArgs(args)),
-      "no user presence or no user verification",
+      "the attestation did not verify",
     );
   });
 
@@ -933,7 +922,7 @@ describe("checkRegistrationForNewUser", () => {
     await expectProtocolError(
       () =>
         t.query(api.registration.checkRegistrationForNewUser, checkArgs(args)),
-      'the ceremony ran at the origin "https://evil.example.net"',
+      "the attestation did not verify",
     );
   });
 

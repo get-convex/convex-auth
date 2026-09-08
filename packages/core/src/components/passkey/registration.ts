@@ -70,10 +70,8 @@ import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import {
-  decodeAttestationObject,
   decodeClientDataJSON,
   isoBase64URL,
-  parseAuthenticatorData,
 } from "@simplewebauthn/server/helpers";
 import {
   credentialDescriptor,
@@ -91,8 +89,8 @@ import {
   okOrNull,
   randomChallenge,
   randomHandle,
-  rpIdHashMatches,
   toArrayBuffer,
+  warnRejectedCeremony,
 } from "./helpers.ts";
 import { scheduleChallengeCleanup } from "./cleanup.ts";
 
@@ -427,8 +425,9 @@ async function verifyRegistrationAttempt(
 
   const startedBy = handle.userId === null ? "newUser" : "existingUser";
   if (startedBy !== flow.kind) {
-    console.warn(
-      `Rejected the passkey ceremony: the ceremony comes from \`${startedBy}\`, while the function for ${flow.kind} was called.`,
+    warnRejectedCeremony(
+      `the ceremony comes from \`${startedBy}\`, while the function for ` +
+        `${flow.kind} was called.`,
     );
     return { userError: { error: "PROTOCOL_ERROR" }, challengeRow };
   }
@@ -467,8 +466,9 @@ async function lookupRegistrationChallenge(
 
   const { transports } = args.response.response;
   if (!transportsAreValid(transports)) {
-    console.warn(
-      `Rejected the passkey ceremony: the client reported transports that seem invalid. The client sent: ${JSON.stringify(transports).slice(0, 200)}.`,
+    warnRejectedCeremony(
+      `the client reported transports that seem invalid. The client sent: ` +
+        `${JSON.stringify(transports).slice(0, 200)}.`,
     );
     return PROTOCOL_ERROR;
   }
@@ -476,43 +476,22 @@ async function lookupRegistrationChallenge(
     decodeClientDataJSON(args.response.response.clientDataJSON),
   );
   if (clientData === null) {
-    console.warn(
-      `Rejected the passkey ceremony: the client data JSON could not be read.`,
-    );
+    warnRejectedCeremony(`the client data JSON could not be read.`);
     return PROTOCOL_ERROR;
   }
-  if (clientData.type !== "webauthn.create") {
-    console.warn(
-      `Rejected the passkey ceremony: the client data type is ` +
-        `"webauthn.get", but a registration ceremony must send ` +
-        `"webauthn.create".`,
-    );
-    return PROTOCOL_ERROR;
-  }
-  if (clientData.origin !== args.expectedOrigin) {
-    // We could allow this verification to be less strict in the future
-    // (see the comment in `finishAuthentication`).
-    console.warn(
-      `Rejected the passkey ceremony: the ceremony ran at the origin ` +
-        `${JSON.stringify(clientData.origin)}, but the expected origin is ` +
-        `${JSON.stringify(args.expectedOrigin)}. Check that the \`origin\` of ` +
-        `the provider matches the page that ran the ceremony.`,
-    );
-    return PROTOCOL_ERROR;
-  }
-  if (clientData.crossOrigin === true) {
-    // In the future, we could allow the user to explicitly opt out to this.
-    console.warn(
-      `Rejected the passkey ceremony: the ceremony ran in a cross-origin ` +
-        `frame, which is not allowed.`,
-    );
-    return PROTOCOL_ERROR;
-  }
+  // TODO(nicolas) Refuse a ceremony that ran inside a cross-origin frame.
+  // The WebAuthn spec asks the relying party to check
+  // `clientData.crossOrigin` (w3c/webauthn#2113), but
+  // `@simplewebauthn/server` does not: `verifyRegistrationResponse` ignores
+  // the field, and `verifyAuthenticationResponse` only refuses an embedded
+  // ceremony when the client also sends `topOrigin`, which Safari does not
+  // (MasterKale/SimpleWebAuthn#613, #759). Until the library covers
+  // registration, an app that must never be embedded has to send
+  // `Content-Security-Policy: frame-ancestors` for the page that runs the
+  // ceremony.
   const challenge = okOrNull(() => isoBase64URL.toBuffer(clientData.challenge));
   if (challenge === null) {
-    console.warn(
-      `Rejected the passkey ceremony: the client data JSON carries no challenge.`,
-    );
+    warnRejectedCeremony(`the client data JSON carries no challenge.`);
     return PROTOCOL_ERROR;
   }
   const challengeRow = await findChallenge(ctx, "registration", challenge);
@@ -552,48 +531,6 @@ async function verifyAttestation(
 > {
   const PROTOCOL_ERROR = { userError: { error: "PROTOCOL_ERROR" } } as const;
 
-  // `verifyRegistrationResponse` runs all of these checks again.
-  // We still perform them manually so that we can log error messages
-  // that are more helpful.
-  const authenticatorData = okOrNull(() => {
-    const attestation = decodeAttestationObject(
-      isoBase64URL.toBuffer(args.response.response.attestationObject),
-    );
-    return parseAuthenticatorData(attestation.get("authData"));
-  });
-  if (authenticatorData === null) {
-    console.warn(
-      `Rejected the passkey ceremony: the attestation object could not be ` +
-        `read.`,
-    );
-    return PROTOCOL_ERROR;
-  }
-  if (!(await rpIdHashMatches(authenticatorData.rpIdHash, args.expectedRpId))) {
-    console.warn(
-      `Rejected the passkey ceremony: the authenticator data does not match ` +
-        `the expected relying party ID ${JSON.stringify(args.expectedRpId)}. ` +
-        `Check that the \`rpId\` of the provider matches the page that ran ` +
-        `the ceremony.`,
-    );
-    return PROTOCOL_ERROR;
-  }
-  if (!authenticatorData.flags.up || !authenticatorData.flags.uv) {
-    // The ceremony asks for `userVerification: "required"`, thus
-    // the user present/user verified flags should be set
-    console.warn(
-      `Rejected the passkey ceremony: the authenticator data reports no ` +
-        `user presence or no user verification.`,
-    );
-    return PROTOCOL_ERROR;
-  }
-  if (authenticatorData.credentialID === undefined) {
-    console.warn(
-      `Rejected the passkey ceremony: the authenticator data carries no ` +
-        `attested credential data.`,
-    );
-    return PROTOCOL_ERROR;
-  }
-
   let verification;
   try {
     verification = await verifyRegistrationResponse({
@@ -605,18 +542,19 @@ async function verifyAttestation(
       supportedAlgorithmIDs: SUPPORTED_ALGORITHM_IDS,
     });
   } catch (cause) {
-    // Logging the rejection cause to help debugging, but not exposing it
-    // to the client.
-    console.warn(
-      `Rejected the passkey ceremony: the attestation did not verify. ` +
-        `If this happens for every ceremony, check that the \`rpId\` and the ` +
-        `\`origin\` of the provider match the page that ran it. ` +
-        `${String(cause)}`,
+    // The message of the library names the check that failed: an origin
+    // that does not match, a relying party ID hash that does not match, a
+    // missing user verification, and so on. It stays in the backend logs,
+    // and the client only learns that the ceremony was refused.
+    warnRejectedCeremony(
+      `the attestation did not verify. If this happens for every ceremony, ` +
+        `check that the \`rpId\` and the \`origin\` of the provider match ` +
+        `the page that ran it. ${String(cause)}`,
     );
     return PROTOCOL_ERROR;
   }
   if (!verification.verified) {
-    console.warn(`Rejected the passkey ceremony: the attestation is invalid.`);
+    warnRejectedCeremony(`the attestation is invalid.`);
     return PROTOCOL_ERROR;
   }
   const { credential } = verification.registrationInfo;
@@ -635,9 +573,7 @@ async function verifyAttestation(
     // random credential ID for each ceremony, and `excludeCredentials`
     // makes the authenticator refuse a duplicate for this RP. A duplicate
     // here shows a replayed or tampered registration.
-    console.warn(
-      `Rejected the passkey ceremony: the credential is already registered.`,
-    );
+    warnRejectedCeremony(`the credential is already registered.`);
     return PROTOCOL_ERROR;
   }
 

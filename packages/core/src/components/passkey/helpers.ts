@@ -1,4 +1,3 @@
-import { isoUint8Array, toHash } from "@simplewebauthn/server/helpers";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { CHALLENGE_TTL_MS } from "./constants.ts";
@@ -15,19 +14,12 @@ export function okOrNull<T>(read: () => T): T | null {
 }
 
 /**
- * Tell whether the relying party ID hash inside authenticator data names the
- * expected relying party.
- *
- * `verifyRegistrationResponse` and `verifyAuthenticationResponse` check this
- * too. It is checked separately, and first, because a mismatch is almost
- * always a misconfigured `rpId`. The message of the library names the check
- * that failed; this one names the setting of the provider to correct.
+ * Log why a ceremony was refused. The client only learns `PROTOCOL_ERROR`,
+ * so the detail stays in the backend logs, where the developer of the app
+ * reads it.
  */
-export async function rpIdHashMatches(
-  rpIdHash: Uint8Array<ArrayBuffer>,
-  expectedRpId: string,
-): Promise<boolean> {
-  return isoUint8Array.areEqual(rpIdHash, await toHash(expectedRpId));
+export function warnRejectedCeremony(detail: string): void {
+  console.warn(`Rejected the passkey ceremony: ${detail}`);
 }
 
 export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
