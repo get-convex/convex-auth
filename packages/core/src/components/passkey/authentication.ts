@@ -130,9 +130,16 @@ export const finishAuthentication = mutation({
   returns: finishAuthenticationResult,
   handler: async (ctx, args): Promise<FinishAuthenticationResult> => {
     validatePurpose(args.purpose);
-    // `verifyAuthenticationResponse` checks that `id` and `rawId` agree, so
-    // either one can drive the lookup.
     const credentialId = toArrayBuffer(
+      // args.response contains the credential ID twice: in `args.response.id`
+      // and `args.response.rawId`. They are identical by definition (and SimpleWebAuthn
+      // checks for their equality), so we can use either one here.
+      // Why do we send the same data twice over our wire format? Because our
+      // wire format matches the `AuthenticationResponseJSON` DOM type
+      // (https://w3c.github.io/webauthn/#dictdef-authenticationresponsejson).
+      // Using the DOM type as the wire format makes the implementation easier both on
+      // the client (argument serialization is simple) and on the server
+      // (SimpleWebAuthn accepts `args.response` directly).
       isoBase64URL.toBuffer(args.response.rawId),
     );
     const passkey = await ctx.db
