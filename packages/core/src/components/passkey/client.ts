@@ -224,7 +224,8 @@ export async function register(
 }
 
 /**
- * Run a modal authentication ceremony (a WebAuthn `get()` call).
+ * Run a modal authentication ceremony
+ * (a WebAuthn `navigator.credentials.get()` call).
  *
  * `options` comes from a start mutation, ready for the browser: this
  * function only decodes its binary fields.
@@ -297,7 +298,8 @@ export async function authenticateWithAutofill(
 }
 
 /**
- * Put an assertion credential from a `get()` call into the wire shape.
+ * Put an assertion credential from a `navigator.credentials.get()`
+ * call into the wire shape.
  */
 function assertionToJSON(
   credential: PublicKeyCredential,

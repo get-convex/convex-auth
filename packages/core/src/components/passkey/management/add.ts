@@ -49,7 +49,7 @@ import {
 const startAddPasskeyResult = v.union(
   v.object({
     success: v.literal(true),
-    // Ready for the re-authentication `get()` call.
+    // Ready for the re-authentication `navigator.credentials.get()` call.
     options: vPublicKeyCredentialRequestOptionsJSON,
   }),
   v.object({ success: v.literal(false), userError: notSignedInUserError }),

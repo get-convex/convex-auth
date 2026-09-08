@@ -30,7 +30,7 @@ export type RegistrationResponseEnvelope = {
   type: "public-key";
 };
 
-/** The `AuthenticationResponseJSON` wire envelope of a `get()` call. */
+/** The `AuthenticationResponseJSON` wire envelope of a `navigator.credentials.get()` call. */
 export type AuthenticationResponseEnvelope = {
   id: string;
   rawId: string;

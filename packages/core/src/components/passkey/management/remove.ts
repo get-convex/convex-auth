@@ -52,8 +52,8 @@ const lastPasskeyUserError = v.object({ error: v.literal("LAST_PASSKEY") });
 const startRemovePasskeyResult = v.union(
   v.object({
     success: v.literal(true),
-    // Ready for the authorization `get()` call. The `allowCredentials`
-    // list excludes the passkey that goes away.
+    // Ready for the authorization `navigator.credentials.get()` call.
+    // The `allowCredentials` list excludes the passkey that goes away.
     options: vPublicKeyCredentialRequestOptionsJSON,
   }),
   v.object({

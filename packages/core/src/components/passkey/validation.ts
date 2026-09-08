@@ -182,7 +182,7 @@ type _CreationOptionsMatch = Extends<
 
 /**
  * The `PublicKeyCredentialRequestOptionsJSON` that the start mutations of an
- * authentication ceremony return. Pass it to the WebAuthn `get()` call (for
+ * authentication ceremony return. Pass it to the WebAuthn `navigator.credentials.get()` call (for
  * example through `startAuthentication` of `@simplewebauthn/browser`).
  *
  * An empty `allowCredentials` list means a discoverable-credential ceremony:

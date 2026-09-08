@@ -110,7 +110,7 @@ const startAutofillSignInResult = v.object({
 
 /**
  * The result of `startAutofillSignIn`: an unbound challenge for a
- * conditional-mediation (passkey autofill) `get()` call.
+ * conditional-mediation (passkey autofill) `navigator.credentials.get()` call.
  */
 export type StartAutofillSignInResult = Infer<typeof startAutofillSignInResult>;
 
