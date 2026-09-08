@@ -1,4 +1,3 @@
-import type { AuthenticatorTransportFuture } from "@simplewebauthn/server";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { vAuthenticationResponseJSON } from "./validation.ts";
 import {
@@ -308,9 +307,7 @@ export const finishAuthentication = mutation({
           // in the database, which effectively disables the counter check behavior.
           // See also: https://www.imperialviolet.org/2023/08/05/signature-counters.html
           counter: 0,
-          transports: passkey.transports as
-            // Casting string to a more precise union of literals
-            AuthenticatorTransportFuture[] | undefined,
+          transports: passkey.transports,
         },
         requireUserVerification: true,
       });
