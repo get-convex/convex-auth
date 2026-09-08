@@ -27,9 +27,6 @@ import type {
   StartSignInResult,
 } from "./setup.ts";
 
-/**
- * The `startSignIn` mutation the app re-exports from its `setupCore`.
- */
 type StartSignInMutation = FunctionReference<
   "mutation",
   "public",
@@ -37,10 +34,6 @@ type StartSignInMutation = FunctionReference<
   StartSignInResult
 >;
 
-/**
- * The `startAutofillSignIn` mutation the app re-exports from its
- * `setupCore`.
- */
 type StartAutofillSignInMutation = FunctionReference<
   "mutation",
   "public",
@@ -48,13 +41,6 @@ type StartAutofillSignInMutation = FunctionReference<
   StartAutofillSignInResult
 >;
 
-/**
- * The `finishSignUp` mutation the app re-exports from its `setupCore`.
- *
- * Its return value is the access-only {@link ClientView}, which is what both
- * session models have in common. Hand it to `setSession`, the only supported
- * consumer.
- */
 type FinishSignUpMutation = FunctionReference<
   "mutation",
   "public",
@@ -67,9 +53,6 @@ type FinishSignUpMutation = FunctionReference<
   ClientView<FinishSignUpResult>
 >;
 
-/**
- * The `finishSignIn` mutation the app re-exports from its `setupCore`.
- */
 type FinishSignInMutation = FunctionReference<
   "mutation",
   "public",
