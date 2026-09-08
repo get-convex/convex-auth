@@ -161,9 +161,10 @@ describe("register", () => {
     expect(startRegistration).toHaveBeenCalledWith({
       optionsJSON: creationOptions,
     });
-    // The convenience fields (`publicKey`, `publicKeyAlgorithm`,
-    // `authenticatorData`, `authenticatorAttachment`) and the extension
-    // outputs are gone: the exact server validators refuse them.
+    // Some of the fields (e.g. `publicKey`, `publicKeyAlgorithm`,
+    // `authenticatorData`, `authenticatorAttachment`) are not used
+    // on the server, so it’s expected that we strip them before
+    // calling the server function.
     expect(result).toEqual({
       success: true,
       response: {
@@ -180,7 +181,7 @@ describe("register", () => {
     });
   });
 
-  test("a response without transports carries none", async () => {
+  test("`transports` is undefined in the `register` output when using a browser that doesn’t support `transports`", async () => {
     startRegistration.mockResolvedValue({
       ...registrationResponse,
       response: {
