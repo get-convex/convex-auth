@@ -55,6 +55,7 @@ type FinishSignUpMutation = FunctionReference<
 type FinishSignInMutation = FunctionReference<
   "mutation",
   "public",
+  // TODO(nicolas) Consider changing the name of the argument to `credential`
   { response: WireAuthenticationResponse },
   ClientView<FinishSignInResult>
 >;
