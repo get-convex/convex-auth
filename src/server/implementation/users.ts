@@ -52,7 +52,7 @@ async function defaultCreateOrUpdateUser(
   logWithLevel(LOG_LEVELS.DEBUG, "defaultCreateOrUpdateUser args:", {
     existingAccountId: existingAccount?._id,
     existingSessionId,
-    args,
+    args: { ...args, provider: args.provider.id },
   });
   const existingUserId = existingAccount?.userId ?? null;
   if (config.callbacks?.createOrUpdateUser !== undefined) {

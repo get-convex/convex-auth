@@ -97,10 +97,16 @@ export async function getAuthorizationUrl(
     url.searchParams.set("scope", "openid profile email");
   }
 
+  const redactedUrl = new URL(url);
+  for (const param of ["state", "nonce"]) {
+    if (redactedUrl.searchParams.has(param)) {
+      redactedUrl.searchParams.set(param, "<redacted>");
+    }
+  }
   logWithLevel("DEBUG", "authorization url is ready", {
-    url,
-    cookies,
-    provider,
+    url: redactedUrl.toString(),
+    cookies: cookies.map((cookie) => cookie.name),
+    providerId: provider.id,
   });
 
   const convexAuthSignature = getAuthorizationSignature({
