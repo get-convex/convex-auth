@@ -76,8 +76,12 @@ function errorMessage(
   userError:
     | Extract<PasskeySignInResult, { success: false }>["userError"]
     | PasskeyAutofillError,
-): string {
+): string | null {
   switch (userError.error) {
+    case "ALREADY_PENDING":
+      // A second submit while the first attempt still runs. That attempt
+      // keeps its passkey dialog, so there is nothing to tell the user.
+      return null;
     case "USERNAME_TOO_SHORT":
       return `The username must be at least ${userError.minimumLength} characters.`;
     case "USERNAME_HAS_SURROUNDING_WHITESPACE":

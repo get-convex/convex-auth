@@ -4,6 +4,7 @@ import {
   assertionFromCredential,
   foldClientError,
   runAuthenticationCeremony,
+  runAutofillAuthenticationCeremony,
   runRegistrationCeremony,
   supportsWebAuthn,
 } from "./client.ts";
@@ -49,6 +50,11 @@ const authenticationOptions = {
   challenge: new ArrayBuffer(16),
   rpId: "localhost",
   allowCredentials: [{ id: new ArrayBuffer(8) }],
+};
+
+const autofillOptions = {
+  challenge: new ArrayBuffer(16),
+  rpId: "localhost",
 };
 
 // `vi.unstubAllGlobals()` does not undo `Object.defineProperty`, so the
@@ -283,6 +289,78 @@ describe("runAuthenticationCeremony", () => {
       success: false,
       userError: { error: "WEBAUTHN_UNSUPPORTED" },
     });
+    expect(credentialsGet).not.toHaveBeenCalled();
+  });
+});
+
+describe("runAutofillAuthenticationCeremony", () => {
+  test("asks for a conditional request with the caller's signal", async () => {
+    credentialsGet.mockResolvedValue(assertionCredential);
+    const controller = new AbortController();
+
+    const result = await runAutofillAuthenticationCeremony(
+      autofillOptions,
+      controller.signal,
+    );
+
+    expect(result).toEqual({
+      success: true,
+      assertion: {
+        credentialId: assertionCredential.rawId,
+        authenticatorData: assertionCredential.response.authenticatorData,
+        clientDataJSON: assertionCredential.response.clientDataJSON,
+        signature: assertionCredential.response.signature,
+      },
+    });
+    expect(credentialsGet).toHaveBeenCalledWith({
+      mediation: "conditional",
+      signal: controller.signal,
+      publicKey: {
+        challenge: autofillOptions.challenge,
+        rpId: "localhost",
+        // Conditional mediation requires an empty allow-list.
+        allowCredentials: [],
+        userVerification: "required",
+      },
+    });
+  });
+
+  test("a null credential folds into CEREMONY_ABORTED", async () => {
+    credentialsGet.mockResolvedValue(null);
+    expect(
+      await runAutofillAuthenticationCeremony(
+        autofillOptions,
+        new AbortController().signal,
+      ),
+    ).toEqual({ success: false, userError: { error: "CEREMONY_ABORTED" } });
+  });
+
+  test("an aborted signal folds into CEREMONY_ABORTED", async () => {
+    credentialsGet.mockImplementation(({ signal }: { signal: AbortSignal }) =>
+      Promise.reject(
+        signal.aborted
+          ? new DOMException("aborted", "AbortError")
+          : new Error("expected an aborted signal"),
+      ),
+    );
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      await runAutofillAuthenticationCeremony(
+        autofillOptions,
+        controller.signal,
+      ),
+    ).toEqual({ success: false, userError: { error: "CEREMONY_ABORTED" } });
+  });
+
+  test("no WebAuthn support folds into WEBAUTHN_UNSUPPORTED", async () => {
+    vi.stubGlobal("PublicKeyCredential", undefined);
+    expect(
+      await runAutofillAuthenticationCeremony(
+        autofillOptions,
+        new AbortController().signal,
+      ),
+    ).toEqual({ success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } });
     expect(credentialsGet).not.toHaveBeenCalled();
   });
 });
