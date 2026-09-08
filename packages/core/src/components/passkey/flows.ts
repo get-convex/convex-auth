@@ -1,13 +1,6 @@
 /**
- * The passkey sign-in flow: its mutation and ceremony sequence, with no
- * React. The hooks of `react.tsx` run it through their ceremony slot.
- * The autofill flow has no entry here: its ceremony
- * runs in the request loop of `usePasskeyAutofill`, which calls the two
- * mutations around it.
- *
- * Internal: the package blocks the
- * `@convex-dev/auth/providers/passkey/flows` path. `react.tsx` re-exports
- * the types an app needs.
+ * The code that orchestrates the “standard” (non-autofill) passkey sign-in flow,
+ * i.e. the code that runs whenever the user enters a username to sign in or sign up.
  *
  * @module
  */
