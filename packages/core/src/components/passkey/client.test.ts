@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
 import {
   authenticate,
   authenticateWithAutofill,
@@ -153,7 +153,7 @@ describe("foldClientError", () => {
 });
 
 describe("register", () => {
-  test("hands the options to startRegistration and prunes the response", async () => {
+  it("hands the options to startRegistration and prunes the response", async () => {
     startRegistration.mockResolvedValue(registrationResponse);
 
     const result = await register(creationOptions);
@@ -232,7 +232,7 @@ describe("register", () => {
 });
 
 describe("authenticate", () => {
-  test("hands the options to startAuthentication and prunes the response", async () => {
+  it("hands the options to startAuthentication and prunes the response", async () => {
     startAuthentication.mockResolvedValue(authenticationResponse);
 
     const result = await authenticate(requestOptions);
@@ -257,7 +257,7 @@ describe("authenticate", () => {
     });
   });
 
-  test("a response without userHandle carries none", async () => {
+  it("doesn’t include userHandle in the return value when the authenticator doesn’t set it", async () => {
     startAuthentication.mockResolvedValue({
       ...authenticationResponse,
       response: {
