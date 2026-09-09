@@ -1,6 +1,7 @@
 "use client";
 
 import { useSignUpWithPassword } from "@convex-dev/auth/providers/password/react";
+import { MIN_PASSWORD_LENGTH } from "@convex-dev/auth/providers/password/validation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -59,9 +60,12 @@ export default function SignUp() {
           });
         }}
       >
-        <label>
+        <label htmlFor="username">
           Username
           <input
+            // Using a static id to help password managers behave correctly
+            id="username"
+            name="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -70,13 +74,17 @@ export default function SignUp() {
             disabled={pending}
           />
         </label>
-        <label>
+        <label htmlFor="password">
           Password
           <input
+            // Using a static id to help password managers behave correctly
+            id="password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
+            minLength={MIN_PASSWORD_LENGTH}
             required
             disabled={pending}
           />

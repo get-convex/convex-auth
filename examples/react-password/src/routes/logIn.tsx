@@ -47,9 +47,12 @@ export function LogIn() {
         }}
       >
         <h1>Log in</h1>
-        <label>
+        <label htmlFor="username">
           Username
           <input
+            // Using a static id to help password managers behave correctly
+            id="username"
+            name="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -58,9 +61,12 @@ export function LogIn() {
             disabled={pending}
           />
         </label>
-        <label>
+        <label htmlFor="password">
           Password
           <input
+            // Using a static id to help password managers behave correctly
+            id="password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
