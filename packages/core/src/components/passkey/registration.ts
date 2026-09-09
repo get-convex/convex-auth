@@ -252,8 +252,6 @@ export const checkRegistrationForNewUser = query({
   args: finishRegistrationArgs,
   returns: checkRegistrationResult,
   handler: async (ctx, args): Promise<CheckRegistrationResult> => {
-    // The same check as in `finishRegistrationForNewUser`, so that the
-    // guarantee above holds for the `name` argument too.
     if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
       return { success: false, userError: { error: "INVALID_NAME" } };
     }
@@ -298,9 +296,6 @@ export const finishRegistrationForNewUser = mutation({
   args: { ...finishRegistrationArgs, newUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
-    // Before the ceremony is consumed: a name the component cannot store
-    // must not burn the challenge of a ceremony that could otherwise run
-    // again with a name that it can.
     if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
       return { success: false, userError: { error: "INVALID_NAME" } };
     }
@@ -355,7 +350,6 @@ export const finishRegistrationForExistingUser = mutation({
   args: { ...finishRegistrationArgs, verifiedUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
-    // See the note in `finishRegistrationForNewUser`.
     if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
       return { success: false, userError: { error: "INVALID_NAME" } };
     }
