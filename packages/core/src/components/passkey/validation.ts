@@ -303,6 +303,39 @@ export type FinishAuthenticationUserError = Infer<
 >;
 
 /**
+ * The largest length of a passkey name, in Unicode code points. A name is a
+ * short label in a settings list ("MacBook Touch ID"); the limit stops a
+ * client from writing large data to the row.
+ */
+export const MAX_PASSKEY_NAME_LENGTH = 50;
+
+/**
+ * Examine a passkey name before the component stores it.
+ *
+ * The component only refuses what no real label is: an empty or
+ * whitespace-only string, control characters, or a length over
+ * {@link MAX_PASSKEY_NAME_LENGTH} code points.
+ */
+export function passkeyNameIsValid(name: string): boolean {
+  return (
+    name.trim().length > 0 &&
+    [...name].length <= MAX_PASSKEY_NAME_LENGTH &&
+    // `\p{Cc}` is the whole Unicode control category: the C0 range and
+    // DEL, and the C1 range (U+0080-U+009F), which a paste from a legacy
+    // encoding can carry.
+    !/\p{Cc}/u.test(name)
+  );
+}
+
+/**
+ * The name is empty, too long, or contains control characters. See
+ * {@link passkeyNameIsValid}.
+ */
+export const invalidNameUserError = v.object({
+  error: v.literal("INVALID_NAME"),
+});
+
+/**
  * The user-facing errors for `deletePasskey`. An app can show these errors
  * to the end user.
  */

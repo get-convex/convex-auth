@@ -355,7 +355,17 @@ export function setupUsernamePasskey<UsersTable extends string>(
               },
             );
             if (!checkResult.success) {
-              return { success: false, userError: checkResult.userError };
+              const { userError } = checkResult;
+              if (userError.error === "INVALID_NAME") {
+                // Not possible: this function passes no `name`, thus the
+                // component stores its default name. See the same case in
+                // `finishAddPasskey`.
+                throw new Error(
+                  "Unexpected error when storing the passkey: INVALID_NAME",
+                  { cause: userError },
+                );
+              }
+              return { success: false, userError };
             }
 
             // Create the account + app user (via the app's createUser) and
