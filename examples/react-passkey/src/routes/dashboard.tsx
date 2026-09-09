@@ -2,10 +2,11 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import {
   AddPasskeyResult,
   RemovePasskeyResult,
+  RenamePasskeyResult,
   useAddPasskey,
   useRemovePasskey,
 } from "@convex-dev/auth/providers/passkey/react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
@@ -93,10 +94,34 @@ function PasskeyRow({
   // Each row has its own remove hook, so `pending` drives only the spinner
   // of this row.
   const { removePasskey, pending: removing } = useRemovePasskey(api.auth);
+  const renamePasskey = useMutation(api.auth.renamePasskey);
   return (
     <li>
       <em>{passkey.name ?? "Unnamed passkey"}</em>, added{" "}
       {new Date(passkey.createdAt).toLocaleString()}{" "}
+      <button
+        onClick={async () => {
+          const name = window.prompt("New name for this passkey?");
+          if (name === null) {
+            return;
+          }
+          onError(null);
+          try {
+            const result = await renamePasskey({
+              passkeyId: passkey.passkeyId,
+              name,
+            });
+            if (!result.success) {
+              onError(errorMessage(result.userError));
+            }
+          } catch (cause) {
+            console.error("Passkey rename failed:", cause);
+            onError("Something went wrong. Please try again.");
+          }
+        }}
+      >
+        Rename
+      </button>{" "}
       <button
         disabled={removing || !canRemove}
         onClick={async () => {
@@ -119,7 +144,8 @@ function PasskeyRow({
 function errorMessage(
   userError:
     | Extract<AddPasskeyResult, { success: false }>["userError"]
-    | Extract<RemovePasskeyResult, { success: false }>["userError"],
+    | Extract<RemovePasskeyResult, { success: false }>["userError"]
+    | Extract<RenamePasskeyResult, { success: false }>["userError"],
 ): string | null {
   switch (userError.error) {
     case "CEREMONY_ABORTED":
@@ -141,6 +167,8 @@ function errorMessage(
       return "You have too many passkeys. Remove one before you add another.";
     case "PASSKEY_NOT_FOUND":
       return "This passkey no longer exists.";
+    case "INVALID_NAME":
+      return "A passkey name must be 1 to 50 characters on one line.";
     case "CHALLENGE_EXPIRED":
       return "The passkey dialog stayed open for too long. Please try again.";
     case "UNKNOWN_CREDENTIAL":

@@ -33,6 +33,7 @@ import {
   type AlreadyPendingFailure,
 } from "./react_impl.tsx";
 
+export type { RenamePasskeyResult } from "./management/rename.ts";
 export {
   useAddPasskey,
   useRemovePasskey,

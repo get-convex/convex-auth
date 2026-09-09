@@ -381,6 +381,50 @@ describe("adding a passkey", () => {
   });
 });
 
+describe("renaming a passkey", () => {
+  test("renames a passkey of the caller and refuses bad input", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    const caller = as(t, alice.userId);
+    const list = await caller.query(api.auth.listPasskeys, {});
+    if (!list.success) throw new Error("The caller is signed in.");
+    const { passkeyId } = list.passkeys[0];
+
+    expect(
+      await caller.mutation(api.auth.renamePasskey, {
+        passkeyId,
+        name: "My security key",
+      }),
+    ).toEqual({ success: true });
+    const after = await caller.query(api.auth.listPasskeys, {});
+    if (!after.success) throw new Error("The caller is signed in.");
+    expect(after.passkeys[0].name).toBe("My security key");
+
+    expect(
+      await caller.mutation(api.auth.renamePasskey, { passkeyId, name: "" }),
+    ).toEqual({ success: false, userError: { error: "INVALID_NAME" } });
+  });
+
+  test("refuses a passkey of another account and a signed-out caller", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    const bob = await signUp(t, "bob");
+    const bobList = await as(t, bob.userId).query(api.auth.listPasskeys, {});
+    if (!bobList.success) throw new Error("The caller is signed in.");
+    const { passkeyId } = bobList.passkeys[0];
+
+    expect(
+      await as(t, alice.userId).mutation(api.auth.renamePasskey, {
+        passkeyId,
+        name: "Not mine",
+      }),
+    ).toEqual({ success: false, userError: { error: "PASSKEY_NOT_FOUND" } });
+    expect(
+      await t.mutation(api.auth.renamePasskey, { passkeyId, name: "Mine" }),
+    ).toEqual({ success: false, userError: { error: "NOT_SIGNED_IN" } });
+  });
+});
+
 describe("removing a passkey", () => {
   test("removes a passkey through the whole flow", async () => {
     const t = await setup();
