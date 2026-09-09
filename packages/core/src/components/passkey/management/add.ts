@@ -256,13 +256,24 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
         },
       );
       if (!registrationResult.success) {
+        const { userError } = registrationResult;
+        if (userError.error === "INVALID_NAME") {
+          // Not possible: this function passes no `name`, thus the component
+          // stores its default name. The provider does not let an app name a
+          // passkey at registration yet.
+          // TODO(nicolas) Allow the user to provide a custom name when creating a passkey
+          throw new Error(
+            "Unexpected error when storing the passkey: INVALID_NAME",
+            { cause: userError },
+          );
+        }
         // A `PROTOCOL_ERROR` here also covers a registration ceremony that
         // belongs to a different user than the caller, which happens when the
         // caller signs in as a different user after the `verifyAddPasskey`
         // call. `finishRegistrationForExistingUser` compares the owner of the
         // ceremony with `verifiedUserId`, thus this call needs no check of its
         // own. See the same case in `verifyAddPasskey`.
-        return { success: false, userError: registrationResult.userError };
+        return { success: false, userError };
       }
       return { success: true, passkeyId: registrationResult.passkeyId };
     },

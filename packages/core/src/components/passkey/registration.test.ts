@@ -849,8 +849,9 @@ describe("checkRegistrationForNewUser", () => {
     expectedRpId,
     expectedOrigin,
     response,
+    name,
   }: Awaited<ReturnType<typeof registrationArgs>>["args"]) {
-    return { expectedRpId, expectedOrigin, response };
+    return { expectedRpId, expectedOrigin, response, name };
   }
 
   test("returns success for a valid attestation and writes nothing", async () => {
@@ -968,6 +969,58 @@ describe("checkRegistrationForNewUser", () => {
     expect(check).toEqual({ success: true });
     const result = await finish();
     expect(result.success).toBe(true);
+  });
+
+  test("returns INVALID_NAME for a name that the finish call refuses", async () => {
+    const t = setup();
+    const { args, finish } = await registrationArgs(t, "user1", {
+      startUserId: null,
+      name: "   ",
+    });
+    const invalid = { success: false, userError: { error: "INVALID_NAME" } };
+    expect(
+      await t.query(
+        api.registration.checkRegistrationForNewUser,
+        checkArgs(args),
+      ),
+    ).toEqual(invalid);
+    expect(await finish()).toEqual(invalid);
+  });
+});
+
+describe("passkey names at registration", () => {
+  test("refuses a name that the component could not store", async () => {
+    const t = setup();
+    const { finish } = await registrationArgs(t, "user1", {
+      name: "   ",
+    });
+    expect(await finish()).toEqual({
+      success: false,
+      userError: { error: "INVALID_NAME" },
+    });
+    // The challenge survives, so the same ceremony can be finished again
+    // with a name the component stores.
+    expect(
+      await t.run((ctx) => ctx.db.query("challenges").collect()),
+    ).toHaveLength(1);
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+  });
+
+  test("refuses a name that the component could not store, for a new user", async () => {
+    const t = setup();
+    const { finish } = await registrationArgs(t, "user1", {
+      startUserId: null,
+      name: "os\u009dcontrol",
+    });
+    expect(await finish()).toEqual({
+      success: false,
+      userError: { error: "INVALID_NAME" },
+    });
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
   });
 });
 

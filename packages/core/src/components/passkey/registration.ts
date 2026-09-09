@@ -81,6 +81,8 @@ import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
+  invalidNameUserError,
+  passkeyNameIsValid,
   transportsAreValid,
 } from "./validation.ts";
 import { SUPPORTED_ALGORITHM_IDS } from "./constants.ts";
@@ -220,6 +222,8 @@ type RegistrationCheckArgs = Infer<typeof _vRegistrationCheckArgs>;
 
 const finishRegistrationArgs = {
   ...registrationCheckArgs,
+  // The name of the passkey, for display in a settings list. See
+  // {@link passkeyNameIsValid}.
   name: v.optional(v.string()),
 };
 
@@ -227,7 +231,7 @@ const checkRegistrationResult = v.union(
   v.object({ success: v.literal(true) }),
   v.object({
     success: v.literal(false),
-    userError: finishRegistrationUserError,
+    userError: v.union(finishRegistrationUserError, invalidNameUserError),
   }),
 );
 type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
@@ -245,9 +249,14 @@ type CheckRegistrationResult = Infer<typeof checkRegistrationResult>;
  * arguments in the same mutation does not return a `userError`.
  */
 export const checkRegistrationForNewUser = query({
-  args: registrationCheckArgs,
+  args: finishRegistrationArgs,
   returns: checkRegistrationResult,
   handler: async (ctx, args): Promise<CheckRegistrationResult> => {
+    // The same check as in `finishRegistrationForNewUser`, so that the
+    // guarantee above holds for the `name` argument too.
+    if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
     const ceremony = await verifyRegistrationAttempt(ctx, args, {
       kind: "newUser",
     });
@@ -266,7 +275,7 @@ const finishRegistrationResult = v.union(
   v.object({ success: v.literal(true), passkeyId: v.string() }),
   v.object({
     success: v.literal(false),
-    userError: finishRegistrationUserError,
+    userError: v.union(finishRegistrationUserError, invalidNameUserError),
   }),
 );
 type FinishRegistrationResult = Infer<typeof finishRegistrationResult>;
@@ -289,6 +298,12 @@ export const finishRegistrationForNewUser = mutation({
   args: { ...finishRegistrationArgs, newUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    // Before the ceremony is consumed: a name the component cannot store
+    // must not burn the challenge of a ceremony that could otherwise run
+    // again with a name that it can.
+    if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
     const result = await consumeRegistration(ctx, args, { kind: "newUser" });
     if (result.userError !== null) {
       return { success: false, userError: result.userError };
@@ -340,6 +355,10 @@ export const finishRegistrationForExistingUser = mutation({
   args: { ...finishRegistrationArgs, verifiedUserId: v.string() },
   returns: finishRegistrationResult,
   handler: async (ctx, args): Promise<FinishRegistrationResult> => {
+    // See the note in `finishRegistrationForNewUser`.
+    if (args.name !== undefined && !passkeyNameIsValid(args.name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
     const result = await consumeRegistration(ctx, args, {
       kind: "existingUser",
       userId: args.verifiedUserId,

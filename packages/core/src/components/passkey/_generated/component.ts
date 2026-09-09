@@ -75,6 +75,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         {
           expectedOrigin: string;
           expectedRpId: string;
+          name?: string;
           response: {
             clientExtensionResults: {};
             id: string;
@@ -91,7 +92,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "PROTOCOL_ERROR" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "PROTOCOL_ERROR" }
+              | { error: "INVALID_NAME" };
           },
         Name
       >;
@@ -134,7 +137,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "PROTOCOL_ERROR" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "PROTOCOL_ERROR" }
+              | { error: "INVALID_NAME" };
           },
         Name
       >;
@@ -162,7 +167,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         | {
             success: false;
             userError:
-              { error: "CHALLENGE_EXPIRED" } | { error: "PROTOCOL_ERROR" };
+              | { error: "CHALLENGE_EXPIRED" }
+              | { error: "PROTOCOL_ERROR" }
+              | { error: "INVALID_NAME" };
           },
         Name
       >;
