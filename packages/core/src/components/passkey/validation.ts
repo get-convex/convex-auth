@@ -351,6 +351,17 @@ export const invalidNameUserError = v.object({
 });
 
 /**
+ * The user-facing errors for `renamePasskey`. An app can show these errors
+ * to the end user.
+ */
+export const renamePasskeyUserError = v.union(
+  // The passkey does not exist, or it is the passkey of a different user.
+  v.object({ error: v.literal("PASSKEY_NOT_FOUND") }),
+  invalidNameUserError,
+);
+export type RenamePasskeyUserError = Infer<typeof renamePasskeyUserError>;
+
+/**
  * The user-facing errors for `deletePasskey`. An app can show these errors
  * to the end user.
  */

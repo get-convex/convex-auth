@@ -1059,6 +1059,69 @@ describe("passkey names at registration", () => {
   });
 });
 
+describe("renamePasskey", () => {
+  test("renames the user's own passkey", async () => {
+    const t = setup();
+    const { passkeyId } = await register(t, "user1", { name: "Old name" });
+    const result = await t.mutation(api.registration.renamePasskey, {
+      userId: "user1",
+      passkeyId,
+      name: "New name",
+    });
+    expect(result).toEqual({ success: true });
+    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(row.name).toBe("New name");
+  });
+
+  test("refuses a passkey of another user", async () => {
+    const t = setup();
+    const { passkeyId } = await register(t, "user1", { name: "Old name" });
+    const result = await t.mutation(api.registration.renamePasskey, {
+      userId: "user2",
+      passkeyId,
+      name: "New name",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSKEY_NOT_FOUND" },
+    });
+    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
+    expect(row.name).toBe("Old name");
+  });
+
+  test("refuses an unknown passkey id", async () => {
+    const t = setup();
+    await register(t, "user1");
+    expect(
+      await t.mutation(api.registration.renamePasskey, {
+        userId: "user1",
+        passkeyId: "not a passkey id",
+        name: "New name",
+      }),
+    ).toEqual({ success: false, userError: { error: "PASSKEY_NOT_FOUND" } });
+  });
+
+  test("refuses names that are not short labels", async () => {
+    const t = setup();
+    const { passkeyId } = await register(t, "user1", { name: "Old name" });
+    const rename = (name: string) =>
+      t.mutation(api.registration.renamePasskey, {
+        userId: "user1",
+        passkeyId,
+        name,
+      });
+    const invalid = { success: false, userError: { error: "INVALID_NAME" } };
+    expect(await rename("")).toEqual(invalid);
+    expect(await rename("   ")).toEqual(invalid);
+    expect(await rename("x".repeat(51))).toEqual(invalid);
+    expect(await rename("line\nbreak")).toEqual(invalid);
+    // A C1 control, which the C0 range does not cover.
+    expect(await rename("os\u009dcontrol")).toEqual(invalid);
+    // 50 code points are the limit, also for astral characters.
+    expect(await rename("\u{1f511}".repeat(50))).toEqual({ success: true });
+  });
+});
+
 describe("listPasskeys", () => {
   test("returns an empty array for an unknown user", async () => {
     const t = setup();

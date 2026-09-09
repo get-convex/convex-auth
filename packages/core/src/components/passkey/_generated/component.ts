@@ -185,6 +185,18 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         }>,
         Name
       >;
+      renamePasskey: FunctionReference<
+        "mutation",
+        "internal",
+        { name: string; passkeyId: string; userId: string },
+        | { success: true }
+        | {
+            success: false;
+            userError:
+              { error: "PASSKEY_NOT_FOUND" } | { error: "INVALID_NAME" };
+          },
+        Name
+      >;
       startRegistrationForExistingUser: FunctionReference<
         "mutation",
         "internal",
