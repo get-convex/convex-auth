@@ -1861,7 +1861,7 @@ packages:
       convex: ^1.43.0
 
   convex@file:../../convex-1.45.0.tgz:
-    resolution: {integrity: sha512-Zh2Lpo+DWmh+ZG1lHOfZJKcMgptmFf9Fvg95Po7271L7u7KU8BcVkpzXX4aWCq+skNyakE02//Ugip1uvCtygA==, tarball: file:../../convex-1.45.0.tgz}
+    resolution: {integrity: sha512-w3dB3mLwhBrwoWEjqipNVfDO62wrG7RcuIr+G3W7mbsv8ga8I3g7301u27niQLjs0rNoGg/0gdRgOehoqGF7vQ==, tarball: file:../../convex-1.45.0.tgz}
     version: 1.45.0
     engines: {node: '>=20.0.0', npm: '>=7.0.0'}
     hasBin: true

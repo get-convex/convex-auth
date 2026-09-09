@@ -7,16 +7,14 @@ import {
 } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { GenericId, v } from "convex/values";
-import { FunctionHandle } from "convex/server";
+import { FunctionArgs, FunctionHandle } from "convex/server";
 import {
   vAuthClaims,
   type AuthClaims,
   vTokenBundle,
   type TokenBundle,
   USE_USER_ID_AS_ACCOUNT_ID,
-  type CreateUserArgs,
   type CreateUserFn,
-  type OnSignInArgs,
   type OnSignInFn,
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
@@ -245,20 +243,15 @@ async function issueSession(
   };
 }
 
-// The argument types come from `CreateUserArgs`/`OnSignInArgs` rather than
-// from the reference types' `_args`, which is `any`: the app-facing callback
-// types put `any` there so an app's callback is checked contravariantly (see
-// `AcceptsArgs`). Reading `_args` here would leave the `runMutation` calls
-// below unchecked. `_type` and `_returnType` are unaffected.
 type CreateUserFunctionHandle = FunctionHandle<
   CreateUserFn<string, unknown>["_type"],
-  CreateUserArgs<string, unknown>,
+  FunctionArgs<CreateUserFn<string, unknown>>,
   CreateUserFn<string, unknown>["_returnType"]
 >;
 
 type OnSignInFunctionHandle = FunctionHandle<
   OnSignInFn<string, unknown>["_type"],
-  OnSignInArgs<string, unknown>,
+  FunctionArgs<OnSignInFn<string, unknown>>,
   OnSignInFn<string, unknown>["_returnType"]
 >;
 
