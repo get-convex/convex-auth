@@ -19,3 +19,7 @@ npm run dev              # start the Vite frontend
 ## Test usage
 
 The tests defined in the example are run along with `pnpm test` in the repo root.
+
+<!---
+TODO(nicolas) Consider asking the user to repeat the new password when registering/changing the password
+-->
