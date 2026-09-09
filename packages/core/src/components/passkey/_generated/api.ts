@@ -20,6 +20,7 @@ import type * as management_flows from "../management/flows.js";
 import type * as management_list from "../management/list.js";
 import type * as management_react from "../management/react.js";
 import type * as management_remove from "../management/remove.js";
+import type * as management_rename from "../management/rename.js";
 import type * as options from "../options.js";
 import type * as purposes from "../purposes.js";
 import type * as react from "../react.js";
@@ -48,6 +49,7 @@ const fullApi: ApiFromModules<{
   "management/list": typeof management_list;
   "management/react": typeof management_react;
   "management/remove": typeof management_remove;
+  "management/rename": typeof management_rename;
   options: typeof options;
   purposes: typeof purposes;
   react: typeof react;
