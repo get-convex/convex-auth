@@ -310,11 +310,25 @@ export type FinishAuthenticationUserError = Infer<
 export const MAX_PASSKEY_NAME_LENGTH = 50;
 
 /**
+ * Characters that make the text direction or the position of the subsequent
+ * characters different, and characters that show nothing. An attacker uses
+ * them to show a name that is not the name that the component stores, or to
+ * make a name disappear from the settings list. The list is the list of the
+ * username validator.
+ *
+ * The list does not contain the zero-width joiner (U+200D) and the
+ * zero-width non-joiner (U+200C). These two characters are necessary to
+ * write some scripts correctly, and also to write emoji sequences.
+ */
+const BIDI_AND_INVISIBLE_CONTROLS =
+  /[\u061c\u200b\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/u;
+
+/**
  * Examine a passkey name before the component stores it.
  *
  * The component only refuses what no real label is: an empty or
- * whitespace-only string, control characters, or a length over
- * {@link MAX_PASSKEY_NAME_LENGTH} code points.
+ * whitespace-only string, control characters, characters that spoof how the
+ * name shows, or a length over {@link MAX_PASSKEY_NAME_LENGTH} code points.
  */
 export function passkeyNameIsValid(name: string): boolean {
   return (
@@ -323,13 +337,14 @@ export function passkeyNameIsValid(name: string): boolean {
     // `\p{Cc}` is the whole Unicode control category: the C0 range and
     // DEL, and the C1 range (U+0080-U+009F), which a paste from a legacy
     // encoding can carry.
-    !/\p{Cc}/u.test(name)
+    !/\p{Cc}/u.test(name) &&
+    !BIDI_AND_INVISIBLE_CONTROLS.test(name)
   );
 }
 
 /**
- * The name is empty, too long, or contains control characters. See
- * {@link passkeyNameIsValid}.
+ * The name is empty, too long, or contains characters that the component
+ * refuses. See {@link passkeyNameIsValid}.
  */
 export const invalidNameUserError = v.object({
   error: v.literal("INVALID_NAME"),
