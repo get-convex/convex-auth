@@ -1,4 +1,6 @@
+import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
+import { getAuthUserId } from "../core/userId.ts";
 import {
   vSignInSuccess,
   USE_USER_ID_AS_ACCOUNT_ID,
@@ -70,6 +72,27 @@ const signUpResult = v.union(
  */
 export type SignUpResult = Infer<typeof signUpResult>;
 
+const changePasswordResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(
+      v.object({ error: v.literal("NOT_SIGNED_IN") }),
+      v.object({ error: v.literal("INVALID_CREDENTIALS") }),
+      v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+      setPasswordUserError,
+    ),
+  }),
+);
+
+/**
+ * The result of `changePassword`.
+ *
+ * `INVALID_CREDENTIALS` and `RATE_LIMITED` are about the current password.
+ * The other errors are about the new password.
+ */
+export type ChangePasswordResult = Infer<typeof changePasswordResult>;
+
 /**
  * The simplest password recipe: every account is a `(username, password)` pair,
  * with no email or email verification. Wire it up in `convex/auth.ts`:
@@ -78,7 +101,7 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUpWithPassword, signInWithPassword } =
+ * export const { signUpWithPassword, signInWithPassword, changePassword } =
  *   setupUsernamePassword(core, {
  *     component: components.authPasswordProvider,
  *     usernameComponent: components.authUsername,
@@ -86,10 +109,10 @@ export type SignUpResult = Infer<typeof signUpResult>;
  * ```
  *
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
- * mutations so its clients can call them.
+ * / `changePassword` mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the username
- * component: the recipe stores the username there at sign-up, and reads the
+ * component: the provider stores the username there at sign-up, and reads the
  * user id back from it at sign-in. The password component itself stores only
  * `{ userId, passwordHash }` and knows nothing about usernames.
  */
@@ -245,6 +268,74 @@ export function setupUsernamePassword<UsersTable extends string>(
               profile: { username },
             });
             return { success: true, tokens };
+          },
+        }),
+
+        /**
+         * Change the password of the signed-in user. The user must re-authenticate
+         * by giving their current password.
+         */
+        changePassword: mutationGeneric({
+          args: { currentPassword: v.string(), newPassword: v.string() },
+          returns: changePasswordResult,
+          handler: async (
+            ctx,
+            { currentPassword, newPassword },
+          ): Promise<ChangePasswordResult> => {
+            const userId = await getAuthUserId(ctx);
+            if (userId === null) {
+              return { success: false, userError: { error: "NOT_SIGNED_IN" } };
+            }
+
+            // Validate the new password before verifying the current one, so
+            // that invalid new password are ignored by the rate limit.
+            const newPasswordError = validateNewPassword(newPassword);
+            if (newPasswordError !== null) {
+              return { success: false, userError: newPasswordError };
+            }
+
+            // TODO(nicolas) This does not compose with other auth
+            // providers yet: we require users to reauthenticate with their
+            // current password, so this doesn’t allow users who don’t have
+            // a password at this point to add a password to their account.
+            const verifyResult = await ctx.runMutation(
+              component.public.verifyPassword,
+              { userId, password: currentPassword },
+            );
+            if (!verifyResult.success) {
+              if (verifyResult.userError.error === "RATE_LIMITED") {
+                return { success: false, userError: verifyResult.userError };
+              }
+              // `verifyPassword` also reports format errors. Here we use
+              // INVALID_CREDENTIALS for all current password formatting errors,
+              // so that the user doesn’t think that there is an issue
+              // in their new password.
+              verifyResult.userError.error satisfies
+                | "PASSWORD_TOO_SHORT"
+                | "PASSWORD_TOO_LONG"
+                | "PASSWORD_HAS_SURROUNDING_WHITESPACE"
+                | "INVALID_CREDENTIALS";
+              return {
+                success: false,
+                userError: { error: "INVALID_CREDENTIALS" },
+              };
+            }
+
+            const setResult = await ctx.runMutation(
+              component.public.setPassword,
+              { userId, password: newPassword },
+            );
+            if (!setResult.success) {
+              // Unexpected: we pre-validated the new password above.
+              throw new Error(
+                "Unexpected error when setting the password: " +
+                  setResult.userError.error,
+                { cause: setResult.userError },
+              );
+            }
+
+            // TODO(nicolas) Allow the user to choose to revoke their existing sessions here (needs core support)
+            return { success: true };
           },
         }),
       };
