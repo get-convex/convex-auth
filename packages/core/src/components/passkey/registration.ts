@@ -69,7 +69,6 @@ import { Infer, v } from "convex/values";
 import { mutation, MutationCtx, query, QueryCtx } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
-import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import {
   decodeAttestationObject,
   decodeClientDataJSON,
@@ -598,10 +597,7 @@ async function verifyAttestation(
   let verification;
   try {
     verification = await verifyRegistrationResponse({
-      // The wire type keeps `transports` as free-form strings, because the
-      // WebAuthn spec lets new transports appear; the library type does
-      // not. The verification does not read the transports.
-      response: args.response as RegistrationResponseJSON,
+      response: args.response,
       expectedChallenge: toBase64URL(challengeRow.challenge),
       expectedOrigin: args.expectedOrigin,
       expectedRPID: args.expectedRpId,
