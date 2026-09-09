@@ -81,6 +81,7 @@ import {
   finishRegistrationUserError,
   FinishRegistrationUserError,
   deletePasskeyUserError,
+  renamePasskeyUserError,
   invalidNameUserError,
   passkeyNameIsValid,
   transportsAreValid,
@@ -733,6 +734,46 @@ export const deletePasskey = mutation({
       return { success: false, userError: { error: "PASSKEY_NOT_FOUND" } };
     }
     await ctx.db.delete("passkeys", id);
+    return { success: true };
+  },
+});
+
+//------------------------------------------------------------------------------
+// Rename passkey
+//------------------------------------------------------------------------------
+
+const renamePasskeyResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), userError: renamePasskeyUserError }),
+);
+type RenamePasskeyResult = Infer<typeof renamePasskeyResult>;
+
+/**
+ * Rename one passkey of `userId`, for example from a settings page.
+ *
+ * The `userId` check makes the function safe for an ID that comes directly
+ * from the client: a user can only rename their own passkeys. The name must
+ * be a short label (see {@link passkeyNameIsValid}).
+ */
+export const renamePasskey = mutation({
+  args: { userId: v.string(), passkeyId: v.string(), name: v.string() },
+  returns: renamePasskeyResult,
+  handler: async (
+    ctx,
+    { userId, passkeyId, name },
+  ): Promise<RenamePasskeyResult> => {
+    if (!passkeyNameIsValid(name)) {
+      return { success: false, userError: { error: "INVALID_NAME" } };
+    }
+    const id = ctx.db.normalizeId("passkeys", passkeyId);
+    if (id === null) {
+      return { success: false, userError: { error: "PASSKEY_NOT_FOUND" } };
+    }
+    const row = await ctx.db.get("passkeys", id);
+    if (row === null || row.userId !== userId) {
+      return { success: false, userError: { error: "PASSKEY_NOT_FOUND" } };
+    }
+    await ctx.db.patch("passkeys", id, { name });
     return { success: true };
   },
 });
