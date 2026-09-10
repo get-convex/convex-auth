@@ -52,6 +52,9 @@ const signIn = (
   password: string,
 ) => t.mutation(api.auth.signInWithPassword, { username, password });
 
+const asUser = (t: Awaited<ReturnType<typeof setup>>, userId: string) =>
+  t.withIdentity({ subject: userId });
+
 type PasswordResult =
   Awaited<ReturnType<typeof signUp>> | Awaited<ReturnType<typeof signIn>>;
 type PasswordSuccess = Extract<PasswordResult, { success: true }>;
@@ -229,6 +232,130 @@ describe("setupUsernamePassword", () => {
         refreshTokenExpiresAt: expect.any(Number),
         userId: expect.any(String),
       },
+    });
+  });
+});
+
+describe("changePassword", () => {
+  const NEW_PASSWORD = "new horse battery staple";
+
+  async function signedUpUser() {
+    const t = await setup();
+    const up = await signUp(t, "alice", PASSWORD);
+    const userId = (up as PasswordSuccess).tokens.userId;
+    return { t, userId, alice: asUser(t, userId) };
+  }
+
+  test("replaces the password when the current one is correct", async () => {
+    const { t, alice } = await signedUpUser();
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+    expect(result).toEqual({ success: true });
+
+    expect(await signIn(t, "alice", PASSWORD)).toEqual({
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    });
+    expect(await signIn(t, "alice", NEW_PASSWORD)).toMatchObject({
+      success: true,
+    });
+  });
+
+  test("refuses a signed-out caller", async () => {
+    const { t } = await signedUpUser();
+    const result = await t.mutation(api.auth.changePassword, {
+      currentPassword: PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "NOT_SIGNED_IN" },
+    });
+  });
+
+  test("rejects a wrong current password and keeps the old one", async () => {
+    const { t, alice } = await signedUpUser();
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: "wrong horse battery staple",
+      newPassword: NEW_PASSWORD,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    });
+    expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
+      success: true,
+    });
+  });
+
+  test("reports a malformed current password as INVALID_CREDENTIALS", async () => {
+    const { alice } = await signedUpUser();
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: "short",
+      newPassword: NEW_PASSWORD,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    });
+  });
+
+  test("rejects a new password that is too common", async () => {
+    const { t, alice } = await signedUpUser();
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: PASSWORD,
+      newPassword: "0000000000",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_COMMON" },
+    });
+    expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
+      success: true,
+    });
+  });
+
+  test("rejects a new password that is too short", async () => {
+    const { alice } = await signedUpUser();
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: PASSWORD,
+      newPassword: "short",
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
+    });
+  });
+
+  test("accepts a new password equal to the current one", async () => {
+    const { t, alice } = await signedUpUser();
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: PASSWORD,
+      newPassword: PASSWORD,
+    });
+    expect(result).toEqual({ success: true });
+    expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
+      success: true,
+    });
+  });
+
+  test("rate limits the current-password checks per user", async () => {
+    const { alice } = await signedUpUser();
+    for (let i = 0; i < 5; i++) {
+      await alice.mutation(api.auth.changePassword, {
+        currentPassword: "wrong horse battery staple",
+        newPassword: NEW_PASSWORD,
+      });
+    }
+    const result = await alice.mutation(api.auth.changePassword, {
+      currentPassword: PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "RATE_LIMITED", retryAfterMs: expect.any(Number) },
     });
   });
 });
