@@ -712,8 +712,7 @@ type DeletePasskeyResult = Infer<typeof deletePasskeyResult>;
 /**
  * Delete one passkey of `userId`.
  *
- * The `userId` check makes the function safe for an ID that comes directly
- * from the client: a user can only delete their own passkeys.
+ * The `userId` parameter ensures that we always rename the passkey for the intended user.
  *
  * The function does not delete the handle of the user, not even when the
  * user has no passkeys left. A passkey that the user creates later must
@@ -751,9 +750,8 @@ type RenamePasskeyResult = Infer<typeof renamePasskeyResult>;
 /**
  * Rename one passkey of `userId`, for example from a settings page.
  *
- * The `userId` check makes the function safe for an ID that comes directly
- * from the client: a user can only rename their own passkeys. The name must
- * be a short label (see {@link passkeyNameIsValid}).
+ * The `userId` parameter ensures that we always delete the passkey for the intended user.
+ * The name must be a short label (see {@link passkeyNameIsValid}).
  */
 export const renamePasskey = mutation({
   args: { userId: v.string(), passkeyId: v.string(), name: v.string() },
