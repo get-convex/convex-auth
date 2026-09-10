@@ -43,7 +43,10 @@ const mutation = {} as never;
 function renderWithProviders<T>(useHook: () => T) {
   const authClient = new AuthClient({
     mode: "spa",
-    authApi: { refreshSession: async () => null, signOut: async () => {} },
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" as const }),
+      signOut: async () => {},
+    },
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
