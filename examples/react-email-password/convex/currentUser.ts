@@ -3,10 +3,10 @@ import { components } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
 /**
- * The currently signed-in user with their verified email addresses, or null.
+ * The signed-in user with their verified email addresses, or null.
  *
- * Demonstrates an authenticated query that reads from the authEmail
- * component.
+ * The users table holds no address: the query reads the verified addresses
+ * from the authEmail component.
  */
 export const loggedInUser = query({
   args: {},
@@ -14,7 +14,6 @@ export const loggedInUser = query({
     ctx,
   ): Promise<{
     id: Id<"users">;
-    email: string;
     emails: { email: string; isPrimary: boolean }[];
   } | null> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -33,6 +32,6 @@ export const loggedInUser = query({
         userId,
       },
     );
-    return { id: user._id, email: user.email, emails };
+    return { id: user._id, emails };
   },
 });
