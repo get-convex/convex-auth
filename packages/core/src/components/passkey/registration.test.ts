@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
 import { toArrayBuffer } from "./helpers.ts";
+import { MAX_PASSKEY_NAME_LENGTH } from "./validation.ts";
 import { CHALLENGE_TTL_MS } from "./constants.ts";
 import {
   ORIGIN,
@@ -849,8 +850,9 @@ describe("checkRegistrationForNewUser", () => {
     expectedRpId,
     expectedOrigin,
     response,
+    name,
   }: Awaited<ReturnType<typeof registrationArgs>>["args"]) {
-    return { expectedRpId, expectedOrigin, response };
+    return { expectedRpId, expectedOrigin, response, name };
   }
 
   test("returns success for a valid attestation and writes nothing", async () => {
@@ -968,6 +970,92 @@ describe("checkRegistrationForNewUser", () => {
     expect(check).toEqual({ success: true });
     const result = await finish();
     expect(result.success).toBe(true);
+  });
+
+  test("returns INVALID_NAME for a name that the finish call refuses", async () => {
+    const t = setup();
+    const { args, finish } = await registrationArgs(t, "user1", {
+      startUserId: null,
+      name: "   ",
+    });
+    const invalid = { success: false, userError: { error: "INVALID_NAME" } };
+    expect(
+      await t.query(
+        api.registration.checkRegistrationForNewUser,
+        checkArgs(args),
+      ),
+    ).toEqual(invalid);
+    expect(await finish()).toEqual(invalid);
+  });
+});
+
+describe("passkey names at registration", () => {
+  const invalidNames = {
+    "only whitespace": "   ",
+    "a C1 control": "os\u009dcontrol",
+    "a line feed": "two\nlines",
+    "a right-to-left override": "Mac\u202eBook",
+    "a zero-width space": "Mac\u200bBook",
+    "a byte order mark": "Mac\ufeffBook",
+    "51 code points": "a".repeat(MAX_PASSKEY_NAME_LENGTH + 1),
+    "51 astral code points": "😀".repeat(MAX_PASSKEY_NAME_LENGTH + 1),
+  };
+
+  test("refuses a name that the component could not store", async () => {
+    const t = setup();
+    let userId = 0;
+    for (const [description, name] of Object.entries(invalidNames)) {
+      const { finish } = await registrationArgs(t, `user${userId++}`, { name });
+      expect(await finish(), description).toEqual({
+        success: false,
+        userError: { error: "INVALID_NAME" },
+      });
+    }
+    // The challenges survive, so the same ceremonies can be finished again
+    // with names the component stores.
+    expect(
+      await t.run((ctx) => ctx.db.query("challenges").collect()),
+    ).toHaveLength(Object.keys(invalidNames).length);
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+  });
+
+  test("refuses a name that the component could not store, for a new user", async () => {
+    const t = setup();
+    const { finish } = await registrationArgs(t, "user1", {
+      startUserId: null,
+      name: "os\u009dcontrol",
+    });
+    expect(await finish()).toEqual({
+      success: false,
+      userError: { error: "INVALID_NAME" },
+    });
+    expect(await t.run((ctx) => ctx.db.query("passkeys").collect())).toEqual(
+      [],
+    );
+  });
+
+  test("stores a name that is at the limit or that needs a joiner", async () => {
+    const t = setup();
+    // The limit counts code points, thus an astral character counts as one.
+    const accepted = [
+      "a".repeat(MAX_PASSKEY_NAME_LENGTH),
+      "😀".repeat(MAX_PASSKEY_NAME_LENGTH),
+      // A zero-width joiner is necessary for some scripts and for emoji
+      // sequences, thus it stays permitted.
+      "family\u{1f468}\u200d\u{1f469}\u200d\u{1f466}",
+    ];
+    let userId = 0;
+    for (const name of accepted) {
+      const { finish } = await registrationArgs(t, `user${userId++}`, { name });
+      expect(await finish(), name).toMatchObject({ success: true });
+    }
+    expect(
+      await t.run(async (ctx) =>
+        (await ctx.db.query("passkeys").collect()).map((row) => row.name),
+      ),
+    ).toEqual(accepted);
   });
 });
 
