@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as aaguids from "../aaguids.js";
 import type * as authentication from "../authentication.js";
 import type * as base64url from "../base64url.js";
 import type * as cleanup from "../cleanup.js";
@@ -37,6 +38,7 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  aaguids: typeof aaguids;
   authentication: typeof authentication;
   base64url: typeof base64url;
   cleanup: typeof cleanup;
