@@ -84,11 +84,6 @@ export type UsernamePasskeyConfig = Required<UsernamePasskeyOptions>;
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "passkey";
 
-// `startSignIn` opens passkey's own ceremony protocol rather than returning a
-// sign-in result: it mints no session, and the client always has a `finish*`
-// call to make after it. So it keeps a plain `success` boolean, and `status`
-// stays reserved for the shared envelope the SSR proxy reads. The hook folds a
-// failure here into the envelope's error arm before callers see it.
 const startSignInResult = v.union(
   // The username has an account: authenticate with a passkey of that
   // account. The challenge is bound to the user.
