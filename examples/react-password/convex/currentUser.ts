@@ -2,11 +2,6 @@ import { getAuthUserId } from "@convex-dev/auth/core";
 import { query } from "./_generated/server";
 import { components } from "./_generated/api";
 
-/**
- * The currently signed-in user, or null.
- *
- * Demonstrates an authenticated query.
- */
 export const loggedInUser = query({
   args: {},
   handler: async (ctx) => {
@@ -23,7 +18,7 @@ export const loggedInUser = query({
       { userId },
     );
     if (username === null) {
-      // Every user signs up with a username, so this must not occur.
+      // In this app, every user has a username, so this must not occur.
       throw new Error(`User ${userId} unexpectedly has no username`);
     }
 
