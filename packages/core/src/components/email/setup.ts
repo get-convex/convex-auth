@@ -705,7 +705,8 @@ export function setupEmailPassword<UsersTable extends string>(
 
         /**
          * Start a password recovery: send a reset link (valid 10 minutes) to a
-         * verified email address.
+         * verified email address. Any verified address of the account works,
+         * not only the primary one.
          *
          * `EMAIL_NOT_FOUND` is surfaced to the caller. This reveals whether an
          * address has an account, which sign-up's `EMAIL_TAKEN` reveals
@@ -799,18 +800,16 @@ export function setupEmailPassword<UsersTable extends string>(
             }
 
             // The link proves control of the address, not of an account. The
-            // address must still be the primary address of an account: it
+            // address must still be a verified address of an account: it
             // could have moved to another user, or been removed, since the
-            // flow started.
+            // flow started. Any verified address of the account can reset
+            // the password, because each of them passed the same ownership
+            // challenge.
             const account = await ctx.runQuery(
               component.verifiedEmails.getUserIdByEmail,
               { email: complete.email },
             );
             if (account === null) {
-              return { success: false, userError: { error: "INVALID_LINK" } };
-            }
-            const primary = await primaryEmail(ctx, account.userId);
-            if (primary === null || primary !== account.email) {
               return { success: false, userError: { error: "INVALID_LINK" } };
             }
             const userId = account.userId;
@@ -834,9 +833,11 @@ export function setupEmailPassword<UsersTable extends string>(
               profile: {},
             });
 
+            // The notification goes to the primary address, which can be
+            // different from the address that received the link.
             await notify(
               ctx,
-              primary,
+              (await primaryEmail(ctx, userId)) ?? account.email,
               PASSWORD_CHANGED_SUBJECT,
               PASSWORD_CHANGED_TEXT,
             );
