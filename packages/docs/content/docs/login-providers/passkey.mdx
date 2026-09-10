@@ -166,3 +166,49 @@ Copy the following code block inside of your app:
 </Step>
 
 </Steps>
+
+## Going further
+
+### Allowing users to manage their passkeys
+
+When your app supports passkeys, it is highly recommended to allow users to add multiple passkeys. This is especially useful for users who use multiple devices, or hardware authenticators.
+
+<Steps>
+
+<Step>
+
+#### Make sure the Convex functions for passkey managements are exposed
+
+In `convex/auth.ts`, make sure the following functions are exported:
+`listPasskeys`, `startAddPasskey`, `verifyAddPasskey`,
+`finishAddPasskey`, `startRemovePasskey`, and `finishRemovePasskey`.
+
+<include
+  lang="ts"
+  meta='title="convex/auth.ts" highlight="  listPasskeys,...  finishRemovePasskey,"'
+>
+  ../../../../../examples/react-passkey/convex/auth.ts
+</include>
+
+</Step>
+
+<Step>
+
+#### Build the passkey management page
+
+In your app’s settings page, add the UI code for adding and removing passkeys. This code will use the `useAddPasskey` and `useRemovePasskey` hooks provided by Convex Auth.
+
+We recommend copying and pasting the following code sample, and adapting it to your app’s design system:
+
+<include
+  lang="tsx"
+  meta='title="src/routes/dashboard.tsx" highlight="  useAddPasskey," highlight="  useRemovePasskey," highlight="useQuery(api.auth.listPasskeys, {});" highlight="useAddPasskey(api.auth);" highlight="useRemovePasskey(api.auth);"'
+>
+  ../../../../../examples/react-passkey/src/routes/dashboard.tsx
+</include>
+
+{/* TODO(nicolas) Split this code out of dashboard.tsx for simplification */}
+
+</Step>
+
+</Steps>
