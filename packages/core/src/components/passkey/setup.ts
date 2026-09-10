@@ -36,6 +36,7 @@ import {
 } from "./management/remove.ts";
 import { renamePasskey } from "./management/rename.ts";
 import { SIGN_IN_PURPOSE } from "./purposes.ts";
+import { defaultPasskeyName } from "./aaguids.ts";
 
 /**
  * Options for {@link setupUsernamePasskey}.
@@ -347,6 +348,11 @@ export function setupUsernamePasskey<UsersTable extends string>(
               return { success: false, userError: { error: "USERNAME_TAKEN" } };
             }
 
+            // The app does not name a new passkey yet, thus the provider
+            // names it after the authenticator model.
+            // TODO(nicolas) Allow the user to provide a custom name when creating a passkey
+            const passkeyName = defaultPasskeyName(args.response);
+
             // Fail early if the passkey registration fails
             const checkResult = await ctx.runQuery(
               component.registration.checkRegistrationForNewUser,
@@ -354,13 +360,15 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 expectedRpId: rpId,
                 expectedOrigin: origin,
                 response: args.response,
+                name: passkeyName,
               },
             );
             if (!checkResult.success) {
               const { userError } = checkResult;
               if (userError.error === "INVALID_NAME") {
-                // Not possible: this function passes no `name`, thus the
-                // component stores its default name. See the same case in
+                // Not possible: the only name that this function passes is a
+                // default name, and every default name is a short label that
+                // the component stores. See the same case in
                 // `finishAddPasskey`.
                 throw new Error(
                   "Unexpected error when storing the passkey: INVALID_NAME",
@@ -407,6 +415,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                 expectedOrigin: origin,
                 newUserId: tokens.userId,
                 response: args.response,
+                name: passkeyName,
               },
             );
             if (!registrationResult.success) {

@@ -45,6 +45,7 @@ import {
   buildAuthenticationOptions,
   buildRegistrationOptions,
 } from "../options.ts";
+import { defaultPasskeyName } from "../aaguids.ts";
 
 /**
  * The largest number of passkeys that one user can hold.
@@ -253,15 +254,18 @@ export function finishAddPasskey(config: UsernamePasskeyConfig) {
           expectedOrigin: config.origin,
           verifiedUserId: userId,
           response: args.response,
+          // The app does not name a new passkey yet, thus the provider names
+          // it after the authenticator model.
+          // TODO(nicolas) Allow the user to provide a custom name when creating a passkey
+          name: defaultPasskeyName(args.response),
         },
       );
       if (!registrationResult.success) {
         const { userError } = registrationResult;
         if (userError.error === "INVALID_NAME") {
-          // Not possible: this function passes no `name`, thus the component
-          // stores its default name. The provider does not let an app name a
-          // passkey at registration yet.
-          // TODO(nicolas) Allow the user to provide a custom name when creating a passkey
+          // Not possible: the only name that this function passes is a
+          // default name, and every default name is a short label that the
+          // component stores.
           throw new Error(
             "Unexpected error when storing the passkey: INVALID_NAME",
             { cause: userError },

@@ -87,7 +87,6 @@ import {
   transportsAreValid,
 } from "./validation.ts";
 import { SUPPORTED_ALGORITHM_IDS } from "./constants.ts";
-import { defaultPasskeyName } from "./aaguids.ts";
 import {
   deleteDeadChallenge,
   findChallenge,
@@ -224,7 +223,8 @@ type RegistrationCheckArgs = Infer<typeof _vRegistrationCheckArgs>;
 
 const finishRegistrationArgs = {
   ...registrationCheckArgs,
-  // The name of the passkey, for display in a settings list. See
+  // The name of the passkey, for display in a settings list. The passkey
+  // stays without a name when the caller gives none. See
   // {@link passkeyNameIsValid}.
   name: v.optional(v.string()),
 };
@@ -321,7 +321,7 @@ export const finishRegistrationForNewUser = mutation({
     });
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.newUserId,
-      name: args.name ?? defaultPasskeyName(result.credential.aaguid),
+      name: args.name,
       transports: args.response.response.transports,
       credentialId: result.credential.credentialId,
       publicKey: result.credential.publicKey,
@@ -364,7 +364,7 @@ export const finishRegistrationForExistingUser = mutation({
     }
     const passkeyId = await ctx.db.insert("passkeys", {
       userId: args.verifiedUserId,
-      name: args.name ?? defaultPasskeyName(result.credential.aaguid),
+      name: args.name,
       transports: args.response.response.transports,
       credentialId: result.credential.credentialId,
       publicKey: result.credential.publicKey,
@@ -547,9 +547,6 @@ type VerifiedCredential = {
   // The COSE public key, exactly as `verifyRegistrationResponse` returns it.
   publicKey: ArrayBuffer;
   counter: number;
-  // The authenticator model, for the default passkey name (see
-  // `defaultPasskeyName`).
-  aaguid: string;
 };
 
 /**
@@ -665,7 +662,6 @@ async function verifyAttestation(
       credentialId: storedCredentialId,
       publicKey: toArrayBuffer(credential.publicKey),
       counter: credential.counter,
-      aaguid: verification.registrationInfo.aaguid,
     },
   };
 }
