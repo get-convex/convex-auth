@@ -712,7 +712,7 @@ type DeletePasskeyResult = Infer<typeof deletePasskeyResult>;
 /**
  * Delete one passkey of `userId`.
  *
- * The `userId` parameter ensures that we always delete the passkey for the intended user.
+ * The `userId` parameter ensures that we always rename the passkey for the intended user.
  *
  * The function does not delete the handle of the user, not even when the
  * user has no passkeys left. A passkey that the user creates later must
