@@ -39,5 +39,4 @@ export const {
   },
 }).attachUserCallbacks({
   createUser: internal.users.createUser,
-  onSignIn: internal.users.onSignIn,
 });

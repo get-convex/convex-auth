@@ -79,9 +79,7 @@ async function seedSignedUpUser(
   t: T,
   { email = EMAIL, password = PASSWORD } = {},
 ) {
-  const userId = await t.run(
-    async (ctx) => await ctx.db.insert("users", { email }),
-  );
+  const userId = await t.run(async (ctx) => await ctx.db.insert("users", {}));
   await runInComponent(t, "auth", async (ctx) => {
     await ctx.db.insert("accounts", {
       provider: "emailPassword",
@@ -221,9 +219,7 @@ describe("completeSignUp", () => {
     const t = await setup();
     // The state signUp leaves behind: user + account + password, and a
     // pending challenge (no verified email yet).
-    const userId = await t.run(
-      async (ctx) => await ctx.db.insert("users", { email: EMAIL }),
-    );
+    const userId = await t.run(async (ctx) => await ctx.db.insert("users", {}));
     await runInComponent(t, "auth", async (ctx) => {
       await ctx.db.insert("accounts", {
         provider: "emailPassword",
@@ -242,8 +238,7 @@ describe("completeSignUp", () => {
     });
     await seedChallenge(t, {
       email: EMAIL,
-      userId,
-      purpose: { kind: "addEmail" },
+      purpose: { kind: "addEmail", userId },
       code: "code1",
       secret: "secret1",
     });
@@ -261,8 +256,7 @@ describe("completeSignUp", () => {
     // The wrong user burned the link; seed it again for the happy path.
     await seedChallenge(t, {
       email: EMAIL,
-      userId,
-      purpose: { kind: "addEmail" },
+      purpose: { kind: "addEmail", userId },
       code: "code2",
       secret: "secret2",
     });
@@ -297,9 +291,9 @@ describe("completeSignUp", () => {
 
   test("the first completed validation wins a duplicate sign-up race", async () => {
     const t = await setup();
-    const mkUser = async (email: string) => {
+    const mkUser = async () => {
       const userId = await t.run(
-        async (ctx) => await ctx.db.insert("users", { email }),
+        async (ctx) => await ctx.db.insert("users", {}),
       );
       await runInComponent(t, "auth", async (ctx) => {
         await ctx.db.insert("accounts", {
@@ -310,8 +304,8 @@ describe("completeSignUp", () => {
       });
       return userId;
     };
-    const user1 = await mkUser(EMAIL);
-    const user2 = await mkUser(EMAIL);
+    const user1 = await mkUser();
+    const user2 = await mkUser();
     await seedChallenge(t, {
       email: EMAIL,
       purpose: { kind: "addEmail", userId: user1 },
@@ -478,8 +472,7 @@ describe("completeChangeEmail", () => {
     const userId = await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: "new@example.com",
-      userId,
-      purpose: { kind: "setPrimaryEmail" },
+      purpose: { kind: "setPrimaryEmail", userId },
       code: "code1",
       secret: "secret1",
     });
