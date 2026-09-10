@@ -271,8 +271,14 @@ export type CompleteRecoveryResult = Infer<typeof completeRecoveryResult>;
 
 type MutationCtx = GenericMutationCtx<GenericDataModel>;
 
-/** The profile the recipe reports to the app's create-or-update-user callback. */
-export type EmailPasswordProfile = { email: string };
+/**
+ * The profile the recipe reports to the app's user callbacks. It is empty on
+ * purpose: the app must not store the email address in its own table. At
+ * sign-up the address is not verified yet, and a verified address can change
+ * later. The email component is the source of truth. Read the addresses of a
+ * user with `components.authEmail.verifiedEmails.getEmails`.
+ */
+export type EmailPasswordProfile = Record<string, never>;
 
 /**
  * A password recipe where every account is an `(email, password)` pair:
@@ -460,7 +466,7 @@ export function setupEmailPassword<UsersTable extends string>(
             // itself.
             const { userId } = await ctx.convexAuth.signUpWithoutSession({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-              profile: { email },
+              profile: {},
             });
 
             const setResult = await ctx.runMutation(
@@ -523,7 +529,7 @@ export function setupEmailPassword<UsersTable extends string>(
             }
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: complete.userId,
-              profile: { email: complete.email },
+              profile: {},
             });
             return { success: true, tokens };
           },
@@ -562,7 +568,7 @@ export function setupEmailPassword<UsersTable extends string>(
 
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
-              profile: { email },
+              profile: {},
             });
             return { success: true, tokens };
           },
@@ -825,7 +831,7 @@ export function setupEmailPassword<UsersTable extends string>(
 
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
-              profile: { email: complete.email },
+              profile: {},
             });
 
             await notify(
