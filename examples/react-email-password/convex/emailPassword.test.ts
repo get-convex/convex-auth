@@ -53,9 +53,8 @@ type T = Awaited<ReturnType<typeof setup>>;
 /**
  * Run a function against a registered component's own database. convex-test
  * exposes `runInComponent` at runtime but does not declare it yet, hence the
- * cast. We use it to seed component state that only the `start` mutations write
- * in production — that mutation needs `ctx.meta`, which convex-test does not
- * supply.
+ * cast. We use it to seed component state directly, and to read the emails
+ * that the Resend stub recorded.
  */
 function runInComponent<Output>(
   t: T,
@@ -158,6 +157,18 @@ function sentEmails(t: T) {
   });
 }
 
+/** The client IP that the rate limits of the `start` mutations read. */
+const IP = "203.0.113.7";
+
+/** The code that an emailed link carries. */
+function codeInLink(text: string): string {
+  const match = /[?&]code=([^\s&]+)/.exec(text);
+  if (match === null) {
+    throw new Error("No code in the email: " + text);
+  }
+  return decodeURIComponent(match[1]);
+}
+
 const SESSION_TOKENS = {
   accessToken: expect.any(String),
   accessTokenExpiresAt: expect.any(Number),
@@ -208,10 +219,63 @@ describe("signUp", () => {
     });
   });
 
-  // TODO: enable when convex-test supports ctx.meta (the happy path reaches
-  // challenge.rateLimit.checkStart, which reads the client IP).
-  test.skip("creates the user without a session and sends the link", () => {});
-  test.skip("returns RATE_LIMITED without creating the user", () => {});
+  test("creates the user without a session and sends the link", async () => {
+    const t = await setup();
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+    expect(result).toMatchObject({
+      success: true,
+      secret: expect.any(String),
+      userId: expect.any(String),
+    });
+    if (!result.success) {
+      throw new Error("unreachable");
+    }
+
+    // The user exists, but the address is not verified: no sign-in yet.
+    const users = await t.run((ctx) => ctx.db.query("users").collect());
+    expect(users.map((row) => row._id)).toEqual([result.userId]);
+    expect(
+      await t.mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
+    ).toEqual({ status: "error", userError: { error: "USER_NOT_FOUND" } });
+
+    const sent = await sentEmails(t);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual([EMAIL]);
+    expect(sent[0].subject).toMatch(/validate/i);
+    expect(sent[0].text).toContain(
+      "http://localhost:5173/validate-email?code=",
+    );
+
+    // The link and the secret complete the sign-up and mint the session.
+    expect(
+      await t.mutation(api.auth.completeSignUp, {
+        code: codeInLink(sent[0].text),
+        secret: result.secret,
+        userId: result.userId,
+      }),
+    ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
+  });
+
+  test("returns RATE_LIMITED without creating the user", async () => {
+    const t = await setup();
+    const signUp = () =>
+      t
+        .withRequestMetadata({ ip: IP })
+        .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+    for (let i = 0; i < 5; i++) {
+      expect(await signUp()).toMatchObject({ success: true });
+    }
+    expect(await signUp()).toMatchObject({
+      success: false,
+      userError: { error: "RATE_LIMITED", retryAfterMs: expect.any(Number) },
+    });
+    // The limited sign-up left no user behind.
+    const users = await t.run((ctx) => ctx.db.query("users").collect());
+    expect(users).toHaveLength(5);
+    expect(await sentEmails(t)).toHaveLength(5);
+  });
 });
 
 describe("completeSignUp", () => {
@@ -250,7 +314,7 @@ describe("completeSignUp", () => {
       userId: "someone-else",
     });
     expect(other).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_LINK" },
     });
     // The wrong user burned the link; seed it again for the happy path.
@@ -266,14 +330,14 @@ describe("completeSignUp", () => {
       secret: "secret2",
       userId,
     });
-    expect(result).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     // The email is now verified, so sign-in works.
     const signIn = await t.mutation(api.auth.signIn, {
       email: EMAIL,
       password: PASSWORD,
     });
-    expect(signIn).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(signIn).toEqual({ status: "complete", tokens: SESSION_TOKENS });
   });
 
   test("rejects a bad code with INVALID_LINK", async () => {
@@ -284,7 +348,7 @@ describe("completeSignUp", () => {
       userId: "nobody",
     });
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_LINK" },
     });
   });
@@ -324,7 +388,7 @@ describe("completeSignUp", () => {
       secret: "secret2",
       userId: user2,
     });
-    expect(first).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(first).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     // The other sign-up's link stays pending, but the address is taken now.
     const second = await t.mutation(api.auth.completeSignUp, {
@@ -333,7 +397,7 @@ describe("completeSignUp", () => {
       userId: user1,
     });
     expect(second).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "EMAIL_TAKEN" },
     });
   });
@@ -347,7 +411,7 @@ describe("signIn", () => {
       email: EMAIL,
       password: PASSWORD,
     });
-    expect(result).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
     expect((result as { tokens: { userId: string } }).tokens.userId).toBe(
       userId,
     );
@@ -360,7 +424,7 @@ describe("signIn", () => {
       email: "ALICE@Example.COM",
       password: PASSWORD,
     });
-    expect(result).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
   });
 
   test("rejects a wrong password with INVALID_CREDENTIALS", async () => {
@@ -371,7 +435,7 @@ describe("signIn", () => {
       password: "wrong horse battery staple",
     });
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_CREDENTIALS" },
     });
   });
@@ -383,7 +447,7 @@ describe("signIn", () => {
       password: PASSWORD,
     });
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "USER_NOT_FOUND" },
     });
   });
@@ -433,12 +497,12 @@ describe("changePassword", () => {
       email: EMAIL,
       password: PASSWORD,
     });
-    expect(oldSignIn).toMatchObject({ success: false });
+    expect(oldSignIn).toMatchObject({ status: "error" });
     const newSignIn = await t.mutation(api.auth.signIn, {
       email: EMAIL,
       password: "brand new horse staple",
     });
-    expect(newSignIn).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(newSignIn).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     // A security notification went to the primary address.
     const sent = await sentEmails(t);
@@ -461,9 +525,33 @@ describe("startChangeEmail", () => {
     });
   });
 
-  // TODO: enable when convex-test supports ctx.meta (the happy path reaches
-  // challenge.setPrimaryEmail.start, which reads the client IP).
-  test.skip("sends a confirmation link to the new address", () => {});
+  test("sends a confirmation link to the new address", async () => {
+    const t = await setup();
+    const userId = await seedSignedUpUser(t);
+    const start = (newEmail: string, currentPassword: string) =>
+      t
+        .withIdentity({ subject: userId })
+        .withRequestMetadata({ ip: IP })
+        .mutation(api.auth.startChangeEmail, { newEmail, currentPassword });
+
+    // The current password is required, and a wrong one sends nothing.
+    expect(await start("new@example.com", "wrong password")).toMatchObject({
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    });
+    expect(await sentEmails(t)).toEqual([]);
+
+    expect(await start("new@example.com", PASSWORD)).toMatchObject({
+      success: true,
+      secret: expect.any(String),
+    });
+    const sent = await sentEmails(t);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual(["new@example.com"]);
+    expect(sent[0].text).toContain(
+      "http://localhost:5173/confirm-email-change?code=",
+    );
+  });
 });
 
 describe("completeChangeEmail", () => {
@@ -500,13 +588,13 @@ describe("completeChangeEmail", () => {
       email: "new@example.com",
       password: PASSWORD,
     });
-    expect(newSignIn).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(newSignIn).toEqual({ status: "complete", tokens: SESSION_TOKENS });
     const oldSignIn = await t.mutation(api.auth.signIn, {
       email: EMAIL,
       password: PASSWORD,
     });
     expect(oldSignIn).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "USER_NOT_FOUND" },
     });
 
@@ -535,10 +623,46 @@ describe("completeChangeEmail", () => {
 });
 
 describe("startRecovery", () => {
-  // TODO: enable when convex-test supports ctx.meta (every path reaches
-  // challenge.rateLimit.checkStart, which reads the client IP).
-  test.skip("sends a reset link to a verified email", () => {});
-  test.skip("surfaces EMAIL_NOT_FOUND for an unknown email", () => {});
+  test("sends a reset link to a verified email", async () => {
+    const t = await setup();
+    await seedSignedUpUser(t);
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.auth.startRecovery, { email: EMAIL });
+    expect(result).toMatchObject({ success: true, secret: expect.any(String) });
+    if (!result.success) {
+      throw new Error("unreachable");
+    }
+    const sent = await sentEmails(t);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual([EMAIL]);
+    expect(sent[0].subject).toMatch(/reset/i);
+    expect(sent[0].text).toContain(
+      "http://localhost:5173/reset-password?code=",
+    );
+    expect(sent[0].text).toContain("stops working after 10 minutes");
+
+    // The link and the secret set the new password and sign the user in.
+    expect(
+      await t.mutation(api.auth.completeRecovery, {
+        code: codeInLink(sent[0].text),
+        secret: result.secret,
+        newPassword: "brand new horse staple",
+      }),
+    ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
+  });
+
+  test("surfaces EMAIL_NOT_FOUND for an unknown email", async () => {
+    const t = await setup();
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.auth.startRecovery, { email: "nobody@example.com" });
+    expect(result).toEqual({
+      success: false,
+      userError: { error: "EMAIL_NOT_FOUND" },
+    });
+    expect(await sentEmails(t)).toEqual([]);
+  });
 });
 
 describe("completeRecovery", () => {
@@ -557,13 +681,13 @@ describe("completeRecovery", () => {
       secret: "secret1",
       newPassword: "brand new horse staple",
     });
-    expect(result).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     const newSignIn = await t.mutation(api.auth.signIn, {
       email: EMAIL,
       password: "brand new horse staple",
     });
-    expect(newSignIn).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(newSignIn).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     const sent = await sentEmails(t);
     expect(sent).toHaveLength(1);
@@ -587,7 +711,7 @@ describe("completeRecovery", () => {
       newPassword: "short",
     });
     expect(bad).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
     });
 
@@ -597,7 +721,7 @@ describe("completeRecovery", () => {
       secret: "secret1",
       newPassword: "brand new horse staple",
     });
-    expect(good).toEqual({ success: true, tokens: SESSION_TOKENS });
+    expect(good).toEqual({ status: "complete", tokens: SESSION_TOKENS });
   });
 
   test("rejects a link whose address left the account", async () => {
@@ -622,7 +746,7 @@ describe("completeRecovery", () => {
       newPassword: "brand new horse staple",
     });
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_LINK" },
     });
     // Nothing was reset: with the address back, the old password still works.
@@ -636,7 +760,49 @@ describe("completeRecovery", () => {
     });
     expect(
       await t.mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
-    ).toEqual({ success: true, tokens: SESSION_TOKENS });
+    ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
+  });
+
+  test("a secondary verified address resets the password and notifies the primary", async () => {
+    const t = await setup();
+    const userId = await seedSignedUpUser(t);
+    const SECONDARY = "alice.work@example.com";
+    await runInComponent(t, "authEmail", async (ctx) => {
+      await ctx.db.insert("verifiedEmails", {
+        email: SECONDARY,
+        normalizedEmail: normalizeEmail(SECONDARY),
+        userId,
+        isPrimary: false,
+      });
+    });
+    // The link went to the secondary address: each verified address passed
+    // the same ownership challenge, so each of them can reset the password.
+    await seedChallenge(t, {
+      email: SECONDARY,
+      purpose: RECOVERY,
+      code: "code1",
+      secret: "secret1",
+    });
+
+    const result = await t.mutation(api.auth.completeRecovery, {
+      code: "code1",
+      secret: "secret1",
+      newPassword: "brand new horse staple",
+    });
+    expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
+    expect(
+      await t.mutation(api.auth.signIn, {
+        email: EMAIL,
+        password: "brand new horse staple",
+      }),
+    ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
+
+    // The security notification goes to the primary address, not to the
+    // address that received the link.
+    const sent = await sentEmails(t);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual([EMAIL]);
+    expect(sent[0].subject).toMatch(/password/i);
   });
 
   test("rejects a bad code with INVALID_LINK", async () => {
@@ -647,7 +813,7 @@ describe("completeRecovery", () => {
       newPassword: "brand new horse staple",
     });
     expect(result).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_LINK" },
     });
   });

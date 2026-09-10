@@ -16,7 +16,7 @@
   "devDependencies": {
     "@convex-dev/rate-limiter": "^0.3.2",
     "@types/node": "^24.12.4",
-    "convex-test": "^0.0.55",
+    "convex-test": "https://pkg.pr.new/convex-test@135",
     "jose": "^5.10.0",
     "typescript": "^6.0.3"
   }
