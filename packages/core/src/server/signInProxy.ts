@@ -164,7 +164,9 @@ function classifyResult(
   // An arm that mints nothing has no tokens to intercept, so it goes back as
   // the provider wrote it. On the arms that do mint, a bundle that isn't a
   // bundle is a wiring bug rather than something to forward.
-  if (!MINTS_SESSION[status as SignInStatus]) return { kind: "forward" };
+  if (!MINTS_SESSION[status as SignInStatus]) {
+    return Object.hasOwn(value, "tokens") ? null : { kind: "forward" };
+  }
   return isEncodedTokenBundle(tokens) ? { kind: "mint", tokens } : null;
 }
 
