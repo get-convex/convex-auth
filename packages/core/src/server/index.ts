@@ -60,9 +60,12 @@ export type {
   ConvexAuthApi,
   IsAuthenticatedFn,
   RefreshSessionFn,
-  SignInSuccess,
+  SignInComplete,
+  SignInEnvelope,
+  SignInError,
+  SignInStatus,
   SignOutFn,
   SlimTokenBundle,
   TokenBundle,
 } from "../lib/types.ts";
-export { makeSlimBundle, vSignInSuccess } from "../lib/types.ts";
+export { makeSlimBundle, vSignInComplete, vSignInError } from "../lib/types.ts";

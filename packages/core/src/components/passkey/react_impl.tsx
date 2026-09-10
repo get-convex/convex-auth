@@ -9,12 +9,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SignInError } from "../../lib/types.ts";
 import {
   authenticateWithAutofill,
   foldClientError,
   supportsWebAuthn,
   type PasskeyClientError,
-  type PasskeyClientFailure,
   type WireRequestOptions,
 } from "./client.ts";
 import { CHALLENGE_TTL_MS } from "./constants.ts";
@@ -384,10 +384,7 @@ export function usePasskeyAutofill<E = never>(options: {
  * its browser dialog and resolves as usual, thus a caller that gets this
  * shows nothing.
  */
-export type AlreadyPendingFailure = {
-  success: false;
-  userError: { error: "ALREADY_PENDING" };
-};
+export type AlreadyPendingFailure = SignInError<{ error: "ALREADY_PENDING" }>;
 
 /**
  * Building block for modal passkey flows: a `run` callback that runs one
@@ -404,8 +401,8 @@ export type AlreadyPendingFailure = {
  *   ceremony of `fn` displaces the pending conditional request anyway (the browser runs one ceremony at a
  *   time per page); the pause keeps the autofill loop from starting a new
  *   request mid-ceremony, and the resume restarts it.
- * - It folds every value `fn` throws into a {@link PasskeyClientFailure},
- *   so callers handle every failure through one `userError` switch.
+ * - It folds every value `fn` throws into the envelope's error arm, so
+ *   callers handle every failure through one `userError` switch.
  *
  * `pause()` returns at once and needs no acknowledgement, because the
  * autofill hook aborts its request through an `AbortSignal` it owns, and an
@@ -438,12 +435,12 @@ export function usePasskeyCeremonySlot(options: {
     // file.
     async <T,>(
       fn: () => Promise<T>,
-    ): Promise<T | PasskeyClientFailure | AlreadyPendingFailure> => {
+    ): Promise<T | SignInError<PasskeyClientError> | AlreadyPendingFailure> => {
       if (pendingRef.current) {
         // TODO(nicolas): Consider a different behavior here. The caller has
         // nothing to show for this error, since the first ceremony keeps its
         // dialog and resolves as usual.
-        return { success: false, userError: { error: "ALREADY_PENDING" } };
+        return { status: "error", userError: { error: "ALREADY_PENDING" } };
       }
       pendingRef.current = true;
       setPending(true);
@@ -456,7 +453,7 @@ export function usePasskeyCeremonySlot(options: {
       try {
         return await fn();
       } catch (cause) {
-        return { success: false, userError: foldClientError(cause) };
+        return { status: "error", userError: foldClientError(cause) };
       } finally {
         resumeAutofillFlow?.();
         pendingRef.current = false;

@@ -1,8 +1,8 @@
 import { mutationGeneric } from "convex/server";
-import { v } from "convex/values";
+import { Infer, v } from "convex/values";
 import {
-  vTokenBundle,
-  type TokenBundle,
+  vSignInComplete,
+  vSignInError,
   type UserCallbacks,
 } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
@@ -119,6 +119,21 @@ export type OauthProviderOptions = {
    */
   allowedRedirectOrigins: string[];
 };
+
+const completeSignInResult = v.union(
+  vSignInComplete,
+  // The one-time code did not redeem: unknown, already spent, expired, or
+  // paired with a state this browser never held. The server cannot tell those
+  // apart and deliberately does not try, so they share one code.
+  vSignInError(v.object({ error: v.literal("INVALID_CODE") })),
+);
+
+/**
+ * The result of `completeSignIn`.
+ *
+ * When complete the minted session tokens, otherwise a user-facing `userError`.
+ */
+export type CompleteSignInResult = Infer<typeof completeSignInResult>;
 
 /** `new URL` without the exception: returns null on unparseable input. */
 function parseUrl(value: string): URL | null {
@@ -271,24 +286,23 @@ export function setupOauth<
   /**
    * Complete an OAuth sign-in by redeeming the one-time `code` from
    * the callback redirect together with the state held since
-   * `startSignIn`. Returns the session token bundle, or null when
-   * the code is unknown, already redeemed, expired, or the state
-   * doesn't match: all indistinguishable to the caller.
+   * `startSignIn`. Returns the shared sign-in envelope: the session
+   * token bundle, or an `INVALID_CODE` error when the code is unknown,
+   * already redeemed, expired, or the state doesn't match: all
+   * indistinguishable to the caller.
    *
    * The component calls are subtransactions of this mutation, so a
    * failure anywhere (including the app rejecting the sign-in from
    * `createUser` / `onSignIn`) rolls back the ticket claim. Only a
    * successful redemption consumes the ticket.
    */
-  // TODO: dowski - return the shared `vSignInSuccess` envelope like the other
-  // providers do, instead of a bare bundle or null.
   const completeSignIn = authMutation({
     args: {
       code: v.string(),
       state: v.string(),
     },
-    returns: v.union(vTokenBundle, v.null()),
-    handler: async (ctx, args): Promise<TokenBundle | null> => {
+    returns: completeSignInResult,
+    handler: async (ctx, args): Promise<CompleteSignInResult> => {
       const ticket = await ctx.runMutation(
         options.component.provider.claimTicket,
         {
@@ -298,7 +312,7 @@ export function setupOauth<
         },
       );
       if (ticket === null) {
-        return null;
+        return { status: "error", userError: { error: "INVALID_CODE" } };
       }
 
       // Finding the ticket by hash proves `code` is the value the
@@ -322,15 +336,17 @@ export function setupOauth<
       // resolve the identity to pick a path. This handler is a mutation, so the
       // lookup and the write it decides on are one transaction.
       const existingUserId = await ctx.convexAuth.resolveUserId(profile.id);
-      return existingUserId === null
-        ? await ctx.convexAuth.completeSignUp({
-            providerAccountId: profile.id,
-            profile,
-          })
-        : await ctx.convexAuth.completeSignIn({
-            providerAccountId: profile.id,
-            profile,
-          });
+      const tokens =
+        existingUserId === null
+          ? await ctx.convexAuth.completeSignUp({
+              providerAccountId: profile.id,
+              profile,
+            })
+          : await ctx.convexAuth.completeSignIn({
+              providerAccountId: profile.id,
+              profile,
+            });
+      return { status: "complete", tokens };
     },
   });
 

@@ -144,8 +144,11 @@ export function useUsernamePasskeySignIn(
     onAssertion: async (response) => {
       const { api, signInApi, setSession } = ctxRef.current;
       const result = await signInApi.mutation(api.finishSignIn, { response });
-      if (!result.success) {
-        return result;
+      if (result.status !== "complete") {
+        // The autofill loop takes its own `success` boolean, not the
+        // envelope: it retries on a failed assertion rather than handing
+        // the arm back to the caller.
+        return { success: false, userError: result.userError };
       }
 
       // There’s a small race with the modal flow here. When the user resolves the
@@ -175,15 +178,15 @@ export function useUsernamePasskeySignIn(
       /**
        * Runs the identifier-first passkey flow for the given username.
        *
-       * Returns an object with a `success` boolean flag.
+       * Returns an object with a `status` field.
        *
-       * If it is `true` the sign-in (or the account creation) was
+       * If it is `"complete"` the sign-in (or the account creation) was
        * successful and the client will establish an authenticated session
        * with the Convex backend server. The `flow` field tells which one
        * it was: `"signUp"` created a new account, `"signIn"` authenticated
        * an existing one.
        *
-       * If it is `false` the returned object will have a `userError` field
+       * If it is `"error"` the returned object will have a `userError` field
        * with additional details about why sign-in failed.
        */
       signIn,

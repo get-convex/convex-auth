@@ -58,6 +58,15 @@ const FAKE_BUNDLE: TokenBundle = {
   userId: "user-1",
 };
 
+/** The envelope a redemption that reached the helpers returns. */
+const COMPLETED = { status: "complete", tokens: FAKE_BUNDLE };
+
+/**
+ * The envelope every unredeemable code returns: unknown, already spent,
+ * expired, and mismatched state are one code by design.
+ */
+const INVALID_CODE = { status: "error", userError: { error: "INVALID_CODE" } };
+
 /**
  * A fake core whose builders inject fake {@link BoundAuthHelpers}.
  * `signUpWithoutSession` is never reached by redemption.
@@ -281,16 +290,16 @@ afterEach(() => {
 });
 
 describe("completeSignIn", () => {
-  test("redeems a minted ticket into a session bundle via the profile mapping", async () => {
+  test("redeems a minted ticket into a session via the profile mapping", async () => {
     const t = setup();
     const code = await mintTicket(t);
 
-    const bundle = await t.mutation(completeSignInAcme, {
+    const result = await t.mutation(completeSignInAcme, {
       code,
       state: "state-1",
     });
 
-    expect(bundle).toEqual(FAKE_BUNDLE);
+    expect(result).toEqual(COMPLETED);
     // The decrypted payload flowed through the catalog's profile mapping
     // into the fake helpers. The identity is unknown to the core, so
     // redemption took the sign-up path.
@@ -312,12 +321,12 @@ describe("completeSignIn", () => {
 
     // Only the core knows the account has been seen before.
     resolvedUserId.value = "user-1";
-    const bundle = await t.mutation(completeSignInAcme, {
+    const result = await t.mutation(completeSignInAcme, {
       code,
       state: "state-1",
     });
 
-    expect(bundle).toEqual(FAKE_BUNDLE);
+    expect(result).toEqual(COMPLETED);
     expect(helperCalls).toEqual([
       {
         kind: "signIn",
@@ -337,12 +346,12 @@ describe("completeSignIn", () => {
       payload: { userInfoResponses: { user: { id: 42, login: "octocat" } } },
     });
 
-    const bundle = await t.mutation(completeSignInAcmeInfo, {
+    const result = await t.mutation(completeSignInAcmeInfo, {
       code,
       state: "state-1",
     });
 
-    expect(bundle).toEqual(FAKE_BUNDLE);
+    expect(result).toEqual(COMPLETED);
     expect(helperCalls).toEqual([
       {
         kind: "signUp",
@@ -355,17 +364,17 @@ describe("completeSignIn", () => {
     ]);
   });
 
-  test("an unknown code returns null", async () => {
+  test("an unknown code reports INVALID_CODE", async () => {
     const t = setup();
     const result = await t.mutation(completeSignInAcme, {
       code: "never-minted",
       state: "state-1",
     });
-    expect(result).toBeNull();
+    expect(result).toEqual(INVALID_CODE);
     expect(helperCalls).toHaveLength(0);
   });
 
-  test("a wrong state returns null and preserves the ticket", async () => {
+  test("a wrong state reports INVALID_CODE and preserves the ticket", async () => {
     const t = setup();
     const code = await mintTicket(t);
 
@@ -373,15 +382,15 @@ describe("completeSignIn", () => {
       code,
       state: "someone-elses-state",
     });
-    expect(mismatched).toBeNull();
+    expect(mismatched).toEqual(INVALID_CODE);
 
     // The ticket survives a mismatched attempt, so the initiating client can
     // still complete.
-    const bundle = await t.mutation(completeSignInAcme, {
+    const result = await t.mutation(completeSignInAcme, {
       code,
       state: "state-1",
     });
-    expect(bundle).toEqual(FAKE_BUNDLE);
+    expect(result).toEqual(COMPLETED);
   });
 
   test("a code redeems exactly once", async () => {
@@ -392,17 +401,17 @@ describe("completeSignIn", () => {
       code,
       state: "state-1",
     });
-    expect(first).toEqual(FAKE_BUNDLE);
+    expect(first).toEqual(COMPLETED);
 
     const second = await t.mutation(completeSignInAcme, {
       code,
       state: "state-1",
     });
-    expect(second).toBeNull();
+    expect(second).toEqual(INVALID_CODE);
     expect(helperCalls).toHaveLength(1);
   });
 
-  test("an expired ticket returns null", async () => {
+  test("an expired ticket reports INVALID_CODE", async () => {
     vi.useFakeTimers();
     const t = setup();
     const code = await mintTicket(t);
@@ -412,7 +421,7 @@ describe("completeSignIn", () => {
       code,
       state: "state-1",
     });
-    expect(result).toBeNull();
+    expect(result).toEqual(INVALID_CODE);
     expect(helperCalls).toHaveLength(0);
   });
 
@@ -447,10 +456,10 @@ describe("completeSignIn", () => {
     // ...and the claim rolled back with the rest of the mutation, so the
     // ticket is not burned by the failed attempt.
     helperFailure.error = undefined;
-    const bundle = await t.mutation(completeSignInAcme, {
+    const result = await t.mutation(completeSignInAcme, {
       code,
       state: "state-1",
     });
-    expect(bundle).toEqual(FAKE_BUNDLE);
+    expect(result).toEqual(COMPLETED);
   });
 });

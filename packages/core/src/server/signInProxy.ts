@@ -30,7 +30,8 @@ import {
 } from "convex/server";
 import {
   makeSlimBundle,
-  type SignInSuccess,
+  type SignInEnvelope,
+  type SignInStatus,
   type TokenBundle,
 } from "../lib/types.ts";
 import type { AuthCookieOptions } from "./cookies.ts";
@@ -42,15 +43,15 @@ import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.ts";
 /**
  * A sign-in function exposed through the proxy.
  *
- * Any public mutation or action returning the shared {@link SignInSuccess}
- * envelope. Args are typed loosely because the proxy never inspects them; it
- * forwards the caller's encoded args untouched.
+ * Any public mutation or action returning the shared {@link SignInEnvelope}.
+ * Args are typed loosely because the proxy never inspects them; it forwards the
+ * caller's encoded args untouched.
  */
 export type ExposedSignInFn = FunctionReference<
   "mutation" | "action",
   "public",
   DefaultFunctionArgs,
-  SignInSuccess | { success: false }
+  SignInEnvelope
 >;
 
 /** Configuration for {@link convexProxyHandler}. */
@@ -132,23 +133,39 @@ function isEncodedTokenBundle(value: unknown): value is TokenBundle {
 }
 
 /**
+ * Whether each arm of the envelope carries a bundle whose refresh token has to
+ * move into the cookie. Keyed by {@link SignInStatus}, so a new status has to
+ * answer that question here before it compiles.
+ */
+const MINTS_SESSION: Record<SignInStatus, boolean> = {
+  complete: true,
+  error: false,
+};
+
+/**
  * Classify a sign-in function's return value.
  *
  * `null` means "not the envelope this proxy knows how to handle", which the
- * caller turns into a 500 rather than forwarding.
+ * caller turns into a 500 rather than forwarding. A status missing from
+ * {@link MINTS_SESSION} lands there too: a deployment running a provider newer
+ * than this handler is not something to guess at, because guessing wrong is how
+ * a refresh token reaches browser JS.
  */
 function classifyResult(
   value: unknown,
-): { kind: "success"; tokens: TokenBundle } | { kind: "failure" } | null {
+): { kind: "mint"; tokens: TokenBundle } | { kind: "forward" } | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
-  const result = value as Record<string, unknown>;
-  if (result.success === false) return { kind: "failure" };
-  if (result.success !== true) return null;
-  return isEncodedTokenBundle(result.tokens)
-    ? { kind: "success", tokens: result.tokens }
-    : null;
+  const { status, tokens } = value as Record<string, unknown>;
+  if (typeof status !== "string" || !Object.hasOwn(MINTS_SESSION, status)) {
+    return null;
+  }
+  // An arm that mints nothing has no tokens to intercept, so it goes back as
+  // the provider wrote it. On the arms that do mint, a bundle that isn't a
+  // bundle is a wiring bug rather than something to forward.
+  if (!MINTS_SESSION[status as SignInStatus]) return { kind: "forward" };
+  return isEncodedTokenBundle(tokens) ? { kind: "mint", tokens } : null;
 }
 
 /** A plain-text error. `ConvexHttpClient` throws its body as an `Error`. */
@@ -251,12 +268,12 @@ export function convexProxyHandler(config: ConvexProxyConfig): RequestHandler {
       return textError(
         500,
         `${envelope.path} did not return a sign-in result. Provider sign-in ` +
-          `functions must return the shared envelope (see vSignInSuccess).`,
+          `functions must return the shared envelope (see vSignInComplete).`,
       );
     }
 
     const cookies = httpCookies(request);
-    if (result.kind === "success") {
+    if (result.kind === "mint") {
       await writeAuthCookies(cookies, result.tokens, config.cookieOptions);
       // The refresh token goes to the cookie and gets removed from the tokens.
       (payload.value as Record<string, unknown>).tokens = makeSlimBundle(

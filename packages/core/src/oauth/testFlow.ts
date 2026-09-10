@@ -36,6 +36,18 @@ export const bundle: TokenBundle = {
   userId: "user-1",
 };
 
+/** The envelope `completeSignIn` returns once a code redeems. */
+export const completed = { status: "complete" as const, tokens: bundle };
+
+/**
+ * The envelope `completeSignIn` returns for a code that cannot be redeemed:
+ * unknown, already spent, expired, or paired with someone else's state.
+ */
+export const invalidCode = {
+  status: "error" as const,
+  userError: { error: "INVALID_CODE" as const },
+};
+
 /**
  * A stand-in provider, for tests that don't care which provider ran. The refs
  * have paths that look like an app's because `signIn` saves the completeSignIn

@@ -4,14 +4,14 @@ import { ConvexError } from "convex/values";
 import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
 import { AuthClient, type AuthState } from "../browser/sessionManager.ts";
 import { InMemoryStorage, type TokenStorage } from "../browser/storage.ts";
-import type { TokenBundle } from "../lib/types.ts";
 import { oauth } from "./client.ts";
 import {
   ACME_REFS,
   NAMESPACE,
-  bundle,
   calledPath,
+  completed,
   flowStorage,
+  invalidCode,
   readFlow,
   restoreNavigatorProduct,
   seedPendingFlow,
@@ -57,7 +57,7 @@ describe("OAuth client", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
     const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(bundle);
+    mutation.mockResolvedValueOnce(completed);
 
     await client.init();
 
@@ -83,7 +83,7 @@ describe("OAuth client", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
     const { client, mutation } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(bundle);
+    mutation.mockResolvedValueOnce(completed);
 
     await client.init();
 
@@ -99,7 +99,7 @@ describe("OAuth client", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
     const { client, mutation } = setupOAuth({ storage });
-    const { promise, resolve } = Promise.withResolvers<TokenBundle>();
+    const { promise, resolve } = Promise.withResolvers<typeof completed>();
     mutation.mockReturnValueOnce(promise);
 
     // The session load finishes long before the redemption does. Any snapshot
@@ -116,7 +116,7 @@ describe("OAuth client", () => {
     await client.init();
     expect(client.getSnapshot().isLoading).toBe(true);
 
-    resolve(bundle);
+    resolve(completed);
     await vi.waitFor(() =>
       expect(client.getSnapshot().isAuthenticated).toBe(true),
     );
@@ -130,7 +130,7 @@ describe("OAuth client", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
     const { client: first, mutation: firstMutation } = setupOAuth({ storage });
-    firstMutation.mockResolvedValueOnce(bundle);
+    firstMutation.mockResolvedValueOnce(completed);
 
     await first.init();
     await vi.waitFor(() =>
@@ -216,12 +216,12 @@ describe("OAuth client", () => {
     expect(mutation).not.toHaveBeenCalled();
   });
 
-  test("a null bundle sets expired", async () => {
+  test("an INVALID_CODE error sets expired", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
     const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(null);
+    mutation.mockResolvedValueOnce(invalidCode);
 
     await client.init();
 
@@ -349,7 +349,7 @@ describe("OAuth client", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
     const { client, mutation, actions } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(bundle);
+    mutation.mockResolvedValueOnce(completed);
 
     const outcome = await actions.signIn(ACME_REFS, { code: "code-1" });
 

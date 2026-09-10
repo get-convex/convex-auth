@@ -19,7 +19,8 @@ import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 import { retryOnNetworkError } from "../browser/retry.ts";
 import type { SignInStorage } from "../browser/storage.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams.ts";
-import type { TokenBundle } from "../lib/types.ts";
+import type { ClientView } from "../lib/types.ts";
+import type { CompleteSignInResult } from "./component/setup.ts";
 
 /**
  * The mutations an OAuth provider adds to the app's API. Passed as
@@ -38,7 +39,7 @@ export type OauthProviderApi = {
     "mutation",
     "public",
     { code: string; state: string },
-    TokenBundle | null
+    ClientView<CompleteSignInResult>
   >;
 };
 
@@ -277,16 +278,16 @@ export function oauth(): AmbientSignInClient {
           const completeSignIn = makeFunctionReference<"mutation">(
             pending.completeSignIn,
           ) as OauthProviderApi["completeSignIn"];
-          const bundle = await retryOnNetworkError(() =>
+          const result = await retryOnNetworkError(() =>
             signInApi.mutation(completeSignIn, { code, state: pending.state }),
           );
-          if (bundle === null) {
+          if (result.status === "error") {
             // The server can't tell unknown, already redeemed, expired, and
             // mismatched state apart, so they all land here.
             setFlowError("expired");
             return false;
           }
-          await client.setSession(bundle);
+          await client.setSession(result.tokens);
           return true;
         } catch (error) {
           setThrownFlowError(error);

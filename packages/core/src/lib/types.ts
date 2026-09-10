@@ -1,6 +1,6 @@
 import { FunctionReference } from "convex/server";
 
-import { GenericId, Infer, v } from "convex/values";
+import { GenericId, Infer, v, type Validator } from "convex/values";
 
 /**
  * Shared contracts that cross a module boundary within Convex Auth. That includes
@@ -31,20 +31,58 @@ export const vTokenBundle = v.object({
 export type TokenBundle = Infer<typeof vTokenBundle>;
 
 /**
- * The success arm of every provider's sign-in result.
+ * A complete sign-in result.
  *
  * Providers compose this into their result union rather than declaring the
- * success arm themselves. Fixing where the minted bundle sits is what lets the
+ * complete arm themselves. Fixing where the minted bundle sits is what lets the
  * SSR auth proxy find the refresh token without knowing which provider produced
  * the response, and lets it reject a shape it doesn't recognize instead of
  * forwarding tokens to the browser.
  */
-export const vSignInSuccess = v.object({
-  success: v.literal(true),
+export const vSignInComplete = v.object({
+  status: v.literal("complete"),
   tokens: vTokenBundle,
 });
 
-export type SignInSuccess = Infer<typeof vSignInSuccess>;
+export type SignInComplete = Infer<typeof vSignInComplete>;
+
+/**
+ * A sign-in that resulted in an error, carrying that provider's own
+ * `userError` codes.
+ *
+ * The `status` is shared so every arm of every provider is discriminated the
+ * same way; the payload is not, because what can go wrong is provider-specific.
+ *
+ * ```ts
+ * const signInResult = v.union(
+ *   vSignInComplete,
+ *   vSignInError(v.object({ error: v.literal("USER_NOT_FOUND") })),
+ * );
+ * ```
+ */
+export function vSignInError<
+  UserError extends Validator<unknown, "required", string>,
+>(userError: UserError) {
+  return v.object({ status: v.literal("error"), userError });
+}
+
+/** The inferred shape of a {@link vSignInError} arm. */
+export type SignInError<UserError> = {
+  status: "error";
+  userError: UserError;
+};
+
+/**
+ * The full shared sign-in envelope.
+ *
+ * Represents sign-ins that ran to completion and those that hit an error.
+ *
+ * `userError` is `unknown` here because each provider declares its own codes.
+ */
+export type SignInEnvelope = SignInComplete | SignInError<unknown>;
+
+/** The `status` discriminant of every {@link SignInEnvelope}. */
+export type SignInStatus = SignInEnvelope["status"];
 
 /**
  * The token bundle that an SSR route hands back to the client. It is a slimmed

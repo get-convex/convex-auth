@@ -1,6 +1,6 @@
 import {
-  vSignInSuccess,
-  type SignInSuccess,
+  vSignInComplete,
+  type SignInComplete,
   type UserCallbacks,
 } from "../../lib/types.ts";
 import type { AuthCore } from "../core/setup.ts";
@@ -57,15 +57,15 @@ export function setupAnonymous<UsersTable extends string>(
 
       return {
         // Anonymous sign-in cannot fail per-user, so this only ever produces
-        // the success arm. It still returns the shared envelope rather than a
+        // the complete arm. It still returns the shared envelope rather than a
         // bare bundle: that is the shape the SSR auth proxy recognizes (and
         // validates before moving the refresh token into its cookie), and it
         // leaves room for a `userError` arm later without another breaking
         // change.
         signInAnonymous: authMutation({
           args: {},
-          returns: vSignInSuccess,
-          handler: async (ctx): Promise<SignInSuccess> => {
+          returns: vSignInComplete,
+          handler: async (ctx): Promise<SignInComplete> => {
             const anonymousId = await ctx.runMutation(
               component.provider.createAnonymousAccount,
               {},
@@ -74,7 +74,7 @@ export function setupAnonymous<UsersTable extends string>(
               providerAccountId: anonymousId,
               profile: {},
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
       };
