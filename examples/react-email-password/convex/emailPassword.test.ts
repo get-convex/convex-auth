@@ -117,9 +117,10 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().normalize("NFC");
 }
 
-/** The purpose string of the recipe's recovery challenge. */
+/** The purpose of the recipe's recovery challenge, which has no user. */
 const RECOVERY = {
   kind: "custom",
+  userId: null,
   purpose: "convexAuth/emailPassword/recovery",
 } as const;
 
@@ -128,11 +129,10 @@ async function seedChallenge(
   t: T,
   args: {
     email: string;
-    userId: string | null;
     purpose:
-      | { kind: "addEmail" }
-      | { kind: "setPrimaryEmail" }
-      | { kind: "custom"; purpose: string };
+      | { kind: "addEmail"; userId: string }
+      | { kind: "setPrimaryEmail"; userId: string }
+      | { kind: "custom"; userId: string | null; purpose: string };
     code: string;
     secret: string;
   },
@@ -140,8 +140,6 @@ async function seedChallenge(
   await runInComponent(t, "authEmail", async (ctx) => {
     await ctx.db.insert("challenges", {
       email: args.email,
-      normalizedEmail: normalizeEmail(args.email),
-      userId: args.userId,
       purpose: args.purpose,
       codeHash: await sha256Hex(args.code),
       secretHash: await sha256Hex(args.secret),
@@ -316,15 +314,13 @@ describe("completeSignUp", () => {
     const user2 = await mkUser(EMAIL);
     await seedChallenge(t, {
       email: EMAIL,
-      userId: user1,
-      purpose: { kind: "addEmail" },
+      purpose: { kind: "addEmail", userId: user1 },
       code: "code1",
       secret: "secret1",
     });
     await seedChallenge(t, {
       email: EMAIL,
-      userId: user2,
-      purpose: { kind: "addEmail" },
+      purpose: { kind: "addEmail", userId: user2 },
       code: "code2",
       secret: "secret2",
     });
@@ -558,7 +554,6 @@ describe("completeRecovery", () => {
     await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId: null,
       purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
@@ -588,7 +583,6 @@ describe("completeRecovery", () => {
     await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId: null,
       purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
@@ -618,7 +612,6 @@ describe("completeRecovery", () => {
     const userId = await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId: null,
       purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
@@ -673,7 +666,6 @@ describe("getChallengeStatus", () => {
     await seedSignedUpUser(t);
     await seedChallenge(t, {
       email: EMAIL,
-      userId: null,
       purpose: RECOVERY,
       code: "code1",
       secret: "secret1",
