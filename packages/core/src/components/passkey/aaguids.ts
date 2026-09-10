@@ -4,6 +4,13 @@
  *
  * @module
  */
+import {
+  convertAAGUIDToString,
+  decodeAttestationObject,
+  isoBase64URL,
+  parseAuthenticatorData,
+} from "@simplewebauthn/server/helpers";
+import type { WireRegistrationResponse } from "./validation.ts";
 
 // Sourced from https://github.com/passkeydeveloper/passkey-authenticator-aaguids/blob/774b3cfc940a4138bc451ae4ec9b943bf9a44c1b/aaguid.json
 const WELL_KNOWN_AAGUIDS: Record<string, string> = {
@@ -66,10 +73,36 @@ const WELL_KNOWN_AAGUIDS: Record<string, string> = {
 };
 
 /**
- * The display name for a new passkey whose authenticator reports `aaguid`,
- * used when the caller gives no name of its own. `undefined` when the
- * authenticator model is unknown, which leaves the passkey without a name.
+ * The display name for a new passkey, from the authenticator model that the
+ * attestation of the ceremony reports. `undefined` when the authenticator
+ * model is unknown, or when the attestation carries none, which leaves the
+ * passkey without a name.
+ *
+ * The name is cosmetic, thus the caller does not have to verify the
+ * attestation first: bytes that do not parse give no name.
  */
-export function defaultPasskeyName(aaguid: string): string | undefined {
-  return WELL_KNOWN_AAGUIDS[aaguid];
+export function defaultPasskeyName(
+  response: WireRegistrationResponse,
+): string | undefined {
+  const aaguid = attestedAaguid(response);
+  return aaguid === undefined ? undefined : WELL_KNOWN_AAGUIDS[aaguid];
+}
+
+/**
+ * The AAGUID that the attested credential data of the response carries, in
+ * its UUID form. `undefined` when the attestation does not parse, or when it
+ * carries no attested credential data.
+ */
+function attestedAaguid(
+  response: WireRegistrationResponse,
+): string | undefined {
+  try {
+    const attestation = decodeAttestationObject(
+      isoBase64URL.toBuffer(response.response.attestationObject),
+    );
+    const { aaguid } = parseAuthenticatorData(attestation.get("authData"));
+    return aaguid === undefined ? undefined : convertAAGUIDToString(aaguid);
+  } catch {
+    return undefined;
+  }
 }

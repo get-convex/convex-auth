@@ -14,7 +14,6 @@ import {
   generateRS256Credential,
   registrationResponse,
   toBase64URL,
-  aaguidBytes,
 } from "@convex-dev/passkey-test-authenticator";
 import {
   expectProtocolError,
@@ -80,7 +79,6 @@ async function registrationArgs(
     includeCredential?: boolean;
     challenge?: ArrayBuffer;
     startUserId?: string | null;
-    aaguid?: Uint8Array;
   } = {},
 ) {
   const credential = options.credential ?? (await generateES256Credential());
@@ -109,7 +107,6 @@ async function registrationArgs(
     userPresent: options.userPresent,
     userVerified: options.userVerified,
     credential: options.includeCredential === false ? undefined : credential,
-    aaguid: options.aaguid,
   });
   const buildArgs = (extra: { transports?: string[] } = {}) => ({
     expectedRpId: RP_ID,
@@ -989,52 +986,6 @@ describe("checkRegistrationForNewUser", () => {
       ),
     ).toEqual(invalid);
     expect(await finish()).toEqual(invalid);
-  });
-});
-
-describe("default passkey names", () => {
-  const APPLE_PASSWORDS = aaguidBytes("fbfc3007-154e-4ecc-8c0b-6e020557d7bd");
-
-  test("names a new passkey after its authenticator", async () => {
-    const t = setup();
-    const { finish } = await registrationArgs(t, "user1", {
-      aaguid: APPLE_PASSWORDS,
-    });
-    expect((await finish()).success).toBe(true);
-    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
-    expect(row.name).toBe("Apple Passwords");
-  });
-
-  test("stores no name for an unknown AAGUID", async () => {
-    // `attestation: "none"` lets an authenticator zero its AAGUID; the big
-    // passkey providers report theirs anyway.
-    const t = setup();
-    const { finish } = await registrationArgs(t, "user1");
-    expect((await finish()).success).toBe(true);
-    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
-    expect(row.name).toBeUndefined();
-  });
-
-  test("an explicit name wins over the default", async () => {
-    const t = setup();
-    const { finish } = await registrationArgs(t, "user1", {
-      name: "My security key",
-      aaguid: APPLE_PASSWORDS,
-    });
-    expect((await finish()).success).toBe(true);
-    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
-    expect(row.name).toBe("My security key");
-  });
-
-  test("the new-user flow names its passkey too", async () => {
-    const t = setup();
-    const { finish } = await registrationArgs(t, "user1", {
-      startUserId: null,
-      aaguid: APPLE_PASSWORDS,
-    });
-    expect((await finish()).success).toBe(true);
-    const [row] = await t.run((ctx) => ctx.db.query("passkeys").collect());
-    expect(row.name).toBe("Apple Passwords");
   });
 });
 

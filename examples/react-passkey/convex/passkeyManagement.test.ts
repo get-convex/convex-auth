@@ -15,6 +15,7 @@ import { registerPasskeyProvider } from "@convex-dev/auth/providers/testing/pass
 // part of the public API of `@convex-dev/auth`. An app writes an authenticator
 // of its own, or it drives a real one.
 import {
+  aaguidBytes,
   buildAssertion,
   buildAttestationObject,
   buildAuthenticatorData,
@@ -71,14 +72,21 @@ afterEach(() => {
 /** The caller as a signed-in user, the way a real access token identifies one. */
 const as = (t: T, userId: string) => t.withIdentity({ subject: userId });
 
-/** Build the `response` of a `create()` ceremony, spreadable into args. */
+/**
+ * Build the `response` of a `create()` ceremony, spreadable into args.
+ *
+ * `aaguid` is the authenticator model that the attestation reports. It is
+ * zeroed by default, like an authenticator that hides its model.
+ */
 async function attest(
   challenge: string,
   credential: TestCredential,
+  aaguid?: Uint8Array,
 ): Promise<{ response: ReturnType<typeof registrationResponse> }> {
   const authenticatorData = await buildAuthenticatorData({
     rpId: RP_ID,
     credential,
+    aaguid,
   });
   return {
     response: registrationResponse({
@@ -101,6 +109,7 @@ const assertWith = (credential: TestCredential, challenge: string) =>
 async function signUp(
   t: T,
   username: string,
+  aaguid?: Uint8Array,
 ): Promise<{ userId: string; credential: TestCredential }> {
   const start = await t.mutation(api.auth.startSignIn, { username });
   if (!start.success || start.step !== "register") {
@@ -109,7 +118,7 @@ async function signUp(
   const credential = await generateES256Credential();
   const result = await t.mutation(api.auth.finishSignUp, {
     username,
-    ...(await attest(start.options.challenge, credential)),
+    ...(await attest(start.options.challenge, credential, aaguid)),
   });
   if (!result.success) {
     throw new Error(`The sign-up failed: ${result.userError.error}`);
@@ -122,6 +131,7 @@ async function addPasskey(
   t: T,
   userId: string,
   authorizeWith: TestCredential,
+  aaguid?: Uint8Array,
 ): Promise<{ passkeyId: string; credential: TestCredential }> {
   const caller = as(t, userId);
   const start = await caller.mutation(api.auth.startAddPasskey, {});
@@ -140,7 +150,7 @@ async function addPasskey(
   const credential = await generateES256Credential();
   const finished = await caller.mutation(
     api.auth.finishAddPasskey,
-    await attest(verified.options.challenge, credential),
+    await attest(verified.options.challenge, credential, aaguid),
   );
   if (!finished.success) {
     throw new Error(`The add failed: ${finished.userError.error}`);
@@ -179,6 +189,42 @@ describe("listPasskeys", () => {
       success: false,
       userError: { error: "NOT_SIGNED_IN" },
     });
+  });
+});
+
+describe("default passkey names", () => {
+  const APPLE_PASSWORDS = aaguidBytes("fbfc3007-154e-4ecc-8c0b-6e020557d7bd");
+
+  /** The names of the passkeys of `userId`, in the order of the list. */
+  async function names(t: T, userId: string): Promise<(string | undefined)[]> {
+    const list = await as(t, userId).query(api.auth.listPasskeys, {});
+    if (!list.success) throw new Error("The caller is signed in.");
+    return list.passkeys.map((passkey) => passkey.name);
+  }
+
+  test("names the passkey of a sign-up after its authenticator", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice", APPLE_PASSWORDS);
+    expect(await names(t, alice.userId)).toEqual(["Apple Passwords"]);
+  });
+
+  test("names an added passkey after its authenticator", async () => {
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    await addPasskey(t, alice.userId, alice.credential, APPLE_PASSWORDS);
+    expect(await names(t, alice.userId)).toEqual([
+      undefined,
+      "Apple Passwords",
+    ]);
+  });
+
+  test("stores no name for an authenticator that reports no model", async () => {
+    // `attestation: "none"` lets an authenticator zero its AAGUID; the big
+    // passkey providers report theirs anyway.
+    const t = await setup();
+    const alice = await signUp(t, "alice");
+    await addPasskey(t, alice.userId, alice.credential);
+    expect(await names(t, alice.userId)).toEqual([undefined, undefined]);
   });
 });
 
