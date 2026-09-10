@@ -15,7 +15,11 @@ export function Dashboard() {
       {user && (
         <>
           <p>
-            Signed in as <strong>{user.email}</strong> ({user.id})
+            Signed in as{" "}
+            <strong>
+              {user.emails.find((entry) => entry.isPrimary)?.email}
+            </strong>{" "}
+            ({user.id})
           </p>
           <h2>Your email addresses</h2>
           <ul>
