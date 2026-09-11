@@ -12,8 +12,8 @@
  */
 import type {
   GenericDataModel,
-  GenericDocument,
   GenericMutationCtx,
+  WithoutSystemFields,
 } from "convex/server";
 import type { GenericId, ObjectType } from "convex/values";
 import { CALLBACK_PATH } from "./constants.ts";
@@ -51,12 +51,14 @@ type TicketContract = ObjectType<typeof ticketFields>;
  * redirects the user to the provider; the provider callback later claims the
  * request by state hash.
  *
- * `fields` is the component's own document shape without `callbackUrl` and
- * `expiresAt`, which are set here.
+ * The caller writes out `Doc` as its own generated document type, e.g.
+ * `insertAuthorizationRequest<Doc<"authorizationRequests">>(ctx, args)`.
  */
-export async function insertAuthorizationRequest(
+export async function insertAuthorizationRequest<
+  Doc extends AuthorizationRequestContract,
+>(
   ctx: MutationCtx,
-  fields: GenericDocument,
+  fields: Omit<WithoutSystemFields<Doc>, "callbackUrl" | "expiresAt">,
 ): Promise<{ callbackUrl: string }> {
   // System env vars are only visible inside components on backends with
   // get-convex/convex-backend@64c163a (July 2026); cloud always has it,
@@ -123,10 +125,13 @@ export async function claimAuthorizationRequest<
  * caller (the callback) holds the raw ticket code; only its hash is stored,
  * and the identity payload arrives already encrypted with a key derived from
  * that code.
+ *
+ * The caller writes out `Doc` as its own generated document type, e.g.
+ * `insertTicket<Doc<"tickets">>(ctx, args)`.
  */
-export async function insertTicket(
+export async function insertTicket<Doc extends TicketContract>(
   ctx: MutationCtx,
-  fields: GenericDocument,
+  fields: Omit<WithoutSystemFields<Doc>, "expiresAt">,
 ): Promise<null> {
   await ctx.db.insert("tickets", {
     ...fields,

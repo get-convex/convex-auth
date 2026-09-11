@@ -26,7 +26,9 @@ export const createAuthorizationRequest = mutation({
     callbackUrl: v.string(),
   }),
   handler: async (ctx, args) => {
-    const { callbackUrl } = await db.insertAuthorizationRequest(ctx, args);
+    const { callbackUrl } = await db.insertAuthorizationRequest<
+      Doc<"authorizationRequests">
+    >(ctx, args);
     return { clientId: env.CLIENT_ID, callbackUrl };
   },
 });
@@ -99,7 +101,8 @@ export const createTicket = internalMutation({
     encryptedPayload: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => await db.insertTicket(ctx, args),
+  handler: async (ctx, args) =>
+    await db.insertTicket<Doc<"tickets">>(ctx, args),
 });
 
 /**
