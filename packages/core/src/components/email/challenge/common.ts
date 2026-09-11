@@ -77,6 +77,8 @@ import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
+  rateLimiter,
+  getClientIp,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -84,8 +86,11 @@ import {
 import {
   startChallengeUserError,
   completeChallengeUserError,
+  normalizeEmail,
+  validateEmailFormat,
   vEmailSenderConfig,
   type EmailSenderConfig,
+  type StartChallengeUserError,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -150,6 +155,55 @@ function claimFailure(
 //------------------------------------------------------------------------------
 // Start
 //------------------------------------------------------------------------------
+
+/**
+ * The preconditions that every `start` shares: the format of the address,
+ * then the two rate limits (one for the destination address, one for the
+ * client IP). Returns the error to give the user, or `null` when the start
+ * can go on. In `"consume"` mode, the limits take a token only when the start
+ * passes all of the checks.
+ */
+export async function startPreconditions(
+  ctx: MutationCtx,
+  email: string,
+  mode: "check" | "consume",
+): Promise<StartChallengeUserError | null> {
+  const formatError = validateEmailFormat(email);
+  if (formatError !== null) {
+    return formatError;
+  }
+
+  // Read both limits before either one takes a token. Otherwise a start that
+  // the IP limit denies would still take a token from the address, and a
+  // blocked client could lock any address out at no cost.
+  const emailKey = normalizeEmail(email);
+  const ipKey = await getClientIp(ctx);
+  const perEmail = await rateLimiter.check(ctx, "startChallengePerEmail", {
+    key: emailKey,
+  });
+  if (!perEmail.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: perEmail.retryAfter };
+  }
+  const perIp = await rateLimiter.check(ctx, "startChallengePerIp", {
+    key: ipKey,
+  });
+  if (!perIp.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: perIp.retryAfter };
+  }
+
+  if (mode === "consume") {
+    await rateLimiter.limit(ctx, "startChallengePerEmail", {
+      key: emailKey,
+      throws: true,
+    });
+    await rateLimiter.limit(ctx, "startChallengePerIp", {
+      key: ipKey,
+      throws: true,
+    });
+  }
+
+  return null;
+}
 
 /**
  * Store the hashed code + secret and send the email. Returns the secret that
