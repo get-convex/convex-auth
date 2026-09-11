@@ -199,19 +199,6 @@ export const vOnSignIn = v.object({
  * returned id as an opaque string at runtime; at the type level the table is
  * named by `setupCore`'s `usersTable` option, which is what makes the return
  * type `Id<usersTable>` rather than a bare string.
- *
- * The mutation's args are checked the way Convex checks them at runtime (see
- * `FunctionReference_future` in `convex/server`), so they must *accept* what
- * the core passes rather than match it exactly. A mutation declaring the
- * provider's own literal types works (`provider: v.literal("password")`,
- * `profile: v.object({ username: v.string() })`), and so does one declared
- * more broadly: a single mutation shared across providers can declare a union
- * of provider names (`v.union(v.literal("password"), v.literal("google"))`)
- * and a profile covering both. What is rejected is a mutation the core's call
- * would not get past: one demanding *more* than the core passes (an extra
- * required arg, or a profile field this provider does not produce), and one
- * declaring *fewer* args than the core passes, whose validator would reject
- * the surplus. Both are exactly the cases that would fail at runtime.
  */
 export type CreateUserFn<
   Provider extends string,
@@ -238,10 +225,6 @@ export type CreateUserFn<
  * return `null`, or leave the callback out entirely. Throw a `ConvexError` to
  * reject the sign in, which on a first sign-in rolls back the user the create
  * callback just made.
- *
- * Like {@link CreateUserFn}, the args are checked the way Convex checks them,
- * so one mutation declaring a union of provider names can be shared across
- * providers.
  */
 export type OnSignInFn<
   Provider extends string,

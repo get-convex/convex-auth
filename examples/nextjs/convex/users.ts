@@ -5,17 +5,10 @@
  * app's user row and returns its id, and then calls the optional `onSignIn` on every
  * sign-in, that first one included.
  *
- * Both providers in this example share one pair of callbacks. The callbacks are
- * checked *contravariantly*, the way TypeScript checks an ordinary function
- * parameter: a mutation is accepted wherever it *accepts* what the provider
- * passes, so one that declares a union of provider names and a profile covering
- * both is valid for either provider. Declaring a narrower mutation per provider
- * (`provider: v.literal("password")`) works just as well, and is worth doing when
- * the two providers have little logic in common.
- *
- * The password provider includes the `username` in the profile data it supplies,
- * while the anonymous provider supplies an empty profile. In the app's data model,
- * the `username` is thus optional.
+ * Both providers in this example share one pair of callbacks. The password
+ * provider includes the `username` in the profile data it supplies, while the
+ * anonymous provider supplies an empty profile. In the app's data model, the
+ * `username` is thus optional.
  *
  * @module
  */
