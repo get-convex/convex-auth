@@ -3,11 +3,11 @@
  * pair, and the email must be validated before the first sign-in.
  *
  * SSR note: only `signIn`, `completeSignUp` and `completeRecovery` return the
- * shared `vSignInSuccess` envelope, so only these three may go on the sign-in
- * proxy allowlist. The flow-starting functions return
- * `{ success: true, secret }`; the proxy does not recognize that shape and
- * responds with a 500 (it fails closed), so route them to the deployment
- * directly.
+ * shared sign-in envelope (`vSignInComplete` or `vSignInError`), so only
+ * these three may go on the sign-in proxy allowlist. The flow-starting
+ * functions return `{ success: true, secret }`; the proxy does not recognize
+ * that shape and responds with a 500 (it fails closed), so route them to the
+ * deployment directly.
  *
  * @module
  */
@@ -21,7 +21,8 @@ import {
 } from "convex/server";
 import { Infer, v } from "convex/values";
 import {
-  vSignInSuccess,
+  vSignInComplete,
+  vSignInError,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
 } from "../../lib/types.ts";
@@ -164,7 +165,7 @@ const vNotLoggedIn = v.object({ error: v.literal("NOT_LOGGED_IN") });
 const signUpResult = v.union(
   v.object({
     success: v.literal(true),
-    secret: v.string(),
+    browserSecret: v.string(),
     // The new user. The browser keeps it with the secret and gives both back
     // to `completeSignUp`, which binds the link to this user.
     userId: v.string(),
@@ -182,25 +183,21 @@ const signUpResult = v.union(
 export type SignUpResult = Infer<typeof signUpResult>;
 
 const completeSignUpResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: completeChallengeUserError,
-  }),
+  vSignInComplete,
+  vSignInError(completeChallengeUserError),
 );
 
 /** The result of `completeSignUp`: the minted session tokens, or an error. */
 export type CompleteSignUpResult = Infer<typeof completeSignUpResult>;
 
 const signInResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(
+  vSignInComplete,
+  vSignInError(
+    v.union(
       verifyPasswordUserError,
       v.object({ error: v.literal("USER_NOT_FOUND") }),
     ),
-  }),
+  ),
 );
 
 /** The result of `signIn`: the minted session tokens, or an error. */
@@ -222,7 +219,7 @@ const changePasswordResult = v.union(
 export type ChangePasswordResult = Infer<typeof changePasswordResult>;
 
 const startChangeEmailResult = v.union(
-  v.object({ success: v.literal(true), secret: v.string() }),
+  v.object({ success: v.literal(true), browserSecret: v.string() }),
   v.object({
     success: v.literal(false),
     userError: v.union(
@@ -248,7 +245,7 @@ const completeChangeEmailResult = v.union(
 export type CompleteChangeEmailResult = Infer<typeof completeChangeEmailResult>;
 
 const startRecoveryResult = v.union(
-  v.object({ success: v.literal(true), secret: v.string() }),
+  v.object({ success: v.literal(true), browserSecret: v.string() }),
   v.object({
     success: v.literal(false),
     userError: v.union(startChallengeUserError, vEmailNotFound),
@@ -259,11 +256,8 @@ const startRecoveryResult = v.union(
 export type StartRecoveryResult = Infer<typeof startRecoveryResult>;
 
 const completeRecoveryResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(completeChallengeUserError, setPasswordUserError),
-  }),
+  vSignInComplete,
+  vSignInError(v.union(completeChallengeUserError, setPasswordUserError)),
 );
 
 /** The result of `completeRecovery`: the minted session tokens, or an error. */
@@ -504,7 +498,11 @@ export function setupEmailPassword<UsersTable extends string>(
               );
             }
 
-            return { success: true, secret: start.secret, userId };
+            return {
+              success: true,
+              browserSecret: start.browserSecret,
+              userId,
+            };
           },
         }),
 
@@ -514,24 +512,28 @@ export function setupEmailPassword<UsersTable extends string>(
          * Validation and sign-in happen in one transaction.
          */
         completeSignUp: authMutation({
-          args: { code: v.string(), secret: v.string(), userId: v.string() },
+          args: {
+            emailCode: v.string(),
+            browserSecret: v.string(),
+            userId: v.string(),
+          },
           returns: completeSignUpResult,
           handler: async (
             ctx,
-            { code, secret, userId },
+            { emailCode, browserSecret, userId },
           ): Promise<CompleteSignUpResult> => {
             const complete = await ctx.runMutation(
               component.challenge.addEmail.complete,
-              { code, secret, userId },
+              { emailCode, browserSecret, userId },
             );
             if (!complete.success) {
-              return { success: false, userError: complete.userError };
+              return { status: "error", userError: complete.userError };
             }
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: complete.userId,
               profile: {},
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -554,7 +556,10 @@ export function setupEmailPassword<UsersTable extends string>(
               },
             );
             if (existing === null) {
-              return { success: false, userError: { error: "USER_NOT_FOUND" } };
+              return {
+                status: "error",
+                userError: { error: "USER_NOT_FOUND" },
+              };
             }
             const { userId } = existing;
 
@@ -563,14 +568,14 @@ export function setupEmailPassword<UsersTable extends string>(
               { userId, password },
             );
             if (!verifyResult.success) {
-              return { success: false, userError: verifyResult.userError };
+              return { status: "error", userError: verifyResult.userError };
             }
 
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
               profile: {},
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -659,7 +664,7 @@ export function setupEmailPassword<UsersTable extends string>(
             if (!start.success) {
               return { success: false, userError: start.userError };
             }
-            return { success: true, secret: start.secret };
+            return { success: true, browserSecret: start.browserSecret };
           },
         }),
 
@@ -669,11 +674,11 @@ export function setupEmailPassword<UsersTable extends string>(
          * minted — the user already has one.
          */
         completeChangeEmail: authMutation({
-          args: { code: v.string(), secret: v.string() },
+          args: { emailCode: v.string(), browserSecret: v.string() },
           returns: completeChangeEmailResult,
           handler: async (
             ctx,
-            { code, secret },
+            { emailCode, browserSecret },
           ): Promise<CompleteChangeEmailResult> => {
             // The link is bound to the user who started the change, so the
             // same user must be signed in to complete it.
@@ -683,7 +688,7 @@ export function setupEmailPassword<UsersTable extends string>(
             }
             const complete = await ctx.runMutation(
               component.challenge.setPrimaryEmail.complete,
-              { code, secret, userId },
+              { emailCode, browserSecret, userId },
             );
             if (!complete.success) {
               return { success: false, userError: complete.userError };
@@ -761,7 +766,7 @@ export function setupEmailPassword<UsersTable extends string>(
             if (!start.success) {
               return { success: false, userError: start.userError };
             }
-            return { success: true, secret: start.secret };
+            return { success: true, browserSecret: start.browserSecret };
           },
         }),
 
@@ -775,28 +780,33 @@ export function setupEmailPassword<UsersTable extends string>(
          */
         completeRecovery: authMutation({
           args: {
-            code: v.string(),
-            secret: v.string(),
+            emailCode: v.string(),
+            browserSecret: v.string(),
             newPassword: v.string(),
           },
           returns: completeRecoveryResult,
           handler: async (
             ctx,
-            { code, secret, newPassword },
+            { emailCode, browserSecret, newPassword },
           ): Promise<CompleteRecoveryResult> => {
             // Validate the password before claiming the one-shot link, so a
             // format error does not burn the link.
             const passwordError = validatePasswordInputFormat(newPassword);
             if (passwordError !== null) {
-              return { success: false, userError: passwordError };
+              return { status: "error", userError: passwordError };
             }
 
             const complete = await ctx.runMutation(
               component.challenge.custom.complete,
-              { code, secret, purpose: RECOVERY_PURPOSE, userId: null },
+              {
+                emailCode,
+                browserSecret,
+                purpose: RECOVERY_PURPOSE,
+                userId: null,
+              },
             );
             if (!complete.success) {
-              return { success: false, userError: complete.userError };
+              return { status: "error", userError: complete.userError };
             }
 
             // The link proves control of the address, not of an account. The
@@ -810,7 +820,7 @@ export function setupEmailPassword<UsersTable extends string>(
               { email: complete.email },
             );
             if (account === null) {
-              return { success: false, userError: { error: "INVALID_LINK" } };
+              return { status: "error", userError: { error: "INVALID_LINK" } };
             }
             const userId = account.userId;
 
@@ -841,7 +851,7 @@ export function setupEmailPassword<UsersTable extends string>(
               PASSWORD_CHANGED_SUBJECT,
               PASSWORD_CHANGED_TEXT,
             );
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -857,15 +867,15 @@ export function setupEmailPassword<UsersTable extends string>(
          */
         getChallengeStatus: queryGeneric({
           args: {
-            code: v.string(),
-            secret: v.string(),
+            emailCode: v.string(),
+            browserSecret: v.string(),
             flow: vEmailPasswordFlow,
             userId: v.optional(v.string()),
           },
           returns: vChallengeStatus,
           handler: async (
             ctx,
-            { code, secret, flow, userId },
+            { emailCode, browserSecret, flow, userId },
           ): Promise<ChallengeStatus> => {
             switch (flow) {
               case "signUp": {
@@ -874,7 +884,7 @@ export function setupEmailPassword<UsersTable extends string>(
                 }
                 return await ctx.runQuery(
                   component.challenge.addEmail.getStatus,
-                  { code, secret, userId },
+                  { emailCode, browserSecret, userId },
                 );
               }
               case "changeEmail": {
@@ -884,13 +894,18 @@ export function setupEmailPassword<UsersTable extends string>(
                 }
                 return await ctx.runQuery(
                   component.challenge.setPrimaryEmail.getStatus,
-                  { code, secret, userId: sessionUser },
+                  { emailCode, browserSecret, userId: sessionUser },
                 );
               }
               case "recovery":
                 return await ctx.runQuery(
                   component.challenge.custom.getStatus,
-                  { code, secret, purpose: RECOVERY_PURPOSE, userId: null },
+                  {
+                    emailCode,
+                    browserSecret,
+                    purpose: RECOVERY_PURPOSE,
+                    userId: null,
+                  },
                 );
             }
           },
