@@ -19,7 +19,7 @@ export const ISSUER = "https://appleid.apple.com";
  * on the first authorization. Requesting either scope is also what makes
  * Apple post the callback rather than redirect to it.
  */
-export const SCOPES = ["name", "email"];
+export const SCOPES = ["name", "email"] as const;
 
 /** The name this provider's accounts are namespaced under in the core. */
 export const PROVIDER_NAME = "apple";

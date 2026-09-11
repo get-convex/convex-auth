@@ -26,17 +26,17 @@ const PEM_HEADER = "-----BEGIN PRIVATE KEY-----";
 const PEM_FOOTER = "-----END PRIVATE KEY-----";
 
 /**
- * Put an Apple `.p8` key into the exact PKCS#8 PEM shape `importPKCS8`
- * insists on: the header line, then the base64, then the footer line. The
- * file Apple gives you is already in that shape, but it rarely survives the
- * trip into an environment variable intact, so three spellings all come out
- * the same here:
+ * Put an Apple `.p8` key into the PKCS#8 PEM shape `importPKCS8` requires:
+ * the header line, then the base64, then the footer line. The file Apple
+ * gives you is already in that shape, but copying it into an environment
+ * variable often changes it, so `privateKey` may be given in any of these
+ * forms:
  *
  * - the file's contents, unchanged
  * - the same thing with its newlines written as literal `\n`
  * - the base64 body alone, with the header and footer lines stripped off
  *
- * This only reshapes the text. Whether the result is really a key is settled
+ * This only reshapes the text. Whether the result is really a key is checked
  * by {@link importApplePrivateKey}.
  */
 export function toPkcs8Pem(privateKey: string): string {
