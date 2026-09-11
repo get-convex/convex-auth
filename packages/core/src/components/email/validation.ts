@@ -48,7 +48,10 @@ export function validateEmailFormat(
  * The user-facing errors for the `start` mutations. An application can show
  * these errors to the end user.
  */
-export const startChallengeUserError = v.union(emailFormatUserError);
+export const startChallengeUserError = v.union(
+  emailFormatUserError,
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
 export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
 
 /**

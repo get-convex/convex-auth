@@ -77,6 +77,8 @@ import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
+  rateLimiter,
+  getClientIp,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -86,6 +88,7 @@ import {
   completeChallengeUserError,
   vEmailSenderConfig,
   type EmailSenderConfig,
+  type StartChallengeUserError,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -151,6 +154,35 @@ function claimFailure(
 //------------------------------------------------------------------------------
 // Start
 //------------------------------------------------------------------------------
+
+/**
+ * Consume both rate limits of a `start`: one for the destination address,
+ * one for the client IP. Returns the error to give the user, or `null` when
+ * the start can go on.
+ *
+ * A limit failure after `rateLimit.checkStart` passed in the same mutation is
+ * unexpected (same transaction), so callers that pre-checked treat the
+ * `RATE_LIMITED` arm as unreachable.
+ */
+export async function limitStart(
+  ctx: MutationCtx,
+  normalizedEmail: string,
+): Promise<StartChallengeUserError | null> {
+  const ip = await getClientIp(ctx);
+  const perEmail = await rateLimiter.limit(ctx, "startChallengePerEmail", {
+    key: normalizedEmail,
+  });
+  if (!perEmail.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: perEmail.retryAfter };
+  }
+  const perIp = await rateLimiter.limit(ctx, "startChallengePerIp", {
+    key: ip,
+  });
+  if (!perIp.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: perIp.retryAfter };
+  }
+  return null;
+}
 
 /**
  * Store the hashed code + secret and send the email. Returns the secret that
