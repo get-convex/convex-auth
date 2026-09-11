@@ -77,6 +77,8 @@ import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
+  rateLimiter,
+  getClientIp,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -84,8 +86,11 @@ import {
 import {
   startChallengeUserError,
   completeChallengeUserError,
+  normalizeEmail,
+  validateEmailFormat,
   vEmailSenderConfig,
   type EmailSenderConfig,
+  type StartChallengeUserError,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -150,6 +155,45 @@ function claimFailure(
 //------------------------------------------------------------------------------
 // Start
 //------------------------------------------------------------------------------
+
+/**
+ * The preconditions that every `start` shares: the format of the address,
+ * then the two rate limits (one for the destination address, one for the
+ * client IP). Returns the error to give the user, or `null` when the start
+ * can go on.
+ */
+export async function startPreconditions(
+  ctx: MutationCtx,
+  email: string,
+  mode: "check" | "consume",
+): Promise<StartChallengeUserError | null> {
+  const formatError = validateEmailFormat(email);
+  if (formatError !== null) {
+    return formatError;
+  }
+
+  const consume = mode === "consume";
+  const perEmail = consume
+    ? await rateLimiter.limit(ctx, "startChallengePerEmail", {
+        key: normalizeEmail(email),
+      })
+    : await rateLimiter.check(ctx, "startChallengePerEmail", {
+        key: normalizeEmail(email),
+      });
+  if (!perEmail.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: perEmail.retryAfter };
+  }
+
+  const ip = await getClientIp(ctx);
+  const perIp = consume
+    ? await rateLimiter.limit(ctx, "startChallengePerIp", { key: ip })
+    : await rateLimiter.check(ctx, "startChallengePerIp", { key: ip });
+  if (!perIp.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: perIp.retryAfter };
+  }
+
+  return null;
+}
 
 /**
  * Store the hashed code + secret and send the email. Returns the secret that
