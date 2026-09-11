@@ -3,11 +3,11 @@
  * pair, and the email must be validated before the first sign-in.
  *
  * SSR note: only `signIn`, `completeSignUp` and `completeRecovery` return the
- * shared `vSignInSuccess` envelope, so only these three may go on the sign-in
- * proxy allowlist. The flow-starting functions return
- * `{ success: true, secret }`; the proxy does not recognize that shape and
- * responds with a 500 (it fails closed), so route them to the deployment
- * directly.
+ * shared sign-in envelope (`vSignInComplete` or `vSignInError`), so only
+ * these three may go on the sign-in proxy allowlist. The flow-starting
+ * functions return `{ success: true, secret }`; the proxy does not recognize
+ * that shape and responds with a 500 (it fails closed), so route them to the
+ * deployment directly.
  *
  * @module
  */
@@ -21,7 +21,8 @@ import {
 } from "convex/server";
 import { Infer, v } from "convex/values";
 import {
-  vSignInSuccess,
+  vSignInComplete,
+  vSignInError,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
 } from "../../lib/types.ts";
@@ -182,25 +183,21 @@ const signUpResult = v.union(
 export type SignUpResult = Infer<typeof signUpResult>;
 
 const completeSignUpResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: completeChallengeUserError,
-  }),
+  vSignInComplete,
+  vSignInError(completeChallengeUserError),
 );
 
 /** The result of `completeSignUp`: the minted session tokens, or an error. */
 export type CompleteSignUpResult = Infer<typeof completeSignUpResult>;
 
 const signInResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(
+  vSignInComplete,
+  vSignInError(
+    v.union(
       verifyPasswordUserError,
       v.object({ error: v.literal("USER_NOT_FOUND") }),
     ),
-  }),
+  ),
 );
 
 /** The result of `signIn`: the minted session tokens, or an error. */
@@ -259,11 +256,8 @@ const startRecoveryResult = v.union(
 export type StartRecoveryResult = Infer<typeof startRecoveryResult>;
 
 const completeRecoveryResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(completeChallengeUserError, setPasswordUserError),
-  }),
+  vSignInComplete,
+  vSignInError(v.union(completeChallengeUserError, setPasswordUserError)),
 );
 
 /** The result of `completeRecovery`: the minted session tokens, or an error. */
@@ -525,13 +519,13 @@ export function setupEmailPassword<UsersTable extends string>(
               { code, secret, userId },
             );
             if (!complete.success) {
-              return { success: false, userError: complete.userError };
+              return { status: "error", userError: complete.userError };
             }
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: complete.userId,
               profile: {},
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -554,7 +548,10 @@ export function setupEmailPassword<UsersTable extends string>(
               },
             );
             if (existing === null) {
-              return { success: false, userError: { error: "USER_NOT_FOUND" } };
+              return {
+                status: "error",
+                userError: { error: "USER_NOT_FOUND" },
+              };
             }
             const { userId } = existing;
 
@@ -563,14 +560,14 @@ export function setupEmailPassword<UsersTable extends string>(
               { userId, password },
             );
             if (!verifyResult.success) {
-              return { success: false, userError: verifyResult.userError };
+              return { status: "error", userError: verifyResult.userError };
             }
 
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
               profile: {},
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -788,7 +785,7 @@ export function setupEmailPassword<UsersTable extends string>(
             // format error does not burn the link.
             const passwordError = validatePasswordInputFormat(newPassword);
             if (passwordError !== null) {
-              return { success: false, userError: passwordError };
+              return { status: "error", userError: passwordError };
             }
 
             const complete = await ctx.runMutation(
@@ -796,7 +793,7 @@ export function setupEmailPassword<UsersTable extends string>(
               { code, secret, purpose: RECOVERY_PURPOSE, userId: null },
             );
             if (!complete.success) {
-              return { success: false, userError: complete.userError };
+              return { status: "error", userError: complete.userError };
             }
 
             // The link proves control of the address, not of an account. The
@@ -810,7 +807,7 @@ export function setupEmailPassword<UsersTable extends string>(
               { email: complete.email },
             );
             if (account === null) {
-              return { success: false, userError: { error: "INVALID_LINK" } };
+              return { status: "error", userError: { error: "INVALID_LINK" } };
             }
             const userId = account.userId;
 
@@ -841,7 +838,7 @@ export function setupEmailPassword<UsersTable extends string>(
               PASSWORD_CHANGED_SUBJECT,
               PASSWORD_CHANGED_TEXT,
             );
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
