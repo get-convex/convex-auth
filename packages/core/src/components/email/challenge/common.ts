@@ -180,7 +180,7 @@ export async function createChallenge(
   await sendChallengeEmail(ctx, args.emailSender, {
     to: args.email,
     copy: args.copy,
-    link: buildLink(args.url, code),
+    link: buildLink(args.url, emailCode),
     ttlMs: args.ttlMs,
   });
   return { browserSecret, challengeId };
