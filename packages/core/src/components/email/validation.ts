@@ -80,8 +80,7 @@ export type CompleteChallengeUserError = Infer<
  * Only Resend is supported for now, through the `@convex-dev/resend`
  * component's `lib.sendEmail` mutation.
  *
- * TODO: support other email providers.
- * TODO: offer a first-party zero-configuration email service.
+ * TODO: consider supporting other email providers.
  * TODO: let applications customize the email templates.
  */
 export const vEmailSenderConfig = v.object({
