@@ -15,6 +15,7 @@ import type * as challenge_rateLimit from "../challenge/rateLimit.js";
 import type * as challenge_setPrimaryEmail from "../challenge/setPrimaryEmail.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
+import type * as setup from "../setup.js";
 import type * as testSetup from "../testSetup.js";
 import type * as validation from "../validation.js";
 import type * as verifiedEmails from "../verifiedEmails.js";
@@ -34,6 +35,7 @@ const fullApi: ApiFromModules<{
   "challenge/setPrimaryEmail": typeof challenge_setPrimaryEmail;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
+  setup: typeof setup;
   testSetup: typeof testSetup;
   validation: typeof validation;
   verifiedEmails: typeof verifiedEmails;
