@@ -198,16 +198,11 @@ In `convex/auth.ts`, make sure the following functions are exported:
 
 In your app’s settings page, add the UI code for adding, renaming, and removing passkeys. This code uses the `useAddPasskey` and `useRemovePasskey` hooks provided by Convex Auth, and the `renamePasskey` mutation.
 
-We recommend copying and pasting the following code sample, and adapting it to your app’s design system:
+We recommend copying the following component into your app, adapting it to your app’s design system, and rendering it on your settings page:
 
-<include
-  lang="tsx"
-  meta='title="src/routes/dashboard.tsx" highlight="  useAddPasskey," highlight="  useRemovePasskey," highlight="useQuery(api.auth.listPasskeys, {});" highlight="useAddPasskey(api.auth);" highlight="useRemovePasskey(api.auth);"'
->
-  ../../../../../examples/react-passkey/src/routes/dashboard.tsx
+<include lang="tsx" meta='title="src/PasskeySettings.tsx"'>
+  ../../../../../examples/react-passkey/src/PasskeySettings.tsx
 </include>
-
-{/* TODO(nicolas) Split this code out of dashboard.tsx for simplification */}
 
 </Step>
 
