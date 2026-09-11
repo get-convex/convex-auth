@@ -13,9 +13,9 @@ import { api } from "../../convex/_generated/api";
  */
 export function ValidateEmail() {
   const [params] = useSearchParams();
-  const code = params.get("code") ?? "";
+  const emailCode = params.get("code") ?? "";
   const status = useChallengeStatus(api.auth.getChallengeStatus, {
-    code,
+    emailCode,
     flow: "signUp",
   });
   const { completeSignUp, pending } = useCompleteSignUp(
@@ -24,7 +24,7 @@ export function ValidateEmail() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  if (code === "") {
+  if (emailCode === "") {
     return <p>This link is incomplete. Use the link from your email.</p>;
   }
   if (status === undefined) {
@@ -69,8 +69,8 @@ export function ValidateEmail() {
         disabled={pending}
         onClick={async () => {
           setError(null);
-          const result = await completeSignUp({ code });
-          if (result.success) {
+          const result = await completeSignUp({ emailCode });
+          if (result.status === "complete") {
             navigate("/", { replace: true });
             return;
           }

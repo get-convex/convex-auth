@@ -13,9 +13,9 @@ import { api } from "../../convex/_generated/api";
  */
 export function ResetPassword() {
   const [params] = useSearchParams();
-  const code = params.get("code") ?? "";
+  const emailCode = params.get("code") ?? "";
   const status = useChallengeStatus(api.auth.getChallengeStatus, {
-    code,
+    emailCode,
     flow: "recovery",
   });
   const { completeRecovery, pending } = useCompleteRecovery(
@@ -25,7 +25,7 @@ export function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  if (code === "") {
+  if (emailCode === "") {
     return <p>This link is incomplete. Use the link from your email.</p>;
   }
   if (status === undefined) {
@@ -62,8 +62,8 @@ export function ResetPassword() {
         onSubmit={async (e) => {
           e.preventDefault();
           setError(null);
-          const result = await completeRecovery({ code, newPassword });
-          if (result.success) {
+          const result = await completeRecovery({ emailCode, newPassword });
+          if (result.status === "complete") {
             navigate("/", { replace: true });
             return;
           }
