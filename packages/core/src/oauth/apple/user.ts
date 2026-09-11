@@ -16,7 +16,7 @@
  */
 const MAX_NAME_LENGTH = 256;
 
-/** What survives sanitizing: a name, and never an email address. */
+/** Only the name parts are returned after sanitizing. */
 export type SanitizedAppleUser = {
   name: {
     firstName?: string;
