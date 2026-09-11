@@ -120,7 +120,7 @@ async function signUp(
     username,
     ...(await attest(start.options.challenge, credential, aaguid)),
   });
-  if (!result.success) {
+  if (result.status !== "complete") {
     throw new Error(`The sign-up failed: ${result.userError.error}`);
   }
   return { userId: result.tokens.userId, credential };

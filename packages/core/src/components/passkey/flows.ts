@@ -10,6 +10,7 @@ import type { FunctionReference } from "convex/server";
 import type { AuthSignInApi } from "../../browser/ambientSignInClient.ts";
 import type {
   ClientView,
+  SignInError,
   SlimTokenBundle,
   TokenBundle,
 } from "../../lib/types.ts";
@@ -18,7 +19,6 @@ import {
   register,
   supportsWebAuthn,
   type PasskeyClientError,
-  type PasskeyClientFailure,
 } from "./client.ts";
 import type {
   FinishSignInResult,
@@ -85,26 +85,36 @@ export type SignInFlowContext = {
 };
 
 /**
+ * The user-facing failures the ceremony protocol reports. `startSignIn` and
+ * the browser ceremonies answer with their own `success` boolean rather than
+ * the shared envelope, so this flow re-wraps their payloads as error arms and
+ * callers only ever see the one discriminant.
+ */
+type ProtocolUserError =
+  | Extract<StartSignInResult, { success: false }>["userError"]
+  | PasskeyClientError;
+
+/**
  * The result of {@link runSignInOrSignUpFlow}.
  *
- * A success carries a `flow` discriminant: `"signUp"` when the ceremony
- * created a new account, `"signIn"` when it authenticated an existing one.
+ * A completed sign-in carries a `flow` discriminant: `"signUp"` when the
+ * ceremony created a new account, `"signIn"` when it authenticated an existing
+ * one.
  */
 export type SignInFlowResult =
-  | (Extract<ClientView<FinishSignUpResult>, { success: true }> & {
+  | (Extract<ClientView<FinishSignUpResult>, { status: "complete" }> & {
       flow: "signUp";
     })
-  | (Extract<ClientView<FinishSignInResult>, { success: true }> & {
+  | (Extract<ClientView<FinishSignInResult>, { status: "complete" }> & {
       flow: "signIn";
     })
-  | Extract<ClientView<FinishSignUpResult>, { success: false }>
-  | Extract<ClientView<FinishSignInResult>, { success: false }>
-  | Extract<StartSignInResult, { success: false }>
-  | PasskeyClientFailure;
+  | Extract<ClientView<FinishSignUpResult>, { status: "error" }>
+  | Extract<ClientView<FinishSignInResult>, { status: "error" }>
+  | SignInError<ProtocolUserError>;
 
 /** The errors the autofill sign-in flow reports. */
 export type UsernamePasskeyAutofillError =
-  | Extract<FinishSignInResult, { success: false }>["userError"]
+  | Extract<FinishSignInResult, { status: "error" }>["userError"]
   | PasskeyClientError;
 
 /**
@@ -118,12 +128,12 @@ export async function runSignInOrSignUpFlow(
   const { convex, api, signInApi, setSession } = ctx;
 
   if (!supportsWebAuthn()) {
-    return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
+    return { status: "error", userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
 
   const start = await convex.mutation(api.startSignIn, { username });
   if (!start.success) {
-    return start;
+    return { status: "error", userError: start.userError };
   }
 
   if (start.step === "register") {
@@ -132,13 +142,13 @@ export async function runSignInOrSignUpFlow(
     // and suggest creating one.
     const ceremony = await register(start.options);
     if (!ceremony.success) {
-      return ceremony;
+      return { status: "error", userError: ceremony.userError };
     }
     const result = await signInApi.mutation(api.finishSignUp, {
       username,
       response: ceremony.response,
     });
-    if (!result.success) {
+    if (result.status !== "complete") {
       return result;
     }
     await setSession(result.tokens);
@@ -147,12 +157,12 @@ export async function runSignInOrSignUpFlow(
 
   const ceremony = await authenticate(start.options);
   if (!ceremony.success) {
-    return ceremony;
+    return { status: "error", userError: ceremony.userError };
   }
   const result = await signInApi.mutation(api.finishSignIn, {
     response: ceremony.response,
   });
-  if (!result.success) {
+  if (result.status !== "complete") {
     return result;
   }
   await setSession(result.tokens);

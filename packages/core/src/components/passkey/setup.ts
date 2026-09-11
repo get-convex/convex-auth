@@ -1,7 +1,8 @@
 import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import {
-  vSignInSuccess,
+  vSignInComplete,
+  vSignInError,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
 } from "../../lib/types.ts";
@@ -117,37 +118,31 @@ const startAutofillSignInResult = v.object({
 export type StartAutofillSignInResult = Infer<typeof startAutofillSignInResult>;
 
 const finishSignUpResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(finishRegistrationUserError, setUsernameUserError),
-  }),
+  vSignInComplete,
+  vSignInError(v.union(finishRegistrationUserError, setUsernameUserError)),
 );
 
 /**
  * The result of `finishSignUp`.
  *
- * On success the minted session tokens, otherwise a user-facing `userError`.
+ * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
 export type FinishSignUpResult = Infer<typeof finishSignUpResult>;
 
 const finishSignInResult = v.union(
   v.object({
-    ...vSignInSuccess.fields,
+    ...vSignInComplete.fields,
     // The username of the account, for display. `null` when the app
     // removed the username of the user.
     username: v.union(v.string(), v.null()),
   }),
-  v.object({
-    success: v.literal(false),
-    userError: finishAuthenticationUserError,
-  }),
+  vSignInError(finishAuthenticationUserError),
 );
 
 /**
  * The result of `finishSignIn`.
  *
- * On success the minted session tokens and the username of the account,
+ * When complete the minted session tokens and the username of the account,
  * otherwise a user-facing `userError`.
  */
 export type FinishSignInResult = Infer<typeof finishSignInResult>;
@@ -336,7 +331,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             const { username } = args;
             const usernameError = validateUsernameFormat(username);
             if (usernameError !== null) {
-              return { success: false, userError: usernameError };
+              return { status: "error", userError: usernameError };
             }
 
             // Fail early if the username is taken
@@ -345,7 +340,10 @@ export function setupUsernamePasskey<UsersTable extends string>(
               { username },
             );
             if (existing !== null) {
-              return { success: false, userError: { error: "USERNAME_TAKEN" } };
+              return {
+                status: "error",
+                userError: { error: "USERNAME_TAKEN" },
+              };
             }
 
             // The app does not name a new passkey yet, thus the provider
@@ -375,7 +373,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
                   { cause: userError },
                 );
               }
-              return { success: false, userError };
+              return { status: "error", userError };
             }
 
             // Create the account + app user (via the app's createUser) and
@@ -429,7 +427,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               );
             }
 
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -463,7 +461,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             );
             if (!authenticationResult.success) {
               return {
-                success: false,
+                status: "error",
                 userError: authenticationResult.userError,
               };
             }
@@ -478,7 +476,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               providerAccountId: userId,
               profile: { username },
             });
-            return { success: true, tokens, username };
+            return { status: "complete", tokens, username };
           },
         }),
 

@@ -30,7 +30,8 @@ import {
 } from "convex/server";
 import {
   makeSlimBundle,
-  type SignInSuccess,
+  type SignInEnvelope,
+  type SignInStatus,
   type TokenBundle,
 } from "../lib/types.ts";
 import type { AuthCookieOptions } from "./cookies.ts";
@@ -42,15 +43,15 @@ import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.ts";
 /**
  * A sign-in function exposed through the proxy.
  *
- * Any public mutation or action returning the shared {@link SignInSuccess}
- * envelope. Args are typed loosely because the proxy never inspects them; it
- * forwards the caller's encoded args untouched.
+ * Any public mutation or action returning the shared {@link SignInEnvelope}.
+ * Args are typed loosely because the proxy never inspects them; it forwards the
+ * caller's encoded args untouched.
  */
 export type ExposedSignInFn = FunctionReference<
   "mutation" | "action",
   "public",
   DefaultFunctionArgs,
-  SignInSuccess | { success: false }
+  SignInEnvelope
 >;
 
 /** Configuration for {@link convexProxyHandler}. */
@@ -132,23 +133,32 @@ function isEncodedTokenBundle(value: unknown): value is TokenBundle {
 }
 
 /**
- * Classify a sign-in function's return value.
- *
- * `null` means "not the envelope this proxy knows how to handle", which the
- * caller turns into a 500 rather than forwarding.
+ * Classify a sign-in function's return value: which arm of the envelope it is,
+ * and whether it carries a bundle whose refresh token has to move into the
+ * cookie.
  */
 function classifyResult(
   value: unknown,
-): { kind: "success"; tokens: TokenBundle } | { kind: "failure" } | null {
+): { kind: "mint"; tokens: TokenBundle } | { kind: "forward" } | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
-  const result = value as Record<string, unknown>;
-  if (result.success === false) return { kind: "failure" };
-  if (result.success !== true) return null;
-  return isEncodedTokenBundle(result.tokens)
-    ? { kind: "success", tokens: result.tokens }
-    : null;
+  // `status` is asserted rather than checked so the `default` arm can assert
+  // exhaustiveness; that arm is also what catches a value whose status is
+  // nothing of the sort.
+  const { status, tokens } = value as { status: SignInStatus; tokens: unknown };
+  switch (status) {
+    case "complete":
+      // A complete sign-in that should include a token bundle.
+      return isEncodedTokenBundle(tokens) ? { kind: "mint", tokens } : null;
+    case "error":
+      // A sign-in error that should be passed along (unless it mistakenly
+      // carries tokens, in which case it gets erased).
+      return tokens === undefined ? { kind: "forward" } : null;
+    default:
+      status satisfies never;
+      return null;
+  }
 }
 
 /** A plain-text error. `ConvexHttpClient` throws its body as an `Error`. */
@@ -251,18 +261,20 @@ export function convexProxyHandler(config: ConvexProxyConfig): RequestHandler {
       return textError(
         500,
         `${envelope.path} did not return a sign-in result. Provider sign-in ` +
-          `functions must return the shared envelope (see vSignInSuccess).`,
+          `functions must return the shared envelope (see vSignInComplete).`,
       );
     }
 
-    const cookies = httpCookies(request);
-    if (result.kind === "success") {
-      await writeAuthCookies(cookies, result.tokens, config.cookieOptions);
-      // The refresh token goes to the cookie and gets removed from the tokens.
-      (payload.value as Record<string, unknown>).tokens = makeSlimBundle(
-        result.tokens,
-      );
+    if (result.kind === "forward") {
+      return Response.json(payload, { status: upstream.status });
     }
+
+    const cookies = httpCookies(request);
+    await writeAuthCookies(cookies, result.tokens, config.cookieOptions);
+    // The refresh token goes to the cookie and gets removed from the tokens.
+    (payload.value as Record<string, unknown>).tokens = makeSlimBundle(
+      result.tokens,
+    );
 
     const response = Response.json(payload, { status: upstream.status });
     cookies.applyTo(response.headers);

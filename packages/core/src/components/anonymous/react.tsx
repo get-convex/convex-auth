@@ -16,7 +16,7 @@
 
 import { FunctionReference } from "convex/server";
 import { useCallback } from "react";
-import type { ClientView, SignInSuccess } from "../../lib/types.ts";
+import type { ClientView, SignInComplete } from "../../lib/types.ts";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 
 /**
@@ -29,7 +29,7 @@ export type SignInAnonymousMutation = FunctionReference<
   "mutation",
   "public",
   Record<string, never>,
-  ClientView<SignInSuccess>
+  ClientView<SignInComplete>
 >;
 
 /**

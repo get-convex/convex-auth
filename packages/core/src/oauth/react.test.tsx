@@ -19,8 +19,8 @@ import {
 import {
   ACME_REFS,
   NAMESPACE,
-  bundle,
   calledPath,
+  completed,
   oauthClient,
   readFlow,
   restoreNavigatorProduct,
@@ -136,7 +136,7 @@ describe("OAuth React client", () => {
     const { result, mutation } = renderOAuth(useGoogleFlow, {
       storage,
       strictMode: true,
-      onMutation: (mutation) => mutation.mockResolvedValueOnce(bundle),
+      onMutation: (mutation) => mutation.mockResolvedValueOnce(completed),
     });
 
     await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));

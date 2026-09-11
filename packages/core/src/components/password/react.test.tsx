@@ -85,7 +85,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
   });
 
   test("success adopts the session and returns the result", async () => {
-    runMutation.mockResolvedValue({ success: true, tokens: bundle });
+    runMutation.mockResolvedValue({ status: "complete", tokens: bundle });
     const { result } = renderFlow(useFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     expect(result.current.auth.isAuthenticated).toBe(false);
@@ -96,13 +96,13 @@ describe.each(flows)("$name", ({ useFlow }) => {
     });
 
     expect(runMutation).toHaveBeenCalledWith(credentials);
-    expect(returned).toEqual({ success: true, tokens: bundle });
+    expect(returned).toEqual({ status: "complete", tokens: bundle });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(result.current.token).toBe("access-1");
   });
 
   test("user error is returned without adopting a session", async () => {
-    const failure = { success: false, userError: { error: "USER_NOT_FOUND" } };
+    const failure = { status: "error", userError: { error: "USER_NOT_FOUND" } };
     runMutation.mockResolvedValue(failure);
     const { result } = renderFlow(useFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
@@ -128,7 +128,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     });
 
     expect(returned).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "OTHER_ERROR", cause },
     });
     expect(result.current.auth.isAuthenticated).toBe(false);
@@ -152,7 +152,7 @@ describe.each(flows)("$name", ({ useFlow }) => {
     await waitFor(() => expect(result.current.flow.pending).toBe(true));
 
     await act(async () => {
-      resolveMutation!({ success: true, tokens: bundle });
+      resolveMutation!({ status: "complete", tokens: bundle });
       await pending;
     });
     expect(result.current.flow.pending).toBe(false);

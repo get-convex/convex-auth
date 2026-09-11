@@ -28,10 +28,13 @@ import {
   type SignInFlowResult,
 } from "./flows.ts";
 import {
+  AlreadyPendingError,
+  AlreadyPendingFailure,
   usePasskeyAutofill,
   usePasskeyCeremonySlot,
-  type AlreadyPendingFailure,
 } from "./react_impl.tsx";
+import { PasskeyClientError, PasskeyClientFailure } from "./client.ts";
+import { SignInError } from "../../lib/types.ts";
 
 export {
   useAddPasskey,
@@ -67,13 +70,13 @@ export type {
 /**
  * The result of the `signIn` callback from {@link useUsernamePasskeySignIn}.
  *
- * A success carries a `flow` discriminant: `"signUp"` when the ceremony
- * created a new account, `"signIn"` when it authenticated an existing one.
- * `ALREADY_PENDING` comes back when a `signIn` call runs while the
+ * A completed sign-in carries a `flow` discriminant: `"signUp"` when the
+ * ceremony created a new account, `"signIn"` when it authenticated an existing
+ * one. `ALREADY_PENDING` comes back when a `signIn` call runs while the
  * previous one still does.
  */
 export type UsernamePasskeySignInResult =
-  SignInFlowResult | AlreadyPendingFailure;
+  SignInFlowResult | SignInError<PasskeyClientError | AlreadyPendingError>;
 
 /**
  * Client for the log in page in the “username + passkey” auth flow.
@@ -100,7 +103,7 @@ export type UsernamePasskeySignInResult =
  *       onSubmit={async (e) => {
  *         e.preventDefault();
  *         const result = await signIn({ username });
- *         if (!result.success) {
+ *         if (result.status === "error") {
  *           // map result.userError to a message
  *         }
  *       }}
@@ -144,8 +147,11 @@ export function useUsernamePasskeySignIn(
     onAssertion: async (response) => {
       const { api, signInApi, setSession } = ctxRef.current;
       const result = await signInApi.mutation(api.finishSignIn, { response });
-      if (!result.success) {
-        return result;
+      if (result.status !== "complete") {
+        // The autofill loop takes its own `success` boolean, not the
+        // envelope: it retries on a failed assertion rather than handing
+        // the arm back to the caller.
+        return { success: false, userError: result.userError };
       }
 
       // There’s a small race with the modal flow here. When the user resolves the
@@ -161,12 +167,25 @@ export function useUsernamePasskeySignIn(
   const { run, pending } = usePasskeyCeremonySlot({ autofill });
 
   const signIn = useCallback(
-    ({
+    async ({
       username,
     }: {
       username: string;
-    }): Promise<UsernamePasskeySignInResult> =>
-      run(() => runSignInOrSignUpFlow(ctxRef.current, { username })),
+    }): Promise<UsernamePasskeySignInResult> => {
+      const signInResult = await run(() =>
+        runSignInOrSignUpFlow(ctxRef.current, { username }),
+      );
+      if ("status" in signInResult) {
+        // This is the result of `runSignInOrSignUpFlow`. It can be directly
+        // returned.
+        return signInResult;
+      }
+      // The `run` wrapper is generic and can return a `success: false` error.
+      // We handle that here and package it as a sign-in failure with
+      // `status: "error"`.
+      signInResult satisfies PasskeyClientFailure | AlreadyPendingFailure;
+      return { status: "error", userError: signInResult.userError };
+    },
     [run],
   );
 
@@ -175,15 +194,15 @@ export function useUsernamePasskeySignIn(
       /**
        * Runs the identifier-first passkey flow for the given username.
        *
-       * Returns an object with a `success` boolean flag.
+       * Returns an object with a `status` field.
        *
-       * If it is `true` the sign-in (or the account creation) was
+       * If it is `"complete"` the sign-in (or the account creation) was
        * successful and the client will establish an authenticated session
        * with the Convex backend server. The `flow` field tells which one
        * it was: `"signUp"` created a new account, `"signIn"` authenticated
        * an existing one.
        *
-       * If it is `false` the returned object will have a `userError` field
+       * If it is `"error"` the returned object will have a `userError` field
        * with additional details about why sign-in failed.
        */
       signIn,

@@ -2,7 +2,8 @@ import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import { getAuthUserId } from "../core/userId.ts";
 import {
-  vSignInSuccess,
+  vSignInComplete,
+  vSignInError,
   USE_USER_ID_AS_ACCOUNT_ID,
   type UserCallbacks,
 } from "../../lib/types.ts";
@@ -40,35 +41,31 @@ export type UsernamePasswordOptions = {
 };
 
 const signInResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(
+  vSignInComplete,
+  vSignInError(
+    v.union(
       verifyPasswordUserError,
       v.object({ error: v.literal("USER_NOT_FOUND") }),
     ),
-  }),
+  ),
 );
 
 /**
  * The result of `signInWithPassword`.
  *
- * On success the minted session tokens, otherwise a user-facing `userError`.
+ * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
 export type SignInResult = Infer<typeof signInResult>;
 
 const signUpResult = v.union(
-  vSignInSuccess,
-  v.object({
-    success: v.literal(false),
-    userError: v.union(setPasswordUserError, setUsernameUserError),
-  }),
+  vSignInComplete,
+  vSignInError(v.union(setPasswordUserError, setUsernameUserError)),
 );
 
 /**
  * The result of `signUpWithPassword`.
  *
- * On success the minted session tokens, otherwise a user-facing `userError`.
+ * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
 export type SignUpResult = Infer<typeof signUpResult>;
 
@@ -157,11 +154,11 @@ export function setupUsernamePassword<UsersTable extends string>(
             // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
             const usernameError = validateUsernameFormat(username);
             if (usernameError !== null) {
-              return { success: false, userError: usernameError };
+              return { status: "error", userError: usernameError };
             }
             const userError = validateNewPassword(password);
             if (userError !== null) {
-              return { success: false, userError };
+              return { status: "error", userError };
             }
 
             const existing = await ctx.runQuery(
@@ -169,7 +166,10 @@ export function setupUsernamePassword<UsersTable extends string>(
               { username },
             );
             if (existing !== null) {
-              return { success: false, userError: { error: "USERNAME_TAKEN" } };
+              return {
+                status: "error",
+                userError: { error: "USERNAME_TAKEN" },
+              };
             }
 
             // Create the account + app user (via the app's createUser) and
@@ -223,7 +223,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               );
             }
 
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 
@@ -247,7 +247,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             );
             if (userId === null) {
               return {
-                success: false,
+                status: "error",
                 userError: { error: "USER_NOT_FOUND" },
               };
             }
@@ -257,7 +257,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               { userId, password },
             );
             if (!verifyResult.success) {
-              return { success: false, userError: verifyResult.userError };
+              return { status: "error", userError: verifyResult.userError };
             }
 
             // The username resolved to a user id and its password verified, so
@@ -267,7 +267,7 @@ export function setupUsernamePassword<UsersTable extends string>(
               providerAccountId: userId,
               profile: { username },
             });
-            return { success: true, tokens };
+            return { status: "complete", tokens };
           },
         }),
 

@@ -327,7 +327,10 @@ describe("useUsernamePasskeySignIn signIn", () => {
   test("sign-up success runs the registration ceremony and adopts the session", async () => {
     mutations.startSignIn.mockResolvedValue(registerStart);
     ceremonyCreate.mockResolvedValue(registrationResponse);
-    mutations.finishSignUp.mockResolvedValue({ success: true, tokens: bundle });
+    mutations.finishSignUp.mockResolvedValue({
+      status: "complete",
+      tokens: bundle,
+    });
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -346,7 +349,11 @@ describe("useUsernamePasskeySignIn signIn", () => {
       username: "alice",
       response: wireRegistrationResponse,
     });
-    expect(returned).toEqual({ success: true, tokens: bundle, flow: "signUp" });
+    expect(returned).toEqual({
+      status: "complete",
+      tokens: bundle,
+      flow: "signUp",
+    });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(result.current.token).toBe("access-1");
   });
@@ -355,7 +362,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     mutations.startSignIn.mockResolvedValue(authenticateStart);
     ceremonyGet.mockResolvedValue(authenticationResponse);
     mutations.finishSignIn.mockResolvedValue({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
     });
@@ -374,7 +381,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       response: wireAuthenticationResponse,
     });
     expect(returned).toEqual({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
       flow: "signIn",
@@ -382,12 +389,11 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(result.current.auth.isAuthenticated).toBe(true);
   });
 
-  test("a server userError passes through without a ceremony", async () => {
-    const failure = {
+  test("a startSignIn userError becomes an error arm without a ceremony", async () => {
+    mutations.startSignIn.mockResolvedValue({
       success: false,
       userError: { error: "USERNAME_INVALID" },
-    };
-    mutations.startSignIn.mockResolvedValue(failure);
+    });
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -396,7 +402,12 @@ describe("useUsernamePasskeySignIn signIn", () => {
       returned = await result.current.passkey.signIn({ username: "no" });
     });
 
-    expect(returned).toEqual(failure);
+    // `startSignIn` answers with its own `success` boolean; the flow re-wraps
+    // the failure so callers see the envelope's one discriminant.
+    expect(returned).toEqual({
+      status: "error",
+      userError: { error: "USERNAME_INVALID" },
+    });
     expect(ceremonyCreate).not.toHaveBeenCalled();
     expect(ceremonyGet).not.toHaveBeenCalled();
     expect(result.current.auth.isAuthenticated).toBe(false);
@@ -416,7 +427,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     });
 
     expect(returned).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "CEREMONY_ABORTED" },
     });
     expect(result.current.auth.isAuthenticated).toBe(false);
@@ -432,7 +443,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       }),
     );
     mutations.finishSignIn.mockResolvedValue({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
     });
@@ -452,7 +463,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       second = await result.current.passkey.signIn({ username: "alice" });
     });
     expect(second).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "ALREADY_PENDING" },
     });
     expect(mutations.startSignIn).toHaveBeenCalledTimes(1);
@@ -464,7 +475,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       firstResult = await first;
     });
     expect(firstResult).toEqual({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
       flow: "signIn",
@@ -524,7 +535,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     });
     conditionalGet.mockResolvedValue(conditionalCredential);
     mutations.finishSignIn.mockResolvedValue({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
     });
@@ -558,11 +569,11 @@ describe("useUsernamePasskeySignIn autofill", () => {
     // fresh challenge and the second one succeeds.
     mutations.finishSignIn
       .mockResolvedValueOnce({
-        success: false,
+        status: "error",
         userError: { error: "CHALLENGE_EXPIRED" },
       })
       .mockResolvedValueOnce({
-        success: true,
+        status: "complete",
         tokens: bundle,
         username: "alice",
       });
@@ -602,7 +613,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     });
     mutations.startSignIn.mockResolvedValue(authenticateStart);
     mutations.finishSignIn.mockResolvedValue({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
     });
@@ -618,7 +629,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     });
 
     expect(returned).toEqual({
-      success: true,
+      status: "complete",
       tokens: bundle,
       username: "alice",
       flow: "signIn",

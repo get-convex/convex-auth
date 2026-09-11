@@ -12,9 +12,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   authenticateWithAutofill,
   foldClientError,
+  type PasskeyClientFailure,
   supportsWebAuthn,
   type PasskeyClientError,
-  type PasskeyClientFailure,
   type WireRequestOptions,
 } from "./client.ts";
 import { CHALLENGE_TTL_MS } from "./constants.ts";
@@ -384,9 +384,14 @@ export function usePasskeyAutofill<E = never>(options: {
  * its browser dialog and resolves as usual, thus a caller that gets this
  * shows nothing.
  */
+export type AlreadyPendingError = { error: "ALREADY_PENDING" };
+
+/**
+ * Failure shape for {@link AlreadyPendingError}.
+ */
 export type AlreadyPendingFailure = {
   success: false;
-  userError: { error: "ALREADY_PENDING" };
+  userError: AlreadyPendingError;
 };
 
 /**
@@ -404,8 +409,8 @@ export type AlreadyPendingFailure = {
  *   ceremony of `fn` displaces the pending conditional request anyway (the browser runs one ceremony at a
  *   time per page); the pause keeps the autofill loop from starting a new
  *   request mid-ceremony, and the resume restarts it.
- * - It folds every value `fn` throws into a {@link PasskeyClientFailure},
- *   so callers handle every failure through one `userError` switch.
+ * - It folds every value `fn` throws into the envelope's error arm, so
+ *   callers handle every failure through one `userError` switch.
  *
  * `pause()` returns at once and needs no acknowledgement, because the
  * autofill hook aborts its request through an `AbortSignal` it owns, and an
