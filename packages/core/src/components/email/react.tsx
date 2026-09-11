@@ -65,6 +65,16 @@ type UnexpectedFailure = {
 };
 
 /**
+ * The same client failure, in the shape of the shared sign-in envelope. The
+ * hooks that mint a session (`completeSignUp`, `signIn`, `completeRecovery`)
+ * return it, so that every arm of their result has a `status`.
+ */
+type SignInUnexpectedFailure = {
+  status: "error";
+  userError: { error: "OTHER_ERROR"; cause: unknown };
+};
+
+/**
  * A failure the client produces when a challenge link is opened in a
  * browser that did not start the flow: the flow's secret is not in this
  * browser's storage, so completion cannot proceed. Tell the user to open the
@@ -72,6 +82,12 @@ type UnexpectedFailure = {
  */
 type MissingSecretFailure = {
   success: false;
+  userError: { error: "MISSING_SECRET" };
+};
+
+/** {@link MissingSecretFailure} in the shape of the shared sign-in envelope. */
+type SignInMissingSecretFailure = {
+  status: "error";
   userError: { error: "MISSING_SECRET" };
 };
 
@@ -144,11 +160,13 @@ export type SignUpWithEmailPasswordResult =
 
 /** The result of the `completeSignUp` callback from {@link useCompleteSignUp}. */
 export type CompleteSignUpClientResult =
-  ClientView<CompleteSignUpResult> | MissingSecretFailure | UnexpectedFailure;
+  | ClientView<CompleteSignUpResult>
+  | SignInMissingSecretFailure
+  | SignInUnexpectedFailure;
 
 /** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
 export type SignInWithEmailPasswordResult =
-  ClientView<SignInResult> | UnexpectedFailure;
+  ClientView<SignInResult> | SignInUnexpectedFailure;
 
 /** The result of the `changePassword` callback from {@link useChangePassword}. */
 export type ChangePasswordClientResult =
@@ -167,7 +185,9 @@ export type StartRecoveryClientResult = StartRecoveryResult | UnexpectedFailure;
 
 /** The result of the `completeRecovery` callback from {@link useCompleteRecovery}. */
 export type CompleteRecoveryClientResult =
-  ClientView<CompleteRecoveryResult> | MissingSecretFailure | UnexpectedFailure;
+  | ClientView<CompleteRecoveryResult>
+  | SignInMissingSecretFailure
+  | SignInUnexpectedFailure;
 
 /**
  * The storage that holds the flow secrets, namespaced by deployment URL so
@@ -198,6 +218,11 @@ function usePending() {
 
 const foldError = (cause: unknown): UnexpectedFailure => ({
   success: false,
+  userError: { error: "OTHER_ERROR", cause },
+});
+
+const foldSignInError = (cause: unknown): SignInUnexpectedFailure => ({
+  status: "error",
   userError: { error: "OTHER_ERROR", cause },
 });
 
@@ -277,7 +302,7 @@ export function useCompleteSignUp(
             userId === undefined
           ) {
             return {
-              success: false,
+              status: "error",
               userError: { error: "MISSING_SECRET" },
             };
           }
@@ -286,14 +311,14 @@ export function useCompleteSignUp(
             secret,
             userId,
           });
-          if (result.success) {
+          if (result.status === "complete") {
             await setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.signUp);
             await storage.remove(SIGN_UP_USER_ID_STORAGE_KEY);
           }
           return result;
         } catch (cause) {
-          return foldError(cause);
+          return foldSignInError(cause);
         }
       }),
     [signInApi, completeSignUpMutation, storage, setSession, track],
@@ -321,12 +346,12 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
       track(async () => {
         try {
           const result = await signInApi.mutation(signInMutation, credentials);
-          if (result.success) {
+          if (result.status === "complete") {
             await setSession(result.tokens);
           }
           return result;
         } catch (cause) {
-          return foldError(cause);
+          return foldSignInError(cause);
         }
       }),
     [signInApi, signInMutation, setSession, track],
@@ -508,7 +533,7 @@ export function useCompleteRecovery(
           const secret = await storage.get(SECRET_STORAGE_KEYS.recovery);
           if (secret === null || secret === undefined) {
             return {
-              success: false,
+              status: "error",
               userError: { error: "MISSING_SECRET" },
             };
           }
@@ -517,13 +542,13 @@ export function useCompleteRecovery(
             secret,
             newPassword: args.newPassword,
           });
-          if (result.success) {
+          if (result.status === "complete") {
             await setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.recovery);
           }
           return result;
         } catch (cause) {
-          return foldError(cause);
+          return foldSignInError(cause);
         }
       }),
     [signInApi, completeRecoveryMutation, storage, setSession, track],

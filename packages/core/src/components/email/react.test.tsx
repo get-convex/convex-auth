@@ -152,7 +152,7 @@ describe("useCompleteSignUp", () => {
   test("consumes the stored secret and adopts the session", async () => {
     secretStorage.set("__convexAuthEmailPasswordSignUpSecret", "secret-1");
     secretStorage.set("__convexAuthEmailPasswordSignUpUserId", "user-1");
-    runMutation.mockResolvedValue({ success: true, tokens: bundle });
+    runMutation.mockResolvedValue({ status: "complete", tokens: bundle });
     const { result } = renderWithProviders(() => useCompleteSignUp(mutation));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -170,7 +170,7 @@ describe("useCompleteSignUp", () => {
       secret: "secret-1",
       userId: "user-1",
     });
-    expect(returned).toEqual({ success: true, tokens: bundle });
+    expect(returned).toEqual({ status: "complete", tokens: bundle });
     expect(result.current.auth.isAuthenticated).toBe(true);
     // The secret and the user are cleared once they have served their
     // purpose.
@@ -194,7 +194,7 @@ describe("useCompleteSignUp", () => {
     });
 
     expect(returned).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "MISSING_SECRET" },
     });
     // The backend was never called: there was nothing to present.
@@ -215,7 +215,7 @@ describe("useCompleteSignUp", () => {
     });
 
     expect(returned).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "MISSING_SECRET" },
     });
     expect(runMutation).not.toHaveBeenCalled();
@@ -245,7 +245,7 @@ describe("useCompleteSignUp", () => {
 describe("useCompleteRecovery", () => {
   test("consumes the stored secret, sends the new password, adopts the session", async () => {
     secretStorage.set("__convexAuthEmailPasswordRecoverySecret", "secret-9");
-    runMutation.mockResolvedValue({ success: true, tokens: bundle });
+    runMutation.mockResolvedValue({ status: "complete", tokens: bundle });
     const { result } = renderWithProviders(() => useCompleteRecovery(mutation));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -264,7 +264,7 @@ describe("useCompleteRecovery", () => {
       secret: "secret-9",
       newPassword: "brand new horse staple",
     });
-    expect(returned).toEqual({ success: true, tokens: bundle });
+    expect(returned).toEqual({ status: "complete", tokens: bundle });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(
       secretStorage.get("__convexAuthEmailPasswordRecoverySecret"),
@@ -286,7 +286,7 @@ describe("useCompleteRecovery", () => {
     });
 
     expect(returned).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "MISSING_SECRET" },
     });
     expect(runMutation).not.toHaveBeenCalled();
