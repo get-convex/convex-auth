@@ -180,7 +180,7 @@ When your app supports passkeys, it is highly recommended to allow users to add 
 #### Make sure the Convex functions for passkey managements are exposed
 
 In `convex/auth.ts`, make sure the following functions are exported:
-`listPasskeys`, `startAddPasskey`, `verifyAddPasskey`,
+`listPasskeys`, `renamePasskey`, `startAddPasskey`, `verifyAddPasskey`,
 `finishAddPasskey`, `startRemovePasskey`, and `finishRemovePasskey`.
 
 <include
@@ -196,7 +196,7 @@ In `convex/auth.ts`, make sure the following functions are exported:
 
 #### Build the passkey management page
 
-In your app’s settings page, add the UI code for adding and removing passkeys. This code will use the `useAddPasskey` and `useRemovePasskey` hooks provided by Convex Auth.
+In your app’s settings page, add the UI code for adding, renaming, and removing passkeys. This code uses the `useAddPasskey` and `useRemovePasskey` hooks provided by Convex Auth, and the `renamePasskey` mutation.
 
 We recommend copying and pasting the following code sample, and adapting it to your app’s design system:
 

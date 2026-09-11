@@ -36,6 +36,7 @@ import {
 import { PasskeyClientError, PasskeyClientFailure } from "./client.ts";
 import { SignInError } from "../../lib/types.ts";
 
+export type { RenamePasskeyResult } from "./management/rename.ts";
 export {
   useAddPasskey,
   useRemovePasskey,
