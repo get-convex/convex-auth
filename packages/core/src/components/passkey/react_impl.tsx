@@ -9,10 +9,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SignInError } from "../../lib/types.ts";
 import {
   authenticateWithAutofill,
   foldClientError,
+  type PasskeyClientFailure,
   supportsWebAuthn,
   type PasskeyClientError,
   type WireRequestOptions,
@@ -384,7 +384,15 @@ export function usePasskeyAutofill<E = never>(options: {
  * its browser dialog and resolves as usual, thus a caller that gets this
  * shows nothing.
  */
-export type AlreadyPendingFailure = SignInError<{ error: "ALREADY_PENDING" }>;
+export type AlreadyPendingError = { error: "ALREADY_PENDING" };
+
+/**
+ * Failure shape for {@link AlreadyPendingError}.
+ */
+export type AlreadyPendingFailure = {
+  success: false;
+  userError: AlreadyPendingError;
+};
 
 /**
  * Building block for modal passkey flows: a `run` callback that runs one
@@ -435,12 +443,12 @@ export function usePasskeyCeremonySlot(options: {
     // file.
     async <T,>(
       fn: () => Promise<T>,
-    ): Promise<T | SignInError<PasskeyClientError> | AlreadyPendingFailure> => {
+    ): Promise<T | PasskeyClientFailure | AlreadyPendingFailure> => {
       if (pendingRef.current) {
         // TODO(nicolas): Consider a different behavior here. The caller has
         // nothing to show for this error, since the first ceremony keeps its
         // dialog and resolves as usual.
-        return { status: "error", userError: { error: "ALREADY_PENDING" } };
+        return { success: false, userError: { error: "ALREADY_PENDING" } };
       }
       pendingRef.current = true;
       setPending(true);
@@ -453,7 +461,7 @@ export function usePasskeyCeremonySlot(options: {
       try {
         return await fn();
       } catch (cause) {
-        return { status: "error", userError: foldClientError(cause) };
+        return { success: false, userError: foldClientError(cause) };
       } finally {
         resumeAutofillFlow?.();
         pendingRef.current = false;

@@ -255,11 +255,11 @@ describe("changePassword", () => {
     expect(result).toEqual({ success: true });
 
     expect(await signIn(t, "alice", PASSWORD)).toEqual({
-      success: false,
+      status: "error",
       userError: { error: "INVALID_CREDENTIALS" },
     });
     expect(await signIn(t, "alice", NEW_PASSWORD)).toMatchObject({
-      success: true,
+      status: "complete",
     });
   });
 
@@ -286,7 +286,7 @@ describe("changePassword", () => {
       userError: { error: "INVALID_CREDENTIALS" },
     });
     expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
-      success: true,
+      status: "complete",
     });
   });
 
@@ -313,7 +313,7 @@ describe("changePassword", () => {
       userError: { error: "PASSWORD_TOO_COMMON" },
     });
     expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
-      success: true,
+      status: "complete",
     });
   });
 
@@ -337,7 +337,7 @@ describe("changePassword", () => {
     });
     expect(result).toEqual({ success: true });
     expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
-      success: true,
+      status: "complete",
     });
   });
 

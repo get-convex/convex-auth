@@ -656,7 +656,7 @@ describe("usePasskeyCeremonySlot", () => {
     expect(result.current.pending).toBe(false);
 
     let resolveCeremony!: (value: string) => void;
-    let running!: Promise<string | { status: "error" }>;
+    let running!: Promise<string | { success: false }>;
     act(() => {
       running = result.current.run(
         () =>
@@ -667,7 +667,7 @@ describe("usePasskeyCeremonySlot", () => {
     });
     await waitFor(() => expect(result.current.pending).toBe(true));
 
-    let returned!: string | { status: "error" };
+    let returned!: string | { success: false };
     await act(async () => {
       resolveCeremony("done");
       returned = await running;
@@ -693,12 +693,12 @@ describe("usePasskeyCeremonySlot", () => {
     await waitFor(() => expect(result.current.pending).toBe(true));
 
     const second = vi.fn(async () => "second");
-    let returned!: string | { status: "error"; userError: unknown };
+    let returned!: string | { success: false; userError: unknown };
     await act(async () => {
       returned = await result.current.run(second);
     });
     expect(returned).toEqual({
-      status: "error",
+      success: false,
       userError: { error: "ALREADY_PENDING" },
     });
     expect(second).not.toHaveBeenCalled();
@@ -714,14 +714,14 @@ describe("usePasskeyCeremonySlot", () => {
       usePasskeyCeremonySlot({ autofill: noopAutofill }),
     );
     const cause = new Error("boom");
-    let returned!: never | { status: "error"; userError: unknown };
+    let returned!: never | { success: false; userError: unknown };
     await act(async () => {
       returned = await result.current.run(async () => {
         throw cause;
       });
     });
     expect(returned).toEqual({
-      status: "error",
+      success: false,
       userError: { error: "OTHER_ERROR", cause },
     });
     expect(result.current.pending).toBe(false);
@@ -903,7 +903,7 @@ describe("usePasskeyAutofill", () => {
     await waitFor(() => expect(result.current.autofill.status).toBe("waiting"));
 
     let finishCeremony!: () => void;
-    let running!: Promise<string | { status: "error" }>;
+    let running!: Promise<string | { success: false }>;
     act(() => {
       running = result.current.modal.run(
         () =>
@@ -923,7 +923,7 @@ describe("usePasskeyAutofill", () => {
     await act(async () => {});
     expect(start).toHaveBeenCalledTimes(1);
 
-    let returned!: string | { status: "error" };
+    let returned!: string | { success: false };
     await act(async () => {
       finishCeremony();
       returned = await running;
@@ -954,7 +954,7 @@ describe("usePasskeyAutofill", () => {
     // and is over before that abort settles. The loop then sees its own
     // abort with the pause already retracted: it must not read that as a
     // foreign ceremony that displaced it and park for good.
-    let returned!: string | { status: "error" };
+    let returned!: string | { success: false };
     await act(async () => {
       returned = await result.current.modal.run(async () => "done");
     });

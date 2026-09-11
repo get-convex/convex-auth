@@ -28,10 +28,13 @@ import {
   type SignInFlowResult,
 } from "./flows.ts";
 import {
+  AlreadyPendingError,
+  AlreadyPendingFailure,
   usePasskeyAutofill,
   usePasskeyCeremonySlot,
-  type AlreadyPendingFailure,
 } from "./react_impl.tsx";
+import { PasskeyClientError, PasskeyClientFailure } from "./client.ts";
+import { SignInError } from "../../lib/types.ts";
 
 export {
   useAddPasskey,
@@ -67,13 +70,13 @@ export type {
 /**
  * The result of the `signIn` callback from {@link useUsernamePasskeySignIn}.
  *
- * A success carries a `flow` discriminant: `"signUp"` when the ceremony
- * created a new account, `"signIn"` when it authenticated an existing one.
- * `ALREADY_PENDING` comes back when a `signIn` call runs while the
+ * A completed sign-in carries a `flow` discriminant: `"signUp"` when the
+ * ceremony created a new account, `"signIn"` when it authenticated an existing
+ * one. `ALREADY_PENDING` comes back when a `signIn` call runs while the
  * previous one still does.
  */
 export type UsernamePasskeySignInResult =
-  SignInFlowResult | AlreadyPendingFailure;
+  SignInFlowResult | SignInError<PasskeyClientError | AlreadyPendingError>;
 
 /**
  * Client for the log in page in the “username + passkey” auth flow.
@@ -100,7 +103,7 @@ export type UsernamePasskeySignInResult =
  *       onSubmit={async (e) => {
  *         e.preventDefault();
  *         const result = await signIn({ username });
- *         if (!result.success) {
+ *         if (result.status === "error") {
  *           // map result.userError to a message
  *         }
  *       }}
@@ -164,12 +167,25 @@ export function useUsernamePasskeySignIn(
   const { run, pending } = usePasskeyCeremonySlot({ autofill });
 
   const signIn = useCallback(
-    ({
+    async ({
       username,
     }: {
       username: string;
-    }): Promise<UsernamePasskeySignInResult> =>
-      run(() => runSignInOrSignUpFlow(ctxRef.current, { username })),
+    }): Promise<UsernamePasskeySignInResult> => {
+      const signInResult = await run(() =>
+        runSignInOrSignUpFlow(ctxRef.current, { username }),
+      );
+      if ("status" in signInResult) {
+        // This is the result of `runSignInOrSignUpFlow`. It can be directly
+        // returned.
+        return signInResult;
+      }
+      // The `run` wrapper is generic and can return a `success: false` error.
+      // We handle that here and package it as a sign-in failure with
+      // `status: "error"`.
+      signInResult satisfies PasskeyClientFailure | AlreadyPendingFailure;
+      return { status: "error", userError: signInResult.userError };
+    },
     [run],
   );
 
