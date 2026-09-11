@@ -1,6 +1,8 @@
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { Doc } from "./_generated/dataModel.ts";
+import { components } from "./_generated/api.ts";
 import { FunctionHandle } from "convex/server";
+import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { EmailSenderConfig } from "./validation.ts";
 
 // --- Configuration ---------------------------------------------------------
@@ -17,7 +19,47 @@ export const CUSTOM_TTL_DEFAULT_MS = 15 * 60 * 1000; // 15 minutes
 export const CUSTOM_TTL_MIN_MS = 60 * 1000; // 1 minute
 export const CUSTOM_TTL_MAX_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Throttle for starting challenges. Each flow sends an email, so the
+// limits protect the destination mailbox from flooding and the sender's
+// reputation from abuse:
+// - per destination address, so an attacker cannot flood one mailbox;
+// - per client IP, so one machine cannot spray many addresses.
+// TODO: review these limits.
+export const rateLimiter = new RateLimiter(components.rateLimiter, {
+  startChallengePerEmail: { kind: "token bucket", rate: 5, period: HOUR },
+  startChallengePerIp: { kind: "token bucket", rate: 20, period: HOUR },
+});
+
 // --- Shared helpers --------------------------------------------------------
+
+/**
+ * The client IP of the request, for rate limiting.
+ *
+ * Throws when the backend does not expose request metadata (`ctx.meta`
+ * requires a Convex backend from July 2026 or later) or when the call did
+ * not come from a request with an IP. There is no fallback: without an IP
+ * the per-IP rate limit would not protect anything.
+ */
+export async function getClientIp(ctx: MutationCtx): Promise<string> {
+  // Old backends (and convex-test) have no `ctx.meta`.
+  const meta = (ctx as Partial<MutationCtx>).meta;
+  if (meta === undefined) {
+    throw new Error(
+      "The email component requires `ctx.meta` for IP rate limiting. " +
+        "Upgrade your Convex backend to a version that supplies request " +
+        "metadata to component functions.",
+    );
+  }
+  const { ip } = await meta.getRequestMetadata();
+  if (ip === null) {
+    throw new Error(
+      "The email component could not read the client IP for rate " +
+        "limiting. Start challenges from a client request, not from " +
+        "a scheduled or cron function.",
+    );
+  }
+  return ip;
+}
 
 export function emailsByUserId(
   ctx: QueryCtx,

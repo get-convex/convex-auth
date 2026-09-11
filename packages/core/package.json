@@ -191,7 +191,7 @@
     "@types/node": "^24.12.4",
     "@types/react": "^19.2.17",
     "convex": "^1.43.0",
-    "convex-test": "^0.0.55",
+    "convex-test": "https://pkg.pr.new/convex-test@135",
     "hash-wasm": "^4.12.0",
     "jsdom": "^29.1.1",
     "next": "^16.0.0",
