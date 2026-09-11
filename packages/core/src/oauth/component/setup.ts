@@ -1,31 +1,18 @@
 import { mutationGeneric } from "convex/server";
 import { v } from "convex/values";
-import {
-  vTokenBundle,
-  type TokenBundle,
-  type UserCallbacks,
-} from "../../lib/types.ts";
+import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
 import type { ComponentApi } from "./_generated/component.ts";
-import {
-  decryptTicketPayload,
-  generateRandomToken,
-  sha256Base64Url,
-} from "./crypto.ts";
+import { generateRandomToken, sha256Base64Url } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
+import {
+  buildCompleteSignIn,
+  parseUrl,
+  validateAllowedRedirectOrigins,
+  type OidcClaims,
+} from "../shared/redemption.ts";
 
-/**
- * Standard OIDC id_token claims. The well-known ones are typed. Any other
- * claim the provider includes is present but untyped (`unknown`).
- */
-export type OidcClaims = {
-  sub: string;
-  email?: string;
-  email_verified?: boolean;
-  name?: string;
-  picture?: string;
-  [claim: string]: unknown;
-};
+export type { OidcClaims };
 
 /**
  * Map what the provider attested about the user to the account identity used
@@ -120,15 +107,6 @@ export type OauthProviderOptions = {
   allowedRedirectOrigins: string[];
 };
 
-/** `new URL` without the exception: returns null on unparseable input. */
-function parseUrl(value: string): URL | null {
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Set up OAuth sign-in against a single upstream identity provider.
  *
@@ -163,28 +141,9 @@ export function setupOauth<
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy
   // time, not on the first sign-in.
-  const allowedOrigins = options.allowedRedirectOrigins.map((allowed) => {
-    const url = parseUrl(allowed);
-    if (
-      url === null ||
-      (url.protocol !== "http:" && url.protocol !== "https:")
-    ) {
-      throw new Error(
-        `allowedRedirectOrigins entry is not a valid http(s) origin: ` +
-          `"${allowed}" (custom schemes like "myapp://" are not supported yet)`,
-      );
-    }
-    // An entry with a path would silently allow the whole origin, which is
-    // broader than what the config appears to say. Require bare origins.
-    if (url.pathname !== "/" || url.search !== "" || url.hash !== "") {
-      throw new Error(
-        `allowedRedirectOrigins entry must be a bare origin with no path, ` +
-          `query, or fragment: "${allowed}" (use "${url.origin}" to allow ` +
-          `the whole origin)`,
-      );
-    }
-    return url.origin;
-  });
+  const allowedOrigins = validateAllowedRedirectOrigins(
+    options.allowedRedirectOrigins,
+  );
   const issuers =
     catalog.issuer === undefined
       ? undefined
@@ -269,69 +228,19 @@ export function setupOauth<
   });
 
   /**
-   * Complete an OAuth sign-in by redeeming the one-time `code` from
-   * the callback redirect together with the state held since
-   * `startSignIn`. Returns the session token bundle, or null when
-   * the code is unknown, already redeemed, expired, or the state
-   * doesn't match: all indistinguishable to the caller.
-   *
-   * The component calls are subtransactions of this mutation, so a
-   * failure anywhere (including the app rejecting the sign-in from
-   * `createUser` / `onSignIn`) rolls back the ticket claim. Only a
-   * successful redemption consumes the ticket.
+   * Complete an OAuth sign-in by redeeming the one-time `code` from the
+   * callback redirect together with the state held since `startSignIn`.
    */
-  // TODO: dowski - return the shared `vSignInSuccess` envelope like the other
-  // providers do, instead of a bare bundle or null.
-  const completeSignIn = authMutation({
-    args: {
-      code: v.string(),
-      state: v.string(),
-    },
-    returns: v.union(vTokenBundle, v.null()),
-    handler: async (ctx, args): Promise<TokenBundle | null> => {
-      const ticket = await ctx.runMutation(
-        options.component.provider.claimTicket,
-        {
-          providerName,
-          ticketCodeHash: await sha256Hex(args.code),
-          stateHash: await sha256Hex(args.state),
-        },
-      );
-      if (ticket === null) {
-        return null;
-      }
-
-      // Finding the ticket by hash proves `code` is the value the
-      // payload was encrypted under, so decryption only fails on
-      // corruption.
-      const { claims, userInfoResponses } = JSON.parse(
-        await decryptTicketPayload(args.code, ticket.encryptedPayload),
-      ) as {
-        claims: OidcClaims | undefined;
-        userInfoResponses: UserInfo | undefined;
-      };
-
-      const profile = catalog.profile(claims, userInfoResponses);
-      if (typeof profile.id !== "string" || profile.id === "") {
-        throw new Error(
-          `Profile mapping for provider "${providerName}" returned no id`,
-        );
-      }
-
-      // The same redemption flow serves a first sign-in and a return visit, so
-      // resolve the identity to pick a path. This handler is a mutation, so the
-      // lookup and the write it decides on are one transaction.
-      const existingUserId = await ctx.convexAuth.resolveUserId(profile.id);
-      return existingUserId === null
-        ? await ctx.convexAuth.completeSignUp({
-            providerAccountId: profile.id,
-            profile,
-          })
-        : await ctx.convexAuth.completeSignIn({
-            providerAccountId: profile.id,
-            profile,
-          });
-    },
+  const completeSignIn = buildCompleteSignIn<Profile, UserInfo>({
+    providerName,
+    authMutation,
+    claimTicket: (ctx, args) =>
+      ctx.runMutation(options.component.provider.claimTicket, {
+        providerName,
+        ...args,
+      }),
+    profile: (payload) =>
+      catalog.profile(payload.claims, payload.userInfoResponses),
   });
 
   return { startSignIn, completeSignIn };

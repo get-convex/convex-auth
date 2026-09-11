@@ -66,6 +66,7 @@ export default defineConfig([
       "**/convex/**/*.{js,ts}",
       "packages/*/src/components/**/*.ts",
       "packages/*/src/component/**/*.ts",
+      "packages/*/src/oauth/**/*.ts",
     ],
     ignores: ["**/*.test.ts"],
     plugins: {
