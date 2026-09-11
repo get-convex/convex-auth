@@ -61,9 +61,9 @@ export function challengeEmailText(
 }
 
 /** Append the code to the landing URL, with `?` or `&` as needed. */
-export function buildLink(url: string, code: string): string {
+export function buildLink(url: string, emailCode: string): string {
   const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}code=${encodeURIComponent(code)}`;
+  return `${url}${separator}code=${encodeURIComponent(emailCode)}`;
 }
 
 /** The `sendEmail` mutation of the `@convex-dev/resend` component. */

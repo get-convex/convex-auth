@@ -97,10 +97,9 @@ export type ChallengePurpose = Doc<"challenges">["purpose"];
 /** The arguments that every `start` mutation accepts. */
 export const vStartArgs = {
   email: v.string(),
-  // The landing page the link points at; the code is appended as the `code`
-  // query parameter. The caller controls this value — do not pass
-  // client-supplied URLs, or the email becomes a phishing vector from a
-  // legitimate sender.
+  // The base URL for the link. This should be a constant set by the app
+  // (e.g. "https://example.com/verify"). The code is appended as the `code`
+  // query parameter.
   url: v.string(),
   emailSender: vEmailSenderConfig,
 };
@@ -180,7 +179,7 @@ export async function createChallenge(
   await sendChallengeEmail(ctx, args.emailSender, {
     to: args.email,
     copy: args.copy,
-    link: buildLink(args.url, code),
+    link: buildLink(args.url, emailCode),
     ttlMs: args.ttlMs,
   });
   return { browserSecret, challengeId };
