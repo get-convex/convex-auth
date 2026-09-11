@@ -56,18 +56,6 @@ never registered and the OAuth hooks throw wherever they're used under SSR. The
 sign-in api pointed at the auth proxy is already there, so what's missing is the
 registration.
 
-## Apple sign-in isn't supported yet
-
-Two gaps. The callback route only accepts GET redirects, and Apple POSTs the
-callback (`response_mode=form_post`) whenever name/email scopes are
-requested. And Apple has no static client secret: it requires a short-lived
-ES256 client-secret JWT, signed with a registered key and rotated, where the
-catalogs assume a static `CLIENT_SECRET` binding.
-
-Potential fix direction: accept POST on the callback route
-(`packages/core/src/oauth/component/http.ts`), and add a signed-secret
-mechanism to the catalog config (`packages/core/src/oauth/component/setup.ts`).
-
 ## Refresh-token reuse detection has a bounded horizon
 
 A spent hash is remembered for `SPENT_TOKEN_HORIZON_MS` (1 hour) and pruned by
