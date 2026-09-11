@@ -9,6 +9,7 @@
  */
 
 import type * as challenge_common from "../challenge/common.js";
+import type * as challenge_custom from "../challenge/custom.js";
 import type * as challenge_rateLimit from "../challenge/rateLimit.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
@@ -25,6 +26,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   "challenge/common": typeof challenge_common;
+  "challenge/custom": typeof challenge_custom;
   "challenge/rateLimit": typeof challenge_rateLimit;
   cleanup: typeof cleanup;
   helpers: typeof helpers;

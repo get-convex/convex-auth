@@ -35,10 +35,18 @@ export default defineSchema({
     email: v.string(),
     // The kind of the challenge, which is the file in `challenge/` that
     // started it. Each kind completes in its own way, and each carries the
-    // user that the flow is for.
+    // user that the flow is for. A `custom` challenge also carries the
+    // caller's purpose string, which is opaque here, and its user is the one
+    // that the caller asserted, or `null` when no user is signed in (see
+    // `challenge/custom.ts`).
     purpose: v.union(
       v.object({ kind: v.literal("addEmail"), userId: v.string() }),
       v.object({ kind: v.literal("setPrimaryEmail"), userId: v.string() }),
+      v.object({
+        kind: v.literal("custom"),
+        userId: v.union(v.string(), v.null()),
+        purpose: v.string(),
+      }),
     ),
     // SHA-256 of the code that travels in the emailed link. Only the hash is
     // stored, so database access alone cannot complete a challenge.
