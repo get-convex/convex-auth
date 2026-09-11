@@ -7,7 +7,11 @@ import {
 } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { GenericId, v } from "convex/values";
-import { FunctionArgs, FunctionHandle } from "convex/server";
+import {
+  FunctionArgs,
+  FunctionHandle,
+  FunctionReturnType,
+} from "convex/server";
 import {
   vAuthClaims,
   type AuthClaims,
@@ -243,16 +247,19 @@ async function issueSession(
   };
 }
 
+// The callback types carry their args and return type in the `_fn` slot and
+// have no `_args`/`_returnType` of their own, so read both back through
+// `FunctionArgs`/`FunctionReturnType` rather than by indexing.
 type CreateUserFunctionHandle = FunctionHandle<
   CreateUserFn<string, unknown>["_type"],
   FunctionArgs<CreateUserFn<string, unknown>>,
-  CreateUserFn<string, unknown>["_returnType"]
+  FunctionReturnType<CreateUserFn<string, unknown>>
 >;
 
 type OnSignInFunctionHandle = FunctionHandle<
   OnSignInFn<string, unknown>["_type"],
   FunctionArgs<OnSignInFn<string, unknown>>,
-  OnSignInFn<string, unknown>["_returnType"]
+  FunctionReturnType<OnSignInFn<string, unknown>>
 >;
 
 /**

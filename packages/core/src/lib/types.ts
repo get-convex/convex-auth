@@ -1,7 +1,4 @@
-import {
-  ContravariantFunctionReference,
-  FunctionReference,
-} from "convex/server";
+import { FunctionReference, FunctionReference_future } from "convex/server";
 
 import { GenericId, Infer, v } from "convex/values";
 
@@ -203,23 +200,24 @@ export const vOnSignIn = v.object({
  * named by `setupCore`'s `usersTable` option, which is what makes the return
  * type `Id<usersTable>` rather than a bare string.
  *
- * The mutation's args are checked contravariantly (see
- * `ContravariantFunctionReference` in `convex/server`), so they must *accept*
- * what the core passes rather than match it exactly. A mutation declaring the
+ * The mutation's args are checked the way Convex checks them at runtime (see
+ * `FunctionReference_future` in `convex/server`), so they must *accept* what
+ * the core passes rather than match it exactly. A mutation declaring the
  * provider's own literal types works (`provider: v.literal("password")`,
  * `profile: v.object({ username: v.string() })`), and so does one declared
  * more broadly: a single mutation shared across providers can declare a union
  * of provider names (`v.union(v.literal("password"), v.literal("google"))`)
- * and a profile covering both. What is rejected is a mutation demanding
- * *more* than the core will pass — an extra required arg, or a profile field
- * this provider does not produce — which is exactly the case that would fail
- * at runtime.
+ * and a profile covering both. What is rejected is a mutation the core's call
+ * would not get past: one demanding *more* than the core passes (an extra
+ * required arg, or a profile field this provider does not produce), and one
+ * declaring *fewer* args than the core passes, whose validator would reject
+ * the surplus. Both are exactly the cases that would fail at runtime.
  */
 export type CreateUserFn<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
-> = ContravariantFunctionReference<
+> = FunctionReference_future<
   "mutation",
   "internal",
   { provider: Provider; providerAccountId: string; profile: Profile },
@@ -241,14 +239,15 @@ export type CreateUserFn<
  * reject the sign in, which on a first sign-in rolls back the user the create
  * callback just made.
  *
- * Like {@link CreateUserFn}, the args are checked contravariantly, so one
- * mutation declaring a union of provider names can be shared across providers.
+ * Like {@link CreateUserFn}, the args are checked the way Convex checks them,
+ * so one mutation declaring a union of provider names can be shared across
+ * providers.
  */
 export type OnSignInFn<
   Provider extends string,
   Profile,
   UsersTable extends string = string,
-> = ContravariantFunctionReference<
+> = FunctionReference_future<
   "mutation",
   "internal",
   {
