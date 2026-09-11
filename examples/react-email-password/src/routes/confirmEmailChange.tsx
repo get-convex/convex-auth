@@ -14,9 +14,9 @@ import { api } from "../../convex/_generated/api";
  */
 export function ConfirmEmailChange() {
   const [params] = useSearchParams();
-  const code = params.get("code") ?? "";
+  const emailCode = params.get("code") ?? "";
   const status = useChallengeStatus(api.auth.getChallengeStatus, {
-    code,
+    emailCode,
     flow: "changeEmail",
   });
   const { completeChangeEmail, pending } = useCompleteChangeEmail(
@@ -25,7 +25,7 @@ export function ConfirmEmailChange() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  if (code === "") {
+  if (emailCode === "") {
     return <p>This link is incomplete. Use the link from your email.</p>;
   }
   if (done) {
@@ -80,7 +80,7 @@ export function ConfirmEmailChange() {
         disabled={pending}
         onClick={async () => {
           setError(null);
-          const result = await completeChangeEmail({ code });
+          const result = await completeChangeEmail({ emailCode });
           if (result.success) {
             setDone(true);
             return;
