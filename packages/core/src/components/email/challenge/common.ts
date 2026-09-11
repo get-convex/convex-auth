@@ -8,12 +8,19 @@ import type { Doc, Id } from "../_generated/dataModel.ts";
 import { sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
+  buildLink,
+  sendChallengeEmail,
+  type ChallengeEmailCopy,
+} from "../helpers.ts";
+import {
   validateEmailFormat,
   normalizeEmail,
   generateRandomToken,
   startChallengeUserError,
   completeChallengeUserError,
+  vEmailSenderConfig,
   type StartChallengeUserError,
+  type EmailSenderConfig,
   type ChallengeStatus,
 } from "../validation.ts";
 
@@ -24,6 +31,12 @@ export type ChallengePurpose = Doc<"challenges">["purpose"];
 /** The arguments that every `start` mutation accepts. */
 export const vStartArgs = {
   email: v.string(),
+  // The landing page the link points at; the code is appended as the `code`
+  // query parameter. The caller controls this value — do not pass
+  // client-supplied URLs, or the email becomes a phishing vector from a
+  // legitimate sender.
+  url: v.string(),
+  emailSender: vEmailSenderConfig,
 };
 
 /** The arguments that every `complete` mutation and `getStatus` query accept. */
@@ -83,8 +96,8 @@ export async function prepareStart(
 }
 
 /**
- * Store the hashed code + secret. Returns the secret that the starting
- * browser keeps, and the ID of the new row.
+ * Store the hashed code + secret and send the email. Returns the secret that
+ * the starting browser keeps, and the ID of the new row.
  */
 export async function createChallenge(
   ctx: MutationCtx,
@@ -92,6 +105,9 @@ export async function createChallenge(
     email: string;
     purpose: ChallengePurpose;
     ttlMs: number;
+    url: string;
+    emailSender: EmailSenderConfig;
+    copy: ChallengeEmailCopy;
   },
 ): Promise<{ secret: string; challengeId: Id<"challenges"> }> {
   const code = generateRandomToken();
@@ -104,6 +120,12 @@ export async function createChallenge(
     expiresAt: Date.now() + args.ttlMs,
   });
   await scheduleChallengeCleanup(ctx);
+  await sendChallengeEmail(ctx, args.emailSender, {
+    to: args.email,
+    copy: args.copy,
+    link: buildLink(args.url, code),
+    ttlMs: args.ttlMs,
+  });
   return { secret, challengeId };
 }
 

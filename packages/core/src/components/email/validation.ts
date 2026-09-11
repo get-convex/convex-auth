@@ -154,6 +154,32 @@ export const vEmailPasswordFlow = v.union(
 export type EmailPasswordFlow = Infer<typeof vEmailPasswordFlow>;
 
 /**
+ * How the `start` mutations send their email. The caller (the provider recipe)
+ * resolves the function handle and the runtime options; the component only
+ * calls the handle.
+ *
+ * Only Resend is supported for now, through the `@convex-dev/resend`
+ * component's `lib.sendEmail` mutation.
+ *
+ * TODO: support other email providers.
+ * TODO: offer a first-party zero-configuration email service.
+ * TODO: let applications customize the email templates.
+ */
+export const vEmailSenderConfig = v.object({
+  kind: v.literal("resend"),
+  // Function handle for the Resend component's `lib.sendEmail` mutation.
+  sendEmailHandle: v.string(),
+  // The From address, e.g. `"My App <auth@example.com>"`.
+  from: v.string(),
+  // Runtime options that `lib.sendEmail` requires.
+  apiKey: v.string(),
+  testMode: v.boolean(),
+  initialBackoffMs: v.number(),
+  retryAttempts: v.number(),
+});
+export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
+
+/**
  * Normalize an email address for storage and comparisons.
  *
  * The function first makes the address lowercase, so that lookups are not
