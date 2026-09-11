@@ -70,7 +70,7 @@ export function ValidateEmail() {
         onClick={async () => {
           setError(null);
           const result = await completeSignUp({ code });
-          if (result.success) {
+          if (result.status === "complete") {
             navigate("/", { replace: true });
             return;
           }

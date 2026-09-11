@@ -63,7 +63,7 @@ export function ResetPassword() {
           e.preventDefault();
           setError(null);
           const result = await completeRecovery({ code, newPassword });
-          if (result.success) {
+          if (result.status === "complete") {
             navigate("/", { replace: true });
             return;
           }

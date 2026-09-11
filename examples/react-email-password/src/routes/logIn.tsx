@@ -15,7 +15,7 @@ export function LogIn() {
           e.preventDefault();
           setError(null);
           const result = await signIn({ email, password });
-          if (result.success) {
+          if (result.status === "complete") {
             return;
           }
           setError(() => {
