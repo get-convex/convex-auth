@@ -65,6 +65,16 @@ type UnexpectedFailure = {
 };
 
 /**
+ * The same client failure, in the shape of the shared sign-in envelope. The
+ * hooks that mint a session (`completeSignUp`, `signIn`, `completeRecovery`)
+ * return it, so that every arm of their result has a `status`.
+ */
+type SignInUnexpectedFailure = {
+  status: "error";
+  userError: { error: "OTHER_ERROR"; cause: unknown };
+};
+
+/**
  * A failure the client produces when a challenge link is opened in a
  * browser that did not start the flow: the flow's secret is not in this
  * browser's storage, so completion cannot proceed. Tell the user to open the
@@ -72,6 +82,12 @@ type UnexpectedFailure = {
  */
 type MissingSecretFailure = {
   success: false;
+  userError: { error: "MISSING_SECRET" };
+};
+
+/** {@link MissingSecretFailure} in the shape of the shared sign-in envelope. */
+type SignInMissingSecretFailure = {
+  status: "error";
   userError: { error: "MISSING_SECRET" };
 };
 
@@ -85,7 +101,7 @@ type SignUpMutation = FunctionReference<
 type CompleteSignUpMutation = FunctionReference<
   "mutation",
   "public",
-  { code: string; secret: string; userId: string },
+  { emailCode: string; browserSecret: string; userId: string },
   ClientView<CompleteSignUpResult>
 >;
 
@@ -113,7 +129,7 @@ type StartChangeEmailMutation = FunctionReference<
 type CompleteChangeEmailMutation = FunctionReference<
   "mutation",
   "public",
-  { code: string; secret: string },
+  { emailCode: string; browserSecret: string },
   CompleteChangeEmailResult
 >;
 
@@ -127,14 +143,19 @@ type StartRecoveryMutation = FunctionReference<
 type CompleteRecoveryMutation = FunctionReference<
   "mutation",
   "public",
-  { code: string; secret: string; newPassword: string },
+  { emailCode: string; browserSecret: string; newPassword: string },
   ClientView<CompleteRecoveryResult>
 >;
 
 type GetChallengeStatusQuery = FunctionReference<
   "query",
   "public",
-  { code: string; secret: string; flow: EmailPasswordFlow; userId?: string },
+  {
+    emailCode: string;
+    browserSecret: string;
+    flow: EmailPasswordFlow;
+    userId?: string;
+  },
   ChallengeStatus
 >;
 
@@ -144,11 +165,13 @@ export type SignUpWithEmailPasswordResult =
 
 /** The result of the `completeSignUp` callback from {@link useCompleteSignUp}. */
 export type CompleteSignUpClientResult =
-  ClientView<CompleteSignUpResult> | MissingSecretFailure | UnexpectedFailure;
+  | ClientView<CompleteSignUpResult>
+  | SignInMissingSecretFailure
+  | SignInUnexpectedFailure;
 
 /** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
 export type SignInWithEmailPasswordResult =
-  ClientView<SignInResult> | UnexpectedFailure;
+  ClientView<SignInResult> | SignInUnexpectedFailure;
 
 /** The result of the `changePassword` callback from {@link useChangePassword}. */
 export type ChangePasswordClientResult =
@@ -167,7 +190,9 @@ export type StartRecoveryClientResult = StartRecoveryResult | UnexpectedFailure;
 
 /** The result of the `completeRecovery` callback from {@link useCompleteRecovery}. */
 export type CompleteRecoveryClientResult =
-  ClientView<CompleteRecoveryResult> | MissingSecretFailure | UnexpectedFailure;
+  | ClientView<CompleteRecoveryResult>
+  | SignInMissingSecretFailure
+  | SignInUnexpectedFailure;
 
 /**
  * The storage that holds the flow secrets, namespaced by deployment URL so
@@ -198,6 +223,11 @@ function usePending() {
 
 const foldError = (cause: unknown): UnexpectedFailure => ({
   success: false,
+  userError: { error: "OTHER_ERROR", cause },
+});
+
+const foldSignInError = (cause: unknown): SignInUnexpectedFailure => ({
+  status: "error",
   userError: { error: "OTHER_ERROR", cause },
 });
 
@@ -232,7 +262,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
         try {
           const result = await signInApi.mutation(signUpMutation, credentials);
           if (result.success) {
-            await storage.set(SECRET_STORAGE_KEYS.signUp, result.secret);
+            await storage.set(SECRET_STORAGE_KEYS.signUp, result.browserSecret);
             await storage.set(SIGN_UP_USER_ID_STORAGE_KEY, result.userId);
           }
           return result;
@@ -265,35 +295,39 @@ export function useCompleteSignUp(
   const { pending, track } = usePending();
 
   const completeSignUp = useCallback(
-    async ({ code }: { code: string }): Promise<CompleteSignUpClientResult> =>
+    async ({
+      emailCode,
+    }: {
+      emailCode: string;
+    }): Promise<CompleteSignUpClientResult> =>
       track(async () => {
         try {
-          const secret = await storage.get(SECRET_STORAGE_KEYS.signUp);
+          const browserSecret = await storage.get(SECRET_STORAGE_KEYS.signUp);
           const userId = await storage.get(SIGN_UP_USER_ID_STORAGE_KEY);
           if (
-            secret === null ||
-            secret === undefined ||
+            browserSecret === null ||
+            browserSecret === undefined ||
             userId === null ||
             userId === undefined
           ) {
             return {
-              success: false,
+              status: "error",
               userError: { error: "MISSING_SECRET" },
             };
           }
           const result = await signInApi.mutation(completeSignUpMutation, {
-            code,
-            secret,
+            emailCode,
+            browserSecret,
             userId,
           });
-          if (result.success) {
+          if (result.status === "complete") {
             await setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.signUp);
             await storage.remove(SIGN_UP_USER_ID_STORAGE_KEY);
           }
           return result;
         } catch (cause) {
-          return foldError(cause);
+          return foldSignInError(cause);
         }
       }),
     [signInApi, completeSignUpMutation, storage, setSession, track],
@@ -321,12 +355,12 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
       track(async () => {
         try {
           const result = await signInApi.mutation(signInMutation, credentials);
-          if (result.success) {
+          if (result.status === "complete") {
             await setSession(result.tokens);
           }
           return result;
         } catch (cause) {
-          return foldError(cause);
+          return foldSignInError(cause);
         }
       }),
     [signInApi, signInMutation, setSession, track],
@@ -390,7 +424,10 @@ export function useStartChangeEmail(
             args,
           );
           if (result.success) {
-            await storage.set(SECRET_STORAGE_KEYS.changeEmail, result.secret);
+            await storage.set(
+              SECRET_STORAGE_KEYS.changeEmail,
+              result.browserSecret,
+            );
           }
           return result;
         } catch (cause) {
@@ -420,22 +457,24 @@ export function useCompleteChangeEmail(
 
   const completeChangeEmail = useCallback(
     async ({
-      code,
+      emailCode,
     }: {
-      code: string;
+      emailCode: string;
     }): Promise<CompleteChangeEmailClientResult> =>
       track(async () => {
         try {
-          const secret = await storage.get(SECRET_STORAGE_KEYS.changeEmail);
-          if (secret === null || secret === undefined) {
+          const browserSecret = await storage.get(
+            SECRET_STORAGE_KEYS.changeEmail,
+          );
+          if (browserSecret === null || browserSecret === undefined) {
             return {
               success: false,
               userError: { error: "MISSING_SECRET" },
             };
           }
           const result = await signInApi.mutation(completeChangeEmailMutation, {
-            code,
-            secret,
+            emailCode,
+            browserSecret,
           });
           if (result.success) {
             await storage.remove(SECRET_STORAGE_KEYS.changeEmail);
@@ -468,7 +507,10 @@ export function useStartRecovery(startRecoveryMutation: StartRecoveryMutation) {
         try {
           const result = await signInApi.mutation(startRecoveryMutation, args);
           if (result.success) {
-            await storage.set(SECRET_STORAGE_KEYS.recovery, result.secret);
+            await storage.set(
+              SECRET_STORAGE_KEYS.recovery,
+              result.browserSecret,
+            );
           }
           return result;
         } catch (cause) {
@@ -500,30 +542,30 @@ export function useCompleteRecovery(
 
   const completeRecovery = useCallback(
     async (args: {
-      code: string;
+      emailCode: string;
       newPassword: string;
     }): Promise<CompleteRecoveryClientResult> =>
       track(async () => {
         try {
-          const secret = await storage.get(SECRET_STORAGE_KEYS.recovery);
-          if (secret === null || secret === undefined) {
+          const browserSecret = await storage.get(SECRET_STORAGE_KEYS.recovery);
+          if (browserSecret === null || browserSecret === undefined) {
             return {
-              success: false,
+              status: "error",
               userError: { error: "MISSING_SECRET" },
             };
           }
           const result = await signInApi.mutation(completeRecoveryMutation, {
-            code: args.code,
-            secret,
+            emailCode: args.emailCode,
+            browserSecret,
             newPassword: args.newPassword,
           });
-          if (result.success) {
+          if (result.status === "complete") {
             await setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.recovery);
           }
           return result;
         } catch (cause) {
-          return foldError(cause);
+          return foldSignInError(cause);
         }
       }),
     [signInApi, completeRecoveryMutation, storage, setSession, track],
@@ -549,25 +591,25 @@ export type UseChallengeStatusResult =
  * query with it.
  *
  * @param statusQuery The app's `getChallengeStatus` query reference.
- * @param args The `code` from the link's query parameter, and which `flow`
+ * @param args The `emailCode` from the link's query parameter, and which `flow`
  *   the landing page serves (`"signUp"`, `"changeEmail"` or `"recovery"`).
  */
 export function useChallengeStatus(
   statusQuery: GetChallengeStatusQuery,
-  { code, flow }: { code: string; flow: EmailPasswordFlow },
+  { emailCode, flow }: { emailCode: string; flow: EmailPasswordFlow },
 ): UseChallengeStatusResult {
   const storage = useSecretStorage();
   // What the starting browser kept: the secret, and for sign-up the user.
   // `undefined` = still reading storage; `null` = this browser did not start
   // the flow.
   const [kept, setKept] = useState<
-    { secret: string; userId?: string } | null | undefined
+    { browserSecret: string; userId?: string } | null | undefined
   >(undefined);
 
   useEffect(() => {
     let canceled = false;
     void (async () => {
-      const secret = await storage.get(SECRET_STORAGE_KEYS[flow]);
+      const browserSecret = await storage.get(SECRET_STORAGE_KEYS[flow]);
       const userId =
         flow === "signUp"
           ? await storage.get(SIGN_UP_USER_ID_STORAGE_KEY)
@@ -576,13 +618,13 @@ export function useChallengeStatus(
         return;
       }
       if (
-        secret === null ||
-        secret === undefined ||
+        browserSecret === null ||
+        browserSecret === undefined ||
         (flow === "signUp" && (userId === null || userId === undefined))
       ) {
         setKept(null);
       } else {
-        setKept({ secret, userId: userId ?? undefined });
+        setKept({ browserSecret, userId: userId ?? undefined });
       }
     })();
     return () => {
@@ -592,7 +634,7 @@ export function useChallengeStatus(
 
   const status = useQuery(
     statusQuery,
-    kept === null || kept === undefined ? "skip" : { code, flow, ...kept },
+    kept === null || kept === undefined ? "skip" : { emailCode, flow, ...kept },
   );
 
   if (kept === undefined) {
