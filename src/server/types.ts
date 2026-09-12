@@ -168,6 +168,11 @@ export type ConvexAuthConfig = {
          */
         existingUserId: GenericId<"users"> | null;
         /**
+         * If this OAuth flow was started while a user was already signed in,
+         * this is that authenticated user ID recovered from the saved session.
+         */
+        authUserId: GenericId<"users"> | null;
+        /**
          * The provider type or "verification" if this callback is called
          * after an email or phone token verification.
          */

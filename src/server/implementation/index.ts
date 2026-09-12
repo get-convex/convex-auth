@@ -251,9 +251,18 @@ export function convexAuth(config_: ConvexAuthConfig) {
               const provider = getProviderOrThrow(
                 providerId,
               ) as OAuthConfig<any>;
+              const internalProvider =
+                await oAuthConfigToInternalProvider(provider);
+              const requestedScope = url.searchParams.get("scope");
+              if (requestedScope !== null) {
+                internalProvider.authorization?.url.searchParams.set(
+                  "scope",
+                  requestedScope,
+                );
+              }
               const { redirect, cookies, signature } =
                 await getAuthorizationUrl({
-                  provider: await oAuthConfigToInternalProvider(provider),
+                  provider: internalProvider,
                   cookies: defaultCookiesOptions(providerId),
                 });
 
