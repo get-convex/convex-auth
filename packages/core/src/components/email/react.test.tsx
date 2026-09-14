@@ -11,6 +11,7 @@ import { stubSignInApi } from "../../react/testSignInApi.ts";
 import {
   useCompleteRecovery,
   useCompleteSignUp,
+  useHasChallengeSecret,
   useSignUpWithEmailPassword,
 } from "./react.tsx";
 
@@ -296,5 +297,30 @@ describe("useCompleteRecovery", () => {
       userError: { error: "MISSING_SECRET" },
     });
     expect(runMutation).not.toHaveBeenCalled();
+  });
+});
+
+describe("useHasChallengeSecret", () => {
+  test("is false when this browser did not start the flow", async () => {
+    const { result } = renderWithProviders(() =>
+      useHasChallengeSecret("recovery"),
+    );
+    await waitFor(() => expect(result.current.hook).toBe(false));
+  });
+
+  test("is true once the flow's secret is in storage", async () => {
+    secretStorage.set("__convexAuthEmailPasswordRecoverySecret", "secret-1");
+    const { result } = renderWithProviders(() =>
+      useHasChallengeSecret("recovery"),
+    );
+    await waitFor(() => expect(result.current.hook).toBe(true));
+  });
+
+  test("sign-up needs the user next to the secret", async () => {
+    secretStorage.set("__convexAuthEmailPasswordSignUpSecret", "secret-1");
+    const { result } = renderWithProviders(() =>
+      useHasChallengeSecret("signUp"),
+    );
+    await waitFor(() => expect(result.current.hook).toBe(false));
   });
 });
