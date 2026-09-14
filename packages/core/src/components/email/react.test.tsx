@@ -233,7 +233,7 @@ describe("useCompleteSignUp", () => {
     secretStorage.set("__convexAuthEmailPasswordSignUpUserId", "user-1");
     runMutation.mockResolvedValue({
       success: false,
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "INVALID_CHALLENGE" },
     });
     const { result } = renderWithProviders(() => useCompleteSignUp(mutation));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
