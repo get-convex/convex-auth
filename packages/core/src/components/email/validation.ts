@@ -81,6 +81,12 @@ export type CompleteChallengeUserError = Infer<
 >;
 
 /**
+ * The flows of the EmailPassword provider that send a challenge link. The
+ * React hooks key the browser secret of each flow on this name.
+ */
+export type EmailPasswordFlow = "signUp" | "changeEmail" | "recovery";
+
+/**
  * How the `start` mutations send their email. The caller (the provider recipe)
  * resolves the function handle and the runtime options; the component only
  * calls the handle.
