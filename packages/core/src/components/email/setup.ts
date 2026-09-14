@@ -816,7 +816,11 @@ export function setupEmailPassword<UsersTable extends string>(
               { email: complete.email },
             );
             if (account === null) {
-              return { status: "error", userError: { error: "INVALID_LINK" } };
+              // The claim burned the link. The user must start again.
+              return {
+                status: "error",
+                userError: { error: "INVALID_CHALLENGE" },
+              };
             }
             const userId = account.userId;
 
