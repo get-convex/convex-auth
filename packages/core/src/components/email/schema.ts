@@ -39,6 +39,15 @@ export default defineSchema({
       // If there is already another primary email address, the new email address will be added as secondary.
       // Useful for apps that support multiple email addresses per user.
       v.object({ kind: v.literal("addEmail"), userId: v.string() }),
+      // Custom flow: doesn’t do anything in the component itself on completion,
+      // the caller will implement the right behavior instead.
+      v.object({
+        kind: v.literal("custom"),
+        userId: v.union(v.string(), v.null()),
+        // Opaque “purpose” string that is set by the code that creates the challnge
+        // and must be identical on completion to avoid auth flow confusion.
+        purpose: v.string(),
+      }),
     ),
     // SHA-256 of the code that travels in the emailed link.
     // Storing the hash, so that even if database rows leak they can’t be used to complete the challenge.

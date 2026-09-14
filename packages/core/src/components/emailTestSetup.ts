@@ -38,7 +38,8 @@ export async function seedEmail(
 
 export type ChallengePurposeRow =
   | { kind: "addEmail"; userId: string }
-  | { kind: "setPrimaryEmail"; userId: string };
+  | { kind: "setPrimaryEmail"; userId: string }
+  | { kind: "custom"; userId: string | null; purpose: string };
 
 /**
  * Seed a pending challenge row directly, with the hashes of the code and the
@@ -63,4 +64,11 @@ export async function seedChallenge(
       expiresAt: args.expiresAt ?? Date.now() + 60_000,
     });
   });
+}
+
+export function CUSTOM(
+  purpose: string,
+  userId: string | null,
+): ChallengePurposeRow {
+  return { kind: "custom", userId, purpose };
 }
