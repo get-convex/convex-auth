@@ -54,8 +54,10 @@ export function ResetPassword() {
           }
           setError(() => {
             switch (result.userError.error) {
-              case "INVALID_LINK":
-                return "The link is not valid anymore. It may have expired (reset links stop working after 10 minutes) or already been used. Request a new link.";
+              case "INVALID_CHALLENGE":
+                return "This link is no longer valid. It may have expired (reset links stop working after 10 minutes) or already been used. Request a new link.";
+              case "INCORRECT_CODE":
+                return "This is not the latest link. Open the newest email we sent you.";
               case "PASSWORD_TOO_SHORT":
                 return `Password must be at least ${result.userError.minimumLength} characters.`;
               case "PASSWORD_TOO_LONG":
