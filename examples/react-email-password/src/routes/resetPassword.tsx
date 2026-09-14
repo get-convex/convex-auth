@@ -1,6 +1,6 @@
 import {
   useCompleteRecovery,
-  useChallengeStatus,
+  useHasChallengeSecret,
 } from "@convex-dev/auth/providers/email-password/react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -8,16 +8,13 @@ import { api } from "../../convex/_generated/api";
 
 /**
  * Landing page for the password-reset link (`/reset-password?code=…`).
- * Shows the link's state, asks for the new password, and signs the user in
- * on success.
+ * Asks for the new password, and signs the user in on success. The link is
+ * verified on submit, together with the password.
  */
 export function ResetPassword() {
   const [params] = useSearchParams();
   const emailCode = params.get("code") ?? "";
-  const status = useChallengeStatus(api.auth.getChallengeStatus, {
-    emailCode,
-    flow: "recovery",
-  });
+  const hasSecret = useHasChallengeSecret("recovery");
   const { completeRecovery, pending } = useCompleteRecovery(
     api.auth.completeRecovery,
   );
@@ -28,10 +25,10 @@ export function ResetPassword() {
   if (emailCode === "") {
     return <p>This link is incomplete. Use the link from your email.</p>;
   }
-  if (status === undefined) {
+  if (hasSecret === undefined) {
     return <p>Loading…</p>;
   }
-  if (status.status === "missingSecret") {
+  if (!hasSecret) {
     return (
       <>
         <h1>Open this link in the browser you started from</h1>
@@ -39,18 +36,6 @@ export function ResetPassword() {
           For your security, the reset link only works in the browser where the
           reset was requested. Open the link there, or{" "}
           <a href="/forgot-password">request a new link</a> in this browser.
-        </p>
-      </>
-    );
-  }
-  if (status.status === "invalid") {
-    return (
-      <>
-        <h1>This link is not valid</h1>
-        <p>
-          The link may have expired (reset links stop working after 10 minutes)
-          or already been used.{" "}
-          <a href="/forgot-password">Request a new link</a>.
         </p>
       </>
     );
@@ -70,7 +55,7 @@ export function ResetPassword() {
           setError(() => {
             switch (result.userError.error) {
               case "INVALID_LINK":
-                return "The link is not valid anymore. Request a new link.";
+                return "The link is not valid anymore. It may have expired (reset links stop working after 10 minutes) or already been used. Request a new link.";
               case "PASSWORD_TOO_SHORT":
                 return `Password must be at least ${result.userError.minimumLength} characters.`;
               case "PASSWORD_TOO_LONG":
@@ -95,9 +80,6 @@ export function ResetPassword() {
         }}
       >
         <h1>Choose a new password</h1>
-        <p>
-          Resetting the password for <strong>{status.email}</strong>.
-        </p>
         <label>
           New password
           <input
