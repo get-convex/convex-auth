@@ -21,7 +21,7 @@
 "use client";
 
 import { FunctionReference } from "convex/server";
-import { useConvex, useQuery } from "convex/react";
+import { useConvex } from "convex/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
@@ -36,7 +36,7 @@ import type {
   StartRecoveryResult,
   CompleteRecoveryResult,
 } from "./setup.ts";
-import type { ChallengeStatus, EmailPasswordFlow } from "./validation.ts";
+import type { EmailPasswordFlow } from "./validation.ts";
 
 /** The flows that keep a secret in the starting browser's storage. */
 export type { EmailPasswordFlow };
@@ -145,18 +145,6 @@ type CompleteRecoveryMutation = FunctionReference<
   "public",
   { emailCode: string; browserSecret: string; newPassword: string },
   ClientView<CompleteRecoveryResult>
->;
-
-type GetChallengeStatusQuery = FunctionReference<
-  "query",
-  "public",
-  {
-    emailCode: string;
-    browserSecret: string;
-    flow: EmailPasswordFlow;
-    userId?: string;
-  },
-  ChallengeStatus
 >;
 
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
@@ -575,56 +563,32 @@ export function useCompleteRecovery(
 }
 
 /**
- * What a landing page shows for a challenge link:
+ * Tell whether this browser holds what a flow needs to complete: the flow's
+ * secret, and for sign-up the user too. A landing page uses it to show the
+ * "open this link in the browser you started from" message before the user
+ * submits anything. Reads storage only, never the server.
  *
- * - `undefined` while the secret and the status load,
- * - `{ status: "missingSecret" }` when this browser did not start the flow,
- * - `{ status: "pending", email }` for a usable link,
- * - `{ status: "invalid" }` for an unknown, expired or claimed link.
+ * @returns `undefined` while storage loads, then `true` or `false`.
  */
-export type UseChallengeStatusResult =
-  ChallengeStatus | { status: "missingSecret" } | undefined;
-
-/**
- * Subscribe to the state of a challenge link, for landing pages: read the
- * flow's secret from storage, then run the backend's `getChallengeStatus`
- * query with it.
- *
- * @param statusQuery The app's `getChallengeStatus` query reference.
- * @param args The `emailCode` from the link's query parameter, and which `flow`
- *   the landing page serves (`"signUp"`, `"changeEmail"` or `"recovery"`).
- */
-export function useChallengeStatus(
-  statusQuery: GetChallengeStatusQuery,
-  { emailCode, flow }: { emailCode: string; flow: EmailPasswordFlow },
-): UseChallengeStatusResult {
+export function useHasChallengeSecret(
+  flow: EmailPasswordFlow,
+): boolean | undefined {
   const storage = useSecretStorage();
-  // What the starting browser kept: the secret, and for sign-up the user.
-  // `undefined` = still reading storage; `null` = this browser did not start
-  // the flow.
-  const [kept, setKept] = useState<
-    { browserSecret: string; userId?: string } | null | undefined
-  >(undefined);
+  const [hasSecret, setHasSecret] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     let canceled = false;
     void (async () => {
       const browserSecret = await storage.get(SECRET_STORAGE_KEYS[flow]);
       const userId =
-        flow === "signUp"
-          ? await storage.get(SIGN_UP_USER_ID_STORAGE_KEY)
-          : undefined;
-      if (canceled) {
-        return;
-      }
-      if (
-        browserSecret === null ||
-        browserSecret === undefined ||
-        (flow === "signUp" && (userId === null || userId === undefined))
-      ) {
-        setKept(null);
-      } else {
-        setKept({ browserSecret, userId: userId ?? undefined });
+        flow === "signUp" ? await storage.get(SIGN_UP_USER_ID_STORAGE_KEY) : "";
+      if (!canceled) {
+        setHasSecret(
+          browserSecret !== null &&
+            browserSecret !== undefined &&
+            userId !== null &&
+            userId !== undefined,
+        );
       }
     })();
     return () => {
@@ -632,16 +596,5 @@ export function useChallengeStatus(
     };
   }, [storage, flow]);
 
-  const status = useQuery(
-    statusQuery,
-    kept === null || kept === undefined ? "skip" : { emailCode, flow, ...kept },
-  );
-
-  if (kept === undefined) {
-    return undefined;
-  }
-  if (kept === null) {
-    return { status: "missingSecret" };
-  }
-  return status;
+  return hasSecret;
 }
