@@ -9,6 +9,7 @@
  */
 
 import type * as challenge_common from "../challenge/common.js";
+import type * as challenge_rateLimit from "../challenge/rateLimit.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
 import type * as validation from "../validation.js";
@@ -23,6 +24,7 @@ import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
   "challenge/common": typeof challenge_common;
+  "challenge/rateLimit": typeof challenge_rateLimit;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
   validation: typeof validation;
@@ -56,5 +58,6 @@ export const internal: FilterApi<
 > = anyApi as any;
 
 export const components = componentsGeneric() as unknown as {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   batchWorker: import("@convex-dev/batch-worker/_generated/component.js").ComponentApi<"batchWorker">;
 };
