@@ -62,9 +62,13 @@ export function ConfirmEmailChange() {
           </p>
         </>
       );
-    case "INVALID_LINK":
+    case "INVALID_CHALLENGE":
       return failed(
-        "The link is not valid anymore. It may have expired or already been used.",
+        "This link is no longer valid. It may have expired or already been used.",
+      );
+    case "INCORRECT_CODE":
+      return failed(
+        "This is not the latest link. Open the newest email we sent you.",
       );
     case "NOT_LOGGED_IN":
       return failed("Log in first, then open the link again.");

@@ -59,9 +59,13 @@ export function ValidateEmail() {
           </p>
         </>
       );
-    case "INVALID_LINK":
+    case "INVALID_CHALLENGE":
       return failed(
-        "The link is not valid anymore. It may have expired or already been used.",
+        "This link is no longer valid. It may have expired or already been used.",
+      );
+    case "INCORRECT_CODE":
+      return failed(
+        "This is not the latest link. Open the newest email we sent you.",
       );
     case "EMAIL_TAKEN":
       return failed("Another account validated this email address first.");
