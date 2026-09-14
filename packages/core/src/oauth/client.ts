@@ -20,7 +20,7 @@ import { retryOnNetworkError } from "../browser/retry.ts";
 import type { SignInStorage } from "../browser/storage.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams.ts";
 import type { ClientView } from "../lib/types.ts";
-import type { CompleteSignInResult } from "./component/setup.ts";
+import type { CompleteSignInResult } from "./shared/redemption.ts";
 
 /**
  * The mutations an OAuth provider adds to the app's API. Passed as
