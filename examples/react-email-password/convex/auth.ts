@@ -18,7 +18,6 @@ export const {
   completeChangeEmail,
   startRecovery,
   completeRecovery,
-  getChallengeStatus,
 } = setupEmailPassword(core, {
   component: components.authEmail,
   passwordComponent: components.authPasswordProvider,

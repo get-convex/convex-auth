@@ -317,17 +317,10 @@ describe("completeSignUp", () => {
       status: "error",
       userError: { error: "INVALID_LINK" },
     });
-    // The wrong user burned the link; seed it again for the happy path.
-    await seedChallenge(t, {
-      email: EMAIL,
-      purpose: { kind: "addEmail", userId },
-      emailCode: "code2",
-      browserSecret: "secret2",
-    });
-
+    // The wrong user did not burn the link: the right user completes it.
     const result = await t.mutation(api.auth.completeSignUp, {
-      emailCode: "code2",
-      browserSecret: "secret2",
+      emailCode: "code1",
+      browserSecret: "secret1",
       userId,
     });
     expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
@@ -819,41 +812,5 @@ describe("completeRecovery", () => {
       status: "error",
       userError: { error: "INVALID_LINK" },
     });
-  });
-});
-
-describe("getChallengeStatus", () => {
-  test("reports pending for a live link and invalid otherwise", async () => {
-    const t = await setup();
-    await seedSignedUpUser(t);
-    await seedChallenge(t, {
-      email: EMAIL,
-      purpose: RECOVERY,
-      emailCode: "code1",
-      browserSecret: "secret1",
-    });
-
-    expect(
-      await t.query(api.auth.getChallengeStatus, {
-        emailCode: "code1",
-        browserSecret: "secret1",
-        flow: "recovery",
-      }),
-    ).toEqual({ status: "pending", email: EMAIL });
-    // A link from another flow reports invalid.
-    expect(
-      await t.query(api.auth.getChallengeStatus, {
-        emailCode: "code1",
-        browserSecret: "secret1",
-        flow: "signUp",
-      }),
-    ).toEqual({ status: "invalid" });
-    expect(
-      await t.query(api.auth.getChallengeStatus, {
-        emailCode: "code1",
-        browserSecret: "wrong",
-        flow: "recovery",
-      }),
-    ).toEqual({ status: "invalid" });
   });
 });
