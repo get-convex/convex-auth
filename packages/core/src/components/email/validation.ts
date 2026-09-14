@@ -1,8 +1,15 @@
+/**
+ * The validators, the error unions and the address helpers of the email
+ * component. The function files and the recipe import it.
+ *
+ * @module
+ */
+
 import { Infer, v } from "convex/values";
 
 // The component applies only loose format rules: it rejects strings that can
 // not be a deliverable address, and nothing more. Real ownership of the
-// address is proven by the validation flow, not by format checks.
+// address is proven by the challenge, not by format checks.
 
 // The longest address SMTP can deliver to (RFC 5321: 256 octets for the path,
 // minus the angle brackets).
@@ -36,6 +43,34 @@ export function validateEmailFormat(
   }
   return null;
 }
+
+/**
+ * The user-facing errors for the `start` mutations. An application can show
+ * these errors to the end user.
+ */
+export const startChallengeUserError = v.union(emailFormatUserError);
+export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
+
+/**
+ * The user-facing errors for the `complete` mutations.
+ *
+ * `INVALID_CHALLENGE` means that there is no live challenge for the secret.
+ * The challenge may have expired, may already have been used, or may never
+ * have existed. The server cannot tell these apart, and the user action is
+ * the same, start again.
+ *
+ * `INCORRECT_CODE` means that the challenge exists but the code does not
+ * match. For a link, the link is not the newest one this browser started,
+ * and the user must open the newest email. For a future short code, it is
+ * a typo.
+ */
+export const completeChallengeUserError = v.union(
+  v.object({ error: v.literal("INVALID_CHALLENGE") }),
+  v.object({ error: v.literal("INCORRECT_CODE") }),
+);
+export type CompleteChallengeUserError = Infer<
+  typeof completeChallengeUserError
+>;
 
 /**
  * Normalize an email address for storage and comparisons.
