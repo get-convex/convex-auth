@@ -75,6 +75,7 @@ import { Infer, v } from "convex/values";
 import type { MutationCtx } from "../_generated/server.ts";
 import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
+import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   startChallengeUserError,
   completeChallengeUserError,
@@ -159,6 +160,7 @@ export async function createChallenge(
     browserSecretHash: await sha256Hex(browserSecret),
     expiresAt: Date.now() + args.ttlMs,
   });
+  await scheduleChallengeCleanup(ctx);
   return { browserSecret, challengeId };
 }
 
@@ -203,7 +205,11 @@ export async function claimChallenge(
       q.eq("browserSecretHash", browserSecretHash),
     )
     .unique();
-  if (row === null || row.expiresAt < Date.now()) {
+  if (
+    row === null ||
+    // At exactly `expiresAt` the link is expired, like in the cleanup loop.
+    row.expiresAt <= Date.now()
+  ) {
     return claimFailure("INVALID_CHALLENGE");
   }
   if (row.emailCodeHash !== (await sha256Hex(args.emailCode))) {

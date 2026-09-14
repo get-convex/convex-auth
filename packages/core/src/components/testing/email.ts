@@ -1,5 +1,6 @@
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
+import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import schema from "../email/schema.ts";
 const modules = import.meta.glob("../email/**/*.ts");
 
@@ -14,5 +15,6 @@ export function registerEmail(
   name: string = "authEmail",
 ) {
   t.registerComponent(name, schema, modules);
+  registerBatchWorker(t, `${name}/batchWorker`);
 }
 export default { registerEmail, schema, modules };
