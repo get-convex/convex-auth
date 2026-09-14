@@ -307,16 +307,14 @@ describe("completeSignUp", () => {
       browserSecret: "secret1",
     });
 
-    // A link is bound to its user: another user cannot complete it.
-    const other = await t.mutation(api.auth.completeSignUp, {
-      emailCode: "code1",
-      browserSecret: "secret1",
-      userId: "someone-else",
-    });
-    expect(other).toEqual({
-      status: "error",
-      userError: { error: "INVALID_LINK" },
-    });
+    // A link is bound to its user. Another user is an application bug.
+    await expect(
+      t.mutation(api.auth.completeSignUp, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        userId: "someone-else",
+      }),
+    ).rejects.toThrow();
     // The wrong user did not burn the link: the right user completes it.
     const result = await t.mutation(api.auth.completeSignUp, {
       emailCode: "code1",
@@ -333,7 +331,7 @@ describe("completeSignUp", () => {
     expect(signIn).toEqual({ status: "complete", tokens: SESSION_TOKENS });
   });
 
-  test("rejects a bad code with INVALID_LINK", async () => {
+  test("rejects an unknown secret with INVALID_CHALLENGE", async () => {
     const t = await setup();
     const result = await t.mutation(api.auth.completeSignUp, {
       emailCode: "unknown",
@@ -342,7 +340,7 @@ describe("completeSignUp", () => {
     });
     expect(result).toEqual({
       status: "error",
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "INVALID_CHALLENGE" },
     });
   });
 
@@ -599,7 +597,7 @@ describe("completeChangeEmail", () => {
     expect(sent[0].subject).toMatch(/email address/i);
   });
 
-  test("rejects a bad code with INVALID_LINK", async () => {
+  test("rejects an unknown secret with INVALID_CHALLENGE", async () => {
     const t = await setup();
     const userId = await seedSignedUpUser(t);
     const result = await t
@@ -610,7 +608,7 @@ describe("completeChangeEmail", () => {
       });
     expect(result).toEqual({
       success: false,
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "INVALID_CHALLENGE" },
     });
   });
 });
@@ -743,7 +741,7 @@ describe("completeRecovery", () => {
     });
     expect(result).toEqual({
       status: "error",
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "INVALID_CHALLENGE" },
     });
     // Nothing was reset: with the address back, the old password still works.
     await runInComponent(t, "authEmail", async (ctx) => {
@@ -801,7 +799,7 @@ describe("completeRecovery", () => {
     expect(sent[0].subject).toMatch(/password/i);
   });
 
-  test("rejects a bad code with INVALID_LINK", async () => {
+  test("rejects an unknown secret with INVALID_CHALLENGE", async () => {
     const t = await setup();
     const result = await t.mutation(api.auth.completeRecovery, {
       emailCode: "unknown",
@@ -810,7 +808,7 @@ describe("completeRecovery", () => {
     });
     expect(result).toEqual({
       status: "error",
-      userError: { error: "INVALID_LINK" },
+      userError: { error: "INVALID_CHALLENGE" },
     });
   });
 });
