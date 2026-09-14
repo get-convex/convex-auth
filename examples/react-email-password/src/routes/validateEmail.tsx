@@ -1,99 +1,89 @@
 import {
   useCompleteSignUp,
-  useChallengeStatus,
+  type CompleteSignUpClientResult,
 } from "@convex-dev/auth/providers/email-password/react";
-import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useConvexAuth } from "convex/react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 
 /**
- * Landing page for the sign-up challenge link
- * (`/validate-email?code=…`). Shows what the link will do, then completes
- * the validation — which also signs the user in — on confirmation.
+ * Landing page for the sign-up challenge link (`/validate-email?code=…`).
+ * Completes the validation as soon as the page opens, which also signs the
+ * user in, then shows the outcome.
  */
 export function ValidateEmail() {
   const [params] = useSearchParams();
   const emailCode = params.get("code") ?? "";
-  const status = useChallengeStatus(api.auth.getChallengeStatus, {
-    emailCode,
-    flow: "signUp",
-  });
-  const { completeSignUp, pending } = useCompleteSignUp(
-    api.auth.completeSignUp,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const { isLoading } = useConvexAuth();
+  const { completeSignUp } = useCompleteSignUp(api.auth.completeSignUp);
+  const [result, setResult] = useState<CompleteSignUpClientResult>();
+  // React StrictMode runs effects twice in development. The link must be
+  // presented once.
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (emailCode === "" || isLoading || started.current) {
+      return;
+    }
+    started.current = true;
+    void completeSignUp({ emailCode }).then(setResult);
+  }, [completeSignUp, emailCode, isLoading]);
 
   if (emailCode === "") {
     return <p>This link is incomplete. Use the link from your email.</p>;
   }
-  if (status === undefined) {
-    return <p>Loading…</p>;
+  if (result === undefined) {
+    return <p>Validating your email…</p>;
   }
-  if (status.status === "missingSecret") {
+  if (result.status === "complete") {
     return (
       <>
-        <h1>Open this link in the browser you signed up from</h1>
+        <h1>Email validated</h1>
         <p>
-          For your security, the validation link only works in the browser where
-          the sign-up started. Open the link there, or sign up again in this
-          browser.
+          Your email address is validated and you are signed in.{" "}
+          <a href="/">Go to the dashboard</a>.
         </p>
       </>
     );
   }
-  if (status.status === "invalid") {
-    return (
-      <>
-        <h1>This link is not valid</h1>
-        <p>
-          The link may have expired or already been used.{" "}
-          <a href="/signup">Sign up again</a> to receive a new link.
-        </p>
-      </>
-    );
+  switch (result.userError.error) {
+    case "MISSING_SECRET":
+      return (
+        <>
+          <h1>Open this link in the browser you signed up from</h1>
+          <p>
+            For your security, the validation link only works in the browser
+            where the sign-up started. Open the link there, or sign up again in
+            this browser.
+          </p>
+        </>
+      );
+    case "INVALID_LINK":
+      return failed(
+        "The link is not valid anymore. It may have expired or already been used.",
+      );
+    case "EMAIL_TAKEN":
+      return failed("Another account validated this email address first.");
+    case "OTHER_ERROR":
+      console.error("Validation failed:", result.userError.cause);
+      return failed("Something went wrong. Reload the page to try again.");
+    default:
+      result.userError satisfies never;
+      return failed("Unknown error: " + result.userError);
   }
+}
 
+function failed(message: string) {
   return (
     <>
-      <h1>Validate your email</h1>
-      <p>
-        Confirm to validate <strong>{status.email}</strong> and sign in.
+      <h1>Could not validate your email</h1>
+      <p role="alert">
+        <strong>{message}</strong>
       </p>
-      {error ? (
-        <p role="alert">
-          <strong>{error}</strong>
-        </p>
-      ) : null}
-      <button
-        disabled={pending}
-        onClick={async () => {
-          setError(null);
-          const result = await completeSignUp({ emailCode });
-          if (result.status === "complete") {
-            navigate("/", { replace: true });
-            return;
-          }
-          setError(() => {
-            switch (result.userError.error) {
-              case "INVALID_LINK":
-                return "The link is not valid anymore. Sign up again to receive a new link.";
-              case "EMAIL_TAKEN":
-                return "Another account validated this email address first.";
-              case "MISSING_SECRET":
-                return "Open the link in the browser you signed up from.";
-              case "OTHER_ERROR":
-                console.error("Validation failed:", result.userError.cause);
-                return "Something went wrong. Please try again.";
-              default:
-                result.userError satisfies never;
-                return `Unknown error: ` + result.userError;
-            }
-          });
-        }}
-      >
-        {pending ? "Validating…" : "Validate and sign in"}
-      </button>
+      <p>
+        <a href="/signup">Sign up again</a> to receive a new link.
+      </p>
     </>
   );
 }
