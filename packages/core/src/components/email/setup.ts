@@ -13,7 +13,6 @@
  */
 import {
   createFunctionHandle,
-  queryGeneric,
   type FunctionReference,
   type GenericMutationCtx,
   type GenericQueryCtx,
@@ -38,10 +37,7 @@ import {
   validateEmailFormat,
   startChallengeUserError,
   completeChallengeUserError,
-  vChallengeStatus,
-  vEmailPasswordFlow,
   type EmailSenderConfig,
-  type ChallengeStatus,
 } from "./validation.ts";
 
 // TODO: derive this from the component mount path rather than hardcoding it.
@@ -852,62 +848,6 @@ export function setupEmailPassword<UsersTable extends string>(
               PASSWORD_CHANGED_TEXT,
             );
             return { status: "complete", tokens };
-          },
-        }),
-
-        /**
-         * Report the state of a challenge without claiming it. Landing pages
-         * call this to show which address the link is for before the user
-         * confirms. `flow` names the landing page, so a link from another
-         * flow reports `invalid`.
-         *
-         * A link is bound to a user. The sign-up landing page gives the
-         * `userId` that `signUp` returned (nobody is signed in yet); the
-         * change-email page relies on the session; recovery has no user.
-         */
-        getChallengeStatus: queryGeneric({
-          args: {
-            emailCode: v.string(),
-            browserSecret: v.string(),
-            flow: vEmailPasswordFlow,
-            userId: v.optional(v.string()),
-          },
-          returns: vChallengeStatus,
-          handler: async (
-            ctx,
-            { emailCode, browserSecret, flow, userId },
-          ): Promise<ChallengeStatus> => {
-            switch (flow) {
-              case "signUp": {
-                if (userId === undefined) {
-                  return { status: "invalid" };
-                }
-                return await ctx.runQuery(
-                  component.challenge.addEmail.getStatus,
-                  { emailCode, browserSecret, userId },
-                );
-              }
-              case "changeEmail": {
-                const sessionUser = await sessionUserId(ctx);
-                if (sessionUser === null) {
-                  return { status: "invalid" };
-                }
-                return await ctx.runQuery(
-                  component.challenge.setPrimaryEmail.getStatus,
-                  { emailCode, browserSecret, userId: sessionUser },
-                );
-              }
-              case "recovery":
-                return await ctx.runQuery(
-                  component.challenge.custom.getStatus,
-                  {
-                    emailCode,
-                    browserSecret,
-                    purpose: RECOVERY_PURPOSE,
-                    userId: null,
-                  },
-                );
-            }
           },
         }),
       };
