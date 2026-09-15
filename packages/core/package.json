@@ -84,6 +84,18 @@
       "types": "./dist/oauth/react.d.ts",
       "default": "./dist/oauth/react.js"
     },
+    "./providers/oauth/apple": {
+      "types": "./dist/oauth/apple/index.d.ts",
+      "default": "./dist/oauth/apple/index.js"
+    },
+    "./providers/oauth/apple/*.js": {
+      "types": "./dist/oauth/apple/*.d.ts",
+      "default": "./dist/oauth/apple/*.js"
+    },
+    "./providers/oauth/apple/*": {
+      "types": "./dist/oauth/apple/*.d.ts",
+      "default": "./dist/oauth/apple/*.js"
+    },
     "./providers/oauth/*.js": {
       "types": "./dist/oauth/component/*.d.ts",
       "default": "./dist/oauth/component/*.js"

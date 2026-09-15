@@ -4,22 +4,13 @@ import type { Doc } from "./_generated/dataModel.ts";
 import * as dbHelpers from "../shared/dbHelpers.ts";
 
 /**
- * Record an in-flight authorization request. Called by the app-side
- * `signIn` before it redirects the user to the provider; the provider
- * callback later claims the request by state hash.
- *
- * Returns the provider's `CLIENT_ID` and the callback URL, which the caller
- * needs for the authorization URL.
+ * Record an in-flight authorization request. Returns the Services ID and the
+ * callback URL, which the caller needs for the authorization URL.
  */
 export const createAuthorizationRequest = mutation({
   args: {
-    providerName: v.string(),
     stateHash: v.string(),
     redirectTo: v.string(),
-    codeVerifier: v.optional(v.string()),
-    tokenEndpoint: v.string(),
-    userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
-    issuers: v.optional(v.array(v.string())),
   },
   returns: v.object({
     clientId: v.string(),
@@ -33,13 +24,7 @@ export const createAuthorizationRequest = mutation({
   },
 });
 
-/**
- * Claim the authorization request the provider's callback is answering.
- *
- * If the request record has expired, it is deleted and its `redirectTo` is
- * returned so the callback can send the user back to the app instead of
- * stranding them on an error page.
- */
+/** Claim the authorization request Apple's callback is answering. */
 export const claimAuthorizationRequest = internalMutation({
   args: {
     stateHash: v.string(),
@@ -52,14 +37,9 @@ export const claimAuthorizationRequest = internalMutation({
     }),
     v.object({
       expired: v.literal(false),
-      providerName: v.string(),
       stateHash: v.string(),
       redirectTo: v.string(),
       callbackUrl: v.string(),
-      codeVerifier: v.optional(v.string()),
-      tokenEndpoint: v.string(),
-      userInfoEndpoints: v.optional(v.record(v.string(), v.string())),
-      issuers: v.optional(v.array(v.string())),
     }),
   ),
   handler: async (ctx, args) => {
@@ -75,27 +55,16 @@ export const claimAuthorizationRequest = internalMutation({
     const { doc } = claimed;
     return {
       expired: false as const,
-      providerName: doc.providerName,
       stateHash: doc.stateHash,
       redirectTo: doc.redirectTo,
       callbackUrl: doc.callbackUrl,
-      codeVerifier: doc.codeVerifier,
-      tokenEndpoint: doc.tokenEndpoint,
-      userInfoEndpoints: doc.userInfoEndpoints,
-      issuers: doc.issuers,
     };
   },
 });
 
-/**
- * Store a one-time redeemable ticket after a successful code exchange. The
- * caller (the callback) holds the raw ticket code; only its hash is
- * stored, and the identity payload arrives already encrypted with a key
- * derived from that code.
- */
+/** Store a one-time redeemable ticket after a successful code exchange. */
 export const createTicket = internalMutation({
   args: {
-    providerName: v.string(),
     stateHash: v.string(),
     ticketCodeHash: v.string(),
     encryptedPayload: v.string(),
@@ -105,14 +74,9 @@ export const createTicket = internalMutation({
     await dbHelpers.insertTicket<Doc<"tickets">>(ctx, args),
 });
 
-/**
- * Claim a ticket. The ticket code hash, state hash, and provider name must
- * all match the stored ticket, so a misconfigured or renamed provider
- * instance can't redeem a ticket into the wrong account namespace.
- */
+/** Claim a ticket. Both the ticket code hash and the state hash must match. */
 export const claimTicket = mutation({
   args: {
-    providerName: v.string(),
     ticketCodeHash: v.string(),
     stateHash: v.string(),
   },
@@ -123,9 +87,5 @@ export const claimTicket = mutation({
     }),
   ),
   handler: async (ctx, args) =>
-    await dbHelpers.claimTicket<Doc<"tickets">>(ctx, {
-      ticketCodeHash: args.ticketCodeHash,
-      stateHash: args.stateHash,
-      match: (ticket) => ticket.providerName === args.providerName,
-    }),
+    await dbHelpers.claimTicket<Doc<"tickets">>(ctx, args),
 });

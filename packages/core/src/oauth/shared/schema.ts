@@ -1,11 +1,11 @@
 /**
  * The table fields every OAuth component must have.
  *
- * The shared database code in `db.ts` reads and writes these, so a component's
- * `schema.ts` spreads them into its own two tables and adds whatever else it
- * keeps. Spreading them is also what proves the contract: the component passes
- * its generated `Doc` type to the shared database functions, which only accept
- * a document that has these fields with these types.
+ * The shared database code in `dbHelpers.ts` reads and writes these, so a
+ * component's `schema.ts` spreads them into its own two tables and adds
+ * whatever else it keeps. Spreading them is also what proves the contract: the
+ * component passes its generated `Doc` type to the shared database functions,
+ * which only accept a document that has these fields with these types.
  *
  * @module
  */

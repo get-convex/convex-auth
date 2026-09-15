@@ -9,13 +9,13 @@ Probably all public routes need rate limiting of some sort.
 ## OAuth component documents are never cleaned up, and `startSignIn` is unauthenticated
 
 Expired authorization requests and tickets are only deleted when their
-secret is later presented (`packages/core/src/oauth/shared/db.ts`), so
-abandoned flows accumulate forever.
+secret is later presented (`packages/core/src/oauth/shared/dbHelpers.ts`),
+so abandoned flows accumulate forever.
 
 ## OAuth sign-in requires a backend with system env vars in components
 
 An oauth component builds its callback URL from `CONVEX_SITE_URL` with its
-`httpPrefix` applied (`packages/core/src/oauth/shared/db.ts`), which
+`httpPrefix` applied (`packages/core/src/oauth/shared/dbHelpers.ts`), which
 components only see on backends with get-convex/convex-backend@64c163a
 (self-hosted minimum release `precompiled-2026-07-28-f0d0b8b`, July 28,
 2026). Cloud always has it; an older self-hosted backend fails the first
@@ -55,18 +55,6 @@ takes no prop for them (`packages/core/src/nextjs/index.tsx`), so `oauth()` is
 never registered and the OAuth hooks throw wherever they're used under SSR. The
 sign-in api pointed at the auth proxy is already there, so what's missing is the
 registration.
-
-## Apple sign-in isn't supported yet
-
-Two gaps. The callback route only accepts GET redirects, and Apple POSTs the
-callback (`response_mode=form_post`) whenever name/email scopes are
-requested. And Apple has no static client secret: it requires a short-lived
-ES256 client-secret JWT, signed with a registered key and rotated, where the
-catalogs assume a static `CLIENT_SECRET` binding.
-
-Potential fix direction: accept POST on the callback route
-(`packages/core/src/oauth/component/http.ts`), and add a signed-secret
-mechanism to the catalog config (`packages/core/src/oauth/component/setup.ts`).
 
 ## Refresh-token reuse detection has a bounded horizon
 

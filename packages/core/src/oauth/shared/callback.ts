@@ -55,11 +55,17 @@ export function redirectToApp(
 
 /**
  * Turn the provider's `error` parameter into one of the codes the client
- * understands. `access_denied` is the standard code for a user who declined.
- * Everything unrecognized is a generic failure.
+ * understands. Everything unrecognized is a generic failure.
  */
-export function normalizeProviderError(error: string | null): string {
-  if (error === "access_denied") {
+export function normalizeProviderError(
+  error: string | null,
+  // Accepts additional provider-specific codes that are synonymous with
+  // "access_denied".
+  extraDeniedErrorCodes: string[] = [],
+): string {
+  const deniedCodes = ["access_denied", ...extraDeniedErrorCodes];
+  if (error !== null && deniedCodes.includes(error)) {
+    // Generally means the user declined.
     return "access_denied";
   }
   return "oauth_error";
@@ -232,7 +238,11 @@ export async function fetchUserInfo(
   return Object.fromEntries(responses);
 }
 
-/** The parameters a provider sends to the callback. */
+/**
+ * The parameters a provider sends to the callback. This is a transport type
+ * that only represents possible values as copied from the provider callback
+ * query params, it doesn't indicate what combinations of values are valid.
+ */
 export type CallbackRequestParams = {
   state: string | null;
   code: string | null;
@@ -298,6 +308,17 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
   ) => Promise<null>;
   /** The endpoints and credentials for this flow's provider. */
   exchangeConfig: (request: Request) => ExchangeConfig;
+  /**
+   * Extra provider data that arrived in the callback request itself, as a
+   * query or form field rather than through a token, already sanitized.
+   * Browser-relayed, so it is user-controlled and untrusted.
+   */
+  callbackParams?: Record<string, unknown>;
+  /**
+   * This provider's own error codes for a user who declined, on top of the
+   * standard `access_denied` that is always handled.
+   */
+  extraDeniedErrorCodes?: string[];
   /** The status used by redirects back to the app. */
   redirectStatus: RedirectStatus;
 }): Promise<Response> {
@@ -353,7 +374,12 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
     );
     return redirectToApp(
       authRequest.redirectTo,
-      { [OAUTH_ERROR_PARAM]: normalizeProviderError(params.error) },
+      {
+        [OAUTH_ERROR_PARAM]: normalizeProviderError(
+          params.error,
+          options.extraDeniedErrorCodes,
+        ),
+      },
       redirectStatus,
     );
   }
@@ -394,7 +420,11 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
       ticketCodeHash: await sha256Hex(ticketCode),
       encryptedPayload: await encryptTicketPayload(
         ticketCode,
-        JSON.stringify({ claims, userInfoResponses } satisfies TicketPayload),
+        JSON.stringify({
+          claims,
+          userInfoResponses,
+          callbackParams: options.callbackParams,
+        } satisfies TicketPayload),
       ),
     });
 
