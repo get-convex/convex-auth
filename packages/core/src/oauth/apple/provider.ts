@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { env, internalMutation, mutation } from "./_generated/server.ts";
 import type { Doc } from "./_generated/dataModel.ts";
-import * as db from "../shared/db.ts";
+import * as dbHelpers from "../shared/dbHelpers.ts";
 
 /**
  * Record an in-flight authorization request. Returns the Services ID and the
@@ -17,7 +17,7 @@ export const createAuthorizationRequest = mutation({
     callbackUrl: v.string(),
   }),
   handler: async (ctx, args) => {
-    const { callbackUrl } = await db.insertAuthorizationRequest<
+    const { callbackUrl } = await dbHelpers.insertAuthorizationRequest<
       Doc<"authorizationRequests">
     >(ctx, args);
     return { clientId: env.CLIENT_ID, callbackUrl };
@@ -43,7 +43,7 @@ export const claimAuthorizationRequest = internalMutation({
     }),
   ),
   handler: async (ctx, args) => {
-    const claimed = await db.claimAuthorizationRequest<
+    const claimed = await dbHelpers.claimAuthorizationRequest<
       Doc<"authorizationRequests">
     >(ctx, args.stateHash);
     if (claimed === null) {
@@ -71,10 +71,10 @@ export const createTicket = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) =>
-    await db.insertTicket<Doc<"tickets">>(ctx, args),
+    await dbHelpers.insertTicket<Doc<"tickets">>(ctx, args),
 });
 
-/** Claim a ticket by hash, presenting the state minted at sign-in. */
+/** Claim a ticket. Both the ticket code hash and the state hash must match. */
 export const claimTicket = mutation({
   args: {
     ticketCodeHash: v.string(),
@@ -86,5 +86,6 @@ export const claimTicket = mutation({
       encryptedPayload: v.string(),
     }),
   ),
-  handler: async (ctx, args) => await db.claimTicket<Doc<"tickets">>(ctx, args),
+  handler: async (ctx, args) =>
+    await dbHelpers.claimTicket<Doc<"tickets">>(ctx, args),
 });

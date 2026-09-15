@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { env, internalMutation, mutation } from "./_generated/server.ts";
 import type { Doc } from "./_generated/dataModel.ts";
-import * as db from "../shared/db.ts";
+import * as dbHelpers from "../shared/dbHelpers.ts";
 
 /**
  * Record an in-flight authorization request. Called by the app-side
@@ -26,7 +26,7 @@ export const createAuthorizationRequest = mutation({
     callbackUrl: v.string(),
   }),
   handler: async (ctx, args) => {
-    const { callbackUrl } = await db.insertAuthorizationRequest<
+    const { callbackUrl } = await dbHelpers.insertAuthorizationRequest<
       Doc<"authorizationRequests">
     >(ctx, args);
     return { clientId: env.CLIENT_ID, callbackUrl };
@@ -63,7 +63,7 @@ export const claimAuthorizationRequest = internalMutation({
     }),
   ),
   handler: async (ctx, args) => {
-    const claimed = await db.claimAuthorizationRequest<
+    const claimed = await dbHelpers.claimAuthorizationRequest<
       Doc<"authorizationRequests">
     >(ctx, args.stateHash);
     if (claimed === null) {
@@ -102,17 +102,13 @@ export const createTicket = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) =>
-    await db.insertTicket<Doc<"tickets">>(ctx, args),
+    await dbHelpers.insertTicket<Doc<"tickets">>(ctx, args),
 });
 
 /**
- * Claim a ticket by ticket code hash: find, check, delete, and return it
- * in one transaction, so a replayed or raced redemption finds nothing.
- *
- * The caller must also present the hash of the state minted at sign-in,
- * binding redemption to the client that initiated the flow, and the provider
- * name it expects, so a misconfigured or renamed provider instance can't
- * redeem a ticket into the wrong account namespace.
+ * Claim a ticket. The ticket code hash, state hash, and provider name must
+ * all match the stored ticket, so a misconfigured or renamed provider
+ * instance can't redeem a ticket into the wrong account namespace.
  */
 export const claimTicket = mutation({
   args: {
@@ -127,7 +123,7 @@ export const claimTicket = mutation({
     }),
   ),
   handler: async (ctx, args) =>
-    await db.claimTicket<Doc<"tickets">>(ctx, {
+    await dbHelpers.claimTicket<Doc<"tickets">>(ctx, {
       ticketCodeHash: args.ticketCodeHash,
       stateHash: args.stateHash,
       match: (ticket) => ticket.providerName === args.providerName,

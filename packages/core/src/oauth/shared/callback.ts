@@ -238,7 +238,11 @@ export async function fetchUserInfo(
   return Object.fromEntries(responses);
 }
 
-/** The parameters a provider sends to the callback. */
+/**
+ * The parameters a provider sends to the callback. This is a transport type
+ * that only represents possible values as copied from the provider callback
+ * query params, it doesn't indicate what combinations of values are valid.
+ */
 export type CallbackRequestParams = {
   state: string | null;
   code: string | null;

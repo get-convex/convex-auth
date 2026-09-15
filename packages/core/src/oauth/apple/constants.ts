@@ -1,6 +1,8 @@
 /**
  * Everything about Apple that never varies between apps. This component
  * serves Apple only, so these are constants rather than configuration.
+ *
+ * @module
  */
 
 /** Where the browser is sent to sign in. */

@@ -35,8 +35,8 @@ app.use(auth, {
 // needs a publicly reachable host like the convex.site url above. Local or
 // self-hosted deployments may need to take extra steps for this, e.g., using a
 // tunnel.
-// The app itself can stay on localhost, since Apple never sees where the flow
-// returns to.
+// The app frontend can stay on localhost, since Apple never sees where the
+// flow returns to.
 app.use(apple, {
   httpPrefix: "/oauth/apple",
   env: {
