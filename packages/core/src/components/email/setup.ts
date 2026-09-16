@@ -748,7 +748,11 @@ export function setupEmailPassword<UsersTable extends string>(
             const start = await ctx.runMutation(
               component.challenge.custom.start,
               {
-                email,
+                // Send the link to the stored address, not to the typed one.
+                // The lookup ignores the case, but a mail server can treat
+                // `Alice@` and `alice@` as two mailboxes. Only the case that
+                // the owner verified must receive a recovery link.
+                email: account.email,
                 purpose: RECOVERY_PURPOSE,
                 // Nobody is signed in: the account is found again from the
                 // verified address at completion.
