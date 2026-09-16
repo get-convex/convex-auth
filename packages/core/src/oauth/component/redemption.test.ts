@@ -88,7 +88,7 @@ const FAKE_CORE = {
       }) => {
         helperCalls.push({
           kind,
-          claims: { provider: name, providerAccountId, profile },
+          claims: { providerName: name, providerAccountId, profile },
         });
         if (helperFailure.error !== undefined) {
           throw helperFailure.error;
@@ -307,7 +307,7 @@ describe("completeSignIn", () => {
       {
         kind: "signUp",
         claims: {
-          provider: "acme",
+          providerName: "acme",
           providerAccountId: "acme-sub-1",
           profile: { id: "acme-sub-1", email: "ada@example.com", name: "Ada" },
         },
@@ -331,7 +331,7 @@ describe("completeSignIn", () => {
       {
         kind: "signIn",
         claims: {
-          provider: "acme",
+          providerName: "acme",
           providerAccountId: "acme-sub-1",
           profile: { id: "acme-sub-1", email: "ada@example.com", name: "Ada" },
         },
@@ -356,7 +356,7 @@ describe("completeSignIn", () => {
       {
         kind: "signUp",
         claims: {
-          provider: "acmeInfo",
+          providerName: "acmeInfo",
           providerAccountId: "42",
           profile: { id: "42", login: "octocat" },
         },

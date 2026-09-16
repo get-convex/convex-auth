@@ -59,7 +59,7 @@ beforeAll(async () => {
 
 function claims(overrides: Partial<AuthClaims> = {}): AuthClaims {
   return {
-    provider: "password",
+    providerName: "password",
     providerAccountId: "alice",
     profile: { name: "Alice" },
     ...overrides,
@@ -171,18 +171,22 @@ describe("signUp", () => {
 
     expect(getCreateUserCalls()).toEqual([
       {
-        provider: "password",
-        providerAccountId: "alice",
-        profile: { name: "Alice" },
+        provider: {
+          name: "password",
+          accountId: "alice",
+          profile: { name: "Alice" },
+        },
       },
     ]);
     // A first sign-in is still a sign-in, so onSignIn runs too, with the id
     // createUser just returned. Per-sign-in work has one home.
     expect(getOnSignInCalls()).toEqual([
       {
-        provider: "password",
-        providerAccountId: "alice",
-        profile: { name: "Alice" },
+        provider: {
+          name: "password",
+          accountId: "alice",
+          profile: { name: "Alice" },
+        },
         userId: "alice",
       },
     ]);
@@ -273,9 +277,11 @@ describe("signIn", () => {
     expect(getCreateUserCalls()).toHaveLength(1);
     expect(getOnSignInCalls()).toHaveLength(2);
     expect(getOnSignInCalls()[1]).toEqual({
-      provider: "password",
-      providerAccountId: "alice",
-      profile: { name: "Alice 2.0" },
+      provider: {
+        name: "password",
+        accountId: "alice",
+        profile: { name: "Alice 2.0" },
+      },
       userId: "alice",
     });
   });
@@ -761,7 +767,7 @@ describe("getUserIdByAccount", () => {
     const t = setup();
     await signUp(
       t,
-      claims({ provider: "password", providerAccountId: "alice" }),
+      claims({ providerName: "password", providerAccountId: "alice" }),
     );
     const other = await t.query(api.public.getUserIdByAccount, {
       provider: "google",

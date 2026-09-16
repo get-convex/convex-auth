@@ -308,7 +308,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
       }): Promise<TokenBundle> => {
         return await ctx.runMutation(component.public.signUp, {
           claims: {
-            provider: name,
+            providerName: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },
@@ -325,7 +325,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
       }): Promise<TokenBundle> => {
         return await ctx.runMutation(component.public.signIn, {
           claims: {
-            provider: name,
+            providerName: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },
@@ -344,7 +344,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
       }): Promise<{ userId: string }> => {
         return await ctx.runMutation(component.public.signUpWithoutSession, {
           claims: {
-            provider: name,
+            providerName: name,
             providerAccountId: args.providerAccountId,
             profile: args.profile,
           },

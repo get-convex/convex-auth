@@ -1,6 +1,20 @@
-import { vCreateUser, vOnSignIn } from "../../lib/types.ts";
 import { internalMutation } from "./_generated/server.ts";
 import { Infer, v } from "convex/values";
+
+const vProvider = v.object({
+  name: v.string(),
+  accountId: v.string(),
+  profile: v.any(),
+});
+
+const vCreateUser = v.object({
+  provider: vProvider,
+});
+
+const vOnSignIn = v.object({
+  provider: vProvider,
+  userId: v.string(),
+});
 
 /**
  * Test-only spy state. The core calls the app's `createUser` when it first sees
@@ -41,7 +55,7 @@ export const createUser = internalMutation({
   returns: v.string(),
   handler: async (_ctx, args) => {
     createUserCalls.push({ ...args });
-    return args.providerAccountId;
+    return args.provider.accountId;
   },
 });
 
