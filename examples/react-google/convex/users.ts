@@ -8,9 +8,11 @@ import { vGoogleProfile } from "@convex-dev/auth/providers/oauth/google";
  */
 export const createUser = internalMutation({
   args: {
-    provider: v.literal("google"),
-    providerAccountId: v.string(),
-    profile: vGoogleProfile,
+    provider: v.object({
+      name: v.literal("google"),
+      accountId: v.string(),
+      profile: vGoogleProfile,
+    }),
   },
   returns: v.id("users"),
   handler: async (ctx) => {

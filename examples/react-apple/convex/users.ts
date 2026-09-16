@@ -11,15 +11,17 @@ import { vAppleProfile } from "@convex-dev/auth/providers/oauth/apple";
  */
 export const createUser = internalMutation({
   args: {
-    provider: v.literal("apple"),
-    providerAccountId: v.string(),
-    profile: vAppleProfile,
+    provider: v.object({
+      name: v.literal("apple"),
+      accountId: v.string(),
+      profile: vAppleProfile,
+    }),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
     return await ctx.db.insert("users", {
-      name: args.profile.name,
-      email: args.profile.email,
+      name: args.provider.profile.name,
+      email: args.provider.profile.email,
     });
   },
 });
@@ -34,19 +36,22 @@ export const createUser = internalMutation({
  */
 export const onSignIn = internalMutation({
   args: {
-    provider: v.literal("apple"),
-    providerAccountId: v.string(),
-    profile: vAppleProfile,
+    provider: v.object({
+      name: v.literal("apple"),
+      accountId: v.string(),
+      profile: vAppleProfile,
+    }),
     userId: v.id("users"),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    if (args.profile.name === undefined) {
+    const { name } = args.provider.profile;
+    if (name === undefined) {
       return null;
     }
     const user = await ctx.db.get("users", args.userId);
     if (user !== null && user.name === undefined) {
-      await ctx.db.patch("users", args.userId, { name: args.profile.name });
+      await ctx.db.patch("users", args.userId, { name });
     }
     return null;
   },

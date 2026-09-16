@@ -291,7 +291,7 @@ async function createAccount(
   if (claims.providerAccountId !== USE_USER_ID_AS_ACCOUNT_ID) {
     const account = await accountByIdentity(
       ctx,
-      claims.provider,
+      claims.providerName,
       claims.providerAccountId,
     );
     if (account !== null) {
@@ -299,7 +299,7 @@ async function createAccount(
       // second app user for someone who already has one. Fail before calling
       // the app.
       throw new Error(
-        `Cannot create an account: an account for provider = ${JSON.stringify(claims.provider)} ` +
+        `Cannot create an account: an account for provider = ${JSON.stringify(claims.providerName)} ` +
           `and provider account ID = ${JSON.stringify(claims.providerAccountId)} already ` +
           `exists. Providers that cannot tell a first sign-in from a return visit must ` +
           `look the identity up (getUserIdByAccount) and call signIn instead.`,
@@ -308,11 +308,13 @@ async function createAccount(
   }
 
   const userId = await ctx.runMutation(createUser, {
-    provider: claims.provider,
-    providerAccountId: claims.providerAccountId,
-    profile: claims.profile,
+    provider: {
+      name: claims.providerName,
+      accountId: claims.providerAccountId,
+      profile: claims.profile,
+    },
   });
-  const { provider } = claims;
+  const { providerName } = claims;
   const providerAccountId =
     claims.providerAccountId === USE_USER_ID_AS_ACCOUNT_ID
       ? userId
@@ -322,16 +324,16 @@ async function createAccount(
   const existingAccount = await ctx.db
     .query("accounts")
     .withIndex("by_provider_account", (q) =>
-      q.eq("provider", provider).eq("providerAccountId", providerAccountId),
+      q.eq("provider", providerName).eq("providerAccountId", providerAccountId),
     )
     .first();
   if (existingAccount !== null) {
     throw new Error(
-      `Invariant violation: an account for provider = ${JSON.stringify(provider)} and provider account ID = ${JSON.stringify(providerAccountId)} already exists`,
+      `Invariant violation: an account for provider = ${JSON.stringify(providerName)} and provider account ID = ${JSON.stringify(providerAccountId)} already exists`,
     );
   }
   const accountId = await ctx.db.insert("accounts", {
-    provider,
+    provider: providerName,
     providerAccountId,
     userId,
   });
@@ -351,9 +353,11 @@ async function notifySignIn(
 ): Promise<void> {
   if (onSignInHandle === undefined) return;
   await ctx.runMutation(onSignInHandle as OnSignInFunctionHandle, {
-    provider: claims.provider,
-    providerAccountId: claims.providerAccountId,
-    profile: claims.profile,
+    provider: {
+      name: claims.providerName,
+      accountId: claims.providerAccountId,
+      profile: claims.profile,
+    },
     userId: asUserId(userId),
   });
 }
@@ -433,12 +437,12 @@ export const signIn = mutation({
     const { claims } = args;
     const account = await accountByIdentity(
       ctx,
-      claims.provider,
+      claims.providerName,
       claims.providerAccountId,
     );
     if (account === null) {
       throw new Error(
-        `Cannot sign in: no account for provider = ${JSON.stringify(claims.provider)} ` +
+        `Cannot sign in: no account for provider = ${JSON.stringify(claims.providerName)} ` +
           `and provider account ID = ${JSON.stringify(claims.providerAccountId)} exists. ` +
           `A first sign-in for an identity must go through signUp.`,
       );

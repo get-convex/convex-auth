@@ -18,9 +18,11 @@ import { internalMutation, query } from "./_generated/server";
 
 export const createUserAnonymous = internalMutation({
   args: {
-    provider: v.literal("anonymous"),
-    providerAccountId: v.string(),
-    profile: v.object({}),
+    provider: v.object({
+      name: v.literal("anonymous"),
+      accountId: v.string(),
+      profile: v.object({}),
+    }),
   },
   returns: v.id("users"),
   handler: async (ctx) => {
@@ -30,13 +32,17 @@ export const createUserAnonymous = internalMutation({
 
 export const createUserPassword = internalMutation({
   args: {
-    provider: v.literal("password"),
-    providerAccountId: v.string(),
-    profile: v.object({ username: v.string() }),
+    provider: v.object({
+      name: v.literal("password"),
+      accountId: v.string(),
+      profile: v.object({ username: v.string() }),
+    }),
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("users", { username: args.profile.username });
+    return await ctx.db.insert("users", {
+      username: args.provider.profile.username,
+    });
   },
 });
 
@@ -45,9 +51,11 @@ export const createUserPassword = internalMutation({
 
 export const onSignInAnonymous = internalMutation({
   args: {
-    provider: v.literal("anonymous"),
-    providerAccountId: v.string(),
-    profile: v.object({}),
+    provider: v.object({
+      name: v.literal("anonymous"),
+      accountId: v.string(),
+      profile: v.object({}),
+    }),
     userId: v.id("users"),
   },
   returns: v.null(),
@@ -58,9 +66,11 @@ export const onSignInAnonymous = internalMutation({
 
 export const onSignInPassword = internalMutation({
   args: {
-    provider: v.literal("password"),
-    providerAccountId: v.string(),
-    profile: v.object({ username: v.string() }),
+    provider: v.object({
+      name: v.literal("password"),
+      accountId: v.string(),
+      profile: v.object({ username: v.string() }),
+    }),
     userId: v.id("users"),
   },
   returns: v.null(),

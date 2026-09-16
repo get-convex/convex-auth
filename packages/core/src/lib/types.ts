@@ -226,7 +226,7 @@ export type ConvexAuthApi = {
  */
 export const vAuthClaims = v.object({
   /** Provider name, e.g. "password". */
-  provider: v.string(),
+  providerName: v.string(),
   /**
    * Stable, provider-scoped account identifier (e.g. the Google account ID).
    */
@@ -247,19 +247,6 @@ export type AuthClaims = Infer<typeof vAuthClaims>;
  */
 export const USE_USER_ID_AS_ACCOUNT_ID = "";
 
-export const vCreateUser = v.object({
-  provider: v.string(),
-  providerAccountId: v.string(),
-  profile: v.any(),
-});
-
-export const vOnSignIn = v.object({
-  provider: v.string(),
-  providerAccountId: v.string(),
-  profile: v.any(),
-  userId: v.string(),
-});
-
 /**
  * The type of an app defined user-creating mutation: create the app's user
  * record for an identity the core has not seen before, and return its id. It
@@ -277,8 +264,8 @@ export const vOnSignIn = v.object({
  * type `Id<usersTable>` rather than a bare string.
  *
  * The mutation's args must be declared with the provider's *exact* literal
- * types (e.g. `provider: v.literal("password")`, `profile: v.object({ username:
- * v.string() })`).
+ * types (e.g. `provider: v.object({ name: v.literal("password"), accountId:
+ * v.string(), profile: v.object({ username: v.string() }) })`).
  *
  * One mutation shared across providers, declaring a union of provider names,
  * is runtime-safe but does not typecheck, because `FunctionReference` args
@@ -286,16 +273,18 @@ export const vOnSignIn = v.object({
  * that delegates to a plain shared function.
  */
 export type CreateUserFn<
-  Provider extends string,
+  ProviderName extends string,
   Profile,
   UsersTable extends string = string,
 > = FunctionReference<
   "mutation",
   "internal",
   {
-    provider: Provider;
-    providerAccountId: string;
-    profile: Profile;
+    provider: {
+      name: ProviderName;
+      accountId: string;
+      profile: Profile;
+    };
   },
   GenericId<UsersTable>
 >;
@@ -320,16 +309,18 @@ export type CreateUserFn<
  * shared function) is how to share logic across providers.
  */
 export type OnSignInFn<
-  Provider extends string,
+  ProviderName extends string,
   Profile,
   UsersTable extends string = string,
 > = FunctionReference<
   "mutation",
   "internal",
   {
-    provider: Provider;
-    providerAccountId: string;
-    profile: Profile;
+    provider: {
+      name: ProviderName;
+      accountId: string;
+      profile: Profile;
+    };
     userId: GenericId<UsersTable>;
   },
   null

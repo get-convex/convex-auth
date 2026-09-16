@@ -8,9 +8,11 @@ import { vGithubProfile } from "@convex-dev/auth/providers/oauth/github";
  */
 export const createUser = internalMutation({
   args: {
-    provider: v.literal("github"),
-    providerAccountId: v.string(),
-    profile: vGithubProfile,
+    provider: v.object({
+      name: v.literal("github"),
+      accountId: v.string(),
+      profile: vGithubProfile,
+    }),
   },
   returns: v.id("users"),
   handler: async (ctx) => {

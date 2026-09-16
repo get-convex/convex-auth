@@ -7,9 +7,11 @@ import { v } from "convex/values";
  */
 export const createUser = internalMutation({
   args: {
-    provider: v.literal("passkey"),
-    providerAccountId: v.string(),
-    profile: v.object({ username: v.string() }),
+    provider: v.object({
+      name: v.literal("passkey"),
+      accountId: v.string(),
+      profile: v.object({ username: v.string() }),
+    }),
   },
   returns: v.id("users"),
   handler: async (ctx) => {
