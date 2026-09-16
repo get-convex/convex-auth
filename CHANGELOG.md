@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-alpha.2
+
+- added passkey management support (add/remove/rename)
+- added change password support
+- added Apple OAuth support
+- hardened refresh token reuse prevention
+- switched to SimpleWebAuthn for passkeys
+
 ## 2.0.0-alpha.1
 
 Initial v2 alpha
