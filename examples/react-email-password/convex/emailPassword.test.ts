@@ -646,6 +646,22 @@ describe("startRecovery", () => {
     ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
   });
 
+  test("sends the link to the stored address when the typed case differs", async () => {
+    // A mail server can treat `Alice@` and `alice@` as two mailboxes. The
+    // lookup ignores the case, but the link must reach the mailbox that
+    // verified the address, or the owner of the other mailbox could reset
+    // the password of this account.
+    const t = await setup();
+    await seedSignedUpUser(t, { email: "Alice@example.com" });
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.auth.startRecovery, { email: "alice@example.com" });
+    expect(result).toMatchObject({ success: true });
+    const sent = await sentEmails(t);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual(["Alice@example.com"]);
+  });
+
   test("surfaces EMAIL_NOT_FOUND for an unknown email", async () => {
     const t = await setup();
     const result = await t
