@@ -24,3 +24,6 @@ yarn-error.log*
 .env*.local
 .vercel
 next-env.d.ts
+
+# generated API reference
+/content/docs/api
