@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -104,6 +105,25 @@ function writeShims(entries) {
 }
 
 /**
+ * Fumadocs shows every folder with an index page as a collapsible entry, even
+ * when nothing else is inside. A module without class or interface pages
+ * becomes a plain page instead. Its URL stays the same, because `x/index.md`
+ * and `x.md` both map to `/x`.
+ */
+function flattenLeafModules(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const child = path.join(dir, entry.name);
+    flattenLeafModules(child);
+    const contents = readdirSync(child);
+    if (contents.length === 1 && contents[0] === "index.md") {
+      renameSync(path.join(child, "index.md"), `${child}.md`);
+      rmSync(child, { recursive: true });
+    }
+  }
+}
+
+/**
  * Fumadocs titles a folder after its index page. Folders without one, like
  * `providers` or `classes`, get a `meta.json` so the sidebar label matches the
  * import path instead of a capitalized folder name.
@@ -174,5 +194,6 @@ writeFileSync(
   path.join(outDir, "meta.json"),
   JSON.stringify({ title: "API reference", root: false }, null, 2) + "\n",
 );
+flattenLeafModules(outDir);
 writeFolderMeta(outDir);
 console.log(`Wrote ${outDir}`);
