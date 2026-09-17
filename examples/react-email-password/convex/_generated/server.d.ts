@@ -32,6 +32,9 @@ type Env = {
   readonly CONVEX_SITE_URL: string;
   readonly AUTH_JWKS: string;
   readonly AUTH_PRIVATE_KEY: string;
+  readonly EMAIL_FROM: string | undefined;
+  readonly RESEND_API_KEY: string;
+  readonly SITE_URL: string | undefined;
 };
 
 /**
