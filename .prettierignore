@@ -14,3 +14,5 @@ packages/argon2id-wasm/rust/target/
 **/.next/
 **/.source/
 next-env.d.ts
+packages/docs/content/docs/api
+packages/core/.api-entrypoints

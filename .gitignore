@@ -45,3 +45,6 @@ CLAUDE.md
 
 # pack artifacts
 *.tgz
+
+# shims written by packages/docs/scripts/generate-api-reference.mjs
+packages/core/.api-entrypoints
