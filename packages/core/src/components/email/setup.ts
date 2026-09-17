@@ -97,8 +97,7 @@ type SendEmailReference = FunctionReference<
  *
  * Only Resend is supported for now, through the `@convex-dev/resend`
  * component. Mount that component in the app and pass its `sendEmail`
- * reference here. The Resend API key comes from the `RESEND_API_KEY`
- * environment variable of the app deployment.
+ * reference and your Resend API key here.
  *
  * TODO: support other email providers.
  * TODO: offer a first-party zero-configuration email service.
@@ -108,7 +107,16 @@ export type EmailSenderOptions = {
   kind: "resend";
   /** The mounted Resend component's `lib.sendEmail` reference. */
   sendEmail: SendEmailReference;
-  /** The From address, e.g. `"My App <auth@example.com>"`. */
+  /**
+   * The Resend API key. Read it from an environment variable of the
+   * deployment (e.g. `env.RESEND_API_KEY`) rather than writing it in the
+   * source.
+   */
+  apiKey: string;
+  /**
+   * The From address, e.g. `"My App <auth@example.com>"`. Outside test mode
+   * the address must be on a domain you verified with Resend.
+   */
   from: string;
   /**
    * Resend's test mode. Defaults to `true`, where only Resend test
@@ -277,6 +285,8 @@ export type EmailPasswordProfile = Record<string, never>;
  *   `convex/auth.ts`:
  *
  * ```ts
+ * import { env } from "./_generated/server";
+ *
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
@@ -286,12 +296,14 @@ export type EmailPasswordProfile = Record<string, never>;
  *   emailSender: {
  *     kind: "resend",
  *     sendEmail: components.resend.lib.sendEmail,
+ *     apiKey: env.RESEND_API_KEY,
  *     from: "My App <auth@example.com>",
+ *     testMode: false,
  *   },
  *   urls: {
- *     signUp: `${process.env.SITE_URL}/validate-email`,
- *     changeEmail: `${process.env.SITE_URL}/confirm-email-change`,
- *     recovery: `${process.env.SITE_URL}/reset-password`,
+ *     signUp: `${env.SITE_URL}/validate-email`,
+ *     changeEmail: `${env.SITE_URL}/confirm-email-change`,
+ *     recovery: `${env.SITE_URL}/reset-password`,
  *   },
  * }).attachUserCallback(internal.users.createOrUpdateUser);
  * ```
@@ -313,22 +325,13 @@ export function setupEmailPassword<UsersTable extends string>(
   const { component, passwordComponent, emailSender, urls } = options;
 
   /** The Resend runtime options `lib.sendEmail` requires. */
-  const senderRuntimeOptions = () => {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (apiKey === undefined || apiKey === "") {
-      throw new Error(
-        "Set the RESEND_API_KEY environment variable on your deployment: " +
-          "the EmailPassword provider sends email through Resend.",
-      );
-    }
-    return {
-      apiKey,
-      testMode: emailSender.testMode ?? true,
-      // TODO: review these values (and make them configurable).
-      initialBackoffMs: 30 * 1000,
-      retryAttempts: 5,
-    };
-  };
+  const senderRuntimeOptions = () => ({
+    apiKey: emailSender.apiKey,
+    testMode: emailSender.testMode ?? true,
+    // TODO: review these values (and make them configurable).
+    initialBackoffMs: 30 * 1000,
+    retryAttempts: 5,
+  });
 
   /** The sender config the email component's `start` mutations accept. */
   const senderConfig = async (): Promise<EmailSenderConfig> => ({
