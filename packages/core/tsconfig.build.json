@@ -28,6 +28,7 @@
     // Ships as source (see the `./providers/testing/*` export).
     "src/components/testing/**",
     "src/components/passkeyTestSetup.ts",
+    "src/components/emailTestSetup.ts",
     "src/oauth/testFlow.ts",
     "src/react/testSignInApi.ts"
   ]
