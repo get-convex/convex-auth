@@ -127,7 +127,7 @@ export function setupUsernamePassword<UsersTable extends string>(
     attachUserCallbacks({
       createUser,
       onSignIn,
-    }: UserCallbacks<"password", { username: string }, UsersTable>) {
+    }: UserCallbacks<"password", Record<string, never>, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
         createUser,
@@ -175,8 +175,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             // Create the account + app user (via the app's createUser) and
             // mint the session. Password accounts are keyed by the app user id,
             // which does not exist before this call mints it, hence the
-            // placeholder; sign-in passes the user id itself. `profile.username`
-            // keeps the original casing for display.
+            // placeholder; sign-in passes the user id itself.
             //
             // TODO(nicolas) The app's user callbacks should not receive a
             // provider account ID for the password provider at all: the value
@@ -185,7 +184,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             // providers support typesafe profiles.
             const tokens = await ctx.convexAuth.completeSignUp({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-              profile: { username },
+              profile: {},
             });
 
             const setUsernameResult = await ctx.runMutation(
@@ -265,7 +264,7 @@ export function setupUsernamePassword<UsersTable extends string>(
             // is the right helper.
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
-              profile: { username },
+              profile: {},
             });
             return { status: "complete", tokens };
           },
