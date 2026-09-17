@@ -24,6 +24,9 @@ export const {
   emailSender: {
     kind: "resend",
     sendEmail: components.resend.lib.sendEmail,
+    // Set it on the deployment: `npx convex env set RESEND_API_KEY re_...`
+    // (see the README). Resend rejects every send until it is set.
+    apiKey: process.env.RESEND_API_KEY ?? "",
     // Resend's shared onboarding sender; replace it with a sender on
     // your own verified domain.
     from: "My App <onboarding@resend.dev>",

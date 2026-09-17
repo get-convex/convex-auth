@@ -132,20 +132,20 @@ importers:
         version: link:../../packages/core
       '@convex-dev/resend':
         specifier: ^0.2.6
-        version: 0.2.6(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.2.6(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
     devDependencies:
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
-        version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@types/node':
         specifier: ^24.12.4
         version: 24.13.2
       convex-test:
         specifier: https://pkg.pr.new/convex-test@135
-        version: https://pkg.pr.new/convex-test@135(convex@1.43.0(react@19.2.7))
+        version: https://pkg.pr.new/convex-test@135(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -2125,6 +2125,12 @@ packages:
     peerDependencies:
       convex: ^1.43.0
 
+  convex-test@https://pkg.pr.new/convex-test@135:
+    resolution: {tarball: https://pkg.pr.new/convex-test@135}
+    version: 0.0.58
+    peerDependencies:
+      convex: ^1.43.0
+
   convex@1.46.0:
     resolution: {integrity: sha512-dhBwDQTZDOhi5SUGAX17EWNehCdNq6/UFrSL0eLZuGfMkdsQbCVWVRZCzbZ5CF+/pgvoGxtApbEoTSipqL4JTw==}
     engines: {node: '>=20.0.0', npm: '>=7.0.0'}
@@ -3662,9 +3668,9 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  '@convex-dev/batch-worker@0.2.0(convex@1.43.0(react@19.2.7))(react@19.2.7)':
+  '@convex-dev/batch-worker@0.2.0(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
-      convex: 1.43.0(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
       react: 19.2.7
 
   '@convex-dev/batch-worker@0.2.2(convex@1.46.0(react@19.2.7))(react@19.2.7)':
@@ -3699,12 +3705,12 @@ snapshots:
     optionalDependencies:
       react: 19.2.7
 
-  '@convex-dev/resend@0.2.6(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.43.0(react@19.2.7))(react@19.2.7)':
+  '@convex-dev/resend@0.2.6(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@convex-dev/rate-limiter': 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
-      '@convex-dev/workpool': 0.4.9(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.43.0(react@19.2.7))(react@19.2.7)
-      convex: 1.43.0(react@19.2.7)
-      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+      '@convex-dev/rate-limiter': 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      '@convex-dev/workpool': 0.4.9(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
+      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
       remeda: 2.39.0
       resend: 6.18.1
       svix: 1.99.1
@@ -3733,11 +3739,11 @@ snapshots:
     transitivePeerDependencies:
       - react
 
-  '@convex-dev/workpool@0.4.9(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.43.0(react@19.2.7))(react@19.2.7)':
+  '@convex-dev/workpool@0.4.9(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@convex-dev/batch-worker': 0.2.0(convex@1.43.0(react@19.2.7))(react@19.2.7)
-      convex: 1.43.0(react@19.2.7)
-      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+      '@convex-dev/batch-worker': 0.2.0(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
+      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
     transitivePeerDependencies:
       - react
 
@@ -4917,11 +4923,11 @@ snapshots:
       typescript: 6.0.3
       zod: 4.4.3
 
-  convex-test@0.0.55(convex@1.43.0(react@19.2.7)):
-    dependencies:
-      convex: 1.43.0(react@19.2.7)
-
   convex-test@0.0.59(convex@1.46.0(react@19.2.7)):
+    dependencies:
+      convex: 1.46.0(react@19.2.7)
+
+  convex-test@https://pkg.pr.new/convex-test@135(convex@1.46.0(react@19.2.7)):
     dependencies:
       convex: 1.46.0(react@19.2.7)
 

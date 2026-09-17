@@ -6,7 +6,7 @@
   "dependencies": {
     "@convex-dev/auth": "workspace:*",
     "@convex-dev/resend": "^0.2.6",
-    "convex": "^1.43.0"
+    "convex": "^1.46.0"
   },
   "scripts": {
     "dev": "convex dev --start vite",
