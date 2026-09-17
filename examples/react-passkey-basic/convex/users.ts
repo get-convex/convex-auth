@@ -10,7 +10,7 @@ export const createUser = internalMutation({
     provider: v.object({
       name: v.literal("passkey"),
       accountId: v.string(),
-      profile: v.object({ username: v.string() }),
+      profile: v.object({ username: v.union(v.string(), v.null()) }),
     }),
   },
   returns: v.id("users"),

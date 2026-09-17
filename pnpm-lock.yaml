@@ -10,7 +10,7 @@ importers:
     devDependencies:
       '@convex-dev/eslint-plugin':
         specifier: ^2.0.0
-        version: 2.0.0(convex@1.43.0(react@19.2.7))(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)
+        version: 2.0.0(convex@1.46.0(react@19.2.7))(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.6.0(jiti@2.7.0))
@@ -18,8 +18,8 @@ importers:
         specifier: ^26.1.0
         version: 26.1.0
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       eslint:
         specifier: ^10.6.0
         version: 10.6.0(jiti@2.7.0)
@@ -51,8 +51,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -68,7 +68,7 @@ importers:
     devDependencies:
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
-        version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@types/node':
         specifier: ^24.12.4
         version: 24.13.2
@@ -88,8 +88,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -114,7 +114,7 @@ importers:
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -131,8 +131,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -142,7 +142,7 @@ importers:
     devDependencies:
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
-        version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -160,7 +160,7 @@ importers:
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -177,8 +177,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -188,7 +188,7 @@ importers:
     devDependencies:
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
-        version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -206,7 +206,7 @@ importers:
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -223,8 +223,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -246,7 +246,7 @@ importers:
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -263,8 +263,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -277,7 +277,7 @@ importers:
     devDependencies:
       '@convex-dev/batch-worker':
         specifier: ^0.3.0
-        version: 0.3.0(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+        version: 0.3.0(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
       '@convex-dev/passkey-test-authenticator':
         specifier: workspace:*
         version: link:../../packages/passkey-test-authenticator
@@ -298,7 +298,7 @@ importers:
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -315,8 +315,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -352,8 +352,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -366,7 +366,7 @@ importers:
     devDependencies:
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
-        version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -384,7 +384,7 @@ importers:
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12))
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       jose:
         specifier: ^5.10.0
         version: 5.10.0
@@ -411,10 +411,10 @@ importers:
         version: 7.29.7
       '@convex-dev/batch-worker':
         specifier: ^0.3.0
-        version: 0.3.0(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+        version: 0.3.0(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
       '@convex-dev/rate-limiter':
         specifier: ^0.3.2
-        version: 0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@simplewebauthn/browser':
         specifier: ^14.0.0
         version: 14.0.0
@@ -462,11 +462,11 @@ importers:
         specifier: ^19.2.17
         version: 19.2.17
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
       convex-test:
         specifier: ^0.0.55
-        version: 0.0.55(convex@1.43.0(react@19.2.7))
+        version: 0.0.55(convex@1.46.0(react@19.2.7))
       hash-wasm:
         specifier: ^4.12.0
         version: 4.12.0
@@ -568,8 +568,8 @@ importers:
   scripts/codegen-host:
     dependencies:
       convex:
-        specifier: ^1.43.0
-        version: 1.43.0(react@19.2.7)
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
 
 packages:
 
@@ -2055,9 +2055,9 @@ packages:
     peerDependencies:
       convex: ^1.43.0
 
-  convex@1.43.0:
-    resolution: {integrity: sha512-huZWEUZQYxIRG104o22ZI99HkviSEVltwezZRDi+pQDPrQbc5EoCPa4Y7pJDqUBQw9dc/iEEXj2/rLZg1j7Dww==}
-    engines: {node: '>=18.0.0', npm: '>=7.0.0'}
+  convex@1.46.0:
+    resolution: {integrity: sha512-dhBwDQTZDOhi5SUGAX17EWNehCdNq6/UFrSL0eLZuGfMkdsQbCVWVRZCzbZ5CF+/pgvoGxtApbEoTSipqL4JTw==}
+    engines: {node: '>=20.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
       '@auth0/auth0-react': ^2.0.1
@@ -3567,10 +3567,10 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  '@convex-dev/batch-worker@0.3.0(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)':
+  '@convex-dev/batch-worker@0.3.0(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)':
     dependencies:
-      convex: 1.43.0(react@19.2.7)
-      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+      convex: 1.46.0(react@19.2.7)
+      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
       react: 19.2.7
     transitivePeerDependencies:
       - '@standard-schema/spec'
@@ -3578,19 +3578,19 @@ snapshots:
       - typescript
       - zod
 
-  '@convex-dev/eslint-plugin@2.0.0(convex@1.43.0(react@19.2.7))(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)':
+  '@convex-dev/eslint-plugin@2.0.0(convex@1.46.0(react@19.2.7))(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/types': 8.58.2
       '@typescript-eslint/utils': 8.58.2(eslint@10.6.0(jiti@2.7.0))(typescript@6.0.3)
-      convex: 1.43.0(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
     transitivePeerDependencies:
       - eslint
       - supports-color
       - typescript
 
-  '@convex-dev/rate-limiter@0.3.2(convex@1.43.0(react@19.2.7))(react@19.2.7)':
+  '@convex-dev/rate-limiter@0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
-      convex: 1.43.0(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
     optionalDependencies:
       react: 19.2.7
 
@@ -4759,20 +4759,20 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.43.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3):
+  convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3):
     dependencies:
-      convex: 1.43.0(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
       react: 19.2.7
       typescript: 6.0.3
       zod: 4.4.3
 
-  convex-test@0.0.55(convex@1.43.0(react@19.2.7)):
+  convex-test@0.0.55(convex@1.46.0(react@19.2.7)):
     dependencies:
-      convex: 1.43.0(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
 
-  convex@1.43.0(react@19.2.7):
+  convex@1.46.0(react@19.2.7):
     dependencies:
       esbuild: 0.27.0
       prettier: 3.9.4

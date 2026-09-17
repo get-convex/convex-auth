@@ -18,8 +18,8 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 export const { signInAnonymous } = setupAnonymous(core, {
   component: components.authAnonymous,
 }).attachUserCallbacks({
-  createUser: internal.users.createUserAnonymous,
-  onSignIn: internal.users.onSignInAnonymous,
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
 });
 
 export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
@@ -29,6 +29,6 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
     usernameComponent: components.authUsername,
   },
 ).attachUserCallbacks({
-  createUser: internal.users.createUserPassword,
-  onSignIn: internal.users.onSignInPassword,
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
 });

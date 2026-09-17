@@ -7,7 +7,11 @@ import {
 } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
 import { GenericId, v } from "convex/values";
-import { FunctionHandle } from "convex/server";
+import {
+  FunctionArgs,
+  FunctionHandle,
+  FunctionReturnType,
+} from "convex/server";
 import {
   vAuthClaims,
   type AuthClaims,
@@ -16,10 +20,11 @@ import {
   vRefreshResult,
   type RefreshResult,
   USE_USER_ID_AS_ACCOUNT_ID,
+  type CreateUserFn,
+  type OnSignInFn,
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
-import { CreateUserFn, OnSignInFn } from "../../lib/types.ts";
 
 // --- Configuration ---------------------------------------------------------
 
@@ -244,16 +249,19 @@ async function issueSession(
   };
 }
 
+// The callback types carry their args and return type in the `_fn` slot and
+// have no `_args`/`_returnType` of their own, so read both back through
+// `FunctionArgs`/`FunctionReturnType` rather than by indexing.
 type CreateUserFunctionHandle = FunctionHandle<
   CreateUserFn<string, unknown>["_type"],
-  CreateUserFn<string, unknown>["_args"],
-  CreateUserFn<string, unknown>["_returnType"]
+  FunctionArgs<CreateUserFn<string, unknown>>,
+  FunctionReturnType<CreateUserFn<string, unknown>>
 >;
 
 type OnSignInFunctionHandle = FunctionHandle<
   OnSignInFn<string, unknown>["_type"],
-  OnSignInFn<string, unknown>["_args"],
-  OnSignInFn<string, unknown>["_returnType"]
+  FunctionArgs<OnSignInFn<string, unknown>>,
+  FunctionReturnType<OnSignInFn<string, unknown>>
 >;
 
 /**
