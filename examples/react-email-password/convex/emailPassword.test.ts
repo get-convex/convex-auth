@@ -196,10 +196,9 @@ describe("signUp", () => {
 
   test("rejects a too-short password before creating anything", async () => {
     const t = await setup();
-    const result = await t.mutation(api.auth.signUp, {
-      email: EMAIL,
-      password: "short",
-    });
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.auth.signUp, { email: EMAIL, password: "short" });
     expect(result).toEqual({
       success: false,
       userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
@@ -209,10 +208,9 @@ describe("signUp", () => {
   test("rejects an email that is already verified with EMAIL_TAKEN", async () => {
     const t = await setup();
     await seedSignedUpUser(t);
-    const result = await t.mutation(api.auth.signUp, {
-      email: EMAIL,
-      password: PASSWORD,
-    });
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
     expect(result).toEqual({
       success: false,
       userError: { error: "EMAIL_TAKEN" },
