@@ -50,5 +50,7 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("by_browserSecretHash", ["browserSecretHash"])
-    .index("by_purpose_userId", ["purpose.userId"]),
+    .index("by_purpose_userId", ["purpose.userId"])
+    // For the cleanup loop (see cleanup.ts).
+    .index("by_expiresAt", ["expiresAt"]),
 });
