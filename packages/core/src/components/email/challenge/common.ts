@@ -77,8 +77,15 @@ import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
+  buildLink,
+  sendChallengeEmail,
+  type ChallengeEmailCopy,
+} from "../helpers.ts";
+import {
   startChallengeUserError,
   completeChallengeUserError,
+  vEmailSenderConfig,
+  type EmailSenderConfig,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -90,6 +97,11 @@ export type ChallengePurpose = Doc<"challenges">["purpose"];
 /** The arguments that every `start` mutation accepts. */
 export const vStartArgs = {
   email: v.string(),
+  // The base URL for the link. This should be a constant set by the app
+  // (e.g. "https://example.com/verify"). The code is appended as the `code`
+  // query parameter.
+  url: v.string(),
+  emailSender: vEmailSenderConfig,
 };
 
 /** The arguments that every `complete` mutation accepts. */
@@ -140,8 +152,8 @@ function claimFailure(
 //------------------------------------------------------------------------------
 
 /**
- * Store the hashed code + secret. Returns the secret that the starting
- * browser keeps, and the ID of the new row.
+ * Store the hashed code + secret and send the email. Returns the secret that
+ * the starting browser keeps, and the ID of the new row.
  */
 export async function createChallenge(
   ctx: MutationCtx,
@@ -149,6 +161,9 @@ export async function createChallenge(
     email: string;
     purpose: ChallengePurpose;
     ttlMs: number;
+    url: string;
+    emailSender: EmailSenderConfig;
+    copy: ChallengeEmailCopy;
   },
 ): Promise<{ browserSecret: string; challengeId: Id<"challenges"> }> {
   const emailCode = generateRandomToken();
@@ -161,6 +176,12 @@ export async function createChallenge(
     expiresAt: Date.now() + args.ttlMs,
   });
   await scheduleChallengeCleanup(ctx);
+  await sendChallengeEmail(ctx, args.emailSender, {
+    to: args.email,
+    copy: args.copy,
+    link: buildLink(args.url, emailCode),
+    ttlMs: args.ttlMs,
+  });
   return { browserSecret, challengeId };
 }
 
