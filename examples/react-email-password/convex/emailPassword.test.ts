@@ -32,8 +32,8 @@ async function setup() {
       keys: [{ ...publicJwk, kid: "test-key", alg: "RS256", use: "sig" }],
     }),
   );
-  // The recipe reads the Resend API key from the environment; the stub
-  // records the value without using it.
+  // auth.ts passes env.RESEND_API_KEY to the recipe; the stub records the
+  // value without using it.
   vi.stubEnv("RESEND_API_KEY", "re_test_key");
 
   const t = convexTest(schema, modules);

@@ -15,22 +15,20 @@ Run the example from its own directory.
 cd examples/react-email-password
 npx convex dev --once    # provisions a deployment, generates convex/_generated
 npx @convex-dev/auth     # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
-npx convex env set RESEND_API_KEY re_...   # your Resend API key
+npx convex env set RESEND_API_KEY re_...   # your Resend API key (required)
 npm run dev              # start the Vite frontend
 ```
 
-Optional environment variables on the deployment:
+The example sends real email through [Resend](https://resend.com). Optional
+environment variables on the deployment:
 
+- `EMAIL_FROM` — the From address, e.g. `My App <auth@example.com>`. Defaults
+  to `My App <onboarding@resend.dev>`, Resend's onboarding sender, which only
+  delivers to the email address of your own Resend account. Set it to an
+  address on a [domain you verified with Resend](https://resend.com/docs/dashboard/domains/introduction)
+  to email anyone.
 - `SITE_URL` — the frontend origin the emailed links point at. Defaults to
   `http://localhost:5173` (the Vite dev server).
-
-## Resend test mode
-
-The example configures the Resend sender with `testMode: true`, where email
-is only deliverable to [Resend test addresses](https://resend.com/docs/dashboard/emails/send-test-emails)
-such as `delivered@resend.dev`. To send real email, set `testMode: false` in
-`convex/auth.ts` and use a sender address on a domain you verified with
-Resend.
 
 ## Validation links
 
