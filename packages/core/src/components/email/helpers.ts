@@ -1,6 +1,11 @@
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { Doc } from "./_generated/dataModel.ts";
-import { FunctionHandle } from "convex/server";
+import type {
+  FunctionArgs,
+  FunctionHandle,
+  FunctionReturnType,
+} from "convex/server";
+import type { ComponentApi as ResendApi } from "@convex-dev/resend/_generated/component.js";
 import { EmailSenderConfig } from "./validation.ts";
 
 export function emailsByUserId(
@@ -56,32 +61,39 @@ export function challengeEmailText(
     `${link}\n\n` +
     `The link stops working after ${formatDuration(ttlMs)}, and works only ` +
     "in the browser you started from.\n\n" +
-    "If you did not request this email, you can ignore it."
+    "If you did not request this email, you can safely ignore it."
   );
 }
 
-/** Append the code to the landing URL, with `?` or `&` as needed. */
+/**
+ * Add the code to the landing URL as the `code` query parameter.
+ *
+ * The URL must be absolute, because a relative URL cannot open from an email.
+ * The parameter goes before the fragment, so that a landing page reads it from
+ * `location.search`.
+ */
 export function buildLink(url: string, emailCode: string): string {
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}code=${encodeURIComponent(emailCode)}`;
+  let landingUrl: URL;
+  try {
+    landingUrl = new URL(url);
+  } catch {
+    throw new Error(
+      `The email link URL is not a full URL: ${url}. Give an absolute URL, ` +
+        `for example "https://example.com/verify".`,
+    );
+  }
+  landingUrl.searchParams.set("code", emailCode);
+  return landingUrl.toString();
 }
 
-/** The `sendEmail` mutation of the `@convex-dev/resend` component. */
+/** The `lib.sendEmail` mutation of the `@convex-dev/resend` component. */
+export type SendEmailRef = ResendApi["lib"]["sendEmail"];
+
+/** A handle to {@link SendEmailRef}. */
 export type SendEmailHandle = FunctionHandle<
   "mutation",
-  {
-    options: {
-      apiKey: string;
-      testMode: boolean;
-      initialBackoffMs: number;
-      retryAttempts: number;
-    };
-    from: string;
-    to: string[];
-    subject: string;
-    text: string;
-  },
-  string
+  FunctionArgs<SendEmailRef>,
+  FunctionReturnType<SendEmailRef>
 >;
 
 export async function sendChallengeEmail(
