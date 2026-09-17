@@ -34,7 +34,6 @@ import {
   verifyPasswordUserError,
 } from "../password/validation.ts";
 import {
-  validateEmailFormat,
   startChallengeUserError,
   completeChallengeUserError,
   type EmailSenderConfig,
@@ -415,39 +414,20 @@ export function setupEmailPassword<UsersTable extends string>(
           returns: signUpResult,
           handler: async (ctx, { email, password }): Promise<SignUpResult> => {
             // Validate both inputs before creating anything, so invalid input
-            // never creates a user.
-            const emailError = validateEmailFormat(email);
+            // never creates a user. `check` runs every precondition of the
+            // `start` below (format, rate limits, address not taken) without
+            // consuming the limits: a mutation can only roll back by
+            // throwing, and these are expected outcomes, not exceptions.
+            const emailError = await ctx.runMutation(
+              component.challenge.addEmail.check,
+              { email },
+            );
             if (emailError !== null) {
               return { success: false, userError: emailError };
             }
             const passwordError = validatePasswordInputFormat(password);
             if (passwordError !== null) {
               return { success: false, userError: passwordError };
-            }
-
-            const existing = await ctx.runQuery(
-              component.verifiedEmails.getUserIdByEmail,
-              { email },
-            );
-            if (existing !== null) {
-              return { success: false, userError: { error: "EMAIL_TAKEN" } };
-            }
-
-            // Pre-check the rate limits before creating the user: a mutation
-            // can only roll back by throwing, and a rate limit is an expected
-            // outcome, not an exception.
-            const check = await ctx.runMutation(
-              component.challenge.rateLimit.checkStart,
-              { email },
-            );
-            if (!check.ok) {
-              return {
-                success: false,
-                userError: {
-                  error: "RATE_LIMITED",
-                  retryAfterMs: check.retryAfterMs,
-                },
-              };
             }
 
             // Create the app user + account without a session. Accounts are
@@ -484,9 +464,9 @@ export function setupEmailPassword<UsersTable extends string>(
               },
             );
             if (!start.success) {
-              // Unexpected: the address was free and the rate limits passed
-              // above, in this same transaction. Throw so the new user rolls
-              // back rather than being left with no way to validate.
+              // Unexpected: `check` passed above, in this same transaction.
+              // Throw so the new user rolls back rather than being left with
+              // no way to validate.
               throw new Error(
                 "Unexpected error when starting the email validation: " +
                   start.userError.error,
@@ -717,20 +697,6 @@ export function setupEmailPassword<UsersTable extends string>(
           args: { email: v.string() },
           returns: startRecoveryResult,
           handler: async (ctx, { email }): Promise<StartRecoveryResult> => {
-            const check = await ctx.runMutation(
-              component.challenge.rateLimit.checkStart,
-              { email },
-            );
-            if (!check.ok) {
-              return {
-                success: false,
-                userError: {
-                  error: "RATE_LIMITED",
-                  retryAfterMs: check.retryAfterMs,
-                },
-              };
-            }
-
             // The address must belong to an account. The check runs again at
             // completion: the component does not verify the address for a
             // custom challenge.
