@@ -1,4 +1,4 @@
-// Generates the API Reference section from the public exports of
+// Generates the API reference section from the public exports of
 // `@convex-dev/auth`. One TypeDoc module per import specifier, e.g.
 // `@convex-dev/auth/server`, so the reference mirrors what users import.
 import {
@@ -172,7 +172,7 @@ app.validate(project);
 await app.generateOutputs(project);
 writeFileSync(
   path.join(outDir, "meta.json"),
-  JSON.stringify({ title: "API Reference", root: false }, null, 2) + "\n",
+  JSON.stringify({ title: "API reference", root: false }, null, 2) + "\n",
 );
 writeFolderMeta(outDir);
 console.log(`Wrote ${outDir}`);

@@ -8,7 +8,7 @@ const siteBase = "/api";
 export function load(app) {
   app.renderer.on(MarkdownPageEvent.BEGIN, (page) => {
     const model = page.model;
-    const title = model.isProject() ? "API Reference" : model.name;
+    const title = model.isProject() ? "API reference" : model.name;
     page.frontmatter = { title, ...page.frontmatter };
   });
 
