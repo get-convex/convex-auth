@@ -1,5 +1,7 @@
 import { mutationGeneric as mutation } from "convex/server";
 import { v } from "convex/values";
+import type { FunctionArgs } from "convex/server";
+import type { SendEmailRef } from "../../email/helpers.ts";
 
 /**
  * A stub for the `lib.sendEmail` mutation of the `@convex-dev/resend`
@@ -22,7 +24,7 @@ export const sendEmail = mutation({
     text: v.optional(v.string()),
   },
   returns: v.string(),
-  handler: async (ctx, args): Promise<string> => {
+  handler: async (ctx, args: FunctionArgs<SendEmailRef>): Promise<string> => {
     const id = await ctx.db.insert("emails", {
       from: args.from,
       to: args.to,

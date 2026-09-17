@@ -155,7 +155,7 @@ function claimFailure(
  * Store the hashed code + secret and send the email. Returns the secret that
  * the starting browser keeps, and the ID of the new row.
  */
-export async function createChallenge(
+export async function createChallengeAndSendEmail(
   ctx: MutationCtx,
   args: {
     email: string;

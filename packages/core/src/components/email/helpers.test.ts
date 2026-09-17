@@ -16,6 +16,25 @@ describe("buildLink", () => {
       "https://app.example/v?code=a%2Bb%2Fc%3D",
     );
   });
+
+  test("puts the code before the fragment of a hash-routed URL", () => {
+    expect(buildLink("https://app.example/#/verify", "abc")).toBe(
+      "https://app.example/?code=abc#/verify",
+    );
+    expect(buildLink("https://app.example/verify?flow=signUp#top", "abc")).toBe(
+      "https://app.example/verify?flow=signUp&code=abc#top",
+    );
+  });
+
+  test("replaces a code that the URL already has", () => {
+    expect(buildLink("https://app.example/v?code=stale", "fresh")).toBe(
+      "https://app.example/v?code=fresh",
+    );
+  });
+
+  test("rejects a URL that is not absolute", () => {
+    expect(() => buildLink("/verify", "abc")).toThrow("not a full URL");
+  });
 });
 
 describe("challengeEmailText", () => {
