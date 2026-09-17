@@ -200,7 +200,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
     attachUserCallbacks({
       createUser,
       onSignIn,
-    }: UserCallbacks<"passkey", { username: string | null }, UsersTable>) {
+    }: UserCallbacks<"passkey", Record<string, never>, UsersTable>) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
         createUser,
@@ -386,7 +386,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
             // providers support typesafe profiles.
             const tokens = await ctx.convexAuth.completeSignUp({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-              profile: { username },
+              profile: {},
             });
 
             const setUsernameResult = await ctx.runMutation(
@@ -439,10 +439,6 @@ export function setupUsernamePasskey<UsersTable extends string>(
          * challenge bound to the user) and passkey autofill
          * (`startAutofillSignIn`, an unbound challenge where the credential
          * identifies the user).
-         *
-         * The `username` in the profile that the app's user callbacks
-         * receive can be `null` on an autofill sign-in: the passkey
-         * identifies a user whose username the app removed.
          */
         finishSignIn: authMutation({
           args: {
@@ -474,7 +470,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
 
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: userId,
-              profile: { username },
+              profile: {},
             });
             return { status: "complete", tokens, username };
           },
