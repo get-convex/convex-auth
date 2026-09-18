@@ -46,4 +46,18 @@ export default defineSchema({
     userId: v.string(),
     codeHash: v.string(),
   }).index("by_userId_codeHash", ["userId", "codeHash"]),
+
+  // One row for each pending sign-in attempt whose user has verified a code
+  // (a TOTP code or a backup code). This is the proof that `checkSignIn`
+  // reads back when the auth core continues the attempt, and the component is
+  // the only writer: nothing outside it can mark an attempt as verified.
+  //
+  // The `attemptId` comes from the auth core, which hands out a new one for
+  // each attempt and never reuses it, thus a row that outlives its attempt
+  // satisfies nothing. Rows are transient: the component prunes them by age
+  // (see SIGN_IN_VERIFICATION_TTL_MS) on each verification.
+  signInVerifications: defineTable({
+    attemptId: v.string(),
+    userId: v.string(),
+  }).index("by_attemptId", ["attemptId"]),
 });
