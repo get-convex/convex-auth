@@ -152,8 +152,11 @@ function classifyResult(
       // A complete sign-in that should include a token bundle.
       return isEncodedTokenBundle(tokens) ? { kind: "mint", tokens } : null;
     case "error":
-      // A sign-in error that should be passed along (unless it mistakenly
-      // carries tokens, in which case it gets erased).
+    case "incomplete":
+      // A sign-in error, or one waiting on a requirement, that should be
+      // passed along (unless it mistakenly carries tokens, in which case it
+      // gets erased). The attempt token an incomplete sign-in carries is meant
+      // for browser JS: the client needs it to satisfy the requirement.
       return tokens === undefined ? { kind: "forward" } : null;
     default:
       status satisfies never;

@@ -4,6 +4,7 @@ import {
   GenericActionCtx,
   GenericDataModel,
   GenericMutationCtx,
+  GenericQueryCtx,
   mutationGeneric,
   queryGeneric,
   RegisteredAction,
@@ -17,8 +18,10 @@ import {
   type TokenBundle,
   vRefreshResult,
   type RefreshResult,
+  type SignInCheck,
   type ConvexAuthCtx,
   type UserCallbacks,
+  type SignInAttempt,
 } from "../../lib/types.ts";
 
 /**
@@ -128,6 +131,19 @@ export type AuthCore<UsersTable extends string = string> = {
     Promise<boolean>
   >;
   /**
+   * Resolve an attempt token to the subject of the pending sign-in it names,
+   * or `null` when the token is unknown or the attempt has expired.
+   *
+   * For the functions that satisfy a requirement (a TOTP recipe's code check,
+   * say), which verify the factor against the `userId` resolved here and
+   * record the proof under `attemptId`, never against an identity the caller
+   * supplies. Not meant to be called by application code.
+   */
+  getPendingSignIn(
+    ctx: Pick<GenericQueryCtx<GenericDataModel>, "runQuery">,
+    attemptToken: string,
+  ): Promise<SignInAttempt | null>;
+  /**
    * Register a provider with the core and get the function builders its
    * implementation uses.
    *
@@ -174,7 +190,9 @@ export type AuthCore<UsersTable extends string = string> = {
  * password, say) and then calls one of the helpers the core injects on
  * `ctx.convexAuth` to exchange the verified identity for a session:
  * `completeSignUp` when it has just established the account, `completeSignIn`
- * when the account already exists.
+ * when the account already exists. A provider with a requirement to enforce
+ * first (a second factor, say) calls `deferSignIn` instead, naming the checks
+ * the core judges the parked sign-in by when the client continues it.
  *
  * Token lifetimes are configurable here and default to 1m (access) and 30d
  * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
@@ -217,8 +235,19 @@ export function setupCore<UsersTable extends string = "users">(options: {
    * already been issued.
    */
   refreshTokenTtlSeconds?: number;
+  /**
+   * How long a sign-in that is waiting on a requirement (a second factor,
+   * say) stays continuable, in seconds. Defaults to 10 minutes. Past it the
+   * user starts the sign-in over.
+   */
+  attemptTtlSeconds?: number;
 }): AuthCore<UsersTable> {
-  const { component, accessTokenTtlSeconds, refreshTokenTtlSeconds } = options;
+  const {
+    component,
+    accessTokenTtlSeconds,
+    refreshTokenTtlSeconds,
+    attemptTtlSeconds,
+  } = options;
   // The default only matters to the type system (the core never touches the
   // table), but keep the value in sync with the `= "users"` default above.
   const usersTable = options.usersTable ?? ("users" as UsersTable);
@@ -265,6 +294,15 @@ export function setupCore<UsersTable extends string = "users">(options: {
     },
   });
 
+  const getPendingSignIn = async (
+    ctx: Pick<GenericQueryCtx<GenericDataModel>, "runQuery">,
+    attemptToken: string,
+  ): Promise<SignInAttempt | null> => {
+    return await ctx.runQuery(component.public.getPendingSignIn, {
+      attemptToken,
+    });
+  };
+
   // Names of providers bound to this core, for duplicate detection. Scoped to
   // this `setupCore` call (not module-global): the collision that matters is
   // two providers on the same core, whose accounts would silently share rows.
@@ -295,6 +333,20 @@ export function setupCore<UsersTable extends string = "users">(options: {
     const onSignInHandle = async (): Promise<string | undefined> =>
       onSignIn === undefined ? undefined : await createFunctionHandle(onSignIn);
 
+    // The provider's sign-in checks, as the core stores them on a pending
+    // sign-in: the requirement's name next to a handle to its check. Component
+    // functions can be handles too, which is what lets a requirement component
+    // (TOTP, say) own its own check.
+    const storedChecks = async (
+      checks: SignInCheck[],
+    ): Promise<{ requirement: string; handle: string }[]> =>
+      await Promise.all(
+        checks.map(async ({ requirement, check }) => ({
+          requirement,
+          handle: await createFunctionHandle(check),
+        })),
+      );
+
     // The helpers close over the live ctx; both mutation and action ctxs
     // expose the compatible `runMutation`/`runQuery` these need.
     const makeHelpers = (
@@ -319,6 +371,19 @@ export function setupCore<UsersTable extends string = "users">(options: {
           refreshTokenTtlSeconds,
         });
       },
+      createAccount: async (args: {
+        providerAccountId: string;
+        profile: Profile;
+      }): Promise<{ userId: string }> => {
+        return await ctx.runMutation(component.public.createAccount, {
+          claims: {
+            providerName: name,
+            providerAccountId: args.providerAccountId,
+            profile: args.profile,
+          },
+          createUserHandle: await createFunctionHandle(createUser),
+        });
+      },
       completeSignIn: async (args: {
         providerAccountId: string;
         profile: Profile;
@@ -335,28 +400,33 @@ export function setupCore<UsersTable extends string = "users">(options: {
           refreshTokenTtlSeconds,
         });
       },
-      // Creates the app user + account without a session, for providers where
-      // the user must complete a step (e.g. an email validation) before the
-      // first sign-in.
-      signUpWithoutSession: async (args: {
-        providerAccountId: string;
-        profile: Profile;
-      }): Promise<{ userId: string }> => {
-        return await ctx.runMutation(component.public.signUpWithoutSession, {
-          claims: {
-            providerName: name,
-            providerAccountId: args.providerAccountId,
-            profile: args.profile,
-          },
-          createUserHandle: await createFunctionHandle(createUser),
-        });
-      },
       resolveUserId: async (
         providerAccountId: string,
       ): Promise<string | null> => {
         return await ctx.runQuery(component.public.getUserIdByAccount, {
           provider: name,
           providerAccountId,
+        });
+      },
+      // The helper of a sign-in that waits on a requirement: park it. The
+      // core finishes it when the client continues, so there is no completion
+      // helper here: the row carries the provider's checks and the app's
+      // `onSignIn` as handles. A first sign-in is parked the same way, after
+      // `createAccount` above has established the account.
+      deferSignIn: async (args: {
+        providerAccountId: string;
+        profile: Profile;
+        checks: SignInCheck[];
+      }) => {
+        return await ctx.runMutation(component.public.deferSignIn, {
+          claims: {
+            providerName: name,
+            providerAccountId: args.providerAccountId,
+            profile: args.profile,
+          },
+          checks: await storedChecks(args.checks),
+          onSignInHandle: await onSignInHandle(),
+          attemptTtlSeconds,
         });
       },
     });
@@ -386,5 +456,12 @@ export function setupCore<UsersTable extends string = "users">(options: {
     return { authMutation, authAction };
   };
 
-  return { usersTable, signOut, refreshSession, isAuthenticated, bindProvider };
+  return {
+    usersTable,
+    signOut,
+    refreshSession,
+    isAuthenticated,
+    getPendingSignIn,
+    bindProvider,
+  };
 }
