@@ -84,15 +84,12 @@ describe("createTotp", () => {
       enabled: true,
       remainingBackupCodes: BACKUP_CODE_COUNT,
     });
-    const active = await t.run((ctx) =>
-      ctx.db
-        .query("totpSecrets")
-        .withIndex("by_userId_status", (q) =>
-          q.eq("userId", "alice").eq("status", "active"),
-        )
-        .unique(),
-    );
-    expect(base32Encode(new Uint8Array(active!.secret))).toBe(secret);
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(secret),
+      }),
+    ).toEqual({ success: true });
   });
 
   test("touches only the given user's secrets and backup codes", async () => {
@@ -124,17 +121,6 @@ describe("createTotp", () => {
     expect(
       await t.query(api.enrollment.getStatus, { userId: "alice" }),
     ).toEqual({ enabled: true, remainingBackupCodes: BACKUP_CODE_COUNT });
-    const aliceActive = await t.run((ctx) =>
-      ctx.db
-        .query("totpSecrets")
-        .withIndex("by_userId_status", (q) =>
-          q.eq("userId", "alice").eq("status", "active"),
-        )
-        .unique(),
-    );
-    expect(base32Encode(new Uint8Array(aliceActive!.secret))).toBe(
-      alice.secret,
-    );
     const aliceCodes = await t.run((ctx) =>
       ctx.db
         .query("backupCodes")
@@ -146,6 +132,12 @@ describe("createTotp", () => {
         await Promise.all(alice.backupCodes.map((code) => hashBackupCode(code)))
       ).sort(),
     );
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(alice.secret),
+      }),
+    ).toEqual({ success: true });
     expect(
       await t.mutation(api.enrollment.confirmTotp, {
         userId: "alice",
@@ -416,20 +408,17 @@ describe("confirmTotp", () => {
     expect(base32Encode(new Uint8Array(pending!.secret))).toBe(secret);
   });
 
-  test("records the step of the confirmation code", async () => {
+  test("the code that confirmed the secret cannot sign in", async () => {
     const t = setup();
     const { secret } = await t.mutation(api.enrollment.createTotp, {
       userId: "alice",
       ...ENROLLMENT,
     });
-    await t.mutation(api.enrollment.confirmTotp, {
-      userId: "alice",
-      code: await codeFor(secret),
-    });
-    const row = await t.run((ctx) => ctx.db.query("totpSecrets").unique());
-    // The counter of the current step, thus the confirmation code cannot be
-    // replayed at sign-in.
-    expect(row?.lastUsedCounter).toBe(Math.floor(Date.now() / 1000 / 30));
+    const code = await codeFor(secret);
+    await t.mutation(api.enrollment.confirmTotp, { userId: "alice", code });
+    expect(
+      await t.mutation(api.verification.verifyCode, { userId: "alice", code }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
   });
 });
 

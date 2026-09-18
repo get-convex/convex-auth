@@ -1,4 +1,5 @@
 import { defineComponent } from "convex/server";
+import rateLimiter from "@convex-dev/rate-limiter/convex.config.js";
 
 /**
  * The TOTP component.
@@ -10,7 +11,10 @@ import { defineComponent } from "convex/server";
  *
  * The component is not an auth provider. It is a second factor that an auth
  * flow asks to verify a code after the first factor succeeds.
+ *
+ * Mounts the rate-limiter component to throttle code verification per user id.
  */
 const component = defineComponent("authTotp");
+component.use(rateLimiter);
 
 export default component;
