@@ -15,6 +15,18 @@ import { EmailSenderConfig } from "./validation.ts";
 // Configuration
 //------------------------------------------------------------------------------
 
+/**
+ * How long a `custom` link stays valid when the caller gives no `ttlMs`, and
+ * the bounds for the value that a caller can give. The default is short: a
+ * custom flow can give access to an account (OWASP ASVS v5 6.5.5 asks for at
+ * most 10 minutes for password resets). The maximum keeps the table from
+ * holding links for days.
+ * TODO(nicolas): review the default and the bounds.
+ */
+export const CUSTOM_TTL_DEFAULT_MS = 15 * 60 * 1000; // 15 minutes
+export const CUSTOM_TTL_MIN_MS = 60 * 1000; // 1 minute
+export const CUSTOM_TTL_MAX_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 // Throttle for starting challenges. Each flow sends an email, so the
 // limits protect the destination mailbox from flooding and the sender's
 // reputation from abuse:
