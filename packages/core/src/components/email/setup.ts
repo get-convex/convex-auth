@@ -695,6 +695,8 @@ export function setupEmailPassword<UsersTable extends string>(
          * `EMAIL_NOT_FOUND` is surfaced to the caller. This reveals whether an
          * address has an account, which sign-up's `EMAIL_TAKEN` reveals
          * anyway; the recipe accepts that trade-off for a clearer flow.
+         * TODO: the lookups are not rate limited, so a client can probe
+         * addresses freely. Add a consuming per-IP limit on the lookup.
          */
         startRecovery: authMutation({
           args: { email: v.string() },
