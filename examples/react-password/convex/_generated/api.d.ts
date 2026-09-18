@@ -54,4 +54,5 @@ export declare const components: {
   auth: import("@convex-dev/auth/core/_generated/component.js").ComponentApi<"auth">;
   authPasswordProvider: import("@convex-dev/auth/providers/password/_generated/component.js").ComponentApi<"authPasswordProvider">;
   authUsername: import("@convex-dev/auth/username/_generated/component.js").ComponentApi<"authUsername">;
+  authTotp: import("@convex-dev/auth/totp/_generated/component.js").ComponentApi<"authTotp">;
 };
