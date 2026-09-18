@@ -14,6 +14,11 @@ import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "../totp/schema.ts";
 const modules = import.meta.glob("../totp/**/*.ts");
 
+// Re-exported so that tests can compute the codes an authenticator app would
+// show, and know how many backup codes an enrollment hands out.
+export { totp } from "../totp/totp.ts";
+export { BACKUP_CODE_COUNT } from "../totp/backupCodes.ts";
+
 /**
  * Register the TOTP component with a `convex-test` instance.
  *

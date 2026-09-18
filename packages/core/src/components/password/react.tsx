@@ -13,6 +13,11 @@
  * Each hook returns a function for sending up the credentials and a `pending`
  * value that is flipped to `true` while the credentials are being validated.
  *
+ * A sign-in the backend holds for a TOTP code comes back `incomplete`. The
+ * app then verifies the code with the TOTP recipe's hook and finishes the
+ * sign-in with `useContinueSignIn` from `@convex-dev/auth/react`; neither is
+ * specific to passwords, so neither lives here.
+ *
  * @module
  */
 "use client";
@@ -29,16 +34,14 @@ export type Credentials = { username: string; password: string };
 /**
  * The `signInWithPassword` mutation the app re-exports from its `setupCore`.
  *
- * Its return value is the access-only {@link ClientView}, which is what both
- * session models have in common. Hand it to `setSession`, the only supported
- * consumer.
+ * `Result` is the mutation's own result type, which the hooks read off the
+ * reference so the app sees the `incomplete` arm only when its backend recipe
+ * was set up with the `totp` option. What the hooks return is the access-only
+ * {@link ClientView} of it, which is what both session models have in common.
+ * Hand its tokens to `setSession`, the only supported consumer.
  */
-type SignInWithPasswordMutation = FunctionReference<
-  "mutation",
-  "public",
-  Credentials,
-  ClientView<SignInResult>
->;
+type SignInWithPasswordMutation<Result extends SignInResult> =
+  FunctionReference<"mutation", "public", Credentials, Result>;
 
 /**
  * The `signUpWithPassword` mutation the app re-exports from its `setupCore`.
@@ -47,7 +50,7 @@ type SignUpWithPasswordMutation = FunctionReference<
   "mutation",
   "public",
   Credentials,
-  ClientView<SignUpResult>
+  SignUpResult
 >;
 
 /**
@@ -63,9 +66,15 @@ type UnexpectedFailure = {
   userError: { error: "OTHER_ERROR"; cause: unknown };
 };
 
-/** The result of the `signIn` callback from {@link useSignInWithPassword}. */
-export type SignInWithPasswordResult =
-  ClientView<SignInResult> | UnexpectedFailure;
+/**
+ * The result of the `signIn` callback from {@link useSignInWithPassword}.
+ *
+ * `Result` is the backend mutation's result type; the default covers a
+ * recipe with the `totp` option.
+ */
+export type SignInWithPasswordResult<
+  Result extends SignInResult = SignInResult,
+> = ClientView<Result> | UnexpectedFailure;
 
 /** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
 export type SignUpWithPasswordResult =
@@ -82,7 +91,8 @@ export type SignUpWithPasswordResult =
  * currently being validated.
  *
  * After calling `signIn`, check the `status` field on the return value to see
- * whether the sign-in was successful or if you need to handle an error.
+ * whether the sign-in was successful, whether it waits on a TOTP code, or if
+ * you need to handle an error.
  *
  * ```tsx
  * import { useSignInWithPassword } from "@convex-dev/auth/providers/password/react";
@@ -95,7 +105,10 @@ export type SignUpWithPasswordResult =
  *       onSubmit={async (e) => {
  *         e.preventDefault();
  *         const result = await signIn({ username, password });
- *         if (result.status !== "complete") {
+ *         if (result.status === "incomplete") {
+ *           // show the code prompt; keep result.attemptToken for
+ *           // useVerifyTotpForSignIn and useContinueSignIn
+ *         } else if (result.status === "error") {
  *           // map result.userError to a message
  *         }
  *       }}
@@ -108,8 +121,8 @@ export type SignUpWithPasswordResult =
  *
  * @param signInMutation The app's `signInWithPassword` mutation reference.
  */
-export function useSignInWithPassword(
-  signInMutation: SignInWithPasswordMutation,
+export function useSignInWithPassword<Result extends SignInResult>(
+  signInMutation: SignInWithPasswordMutation<Result>,
 ) {
   const { run, pending } = usePasswordFlow(signInMutation);
   return {
@@ -120,6 +133,12 @@ export function useSignInWithPassword(
      *
      * If it is `"complete"` the sign-in was successful and the client will
      * establish an authenticated session with the Convex backend server.
+     *
+     * If it is `"incomplete"` the password was right and the user owes a
+     * TOTP code: the returned object carries the `attemptToken` to verify
+     * the code with (`useVerifyTotpForSignIn`) and then finish the sign-in
+     * with (`useContinueSignIn`). This happens when the backend recipe was
+     * set up with the `totp` option, for users who have enrolled.
      *
      * If it is `"error"` the returned object will have a `userError` field with
      * additional details about why sign-in failed.
@@ -178,14 +197,14 @@ export function useSignUpWithPassword(
 }
 
 /**
- * Shared internals for sign-in and sign-up: run the mutation, adopt the
- * session on success, and track in-flight state. The two flows are
- * structurally identical and differ only in the mutation they call and the
- * name they expose the callback under.
+ * Shared internals of the flows: run the mutation, adopt the session on
+ * success, and track in-flight state. The flows are structurally identical
+ * and differ only in the mutation they call, its result, and the name they
+ * expose the callback under.
  */
-function usePasswordFlow<
-  Result extends ClientView<SignInResult> | ClientView<SignUpResult>,
->(mutation: FunctionReference<"mutation", "public", Credentials, Result>) {
+function usePasswordFlow<Result extends SignInResult | SignUpResult>(
+  mutation: FunctionReference<"mutation", "public", Credentials, Result>,
+) {
   const { setSession } = useAuthActions();
   // Running through the signInApi rather than `useAction` is what lets these hooks
   // serve both session models. See {@link useAuthSignInApi}.
@@ -193,10 +212,19 @@ function usePasswordFlow<
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
-    async (credentials: Credentials): Promise<Result | UnexpectedFailure> => {
+    async (
+      credentials: Credentials,
+    ): Promise<ClientView<Result> | UnexpectedFailure> => {
       setPending(true);
       try {
-        const result = await signInApi.mutation(mutation, credentials);
+        // Under SSR the proxy has already slimmed the bundle, so what arrives
+        // is the client view whatever the reference's type says.
+        const result = (await signInApi.mutation(
+          mutation,
+          credentials,
+        )) as ClientView<Result>;
+        // An incomplete sign-in minted nothing: the caller shows the next
+        // step and the result passes through as it is.
         if (result.status === "complete") {
           await setSession(result.tokens);
         }
