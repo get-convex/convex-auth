@@ -147,21 +147,37 @@
       "types": "./dist/components/passkey/react.d.ts",
       "default": "./dist/components/passkey/react.js"
     },
-    "./email/convex.config.js": {
+    "./providers/email-password/convex.config.js": {
       "types": "./dist/components/email/convex.config.d.ts",
       "default": "./dist/components/email/convex.config.js"
     },
-    "./email/convex.config": {
+    "./providers/email-password/convex.config": {
       "types": "./dist/components/email/convex.config.d.ts",
       "default": "./dist/components/email/convex.config.js"
     },
-    "./email/_generated/component.js": {
+    "./providers/email-password/_generated/component.js": {
       "types": "./dist/components/email/_generated/component.d.ts",
       "default": "./dist/components/email/_generated/component.js"
     },
-    "./email/_generated/component": {
+    "./providers/email-password/_generated/component": {
       "types": "./dist/components/email/_generated/component.d.ts",
       "default": "./dist/components/email/_generated/component.js"
+    },
+    "./providers/email-password/setup.js": {
+      "types": "./dist/components/email/setup.d.ts",
+      "default": "./dist/components/email/setup.js"
+    },
+    "./providers/email-password/setup": {
+      "types": "./dist/components/email/setup.d.ts",
+      "default": "./dist/components/email/setup.js"
+    },
+    "./providers/email-password/react.js": {
+      "types": "./dist/components/email/react.d.ts",
+      "default": "./dist/components/email/react.js"
+    },
+    "./providers/email-password/react": {
+      "types": "./dist/components/email/react.d.ts",
+      "default": "./dist/components/email/react.js"
     },
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": {
