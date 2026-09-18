@@ -130,6 +130,47 @@ describe("token interception", () => {
     expect(setCookies(response)).toBe("");
   });
 
+  test("passes an incomplete sign-in through untouched and writes no cookies", async () => {
+    // The first factor verified and a requirement is outstanding. No session
+    // was minted, so there is nothing to move into a cookie. The attempt token
+    // is *meant* to reach browser JS: the client continues the sign-in with it.
+    upstream({
+      status: "success",
+      value: {
+        status: "incomplete",
+        attemptToken: "attempt-1",
+        expiresAt: 3_000,
+        requirements: ["totp"],
+      },
+    });
+
+    const response = await handler(call(envelope()));
+    const body = await response.json();
+    expect(body.value).toEqual({
+      status: "incomplete",
+      attemptToken: "attempt-1",
+      expiresAt: 3_000,
+      requirements: ["totp"],
+    });
+    expect(response.status).toBe(200);
+    expect(setCookies(response)).toBe("");
+  });
+
+  test("erases an incomplete sign-in that mistakenly carries tokens", async () => {
+    upstream({
+      status: "success",
+      value: {
+        status: "incomplete",
+        attemptToken: "attempt-1",
+        tokens: bundle(),
+      },
+    });
+
+    const response = await handler(call(envelope()));
+    expect(response.status).toBe(500);
+    expect(setCookies(response)).toBe("");
+  });
+
   test("refuses a challenge-minting function, which is why those bypass the proxy", async () => {
     // What `startSignIn` of the passkey provider returns. A provider must run
     // this one on the Convex client, not through the sign-in API: the proxy

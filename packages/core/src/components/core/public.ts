@@ -6,7 +6,8 @@ import {
   env,
 } from "./_generated/server.ts";
 import { Doc, Id } from "./_generated/dataModel.ts";
-import { GenericId, v } from "convex/values";
+import { vStoredSignInCheck } from "./schema.ts";
+import { GenericId, Infer, v } from "convex/values";
 import {
   FunctionArgs,
   FunctionHandle,
@@ -20,10 +21,15 @@ import {
   vRefreshResult,
   type RefreshResult,
   USE_USER_ID_AS_ACCOUNT_ID,
+  vSignInAttempt,
   type CreateUserFn,
   type OnSignInFn,
 } from "../../lib/types.ts";
-import { signJwt, generateRefreshToken } from "./crypto.ts";
+import {
+  signJwt,
+  generateRefreshToken,
+  generateAttemptToken,
+} from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 
 // --- Configuration ---------------------------------------------------------
@@ -44,6 +50,12 @@ export const REFRESH_GRACE_MS = 30 * 1000; // 30 seconds
 // reuse-detection horizon: past it the row is gone and a replayed token reads
 // as unknown, which revokes nothing but also grants nothing.
 export const SPENT_TOKEN_HORIZON_MS = 60 * 60 * 1000; // 1 hour
+// How long a user has to complete a pending sign-in, unless the app overrides
+// it via `setupCore`.
+const DEFAULT_PENDING_SIGN_IN_TTL_SECONDS = 10 * 60; // 10 minutes
+// How many expired pending sign-ins one `deferSignIn` sweeps away. Bounded so
+// a burst of abandoned sign-ins cannot make the next one do unbounded work.
+const EXPIRED_PENDING_SIGN_INS_PRUNED_PER_DEFER = 10;
 
 // The issuer (CONVEX_SITE_URL) is passed in by the app rather than read here:
 // inside a component the system var arrives prefixed with the mount's
@@ -264,6 +276,8 @@ type OnSignInFunctionHandle = FunctionHandle<
   FunctionReturnType<OnSignInFn<string, unknown>>
 >;
 
+type StoredSignInCheck = Infer<typeof vStoredSignInCheck>;
+
 /**
  * Type the given userId string as a {@link GenericId}.
  *
@@ -284,9 +298,9 @@ function asUserId(userId: string): GenericId<string> {
  * session needs: the account id and its app user id. The claims are passed to
  * the `createUser` callback.
  *
- * Both `signUp` and the sessionless `signUpWithoutSession` build on this.
+ * Both `signUp` and `createAccount` build on this.
  */
-async function createAccount(
+async function createAccountInternal(
   ctx: MutationCtx,
   claims: AuthClaims,
   createUser: CreateUserFunctionHandle,
@@ -405,13 +419,47 @@ export const signUp = mutation({
   returns: vTokenBundle,
   handler: async (ctx, args): Promise<TokenBundle> => {
     const ttl = resolveTtlConfig(args);
-    const { accountId, userId } = await createAccount(
+    const { accountId, userId } = await createAccountInternal(
       ctx,
       args.claims,
       args.createUserHandle as CreateUserFunctionHandle,
     );
     await notifySignIn(ctx, args.claims, userId, args.onSignInHandle);
     return await issueSession(ctx, accountId, userId, args.issuer, ttl);
+  },
+});
+
+/**
+ * Create the account and the app user for an identity the core has not seen
+ * before, without signing it in.
+ *
+ * Providers don't typically call this API directly, but instead use the
+ * framework's `createAccount` helper, ahead of `deferSignIn`, when a
+ * requirement (an email to verify, say) stands before the first sign-in.
+ *
+ * Account creation follows the same rules as `signUp`: the app's `createUser`
+ * mints the user, `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted
+ * user id, and an identity that already has an account is refused. Unlike
+ * `signUp`, no session is issued and `onSignIn` does not run: nothing has
+ * been signed in. Both happen when the identity is signed in later, through
+ * `signIn` or a `deferSignIn` the core later finishes.
+ *
+ * An identity that already has an account is refused. Unlike `signUp`, no
+ * session is issued and the app's `onSignIn` does not run: nothing has been
+ * signed in.
+ *
+ * Returns the app user id.
+ */
+export const createAccount = mutation({
+  args: { claims: vAuthClaims, createUserHandle: v.string() },
+  returns: v.object({ userId: v.string() }),
+  handler: async (ctx, args): Promise<{ userId: string }> => {
+    const { userId } = await createAccountInternal(
+      ctx,
+      args.claims,
+      args.createUserHandle as CreateUserFunctionHandle,
+    );
+    return { userId };
   },
 });
 
@@ -467,36 +515,6 @@ export const signIn = mutation({
 });
 
 /**
- * Create the account and the app user for a provider's verified identity
- * claims, without minting a session.
- *
- * Providers use this (via the `signUpWithoutSession` helper the core hands
- * them) when the user must complete a step before the first sign-in — for
- * example, an email validation. Account creation follows the same rules as
- * `signUp` (the app's `createUser` mutation mints the user,
- * `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted user id, and an
- * identity that already has an account is refused), but no session is minted
- * and `onSignIn` does not run: the user cannot make authenticated calls until
- * a later `signIn` succeeds.
- */
-export const signUpWithoutSession = mutation({
-  args: {
-    claims: vAuthClaims,
-    createUserHandle: v.string(),
-  },
-  returns: v.object({ userId: v.string() }),
-  handler: async (ctx, args): Promise<{ userId: string }> => {
-    // TODO: This API is kind of awkward. We might want to reconsider it before the GA v2 release.
-    const { userId } = await createAccount(
-      ctx,
-      args.claims,
-      args.createUserHandle as CreateUserFunctionHandle,
-    );
-    return { userId };
-  },
-});
-
-/**
  * Resolve a provider identity to its app user id without minting a session.
  *
  * Providers use this (via the `resolveUserId` helper the core hands them) to look
@@ -517,6 +535,232 @@ export const getUserIdByAccount = query({
   ): Promise<string | null> => {
     const account = await accountByIdentity(ctx, provider, providerAccountId);
     return account?.userId ?? null;
+  },
+});
+
+// --- Pending sign-ins --------------------------------------------------------
+
+/** Look up the pending sign-in (at most one) for a provider identity. */
+function pendingSignInByIdentity(
+  ctx: QueryCtx,
+  provider: string,
+  providerAccountId: string,
+): Promise<Doc<"pendingSignIns"> | null> {
+  return ctx.db
+    .query("pendingSignIns")
+    .withIndex("by_provider_account", (q) =>
+      q.eq("provider", provider).eq("providerAccountId", providerAccountId),
+    )
+    .unique();
+}
+
+/**
+ * Look up a pending sign-in by an attempt token.
+ *
+ * Returns `null` for an unknown token or for an expired attempt.
+ */
+async function livePendingSignIn(
+  ctx: QueryCtx,
+  attemptToken: string,
+): Promise<Doc<"pendingSignIns"> | null> {
+  const attemptTokenHash = await sha256Hex(attemptToken);
+  const pending = await ctx.db
+    .query("pendingSignIns")
+    .withIndex("by_attempt_hash", (q) =>
+      q.eq("attemptTokenHash", attemptTokenHash),
+    )
+    .unique();
+  if (pending === null) return null;
+  if (pending.expiresAt <= Date.now()) return null;
+  return pending;
+}
+
+/**
+ * Remove a bounded number of expired pending sign-ins.
+ *
+ * Triggered when a sign-in is deferred, so an app that keeps deferring
+ * sign-ins keeps the pending sign-ins table trimmed with no background job to
+ * run or mount.
+ */
+async function pruneExpiredPendingSignIns(
+  ctx: MutationCtx,
+  now: number,
+): Promise<void> {
+  const expired = await ctx.db
+    .query("pendingSignIns")
+    .withIndex("by_expires_at", (q) => q.lte("expiresAt", now))
+    .take(EXPIRED_PENDING_SIGN_INS_PRUNED_PER_DEFER);
+  for (const row of expired) {
+    await ctx.db.delete("pendingSignIns", row._id);
+  }
+}
+
+/**
+ * The pending sign-in lifetime for a call, with the app's override applied
+ * over the default.
+ *
+ * Validated so a misconfiguration fails loudly.
+ */
+function resolvePendingSignInTtlSeconds(args: { attemptTtlSeconds?: number }) {
+  const attemptTtlSeconds =
+    args.attemptTtlSeconds ?? DEFAULT_PENDING_SIGN_IN_TTL_SECONDS;
+  if (attemptTtlSeconds <= 0) {
+    throw new Error("The attempt TTL must be positive.");
+  }
+  return attemptTtlSeconds;
+}
+
+/**
+ * Create a new pending sign-in.
+ *
+ * The row carries the handles of the provider's sign-in checks and of the
+ * app's `onSignIn`, so the core can judge and finish the attempt without the
+ * provider when the client continues it: what the sign-in must satisfy is
+ * fixed here.
+ *
+ * This replaces any pending sign-in the identity already has.
+ *
+ * Returns a {@link PendingSignIn}.
+ */
+async function createPendingSignIn(
+  ctx: MutationCtx,
+  identity: {
+    provider: string;
+    providerAccountId: string;
+    profile: unknown;
+    userId: string;
+  },
+  handles: {
+    checks: StoredSignInCheck[];
+    onSignInHandle: string | undefined;
+  },
+  attemptTtlSeconds: number,
+): Promise<PendingSignIn> {
+  const now = Date.now();
+  await pruneExpiredPendingSignIns(ctx, now);
+
+  // Delete and re-insert rather than patch: the new attempt must get a new id,
+  // so proof a requirement component recorded against the old one keys
+  // nothing.
+  const superseded = await pendingSignInByIdentity(
+    ctx,
+    identity.provider,
+    identity.providerAccountId,
+  );
+  if (superseded !== null) {
+    await ctx.db.delete("pendingSignIns", superseded._id);
+  }
+
+  const attemptToken = generateAttemptToken();
+  const expiresAt = now + attemptTtlSeconds * 1000;
+  const attemptId = await ctx.db.insert("pendingSignIns", {
+    attemptTokenHash: await sha256Hex(attemptToken),
+    provider: identity.provider,
+    providerAccountId: identity.providerAccountId,
+    userId: identity.userId,
+    profile: identity.profile,
+    checks: handles.checks,
+    onSignInHandle: handles.onSignInHandle,
+    expiresAt,
+  });
+  return { attemptToken, attemptId, userId: identity.userId, expiresAt };
+}
+
+const vPendingSignIn = v.object({
+  attemptToken: v.string(),
+  attemptId: v.string(),
+  userId: v.string(),
+  expiresAt: v.number(),
+});
+type PendingSignIn = Infer<typeof vPendingSignIn>;
+
+/**
+ * Defer a sign-in until some associated requirements are met.
+ *
+ * Creates and returns a pending sign-in instead of minting a session, because
+ * the provider has a requirement (a second factor, say) that is still
+ * outstanding.
+ *
+ * Providers don't typically call this API directly, but instead use the
+ * framework's `deferSignIn` helper, which turns the provider's checks and
+ * the app's `onSignIn` into the function handles this takes.
+ *
+ * The identity must already have an account, like `signIn` requires. A
+ * provider parking an identity's *first* sign-in establishes the account with
+ * {@link createAccount} first. The app's `onSignIn` does not run: nothing has
+ * been signed in yet. It runs when the core mints the session the attempt
+ * waits for.
+ *
+ * An identity has at most one pending sign-in. Deferring again *replaces* an
+ * existing record.
+ *
+ * Returns a {@link PendingSignIn} with an raw attempt token for the client, the
+ * row id as `attemptId` for requirement components, and the app user id.
+ */
+export const deferSignIn = mutation({
+  args: {
+    claims: vAuthClaims,
+    // The provider's sign-in checks (see `SignInCheck` in lib/types.ts), each
+    // with its check as a function handle. Run again on every continuation of
+    // the sign-in.
+    checks: v.array(vStoredSignInCheck),
+    // A function handle to the app's `onSignIn` for this provider, if it
+    // attached one. Runs when the sign-in completes.
+    onSignInHandle: v.optional(v.string()),
+    attemptTtlSeconds: v.optional(v.number()),
+  },
+  returns: vPendingSignIn,
+  handler: async (ctx, args): Promise<PendingSignIn> => {
+    const attemptTtlSeconds = resolvePendingSignInTtlSeconds(args);
+    const { claims } = args;
+    const account = await accountByIdentity(
+      ctx,
+      claims.providerName,
+      claims.providerAccountId,
+    );
+    if (account === null) {
+      throw new Error(
+        `Cannot defer a sign-in: no account for provider = ${JSON.stringify(claims.providerName)} ` +
+          `and provider account ID = ${JSON.stringify(claims.providerAccountId)} exists. ` +
+          `An identity the core has not seen goes through signUp, or through createAccount and then deferSignIn.`,
+      );
+    }
+    return await createPendingSignIn(
+      ctx,
+      {
+        provider: claims.providerName,
+        providerAccountId: claims.providerAccountId,
+        profile: claims.profile,
+        userId: account.userId,
+      },
+      { checks: args.checks, onSignInHandle: args.onSignInHandle },
+      attemptTtlSeconds,
+    );
+  },
+});
+
+/**
+ * Resolve an attempt token to its sign-in attempt, or `null` when the token is
+ * unknown or the attempt has expired.
+ *
+ * Apps don't call this API directly, but instead use the framework's
+ * `getPendingSignIn` helper on the auth core.
+ *
+ * The `attemptId` in the returned object is what should be used to record
+ * proof that a requirement was satisfied. It is one of the arguments to the
+ * {@link CheckSignInFn} which is called when checking requirements.
+ */
+export const getPendingSignIn = query({
+  args: { attemptToken: v.string() },
+  returns: v.union(vSignInAttempt, v.null()),
+  handler: async (ctx, { attemptToken }) => {
+    const pending = await livePendingSignIn(ctx, attemptToken);
+    if (pending === null) return null;
+    return {
+      attemptId: pending._id,
+      userId: pending.userId,
+      expiresAt: pending.expiresAt,
+    };
   },
 });
 

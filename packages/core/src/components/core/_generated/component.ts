@@ -24,6 +24,48 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      createAccount: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          claims: {
+            profile: any;
+            providerAccountId: string;
+            providerName: string;
+          };
+          createUserHandle: string;
+        },
+        { userId: string },
+        Name
+      >;
+      deferSignIn: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          attemptTtlSeconds?: number;
+          checks: Array<{ handle: string; requirement: string }>;
+          claims: {
+            profile: any;
+            providerAccountId: string;
+            providerName: string;
+          };
+          onSignInHandle?: string;
+        },
+        {
+          attemptId: string;
+          attemptToken: string;
+          expiresAt: number;
+          userId: string;
+        },
+        Name
+      >;
+      getPendingSignIn: FunctionReference<
+        "query",
+        "internal",
+        { attemptToken: string },
+        { attemptId: string; expiresAt: number; userId: string } | null,
+        Name
+      >;
       getUserIdByAccount: FunctionReference<
         "query",
         "internal",
@@ -112,20 +154,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           refreshTokenExpiresAt: number;
           userId: string;
         },
-        Name
-      >;
-      signUpWithoutSession: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          claims: {
-            profile: any;
-            providerAccountId: string;
-            providerName: string;
-          };
-          createUserHandle: string;
-        },
-        { userId: string },
         Name
       >;
     };
