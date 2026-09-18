@@ -72,6 +72,22 @@
       "types": "./dist/components/username/*.d.ts",
       "default": "./dist/components/username/*.js"
     },
+    "./totp/convex.config.js": {
+      "types": "./dist/components/totp/convex.config.d.ts",
+      "default": "./dist/components/totp/convex.config.js"
+    },
+    "./totp/convex.config": {
+      "types": "./dist/components/totp/convex.config.d.ts",
+      "default": "./dist/components/totp/convex.config.js"
+    },
+    "./totp/_generated/component.js": {
+      "types": "./dist/components/totp/_generated/component.d.ts",
+      "default": "./dist/components/totp/_generated/component.js"
+    },
+    "./totp/_generated/component": {
+      "types": "./dist/components/totp/_generated/component.d.ts",
+      "default": "./dist/components/totp/_generated/component.js"
+    },
     "./providers/anonymous/*.js": {
       "types": "./dist/components/anonymous/*.d.ts",
       "default": "./dist/components/anonymous/*.js"
