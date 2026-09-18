@@ -9,6 +9,11 @@ const app = defineApp({
   env: {
     AUTH_PRIVATE_KEY: v.string(),
     AUTH_JWKS: v.string(),
+    // Set RESEND_API_KEY with `npx convex env set`. The two optional
+    // variables have defaults in auth.ts.
+    RESEND_API_KEY: v.string(),
+    EMAIL_FROM: v.optional(v.string()),
+    SITE_URL: v.optional(v.string()),
   },
 });
 
