@@ -1,10 +1,29 @@
 import { Infer, v } from "convex/values";
 
 /**
- * The user-facing errors for `confirmTotp`. An application can show these
- * errors to the end user. The `error` field is a machine-readable code and
- * the discriminant of the union. Declared here so that setup recipes can
- * reuse the validator in their own return validators.
+ * The user-facing errors for `verifyCode` and `verifyBackupCode`. An
+ * application can show these errors to the end user. The `error` field is a
+ * machine-readable code and the discriminant of the union. Declared here so
+ * that setup recipes can reuse the validator in their own return validators.
+ */
+export const verifyCodeUserError = v.union(
+  // The code is not the current code, is malformed, or has been used already.
+  // One error for the three cases: a distinct error for a used code would tell
+  // an attacker that a guess was right a moment ago.
+  v.object({ error: v.literal("INVALID_CODE") }),
+  v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+);
+export type VerifyCodeUserError = Infer<typeof verifyCodeUserError>;
+
+/**
+ * What a `code` is: a code from the authenticator app (`"totp"`), or one of
+ * the user's backup codes (`"backup"`).
+ */
+export const codeKind = v.union(v.literal("totp"), v.literal("backup"));
+export type CodeKind = Infer<typeof codeKind>;
+
+/**
+ * The user-facing errors for `confirmTotp`.
  */
 export const confirmTotpUserError = v.union(
   // The code is not the code that the pending secret gives at this moment.
