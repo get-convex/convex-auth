@@ -1,5 +1,6 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
+import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "./email/schema.ts";
 import { normalizeEmail } from "./email/validation.ts";
 import { sha256Hex } from "../lib/crypto.ts";
@@ -8,11 +9,13 @@ export const modules = import.meta.glob("./email/**/*.ts");
 
 /**
  * Make a test instance of the component. The component mounts the batch
- * worker (the cleanup loop), so register it with the test instance too.
+ * worker (the cleanup loop) and the rate limiter (the `start` throttle), so
+ * register both with the test instance too.
  */
 export function setup(): TestConvex<typeof schema> {
   const t = convexTest(schema, modules);
   registerBatchWorker(t);
+  registerRateLimiter(t);
   return t;
 }
 

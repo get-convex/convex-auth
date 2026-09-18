@@ -14,3 +14,4 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - argon2id-wasm
   - convex
+  - convex-test
