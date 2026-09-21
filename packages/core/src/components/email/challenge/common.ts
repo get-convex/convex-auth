@@ -86,12 +86,16 @@ import {
 } from "../helpers.ts";
 import {
   startChallengeUserError,
+  startFreeAddressUserError,
   completeChallengeUserError,
+  completeFreeAddressUserError,
   normalizeEmail,
   validateEmailFormat,
   vEmailSenderConfig,
   type EmailSenderConfig,
+  type EmailTakenUserError,
   type StartChallengeUserError,
+  type StartFreeAddressUserError,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -118,26 +122,52 @@ export const vClaimArgs = {
   browserSecret: v.string(),
 };
 
+const startChallengeSuccess = v.object({
+  success: v.literal(true),
+  // The secret the client must keep (in its local storage) and present
+  // again at completion. It never travels in the email.
+  browserSecret: v.string(),
+  // The new challenge. A caller that wants to keep data about the flow can
+  // use this ID as a foreign reference.
+  challengeId: v.id("challenges"),
+});
+
 export const startChallengeResult = v.union(
-  v.object({
-    success: v.literal(true),
-    // The secret the client must keep (in its local storage) and present
-    // again at completion. It never travels in the email.
-    browserSecret: v.string(),
-    // The new challenge. A caller that wants to keep data about the flow can
-    // use this ID as a foreign reference.
-    challengeId: v.id("challenges"),
-  }),
+  startChallengeSuccess,
   v.object({ success: v.literal(false), userError: startChallengeUserError }),
 );
 export type StartChallengeResult = Infer<typeof startChallengeResult>;
+
+/**
+ * The `start` result of the kinds that record the address for a user
+ * (`addEmail`, `setPrimaryEmail`). It adds `EMAIL_TAKEN` to the errors.
+ */
+export const startFreeAddressResult = v.union(
+  startChallengeSuccess,
+  v.object({
+    success: v.literal(false),
+    userError: startFreeAddressUserError,
+  }),
+);
+export type StartFreeAddressResult = Infer<typeof startFreeAddressResult>;
 
 export const completeChallengeFailure = v.object({
   success: v.literal(false),
   userError: completeChallengeUserError,
 });
-
 export type CompleteChallengeFailure = Infer<typeof completeChallengeFailure>;
+
+/**
+ * The failed `complete` result of the kinds that record the address for a
+ * user. It adds `EMAIL_TAKEN` to the errors.
+ */
+export const completeFreeAddressFailure = v.object({
+  success: v.literal(false),
+  userError: completeFreeAddressUserError,
+});
+export type CompleteFreeAddressFailure = Infer<
+  typeof completeFreeAddressFailure
+>;
 
 /**
  * The result of `claimChallenge`. The kinds return `failure` as-is when the
@@ -221,7 +251,7 @@ export async function startPreconditions(
 export async function addressTakenError(
   ctx: QueryCtx,
   normalizedEmail: string,
-): Promise<{ error: "EMAIL_TAKEN" } | null> {
+): Promise<EmailTakenUserError | null> {
   const existing = await emailByNormalizedEmail(ctx, normalizedEmail);
   return existing === null ? null : { error: "EMAIL_TAKEN" };
 }
@@ -235,7 +265,7 @@ export async function startFreeAddressPreconditions(
   ctx: MutationCtx,
   email: string,
   mode: StartPreconditionsMode,
-): Promise<StartChallengeUserError | null> {
+): Promise<StartFreeAddressUserError | null> {
   const error = await startPreconditions(ctx, email, mode);
   if (error !== null) {
     return error;

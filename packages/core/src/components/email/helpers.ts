@@ -73,6 +73,21 @@ export function emailsByUserId(
     .collect();
 }
 
+/**
+ * Tell whether the user has at least one verified address. Reads one row at
+ * most, unlike `emailsByUserId`.
+ */
+export async function userHasEmail(
+  ctx: QueryCtx,
+  userId: string,
+): Promise<boolean> {
+  const first = await ctx.db
+    .query("verifiedEmails")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .first();
+  return first !== null;
+}
+
 export function emailByNormalizedEmail(
   ctx: QueryCtx,
   normalizedEmail: string,

@@ -7,19 +7,19 @@ import { mutation } from "../_generated/server.ts";
 import {
   ADD_EMAIL_TTL_MS,
   VALIDATE_EMAIL_COPY,
-  emailsByUserId,
+  userHasEmail,
 } from "../helpers.ts";
-import { normalizeEmail, startChallengeUserError } from "../validation.ts";
+import { normalizeEmail, startFreeAddressUserError } from "../validation.ts";
 import {
   vStartArgs,
   vClaimArgs,
-  startChallengeResult,
-  completeChallengeFailure,
+  startFreeAddressResult,
+  completeFreeAddressFailure,
   startFreeAddressPreconditions,
   addressTakenError,
   createChallengeAndSendEmail,
   claimChallenge,
-  type StartChallengeResult,
+  type StartFreeAddressResult,
 } from "./common.ts";
 
 /**
@@ -28,7 +28,7 @@ import {
  */
 export const check = mutation({
   args: { email: v.string() },
-  returns: v.union(startChallengeUserError, v.null()),
+  returns: v.union(startFreeAddressUserError, v.null()),
   handler: (ctx, { email }) =>
     startFreeAddressPreconditions(ctx, email, "check"),
 });
@@ -39,8 +39,8 @@ export const check = mutation({
  */
 export const start = mutation({
   args: { ...vStartArgs, userId: v.string() },
-  returns: startChallengeResult,
-  handler: async (ctx, args): Promise<StartChallengeResult> => {
+  returns: startFreeAddressResult,
+  handler: async (ctx, args): Promise<StartFreeAddressResult> => {
     const error = await startFreeAddressPreconditions(
       ctx,
       args.email,
@@ -67,7 +67,7 @@ const completeResult = v.union(
     userId: v.string(),
     email: v.string(),
   }),
-  completeChallengeFailure,
+  completeFreeAddressFailure,
 );
 type CompleteResult = Infer<typeof completeResult>;
 
@@ -96,7 +96,7 @@ export const complete = mutation({
       return { success: false, userError: taken };
     }
     // The first address of a user always becomes primary.
-    const isPrimary = (await emailsByUserId(ctx, userId)).length === 0;
+    const isPrimary = !(await userHasEmail(ctx, userId));
     await ctx.db.insert("verifiedEmails", {
       email: row.email,
       normalizedEmail,

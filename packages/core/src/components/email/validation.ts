@@ -50,12 +50,28 @@ export function validateEmailFormat(
  */
 export const startChallengeUserError = v.union(
   emailFormatUserError,
-  // Another user has already verified this address (`addEmail`,
-  // `setPrimaryEmail`).
-  v.object({ error: v.literal("EMAIL_TAKEN") }),
   v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
 );
 export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
+
+/**
+ * Another user has already verified this address. Only the kinds that record
+ * the address for a user (`addEmail`, `setPrimaryEmail`) return this error.
+ */
+export const emailTakenUserError = v.object({
+  error: v.literal("EMAIL_TAKEN"),
+});
+export type EmailTakenUserError = Infer<typeof emailTakenUserError>;
+
+/**
+ * The user-facing errors for the `start` mutations of the kinds that record
+ * the address for a user: the shared errors, plus `EMAIL_TAKEN`.
+ */
+export const startFreeAddressUserError = v.union(
+  startChallengeUserError,
+  emailTakenUserError,
+);
+export type StartFreeAddressUserError = Infer<typeof startFreeAddressUserError>;
 
 /**
  * The user-facing errors for the `complete` mutations.
@@ -73,11 +89,22 @@ export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
 export const completeChallengeUserError = v.union(
   v.object({ error: v.literal("INVALID_CHALLENGE") }),
   v.object({ error: v.literal("INCORRECT_CODE") }),
-  // The address was verified by another user after the flow started.
-  v.object({ error: v.literal("EMAIL_TAKEN") }),
 );
 export type CompleteChallengeUserError = Infer<
   typeof completeChallengeUserError
+>;
+
+/**
+ * The user-facing errors for the `complete` mutations of the kinds that
+ * record the address for a user: the shared errors, plus `EMAIL_TAKEN` when
+ * another user verified the address after the flow started.
+ */
+export const completeFreeAddressUserError = v.union(
+  completeChallengeUserError,
+  emailTakenUserError,
+);
+export type CompleteFreeAddressUserError = Infer<
+  typeof completeFreeAddressUserError
 >;
 
 /**
