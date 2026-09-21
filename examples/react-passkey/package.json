@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit && tsc -p convex --noEmit"
   },
   "devDependencies": {
-    "@convex-dev/batch-worker": "^0.3.0",
+    "@convex-dev/batch-worker": "^0.3.2",
     "@convex-dev/passkey-test-authenticator": "workspace:*",
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^24.12.4",

@@ -160,7 +160,7 @@ export async function createChallenge(
     browserSecretHash: await sha256Hex(browserSecret),
     expiresAt: Date.now() + args.ttlMs,
   });
-  await scheduleChallengeCleanup(ctx);
+  await scheduleChallengeCleanup(ctx, args.ttlMs);
   return { browserSecret, challengeId };
 }
 

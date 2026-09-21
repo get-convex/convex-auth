@@ -24,15 +24,22 @@ const BATCH_SIZE = 1024;
 /**
  * Make sure that the background cleanup loop runs.
  *
- * Call this function after you write a challenge. The call is cheap: it does
- * nothing while the loop already runs. The loop stops when no expired
- * challenge stays.
+ * Call this function after you write a challenge, with the TTL of that
+ * challenge. The challenge cannot be expired before its TTL, thus the loop
+ * waits that long before it runs. A run that the loop already planned for an
+ * older challenge stays if it comes sooner. The call is cheap: it does
+ * nothing while the loop already runs or waits. The loop stops when no
+ * expired challenge stays.
  */
-export async function scheduleChallengeCleanup(ctx: MutationCtx) {
+export async function scheduleChallengeCleanup(
+  ctx: MutationCtx,
+  debounceMs: number,
+) {
   await ping(ctx, components.batchWorker, {
     name: WORKER_NAME,
     workQuery: internal.cleanup.getExpiredChallenges,
     workerMutation: internal.cleanup.deleteExpiredChallenges,
+    config: { debounceMs },
   });
 }
 
