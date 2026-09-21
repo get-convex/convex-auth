@@ -95,7 +95,7 @@ function writeShims(entries) {
       {
         extends: "../tsconfig.json",
         compilerOptions: { noEmit: true },
-        include: ["./**/*.ts", "../src/**/*"],
+        include: ["./**/*.ts"],
       },
       null,
       2,
