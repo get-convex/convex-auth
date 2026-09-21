@@ -22,6 +22,8 @@ export default defineConfig([
       // Generated output in the docs package (Next.js build + Fumadocs MDX).
       "packages/docs/.next/**",
       "packages/docs/.source/**",
+      // Re-export shims written by packages/docs/scripts/generate-api-reference.mjs.
+      "packages/core/.api-entrypoints/**",
       // Generated Next.js output in the examples.
       "examples/**/.next/**",
     ],
