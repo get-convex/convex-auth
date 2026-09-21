@@ -19,9 +19,12 @@ import {
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
 import {
+  getCheckSignInCalls,
   getCreateUserCalls,
   getOnSignInCalls,
+  resetSignInChecks,
   resetUserCallbackCalls,
+  verifyTotp,
 } from "./testApp.ts";
 import {
   type AuthClaims,
@@ -782,11 +785,20 @@ describe("createAccount", () => {
 });
 
 describe("pending sign-ins", () => {
-  // A sign-in check, as a provider's helper would have stored it: the
-  // requirement's name, next to the handle of its check. The core stores it
-  // with the attempt; nothing here runs it.
+  // The sign-in checks of the test app, as a provider's helper would have
+  // stored them: the requirement's name, next to the handle of its check.
+  // `checkTotp` does not pass until `verifyTotp`.
   const TOTP_CHECK = { requirement: "totp", handle: "testApp:checkTotp" };
+  const EMAIL_CHECK = { requirement: "email", handle: "testApp:checkEmail" };
+  const SATISFIED_CHECK = {
+    requirement: "satisfied",
+    handle: "testApp:checkSatisfied",
+  };
   type StoredCheck = typeof TOTP_CHECK;
+
+  beforeEach(() => {
+    resetSignInChecks();
+  });
 
   /**
    * Park a known identity's sign-in, as a provider with an unmet requirement
@@ -808,6 +820,22 @@ describe("pending sign-ins", () => {
   /** Resolve an attempt token the way a requirement-satisfying function does. */
   async function getPending(t: ConvexTestApi, attemptToken: string) {
     return await t.query(api.public.getPendingSignIn, { attemptToken });
+  }
+
+  /** Continue a parked sign-in, as the app's `continueSignIn` does. */
+  async function complete(t: ConvexTestApi, attemptToken: string) {
+    return await t.mutation(api.public.completePendingSignIn, {
+      attemptToken,
+      issuer: ISSUER,
+    });
+  }
+
+  type CompleteResult = Awaited<ReturnType<typeof complete>>;
+
+  /** Assert a continuation minted, and narrow to the bundle. */
+  function expectComplete(result: CompleteResult): TokenBundle {
+    expect(result?.status).toBe("complete");
+    return (result as Extract<CompleteResult, { status: "complete" }>).tokens;
   }
 
   /** How many pending sign-ins currently exist. */
@@ -834,8 +862,10 @@ describe("pending sign-ins", () => {
     expect(deferred.expiresAt).toBeGreaterThan(Date.now());
     // Only the sign-up's session exists: deferring minted nothing.
     expect(await sessionCount(t)).toBe(1);
-    // Nothing was signed in yet, so the app was not told about a sign-in.
+    // Nothing was signed in yet, so the app was not told about a sign-in,
+    // and nothing was continued, so no check ran.
     expect(getOnSignInCalls()).toHaveLength(0);
+    expect(getCheckSignInCalls()).toHaveLength(0);
 
     // The token is stored only as a hash. The row keeps the identity for
     // minting later, and pins the checks and the onSignIn to run then.
@@ -882,17 +912,155 @@ describe("pending sign-ins", () => {
     });
   });
 
-  test("an unknown token resolves to nothing", async () => {
+  test("a parked first sign-in mints the first session and runs onSignIn then", async () => {
+    const t = setup();
+    resetUserCallbackCalls();
+    const { userId } = await createAccount(t, claims());
+    const deferred = await defer(t, claims());
+
+    verifyTotp();
+    const bundle = expectComplete(await complete(t, deferred.attemptToken));
+    expect(bundle.userId).toBe(userId);
+    expect(getOnSignInCalls()).toEqual([
+      {
+        provider: {
+          name: "password",
+          accountId: "alice",
+          profile: { name: "Alice" },
+        },
+        userId,
+      },
+    ]);
+    expect(await sessionCount(t)).toBe(1);
+  });
+
+  test("continuing runs the checks with the attempt's subject and withholds the session while one is outstanding", async () => {
+    const t = setup();
+    const { userId } = await signUp(t, claims());
+    resetUserCallbackCalls();
+    const deferred = await defer(t, claims(), {
+      checks: [TOTP_CHECK, SATISFIED_CHECK],
+    });
+
+    // The client came back before verifying anything.
+    const result = await complete(t, deferred.attemptToken);
+    expect(result).toEqual({
+      status: "incomplete",
+      attemptToken: deferred.attemptToken,
+      expiresAt: deferred.expiresAt,
+      requirements: ["totp"],
+    });
+    // Every check ran, and was asked about this subject and this attempt,
+    // never about anything the caller supplied. Only the failing check's
+    // requirement is reported, under the name it was parked with.
+    expect(getCheckSignInCalls()).toEqual([
+      { userId, attemptId: deferred.attemptId },
+      { userId, attemptId: deferred.attemptId },
+    ]);
+    // Nothing happened: no session, no onSignIn, and the attempt stays live
+    // for the client to continue again.
+    expect(await sessionCount(t)).toBe(1);
+    expect(getOnSignInCalls()).toHaveLength(0);
+    expect(await pendingCount(t)).toBe(1);
+    expect(await getPending(t, deferred.attemptToken)).not.toBeNull();
+
+    // Once the requirement is met, the same token finishes the sign-in.
+    verifyTotp();
+    expectComplete(await complete(t, deferred.attemptToken));
+    expect(await sessionCount(t)).toBe(2);
+  });
+
+  test("reports the requirements of every failing check together, once each", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    // The same check parked twice under one name is reported once: the name
+    // is what gets deduplicated.
+    const { attemptToken } = await defer(t, claims(), {
+      checks: [TOTP_CHECK, EMAIL_CHECK, TOTP_CHECK],
+    });
+
+    const result = await complete(t, attemptToken);
+    expect(result).toMatchObject({
+      status: "incomplete",
+      requirements: ["totp", "email"],
+    });
+
+    // Satisfying one check is not satisfying them all.
+    verifyTotp();
+    expect(await complete(t, attemptToken)).toMatchObject({
+      status: "incomplete",
+      requirements: ["email"],
+    });
+  });
+
+  test("an attempt parked with no checks completes at once", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    const { attemptToken } = await defer(t, claims(), { checks: [] });
+
+    expectComplete(await complete(t, attemptToken));
+    expect(getCheckSignInCalls()).toHaveLength(0);
+  });
+
+  test("completing mints a session, runs the onSignIn pinned at deferral once, and spends the token", async () => {
+    const t = setup();
+    const { userId } = await signUp(t, claims());
+    resetUserCallbackCalls();
+    const { attemptToken } = await defer(t, claims());
+    verifyTotp();
+
+    const bundle = expectComplete(await complete(t, attemptToken));
+    expect(bundle.userId).toBe(userId);
+    // The session is a real one: the refresh token rotates like any other.
+    expectRotated(await refresh(t, bundle.refreshToken));
+    // The sign-in happened now, so the app heard about it exactly once, with
+    // the claims the deferred sign-in carried.
+    expect(getOnSignInCalls()).toEqual([
+      {
+        provider: {
+          name: "password",
+          accountId: "alice",
+          profile: { name: "Alice" },
+        },
+        userId,
+      },
+    ]);
+
+    // Single use: the row is gone, and a replay mints nothing.
+    expect(await pendingCount(t)).toBe(0);
+    expect(await getPending(t, attemptToken)).toBeNull();
+    expect(await complete(t, attemptToken)).toBeNull();
+    expect(await sessionCount(t)).toBe(2);
+  });
+
+  test("completing an attempt parked without an onSignIn notifies nothing", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    resetUserCallbackCalls();
+    const { attemptToken } = await t.mutation(api.public.deferSignIn, {
+      claims: claims(),
+      checks: [],
+    });
+
+    expectComplete(await complete(t, attemptToken));
+    expect(getOnSignInCalls()).toHaveLength(0);
+    expect(await sessionCount(t)).toBe(2);
+  });
+
+  test("an unknown token resolves to nothing and completes nothing", async () => {
     const t = setup();
     await signUp(t, claims());
     await defer(t, claims());
 
     expect(await getPending(t, "not-a-real-token")).toBeNull();
-    // The real attempt is untouched.
+    expect(await complete(t, "not-a-real-token")).toBeNull();
+    // The real attempt is untouched, and no check ran for a token that names
+    // nothing.
     expect(await pendingCount(t)).toBe(1);
+    expect(getCheckSignInCalls()).toHaveLength(0);
   });
 
-  test("an expired attempt resolves to nothing", async () => {
+  test("an expired attempt resolves to nothing and completes nothing", async () => {
     const t = setup();
     await signUp(t, claims());
     const { attemptToken } = await defer(t, claims());
@@ -903,7 +1071,9 @@ describe("pending sign-ins", () => {
       });
     });
 
+    verifyTotp();
     expect(await getPending(t, attemptToken)).toBeNull();
+    expect(await complete(t, attemptToken)).toBeNull();
     expect(await sessionCount(t)).toBe(1);
   });
 
@@ -912,13 +1082,30 @@ describe("pending sign-ins", () => {
     await signUp(t, claims());
     const first = await defer(t, claims());
     const second = await defer(t, claims());
+    verifyTotp();
 
     // One live attempt per identity, and the new one has a new id: proof a
     // requirement component recorded against the first id keys nothing now.
     expect(await pendingCount(t)).toBe(1);
     expect(second.attemptId).not.toBe(first.attemptId);
     expect(await getPending(t, first.attemptToken)).toBeNull();
-    expect(await getPending(t, second.attemptToken)).not.toBeNull();
+    expect(await complete(t, first.attemptToken)).toBeNull();
+    expectComplete(await complete(t, second.attemptToken));
+  });
+
+  test("completing re-resolves the account and mints nothing for one that is gone", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    const { attemptToken } = await defer(t, claims());
+    verifyTotp();
+    await t.run(async (ctx) => {
+      const account = (await ctx.db.query("accounts").unique())!;
+      await ctx.db.delete("accounts", account._id);
+    });
+
+    expect(await complete(t, attemptToken)).toBeNull();
+    expect(await pendingCount(t)).toBe(0);
+    expect(await sessionCount(t)).toBe(1);
   });
 
   test("deferring sweeps expired attempts, and only those", async () => {
