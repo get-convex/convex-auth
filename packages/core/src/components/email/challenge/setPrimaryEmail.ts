@@ -6,17 +6,17 @@
 import { Infer, v } from "convex/values";
 import { mutation } from "../_generated/server.ts";
 import { ADD_EMAIL_TTL_MS, VALIDATE_EMAIL_COPY } from "../helpers.ts";
-import { normalizeEmail, startChallengeUserError } from "../validation.ts";
+import { normalizeEmail, startFreeAddressUserError } from "../validation.ts";
 import {
   vStartArgs,
   vClaimArgs,
-  startChallengeResult,
-  completeChallengeFailure,
+  startFreeAddressResult,
+  completeFreeAddressFailure,
   startFreeAddressPreconditions,
   addressTakenError,
   createChallengeAndSendEmail,
   claimChallenge,
-  type StartChallengeResult,
+  type StartFreeAddressResult,
 } from "./common.ts";
 
 /**
@@ -25,7 +25,7 @@ import {
  */
 export const check = mutation({
   args: { email: v.string() },
-  returns: v.union(startChallengeUserError, v.null()),
+  returns: v.union(startFreeAddressUserError, v.null()),
   handler: (ctx, { email }) =>
     startFreeAddressPreconditions(ctx, email, "check"),
 });
@@ -36,8 +36,8 @@ export const check = mutation({
  */
 export const start = mutation({
   args: { ...vStartArgs, userId: v.string() },
-  returns: startChallengeResult,
-  handler: async (ctx, args): Promise<StartChallengeResult> => {
+  returns: startFreeAddressResult,
+  handler: async (ctx, args): Promise<StartFreeAddressResult> => {
     const error = await startFreeAddressPreconditions(
       ctx,
       args.email,
@@ -67,7 +67,7 @@ const completeResult = v.union(
     // `null` when there was none. Callers use it to notify the old address.
     previousPrimaryEmail: v.union(v.string(), v.null()),
   }),
-  completeChallengeFailure,
+  completeFreeAddressFailure,
 );
 type CompleteResult = Infer<typeof completeResult>;
 

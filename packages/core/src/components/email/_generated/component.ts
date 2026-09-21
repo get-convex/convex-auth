@@ -141,8 +141,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "internal",
           { email: string },
           | { error: "INVALID_EMAIL" }
-          | { error: "EMAIL_TAKEN" }
           | { error: "RATE_LIMITED"; retryAfterMs: number }
+          | { error: "EMAIL_TAKEN" }
           | null,
           Name
         >;
@@ -187,8 +187,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               success: false;
               userError:
                 | { error: "INVALID_EMAIL" }
-                | { error: "EMAIL_TAKEN" }
-                | { error: "RATE_LIMITED"; retryAfterMs: number };
+                | { error: "RATE_LIMITED"; retryAfterMs: number }
+                | { error: "EMAIL_TAKEN" };
             },
           Name
         >;

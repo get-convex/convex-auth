@@ -113,6 +113,43 @@ describe("challenge.setPrimaryEmail.complete", () => {
   });
 });
 
+describe("the userId of a setPrimaryEmail challenge", () => {
+  test("another userId throws and keeps the row", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "old1@example.com", true);
+    await seedEmail(t, "user2", "old2@example.com", true);
+    await seedChallenge(t, {
+      email: "new@example.com",
+      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    await expect(
+      t.mutation(api.challenge.setPrimaryEmail.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        userId: "user2",
+      }),
+    ).rejects.toThrow();
+    // The primary address of each user stays in place.
+    expect(
+      await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
+    ).toEqual([{ email: "old1@example.com", isPrimary: true }]);
+    expect(
+      await t.query(api.verifiedEmails.getEmails, { userId: "user2" }),
+    ).toEqual([{ email: "old2@example.com", isPrimary: true }]);
+    // The right user still completes the challenge.
+    expect(
+      await t.mutation(api.challenge.setPrimaryEmail.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        userId: "user1",
+      }),
+    ).toMatchObject({ success: true, userId: "user1" });
+  });
+});
+
 describe("concurrent challenges for one address", () => {
   test("the other challenge stays pending, then fails with EMAIL_TAKEN", async () => {
     const t = setup();
