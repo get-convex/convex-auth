@@ -75,6 +75,7 @@ import { Infer, v } from "convex/values";
 import type { MutationCtx } from "../_generated/server.ts";
 import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
+import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   startChallengeUserError,
   completeChallengeUserError,
@@ -159,6 +160,7 @@ export async function createChallenge(
     browserSecretHash: await sha256Hex(browserSecret),
     expiresAt: Date.now() + args.ttlMs,
   });
+  await scheduleChallengeCleanup(ctx, args.ttlMs);
   return { browserSecret, challengeId };
 }
 
@@ -211,7 +213,8 @@ export async function claimChallenge(
     );
     return claimFailure("INVALID_CHALLENGE");
   }
-  if (row.expiresAt < Date.now()) {
+  // At exactly `expiresAt` the link is expired, like in the cleanup loop.
+  if (row.expiresAt <= Date.now()) {
     console.warn(
       `Rejected the email challenge ${row._id} for the purpose ` +
         `"${row.purpose.kind}": it expired at ` +
