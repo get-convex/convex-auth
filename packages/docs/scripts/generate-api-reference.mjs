@@ -1,6 +1,13 @@
 // Generates the API reference section from the public exports of
-// `@convex-dev/auth`. One TypeDoc module per import specifier, e.g.
-// `@convex-dev/auth/server`, so the reference mirrors what users import.
+// `@convex-dev/auth`. One TypeDoc module per import specifier, for example
+// `@convex-dev/auth/server`, thus the reference mirrors what users import.
+//
+// TypeDoc can read the `exports` map on its own. This script does not use
+// that path. The map has a `./x.js` twin for each `./x` key, which would
+// become two modules. It also has `null`, `./package.json` and `_generated`
+// entries that must not get a page. A re-export shim per specifier gives
+// TypeDoc one file with the module name in its path, and reads `src/` with
+// no build step.
 import {
   existsSync,
   mkdirSync,
@@ -19,8 +26,8 @@ const docsDir = path.resolve(
   "..",
 );
 const coreDir = path.resolve(docsDir, "../core");
-// The shims must live inside the core package: TypeDoc only reports
-// unexported types for the package that owns the entry points.
+// The shims live inside the core package. When they lived outside it,
+// TypeDoc reported no unexported types.
 const shimDir = path.join(coreDir, ".api-entrypoints");
 const outDir = path.join(docsDir, "content/docs/api");
 
@@ -32,8 +39,10 @@ const pkg = JSON.parse(
 function collectEntryPoints() {
   const entries = new Map();
   for (const [key, value] of Object.entries(pkg.exports)) {
+    // The `./x.js` keys duplicate the `./x` keys.
     if (value === null || key === "./package.json" || key.endsWith(".js"))
       continue;
+    // `_generated` holds the component API, not a user import.
     if (key.includes("_generated")) continue;
     const target = typeof value === "string" ? value : value.types;
     if (!target) continue;
@@ -186,8 +195,10 @@ if (!project) {
   console.error("TypeDoc conversion failed");
   process.exit(1);
 }
-// Warns once per type that a public signature references but no entry point
-// exports. Readers see those types inlined instead of by name.
+// TypeDoc warns once per type that a public signature references and no
+// entry point exports. Readers see those types inlined instead of by name.
+// When the list is empty, set `treatValidationWarningsAsErrors` so it cannot
+// grow again.
 app.validate(project);
 await app.generateOutputs(project);
 writeFileSync(
