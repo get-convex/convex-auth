@@ -20,6 +20,11 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
 
   const MDX = page.data.body;
   const markdownUrl = getPageMarkdownUrl(page).url;
+  // The API reference is generated at build time and not in the repository.
+  const githubUrl =
+    page.slugs[0] === "api"
+      ? undefined
+      : `https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/packages/docs/content/docs/${page.path}`;
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
@@ -29,10 +34,7 @@ export default async function Page(props: PageProps<"/[[...slug]]">) {
       </DocsDescription>
       <div className="flex flex-row gap-2 items-center border-b pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />
-        <ViewOptionsPopover
-          markdownUrl={markdownUrl}
-          githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/packages/docs/content/docs/${page.path}`}
-        />
+        <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl} />
       </div>
       <DocsBody>
         <MDX
