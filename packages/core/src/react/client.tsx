@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   useSyncExternalStore,
 } from "react";
 import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
@@ -14,7 +15,11 @@ import {
   INITIAL_AUTH_STATE,
   type AuthClient,
 } from "../browser/sessionManager.ts";
-import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
+import type {
+  SignInIncomplete,
+  SlimTokenBundle,
+  TokenBundle,
+} from "../lib/types.ts";
 
 export type { AuthSignInApi };
 
@@ -76,6 +81,64 @@ export const AuthClientContext = createContext<AuthClient | undefined>(
 export const ConvexAuthTokenContext = createContext<string | null>(null);
 
 /**
+ * A sign-in result as a sign-in hook receives it, under either session model,
+ * for {@link PendingSignInContextType.adopt}.
+ */
+export type AdoptableSignInResult =
+  | { status: "complete"; tokens: TokenBundle | SlimTokenBundle }
+  | SignInIncomplete
+  | { status: "error"; userError: unknown };
+
+/**
+ * The sign-in that is waiting on requirements, as `usePendingSignIn` sees it,
+ * for an app whose sign-ins can be held for the requirements `R`.
+ */
+export type PendingSignInState<R extends string = string> = {
+  /**
+   * The sign-in a provider held on requirements, or `null` when there is
+   * none.
+   */
+  pendingSignIn: SignInIncomplete<R> | null;
+  /**
+   * `true` when the last pending sign-in was reported expired before it
+   * finished. The user starts the sign-in over; the next sign-in result
+   * resets it.
+   */
+  expired: boolean;
+  /** Drop the pending sign-in (and the `expired` flag), to start over. */
+  cancel: () => void;
+};
+
+/** The pending sign-in state plus the entry point the sign-in hooks feed. */
+export type PendingSignInContextType = PendingSignInState & {
+  /**
+   * Take in the result of a sign-in function: adopt the session of a
+   * `complete` one, hold an `incomplete` one as the pending sign-in, and mark
+   * the pending sign-in expired on `SIGN_IN_EXPIRED`. Other errors leave the
+   * pending sign-in as it is, so the user can try its step again.
+   */
+  adopt: (result: AdoptableSignInResult) => Promise<void>;
+};
+
+export const PendingSignInContext = createContext<
+  PendingSignInContextType | undefined
+>(undefined);
+
+type PendingSignInSlot =
+  | { kind: "none" }
+  | { kind: "pending"; signIn: SignInIncomplete }
+  | { kind: "expired" };
+
+function isSignInExpired(userError: unknown): boolean {
+  return (
+    typeof userError === "object" &&
+    userError !== null &&
+    "error" in userError &&
+    userError.error === "SIGN_IN_EXPIRED"
+  );
+}
+
+/**
  * The auth state consumed by Convex's `ConvexProviderWithAuth`. Provided by
  * {@link AuthProvider} and read by the module-level {@link useAuth}.
  */
@@ -104,8 +167,23 @@ export function useAuth() {
 }
 
 /**
- * Binds an {@link AuthClient} to React and provides the auth, actions, and
- * token contexts. Rendered by `ConvexAuthProvider` around
+ * The pending sign-in context, for the sign-in hooks. Throws outside an auth
+ * provider.
+ */
+export function usePendingSignInContext(): PendingSignInContextType {
+  const context = useContext(PendingSignInContext);
+  if (context === undefined) {
+    throw new Error(
+      "usePendingSignIn must be used within a <ConvexAuthProvider> (or, " +
+        "under Next.js, a <ConvexAuthNextjsProvider>).",
+    );
+  }
+  return context;
+}
+
+/**
+ * Binds an {@link AuthClient} to React and provides the auth, actions,
+ * pending sign-in, and token contexts. Rendered by `ConvexAuthProvider` around
  * `ConvexProviderWithAuth`.
  */
 export function AuthProvider({
@@ -155,14 +233,43 @@ export function AuthProvider({
     [authClient],
   );
 
+  // The attempt token proves a first factor, so it lives in memory here and
+  // nowhere else: a reload drops it and the user signs in again.
+  const [slot, setSlot] = useState<PendingSignInSlot>({ kind: "none" });
+  const adopt = useCallback(
+    async (result: AdoptableSignInResult) => {
+      if (result.status === "complete") {
+        await authClient.setSession(result.tokens);
+        setSlot({ kind: "none" });
+      } else if (result.status === "incomplete") {
+        setSlot({ kind: "pending", signIn: result });
+      } else if (isSignInExpired(result.userError)) {
+        setSlot({ kind: "expired" });
+      }
+    },
+    [authClient],
+  );
+  const cancel = useCallback(() => setSlot({ kind: "none" }), []);
+  const pendingSignIn = useMemo<PendingSignInContextType>(
+    () => ({
+      pendingSignIn: slot.kind === "pending" ? slot.signIn : null,
+      expired: slot.kind === "expired",
+      cancel,
+      adopt,
+    }),
+    [slot, cancel, adopt],
+  );
+
   return (
     <AuthClientContext.Provider value={authClient}>
       <ConvexAuthInternalContext.Provider value={authState}>
         <ConvexAuthSignInApiContext.Provider value={signInApi}>
           <ConvexAuthActionsContext.Provider value={actions}>
-            <ConvexAuthTokenContext.Provider value={state.token}>
-              {children}
-            </ConvexAuthTokenContext.Provider>
+            <PendingSignInContext.Provider value={pendingSignIn}>
+              <ConvexAuthTokenContext.Provider value={state.token}>
+                {children}
+              </ConvexAuthTokenContext.Provider>
+            </PendingSignInContext.Provider>
           </ConvexAuthActionsContext.Provider>
         </ConvexAuthSignInApiContext.Provider>
       </ConvexAuthInternalContext.Provider>
