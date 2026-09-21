@@ -1,12 +1,45 @@
 import { MutationCtx, QueryCtx } from "./_generated/server.ts";
 import { Doc } from "./_generated/dataModel.ts";
+import { components } from "./_generated/api.ts";
 import type {
   FunctionArgs,
   FunctionHandle,
   FunctionReturnType,
 } from "convex/server";
 import type { ComponentApi as ResendApi } from "@convex-dev/resend/_generated/component.js";
+import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { EmailSenderConfig } from "./validation.ts";
+
+//------------------------------------------------------------------------------
+
+// Configuration
+//------------------------------------------------------------------------------
+
+// Throttle for starting challenges. Each flow sends an email, so the
+// limits protect the destination mailbox from flooding and the sender's
+// reputation from abuse:
+// - per destination address, so an attacker cannot flood one mailbox;
+// - per client IP, so one machine cannot spray many addresses.
+export const rateLimiter = new RateLimiter(components.rateLimiter, {
+  startChallengePerEmail: { kind: "token bucket", rate: 5, period: HOUR },
+  startChallengePerIp: { kind: "token bucket", rate: 20, period: HOUR },
+});
+
+//------------------------------------------------------------------------------
+// Shared helpers
+//------------------------------------------------------------------------------
+
+export async function getClientIp(ctx: MutationCtx): Promise<string> {
+  const { ip } = await ctx.meta.getRequestMetadata();
+  if (ip === null) {
+    throw new Error(
+      "The email component could not read the client IP for rate " +
+        "limiting. Start challenges from a client request, not from " +
+        "a scheduled or cron function.",
+    );
+  }
+  return ip;
+}
 
 export function emailsByUserId(
   ctx: QueryCtx,
