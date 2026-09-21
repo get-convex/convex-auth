@@ -18,6 +18,8 @@ import {
   type TokenBundle,
   vRefreshResult,
   type RefreshResult,
+  vContinueSignInResult,
+  type ContinueSignInResult,
   type SignInCheck,
   type ConvexAuthCtx,
   type UserCallbacks,
@@ -131,6 +133,27 @@ export type AuthCore<UsersTable extends string = string> = {
     Promise<boolean>
   >;
   /**
+   * Continues a sign-in that a provider parked on a requirement, once the
+   * client has satisfied it.
+   *
+   * Takes the `attemptToken` of an `incomplete` sign-in result. The core runs
+   * the checks the provider named when it parked the sign-in and, when none
+   * reports anything outstanding, mints the session and runs the app's
+   * `onSignIn`. Resolves to the shared sign-in envelope: `complete` with the
+   * tokens, `incomplete` with what is still outstanding (the client continues
+   * again once it is met), or the `SIGN_IN_EXPIRED` error when the attempt is
+   * gone and the user starts the sign-in over.
+   *
+   * Apps re-export it like `signOut`, and hand it to `useContinueSignIn` on
+   * the client. Under SSR it goes through the auth proxy like any sign-in
+   * function, so it belongs in the proxy's `signIn` allowlist.
+   */
+  continueSignIn: RegisteredMutation<
+    "public",
+    { attemptToken: string },
+    Promise<ContinueSignInResult>
+  >;
+  /**
    * Resolve an attempt token to the subject of the pending sign-in it names,
    * or `null` when the token is unknown or the attempt has expired.
    *
@@ -192,7 +215,8 @@ export type AuthCore<UsersTable extends string = string> = {
  * `completeSignUp` when it has just established the account, `completeSignIn`
  * when the account already exists. A provider with a requirement to enforce
  * first (a second factor, say) calls `deferSignIn` instead, naming the checks
- * the core judges the parked sign-in by when the client continues it.
+ * that judge it; the app's `continueSignIn` (returned here) finishes such a
+ * sign-in once the client has satisfied them.
  *
  * Token lifetimes are configurable here and default to 1m (access) and 30d
  * (refresh). The access-token TTL must be shorter than the refresh-token TTL,
@@ -291,6 +315,29 @@ export function setupCore<UsersTable extends string = "users">(options: {
     returns: v.boolean(),
     handler: async (ctx): Promise<boolean> => {
       return (await ctx.auth.getUserIdentity()) !== null;
+    },
+  });
+
+  // Runs at the app level so anyone holding an attempt token can reach it,
+  // which is fine: the component judges the requirements itself, from the
+  // checks the provider pinned to the attempt, and takes nobody's word.
+  const continueSignIn = mutationGeneric({
+    args: { attemptToken: v.string() },
+    returns: vContinueSignInResult,
+    handler: async (ctx, { attemptToken }): Promise<ContinueSignInResult> => {
+      const result = await ctx.runMutation(
+        component.public.completePendingSignIn,
+        {
+          attemptToken,
+          issuer: issuer(),
+          accessTokenTtlSeconds,
+          refreshTokenTtlSeconds,
+        },
+      );
+      if (result === null) {
+        return { status: "error", userError: { error: "SIGN_IN_EXPIRED" } };
+      }
+      return result;
     },
   });
 
@@ -409,9 +456,9 @@ export function setupCore<UsersTable extends string = "users">(options: {
         });
       },
       // The helper of a sign-in that waits on a requirement: park it. The
-      // core finishes it when the client continues, so there is no completion
-      // helper here: the row carries the provider's checks and the app's
-      // `onSignIn` as handles. A first sign-in is parked the same way, after
+      // core's `continueSignIn` finishes it, so there is no completion helper
+      // here: the row carries the provider's checks and the app's `onSignIn`
+      // as function handles. A first sign-in is parked the same way, after
       // `createAccount` above has established the account.
       deferSignIn: async (args: {
         providerAccountId: string;
@@ -461,6 +508,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
     signOut,
     refreshSession,
     isAuthenticated,
+    continueSignIn,
     getPendingSignIn,
     bindProvider,
   };

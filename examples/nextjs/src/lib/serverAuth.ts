@@ -15,6 +15,7 @@ export const auth = setupConvexAuthServer({
     api.auth.signInAnonymous,
     api.auth.signInWithPassword,
     api.auth.signUpWithPassword,
+    api.auth.continueSignIn,
   ],
   cookieOptions: { secure: process.env.NODE_ENV === "production" },
 });
