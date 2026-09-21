@@ -14,8 +14,10 @@ const { rewrite: rewriteSuffix } = rewritePath(
 );
 
 // Route handlers that serve their own content. The negotiation must not
-// rewrite them, or agents get a 404 instead of the file they asked for.
-const nonDocsRoutes = ["/api", "/og"];
+// rewrite them, or agents get a 404 instead of the file they asked for. The
+// generated API reference lives at `/api/*`, thus the match is on the exact
+// handler paths and not on `/api`.
+const nonDocsRoutes = ["/api/search", "/og"];
 
 /**
  * Tell if the path can be a docs page. Docs page paths have no file extension,

@@ -1,2 +1,5 @@
 
 .env.local
+
+# shims written by packages/docs/scripts/generate-api-reference.mjs
+/.api-entrypoints
