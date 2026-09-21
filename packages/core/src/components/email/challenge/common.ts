@@ -244,6 +244,11 @@ export async function createChallengeAndSendEmail(
 //------------------------------------------------------------------------------
 
 function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
+  // Two `custom` challenges match only when the caller's purpose string is
+  // the same one that started the flow.
+  if (a.kind === "custom" && b.kind === "custom" && a.purpose !== b.purpose) {
+    return false;
+  }
   return a.kind === b.kind && a.userId === b.userId;
 }
 

@@ -38,7 +38,8 @@ export async function seedEmail(
 
 export type ChallengePurposeRow =
   | { kind: "addEmail"; userId: string }
-  | { kind: "setPrimaryEmail"; userId: string };
+  | { kind: "setPrimaryEmail"; userId: string }
+  | { kind: "custom"; userId: string | null; purpose: string };
 
 /**
  * Seed a pending challenge row directly, with the hashes of the code and the
