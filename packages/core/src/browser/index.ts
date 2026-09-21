@@ -3,6 +3,8 @@
  * storage abstraction, a cross-tab refresh mutex, and the session manager that
  * ties them together. The React bindings (`@convex-dev/auth/react`) build on
  * these, and other client libraries can too.
+ *
+ * @module
  */
 
 export {
