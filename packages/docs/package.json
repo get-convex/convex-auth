@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "pnpm api && next build",
+    "predev": "pnpm api",
     "dev": "next dev",
     "start": "next start",
     "typecheck": "fumadocs-mdx && next typegen && tsc --noEmit",
