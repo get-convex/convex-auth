@@ -183,8 +183,9 @@ function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
  *
  * `INVALID_CHALLENGE` means that there is no live challenge for the secret.
  * The challenge may have expired, may already have been used, or may never
- * have existed. The server cannot tell these apart, and the user action is
- * the same, start again. `INCORRECT_CODE` means the row exists but the code
+ * have existed. The client cannot tell these apart, and the user action is
+ * the same, start again. The server writes the difference to the log, to help
+ * you find a bug or a misuse. `INCORRECT_CODE` means the row exists but the code
  * is not the one that the challenge sent. For a link, the link is not the
  * newest one this browser started. For a future short code, it is a typo.
  *
@@ -203,10 +204,27 @@ export async function claimChallenge(
       q.eq("browserSecretHash", browserSecretHash),
     )
     .unique();
-  if (row === null || row.expiresAt < Date.now()) {
+  if (row === null) {
+    console.warn(
+      `Rejected the email challenge: there is no challenge for the browser ` +
+        `secret. The challenge was already completed, or it never existed.`,
+    );
+    return claimFailure("INVALID_CHALLENGE");
+  }
+  if (row.expiresAt < Date.now()) {
+    console.warn(
+      `Rejected the email challenge ${row._id} for the purpose ` +
+        `"${row.purpose.kind}": it expired at ` +
+        `${new Date(row.expiresAt).toISOString()}.`,
+    );
     return claimFailure("INVALID_CHALLENGE");
   }
   if (row.emailCodeHash !== (await sha256Hex(args.emailCode))) {
+    console.warn(
+      `Rejected the email challenge ${row._id} for the purpose ` +
+        `"${row.purpose.kind}": the code is not the code that this ` +
+        `challenge sent.`,
+    );
     return claimFailure("INCORRECT_CODE");
   }
   if (!samePurpose(row.purpose, args.purpose)) {
