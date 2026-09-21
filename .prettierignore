@@ -14,5 +14,7 @@ packages/argon2id-wasm/rust/target/
 **/.next/
 **/.source/
 next-env.d.ts
+
+# Generated API reference (packages/docs) and its shims (packages/core)
 packages/docs/content/docs/api
 packages/core/.api-entrypoints
