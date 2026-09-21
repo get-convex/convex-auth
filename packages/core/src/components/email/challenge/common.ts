@@ -187,9 +187,6 @@ function claimFailure(
 // Start
 //------------------------------------------------------------------------------
 
-/** Tells `start` preconditions to only check the rate limits, or to consume them. */
-export type StartPreconditionsMode = "check" | "consume";
-
 /**
  * The preconditions that every `start` shares: the format of the address,
  * then the two rate limits (one for the destination address, one for the
@@ -200,7 +197,7 @@ export type StartPreconditionsMode = "check" | "consume";
 export async function startPreconditions(
   ctx: MutationCtx,
   email: string,
-  mode: StartPreconditionsMode,
+  mode: "check" | "consume",
 ): Promise<StartChallengeUserError | null> {
   const formatError = validateEmailFormat(email);
   if (formatError !== null) {
@@ -244,6 +241,10 @@ export async function startPreconditions(
  * `null` when the address is free. The kinds that record an address call
  * this at start and again at completion.
  *
+ * The `start` callers check this after the rate limits consume a token, on
+ * purpose: a free `EMAIL_TAKEN` answer would make this an unlimited
+ * enumeration oracle.
+ *
  * TODO: let the caller disable this check at start. It tells the caller if
  * an address has an account, which an app that must prevent user
  * enumeration does not want to reveal before the link is opened.
@@ -264,7 +265,7 @@ export async function addressTakenError(
 export async function startFreeAddressPreconditions(
   ctx: MutationCtx,
   email: string,
-  mode: StartPreconditionsMode,
+  mode: "check" | "consume",
 ): Promise<StartFreeAddressUserError | null> {
   const error = await startPreconditions(ctx, email, mode);
   if (error !== null) {
