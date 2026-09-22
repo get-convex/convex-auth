@@ -8,7 +8,12 @@ import { InMemoryStorage, NamespacedStorage } from "../../browser/storage.ts";
 import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
-import { useCompleteSignUp, useSignUpWithEmailPassword } from "./react.tsx";
+import {
+  useCompleteRecovery,
+  useCompleteSignUp,
+  useHasChallengeSecret,
+  useSignUpWithEmailPassword,
+} from "./react.tsx";
 
 // The hooks run their mutation through the injected `AuthSignInApi`, so the
 // test substitutes a signInApi rather than mocking `convex/react`.
@@ -241,5 +246,81 @@ describe("useCompleteSignUp", () => {
       "secret-1",
     );
     expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+});
+
+describe("useCompleteRecovery", () => {
+  test("consumes the stored secret, sends the new password, adopts the session", async () => {
+    secretStorage.set("__convexAuthEmailPasswordRecoverySecret", "secret-9");
+    runMutation.mockResolvedValue({ status: "complete", tokens: bundle });
+    const { result } = renderWithProviders(() => useCompleteRecovery(mutation));
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.completeRecovery>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.completeRecovery({
+        emailCode: "code-9",
+        newPassword: "brand new horse staple",
+      });
+    });
+
+    expect(runMutation).toHaveBeenCalledWith({
+      emailCode: "code-9",
+      browserSecret: "secret-9",
+      newPassword: "brand new horse staple",
+    });
+    expect(returned).toEqual({ status: "complete", tokens: bundle });
+    expect(result.current.auth.isAuthenticated).toBe(true);
+    expect(
+      secretStorage.get("__convexAuthEmailPasswordRecoverySecret"),
+    ).toBeNull();
+  });
+
+  test("returns MISSING_SECRET when this browser did not start the flow", async () => {
+    const { result } = renderWithProviders(() => useCompleteRecovery(mutation));
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.completeRecovery>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.completeRecovery({
+        emailCode: "code-9",
+        newPassword: "brand new horse staple",
+      });
+    });
+
+    expect(returned).toEqual({
+      status: "error",
+      userError: { error: "MISSING_SECRET" },
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+});
+
+describe("useHasChallengeSecret", () => {
+  test("is false when this browser did not start the flow", async () => {
+    const { result } = renderWithProviders(() =>
+      useHasChallengeSecret("recovery"),
+    );
+    await waitFor(() => expect(result.current.hook).toBe(false));
+  });
+
+  test("is true once the flow's secret is in storage", async () => {
+    secretStorage.set("__convexAuthEmailPasswordRecoverySecret", "secret-1");
+    const { result } = renderWithProviders(() =>
+      useHasChallengeSecret("recovery"),
+    );
+    await waitFor(() => expect(result.current.hook).toBe(true));
+  });
+
+  test("sign-up needs the user next to the secret", async () => {
+    secretStorage.set("__convexAuthEmailPasswordSignUpSecret", "secret-1");
+    const { result } = renderWithProviders(() =>
+      useHasChallengeSecret("signUp"),
+    );
+    await waitFor(() => expect(result.current.hook).toBe(false));
   });
 });

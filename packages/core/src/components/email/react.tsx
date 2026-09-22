@@ -22,7 +22,7 @@
 
 import { FunctionReference } from "convex/server";
 import { useConvex } from "convex/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
@@ -31,13 +31,16 @@ import type {
   CompleteSignUpResult,
   SignInResult,
   ChangePasswordResult,
+  StartRecoveryResult,
+  CompleteRecoveryResult,
 } from "./setup.ts";
 /** The flows that keep a secret in the starting browser's storage. */
-export type EmailPasswordFlow = "signUp";
+export type EmailPasswordFlow = "signUp" | "recovery";
 
 // One storage key per flow, so concurrent flows do not overwrite each other.
 const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
   signUp: "__convexAuthEmailPasswordSignUpSecret",
+  recovery: "__convexAuthEmailPasswordRecoverySecret",
 };
 
 // The sign-up link is bound to the new user, and nobody is signed in until
@@ -58,8 +61,8 @@ type UnexpectedFailure = {
 
 /**
  * The same client failure, in the shape of the shared sign-in envelope. The
- * hooks that mint a session (`completeSignUp`, `signIn`) return it, so that
- * every arm of their result has a `status`.
+ * hooks that mint a session (`completeSignUp`, `signIn`, `completeRecovery`)
+ * return it, so that every arm of their result has a `status`.
  */
 type SignInUnexpectedFailure = {
   status: "error";
@@ -100,6 +103,20 @@ type ChangePasswordMutation = FunctionReference<
   ChangePasswordResult
 >;
 
+type StartRecoveryMutation = FunctionReference<
+  "mutation",
+  "public",
+  { email: string },
+  StartRecoveryResult
+>;
+
+type CompleteRecoveryMutation = FunctionReference<
+  "mutation",
+  "public",
+  { emailCode: string; browserSecret: string; newPassword: string },
+  ClientView<CompleteRecoveryResult>
+>;
+
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
 export type SignUpWithEmailPasswordResult =
   ClientView<SignUpResult> | UnexpectedFailure;
@@ -117,6 +134,15 @@ export type SignInWithEmailPasswordResult =
 /** The result of the `changePassword` callback from {@link useChangePassword}. */
 export type ChangePasswordClientResult =
   ChangePasswordResult | UnexpectedFailure;
+
+/** The result of the `startRecovery` callback from {@link useStartRecovery}. */
+export type StartRecoveryClientResult = StartRecoveryResult | UnexpectedFailure;
+
+/** The result of the `completeRecovery` callback from {@link useCompleteRecovery}. */
+export type CompleteRecoveryClientResult =
+  | ClientView<CompleteRecoveryResult>
+  | SignInMissingSecretFailure
+  | SignInUnexpectedFailure;
 
 /**
  * The storage that holds the flow secrets, namespaced by deployment URL so
@@ -321,4 +347,125 @@ export function useChangePassword(
   );
 
   return { changePassword, pending };
+}
+
+/**
+ * Client for starting a password recovery: run the backend's `startRecovery`
+ * mutation and keep the returned secret for {@link useCompleteRecovery}.
+ *
+ * @param startRecoveryMutation The app's `startRecovery` mutation reference.
+ */
+export function useStartRecovery(startRecoveryMutation: StartRecoveryMutation) {
+  const signInApi = useAuthSignInApi();
+  const storage = useSecretStorage();
+  const { pending, track } = usePending();
+
+  const startRecovery = useCallback(
+    async (args: { email: string }): Promise<StartRecoveryClientResult> =>
+      track(async () => {
+        try {
+          const result = await signInApi.mutation(startRecoveryMutation, args);
+          if (result.success) {
+            await storage.set(
+              SECRET_STORAGE_KEYS.recovery,
+              result.browserSecret,
+            );
+          }
+          return result;
+        } catch (cause) {
+          return foldError(cause);
+        }
+      }),
+    [signInApi, startRecoveryMutation, storage, track],
+  );
+
+  return { startRecovery, pending };
+}
+
+/**
+ * Client for completing a password recovery from the reset landing page:
+ * read the stored secret, set the new password, and adopt the minted
+ * session.
+ *
+ * Returns `MISSING_SECRET` when this browser did not start the flow.
+ *
+ * @param completeRecoveryMutation The app's `completeRecovery` mutation reference.
+ */
+export function useCompleteRecovery(
+  completeRecoveryMutation: CompleteRecoveryMutation,
+) {
+  const { setSession } = useAuthActions();
+  const signInApi = useAuthSignInApi();
+  const storage = useSecretStorage();
+  const { pending, track } = usePending();
+
+  const completeRecovery = useCallback(
+    async (args: {
+      emailCode: string;
+      newPassword: string;
+    }): Promise<CompleteRecoveryClientResult> =>
+      track(async () => {
+        try {
+          const browserSecret = await storage.get(SECRET_STORAGE_KEYS.recovery);
+          if (browserSecret === null || browserSecret === undefined) {
+            return {
+              status: "error",
+              userError: { error: "MISSING_SECRET" },
+            };
+          }
+          const result = await signInApi.mutation(completeRecoveryMutation, {
+            emailCode: args.emailCode,
+            browserSecret,
+            newPassword: args.newPassword,
+          });
+          if (result.status === "complete") {
+            await setSession(result.tokens);
+            await storage.remove(SECRET_STORAGE_KEYS.recovery);
+          }
+          return result;
+        } catch (cause) {
+          return foldSignInError(cause);
+        }
+      }),
+    [signInApi, completeRecoveryMutation, storage, setSession, track],
+  );
+
+  return { completeRecovery, pending };
+}
+
+/**
+ * Tell whether this browser holds what a flow needs to complete: the flow's
+ * secret, and for sign-up the user too. A landing page uses it to show the
+ * "open this link in the browser you started from" message before the user
+ * submits anything. Reads storage only, never the server.
+ *
+ * @returns `undefined` while storage loads, then `true` or `false`.
+ */
+export function useHasChallengeSecret(
+  flow: EmailPasswordFlow,
+): boolean | undefined {
+  const storage = useSecretStorage();
+  const [hasSecret, setHasSecret] = useState<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    let canceled = false;
+    void (async () => {
+      const browserSecret = await storage.get(SECRET_STORAGE_KEYS[flow]);
+      const userId =
+        flow === "signUp" ? await storage.get(SIGN_UP_USER_ID_STORAGE_KEY) : "";
+      if (!canceled) {
+        setHasSecret(
+          browserSecret !== null &&
+            browserSecret !== undefined &&
+            userId !== null &&
+            userId !== undefined,
+        );
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [storage, flow]);
+
+  return hasSecret;
 }
