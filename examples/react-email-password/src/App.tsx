@@ -7,6 +7,8 @@ import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./routes/dashboard";
 import { LogIn } from "./routes/logIn";
+import { RequestReset } from "./routes/requestReset";
+import { ResetPassword } from "./routes/resetPassword";
 import { SignUp } from "./routes/signUp";
 import { ValidateEmail } from "./routes/validateEmail";
 import "./index.css";
@@ -42,6 +44,8 @@ export function App() {
         {/* The landing pages for emailed links have no auth guard: the
             user's auth state when they open a link is unpredictable. */}
         <Route path="/validate-email" element={<ValidateEmail />} />
+        <Route path="/forgot-password" element={<RequestReset />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </main>
   );
