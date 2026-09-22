@@ -1,6 +1,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { ChangePasswordForm } from "../ChangePasswordForm";
 
 export function Dashboard() {
   const user = useQuery(api.currentUser.loggedInUser);
@@ -12,6 +13,7 @@ export function Dashboard() {
           Signed in as <strong>{user.email}</strong> ({user.id})
         </p>
       )}
+      <ChangePasswordForm currentEmail={user?.email ?? undefined} />
       <h2>Session</h2>
       <button onClick={() => signOut()}>Sign out</button>
     </>
