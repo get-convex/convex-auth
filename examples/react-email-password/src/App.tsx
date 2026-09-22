@@ -6,6 +6,7 @@ import {
 import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./routes/dashboard";
+import { LogIn } from "./routes/logIn";
 import { SignUp } from "./routes/signUp";
 import { ValidateEmail } from "./routes/validateEmail";
 import "./index.css";
@@ -20,6 +21,14 @@ export function App() {
             <RequireAuth>
               <Dashboard />
             </RequireAuth>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <RequireNoAuth>
+              <LogIn />
+            </RequireNoAuth>
           }
         />
         <Route
