@@ -38,7 +38,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         complete: FunctionReference<
           "mutation",
           "internal",
-          { browserSecret: string; emailCode: string; userId: string },
+          { browserSecret: string; emailCode: string; userId?: string },
           | { email: string; success: true; userId: string }
           | {
               success: false;
