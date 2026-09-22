@@ -34,7 +34,7 @@ export default defineSchema({
       // On completion, adds the verified email to `verifiedEmails` as the primary email address.
       // If there is already another primary email address, remove it.
       // Useful for apps that assume there is only a single email address per user.
-      v.object({ kind: v.literal("setPrimaryEmail"), userId: v.string() }),
+      v.object({ kind: v.literal("changeEmail"), userId: v.string() }),
       // On completion, adds the verified email to `verifiedEmails`.
       // If there is already another primary email address, the new email address will be added as secondary.
       // Useful for apps that support multiple email addresses per user.

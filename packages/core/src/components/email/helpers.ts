@@ -16,7 +16,7 @@ import { EmailSenderConfig } from "./validation.ts";
 //------------------------------------------------------------------------------
 
 /**
- * How long an `addEmail` or `setPrimaryEmail` link stays valid.
+ * How long an `addEmail` or `changeEmail` link stays valid.
  * TODO: review this value.
  */
 export const ADD_EMAIL_TTL_MS = 60 * 60 * 1000; // 1 hour

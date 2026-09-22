@@ -77,6 +77,64 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           Name
         >;
       };
+      changeEmail: {
+        check: FunctionReference<
+          "mutation",
+          "internal",
+          { email: string },
+          | { error: "INVALID_EMAIL" }
+          | { error: "RATE_LIMITED"; retryAfterMs: number }
+          | { error: "EMAIL_TAKEN" }
+          | null,
+          Name
+        >;
+        complete: FunctionReference<
+          "mutation",
+          "internal",
+          { browserSecret: string; emailCode: string; userId: string },
+          | {
+              email: string;
+              previousEmail: string | null;
+              success: true;
+              userId: string;
+            }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_CHALLENGE" }
+                | { error: "INCORRECT_CODE" }
+                | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+        start: FunctionReference<
+          "mutation",
+          "internal",
+          {
+            email: string;
+            emailSender: {
+              apiKey: string;
+              from: string;
+              initialBackoffMs: number;
+              kind: "resend";
+              retryAttempts: number;
+              sendEmailHandle: string;
+              testMode: boolean;
+            };
+            url: string;
+            userId: string;
+          },
+          | { browserSecret: string; challengeId: string; success: true }
+          | {
+              success: false;
+              userError:
+                | { error: "INVALID_EMAIL" }
+                | { error: "RATE_LIMITED"; retryAfterMs: number }
+                | { error: "EMAIL_TAKEN" };
+            },
+          Name
+        >;
+      };
       custom: {
         check: FunctionReference<
           "mutation",
@@ -131,64 +189,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               userError:
                 | { error: "INVALID_EMAIL" }
                 | { error: "RATE_LIMITED"; retryAfterMs: number };
-            },
-          Name
-        >;
-      };
-      setPrimaryEmail: {
-        check: FunctionReference<
-          "mutation",
-          "internal",
-          { email: string },
-          | { error: "INVALID_EMAIL" }
-          | { error: "RATE_LIMITED"; retryAfterMs: number }
-          | { error: "EMAIL_TAKEN" }
-          | null,
-          Name
-        >;
-        complete: FunctionReference<
-          "mutation",
-          "internal",
-          { browserSecret: string; emailCode: string; userId: string },
-          | {
-              email: string;
-              previousPrimaryEmail: string | null;
-              success: true;
-              userId: string;
-            }
-          | {
-              success: false;
-              userError:
-                | { error: "INVALID_CHALLENGE" }
-                | { error: "INCORRECT_CODE" }
-                | { error: "EMAIL_TAKEN" };
-            },
-          Name
-        >;
-        start: FunctionReference<
-          "mutation",
-          "internal",
-          {
-            email: string;
-            emailSender: {
-              apiKey: string;
-              from: string;
-              initialBackoffMs: number;
-              kind: "resend";
-              retryAttempts: number;
-              sendEmailHandle: string;
-              testMode: boolean;
-            };
-            url: string;
-            userId: string;
-          },
-          | { browserSecret: string; challengeId: string; success: true }
-          | {
-              success: false;
-              userError:
-                | { error: "INVALID_EMAIL" }
-                | { error: "RATE_LIMITED"; retryAfterMs: number }
-                | { error: "EMAIL_TAKEN" };
             },
           Name
         >;
