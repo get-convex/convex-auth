@@ -5,6 +5,7 @@ import {
 } from "@convex-dev/auth/react";
 import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ConfirmEmailChange } from "./routes/confirmEmailChange";
 import { Dashboard } from "./routes/dashboard";
 import { LogIn } from "./routes/logIn";
 import { RequestReset } from "./routes/requestReset";
@@ -44,6 +45,7 @@ export function App() {
         {/* The landing pages for emailed links have no auth guard: the
             user's auth state when they open a link is unpredictable. */}
         <Route path="/validate-email" element={<ValidateEmail />} />
+        <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
         <Route path="/forgot-password" element={<RequestReset />} />
         <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
