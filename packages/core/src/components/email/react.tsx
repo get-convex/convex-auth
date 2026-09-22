@@ -24,22 +24,33 @@ import type {
   SignUpResult,
   CompleteSignUpResult,
   SignInResult,
+  StartChangeEmailResult,
+  CompleteChangeEmailResult,
   StartPasswordRecoveryResult,
   CompletePasswordRecoveryResult,
 } from "./setup.ts";
 
 /** The flows that keep a secret in the starting browser's storage. */
-type EmailPasswordFlow = "signUp" | "passwordRecovery";
+type EmailPasswordFlow = "signUp" | "changeEmail" | "passwordRecovery";
 
 // One storage key per flow, so concurrent flows do not overwrite each other.
 const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
   signUp: "__convexAuthEmailPasswordSignUpSecret",
+  changeEmail: "__convexAuthEmailPasswordChangeEmailSecret",
   passwordRecovery: "__convexAuthEmailPasswordRecoverySecret",
 };
 
 //------------------------------------------------------------------------------
 // Result types
 //------------------------------------------------------------------------------
+
+/** The `userError` of the failure arm of a `success` envelope. */
+type FailureError<Result> = Result extends {
+  success: false;
+  userError: infer UserError;
+}
+  ? UserError
+  : never;
 
 /** The `userError` of the error arm of a sign-in envelope. */
 type SignInError<Result> = Result extends {
@@ -87,6 +98,20 @@ type SignInMutation = FunctionReference<
   ClientView<SignInResult>
 >;
 
+type StartChangeEmailMutation = FunctionReference<
+  "mutation",
+  "public",
+  { newEmail: string; currentPassword: string },
+  StartChangeEmailResult
+>;
+
+type CompleteChangeEmailMutation = FunctionReference<
+  "mutation",
+  "public",
+  { emailCode: string; browserSecret: string },
+  CompleteChangeEmailResult
+>;
+
 type StartPasswordRecoveryMutation = FunctionReference<
   "mutation",
   "public",
@@ -108,6 +133,10 @@ export type SignInWithEmailPasswordResult =
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
 export type SignUpWithEmailPasswordResult =
   ClientView<SignUpResult> | UnexpectedFailure;
+
+/** The result of the `startChangeEmail` callback from {@link useStartChangeEmail}. */
+export type StartChangeEmailClientResult =
+  StartChangeEmailResult | UnexpectedFailure;
 
 /** The result of the `startPasswordRecovery` callback from {@link useStartPasswordRecovery}. */
 export type StartPasswordRecoveryClientResult =
@@ -134,6 +163,11 @@ export type CompleteSignUpState = LinkFlowState<
   | SignInError<ClientView<CompleteSignUpResult>>
   | MissingSecretError
   | OtherError
+>;
+
+/** The state of {@link useCompleteChangeEmail}. */
+export type CompleteChangeEmailState = LinkFlowState<
+  FailureError<CompleteChangeEmailResult> | MissingSecretError | OtherError
 >;
 
 /**
@@ -707,4 +741,78 @@ export function useCompletePasswordRecovery(
     return { status: "error", userError: { error: "MISSING_SECRET" } };
   }
   return { status: "ready", completePasswordRecovery, pending };
+}
+
+//------------------------------------------------------------------------------
+// Email change
+//------------------------------------------------------------------------------
+
+/**
+ * Client for starting an email change: run the backend's `startChangeEmail`
+ * mutation and keep the returned secret for {@link useCompleteChangeEmail}.
+ *
+ * @param startChangeEmailMutation The app's `startChangeEmail` mutation reference.
+ */
+export function useStartChangeEmail(
+  startChangeEmailMutation: StartChangeEmailMutation,
+) {
+  const runStartChangeEmail = useMutation(startChangeEmailMutation);
+  const storage = useSecretStorage();
+  const { pending, track } = usePending();
+
+  const startChangeEmail = useCallback(
+    async (args: {
+      newEmail: string;
+      currentPassword: string;
+    }): Promise<StartChangeEmailClientResult> =>
+      track(async () => {
+        try {
+          const result = await runStartChangeEmail(args);
+          if (result.success) {
+            await storage.set(
+              SECRET_STORAGE_KEYS.changeEmail,
+              result.browserSecret,
+            );
+          }
+          return result;
+        } catch (cause) {
+          return foldError(cause);
+        }
+      }),
+    [runStartChangeEmail, storage, track],
+  );
+
+  return { startChangeEmail, pending };
+}
+
+/**
+ * Client for the landing page of the email-change confirmation link: as soon
+ * as the page opens, present the code from the link with the secret stored by
+ * {@link useStartChangeEmail}. No session is adopted: the user already has
+ * one, and the backend requires it.
+ *
+ * @param completeChangeEmailMutation The app's `completeChangeEmail` mutation reference.
+ * @param emailCode The `code` query parameter of the link.
+ */
+export function useCompleteChangeEmail(
+  completeChangeEmailMutation: CompleteChangeEmailMutation,
+  { emailCode }: { emailCode: string },
+): CompleteChangeEmailState {
+  const runCompleteChangeEmail = useMutation(completeChangeEmailMutation);
+
+  const complete = useCallback(
+    async (browserSecret: string) => {
+      const result = await runCompleteChangeEmail({ emailCode, browserSecret });
+      if (result.success) {
+        return { done: true } as const;
+      }
+      return { done: false, userError: result.userError } as const;
+    },
+    [runCompleteChangeEmail, emailCode],
+  );
+
+  return useLinkFlow<FailureError<CompleteChangeEmailResult>>(
+    "changeEmail",
+    complete,
+  );
 }
