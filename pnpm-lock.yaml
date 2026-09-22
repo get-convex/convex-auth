@@ -125,6 +125,34 @@ importers:
         specifier: ^8.0.16
         version: 8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
 
+  examples/react-email-password:
+    dependencies:
+      '@convex-dev/auth':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@convex-dev/resend':
+        specifier: ^0.2.6
+        version: 0.2.6(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      convex:
+        specifier: ^1.46.0
+        version: 1.46.0(react@19.2.7)
+    devDependencies:
+      '@convex-dev/rate-limiter':
+        specifier: ^0.3.2
+        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      '@types/node':
+        specifier: ^24.12.4
+        version: 24.13.2
+      convex-test:
+        specifier: ^0.0.59
+        version: 0.0.59(convex@1.46.0(react@19.2.7))
+      jose:
+        specifier: ^5.10.0
+        version: 5.10.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   examples/react-github:
     dependencies:
       '@convex-dev/auth':
@@ -647,6 +675,12 @@ packages:
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
 
+  '@convex-dev/batch-worker@0.2.0':
+    resolution: {integrity: sha512-dn0L/5jqufXHzgzAhWqjGBmDGXbwRA0S6YVV5Z66y4pMXZ+YL3M4aHCk9iBInPp5zOtEPgVbfo/BYMxhLxVP+w==}
+    peerDependencies:
+      convex: ^1.36.1
+      react: ^18.3.1 || ^19.0.0
+
   '@convex-dev/batch-worker@0.2.2':
     resolution: {integrity: sha512-3knigElzTVhWw1sN28EYkGBTdrJZ03vMj2PJPuFq3V0Tg41i7tcv/EWDBFQWcUaKzBWWVw693hcJtxCF3CRtEw==}
     peerDependencies:
@@ -672,6 +706,12 @@ packages:
       react:
         optional: true
 
+  '@convex-dev/resend@0.2.6':
+    resolution: {integrity: sha512-TUmHezzRDtZFrsEC32c5lu5JHXlTSb7zNoaXNETKI5+X1xOrAkRT3sK/HoeWFqb/Xy42h+hqnqQWwnWpGNMiFA==}
+    peerDependencies:
+      convex: ^1.31.7
+      convex-helpers: ^0.1.106
+
   '@convex-dev/resend@0.2.8':
     resolution: {integrity: sha512-N7S7+cZEjP0wi1EEfTg4lhrmq4+SskDnx7AM6jPh2tqaIpjK5b7YJqXYe2avds8ojBMNq1MGmW7oSf0bvjISrA==}
     peerDependencies:
@@ -680,6 +720,12 @@ packages:
 
   '@convex-dev/workpool@0.4.11':
     resolution: {integrity: sha512-nGjfjUvEjuTJkJZPdq6ZWeYaX0p2dh/7Pn/DTx7YX9/lbL9TAsWXPxra9M2E2c8v+zBPhbWNmY8yLyxDsoUI0A==}
+    peerDependencies:
+      convex: ^1.36.1
+      convex-helpers: ^0.1.94
+
+  '@convex-dev/workpool@0.4.9':
+    resolution: {integrity: sha512-2EauCO+fXqhBE0qN3aC2G/CA8Udc1nDiSha2uwdJi5SaElz6HmuM3Rv60AeQ3snMZ8PdHugKKlVeEFvAhSaokQ==}
     peerDependencies:
       convex: ^1.36.1
       convex-helpers: ^0.1.94
@@ -3160,8 +3206,8 @@ packages:
   remark@15.0.1:
     resolution: {integrity: sha512-Eht5w30ruCXgFmxVUSlNWQ9iiimq07URKeFS3hNc8cUWy1llX4KDWfyEDZRycMc+znsN9Ux5/tJ/BFdgdOwA3A==}
 
-  remeda@2.48.0:
-    resolution: {integrity: sha512-+tf74WyTpQT1lHI/zJeXOkMBqb6R9gNcd3T4DpXzjs26PdwEARCPKOjLAwJaQYrvSXS+nxsXMhEZD4NS40QuSg==}
+  remeda@2.39.0:
+    resolution: {integrity: sha512-3Ki8dU1o3OVu4dwIQ2Pj+yiuP7OnEbmWAGmJ3yDRqopily5jsj8NWzPvbS89H85d6UdONKEcUnrfuHY6jN9vyw==}
     engines: {node: '>=18.0.0'}
 
   require-from-string@2.0.2:
@@ -3171,8 +3217,8 @@ packages:
   reselect@5.2.0:
     resolution: {integrity: sha512-AgZ3UOZm3YndfrJ4OYjgrT7bmCm/1iqkjvEfH/oYjzh6PD2qw4QuT3jjnXIrpdt4MTpMXclMT3lXbmRY+XRakw==}
 
-  resend@6.27.0:
-    resolution: {integrity: sha512-5Auh9GWkmKteeEM7rG45j7JRQVsKaQG0Okk4Ev0Pekh+1qfclRsmd4alZ3Kx0AqEosnZjEe/kCXf9jxfGaPZtg==}
+  resend@6.18.1:
+    resolution: {integrity: sha512-XN8XIaDdKF+ziSQ3K23ndUcyhP7U3ze2gky6SPgYkuAOq54mH4Wdhwm7QylEQ3zlz0NzdX7/l1AgmJUZbdPI/Q==}
     engines: {node: '>=20'}
     peerDependencies:
       '@react-email/render': '*'
@@ -3688,6 +3734,11 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
+  '@convex-dev/batch-worker@0.2.0(convex@1.46.0(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      convex: 1.46.0(react@19.2.7)
+      react: 19.2.7
+
   '@convex-dev/batch-worker@0.2.2(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
       convex: 1.46.0(react@19.2.7)
@@ -3720,14 +3771,27 @@ snapshots:
     optionalDependencies:
       react: 19.2.7
 
+  '@convex-dev/resend@0.2.6(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      '@convex-dev/rate-limiter': 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      '@convex-dev/workpool': 0.4.9(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
+      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+      remeda: 2.39.0
+      resend: 6.18.1
+      svix: 1.99.1
+    transitivePeerDependencies:
+      - '@react-email/render'
+      - react
+
   '@convex-dev/resend@0.2.8(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@convex-dev/rate-limiter': 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@convex-dev/workpool': 0.4.11(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)
       convex: 1.46.0(react@19.2.7)
       convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
-      remeda: 2.48.0
-      resend: 6.27.0
+      remeda: 2.39.0
+      resend: 6.18.1
       svix: 1.99.1
     transitivePeerDependencies:
       - '@react-email/render'
@@ -3736,6 +3800,14 @@ snapshots:
   '@convex-dev/workpool@0.4.11(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@convex-dev/batch-worker': 0.2.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
+      convex: 1.46.0(react@19.2.7)
+      convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
+    transitivePeerDependencies:
+      - react
+
+  '@convex-dev/workpool@0.4.9(convex-helpers@0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3))(convex@1.46.0(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      '@convex-dev/batch-worker': 0.2.0(convex@1.46.0(react@19.2.7))(react@19.2.7)
       convex: 1.46.0(react@19.2.7)
       convex-helpers: 0.1.123(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.2.7))(react@19.2.7)(typescript@6.0.3)(zod@4.4.3)
     transitivePeerDependencies:
@@ -6382,13 +6454,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  remeda@2.48.0: {}
+  remeda@2.39.0: {}
 
   require-from-string@2.0.2: {}
 
   reselect@5.2.0: {}
 
-  resend@6.27.0:
+  resend@6.18.1:
     dependencies:
       postal-mime: 2.7.5
       standardwebhooks: 1.0.0
