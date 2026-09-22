@@ -30,6 +30,7 @@ import type {
   SignUpResult,
   CompleteSignUpResult,
   SignInResult,
+  ChangePasswordResult,
 } from "./setup.ts";
 /** The flows that keep a secret in the starting browser's storage. */
 export type EmailPasswordFlow = "signUp";
@@ -92,6 +93,13 @@ type SignInMutation = FunctionReference<
   ClientView<SignInResult>
 >;
 
+type ChangePasswordMutation = FunctionReference<
+  "mutation",
+  "public",
+  { currentPassword: string; newPassword: string },
+  ChangePasswordResult
+>;
+
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
 export type SignUpWithEmailPasswordResult =
   ClientView<SignUpResult> | UnexpectedFailure;
@@ -105,6 +113,10 @@ export type CompleteSignUpClientResult =
 /** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
 export type SignInWithEmailPasswordResult =
   ClientView<SignInResult> | SignInUnexpectedFailure;
+
+/** The result of the `changePassword` callback from {@link useChangePassword}. */
+export type ChangePasswordClientResult =
+  ChangePasswordResult | UnexpectedFailure;
 
 /**
  * The storage that holds the flow secrets, namespaced by deployment URL so
@@ -279,4 +291,34 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
   );
 
   return { signIn, pending };
+}
+
+/**
+ * Client for changing the signed-in user's password. Requires the current
+ * password; the session is unchanged.
+ *
+ * @param changePasswordMutation The app's `changePassword` mutation reference.
+ */
+export function useChangePassword(
+  changePasswordMutation: ChangePasswordMutation,
+) {
+  const signInApi = useAuthSignInApi();
+  const { pending, track } = usePending();
+
+  const changePassword = useCallback(
+    async (args: {
+      currentPassword: string;
+      newPassword: string;
+    }): Promise<ChangePasswordClientResult> =>
+      track(async () => {
+        try {
+          return await signInApi.mutation(changePasswordMutation, args);
+        } catch (cause) {
+          return foldError(cause);
+        }
+      }),
+    [signInApi, changePasswordMutation, track],
+  );
+
+  return { changePassword, pending };
 }
