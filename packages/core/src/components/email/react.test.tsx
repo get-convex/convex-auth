@@ -4,11 +4,15 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
-import { InMemoryStorage } from "../../browser/storage.ts";
+import { InMemoryStorage, NamespacedStorage } from "../../browser/storage.ts";
 import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
-import { useSignInWithEmailPassword } from "./react.tsx";
+import {
+  useCompleteSignUp,
+  useSignInWithEmailPassword,
+  useSignUpWithEmailPassword,
+} from "./react.tsx";
 
 // The hooks run their mutation through the injected `AuthSignInApi`, so the
 // test substitutes a signInApi rather than mocking `convex/react`.
@@ -16,9 +20,15 @@ const { signInApi, run: runSignInMutation } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
-// The hooks render under a ConvexProvider like in an app. The client never
-// connects: no test subscribes to a query.
+// The hooks read the deployment URL from the surrounding ConvexProvider to
+// namespace their secret storage. The client never connects: no test
+// subscribes to a query.
 const convexClient = new ConvexReactClient(NAMESPACE);
+
+// The hooks keep flow secrets in `localStorage` (jsdom supplies one),
+// namespaced like the hooks namespace it.
+const secretStorage = new NamespacedStorage(window.localStorage, NAMESPACE);
+const SIGN_UP_SECRET_KEY = "__convexAuthEmailPasswordSignUpSecret";
 
 const bundle: TokenBundle = {
   accessToken: "access-1",
@@ -41,6 +51,8 @@ function renderWithProviders<T>(useHook: () => T) {
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
+  // StrictMode runs effects twice in development. The landing page hooks
+  // must present a one-shot link once regardless.
   const wrapper = ({ children }: { children: ReactNode }) => (
     <StrictMode>
       <ConvexProvider client={convexClient}>
@@ -56,6 +68,7 @@ function renderWithProviders<T>(useHook: () => T) {
 afterEach(() => {
   vi.restoreAllMocks();
   runSignInMutation.mockReset();
+  window.localStorage.clear();
 });
 
 describe("useSignInWithEmailPassword", () => {
@@ -154,5 +167,208 @@ describe("useSignInWithEmailPassword", () => {
       await second;
     });
     expect(result.current.hook.pending).toBe(false);
+  });
+});
+
+describe("useSignUpWithEmailPassword", () => {
+  const credentials = {
+    email: "alice@example.com",
+    password: "correct horse battery staple",
+  };
+
+  test("success stores the secret and does not sign in", async () => {
+    runSignInMutation.mockResolvedValue({
+      success: true,
+      browserSecret: "secret-1",
+    });
+    const { result } = renderWithProviders(() =>
+      useSignUpWithEmailPassword(signInMutation),
+    );
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Awaited<ReturnType<typeof result.current.hook.signUp>>;
+    await act(async () => {
+      returned = await result.current.hook.signUp(credentials);
+    });
+
+    expect(returned).toEqual({ success: true });
+    // The secret is kept for the completion step; no session was adopted.
+    expect(secretStorage.get(SIGN_UP_SECRET_KEY)).toBe("secret-1");
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("a user error stores nothing", async () => {
+    const failure = { success: false, userError: { error: "EMAIL_TAKEN" } };
+    runSignInMutation.mockResolvedValue(failure);
+    const { result } = renderWithProviders(() =>
+      useSignUpWithEmailPassword(signInMutation),
+    );
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Awaited<ReturnType<typeof result.current.hook.signUp>>;
+    await act(async () => {
+      returned = await result.current.hook.signUp(credentials);
+    });
+
+    expect(returned).toEqual(failure);
+    expect(secretStorage.get(SIGN_UP_SECRET_KEY)).toBeNull();
+  });
+
+  test("a thrown mutation folds into OTHER_ERROR preserving cause", async () => {
+    const cause = new Error("network blip");
+    runSignInMutation.mockRejectedValue(cause);
+    const { result } = renderWithProviders(() =>
+      useSignUpWithEmailPassword(signInMutation),
+    );
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Awaited<ReturnType<typeof result.current.hook.signUp>>;
+    await act(async () => {
+      returned = await result.current.hook.signUp(credentials);
+    });
+
+    expect(returned).toEqual({
+      success: false,
+      userError: { error: "OTHER_ERROR", cause },
+    });
+    expect(result.current.hook.pending).toBe(false);
+  });
+});
+
+describe("useCompleteSignUp", () => {
+  test("presents the link once as the page opens, adopts the session, clears the secret", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    runSignInMutation.mockResolvedValue({ status: "complete", tokens: bundle });
+    const { result } = renderWithProviders(() =>
+      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({ status: "complete" }),
+    );
+
+    // The mutation received the code from the link plus the stored secret.
+    expect(runSignInMutation).toHaveBeenCalledTimes(1);
+    expect(runSignInMutation).toHaveBeenCalledWith({
+      emailCode: "code-1",
+      browserSecret: "secret-1",
+    });
+    expect(result.current.auth.isAuthenticated).toBe(true);
+    // The secret is cleared once it has served its purpose.
+    expect(secretStorage.get(SIGN_UP_SECRET_KEY)).toBeNull();
+  });
+
+  test("presents the link once when the effect runs again", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    // Keep the mutation in flight, so the secret is still stored when the
+    // effect runs again.
+    let resolveMutation!: (value: unknown) => void;
+    runSignInMutation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMutation = resolve;
+      }),
+    );
+    let emailCode = "code-1";
+    const { result, rerender } = renderWithProviders(() =>
+      useCompleteSignUp(signInMutation, { emailCode }),
+    );
+    await waitFor(() => expect(runSignInMutation).toHaveBeenCalledTimes(1));
+
+    // A new code changes the effect's dependencies, so the effect runs again.
+    emailCode = "code-2";
+    rerender();
+    await act(async () => {
+      resolveMutation({ status: "complete", tokens: bundle });
+    });
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({ status: "complete" }),
+    );
+
+    expect(runSignInMutation).toHaveBeenCalledTimes(1);
+    expect(runSignInMutation).toHaveBeenCalledWith({
+      emailCode: "code-1",
+      browserSecret: "secret-1",
+    });
+  });
+
+  test("reports isLoading while the link is validated", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    let resolveMutation!: (value: unknown) => void;
+    runSignInMutation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMutation = resolve;
+      }),
+    );
+    const { result } = renderWithProviders(() =>
+      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+    );
+    await waitFor(() => expect(runSignInMutation).toHaveBeenCalledTimes(1));
+
+    // The app does not see a signed-out user while the mutation runs.
+    expect(result.current.auth).toMatchObject({
+      isLoading: true,
+      isAuthenticated: false,
+    });
+
+    await act(async () => {
+      resolveMutation({ status: "complete", tokens: bundle });
+    });
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({ status: "complete" }),
+    );
+    expect(result.current.auth).toMatchObject({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+  });
+
+  test("is MISSING_SECRET when this browser did not start the flow", async () => {
+    const { result } = renderWithProviders(() =>
+      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "MISSING_SECRET" },
+      }),
+    );
+
+    // The backend was never called: there was nothing to present.
+    expect(runSignInMutation).not.toHaveBeenCalled();
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("keeps the secret when the completion fails", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    runSignInMutation.mockResolvedValue({
+      status: "error",
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+    const { result } = renderWithProviders(() =>
+      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "INVALID_CHALLENGE" },
+      }),
+    );
+
+    expect(secretStorage.get(SIGN_UP_SECRET_KEY)).toBe("secret-1");
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("a thrown mutation becomes an OTHER_ERROR state preserving cause", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    const cause = new Error("network blip");
+    runSignInMutation.mockRejectedValue(cause);
+    const { result } = renderWithProviders(() =>
+      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "OTHER_ERROR", cause },
+      }),
+    );
   });
 });
