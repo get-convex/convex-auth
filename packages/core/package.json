@@ -163,6 +163,14 @@
       "types": "./dist/components/email/_generated/component.d.ts",
       "default": "./dist/components/email/_generated/component.js"
     },
+    "./providers/email-password/setup.js": {
+      "types": "./dist/components/email/setup.d.ts",
+      "default": "./dist/components/email/setup.js"
+    },
+    "./providers/email-password/setup": {
+      "types": "./dist/components/email/setup.d.ts",
+      "default": "./dist/components/email/setup.js"
+    },
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": {
       "types": "./dist/browser/index.d.ts",
