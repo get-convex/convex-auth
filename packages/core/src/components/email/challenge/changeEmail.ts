@@ -1,4 +1,4 @@
-// The `setPrimaryEmail` challenge: prove that an address belongs to
+// The `changeEmail` challenge: prove that an address belongs to
 // `userId`, then make it the primary address of the user. The previous
 // primary address is removed from the account. For apps where each user has
 // one email address.
@@ -31,7 +31,7 @@ export const check = mutation({
 });
 
 /**
- * Start a `setPrimaryEmail` challenge for `userId`. Fails with `EMAIL_TAKEN`
+ * Start a `changeEmail` challenge for `userId`. Fails with `EMAIL_TAKEN`
  * when a user has already verified the address.
  */
 export const start = mutation({
@@ -48,7 +48,7 @@ export const start = mutation({
     }
     const created = await createChallengeAndSendEmail(ctx, {
       email: args.email,
-      purpose: { kind: "setPrimaryEmail", userId: args.userId },
+      purpose: { kind: "changeEmail", userId: args.userId },
       ttlMs: ADD_EMAIL_TTL_MS,
       url: args.url,
       emailSender: args.emailSender,
@@ -65,15 +65,15 @@ const completeResult = v.union(
     email: v.string(),
     // The address that was primary before this completion replaced it, or
     // `null` when there was none. Callers use it to notify the old address.
-    previousPrimaryEmail: v.union(v.string(), v.null()),
+    previousEmail: v.union(v.string(), v.null()),
   }),
   completeFreeAddressFailure,
 );
 type CompleteResult = Infer<typeof completeResult>;
 
 /**
- * Complete a `setPrimaryEmail` challenge: remove the old primary address and
- * record the new one as primary. The `userId` must be the one given at the
+ * Complete a `changeEmail` challenge: remove the old primary address and
+ * record the new one as primary. The `userId` must be the one given at
  * start.
  *
  * This can fail with `EMAIL_TAKEN` in the very rare case where the email is
@@ -93,7 +93,7 @@ export const complete = mutation({
     const claim = await claimChallenge(ctx, {
       emailCode: args.emailCode,
       browserSecret: args.browserSecret,
-      purpose: { kind: "setPrimaryEmail", userId },
+      purpose: { kind: "changeEmail", userId },
     });
     if (!claim.success) {
       return claim.failure;
@@ -112,9 +112,9 @@ export const complete = mutation({
         q.eq("userId", userId).eq("isPrimary", true),
       )
       .unique();
-    let previousPrimaryEmail: string | null = null;
+    let previousEmail: string | null = null;
     if (oldPrimary !== null) {
-      previousPrimaryEmail = oldPrimary.email;
+      previousEmail = oldPrimary.email;
       await ctx.db.delete("verifiedEmails", oldPrimary._id);
     }
     await ctx.db.insert("verifiedEmails", {
@@ -127,7 +127,7 @@ export const complete = mutation({
       success: true,
       userId,
       email: row.email,
-      previousPrimaryEmail,
+      previousEmail,
     };
   },
 });
