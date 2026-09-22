@@ -18,6 +18,7 @@ import type { ComponentApi as PasswordComponentApi } from "../password/_generate
 import {
   validateNewPassword,
   setPasswordUserError,
+  verifyPasswordUserError,
 } from "../password/validation.ts";
 import {
   startFreeAddressUserError,
@@ -123,6 +124,19 @@ const completeSignUpResult = v.union(
 /** The result of `completeSignUp`: the minted session tokens, or an error. */
 export type CompleteSignUpResult = Infer<typeof completeSignUpResult>;
 
+const signInResult = v.union(
+  vSignInComplete,
+  vSignInError(
+    v.union(
+      verifyPasswordUserError,
+      v.object({ error: v.literal("USER_NOT_FOUND") }),
+    ),
+  ),
+);
+
+/** The result of `signIn`: the minted session tokens, or an error. */
+export type SignInResult = Infer<typeof signInResult>;
+
 export type EmailPasswordProfile = Record<string, never>;
 
 /**
@@ -138,7 +152,7 @@ export type EmailPasswordProfile = Record<string, never>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUp, completeSignUp } = setupEmailPassword(core, {
+ * export const { signUp, completeSignUp, signIn } = setupEmailPassword(core, {
  *   component: components.authEmail,
  *   passwordComponent: components.authPasswordProvider,
  *   emailSender: {
@@ -154,6 +168,7 @@ export type EmailPasswordProfile = Record<string, never>;
  * }).attachUserCallback(internal.users.createOrUpdateUser);
  * ```
  *
+ * - Sign-in accepts any verified email of the account.
  *
  * Account resolution (email → app user id) is owned by the email component;
  * the password component stores only `{ userId, passwordHash }`.
@@ -305,6 +320,48 @@ export function setupEmailPassword<UsersTable extends string>(
             }
             const tokens = await ctx.convexAuth.completeSignIn({
               providerAccountId: complete.userId,
+              profile: {},
+            });
+            return { status: "complete", tokens };
+          },
+        }),
+
+        /**
+         * Verify an existing account's password and, on success, mint a
+         * session. Any verified email of the account works. Returns
+         * `USER_NOT_FOUND` when no account has verified the email and
+         * `INVALID_CREDENTIALS` when the password is wrong. (Address existence
+         * is already observable via sign-up's `EMAIL_TAKEN`, so distinguishing
+         * them here leaks nothing new.)
+         */
+        signIn: authMutation({
+          args: { email: v.string(), password: v.string() },
+          returns: signInResult,
+          handler: async (ctx, { email, password }): Promise<SignInResult> => {
+            const existing = await ctx.runQuery(
+              component.verifiedEmails.getUserIdByEmail,
+              {
+                email,
+              },
+            );
+            if (existing === null) {
+              return {
+                status: "error",
+                userError: { error: "USER_NOT_FOUND" },
+              };
+            }
+            const { userId } = existing;
+
+            const verifyResult = await ctx.runMutation(
+              passwordComponent.public.verifyPassword,
+              { userId, password },
+            );
+            if (!verifyResult.success) {
+              return { status: "error", userError: verifyResult.userError };
+            }
+
+            const tokens = await ctx.convexAuth.completeSignIn({
+              providerAccountId: userId,
               profile: {},
             });
             return { status: "complete", tokens };
