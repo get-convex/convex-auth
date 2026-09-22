@@ -171,6 +171,14 @@
       "types": "./dist/components/email/setup.d.ts",
       "default": "./dist/components/email/setup.js"
     },
+    "./providers/email-password/react.js": {
+      "types": "./dist/components/email/react.d.ts",
+      "default": "./dist/components/email/react.js"
+    },
+    "./providers/email-password/react": {
+      "types": "./dist/components/email/react.d.ts",
+      "default": "./dist/components/email/react.js"
+    },
     "./providers/testing/*": "./src/components/testing/*.ts",
     "./browser": {
       "types": "./dist/browser/index.d.ts",
