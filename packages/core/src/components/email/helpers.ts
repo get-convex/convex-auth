@@ -16,6 +16,12 @@ import { EmailSenderConfig } from "./validation.ts";
 //------------------------------------------------------------------------------
 
 /**
+ * How long an `addEmail` or `setPrimaryEmail` link stays valid.
+ * TODO: review this value.
+ */
+export const ADD_EMAIL_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
  * How long a `custom` link stays valid when the caller gives no `ttlMs`, and
  * the bounds for the value that a caller can give.
  *
@@ -67,6 +73,21 @@ export function emailsByUserId(
     .collect();
 }
 
+/**
+ * Tell whether the user has at least one verified address. Reads one row at
+ * most, unlike `emailsByUserId`.
+ */
+export async function userHasEmail(
+  ctx: QueryCtx,
+  userId: string,
+): Promise<boolean> {
+  const first = await ctx.db
+    .query("verifiedEmails")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .first();
+  return first !== null;
+}
+
 export function emailByNormalizedEmail(
   ctx: QueryCtx,
   normalizedEmail: string,
@@ -85,6 +106,12 @@ export type ChallengeEmailCopy = {
   // The sentence before the link, for example "Open this link to validate
   // your email address:".
   intro: string;
+};
+
+/** The copy of the emails that record an address. */
+export const VALIDATE_EMAIL_COPY: ChallengeEmailCopy = {
+  subject: "Validate your email address",
+  intro: "Open this link to validate your email address:",
 };
 
 /** "10 minutes", "1 hour", "2 hours". */

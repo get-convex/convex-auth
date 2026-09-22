@@ -135,6 +135,36 @@ describe("the one-shot claim", () => {
   });
 });
 
+describe("the kind of a challenge", () => {
+  test("a challenge of another kind throws and keeps the row", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: { kind: "addEmail", userId: "user1" },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    // The landing page called the wrong kind: an application bug.
+    await expect(
+      t.mutation(api.challenge.custom.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        purpose: "addEmail",
+        userId: "user1",
+      }),
+    ).rejects.toThrow(/"addEmail".*"custom"/);
+    expect(await challengeCount(t)).toBe(1);
+    // The right kind still works.
+    const rightKind = await t.mutation(api.challenge.addEmail.complete, {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      userId: "user1",
+    });
+    expect(rightKind).toMatchObject({ success: true });
+  });
+});
+
 describe("the pending challenge address", () => {
   test("keeps the case that the user gave in the row", async () => {
     const t = setup();

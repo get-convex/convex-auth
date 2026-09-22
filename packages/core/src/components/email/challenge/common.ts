@@ -72,25 +72,30 @@
  */
 
 import { Infer, v } from "convex/values";
-import type { MutationCtx } from "../_generated/server.ts";
+import type { MutationCtx, QueryCtx } from "../_generated/server.ts";
 import type { Doc, Id } from "../_generated/dataModel.ts";
 import { generateRandomToken, sha256Hex } from "../../../lib/crypto.ts";
 import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   rateLimiter,
   getClientIp,
+  emailByNormalizedEmail,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
 } from "../helpers.ts";
 import {
   startChallengeUserError,
+  startFreeAddressUserError,
   completeChallengeUserError,
+  completeFreeAddressUserError,
   normalizeEmail,
   validateEmailFormat,
   vEmailSenderConfig,
   type EmailSenderConfig,
+  type EmailTakenUserError,
   type StartChallengeUserError,
+  type StartFreeAddressUserError,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -117,26 +122,52 @@ export const vClaimArgs = {
   browserSecret: v.string(),
 };
 
+const startChallengeSuccess = v.object({
+  success: v.literal(true),
+  // The secret the client must keep (in its local storage) and present
+  // again at completion. It never travels in the email.
+  browserSecret: v.string(),
+  // The new challenge. A caller that wants to keep data about the flow can
+  // use this ID as a foreign reference.
+  challengeId: v.id("challenges"),
+});
+
 export const startChallengeResult = v.union(
-  v.object({
-    success: v.literal(true),
-    // The secret the client must keep (in its local storage) and present
-    // again at completion. It never travels in the email.
-    browserSecret: v.string(),
-    // The new challenge. A caller that wants to keep data about the flow can
-    // use this ID as a foreign reference.
-    challengeId: v.id("challenges"),
-  }),
+  startChallengeSuccess,
   v.object({ success: v.literal(false), userError: startChallengeUserError }),
 );
 export type StartChallengeResult = Infer<typeof startChallengeResult>;
+
+/**
+ * The `start` result of the kinds that record the address for a user
+ * (`addEmail`, `setPrimaryEmail`). It adds `EMAIL_TAKEN` to the errors.
+ */
+export const startFreeAddressResult = v.union(
+  startChallengeSuccess,
+  v.object({
+    success: v.literal(false),
+    userError: startFreeAddressUserError,
+  }),
+);
+export type StartFreeAddressResult = Infer<typeof startFreeAddressResult>;
 
 export const completeChallengeFailure = v.object({
   success: v.literal(false),
   userError: completeChallengeUserError,
 });
-
 export type CompleteChallengeFailure = Infer<typeof completeChallengeFailure>;
+
+/**
+ * The failed `complete` result of the kinds that record the address for a
+ * user. It adds `EMAIL_TAKEN` to the errors.
+ */
+export const completeFreeAddressFailure = v.object({
+  success: v.literal(false),
+  userError: completeFreeAddressUserError,
+});
+export type CompleteFreeAddressFailure = Infer<
+  typeof completeFreeAddressFailure
+>;
 
 /**
  * The result of `claimChallenge`. The kinds return `failure` as-is when the
@@ -203,6 +234,44 @@ export async function startPreconditions(
   }
 
   return null;
+}
+
+/**
+ * Return `EMAIL_TAKEN` when a user has already verified the address, or
+ * `null` when the address is free. The kinds that record an address call
+ * this at start and again at completion.
+ *
+ * The `start` callers check this after the rate limits consume a token, on
+ * purpose: a free `EMAIL_TAKEN` answer would make this an unlimited
+ * enumeration oracle.
+ *
+ * TODO: let the caller disable this check at start. It tells the caller if
+ * an address has an account, which an app that must prevent user
+ * enumeration does not want to reveal before the link is opened.
+ */
+export async function addressTakenError(
+  ctx: QueryCtx,
+  normalizedEmail: string,
+): Promise<EmailTakenUserError | null> {
+  const existing = await emailByNormalizedEmail(ctx, normalizedEmail);
+  return existing === null ? null : { error: "EMAIL_TAKEN" };
+}
+
+/**
+ * The `start` preconditions of the kinds that record the address for a user
+ * (`addEmail`, `setPrimaryEmail`): the shared preconditions, then the
+ * address must not be verified by any user.
+ */
+export async function startFreeAddressPreconditions(
+  ctx: MutationCtx,
+  email: string,
+  mode: "check" | "consume",
+): Promise<StartFreeAddressUserError | null> {
+  const error = await startPreconditions(ctx, email, mode);
+  if (error !== null) {
+    return error;
+  }
+  return addressTakenError(ctx, normalizeEmail(email));
 }
 
 /**
