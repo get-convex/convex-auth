@@ -10,10 +10,12 @@ import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
 import {
+  useCompleteChangeEmail,
   useCompletePasswordRecovery,
   useCompleteSignUp,
   useSignInWithEmailPassword,
   useSignUpWithEmailPassword,
+  useStartChangeEmail,
   useStartPasswordRecovery,
 } from "./react.tsx";
 
@@ -35,6 +37,7 @@ const stubConvexMutation = () => vi.spyOn(convexClient, "mutation");
 // namespaced like the hooks namespace it.
 const secretStorage = new NamespacedStorage(window.localStorage, NAMESPACE);
 const SIGN_UP_SECRET_KEY = "__convexAuthEmailPasswordSignUpSecret";
+const CHANGE_EMAIL_SECRET_KEY = "__convexAuthEmailPasswordChangeEmailSecret";
 const RECOVERY_SECRET_KEY = "__convexAuthEmailPasswordRecoverySecret";
 
 const bundle: TokenBundle = {
@@ -695,5 +698,110 @@ describe("useCompletePasswordRecovery", () => {
       status: "error",
       userError: { error: "INVALID_CHALLENGE" },
     });
+  });
+});
+
+describe("useStartChangeEmail", () => {
+  test("success stores the secret", async () => {
+    const mutation = stubConvexMutation().mockResolvedValue({
+      success: true,
+      browserSecret: "secret-5",
+    });
+    const { result } = renderWithProviders(() =>
+      useStartChangeEmail(convexMutation),
+    );
+
+    const args = {
+      newEmail: "alice@new.example.com",
+      currentPassword: "correct horse battery staple",
+    };
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.startChangeEmail>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.startChangeEmail(args);
+    });
+
+    expect(mutation.mock.calls[0]?.[1]).toEqual(args);
+    expect(returned).toEqual({ success: true });
+    expect(secretStorage.get(CHANGE_EMAIL_SECRET_KEY)).toBe("secret-5");
+  });
+
+  test("a user error stores nothing", async () => {
+    const failure = {
+      success: false,
+      userError: { error: "INVALID_CREDENTIALS" },
+    };
+    stubConvexMutation().mockResolvedValue(failure);
+    const { result } = renderWithProviders(() =>
+      useStartChangeEmail(convexMutation),
+    );
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.startChangeEmail>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.startChangeEmail({
+        newEmail: "alice@new.example.com",
+        currentPassword: "wrong",
+      });
+    });
+
+    expect(returned).toEqual(failure);
+    expect(secretStorage.get(CHANGE_EMAIL_SECRET_KEY)).toBeNull();
+  });
+});
+
+describe("useCompleteChangeEmail", () => {
+  test("presents the link once as the page opens and clears the secret", async () => {
+    secretStorage.set(CHANGE_EMAIL_SECRET_KEY, "secret-5");
+    const mutation = stubConvexMutation().mockResolvedValue({ success: true });
+    const { result } = renderWithProviders(() =>
+      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({ status: "complete" }),
+    );
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(mutation.mock.calls[0]?.[1]).toEqual({
+      emailCode: "code-5",
+      browserSecret: "secret-5",
+    });
+    expect(secretStorage.get(CHANGE_EMAIL_SECRET_KEY)).toBeNull();
+    // No session is minted by this flow.
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("is MISSING_SECRET when this browser did not start the flow", async () => {
+    const mutation = stubConvexMutation();
+    const { result } = renderWithProviders(() =>
+      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "MISSING_SECRET" },
+      }),
+    );
+    expect(mutation).not.toHaveBeenCalled();
+  });
+
+  test("keeps the secret when the completion fails", async () => {
+    secretStorage.set(CHANGE_EMAIL_SECRET_KEY, "secret-5");
+    stubConvexMutation().mockResolvedValue({
+      success: false,
+      userError: { error: "NOT_LOGGED_IN" },
+    });
+    const { result } = renderWithProviders(() =>
+      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "NOT_LOGGED_IN" },
+      }),
+    );
+    expect(secretStorage.get(CHANGE_EMAIL_SECRET_KEY)).toBe("secret-5");
   });
 });
