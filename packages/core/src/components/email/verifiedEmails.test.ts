@@ -31,6 +31,26 @@ describe("getEmails", () => {
   });
 });
 
+describe("getPrimaryEmail", () => {
+  test("returns null for a user with no emails", async () => {
+    const t = setup();
+    expect(
+      await t.query(api.verifiedEmails.getPrimaryEmail, { userId: "user1" }),
+    ).toBeNull();
+  });
+
+  test("returns the primary email, not a secondary one", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "alice@work.example", false);
+    await seedEmail(t, "user1", "Alice@Example.com", true);
+    await seedEmail(t, "user2", "bob@example.com", true);
+
+    expect(
+      await t.query(api.verifiedEmails.getPrimaryEmail, { userId: "user1" }),
+    ).toBe("Alice@Example.com");
+  });
+});
+
 describe("getUserIdByEmail", () => {
   test("returns null for an unknown email", async () => {
     const t = setup();
