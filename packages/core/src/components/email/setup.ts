@@ -26,7 +26,9 @@ import {
   verifyPasswordUserError,
 } from "../password/validation.ts";
 import {
+  startChallengeUserError,
   startFreeAddressUserError,
+  completeChallengeUserError,
   completeFreeAddressUserError,
   type EmailSenderConfig,
 } from "./validation.ts";
@@ -34,6 +36,27 @@ import type { SendEmailRef } from "./helpers.ts";
 
 // TODO: derive this from the component mount path rather than hardcoding it.
 const PROVIDER_NAME = "emailPassword";
+
+/**
+ * The purpose of the `custom` challenge that account recovery starts. The
+ * name carries a prefix so that an application's own custom purposes cannot
+ * collide with it.
+ */
+const RECOVERY_PURPOSE = "convexAuth/emailPassword/recovery";
+
+/**
+ * How long a recovery link stays valid. OWASP ASVS v5 6.5.5 requires at most
+ * 10 minutes for password-reset flows. TODO: review this value.
+ */
+const RECOVERY_TTL_MS = 10 * 60 * 1000;
+
+const RECOVERY_EMAIL = {
+  subject: "Reset your password",
+  intro: "Open this link to reset your password:",
+};
+
+/** No account has verified the address that recovery was asked for. */
+const vEmailNotFound = v.object({ error: v.literal("EMAIL_NOT_FOUND") });
 
 /**
  * How the provider sends emails: challenge links (through the email
@@ -79,6 +102,8 @@ export type EmailSenderOptions = {
 export type EmailPasswordUrls = {
   /** Landing page for the sign-up challenge link. */
   signUp: string;
+  /** Landing page for the password-recovery link. */
+  recovery: string;
 };
 
 /**
@@ -162,6 +187,29 @@ const changePasswordResult = v.union(
  */
 export type ChangePasswordResult = Infer<typeof changePasswordResult>;
 
+const startPasswordRecoveryResult = v.union(
+  v.object({ success: v.literal(true), browserSecret: v.string() }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(startChallengeUserError, vEmailNotFound),
+  }),
+);
+
+/** The result of `startPasswordRecovery`. */
+export type StartPasswordRecoveryResult = Infer<
+  typeof startPasswordRecoveryResult
+>;
+
+const completePasswordRecoveryResult = v.union(
+  vSignInComplete,
+  vSignInError(v.union(completeChallengeUserError, setPasswordUserError)),
+);
+
+/** The result of `completePasswordRecovery`: the minted session tokens, or an error. */
+export type CompletePasswordRecoveryResult = Infer<
+  typeof completePasswordRecoveryResult
+>;
+
 type MutationCtx = GenericMutationCtx<GenericDataModel>;
 
 export type EmailPasswordProfile = Record<string, never>;
@@ -179,27 +227,36 @@ export type EmailPasswordProfile = Record<string, never>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUp, completeSignUp, signIn, changePassword } =
- *   setupEmailPassword(core, {
- *     component: components.authEmail,
- *     passwordComponent: components.authPasswordProvider,
- *     emailSender: {
- *       kind: "resend",
- *       sendEmail: components.resend.lib.sendEmail,
- *       apiKey: env.RESEND_API_KEY,
- *       from: "My App <auth@example.com>",
- *       testMode: false,
- *     },
- *     urls: {
- *       signUp: `${env.SITE_URL}/validate-email`,
- *     },
- *   }).attachUserCallbacks({ createUser: internal.users.createUser });
+ * export const {
+ *   signUp,
+ *   completeSignUp,
+ *   signIn,
+ *   changePassword,
+ *   startPasswordRecovery,
+ *   completePasswordRecovery,
+ * } = setupEmailPassword(core, {
+ *   component: components.authEmail,
+ *   passwordComponent: components.authPasswordProvider,
+ *   emailSender: {
+ *     kind: "resend",
+ *     sendEmail: components.resend.lib.sendEmail,
+ *     apiKey: env.RESEND_API_KEY,
+ *     from: "My App <auth@example.com>",
+ *     testMode: false,
+ *   },
+ *   urls: {
+ *     signUp: `${env.SITE_URL}/validate-email`,
+ *     recovery: `${env.SITE_URL}/reset-password`,
+ *   },
+ * }).attachUserCallbacks({ createUser: internal.users.createUser });
  * ```
  *
  * - Sign-in accepts any verified email of the account.
  * - Change-password requires the session *and* the current password
  *   (OWASP ASVS v5 6.2.3), and sends a security notification to the
  *   primary address (ASVS 6.3.7).
+ * - Recovery proves ownership of a verified email through a 10-minute link,
+ *   then sets the new password and signs the user in.
  *
  * Account resolution (email → app user id) is owned by the email component;
  * the password component stores only `{ userId, passwordHash }`.
@@ -491,6 +548,154 @@ export function setupEmailPassword<UsersTable extends string>(
               );
             }
             return { success: true };
+          },
+        }),
+
+        /**
+         * Start a password recovery: send a reset link (valid 10 minutes) to a
+         * verified email address. Any verified address of the account works,
+         * not only the primary one.
+         *
+         * `EMAIL_NOT_FOUND` is surfaced to the caller. This reveals whether an
+         * address has an account, which sign-up's `EMAIL_TAKEN` reveals
+         * anyway; the recipe accepts that trade-off for a clearer flow.
+         * TODO: the lookups are not rate limited, so a client can probe
+         * addresses freely. Add a consuming per-IP limit on the lookup.
+         */
+        startPasswordRecovery: authMutation({
+          args: { email: v.string() },
+          returns: startPasswordRecoveryResult,
+          handler: async (
+            ctx,
+            { email },
+          ): Promise<StartPasswordRecoveryResult> => {
+            // The address must belong to an account. The check runs again at
+            // completion: the component does not verify the address for a
+            // custom challenge.
+            const account = await ctx.runQuery(
+              component.verifiedEmails.getUserIdByEmail,
+              { email },
+              // TODO: Should we allow users to start a recovery flow through
+              // a secondary email? Or support options to customize this?
+            );
+            if (account === null) {
+              return {
+                success: false,
+                userError: { error: "EMAIL_NOT_FOUND" },
+              };
+            }
+
+            const start = await ctx.runMutation(
+              component.challenge.custom.start,
+              {
+                // Send the link to the stored address, not to the typed one.
+                // The lookup ignores the case, but a mail server can treat
+                // `Alice@` and `alice@` as two mailboxes. Only the case that
+                // the owner verified must receive a recovery link.
+                email: account.email,
+                purpose: RECOVERY_PURPOSE,
+                // Nobody is signed in: the account is found again from the
+                // verified address at completion.
+                userId: null,
+                url: urls.recovery,
+                emailSender: await senderConfig(),
+                ttlMs: RECOVERY_TTL_MS,
+                ...RECOVERY_EMAIL,
+              },
+            );
+            if (!start.success) {
+              return { success: false, userError: start.userError };
+            }
+            return { success: true, browserSecret: start.browserSecret };
+          },
+        }),
+
+        /**
+         * Complete a password recovery: the link code + browser secret prove
+         * ownership of the email, so set the new password and sign the user
+         * in, in one transaction. Notifies the primary email (ASVS 6.3.7).
+         */
+        completePasswordRecovery: authMutation({
+          args: {
+            emailCode: v.string(),
+            browserSecret: v.string(),
+            newPassword: v.string(),
+          },
+          returns: completePasswordRecoveryResult,
+          handler: async (
+            ctx,
+            { emailCode, browserSecret, newPassword },
+          ): Promise<CompletePasswordRecoveryResult> => {
+            // Validate the password before claiming the one-shot link, so a
+            // rejected password does not burn the link.
+            const passwordError = validateNewPassword(newPassword);
+            if (passwordError !== null) {
+              return { status: "error", userError: passwordError };
+            }
+
+            const complete = await ctx.runMutation(
+              component.challenge.custom.complete,
+              {
+                emailCode,
+                browserSecret,
+                purpose: RECOVERY_PURPOSE,
+                userId: null,
+              },
+            );
+            if (!complete.success) {
+              return { status: "error", userError: complete.userError };
+            }
+
+            // The link proves control of the address, not of an account. The
+            // address must still be a verified address of an account: it
+            // could have moved to another user, or been removed, since the
+            // flow started. Any verified address of the account can reset
+            // the password, because each of them passed the same ownership
+            // challenge.
+            const account = await ctx.runQuery(
+              component.verifiedEmails.getUserIdByEmail,
+              { email: complete.email },
+              // TODO: Should we allow users to start a recovery flow through
+              // a secondary email? Or support options to customize this?
+            );
+            if (account === null) {
+              return {
+                status: "error",
+                userError: { error: "INVALID_CHALLENGE" },
+              };
+            }
+
+            const { userId } = account;
+            const setResult = await ctx.runMutation(
+              passwordComponent.public.setPassword,
+              { userId, password: newPassword },
+            );
+            if (!setResult.success) {
+              // Unexpected: the password was validated above. Throw so the
+              // claimed link rolls back rather than being burned.
+              throw new Error(
+                "Unexpected error when setting the password: " +
+                  setResult.userError.error,
+                { cause: setResult.userError },
+              );
+            }
+
+            const tokens = await ctx.convexAuth.completeSignIn({
+              providerAccountId: userId,
+              profile: {},
+            });
+
+            // The notification goes to the primary address, which can be
+            // different from the address that received the link.
+            await notify(
+              ctx,
+              (await ctx.runQuery(component.verifiedEmails.getPrimaryEmail, {
+                userId,
+              })) ?? account.email,
+              PASSWORD_CHANGED_SUBJECT,
+              PASSWORD_CHANGED_TEXT,
+            );
+            return { status: "complete", tokens };
           },
         }),
       };
