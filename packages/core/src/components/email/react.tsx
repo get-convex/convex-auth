@@ -26,7 +26,11 @@ import { useCallback, useMemo, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
-import type { SignUpResult, CompleteSignUpResult } from "./setup.ts";
+import type {
+  SignUpResult,
+  CompleteSignUpResult,
+  SignInResult,
+} from "./setup.ts";
 /** The flows that keep a secret in the starting browser's storage. */
 export type EmailPasswordFlow = "signUp";
 
@@ -53,8 +57,8 @@ type UnexpectedFailure = {
 
 /**
  * The same client failure, in the shape of the shared sign-in envelope. The
- * hooks that mint a session (`completeSignUp`) return it, so that every arm
- * of their result has a `status`.
+ * hooks that mint a session (`completeSignUp`, `signIn`) return it, so that
+ * every arm of their result has a `status`.
  */
 type SignInUnexpectedFailure = {
   status: "error";
@@ -81,6 +85,13 @@ type CompleteSignUpMutation = FunctionReference<
   ClientView<CompleteSignUpResult>
 >;
 
+type SignInMutation = FunctionReference<
+  "mutation",
+  "public",
+  { email: string; password: string },
+  ClientView<SignInResult>
+>;
+
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
 export type SignUpWithEmailPasswordResult =
   ClientView<SignUpResult> | UnexpectedFailure;
@@ -90,6 +101,10 @@ export type CompleteSignUpClientResult =
   | ClientView<CompleteSignUpResult>
   | SignInMissingSecretFailure
   | SignInUnexpectedFailure;
+
+/** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
+export type SignInWithEmailPasswordResult =
+  ClientView<SignInResult> | SignInUnexpectedFailure;
 
 /**
  * The storage that holds the flow secrets, namespaced by deployment URL so
@@ -231,4 +246,37 @@ export function useCompleteSignUp(
   );
 
   return { completeSignUp, pending };
+}
+
+/**
+ * Client for the sign-in flow: run the backend's `signIn` mutation and, on
+ * success, establish an authenticated session.
+ *
+ * @param signInMutation The app's `signIn` mutation reference.
+ */
+export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
+  const { setSession } = useAuthActions();
+  const signInApi = useAuthSignInApi();
+  const { pending, track } = usePending();
+
+  const signIn = useCallback(
+    async (credentials: {
+      email: string;
+      password: string;
+    }): Promise<SignInWithEmailPasswordResult> =>
+      track(async () => {
+        try {
+          const result = await signInApi.mutation(signInMutation, credentials);
+          if (result.status === "complete") {
+            await setSession(result.tokens);
+          }
+          return result;
+        } catch (cause) {
+          return foldSignInError(cause);
+        }
+      }),
+    [signInApi, signInMutation, setSession, track],
+  );
+
+  return { signIn, pending };
 }
