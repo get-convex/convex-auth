@@ -77,6 +77,9 @@ export function LogIn() {
       <p>
         Don't have an account? <a href="/signup">Sign up</a>
       </p>
+      <p>
+        Forgot your password? <a href="/forgot-password">Reset it</a>
+      </p>
     </>
   );
 }
