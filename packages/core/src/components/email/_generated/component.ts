@@ -209,6 +209,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Array<{ email: string; isPrimary: boolean }>,
         Name
       >;
+      getPrimaryEmail: FunctionReference<
+        "query",
+        "internal",
+        { userId: string },
+        string | null,
+        Name
+      >;
       getUserIdByEmail: FunctionReference<
         "query",
         "internal",
