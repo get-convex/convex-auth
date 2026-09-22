@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
@@ -9,26 +10,32 @@ import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
 import {
+  useCompletePasswordRecovery,
   useCompleteSignUp,
   useSignInWithEmailPassword,
   useSignUpWithEmailPassword,
+  useStartPasswordRecovery,
 } from "./react.tsx";
 
-// The hooks run their mutation through the injected `AuthSignInApi`, so the
-// test substitutes a signInApi rather than mocking `convex/react`.
+// The hooks that mint a session run their mutation through the injected
+// `AuthSignInApi`, so the test substitutes a signInApi rather than mocking
+// `convex/react`.
 const { signInApi, run: runSignInMutation } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
 // The hooks read the deployment URL from the surrounding ConvexProvider to
-// namespace their secret storage. The client never connects: no test
-// subscribes to a query.
+// namespace their secret storage, and the hooks that do not mint a session
+// run their mutation through this client. The client never connects: the
+// tests stub its `mutation` method and no test subscribes to a query.
 const convexClient = new ConvexReactClient(NAMESPACE);
+const stubConvexMutation = () => vi.spyOn(convexClient, "mutation");
 
 // The hooks keep flow secrets in `localStorage` (jsdom supplies one),
 // namespaced like the hooks namespace it.
 const secretStorage = new NamespacedStorage(window.localStorage, NAMESPACE);
 const SIGN_UP_SECRET_KEY = "__convexAuthEmailPasswordSignUpSecret";
+const RECOVERY_SECRET_KEY = "__convexAuthEmailPasswordRecoverySecret";
 
 const bundle: TokenBundle = {
   accessToken: "access-1",
@@ -40,6 +47,10 @@ const bundle: TokenBundle = {
 
 // The stub signInApi ignores the reference, so any value will do.
 const signInMutation = {} as never;
+
+// `useMutation` reads the function name of its reference, so the hooks that
+// go through the Convex client need a real one. The stubbed client ignores it.
+const convexMutation = makeFunctionReference<"mutation">("auth:flow") as never;
 
 function renderWithProviders<T>(useHook: () => T) {
   const authClient = new AuthClient({
@@ -370,5 +381,145 @@ describe("useCompleteSignUp", () => {
         userError: { error: "OTHER_ERROR", cause },
       }),
     );
+  });
+});
+
+describe("useStartPasswordRecovery", () => {
+  test("success stores the secret", async () => {
+    const mutation = stubConvexMutation().mockResolvedValue({
+      success: true,
+      browserSecret: "secret-9",
+    });
+    const { result } = renderWithProviders(() =>
+      useStartPasswordRecovery(convexMutation),
+    );
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.startPasswordRecovery>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.startPasswordRecovery({
+        email: "alice@example.com",
+      });
+    });
+
+    expect(mutation.mock.calls[0]?.[1]).toEqual({ email: "alice@example.com" });
+    expect(returned).toEqual({ success: true, browserSecret: "secret-9" });
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBe("secret-9");
+  });
+
+  test("a thrown mutation folds into OTHER_ERROR preserving cause", async () => {
+    const cause = new Error("network blip");
+    stubConvexMutation().mockRejectedValue(cause);
+    const { result } = renderWithProviders(() =>
+      useStartPasswordRecovery(convexMutation),
+    );
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.startPasswordRecovery>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.startPasswordRecovery({
+        email: "alice@example.com",
+      });
+    });
+
+    expect(returned).toEqual({
+      success: false,
+      userError: { error: "OTHER_ERROR", cause },
+    });
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBeNull();
+  });
+});
+
+describe("useCompletePasswordRecovery", () => {
+  test("is ready with the stored secret; completing adopts the session and clears it", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    runSignInMutation.mockResolvedValue({ status: "complete", tokens: bundle });
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    let returned!: Awaited<ReturnType<typeof ready.completePasswordRecovery>>;
+    await act(async () => {
+      returned = await ready.completePasswordRecovery({
+        newPassword: "brand new horse staple",
+      });
+    });
+
+    expect(runSignInMutation).toHaveBeenCalledWith({
+      emailCode: "code-9",
+      browserSecret: "secret-9",
+      newPassword: "brand new horse staple",
+    });
+    expect(returned).toEqual({ status: "complete", tokens: bundle });
+    expect(result.current.hook).toEqual({ status: "complete" });
+    expect(result.current.auth.isAuthenticated).toBe(true);
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBeNull();
+  });
+
+  test("is MISSING_SECRET when this browser did not start the flow", async () => {
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "MISSING_SECRET" },
+      }),
+    );
+    expect(runSignInMutation).not.toHaveBeenCalled();
+  });
+
+  test("a rejected password leaves the flow ready for another try", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const failure = {
+      status: "error",
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 8 },
+    };
+    runSignInMutation.mockResolvedValue(failure);
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    let returned!: Awaited<ReturnType<typeof ready.completePasswordRecovery>>;
+    await act(async () => {
+      returned = await ready.completePasswordRecovery({ newPassword: "short" });
+    });
+
+    expect(returned).toEqual(failure);
+    expect(result.current.hook.status).toBe("ready");
+    // The link was not consumed: the secret must still work.
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBe("secret-9");
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("an unusable link ends the flow", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    runSignInMutation.mockResolvedValue({
+      status: "error",
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    await act(async () => {
+      await ready.completePasswordRecovery({ newPassword: "brand new horse" });
+    });
+
+    expect(result.current.hook).toEqual({
+      status: "error",
+      userError: { error: "INVALID_CHALLENGE" },
+    });
   });
 });

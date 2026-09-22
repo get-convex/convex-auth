@@ -7,7 +7,7 @@
 "use client";
 
 import { FunctionReference } from "convex/server";
-import { useConvex } from "convex/react";
+import { useConvex, useMutation } from "convex/react";
 import {
   useCallback,
   useRef,
@@ -24,14 +24,17 @@ import type {
   SignUpResult,
   CompleteSignUpResult,
   SignInResult,
+  StartPasswordRecoveryResult,
+  CompletePasswordRecoveryResult,
 } from "./setup.ts";
 
 /** The flows that keep a secret in the starting browser's storage. */
-type EmailPasswordFlow = "signUp";
+type EmailPasswordFlow = "signUp" | "passwordRecovery";
 
 // One storage key per flow, so concurrent flows do not overwrite each other.
 const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
   signUp: "__convexAuthEmailPasswordSignUpSecret",
+  passwordRecovery: "__convexAuthEmailPasswordRecoverySecret",
 };
 
 //------------------------------------------------------------------------------
@@ -84,6 +87,20 @@ type SignInMutation = FunctionReference<
   ClientView<SignInResult>
 >;
 
+type StartPasswordRecoveryMutation = FunctionReference<
+  "mutation",
+  "public",
+  { email: string },
+  StartPasswordRecoveryResult
+>;
+
+type CompletePasswordRecoveryMutation = FunctionReference<
+  "mutation",
+  "public",
+  { emailCode: string; browserSecret: string; newPassword: string },
+  ClientView<CompletePasswordRecoveryResult>
+>;
+
 /** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
 export type SignInWithEmailPasswordResult =
   ClientView<SignInResult> | SignInUnexpectedFailure;
@@ -91,6 +108,17 @@ export type SignInWithEmailPasswordResult =
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
 export type SignUpWithEmailPasswordResult =
   ClientView<SignUpResult> | UnexpectedFailure;
+
+/** The result of the `startPasswordRecovery` callback from {@link useStartPasswordRecovery}. */
+export type StartPasswordRecoveryClientResult =
+  StartPasswordRecoveryResult | UnexpectedFailure;
+
+/**
+ * The result of the `completePasswordRecovery` callback of the `ready` state
+ * of {@link useCompletePasswordRecovery}.
+ */
+export type CompletePasswordRecoveryClientResult =
+  ClientView<CompletePasswordRecoveryResult> | SignInUnexpectedFailure;
 
 /**
  * The state of a landing page hook: `pending` until the link has been
@@ -107,6 +135,41 @@ export type CompleteSignUpState = LinkFlowState<
   | MissingSecretError
   | OtherError
 >;
+
+/**
+ * The errors of `completePasswordRecovery` that are about the link rather
+ * than about the new password. They end the flow: the user needs a new link.
+ */
+type PasswordRecoveryLinkError = Extract<
+  SignInError<ClientView<CompletePasswordRecoveryResult>>,
+  { error: "INVALID_CHALLENGE" | "INCORRECT_CODE" }
+>;
+
+/**
+ * The state of {@link useCompletePasswordRecovery}. Unlike the other landing
+ * page hooks, the flow needs input from the user (the new password) before it
+ * can complete, so a `ready` state carries the function to submit it.
+ */
+export type CompletePasswordRecoveryState =
+  | { status: "pending" }
+  | {
+      status: "ready";
+      /**
+       * Set the new password and sign the user in. Errors about the new
+       * password come back in the result and leave the state `ready`, so the
+       * user can try another password with the same link.
+       */
+      completePasswordRecovery: (args: {
+        newPassword: string;
+      }) => Promise<CompletePasswordRecoveryClientResult>;
+      /** `true` while `completePasswordRecovery` is in flight. */
+      pending: boolean;
+    }
+  | { status: "complete" }
+  | {
+      status: "error";
+      userError: PasswordRecoveryLinkError | MissingSecretError;
+    };
 
 //------------------------------------------------------------------------------
 // Shared helpers
@@ -453,4 +516,195 @@ export function useCompleteSignUp(
     "signUp",
     complete,
   );
+}
+
+//------------------------------------------------------------------------------
+// Password recovery
+//------------------------------------------------------------------------------
+
+/**
+ * Client for starting a password recovery: run the backend's
+ * `startPasswordRecovery` mutation and keep the returned secret for
+ * {@link useCompletePasswordRecovery}.
+ *
+ * @param startPasswordRecoveryMutation The app's `startPasswordRecovery` mutation reference.
+ */
+export function useStartPasswordRecovery(
+  startPasswordRecoveryMutation: StartPasswordRecoveryMutation,
+) {
+  const runStartPasswordRecovery = useMutation(startPasswordRecoveryMutation);
+  const storage = useSecretStorage();
+  const { pending, track } = usePending();
+
+  const startPasswordRecovery = useCallback(
+    async (args: {
+      email: string;
+    }): Promise<StartPasswordRecoveryClientResult> =>
+      track(async () => {
+        try {
+          const result = await runStartPasswordRecovery(args);
+          if (result.success) {
+            await storage.set(
+              SECRET_STORAGE_KEYS.passwordRecovery,
+              result.browserSecret,
+            );
+          }
+          return result;
+        } catch (cause) {
+          return foldError(cause);
+        }
+      }),
+    [runStartPasswordRecovery, storage, track],
+  );
+
+  return { startPasswordRecovery, pending };
+}
+
+/**
+ * Client for the landing page of the password-reset link. As soon as the page
+ * opens, it checks that this browser holds the secret stored by
+ * {@link useStartPasswordRecovery}; the state is then `ready`, with the
+ * function that sets the new password and adopts the minted session.
+ *
+ * The hook does not complete the flow by itself: the flow needs the new
+ * password, so call `completePasswordRecovery` when the user submits the
+ * form. An error about the password keeps the state `ready`, so show it in
+ * the form. An error about the link moves the state to `error`.
+ *
+ * ```tsx
+ * function ResetPassword({ emailCode }: { emailCode: string }) {
+ *   const state = useCompletePasswordRecovery(
+ *     api.auth.completePasswordRecovery,
+ *     { emailCode },
+ *   );
+ *   const [newPassword, setNewPassword] = useState("");
+ *   const [error, setError] = useState<string | null>(null);
+ *
+ *   switch (state.status) {
+ *     case "pending":
+ *       return <p>Loading…</p>;
+ *     case "complete":
+ *       return <Navigate to="/" replace />;
+ *     case "error":
+ *       // map state.userError (MISSING_SECRET, INVALID_CHALLENGE, …) to a message
+ *       return <p role="alert">This link cannot be used.</p>;
+ *   }
+ *
+ *   return (
+ *     <form
+ *       onSubmit={async (e) => {
+ *         e.preventDefault();
+ *         const result = await state.completePasswordRecovery({ newPassword });
+ *         // map result.userError (PASSWORD_TOO_SHORT, …) to a message
+ *         setError(result.status === "error" ? result.userError.error : null);
+ *       }}
+ *     >
+ *       <label>
+ *         New password
+ *         <input
+ *           type="password"
+ *           autoComplete="new-password"
+ *           required
+ *           value={newPassword}
+ *           onChange={(e) => setNewPassword(e.target.value)}
+ *           disabled={state.pending}
+ *         />
+ *       </label>
+ *       {error !== null && <p role="alert">{error}</p>}
+ *       <button type="submit" disabled={state.pending}>
+ *         Reset password and sign in
+ *       </button>
+ *     </form>
+ *   );
+ * }
+ * ```
+ *
+ * @param completePasswordRecoveryMutation The app's `completePasswordRecovery` mutation reference.
+ * @param emailCode The `code` query parameter of the link.
+ */
+export function useCompletePasswordRecovery(
+  completePasswordRecoveryMutation: CompletePasswordRecoveryMutation,
+  { emailCode }: { emailCode: string },
+): CompletePasswordRecoveryState {
+  const { setSession } = useAuthActions();
+  const signInApi = useAuthSignInApi();
+  const storage = useSecretStorage();
+  const { pending, track } = usePending();
+  // `undefined` while storage loads, `null` when this browser has no secret.
+  const [browserSecret, setBrowserSecret] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [outcome, setOutcome] = useState<
+    | { status: "complete" }
+    | { status: "error"; userError: PasswordRecoveryLinkError }
+    | null
+  >(null);
+
+  useEffect(() => {
+    let canceled = false;
+    void (async () => {
+      const secret = await storage.get(SECRET_STORAGE_KEYS.passwordRecovery);
+      if (!canceled) {
+        setBrowserSecret(secret ?? null);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [storage]);
+
+  const completePasswordRecovery = useCallback(
+    async ({
+      newPassword,
+    }: {
+      newPassword: string;
+    }): Promise<CompletePasswordRecoveryClientResult> =>
+      track(async () => {
+        if (typeof browserSecret !== "string") {
+          // Only reachable through the `ready` state, which has the secret.
+          throw new Error(
+            "completePasswordRecovery was called before the flow was ready",
+          );
+        }
+        try {
+          const result = await signInApi.mutation(
+            completePasswordRecoveryMutation,
+            { emailCode, browserSecret, newPassword },
+          );
+          if (result.status === "complete") {
+            await setSession(result.tokens);
+            await storage.remove(SECRET_STORAGE_KEYS.passwordRecovery);
+            setOutcome({ status: "complete" });
+          } else if (
+            result.userError.error === "INVALID_CHALLENGE" ||
+            result.userError.error === "INCORRECT_CODE"
+          ) {
+            setOutcome({ status: "error", userError: result.userError });
+          }
+          return result;
+        } catch (cause) {
+          return foldSignInError(cause);
+        }
+      }),
+    [
+      signInApi,
+      completePasswordRecoveryMutation,
+      emailCode,
+      browserSecret,
+      storage,
+      setSession,
+      track,
+    ],
+  );
+
+  if (outcome !== null) {
+    return outcome;
+  }
+  if (browserSecret === undefined) {
+    return { status: "pending" };
+  }
+  if (browserSecret === null) {
+    return { status: "error", userError: { error: "MISSING_SECRET" } };
+  }
+  return { status: "ready", completePasswordRecovery, pending };
 }
