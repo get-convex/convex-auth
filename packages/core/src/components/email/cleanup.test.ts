@@ -116,7 +116,7 @@ describe("deleteExpiredChallenges", () => {
     const freshId = await insertChallenge(t, "fresh", START + 1);
     await seedChallenge(t, {
       email: "custom@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user2" },
+      purpose: { kind: "changeEmail", userId: "user2" },
       emailCode: "custom",
       browserSecret: "secret",
       expiresAt: START + 1,

@@ -56,7 +56,7 @@ export type StartChallengeUserError = Infer<typeof startChallengeUserError>;
 
 /**
  * Another user has already verified this address. Only the kinds that record
- * the address for a user (`addEmail`, `setPrimaryEmail`) return this error.
+ * the address for a user (`addEmail`, `changeEmail`) return this error.
  */
 export const emailTakenUserError = v.object({
   error: v.literal("EMAIL_TAKEN"),

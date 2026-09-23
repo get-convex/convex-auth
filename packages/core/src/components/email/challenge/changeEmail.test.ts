@@ -30,18 +30,18 @@ function emailCodeInLink(text: string | undefined): string {
   return decodeURIComponent(match[1]);
 }
 
-describe("challenge.setPrimaryEmail.complete", () => {
+describe("challenge.changeEmail.complete", () => {
   test("replaces and returns the old primary", async () => {
     const t = setup();
     await seedEmail(t, "user1", "old@example.com", true);
     await seedChallenge(t, {
       email: "new@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
       emailCode: "code1",
       browserSecret: "secret1",
     });
 
-    const result = await t.mutation(api.challenge.setPrimaryEmail.complete, {
+    const result = await t.mutation(api.challenge.changeEmail.complete, {
       emailCode: "code1",
       browserSecret: "secret1",
       userId: "user1",
@@ -50,7 +50,7 @@ describe("challenge.setPrimaryEmail.complete", () => {
       success: true,
       userId: "user1",
       email: "new@example.com",
-      previousPrimaryEmail: "old@example.com",
+      previousEmail: "old@example.com",
     });
     // The old primary is gone; the new address is the only primary.
     expect(
@@ -67,12 +67,12 @@ describe("challenge.setPrimaryEmail.complete", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
       emailCode: "code1",
       browserSecret: "secret1",
     });
 
-    const result = await t.mutation(api.challenge.setPrimaryEmail.complete, {
+    const result = await t.mutation(api.challenge.changeEmail.complete, {
       emailCode: "code1",
       browserSecret: "secret1",
       userId: "user1",
@@ -81,7 +81,7 @@ describe("challenge.setPrimaryEmail.complete", () => {
       success: true,
       userId: "user1",
       email: "alice@example.com",
-      previousPrimaryEmail: null,
+      previousEmail: null,
     });
     expect(
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
@@ -93,14 +93,14 @@ describe("challenge.setPrimaryEmail.complete", () => {
     await seedEmail(t, "user1", "old@example.com", true);
     await seedChallenge(t, {
       email: "new@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
       emailCode: "code1",
       browserSecret: "secret1",
     });
     await seedEmail(t, "user2", "new@example.com", true);
 
     expect(
-      await t.mutation(api.challenge.setPrimaryEmail.complete, {
+      await t.mutation(api.challenge.changeEmail.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
         userId: "user1",
@@ -113,20 +113,20 @@ describe("challenge.setPrimaryEmail.complete", () => {
   });
 });
 
-describe("the userId of a setPrimaryEmail challenge", () => {
+describe("the userId of a changeEmail challenge", () => {
   test("another userId throws and keeps the row", async () => {
     const t = setup();
     await seedEmail(t, "user1", "old1@example.com", true);
     await seedEmail(t, "user2", "old2@example.com", true);
     await seedChallenge(t, {
       email: "new@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
       emailCode: "code1",
       browserSecret: "secret1",
     });
 
     await expect(
-      t.mutation(api.challenge.setPrimaryEmail.complete, {
+      t.mutation(api.challenge.changeEmail.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
         userId: "user2",
@@ -141,7 +141,7 @@ describe("the userId of a setPrimaryEmail challenge", () => {
     ).toEqual([{ email: "old2@example.com", isPrimary: true }]);
     // The right user still completes the challenge.
     expect(
-      await t.mutation(api.challenge.setPrimaryEmail.complete, {
+      await t.mutation(api.challenge.changeEmail.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
         userId: "user1",
@@ -156,18 +156,18 @@ describe("concurrent challenges for one address", () => {
     // Two sign-ups race for one address; the first completion wins.
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
       emailCode: "code1",
       browserSecret: "secret1",
     });
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user2" },
+      purpose: { kind: "changeEmail", userId: "user2" },
       emailCode: "code2",
       browserSecret: "secret2",
     });
 
-    const first = await t.mutation(api.challenge.setPrimaryEmail.complete, {
+    const first = await t.mutation(api.challenge.changeEmail.complete, {
       emailCode: "code1",
       browserSecret: "secret1",
       userId: "user1",
@@ -179,7 +179,7 @@ describe("concurrent challenges for one address", () => {
     expect(
       await t.run((ctx) => ctx.db.query("challenges").collect()),
     ).toMatchObject([{ purpose: { userId: "user2" } }]);
-    const second = await t.mutation(api.challenge.setPrimaryEmail.complete, {
+    const second = await t.mutation(api.challenge.changeEmail.complete, {
       emailCode: "code2",
       browserSecret: "secret2",
       userId: "user2",
@@ -194,26 +194,26 @@ describe("concurrent challenges for one address", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "Alice@Example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
       emailCode: "code1",
       browserSecret: "secret1",
     });
     await seedChallenge(t, {
       email: "alice@EXAMPLE.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user2" },
+      purpose: { kind: "changeEmail", userId: "user2" },
       emailCode: "code2",
       browserSecret: "secret2",
     });
 
     expect(
-      await t.mutation(api.challenge.setPrimaryEmail.complete, {
+      await t.mutation(api.challenge.changeEmail.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
         userId: "user1",
       }),
     ).toMatchObject({ success: true, userId: "user1" });
     expect(
-      await t.mutation(api.challenge.setPrimaryEmail.complete, {
+      await t.mutation(api.challenge.changeEmail.complete, {
         emailCode: "code2",
         browserSecret: "secret2",
         userId: "user2",
@@ -222,13 +222,13 @@ describe("concurrent challenges for one address", () => {
   });
 });
 
-describe("challenge.setPrimaryEmail.start", () => {
+describe("challenge.changeEmail.start", () => {
   test("sends a link to the new address, and the completion replaces the old one", async () => {
     const t = setup();
     await seedEmail(t, "user1", "old@example.com", true);
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.challenge.setPrimaryEmail.start, {
+      .mutation(api.challenge.changeEmail.start, {
         email: "new@example.com",
         url: URL,
         emailSender: await stubEmailSender(t),
@@ -243,7 +243,7 @@ describe("challenge.setPrimaryEmail.start", () => {
     );
     expect(row).toMatchObject({
       email: "new@example.com",
-      purpose: { kind: "setPrimaryEmail", userId: "user1" },
+      purpose: { kind: "changeEmail", userId: "user1" },
     });
 
     const sent = await sentEmails(t);
@@ -253,7 +253,7 @@ describe("challenge.setPrimaryEmail.start", () => {
     expect(sent[0].text).toContain(`${URL}?code=`);
 
     expect(
-      await t.mutation(api.challenge.setPrimaryEmail.complete, {
+      await t.mutation(api.challenge.changeEmail.complete, {
         emailCode: emailCodeInLink(sent[0].text),
         browserSecret: result.browserSecret,
         userId: "user1",
@@ -262,7 +262,7 @@ describe("challenge.setPrimaryEmail.start", () => {
       success: true,
       userId: "user1",
       email: "new@example.com",
-      previousPrimaryEmail: "old@example.com",
+      previousEmail: "old@example.com",
     });
     expect(
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
@@ -274,7 +274,7 @@ describe("challenge.setPrimaryEmail.start", () => {
     await seedEmail(t, "user2", "new@example.com", true);
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.challenge.setPrimaryEmail.start, {
+      .mutation(api.challenge.changeEmail.start, {
         email: "new@example.com",
         url: URL,
         emailSender: await stubEmailSender(t),
@@ -288,13 +288,13 @@ describe("challenge.setPrimaryEmail.start", () => {
   });
 });
 
-describe("challenge.setPrimaryEmail.check", () => {
+describe("challenge.changeEmail.check", () => {
   test("returns the same errors as start, and consumes nothing", async () => {
     const t = setup();
     const check = (email: string) =>
       t
         .withRequestMetadata({ ip: IP })
-        .mutation(api.challenge.setPrimaryEmail.check, { email });
+        .mutation(api.challenge.changeEmail.check, { email });
     for (let i = 0; i < 10; i++) {
       expect(await check("new@example.com")).toBeNull();
     }
@@ -305,7 +305,7 @@ describe("challenge.setPrimaryEmail.check", () => {
 
     const start = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.challenge.setPrimaryEmail.start, {
+      .mutation(api.challenge.changeEmail.start, {
         email: "new@example.com",
         url: URL,
         emailSender: await stubEmailSender(t),

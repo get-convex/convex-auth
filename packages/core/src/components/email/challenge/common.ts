@@ -140,7 +140,7 @@ export type StartChallengeResult = Infer<typeof startChallengeResult>;
 
 /**
  * The `start` result of the kinds that record the address for a user
- * (`addEmail`, `setPrimaryEmail`). It adds `EMAIL_TAKEN` to the errors.
+ * (`addEmail`, `changeEmail`). It adds `EMAIL_TAKEN` to the errors.
  */
 export const startFreeAddressResult = v.union(
   startChallengeSuccess,
@@ -259,7 +259,7 @@ export async function addressTakenError(
 
 /**
  * The `start` preconditions of the kinds that record the address for a user
- * (`addEmail`, `setPrimaryEmail`): the shared preconditions, then the
+ * (`addEmail`, `changeEmail`): the shared preconditions, then the
  * address must not be verified by any user.
  */
 export async function startFreeAddressPreconditions(
