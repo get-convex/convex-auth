@@ -16,7 +16,6 @@
     "typecheck": "tsc --noEmit && tsc -p convex --noEmit"
   },
   "devDependencies": {
-    "@convex-dev/rate-limiter": "^0.3.2",
     "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^24.12.4",
     "@types/react": "^19.2.17",
