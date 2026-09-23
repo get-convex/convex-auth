@@ -66,9 +66,6 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
     devDependencies:
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@types/node':
         specifier: ^24.12.4
         version: 24.13.2
@@ -146,9 +143,6 @@ importers:
         specifier: ^7.18.1
         version: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -192,9 +186,6 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
     devDependencies:
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -238,9 +229,6 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
     devDependencies:
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
@@ -416,9 +404,6 @@ importers:
         specifier: ^7.18.1
         version: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.46.0(react@19.2.7))(react@19.2.7)
       '@edge-runtime/vm':
         specifier: ^5.0.0
         version: 5.0.0
