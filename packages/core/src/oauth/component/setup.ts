@@ -17,8 +17,7 @@ export type { OidcClaims };
  * at redemption. `claims` holds the id_token claims (`undefined` for
  * non-OIDC providers). `userInfoResponses` holds the userinfo responses
  * keyed as configured (`undefined` unless the catalog sets
- * `userInfoEndpoints`). `id` becomes the provider account id. Supplied by
- * each provider's catalog (see `google.ts`, `github.ts`).
+ * `userInfoEndpoints`). `id` becomes the provider account id.
  *
  * `Profile` is the exact shape the mapping emits, which is what the app's
  * create-or-update-user callback receives.
@@ -96,7 +95,7 @@ export type OauthCatalog<
  */
 export type OauthProviderOptions = {
   /**
-   * This provider's oauth component instance, e.g. `components.oauthGoogle`.
+   * This provider's oauth component instance, e.g. `components.oauthAcme`.
    * The component is installed once per provider.
    */
   component: ComponentApi;

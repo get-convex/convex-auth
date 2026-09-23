@@ -2,25 +2,20 @@ import { defineComponent } from "convex/server";
 import { v } from "convex/values";
 
 /**
- * The oauth component. Installed once per identity provider, each instance
- * with its own name and `httpPrefix`; the instance's callback is served at
- * `<httpPrefix>/callback`:
+ * The oauth component for identity providers without a built-in component.
+ * It takes the endpoints, scopes, and profile mapping from the app's
+ * `setupOauth` catalog.
+ *
+ * Install it once per identity provider, each with its own name and
+ * `httpPrefix`. The callback is served at `<httpPrefix>/callback`.
  *
  * ```ts
  * app.use(oauth, {
- *   name: "oauthGoogle",
- *   httpPrefix: "/oauth/google",
+ *   name: "oauthAcme",
+ *   httpPrefix: "/oauth/acme",
  *   env: {
- *     CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,
- *     CLIENT_SECRET: app.env.AUTH_GOOGLE_CLIENT_SECRET,
- *   },
- * });
- * app.use(oauth, {
- *   name: "oauthGithub",
- *   httpPrefix: "/oauth/github",
- *   env: {
- *     CLIENT_ID: app.env.AUTH_GITHUB_CLIENT_ID,
- *     CLIENT_SECRET: app.env.AUTH_GITHUB_CLIENT_SECRET,
+ *     CLIENT_ID: app.env.AUTH_ACME_CLIENT_ID,
+ *     CLIENT_SECRET: app.env.AUTH_ACME_CLIENT_SECRET,
  *   },
  * });
  * ```

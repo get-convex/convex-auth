@@ -275,14 +275,14 @@ npx convex env set AUTH_GOOGLE_CLIENT_SECRET YOUR_GOOGLE_OAUTH_CLIENT_SECRET
 
 **Install the component**
 
-Register an instance of the `oauth` component alongside the core in
+Register the Google oauth component alongside the core in
 `convex/convex.config.ts`. You will declare the environment variables that you
 created above as part of your application's `env` and then pass those values to
-the instance of the `oauth` provider.
+the component.
 
 <include
   lang="ts"
-  meta='title="convex/convex.config.ts" highlight="import oauth from" highlight="app.use(oauth, {...});" highlight="AUTH_GOOGLE_CLIENT_ID:" highlight="AUTH_GOOGLE_CLIENT_SECRET:"'
+  meta='title="convex/convex.config.ts" highlight="import google from" highlight="app.use(google, {...});" highlight="AUTH_GOOGLE_CLIENT_ID:" highlight="AUTH_GOOGLE_CLIENT_SECRET:"'
 >
   ../../../../../examples/react-google/convex/convex.config.ts
 </include>
@@ -390,14 +390,14 @@ npx convex env set AUTH_GITHUB_CLIENT_SECRET YOUR_GITHUB_OAUTH_CLIENT_SECRET
 
 **Install the component**
 
-Register an instance of the `oauth` component alongside the core in
+Register the GitHub oauth component alongside the core in
 `convex/convex.config.ts`. You will declare the environment variables that you
 created above as part of your application's `env` and then pass those values to
-the instance of the `oauth` provider.
+the component.
 
 <include
   lang="ts"
-  meta='title="convex/convex.config.ts" highlight="import oauth from" highlight="app.use(oauth, {...});" highlight="AUTH_GITHUB_CLIENT_ID:" highlight="AUTH_GITHUB_CLIENT_SECRET:"'
+  meta='title="convex/convex.config.ts" highlight="import github from" highlight="app.use(github, {...});" highlight="AUTH_GITHUB_CLIENT_ID:" highlight="AUTH_GITHUB_CLIENT_SECRET:"'
 >
   ../../../../../examples/react-github/convex/convex.config.ts
 </include>

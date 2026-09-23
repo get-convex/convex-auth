@@ -1,12 +1,20 @@
+/**
+ * The Google OAuth provider, exported at
+ * `@convex-dev/auth/providers/oauth/google`.
+ *
+ * @module
+ */
 import { Infer, v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
+import { buildStartSignIn } from "../shared/authorize.ts";
 import {
-  setupOauth,
-  type OauthCatalog,
-  type OauthProfile,
-  type OauthProviderOptions,
-} from "./setup.ts";
+  buildCompleteSignIn,
+  validateAllowedRedirectOrigins,
+  type OidcClaims,
+} from "../shared/redemption.ts";
+import type { ComponentApi } from "./_generated/component.ts";
+import { AUTHORIZATION_ENDPOINT, PROVIDER_NAME, SCOPES } from "./constants.ts";
 
 /**
  * The account profile the Google provider produces. Google is OIDC, so
@@ -34,7 +42,9 @@ export type GoogleProfile = Infer<typeof vGoogleProfile>;
  * returns an id_token, so `claims` is always present here. A missing one is
  * a bug.
  */
-export const normalizeGoogleProfile: OauthProfile<GoogleProfile> = (claims) => {
+export function normalizeGoogleProfile(
+  claims: OidcClaims | undefined,
+): GoogleProfile {
   if (claims === undefined) {
     throw new Error("Google returned no id_token to build a profile from");
   }
@@ -45,21 +55,21 @@ export const normalizeGoogleProfile: OauthProfile<GoogleProfile> = (claims) => {
     name: claims.name,
     picture: claims.picture,
   };
-};
+}
 
-/** Google's endpoints, scopes, and profile mapping. */
-const googleCatalog: OauthCatalog<GoogleProfile> = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  tokenEndpoint: "https://oauth2.googleapis.com/token",
-  // Google documents both forms, with or without the https prefix.
-  issuer: ["https://accounts.google.com", "accounts.google.com"],
-  scopes: ["openid", "email", "profile"],
-  profile: normalizeGoogleProfile,
+/** App-defined config for setting up the Google provider. */
+export type GoogleProviderOptions = {
+  /** The Google oauth component instance, i.e. `components.oauthGoogle`. */
+  component: ComponentApi;
+  /**
+   * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`
+   * for open-redirect prevention.
+   */
+  allowedRedirectOrigins: string[];
 };
 
 /**
- * Built-in Google OAuth provider. Wire it up with its own oauth component
- * instance:
+ * Built-in Google OAuth provider. Wire it up with the Google oauth component:
  *
  * ```ts
  * export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
@@ -80,8 +90,14 @@ const googleCatalog: OauthCatalog<GoogleProfile> = {
  */
 export function setupGoogle<UsersTable extends string>(
   core: AuthCore<UsersTable>,
-  options: OauthProviderOptions,
+  options: GoogleProviderOptions,
 ) {
+  // Validate the app-supplied options up front so mistakes fail at deploy
+  // time, not on the first sign-in.
+  const allowedOrigins = validateAllowedRedirectOrigins(
+    options.allowedRedirectOrigins,
+  );
+
   return {
     /**
      * Supply the app's user callbacks (see {@link UserCallbacks} for how their
@@ -90,13 +106,31 @@ export function setupGoogle<UsersTable extends string>(
     attachUserCallbacks(
       callbacks: UserCallbacks<"google", GoogleProfile, UsersTable>,
     ) {
-      const { startSignIn, completeSignIn } = setupOauth(
-        core,
-        "google",
-        googleCatalog,
-        callbacks,
-        options,
-      );
+      const { authMutation } = core.bindProvider({
+        name: PROVIDER_NAME,
+        createUser: callbacks.createUser,
+        onSignIn: callbacks.onSignIn,
+      });
+
+      const startSignIn = buildStartSignIn({
+        allowedOrigins,
+        authorizationEndpoint: AUTHORIZATION_ENDPOINT,
+        scopes: SCOPES,
+        createAuthorizationRequest:
+          options.component.provider.createAuthorizationRequest,
+      });
+
+      const completeSignIn = buildCompleteSignIn<
+        GoogleProfile,
+        { claims?: OidcClaims }
+      >({
+        providerName: PROVIDER_NAME,
+        authMutation,
+        claimTicket: (ctx, args) =>
+          ctx.runMutation(options.component.provider.claimTicket, args),
+        profile: (payload) => normalizeGoogleProfile(payload.claims),
+      });
+
       return {
         startSignInGoogle: startSignIn,
         completeSignInGoogle: completeSignIn,

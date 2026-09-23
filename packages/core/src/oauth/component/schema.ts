@@ -5,7 +5,7 @@ import { authorizationRequestFields, ticketFields } from "../shared/schema.ts";
 export default defineSchema({
   authorizationRequests: defineTable({
     ...authorizationRequestFields,
-    /** Provider the request was issued for, e.g. "google". */
+    /** Provider the request was issued for, e.g. "acme". */
     providerName: v.string(),
     /** The provider's token endpoint URL. */
     tokenEndpoint: v.string(),
@@ -24,7 +24,7 @@ export default defineSchema({
 
   tickets: defineTable({
     ...ticketFields,
-    /** Provider that authenticated the user, e.g. "google". */
+    /** Provider that authenticated the user, e.g. "acme". */
     providerName: v.string(),
   }).index("ticketCodeHash", ["ticketCodeHash"]),
 });
