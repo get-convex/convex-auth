@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { FunctionArgs } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
+import { testCallbackMethods } from "../shared/componentContract.test.ts";
 import { decryptTicketPayload } from "../shared/crypto.ts";
 import schema from "./schema.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
@@ -896,3 +897,5 @@ describe("oauth callback", () => {
     expect(loggedText(errors)).toContain("aborted");
   });
 });
+
+testCallbackMethods(schema, modules, ["GET", "POST"]);

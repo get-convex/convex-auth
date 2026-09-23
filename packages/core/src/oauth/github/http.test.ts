@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
+import { testCallbackMethods } from "../shared/componentContract.test.ts";
 import { decryptTicketPayload } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
@@ -155,3 +156,5 @@ describe("github callback", () => {
     expect(params.get(OAUTH_ERROR_PARAM)).toBe("access_denied");
   });
 });
+
+testCallbackMethods(schema, modules);

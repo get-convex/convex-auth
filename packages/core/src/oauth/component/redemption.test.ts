@@ -6,6 +6,10 @@ import { api, internal } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
 import { setupOauth, type OauthProfile } from "./setup.ts";
+import {
+  asComponentApi,
+  fakeCallbacks,
+} from "../shared/componentContract.test.ts";
 import { encryptTicketPayload, generateRandomToken } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import type {
@@ -120,21 +124,9 @@ const fakeCore = {
   },
 } as unknown as AuthCore;
 
-/**
- * The app's user callbacks. The fake core never invokes them.
- */
-const fakeCallbacks = {} as never;
-
-/**
- * Provider options for every instance under test. The component's own
- * generated `api` stands in for the app-side component reference
- * (`components.oauthAcme`): the harness root is the component itself, so its
- * self-references resolve the same way an installed component's would. The
- * cast bridges the generated api's "public" visibility to the component
- * type's "internal".
- */
+/** Provider options for every instance under test. */
 const options = {
-  component: api as unknown as ComponentApi,
+  component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ["https://app.example.com"],
 };
 

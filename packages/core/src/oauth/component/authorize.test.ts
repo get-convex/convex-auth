@@ -1,17 +1,17 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import {
-  actionGeneric,
-  makeFunctionReference,
-  mutationGeneric,
-} from "convex/server";
+import { makeFunctionReference } from "convex/server";
 import { api } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
 import { setupOauth, type OauthCatalog } from "./setup.ts";
+import {
+  asComponentApi,
+  fakeCallbacks,
+  fakeCore,
+} from "../shared/componentContract.test.ts";
 import { sha256Base64Url } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
-import type { AuthCore } from "../../components/core/setup.ts";
 
 /**
  * Tests for the shared `buildStartSignIn`, run through the app-side
@@ -28,25 +28,9 @@ const AUTHORIZATION_ENDPOINT = "https://provider.example/authorize";
 const ALLOWED_ORIGINS = ["https://app.example.com"];
 const REDIRECT_TO = "https://app.example.com/after";
 
-const fakeCore = {
-  bindProvider: () => ({
-    authMutation: mutationGeneric,
-    authAction: actionGeneric,
-  }),
-} as unknown as AuthCore;
-
-/** The app's user callbacks. The fake core never invokes them. */
-const fakeCallbacks = {} as never;
-
-/**
- * The test runs the component's own modules at the root, so the component's
- * generated `api` can be used as the `component` option. `ComponentApi` types
- * the component's public functions as internal, because the app can only call
- * them from server code. Visibility only exists in the types, so the cast is
- * safe.
- */
+/** Provider options for every instance under test. */
 const options = {
-  component: api as unknown as ComponentApi,
+  component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 };
 
