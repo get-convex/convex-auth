@@ -11,11 +11,6 @@ export default defineSchema({
     ...authorizationRequestFields,
     /** Provider the request was issued for, e.g. "google". */
     providerName: v.string(),
-    /**
-     * PKCE code verifier, present only when the provider config enables PKCE.
-     * Stored raw because it must be sent to the provider at code exchange.
-     */
-    codeVerifier: v.optional(v.string()),
     /** The provider's token endpoint URL. */
     tokenEndpoint: v.string(),
     /**

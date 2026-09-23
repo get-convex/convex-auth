@@ -144,7 +144,6 @@ const claimsCatalog = {
   tokenEndpoint: "https://provider.example/token",
   issuer: "https://provider.example",
   scopes: ["openid"],
-  pkce: false,
   profile: ((claims) => ({
     id: claims!.sub,
     email: claims?.email,
@@ -161,7 +160,6 @@ const userInfoCatalog = {
   tokenEndpoint: "https://provider.example/token",
   userInfoEndpoints: { user: "https://provider.example/user" },
   scopes: [],
-  pkce: false,
   profile: ((_claims, userInfoResponses) => ({
     id: String(userInfoResponses!.user.id),
     login: userInfoResponses!.user.login,

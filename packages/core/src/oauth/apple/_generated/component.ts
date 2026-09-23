@@ -34,7 +34,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       createAuthorizationRequest: FunctionReference<
         "mutation",
         "internal",
-        { redirectTo: string; stateHash: string },
+        { codeVerifier: string; redirectTo: string; stateHash: string },
         { callbackUrl: string; clientId: string },
         Name
       >;

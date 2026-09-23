@@ -9,7 +9,6 @@ const http = httpRouter();
 /** What this component's claimed authorization request has, past the basics. */
 type CustomProviderRequest = ClaimedRequest & {
   providerName: string;
-  codeVerifier?: string;
   tokenEndpoint: string;
   userInfoEndpoints?: Record<string, string>;
   issuers?: string[];
@@ -52,7 +51,6 @@ async function handleCallback(
       tokenEndpoint: authRequest.tokenEndpoint,
       clientId: env.CLIENT_ID,
       clientSecret: () => env.CLIENT_SECRET,
-      codeVerifier: authRequest.codeVerifier,
       issuers: authRequest.issuers,
       userInfoEndpoints: authRequest.userInfoEndpoints,
     }),

@@ -114,7 +114,7 @@ export async function exchangeCode(args: {
   tokenEndpoint: string;
   code: string;
   callbackUrl: string;
-  codeVerifier: string | undefined;
+  codeVerifier: string;
   clientId: string;
   clientSecret: string;
 }): Promise<{
@@ -129,10 +129,8 @@ export async function exchangeCode(args: {
     // Must byte-match the redirect_uri from the authorization request, so
     // it comes off the authorization request rather than being rebuilt here.
     redirect_uri: args.callbackUrl,
+    code_verifier: args.codeVerifier,
   });
-  if (args.codeVerifier !== undefined) {
-    body.set("code_verifier", args.codeVerifier);
-  }
   const response = await fetchRefusingRedirects(args.tokenEndpoint, {
     method: "POST",
     headers: {
@@ -255,6 +253,7 @@ export type ClaimedRequest = {
   stateHash: string;
   redirectTo: string;
   callbackUrl: string;
+  codeVerifier: string;
 };
 
 /** What claiming an authorization request can produce. */
@@ -276,8 +275,6 @@ export type ExchangeConfig = {
    * where a failure redirects back to the app with `oauth_error`.
    */
   clientSecret: () => string | Promise<string>;
-  /** PKCE verifier, for a provider the flow enabled PKCE for. */
-  codeVerifier?: string;
   /** Accepted `iss` values, required when the provider returns an id_token. */
   issuers?: string[];
   /** Endpoints to fetch with the access token, keyed as the mapping reads them. */
@@ -389,7 +386,7 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
       tokenEndpoint: config.tokenEndpoint,
       code: params.code,
       callbackUrl: authRequest.callbackUrl,
-      codeVerifier: config.codeVerifier,
+      codeVerifier: authRequest.codeVerifier,
       clientId: config.clientId,
       clientSecret: await config.clientSecret(),
     });

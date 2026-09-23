@@ -54,7 +54,6 @@ const googleCatalog: OauthCatalog<GoogleProfile> = {
   // Google documents both forms, with or without the https prefix.
   issuer: ["https://accounts.google.com", "accounts.google.com"],
   scopes: ["openid", "email", "profile"],
-  pkce: true,
   profile: normalizeGoogleProfile,
 };
 

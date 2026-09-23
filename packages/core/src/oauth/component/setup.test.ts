@@ -9,14 +9,13 @@ import {
 } from "./setup.ts";
 
 /**
- * A minimal plain-OAuth catalog: no issuer or openid scope, no PKCE. Tests
+ * A minimal plain-OAuth catalog: no issuer and no openid scope. Tests
  * override individual fields to exercise each validation rule.
  */
 const minimalCatalog: OauthCatalog = {
   authorizationEndpoint: "https://provider.example/authorize",
   tokenEndpoint: "https://provider.example/token",
   scopes: [],
-  pkce: false,
   profile: () => ({ id: "account-1" }),
 };
 

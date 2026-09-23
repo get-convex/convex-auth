@@ -31,6 +31,7 @@ type FlowRequest = Omit<
 const baseRequest = {
   providerName: PROVIDER_NAME,
   redirectTo: "https://app.example.com/after",
+  codeVerifier: "verifier-1",
   tokenEndpoint: "https://provider.example.com/token",
 } satisfies FlowRequest;
 
@@ -288,10 +289,7 @@ describe("oauth callback", () => {
           access_token: "access-token-1",
         }),
     });
-    const { state, stateHash } = await startFlow(t, {
-      ...idTokenRequest,
-      codeVerifier: "verifier-1",
-    });
+    const { state, stateHash } = await startFlow(t, idTokenRequest);
 
     const response = await callback(t, {
       state,

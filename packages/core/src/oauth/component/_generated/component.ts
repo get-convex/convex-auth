@@ -35,7 +35,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "mutation",
         "internal",
         {
-          codeVerifier?: string;
+          codeVerifier: string;
           issuers?: Array<string>;
           providerName: string;
           redirectTo: string;

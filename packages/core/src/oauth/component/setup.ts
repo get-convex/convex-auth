@@ -83,11 +83,6 @@ export type OauthCatalog<
   userInfoEndpoints?: { [K in keyof UserInfo & string]: string };
   /** Scopes to request. */
   scopes: string[];
-  /**
-   * Send a PKCE `S256` challenge with the authorization request. Enable it for
-   * providers that support PKCE alongside the client secret.
-   */
-  pkce: boolean;
   /** Map the provider's attested identity to the account profile. */
   profile: OauthProfile<Profile, UserInfo>;
 };
@@ -187,7 +182,7 @@ export function setupOauth<
       }
 
       const state = generateRandomToken();
-      const codeVerifier = catalog.pkce ? generateRandomToken() : undefined;
+      const codeVerifier = generateRandomToken();
 
       const stateHash = await sha256Hex(state);
       const { clientId, callbackUrl } = await ctx.runMutation(
@@ -208,15 +203,14 @@ export function setupOauth<
         client_id: clientId,
         redirect_uri: callbackUrl,
         state,
+        // Every provider gets a challenge. One that does not implement PKCE
+        // ignores the parameters, which RFC 6749 requires of it.
+        code_challenge: await sha256Base64Url(codeVerifier),
+        code_challenge_method: "S256",
       };
 
       if (catalog.scopes.length > 0) {
         params.scope = catalog.scopes.join(" ");
-      }
-
-      if (codeVerifier !== undefined) {
-        params.code_challenge = await sha256Base64Url(codeVerifier);
-        params.code_challenge_method = "S256";
       }
 
       const url = new URL(catalog.authorizationEndpoint);

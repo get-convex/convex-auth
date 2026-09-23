@@ -11,6 +11,7 @@ export const createAuthorizationRequest = mutation({
   args: {
     stateHash: v.string(),
     redirectTo: v.string(),
+    codeVerifier: v.string(),
   },
   returns: v.object({
     clientId: v.string(),
@@ -40,6 +41,7 @@ export const claimAuthorizationRequest = internalMutation({
       stateHash: v.string(),
       redirectTo: v.string(),
       callbackUrl: v.string(),
+      codeVerifier: v.string(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -58,6 +60,7 @@ export const claimAuthorizationRequest = internalMutation({
       stateHash: doc.stateHash,
       redirectTo: doc.redirectTo,
       callbackUrl: doc.callbackUrl,
+      codeVerifier: doc.codeVerifier,
     };
   },
 });

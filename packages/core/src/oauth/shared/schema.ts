@@ -19,6 +19,12 @@ export const authorizationRequestFields = {
   redirectTo: v.string(),
   /** The OAuth `redirect_uri`. */
   callbackUrl: v.string(),
+  /**
+   * The raw PKCE code verifier, sent to the provider at code exchange. Every
+   * provider gets a challenge, because a provider without PKCE support
+   * ignores the parameters.
+   */
+  codeVerifier: v.string(),
   /** The callback rejects requests older than this. */
   expiresAt: v.number(),
 };

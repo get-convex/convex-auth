@@ -118,6 +118,7 @@ async function startFlow(t: ReturnType<typeof setup>): Promise<string> {
   await t.mutation(api.provider.createAuthorizationRequest, {
     stateHash: await sha256Hex(state),
     redirectTo: REDIRECT_TO,
+    codeVerifier: "verifier-1",
   });
   return state;
 }
@@ -210,6 +211,7 @@ describe("apple callback", () => {
     expect(body.get("redirect_uri")).toBe(
       "https://test.convex.site/oauth/apple/callback",
     );
+    expect(body.get("code_verifier")).toBe("verifier-1");
 
     const secret = body.get("client_secret")!;
     expect(decodeProtectedHeader(secret)).toEqual({

@@ -83,7 +83,6 @@ const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
   authorizationEndpoint: "https://github.com/login/oauth/authorize",
   tokenEndpoint: "https://github.com/login/oauth/access_token",
   scopes: ["read:user", "user:email"],
-  pkce: true,
   userInfoEndpoints: {
     user: "https://api.github.com/user",
     emails: "https://api.github.com/user/emails",

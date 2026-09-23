@@ -9,7 +9,7 @@ import { Infer, v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
-import { generateRandomToken } from "../shared/crypto.ts";
+import { generateRandomToken, sha256Base64Url } from "../shared/crypto.ts";
 import {
   buildCompleteSignIn,
   parseUrl,
@@ -167,12 +167,15 @@ export function setupApple<UsersTable extends string>(
             );
           }
 
-          // Apple supports no PKCE, so state is the whole of the binding
-          // between this request and the callback that answers it.
           const state = generateRandomToken();
+          const codeVerifier = generateRandomToken();
           const { clientId, callbackUrl } = await ctx.runMutation(
             options.component.provider.createAuthorizationRequest,
-            { stateHash: await sha256Hex(state), redirectTo: args.redirectTo },
+            {
+              stateHash: await sha256Hex(state),
+              redirectTo: args.redirectTo,
+              codeVerifier,
+            },
           );
 
           const url = new URL(AUTHORIZATION_ENDPOINT);
@@ -184,6 +187,10 @@ export function setupApple<UsersTable extends string>(
             redirect_uri: callbackUrl,
             scope: SCOPES.join(" "),
             state,
+            // Every provider gets a challenge. One that does not implement
+            // PKCE ignores the parameters, which RFC 6749 requires of it.
+            code_challenge: await sha256Base64Url(codeVerifier),
+            code_challenge_method: "S256",
           };
           for (const [key, value] of Object.entries(params)) {
             url.searchParams.set(key, value);
