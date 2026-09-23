@@ -12,7 +12,7 @@ import {
  * A minimal plain-OAuth catalog: no issuer or openid scope, no PKCE. Tests
  * override individual fields to exercise each validation rule.
  */
-const CATALOG: OauthCatalog = {
+const minimalCatalog: OauthCatalog = {
   authorizationEndpoint: "https://provider.example/authorize",
   tokenEndpoint: "https://provider.example/token",
   scopes: [],
@@ -24,7 +24,7 @@ const CATALOG: OauthCatalog = {
  * A core that hands back plain function builders. Nothing here calls the
  * built functions, so the injected `ctx.convexAuth` is never needed.
  */
-const CORE = {
+const fakeCore = {
   bindProvider: () => ({
     authMutation: mutationGeneric,
     authAction: actionGeneric,
@@ -38,9 +38,9 @@ const CORE = {
  */
 function setup(
   options: Partial<OauthProviderOptions> = {},
-  catalog: OauthCatalog = CATALOG,
+  catalog: OauthCatalog = minimalCatalog,
 ) {
-  return setupOauth(CORE, "acme", catalog, {} as never, {
+  return setupOauth(fakeCore, "acme", catalog, {} as never, {
     component: {} as ComponentApi,
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
@@ -89,7 +89,7 @@ describe("setupOauth validation", () => {
   });
 
   test("an openid catalog scope without a catalog issuer is rejected", () => {
-    expect(() => setup({}, { ...CATALOG, scopes: ["openid"] })).toThrow(
+    expect(() => setup({}, { ...minimalCatalog, scopes: ["openid"] })).toThrow(
       /sets no issuer/,
     );
   });

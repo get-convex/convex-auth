@@ -6,7 +6,7 @@ import { AuthClient, type AuthState } from "../browser/sessionManager.ts";
 import { InMemoryStorage, type TokenStorage } from "../browser/storage.ts";
 import { oauth } from "./client.ts";
 import {
-  ACME_REFS,
+  acmeRefs,
   NAMESPACE,
   calledPath,
   completed,
@@ -326,11 +326,11 @@ describe("OAuth client", () => {
       state: "state-1",
     });
 
-    const outcome = await actions.signIn(ACME_REFS, {
+    const outcome = await actions.signIn(acmeRefs, {
       redirectTo: "http://localhost/app",
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(ACME_REFS.startSignIn, {
+    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeRefs.startSignIn, {
       redirectTo: "http://localhost/app",
     });
     expect(outcome).toEqual({
@@ -351,7 +351,7 @@ describe("OAuth client", () => {
     const { client, mutation, actions } = setupOAuth({ storage });
     mutation.mockResolvedValueOnce(completed);
 
-    const outcome = await actions.signIn(ACME_REFS, { code: "code-1" });
+    const outcome = await actions.signIn(acmeRefs, { code: "code-1" });
 
     expect(outcome).toEqual({ signedIn: true });
     expect(mutation).toHaveBeenCalledOnce();
@@ -375,7 +375,7 @@ describe("OAuth client", () => {
       state: "state-2",
     });
     // React Native has no page URL to default to, so `redirectTo` is required.
-    await actions.signIn(ACME_REFS, { redirectTo: "http://localhost/app" });
+    await actions.signIn(acmeRefs, { redirectTo: "http://localhost/app" });
 
     expect(flowError()).toBeNull();
   });
@@ -384,7 +384,7 @@ describe("OAuth client", () => {
     const { mutation, actions, flowError, storage } = setupOAuth();
     mutation.mockRejectedValueOnce(new Error("boom"));
 
-    await expect(actions.signIn(ACME_REFS)).rejects.toThrow("boom");
+    await expect(actions.signIn(acmeRefs)).rejects.toThrow("boom");
 
     // The flow error is still published even when the caller ignores the
     // rejection, like a click handler that does not await.
@@ -404,7 +404,7 @@ describe("OAuth client", () => {
       state: "state-1",
     });
 
-    await expect(actions.signIn(ACME_REFS)).rejects.toThrow("storage broken");
+    await expect(actions.signIn(acmeRefs)).rejects.toThrow("storage broken");
 
     expect(flowError()?.code).toBe("oauth_error");
   });
@@ -413,7 +413,7 @@ describe("OAuth client", () => {
     const { mutation, actions, flowError } = setupOAuth();
     mutation.mockRejectedValueOnce(new ConvexError("Sign-ups are closed"));
 
-    await expect(actions.signIn(ACME_REFS)).rejects.toThrow();
+    await expect(actions.signIn(acmeRefs)).rejects.toThrow();
 
     expect(flowError()).toEqual({
       code: "rejected",

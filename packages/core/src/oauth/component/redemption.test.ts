@@ -50,7 +50,7 @@ const resolvedUserId = { value: null as string | null };
 const helperFailure = { error: undefined as Error | undefined };
 
 /** The bundle the fake helpers mint on success. */
-const FAKE_BUNDLE: TokenBundle = {
+const bundle: TokenBundle = {
   accessToken: "access-token-1",
   accessTokenExpiresAt: 253402300800000,
   refreshToken: "refresh-token-1",
@@ -59,19 +59,19 @@ const FAKE_BUNDLE: TokenBundle = {
 };
 
 /** The envelope a redemption that reached the helpers returns. */
-const COMPLETED = { status: "complete", tokens: FAKE_BUNDLE };
+const completed = { status: "complete", tokens: bundle };
 
 /**
  * The envelope every unredeemable code returns: unknown, already spent,
  * expired, and mismatched state are one code by design.
  */
-const INVALID_CODE = { status: "error", userError: { error: "INVALID_CODE" } };
+const invalidCode = { status: "error", userError: { error: "INVALID_CODE" } };
 
 /**
  * A fake core whose builders inject fake {@link BoundAuthHelpers}.
  * `signUpWithoutSession` is never reached by redemption.
  */
-const FAKE_CORE = {
+const fakeCore = {
   bindProvider: <Provider extends string, Profile>({
     name,
   }: {
@@ -93,7 +93,7 @@ const FAKE_CORE = {
         if (helperFailure.error !== undefined) {
           throw helperFailure.error;
         }
-        return FAKE_BUNDLE;
+        return bundle;
       };
     const convexAuth: BoundAuthHelpers<Profile> = {
       completeSignUp: record("signUp"),
@@ -123,7 +123,7 @@ const FAKE_CORE = {
 /**
  * The app's user callbacks. The fake core never invokes them.
  */
-const FAKE_CALLBACKS = {} as never;
+const fakeCallbacks = {} as never;
 
 /**
  * Provider options for every instance under test. The component's own
@@ -133,13 +133,13 @@ const FAKE_CALLBACKS = {} as never;
  * cast bridges the generated api's "public" visibility to the component
  * type's "internal".
  */
-const OPTIONS = {
+const options = {
   component: api as unknown as ComponentApi,
   allowedRedirectOrigins: ["https://app.example.com"],
 };
 
 /** An OIDC-style catalog whose profile maps id_token claims (like Google). */
-const CLAIMS_CATALOG = {
+const claimsCatalog = {
   authorizationEndpoint: "https://provider.example/authorize",
   tokenEndpoint: "https://provider.example/token",
   issuer: "https://provider.example",
@@ -156,7 +156,7 @@ const CLAIMS_CATALOG = {
  * A plain-OAuth catalog whose profile reads typed userinfo responses (like
  * GitHub), exercising the `UserInfo` generic end to end.
  */
-const USERINFO_CATALOG = {
+const userInfoCatalog = {
   authorizationEndpoint: "https://provider.example/authorize",
   tokenEndpoint: "https://provider.example/token",
   userInfoEndpoints: { user: "https://provider.example/user" },
@@ -172,8 +172,8 @@ const USERINFO_CATALOG = {
 };
 
 /** A catalog whose profile mapping returns an empty id. */
-const EMPTY_ID_CATALOG = {
-  ...CLAIMS_CATALOG,
+const emptyIdCatalog = {
+  ...claimsCatalog,
   profile: (() => ({ id: "" })) satisfies OauthProfile,
 };
 
@@ -182,8 +182,8 @@ const EMPTY_ID_CATALOG = {
  * (plain JS) mapping. `OauthProfile`'s return type makes this unwritable
  * directly, so the cast fakes it.
  */
-const MISSING_ID_CATALOG = {
-  ...CLAIMS_CATALOG,
+const missingIdCatalog = {
+  ...claimsCatalog,
   profile: (() => ({})) as unknown as OauthProfile,
 };
 
@@ -198,32 +198,32 @@ const MISSING_ID_CATALOG = {
  */
 const testApp = {
   completeSignInAcme: setupOauth(
-    FAKE_CORE,
+    fakeCore,
     "acme",
-    CLAIMS_CATALOG,
-    FAKE_CALLBACKS,
-    OPTIONS,
+    claimsCatalog,
+    fakeCallbacks,
+    options,
   ).completeSignIn,
   completeSignInAcmeInfo: setupOauth(
-    FAKE_CORE,
+    fakeCore,
     "acmeInfo",
-    USERINFO_CATALOG,
-    FAKE_CALLBACKS,
-    OPTIONS,
+    userInfoCatalog,
+    fakeCallbacks,
+    options,
   ).completeSignIn,
   completeSignInEmptyId: setupOauth(
-    FAKE_CORE,
+    fakeCore,
     "emptyId",
-    EMPTY_ID_CATALOG,
-    FAKE_CALLBACKS,
-    OPTIONS,
+    emptyIdCatalog,
+    fakeCallbacks,
+    options,
   ).completeSignIn,
   completeSignInMissingId: setupOauth(
-    FAKE_CORE,
+    fakeCore,
     "missingId",
-    MISSING_ID_CATALOG,
-    FAKE_CALLBACKS,
-    OPTIONS,
+    missingIdCatalog,
+    fakeCallbacks,
+    options,
   ).completeSignIn,
 };
 
@@ -250,7 +250,7 @@ function setup() {
 }
 
 /** Valid id_token claims for the acme provider's payloads. */
-const CLAIMS = {
+const validClaims = {
   sub: "acme-sub-1",
   email: "ada@example.com",
   name: "Ada",
@@ -276,7 +276,7 @@ async function mintTicket(
     ticketCodeHash: await sha256Hex(ticketCode),
     encryptedPayload: await encryptTicketPayload(
       ticketCode,
-      JSON.stringify(args.payload ?? { claims: CLAIMS }),
+      JSON.stringify(args.payload ?? { claims: validClaims }),
     ),
   });
   return ticketCode;
@@ -299,7 +299,7 @@ describe("completeSignIn", () => {
       state: "state-1",
     });
 
-    expect(result).toEqual(COMPLETED);
+    expect(result).toEqual(completed);
     // The decrypted payload flowed through the catalog's profile mapping
     // into the fake helpers. The identity is unknown to the core, so
     // redemption took the sign-up path.
@@ -326,7 +326,7 @@ describe("completeSignIn", () => {
       state: "state-1",
     });
 
-    expect(result).toEqual(COMPLETED);
+    expect(result).toEqual(completed);
     expect(helperCalls).toEqual([
       {
         kind: "signIn",
@@ -351,7 +351,7 @@ describe("completeSignIn", () => {
       state: "state-1",
     });
 
-    expect(result).toEqual(COMPLETED);
+    expect(result).toEqual(completed);
     expect(helperCalls).toEqual([
       {
         kind: "signUp",
@@ -370,7 +370,7 @@ describe("completeSignIn", () => {
       code: "never-minted",
       state: "state-1",
     });
-    expect(result).toEqual(INVALID_CODE);
+    expect(result).toEqual(invalidCode);
     expect(helperCalls).toHaveLength(0);
   });
 
@@ -382,7 +382,7 @@ describe("completeSignIn", () => {
       code,
       state: "someone-elses-state",
     });
-    expect(mismatched).toEqual(INVALID_CODE);
+    expect(mismatched).toEqual(invalidCode);
 
     // The ticket survives a mismatched attempt, so the initiating client can
     // still complete.
@@ -390,7 +390,7 @@ describe("completeSignIn", () => {
       code,
       state: "state-1",
     });
-    expect(result).toEqual(COMPLETED);
+    expect(result).toEqual(completed);
   });
 
   test("a code redeems exactly once", async () => {
@@ -401,13 +401,13 @@ describe("completeSignIn", () => {
       code,
       state: "state-1",
     });
-    expect(first).toEqual(COMPLETED);
+    expect(first).toEqual(completed);
 
     const second = await t.mutation(completeSignInAcme, {
       code,
       state: "state-1",
     });
-    expect(second).toEqual(INVALID_CODE);
+    expect(second).toEqual(invalidCode);
     expect(helperCalls).toHaveLength(1);
   });
 
@@ -421,7 +421,7 @@ describe("completeSignIn", () => {
       code,
       state: "state-1",
     });
-    expect(result).toEqual(INVALID_CODE);
+    expect(result).toEqual(invalidCode);
     expect(helperCalls).toHaveLength(0);
   });
 
@@ -460,6 +460,6 @@ describe("completeSignIn", () => {
       code,
       state: "state-1",
     });
-    expect(result).toEqual(COMPLETED);
+    expect(result).toEqual(completed);
   });
 });

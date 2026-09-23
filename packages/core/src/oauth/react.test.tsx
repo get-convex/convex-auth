@@ -17,7 +17,7 @@ import {
   type OauthProviderRefs,
 } from "./react.ts";
 import {
-  ACME_REFS,
+  acmeRefs,
   NAMESPACE,
   calledPath,
   completed,
@@ -39,13 +39,13 @@ const googleComplete = makeFunctionReference<"mutation">(
 ) as OauthProviderApi["completeSignIn"];
 
 /** The part of a generated `api.auth` the Google hook reads. */
-const TYPED_API = {
+const googleApi = {
   startSignInGoogle: googleStart,
   completeSignInGoogle: googleComplete,
 };
 
 /** The part of a generated `api.auth` the GitHub hook reads. */
-const GITHUB_API = {
+const githubApi = {
   startSignInGithub: makeFunctionReference<"mutation">(
     "auth:startSignInGithub",
   ) as OauthProviderApi["startSignIn"],
@@ -54,15 +54,15 @@ const GITHUB_API = {
   ) as OauthProviderApi["completeSignIn"],
 };
 
-/** What the Google hook builds from {@link TYPED_API}, for seeding a flow. */
-const GOOGLE_REFS: OauthProviderRefs = {
+/** What the Google hook builds from {@link googleApi}, for seeding a flow. */
+const googleRefs: OauthProviderRefs = {
   providerName: "google",
   startSignIn: googleStart,
   completeSignIn: googleComplete,
 };
 
 /** Auth state plus the Google sign-in, which most tests here read. */
-function useGoogleFlow(api = TYPED_API) {
+function useGoogleFlow(api = googleApi) {
   return {
     auth: useAuth(),
     token: useAuthToken(),
@@ -121,7 +121,7 @@ describe("OAuth React client", () => {
       </AuthProvider>
     );
     expect(() =>
-      renderHook(() => useSignInWithGoogle(TYPED_API), { wrapper }),
+      renderHook(() => useSignInWithGoogle(googleApi), { wrapper }),
     ).toThrow(/No OAuth setup is registered/);
     expect(() => renderHook(() => useOauth(), { wrapper })).toThrow(
       /No OAuth setup is registered/,
@@ -131,7 +131,7 @@ describe("OAuth React client", () => {
   test("StrictMode double-mount redeems a callback code once", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
-    seedPendingFlow(storage, GOOGLE_REFS);
+    seedPendingFlow(storage, googleRefs);
 
     const { result, mutation } = renderOAuth(useGoogleFlow, {
       storage,
@@ -197,7 +197,7 @@ describe("OAuth React client", () => {
     stubReactNative();
     const { result, mutation, storage } = renderOAuth(() => ({
       auth: useAuth(),
-      oauth: useSignInWithGithub(GITHUB_API),
+      oauth: useSignInWithGithub(githubApi),
     }));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     mutation.mockResolvedValueOnce({
@@ -212,7 +212,7 @@ describe("OAuth React client", () => {
     });
 
     expect(mutation).toHaveBeenCalledExactlyOnceWith(
-      GITHUB_API.startSignInGithub,
+      githubApi.startSignInGithub,
       { redirectTo: "http://localhost/app" },
     );
     expect(readFlow(storage)).toEqual({
@@ -226,7 +226,7 @@ describe("OAuth React client", () => {
     stubReactNative();
     const { result, mutation, storage } = renderOAuth(() => ({
       auth: useAuth(),
-      oauth: useOauthSignIn(ACME_REFS),
+      oauth: useOauthSignIn(acmeRefs),
     }));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     mutation.mockResolvedValueOnce({
@@ -240,7 +240,7 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(ACME_REFS.startSignIn, {
+    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeRefs.startSignIn, {
       redirectTo: "http://localhost/app",
     });
     expect(outcome).toEqual({
@@ -258,7 +258,7 @@ describe("OAuth React client", () => {
     // object on every property access. The hook's memo has to key on the
     // function paths for the identity below to hold.
     const { result, rerender } = renderOAuth(() =>
-      useGoogleFlow(anyApi.auth as unknown as typeof TYPED_API),
+      useGoogleFlow(anyApi.auth as unknown as typeof googleApi),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
     const first = result.current.oauth.signInGoogle;
@@ -271,7 +271,7 @@ describe("OAuth React client", () => {
   test("the hook params accept the api module structurally", () => {
     type GoogleParam = Parameters<typeof useSignInWithGoogle>[0];
     const apiModule = {
-      ...TYPED_API,
+      ...googleApi,
       signOut: undefined as unknown,
       startSignInGithub: undefined as unknown,
     };
