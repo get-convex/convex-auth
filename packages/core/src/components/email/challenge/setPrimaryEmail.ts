@@ -73,9 +73,17 @@ type CompleteResult = Infer<typeof completeResult>;
 
 /**
  * Complete a `setPrimaryEmail` challenge: remove the old primary address and
- * record the new one as primary. The `userId` must be the one given at
- * start. Fails with `EMAIL_TAKEN` when another user verified the address
- * after the start.
+ * record the new one as primary. The `userId` must be the one given at the
+ * start.
+ *
+ * This can fail with `EMAIL_TAKEN` in the very rare case where the email is
+ * assigned to someone else on verification. This can happen in the following scenario:
+ * - Alice starts an email change flow for `new@example.com`. At this point,
+ *   `new@example.com` is assigned to nobody, so the flow is allowed to start.
+ * - Bob also starts an email change flow for `new@example.com`.
+ * - Bob completes the flow, and is assigned `new@example.com`.
+ * - Alice attempts to complete the flow too, but at this point the email
+ *   is no longer available, so the completion fails with `EMAIL_TAKEN`.
  */
 export const complete = mutation({
   args: { ...vClaimArgs, userId: v.string() },
