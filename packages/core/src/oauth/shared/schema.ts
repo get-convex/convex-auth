@@ -1,17 +1,16 @@
 /**
- * The table fields every OAuth component must have.
- *
- * The shared database code in `dbHelpers.ts` reads and writes these, so a
- * component's `schema.ts` spreads them into its own two tables and adds
- * whatever else it keeps. Spreading them is also what proves the contract: the
- * component passes its generated `Doc` type to the shared database functions,
- * which only accept a document that has these fields with these types.
+ * The required table fields for OAuth components. A component with extra
+ * fields spreads these into its own tables.
  *
  * @module
  */
+import { defineTable } from "convex/server";
 import { v } from "convex/values";
 
-/** What an authorization request needs, whichever provider it is for. */
+/**
+ * An authorization request is created when sign-in starts, and the
+ * provider's callback claims it.
+ */
 export const authorizationRequestFields = {
   /** Hash of the server-minted state. The raw value is never stored. */
   stateHash: v.string(),
@@ -29,7 +28,12 @@ export const authorizationRequestFields = {
   expiresAt: v.number(),
 };
 
-/** What a ticket needs, whichever provider minted it. */
+/**
+ * A ticket is proof that the provider authenticated the user. The callback
+ * creates it after the code exchange. A caller redeems it once by presenting
+ * the raw ticket code and the original state. No account, user, or session is
+ * created until then.
+ */
 export const ticketFields = {
   /**
    * Carried over from the authorization request. Redemption re-checks the
@@ -49,9 +53,14 @@ export const ticketFields = {
    * derived from the raw ticket code. The raw code is never stored, so
    * database access alone cannot read the payload, and provider-chosen JSON
    * keys never become Convex field names.
-   *
-   * Which fields the JSON has depends on how the provider attests identity,
-   * so each component's `tickets` table says what its own payload holds.
    */
   encryptedPayload: v.string(),
 };
+
+export const authorizationRequestsTable = defineTable(
+  authorizationRequestFields,
+).index("stateHash", ["stateHash"]);
+
+export const ticketsTable = defineTable(ticketFields).index("ticketCodeHash", [
+  "ticketCodeHash",
+]);

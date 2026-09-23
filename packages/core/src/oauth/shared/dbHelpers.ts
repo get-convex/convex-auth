@@ -38,12 +38,12 @@ export const TICKET_TTL_MS = 2 * 60 * 1000;
 type MutationCtx = GenericMutationCtx<GenericDataModel>;
 
 /** What this code requires from an authorization request document. */
-type AuthorizationRequestContract = ObjectType<
+export type AuthorizationRequestContract = ObjectType<
   typeof authorizationRequestFields
 >;
 
 /** What this code requires from a ticket document. */
-type TicketContract = ObjectType<typeof ticketFields>;
+export type TicketContract = ObjectType<typeof ticketFields>;
 
 /**
  * Record an in-flight authorization request and return the callback URL it
