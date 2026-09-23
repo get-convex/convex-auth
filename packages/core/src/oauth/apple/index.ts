@@ -9,7 +9,7 @@ import { Infer, v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
-import { generateRandomToken } from "../component/crypto.ts";
+import { generateRandomToken } from "../shared/crypto.ts";
 import {
   buildCompleteSignIn,
   parseUrl,

@@ -13,7 +13,7 @@ import {
   encryptTicketPayload,
   generateRandomToken,
   type IssuerDeliveredJwt,
-} from "../component/crypto.ts";
+} from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
 import type { OidcClaims, TicketPayload } from "./redemption.ts";

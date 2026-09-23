@@ -5,7 +5,7 @@ import {
   decryptTicketPayload,
   encryptTicketPayload,
   generateRandomToken,
-} from "./crypto.ts";
+} from "../shared/crypto.ts";
 import schema from "./schema.ts";
 
 const modules = import.meta.glob("./**/*.ts");

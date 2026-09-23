@@ -6,7 +6,7 @@ import { api, internal } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
 import { setupOauth, type OauthProfile } from "./setup.ts";
-import { encryptTicketPayload, generateRandomToken } from "./crypto.ts";
+import { encryptTicketPayload, generateRandomToken } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import type {
   AuthClaims,

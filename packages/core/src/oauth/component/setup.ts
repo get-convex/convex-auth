@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
 import type { ComponentApi } from "./_generated/component.ts";
-import { generateRandomToken, sha256Base64Url } from "./crypto.ts";
+import { generateRandomToken, sha256Base64Url } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import {
   buildCompleteSignIn,

@@ -8,7 +8,7 @@ import {
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
-import { decryptTicketPayload } from "../component/crypto.ts";
+import { decryptTicketPayload } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
 import { TOKEN_ENDPOINT } from "./constants.ts";
