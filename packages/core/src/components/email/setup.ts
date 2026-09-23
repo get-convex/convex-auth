@@ -81,18 +81,10 @@ export type EmailSenderOptions = {
    */
   apiKey: string;
   /**
-   * The From address, e.g. `"My App <auth@example.com>"`. Outside test mode
-   * the address must be on a domain you verified with Resend.
+   * The From address, e.g. `"My App <auth@example.com>"`. The address must be
+   * on a domain you verified with Resend.
    */
   from: string;
-  /**
-   * Resend's test mode. Defaults to `true`, where only Resend test
-   * addresses (e.g. `delivered@resend.dev`) are deliverable. Set it to
-   * `false` to send real email.
-   *
-   * TODO(nicolas) Consider removing the option
-   */
-  testMode?: boolean;
 };
 
 /**
@@ -272,7 +264,6 @@ export type EmailPasswordProfile = Record<string, never>;
  *     sendEmail: components.resend.lib.sendEmail,
  *     apiKey: env.RESEND_API_KEY,
  *     from: "My App <auth@example.com>",
- *     testMode: false,
  *   },
  *   urls: {
  *     signUp: `${env.SITE_URL}/validate-email`,
@@ -301,7 +292,6 @@ export function setupEmailPassword<UsersTable extends string>(
   /** The Resend runtime options `lib.sendEmail` requires. */
   const senderRuntimeOptions = () => ({
     apiKey: emailSender.apiKey,
-    testMode: emailSender.testMode ?? true,
     // TODO: review these values (and make them configurable).
     initialBackoffMs: 30 * 1000,
     retryAttempts: 5,
@@ -327,7 +317,7 @@ export function setupEmailPassword<UsersTable extends string>(
     text: string,
   ): Promise<void> => {
     await ctx.runMutation(emailSender.sendEmail, {
-      options: senderRuntimeOptions(),
+      options: { ...senderRuntimeOptions(), testMode: false },
       from: emailSender.from,
       to: [to],
       subject,

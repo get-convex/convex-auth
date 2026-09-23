@@ -126,7 +126,6 @@ export const vEmailSenderConfig = v.object({
   from: v.string(),
   // Runtime options that `lib.sendEmail` requires.
   apiKey: v.string(),
-  testMode: v.boolean(),
   initialBackoffMs: v.number(),
   retryAttempts: v.number(),
 });
