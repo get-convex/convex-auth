@@ -10,21 +10,20 @@
 // error TS5097.
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
-import schema from "../../oauth/component/schema.ts";
-const modules = import.meta.glob("../../oauth/component/**/*.ts");
+import schema from "../../oauth/apple/schema.ts";
+const modules = import.meta.glob("../../oauth/apple/**/*.ts");
 
 /**
- * Register the custom-provider OAuth component with a `convex-test` instance.
+ * Register the Apple OAuth component with a `convex-test` instance.
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The mount name of this component instance, as registered in
- *   convex.config.ts (the component mounts once per provider, e.g.
- *   `"oauthAcme"`). Defaults to `"oauth"`.
+ *   convex.config.ts. Defaults to `"oauthApple"`.
  */
-export function registerOauth(
+export function registerAppleOauth(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name = "oauth",
+  name = "oauthApple",
 ) {
   t.registerComponent(name, schema, modules);
 }
-export default { registerOauth, schema, modules };
+export default { registerAppleOauth, schema, modules };
