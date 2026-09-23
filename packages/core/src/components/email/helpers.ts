@@ -187,7 +187,9 @@ export async function sendChallengeEmail(
   await ctx.runMutation(sender.sendEmailHandle as SendEmailHandle, {
     options: {
       apiKey: sender.apiKey,
-      testMode: sender.testMode,
+      // Resend's test mode only delivers to Resend's test addresses; tests
+      // replace the Resend component with a stub instead.
+      testMode: false,
       initialBackoffMs: sender.initialBackoffMs,
       retryAttempts: sender.retryAttempts,
     },

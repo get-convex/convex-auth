@@ -61,7 +61,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               kind: "resend";
               retryAttempts: number;
               sendEmailHandle: string;
-              testMode: boolean;
             };
             url: string;
             userId: string;
@@ -119,7 +118,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               kind: "resend";
               retryAttempts: number;
               sendEmailHandle: string;
-              testMode: boolean;
             };
             url: string;
             userId: string;
@@ -174,7 +172,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               kind: "resend";
               retryAttempts: number;
               sendEmailHandle: string;
-              testMode: boolean;
             };
             intro: string;
             purpose: string;
