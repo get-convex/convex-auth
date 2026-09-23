@@ -191,15 +191,39 @@ function callback(
   return t.fetch(`/callback?${new URLSearchParams(params)}`);
 }
 
+/** POST the callback as a form submission. */
+function postCallback(
+  t: ReturnType<typeof setup>,
+  fields: Record<string, string>,
+  options: {
+    /** Override the content-type. */
+    contentType?: string;
+    /** Query parameters on the URL the form is posted to. */
+    query?: Record<string, string>;
+  } = {},
+): Promise<Response> {
+  const query = options.query ? `?${new URLSearchParams(options.query)}` : "";
+  return t.fetch(`/callback${query}`, {
+    method: "POST",
+    headers: {
+      "Content-Type":
+        options.contentType ?? "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(fields).toString(),
+  });
+}
+
 /**
- * Assert `response` is a 302 back to `redirectTo` (ignoring query, which the
- * handler rewrites) and return the Location's params for outcome assertions.
+ * Assert `response` redirects back to `redirectTo` with `status` (ignoring
+ * query, which the handler rewrites) and return the Location's params for
+ * outcome assertions.
  */
 function redirectParams(
   response: Response,
   redirectTo = baseRequest.redirectTo,
+  status: 302 | 303 = 302,
 ): URLSearchParams {
-  expect(response.status).toBe(302);
+  expect(response.status).toBe(status);
   const location = new URL(response.headers.get("Location")!);
   const expected = new URL(redirectTo);
   expect(`${location.origin}${location.pathname}`).toBe(
@@ -218,9 +242,25 @@ afterEach(() => {
 describe("oauth callback", () => {
   test("a request without state gets a bare 400", async () => {
     const t = setup();
+    const warnSpy = spyConsoleWarn();
     const response = await t.fetch("/callback");
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("This sign-in link is invalid");
+    expect(loggedText(warnSpy)).toContain("no state parameter");
+  });
+
+  test("a query parameter repeated on a GET gets a 400", async () => {
+    const t = setup();
+    const warnSpy = spyConsoleWarn();
+
+    // `callback` takes one value per name, so the repeat is written out here.
+    const response = await t.fetch("/callback?state=a&state=b");
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("This sign-in link is invalid");
+    expect(loggedText(warnSpy)).toContain(
+      'these parameters arrived more than once: ["state"]',
+    );
   });
 
   test("an unknown state gets a 400: the flow is gone entirely", async () => {
@@ -638,6 +678,162 @@ describe("oauth callback", () => {
     expect(loggedText(errors)).toContain(
       "no id_token and no userInfoEndpoints",
     );
+  });
+
+  describe("a provider that posts the callback", () => {
+    test("a posted callback exchanges the code and redirects with 303", async () => {
+      const t = setup();
+      const claims = idTokenClaims();
+      const calls = stubFetch({
+        [idTokenRequest.tokenEndpoint]: () =>
+          jsonResponse({ id_token: unsignedJwt(claims) }),
+      });
+      const { state, stateHash } = await startFlow(t, idTokenRequest);
+
+      const response = await postCallback(t, { state, code: "auth-code-1" });
+
+      // The form fields drive the exchange exactly as the query string does.
+      expect(calls).toHaveLength(1);
+      const body = calls[0].init.body as URLSearchParams;
+      expect(body.get("code")).toBe("auth-code-1");
+
+      const params = redirectParams(response, baseRequest.redirectTo, 303);
+      const ticketCode = params.get(OAUTH_CODE_PARAM)!;
+      const claimed = await t.mutation(api.provider.claimTicket, {
+        providerName: PROVIDER_NAME,
+        ticketCodeHash: await sha256Hex(ticketCode),
+        stateHash,
+      });
+      const payload = JSON.parse(
+        await decryptTicketPayload(ticketCode, claimed!.encryptedPayload),
+      );
+      expect(payload).toEqual({ claims });
+    });
+
+    test("an error posted as a form field normalizes the same way", async () => {
+      const t = setup();
+      spyConsoleError();
+      const { state } = await startFlow(t, idTokenRequest);
+
+      const response = await postCallback(t, { state, error: "access_denied" });
+
+      const params = redirectParams(response, baseRequest.redirectTo, 303);
+      expect(params.get(OAUTH_ERROR_PARAM)).toBe("access_denied");
+    });
+
+    test("a form content type in mixed case is read as a form", async () => {
+      const t = setup();
+      stubFetch({
+        [idTokenRequest.tokenEndpoint]: () =>
+          jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
+      });
+      const { state } = await startFlow(t, idTokenRequest);
+
+      const response = await postCallback(
+        t,
+        { state, code: "auth-code-1" },
+        { contentType: "Application/X-WWW-Form-Urlencoded" },
+      );
+
+      const params = redirectParams(response, baseRequest.redirectTo, 303);
+      expect(params.get(OAUTH_CODE_PARAM)).not.toBeNull();
+    });
+
+    test("a form content type carrying a charset is still read as a form", async () => {
+      const t = setup();
+      stubFetch({
+        [idTokenRequest.tokenEndpoint]: () =>
+          jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
+      });
+      const { state } = await startFlow(t, idTokenRequest);
+
+      const response = await postCallback(
+        t,
+        { state, code: "auth-code-1" },
+        { contentType: "application/x-www-form-urlencoded; charset=UTF-8" },
+      );
+
+      const params = redirectParams(response, baseRequest.redirectTo, 303);
+      expect(params.get(OAUTH_CODE_PARAM)).not.toBeNull();
+    });
+
+    test("a query parameter on a posted callback is ignored", async () => {
+      const t = setup();
+      const calls = stubFetch({
+        [idTokenRequest.tokenEndpoint]: () =>
+          jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
+      });
+      const { state } = await startFlow(t, idTokenRequest);
+
+      const response = await postCallback(
+        t,
+        { state, code: "auth-code-1" },
+        {
+          query: {
+            state: "never-issued",
+            code: "query-code-1",
+            ignored: "ignored",
+            error: "access_denied",
+          },
+        },
+      );
+
+      const params = redirectParams(response, baseRequest.redirectTo, 303);
+      expect(params.get(OAUTH_CODE_PARAM)).not.toBeNull();
+      // The exchange runs on the form's code, so the query was never read.
+      const body = calls[0].init.body as URLSearchParams;
+      expect(body.get("code")).toBe("auth-code-1");
+    });
+
+    test("a posted callback that is not a form is refused", async () => {
+      const t = setup();
+      const warnSpy = spyConsoleWarn();
+      const { state } = await startFlow(t, idTokenRequest);
+
+      // The query carries the flow's real state, so a handler that read the
+      // query on a POST would sign in here.
+      const response = await postCallback(
+        t,
+        { state, code: "auth-code-1" },
+        { contentType: "text/plain", query: { state, code: "auth-code-1" } },
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("This sign-in link is invalid");
+      expect(loggedText(warnSpy)).toContain("must be a form submission");
+    });
+
+    test("a form field repeated on a posted callback gets a 400", async () => {
+      const t = setup();
+      const warnSpy = spyConsoleWarn();
+
+      // `postCallback` takes one value per name, so the repeat is written out
+      // here.
+      const response = await t.fetch("/callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "state=a&state=b",
+      });
+
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("This sign-in link is invalid");
+      expect(loggedText(warnSpy)).toContain(
+        'these parameters arrived more than once: ["state"]',
+      );
+    });
+
+    test("a redirected callback gets 302, not the posted callback's 303", async () => {
+      const t = setup();
+      stubFetch({
+        [idTokenRequest.tokenEndpoint]: () =>
+          jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
+      });
+      const { state } = await startFlow(t, idTokenRequest);
+
+      const response = await callback(t, { state, code: "auth-code-1" });
+
+      expect(response.status).toBe(302);
+    });
   });
 
   test("a token endpoint that stalls past the timeout is aborted", async () => {

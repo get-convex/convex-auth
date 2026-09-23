@@ -24,6 +24,9 @@ import { v } from "convex/values";
  *   },
  * });
  * ```
+ *
+ * The provider has to authenticate with a static client secret. A provider
+ * that wants a signed short-lived secret needs a component of its own.
  */
 const component = defineComponent("oauth", {
   env: {

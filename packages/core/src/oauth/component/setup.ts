@@ -5,6 +5,7 @@ import type { AuthCore } from "../../components/core/setup.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import { generateRandomToken, sha256Base64Url } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
+import type { CallbackMethod } from "../shared/http.ts";
 import {
   buildCompleteSignIn,
   parseUrl,
@@ -83,6 +84,13 @@ export type OauthCatalog<
   userInfoEndpoints?: { [K in keyof UserInfo & string]: string };
   /** Scopes to request. */
   scopes: string[];
+  /**
+   * The method the provider delivers the callback with. `"GET"` (the default)
+   * is a redirect with the parameters in the query string. `"POST"` asks the
+   * provider for a form submission with the parameters as form fields, which
+   * some providers require.
+   */
+  callbackMethod?: CallbackMethod;
   /** Map the provider's attested identity to the account profile. */
   profile: OauthProfile<Profile, UserInfo>;
 };
@@ -111,17 +119,12 @@ export type OauthProviderOptions = {
  * 1. `startSignIn` (here): validate, mint `state`, record an authorization
  *    request in the component, and return the provider authorization URL for
  *    the client to navigate to plus the state it must hold onto.
- * 2. The provider redirects back to the component's HTTP callback
- *    (`<site><httpPrefix>/callback`), which claims the request, exchanges
+ * 2. The provider sends the callback to the component's HTTP endpoint
+ *    (`<site><httpPrefix>/callback`), and it claims the request, exchanges
  *    the code, and mints a one-time ticket.
  * 3. `completeSignIn` (here): the client presents the one-time code from the
  *    callback redirect plus its original state, and gets back the session
  *    token bundle.
- *
- * The callback only accepts GET redirects. Providers that POST it
- * (`response_mode=form_post`, notably Apple when name/email scopes are
- * requested) are not supported yet.
- * TODO: support response_mode=form_post (Apple) before launch.
  */
 export function setupOauth<
   Provider extends string,
@@ -211,6 +214,9 @@ export function setupOauth<
 
       if (catalog.scopes.length > 0) {
         params.scope = catalog.scopes.join(" ");
+      }
+      if (catalog.callbackMethod === "POST") {
+        params.response_mode = "form_post";
       }
 
       const url = new URL(catalog.authorizationEndpoint);

@@ -4,6 +4,7 @@
  *
  * @module
  */
+import type { CallbackMethod } from "../shared/http.ts";
 
 /** Where the browser is sent to sign in. */
 export const AUTHORIZATION_ENDPOINT =
@@ -22,6 +23,12 @@ export const ISSUER = "https://appleid.apple.com";
  * Apple post the callback rather than redirect to it.
  */
 export const SCOPES = ["name", "email"] as const;
+
+/**
+ * How Apple delivers the callback. Requesting either of {@link SCOPES} makes
+ * Apple post it as a form rather than redirecting to it.
+ */
+export const CALLBACK_METHOD: CallbackMethod = "POST";
 
 /** The name this provider's accounts are namespaced under in the core. */
 export const PROVIDER_NAME = "apple";
