@@ -1,14 +1,10 @@
-import { mutationGeneric } from "convex/server";
-import { v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
 import type { ComponentApi } from "./_generated/component.ts";
-import { generateRandomToken, sha256Base64Url } from "../shared/crypto.ts";
-import { sha256Hex } from "../../lib/crypto.ts";
+import { buildStartSignIn } from "../shared/authorize.ts";
 import type { CallbackMethod } from "../shared/http.ts";
 import {
   buildCompleteSignIn,
-  parseUrl,
   validateAllowedRedirectOrigins,
   type OidcClaims,
   type TicketPayload,
@@ -163,69 +159,21 @@ export function setupOauth<
     onSignIn: callbacks.onSignIn,
   });
 
-  /**
-   * Start an OAuth sign-in. The server mints `state` and returns it;
-   * the client keeps it (it must present the same value again to
-   * complete sign-in) and navigates to the returned `redirect` URL.
-   */
-  const startSignIn = mutationGeneric({
-    args: {
-      redirectTo: v.string(),
-    },
-    returns: v.object({ redirect: v.string(), state: v.string() }),
-    handler: async (ctx, args) => {
-      const redirectTo = parseUrl(args.redirectTo);
-      if (redirectTo === null) {
-        throw new Error("redirectTo must be an absolute URL");
-      }
-      if (!allowedOrigins.includes(redirectTo.origin)) {
-        throw new Error(
-          `redirectTo origin "${redirectTo.origin}" is not in allowedRedirectOrigins`,
-        );
-      }
-
-      const state = generateRandomToken();
-      const codeVerifier = generateRandomToken();
-
-      const stateHash = await sha256Hex(state);
-      const { clientId, callbackUrl } = await ctx.runMutation(
-        options.component.provider.createAuthorizationRequest,
-        {
-          providerName,
-          stateHash,
-          redirectTo: args.redirectTo,
-          tokenEndpoint: catalog.tokenEndpoint,
-          codeVerifier,
-          userInfoEndpoints: catalog.userInfoEndpoints,
-          issuers,
-        },
-      );
-
-      const params: Record<string, string> = {
-        response_type: "code",
-        client_id: clientId,
-        redirect_uri: callbackUrl,
-        state,
-        // Every provider gets a challenge. One that does not implement PKCE
-        // ignores the parameters, which RFC 6749 requires of it.
-        code_challenge: await sha256Base64Url(codeVerifier),
-        code_challenge_method: "S256",
-      };
-
-      if (catalog.scopes.length > 0) {
-        params.scope = catalog.scopes.join(" ");
-      }
-      if (catalog.callbackMethod === "POST") {
-        params.response_mode = "form_post";
-      }
-
-      const url = new URL(catalog.authorizationEndpoint);
-      for (const [key, value] of Object.entries(params)) {
-        url.searchParams.set(key, value);
-      }
-
-      return { redirect: url.toString(), state };
-    },
+  const startSignIn = buildStartSignIn({
+    allowedOrigins,
+    authorizationEndpoint: catalog.authorizationEndpoint,
+    scopes: catalog.scopes,
+    callbackMethod: catalog.callbackMethod,
+    createAuthorizationRequest: (ctx, args) =>
+      ctx.runMutation(options.component.provider.createAuthorizationRequest, {
+        providerName,
+        stateHash: args.stateHash,
+        redirectTo: args.redirectTo,
+        codeVerifier: args.codeVerifier,
+        tokenEndpoint: catalog.tokenEndpoint,
+        userInfoEndpoints: catalog.userInfoEndpoints,
+        issuers,
+      }),
   });
 
   /**
