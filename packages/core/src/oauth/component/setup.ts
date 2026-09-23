@@ -5,6 +5,7 @@ import { buildStartSignIn } from "../shared/authorize.ts";
 import type { CallbackMethod } from "../shared/http.ts";
 import {
   buildCompleteSignIn,
+  parseUrl,
   validateAllowedRedirectOrigins,
   type OidcClaims,
   type TicketPayload,
@@ -150,6 +151,31 @@ export function setupOauth<
     throw new Error(
       `Provider "${providerName}" requests the "openid" scope, so the provider will return an id_token, but its catalog sets no issuer to validate it against`,
     );
+  }
+  // Catalog endpoints must use https. Plain http is allowed on a loopback
+  // host for local testing.
+  const endpoints: [string, string][] = [
+    ["authorizationEndpoint", catalog.authorizationEndpoint],
+    ["tokenEndpoint", catalog.tokenEndpoint],
+    ...Object.entries(catalog.userInfoEndpoints ?? {}).map(
+      ([key, endpoint]): [string, string] => [
+        `userInfoEndpoints.${key}`,
+        endpoint,
+      ],
+    ),
+  ];
+  for (const [field, endpoint] of endpoints) {
+    const url = parseUrl(endpoint);
+    const secure =
+      url?.protocol === "https:" ||
+      (url?.protocol === "http:" &&
+        (url.hostname === "localhost" || url.hostname === "127.0.0.1"));
+    if (!secure) {
+      throw new Error(
+        `Provider "${providerName}" catalog ${field} is not a valid https URL: ` +
+          `"${endpoint}" (plain http is only allowed for localhost and 127.0.0.1)`,
+      );
+    }
   }
 
   const { authMutation } = core.bindProvider({

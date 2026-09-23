@@ -80,4 +80,47 @@ describe("setupOauth validation", () => {
       /sets no issuer/,
     );
   });
+
+  describe.each([
+    {
+      field: "authorizationEndpoint",
+      withEndpoint: (endpoint: string): OauthCatalog => ({
+        ...minimalCatalog,
+        authorizationEndpoint: endpoint,
+      }),
+    },
+    {
+      field: "tokenEndpoint",
+      withEndpoint: (endpoint: string): OauthCatalog => ({
+        ...minimalCatalog,
+        tokenEndpoint: endpoint,
+      }),
+    },
+    {
+      field: "userInfoEndpoints.user",
+      withEndpoint: (endpoint: string): OauthCatalog => ({
+        ...minimalCatalog,
+        userInfoEndpoints: { user: endpoint },
+      }),
+    },
+  ])("catalog $field", ({ field, withEndpoint }) => {
+    test.each([
+      "http://provider.example/x",
+      "javascript:alert(1)",
+      "ftp://provider.example/x",
+      "not a url",
+    ])("%s is rejected", (endpoint) => {
+      expect(() => setup({}, withEndpoint(endpoint))).toThrow(
+        `catalog ${field} is not a valid https URL`,
+      );
+    });
+
+    test.each(["http://localhost:8080/x", "http://127.0.0.1/x"])(
+      "%s is accepted",
+      (endpoint) => {
+        const api = setup({}, withEndpoint(endpoint));
+        expect(api.startSignIn).toBeDefined();
+      },
+    );
+  });
 });
