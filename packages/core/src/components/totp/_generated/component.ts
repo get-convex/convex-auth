@@ -64,6 +64,63 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Name
       >;
     };
+    management: {
+      deleteTotp: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          code: string;
+          kind: "totp" | "backup";
+          totpId: string;
+          userId: string;
+        },
+        | { success: true }
+        | {
+            success: false;
+            userError:
+              | { error: "INVALID_CODE" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number }
+              | { error: "NOT_ENROLLED" }
+              | { error: "TOTP_NOT_FOUND" };
+          },
+        Name
+      >;
+      deleteUser: FunctionReference<
+        "mutation",
+        "internal",
+        { userId: string },
+        null,
+        Name
+      >;
+      disableTotp: FunctionReference<
+        "mutation",
+        "internal",
+        { code: string; kind: "totp" | "backup"; userId: string },
+        | { success: true }
+        | {
+            success: false;
+            userError:
+              | { error: "INVALID_CODE" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number }
+              | { error: "NOT_ENROLLED" };
+          },
+        Name
+      >;
+      regenerateBackupCodes: FunctionReference<
+        "mutation",
+        "internal",
+        { code: string; kind: "totp" | "backup"; userId: string },
+        | { backupCodes: Array<string>; success: true }
+        | {
+            success: false;
+            userError:
+              | { error: "INVALID_CODE" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number }
+              | { error: "NOT_ENROLLED" };
+          },
+        Name
+      >;
+    };
     verification: {
       verifyBackupCode: FunctionReference<
         "mutation",

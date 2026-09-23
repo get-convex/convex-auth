@@ -386,7 +386,7 @@ describe("confirmTotp", () => {
 
   test("refuses an authenticator past the limit, and keeps it pending", async () => {
     const t = setup();
-    await enroll(t);
+    const first = await enroll(t);
     for (let i = 1; i < MAX_TOTPS_PER_USER; i++) {
       await addAuthenticator(t);
     }
@@ -403,15 +403,23 @@ describe("confirmTotp", () => {
     expect(
       await t.query(api.enrollment.listTotps, { userId: "alice" }),
     ).toHaveLength(MAX_TOTPS_PER_USER);
-    const pending = await t.run((ctx) =>
-      ctx.db
-        .query("totpSecrets")
-        .withIndex("by_userId_status", (q) =>
-          q.eq("userId", "alice").eq("status", "pending"),
-        )
-        .unique(),
-    );
-    expect(base32Encode(new Uint8Array(pending!.secret))).toBe(secret);
+
+    // Once the user deletes one, the pending secret can be confirmed.
+    expect(
+      await t.mutation(api.management.deleteTotp, {
+        userId: "alice",
+        totpId: first.totpId,
+        code: await codeFor(first.secret),
+        kind: "totp",
+      }),
+    ).toEqual({ success: true });
+    advance(PERIOD_MS);
+    expect(
+      await t.mutation(api.enrollment.confirmTotp, {
+        userId: "alice",
+        code: await codeFor(secret),
+      }),
+    ).toMatchObject({ success: true });
   });
 
   test("the code that confirmed the secret cannot sign in", async () => {

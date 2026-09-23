@@ -23,6 +23,18 @@ export const codeKind = v.union(v.literal("totp"), v.literal("backup"));
 export type CodeKind = Infer<typeof codeKind>;
 
 /**
+ * The user-facing errors of the functions that change the second factor of a
+ * user and demand a code first (`disableTotp`, `regenerateBackupCodes`): the
+ * errors of the code, or `NOT_ENROLLED` when the user has no active secret and
+ * thus no code to give.
+ */
+export const secondFactorUserError = v.union(
+  verifyCodeUserError,
+  v.object({ error: v.literal("NOT_ENROLLED") }),
+);
+export type SecondFactorUserError = Infer<typeof secondFactorUserError>;
+
+/**
  * The user-facing errors for `confirmTotp` when the user has no active
  * authenticator, as in a setup recipe that gives each user a single one. A
  * recipe that lets a user add authenticators reuses
@@ -52,6 +64,18 @@ export const confirmMultiTotpUserError = v.union(
   v.object({ error: v.literal("TOO_MANY_TOTPS") }),
 );
 export type ConfirmMultiTotpUserError = Infer<typeof confirmMultiTotpUserError>;
+
+/**
+ * The user-facing errors for `deleteTotp`: the errors of the code, and
+ * `TOTP_NOT_FOUND` when the id names no active authenticator of the user.
+ */
+export const deleteTotpUserError = v.union(
+  secondFactorUserError,
+  // The id is malformed, names a secret of a different user, or names no
+  // active secret (a pending one, or one that is gone already).
+  v.object({ error: v.literal("TOTP_NOT_FOUND") }),
+);
+export type DeleteTotpUserError = Infer<typeof deleteTotpUserError>;
 
 /**
  * Normalize a TOTP code as the user typed it. Authenticator apps show the
