@@ -23,6 +23,18 @@ export const codeKind = v.union(v.literal("totp"), v.literal("backup"));
 export type CodeKind = Infer<typeof codeKind>;
 
 /**
+ * The user-facing errors of the functions that change the second factor of a
+ * user and demand a code first (`deleteTotp`, `regenerateBackupCodes`): the
+ * errors of the code, or `NOT_ENROLLED` when the user has no active secret and
+ * thus no code to give.
+ */
+export const secondFactorUserError = v.union(
+  verifyCodeUserError,
+  v.object({ error: v.literal("NOT_ENROLLED") }),
+);
+export type SecondFactorUserError = Infer<typeof secondFactorUserError>;
+
+/**
  * The user-facing errors for `confirmTotp`.
  */
 export const confirmTotpUserError = v.union(

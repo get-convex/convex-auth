@@ -1,7 +1,8 @@
 /**
  * TOTP enrollment: the functions of the component that a signed-in user
  * reaches from a settings page to set the second factor up. The verification
- * of a code at sign-in is in `verification.ts`.
+ * of a code at sign-in is in `verification.ts`, and the functions that change
+ * or remove an enrolled factor are in `management.ts`.
  *
  * A user may have at most one TOTP in each of the "active" and "pending"
  * statuses. An active TOTP is one that the user confirmed with a valid code
