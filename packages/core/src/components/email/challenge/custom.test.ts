@@ -56,6 +56,60 @@ afterEach(() => {
 
 const PURPOSE = "myApp/reauthenticate";
 
+describe("challenge.custom.peek", () => {
+  test("without an expectedUserId, gives the owner of the address, and keeps the row", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "Alice@Example.com", true);
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: { kind: "custom", purpose: PURPOSE },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+    const args = {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      purpose: PURPOSE,
+      currentUserId: null,
+    };
+
+    expect(await t.query(api.challenge.custom.peek, args)).toEqual({
+      success: true,
+      email: "alice@example.com",
+      emailOwnerId: "user2",
+    });
+    // The peek did not claim the link.
+    expect(await t.mutation(api.challenge.custom.complete, args)).toMatchObject(
+      { success: true, emailOwnerId: "user2" },
+    );
+  });
+
+  test("with an expectedUserId, reports INVALID_CHALLENGE when another user owns the address, and keeps the row", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "alice@example.com", true);
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+    const args = {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      purpose: PURPOSE,
+      currentUserId: "user1",
+    };
+
+    expect(await t.query(api.challenge.custom.peek, args)).toEqual({
+      success: false,
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+    expect(
+      await t.run((ctx) => ctx.db.query("challenges").collect()),
+    ).toHaveLength(1);
+  });
+});
+
 describe("challenge.custom.complete", () => {
   test("with an expectedUserId, succeeds when that user owns the address, and writes nothing", async () => {
     const t = setup();
