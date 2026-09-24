@@ -5,15 +5,14 @@
  * app's user row and returns its id, and then calls the optional `onSignIn` on every
  * sign-in, that first one included.
  *
- * Both providers in this example share one pair of callbacks. The password
- * provider includes the `username` in the profile data it supplies, while the
- * anonymous provider supplies an empty profile. In the app's data model, the
- * `username` is thus optional.
+ * Both providers in this example share one pair of callbacks. Both supply an
+ * empty profile. `lastSignedInAt` is maintained by the `onSignIn` hook.
  *
  * @module
  */
 import { getAuthUserId } from "@convex-dev/auth/core";
 import { v } from "convex/values";
+import { components } from "./_generated/api";
 import { internalMutation, query } from "./_generated/server";
 
 // The union shape of the configured providers.
@@ -26,20 +25,15 @@ const vProvider = v.union(
   v.object({
     name: v.literal("password"),
     accountId: v.string(),
-    profile: v.object({ username: v.string() }),
+    profile: v.object({}),
   }),
 );
 
 export const createUser = internalMutation({
   args: { provider: vProvider },
   returns: v.id("users"),
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("users", {
-      username:
-        args.provider.name === "password"
-          ? args.provider.profile.username
-          : undefined,
-    });
+  handler: async (ctx) => {
+    return await ctx.db.insert("users", {});
   },
 });
 
@@ -68,6 +62,10 @@ export const loggedInUser = query({
     if (user === null) {
       return null;
     }
-    return { id: user._id, username: user.username ?? null };
+    const username = await ctx.runQuery(
+      components.authUsername.public.getUsername,
+      { userId },
+    );
+    return { id: user._id, username };
   },
 });
