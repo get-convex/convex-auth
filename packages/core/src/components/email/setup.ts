@@ -102,6 +102,8 @@ export type EmailSenderOptions = {
 export type EmailPasswordUrls = {
   /** Landing page for the sign-up challenge link. */
   signUp: string;
+  /** Landing page for the change-email challenge link. */
+  changeEmail: string;
   /** Landing page for the password-recovery link. */
   recovery: string;
 };
@@ -187,6 +189,32 @@ const changePasswordResult = v.union(
  */
 export type ChangePasswordResult = Infer<typeof changePasswordResult>;
 
+const startChangeEmailResult = v.union(
+  v.object({ success: v.literal(true), browserSecret: v.string() }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(
+      vNotLoggedIn,
+      verifyPasswordUserError,
+      startFreeAddressUserError,
+    ),
+  }),
+);
+
+/** The result of `startChangeEmail`. */
+export type StartChangeEmailResult = Infer<typeof startChangeEmailResult>;
+
+const completeChangeEmailResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(vNotLoggedIn, completeFreeAddressUserError),
+  }),
+);
+
+/** The result of `completeChangeEmail`. */
+export type CompleteChangeEmailResult = Infer<typeof completeChangeEmailResult>;
+
 const startPasswordRecoveryResult = v.union(
   v.object({ success: v.literal(true), browserSecret: v.string() }),
   v.object({
@@ -234,6 +262,8 @@ export type EmailPasswordProfile = Record<string, never>;
  *   changePassword,
  *   startPasswordRecovery,
  *   completePasswordRecovery,
+ *   startChangeEmail,
+ *   completeChangeEmail,
  * } = setupEmailPassword(core, {
  *   component: components.authEmail,
  *   passwordComponent: components.authPasswordProvider,
@@ -246,15 +276,16 @@ export type EmailPasswordProfile = Record<string, never>;
  *   },
  *   urls: {
  *     signUp: `${env.SITE_URL}/validate-email`,
+ *     changeEmail: `${env.SITE_URL}/confirm-email-change`,
  *     recovery: `${env.SITE_URL}/reset-password`,
  *   },
  * }).attachUserCallbacks({ createUser: internal.users.createUser });
  * ```
  *
  * - Sign-in accepts any verified email of the account.
- * - Change-password requires the session *and* the current password
- *   (OWASP ASVS v5 6.2.3), and sends a security notification to the
- *   primary address (ASVS 6.3.7).
+ * - Change-password and change-email require the session *and* the current
+ *   password (OWASP ASVS v5 6.2.3), and send a security notification to the
+ *   affected address (ASVS 6.3.7).
  * - Recovery proves ownership of a verified email through a 10-minute link,
  *   then sets the new password and signs the user in.
  *
@@ -545,6 +576,88 @@ export function setupEmailPassword<UsersTable extends string>(
                 to,
                 PASSWORD_CHANGED_SUBJECT,
                 PASSWORD_CHANGED_TEXT,
+              );
+            }
+            return { success: true };
+          },
+        }),
+
+        /**
+         * Start changing the signed-in user's primary email address. Requires
+         * the session *and* the current password (OWASP ASVS v5 6.2.3). Sends
+         * a challenge link to the new address; the change happens in
+         * `completeChangeEmail`.
+         */
+        startChangeEmail: authMutation({
+          args: { newEmail: v.string(), currentPassword: v.string() },
+          returns: startChangeEmailResult,
+          handler: async (
+            ctx,
+            { newEmail, currentPassword },
+          ): Promise<StartChangeEmailResult> => {
+            const userId = await getAuthUserId(ctx);
+            if (userId === null) {
+              return { success: false, userError: { error: "NOT_LOGGED_IN" } };
+            }
+
+            const verifyResult = await ctx.runMutation(
+              passwordComponent.public.verifyPassword,
+              { userId, password: currentPassword },
+            );
+            if (!verifyResult.success) {
+              return { success: false, userError: verifyResult.userError };
+            }
+
+            const start = await ctx.runMutation(
+              component.challenge.changeEmail.start,
+              {
+                email: newEmail,
+                userId,
+                url: urls.changeEmail,
+                emailSender: await senderConfig(),
+              },
+            );
+            if (!start.success) {
+              return { success: false, userError: start.userError };
+            }
+            return { success: true, browserSecret: start.browserSecret };
+          },
+        }),
+
+        /**
+         * Complete an email change: validate the new address, replace the old
+         * primary, and notify the old address (ASVS 6.3.7). No session is
+         * minted — the user already has one.
+         */
+        completeChangeEmail: authMutation({
+          args: { emailCode: v.string(), browserSecret: v.string() },
+          returns: completeChangeEmailResult,
+          handler: async (
+            ctx,
+            { emailCode, browserSecret },
+          ): Promise<CompleteChangeEmailResult> => {
+            // The link is bound to the user who started the change, so the
+            // same user must be signed in to complete it.
+            const userId = await getAuthUserId(ctx);
+            if (userId === null) {
+              return { success: false, userError: { error: "NOT_LOGGED_IN" } };
+            }
+            const complete = await ctx.runMutation(
+              component.challenge.changeEmail.complete,
+              { emailCode, browserSecret, userId },
+            );
+            if (!complete.success) {
+              return { success: false, userError: complete.userError };
+            }
+            if (complete.previousEmail !== null) {
+              await notify(
+                ctx,
+                complete.previousEmail,
+                "Your email address was changed",
+                "The email address of your account was changed to " +
+                  `${complete.email}.\n\n` +
+                  "If you did this, you can ignore this email. If you did " +
+                  "not do this, reset your password immediately.",
               );
             }
             return { success: true };
