@@ -705,6 +705,91 @@ describe("startPasswordRecovery", () => {
   });
 });
 
+describe("checkPasswordRecovery", () => {
+  test("accepts a live link without claiming it", async () => {
+    const t = await setup();
+    await seedSignedUpUser(t);
+    await seedChallenge(t, {
+      email: EMAIL,
+      purpose: RECOVERY,
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    const check = await t.mutation(api.auth.checkPasswordRecovery, {
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+    expect(check).toEqual({ success: true });
+
+    // The link still works after the check.
+    const complete = await t.mutation(api.auth.completePasswordRecovery, {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      newPassword: "brand new horse staple",
+    });
+    expect(complete).toEqual({ status: "complete", tokens: SESSION_TOKENS });
+  });
+
+  test("rejects a wrong code with INCORRECT_CODE", async () => {
+    const t = await setup();
+    await seedSignedUpUser(t);
+    await seedChallenge(t, {
+      email: EMAIL,
+      purpose: RECOVERY,
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    const check = await t.mutation(api.auth.checkPasswordRecovery, {
+      emailCode: "code2",
+      browserSecret: "secret1",
+    });
+    expect(check).toEqual({
+      success: false,
+      userError: { error: "INCORRECT_CODE" },
+    });
+  });
+
+  test("rejects an unknown secret with INVALID_CHALLENGE", async () => {
+    const t = await setup();
+    const check = await t.mutation(api.auth.checkPasswordRecovery, {
+      emailCode: "unknown",
+      browserSecret: "whatever",
+    });
+    expect(check).toEqual({
+      success: false,
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+  });
+
+  test("rejects a link whose address left the account", async () => {
+    const t = await setup();
+    await seedSignedUpUser(t);
+    await seedChallenge(t, {
+      email: EMAIL,
+      purpose: RECOVERY,
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+    // The address is no longer verified for any account.
+    await runInComponent(t, "authEmail", async (ctx) => {
+      for (const row of await ctx.db.query("verifiedEmails").collect()) {
+        await ctx.db.delete("verifiedEmails", row._id);
+      }
+    });
+
+    const check = await t.mutation(api.auth.checkPasswordRecovery, {
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+    expect(check).toEqual({
+      success: false,
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+  });
+});
+
 describe("completePasswordRecovery", () => {
   test("sets the new password, signs in, and notifies", async () => {
     const t = await setup();

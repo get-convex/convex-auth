@@ -5,8 +5,9 @@ import { api } from "../../convex/_generated/api";
 
 /**
  * Landing page for the password-reset link (`/reset-password?code=…`).
- * Asks for the new password, and signs the user in on success. The link is
- * verified on submit, together with the password.
+ * Checks the link when the page opens, then asks for the new password and
+ * signs the user in on success. A link that cannot be used shows an error
+ * instead of the form.
  */
 export function ResetPassword() {
   const [params] = useSearchParams();
@@ -18,15 +19,13 @@ export function ResetPassword() {
 }
 
 function ResetPasswordWithCode({ emailCode }: { emailCode: string }) {
-  const state = useCompletePasswordRecovery(api.auth.completePasswordRecovery, {
-    emailCode,
-  });
+  const state = useCompletePasswordRecovery(api.auth, { emailCode });
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   switch (state.status) {
     case "pending":
-      return <p>Loading…</p>;
+      return <p>Checking the link…</p>;
     case "complete":
       return <Navigate to="/" replace />;
     case "error":
@@ -51,6 +50,12 @@ function ResetPasswordWithCode({ emailCode }: { emailCode: string }) {
           return failed(
             "This is not the latest link. Open the newest email we sent you.",
           );
+        case "OTHER_ERROR":
+          console.error(
+            "Could not check the reset link:",
+            state.userError.cause,
+          );
+          return failed("Something went wrong. Please try again.");
         default:
           state.userError satisfies never;
           return failed("Unknown error: " + state.userError);

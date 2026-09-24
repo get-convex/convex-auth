@@ -436,11 +436,84 @@ describe("useStartPasswordRecovery", () => {
 });
 
 describe("useCompletePasswordRecovery", () => {
-  test("is ready with the stored secret; completing adopts the session and clears it", async () => {
+  // The stub signInApi ignores the references, so any values will do.
+  const recoveryApi = {
+    checkPasswordRecovery: signInMutation,
+    completePasswordRecovery: signInMutation,
+  };
+  const checkPassed = { success: true };
+
+  test("checks the link once, and is ready only after the check passes", async () => {
     secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
-    runSignInMutation.mockResolvedValue({ status: "complete", tokens: bundle });
+    // Keep the check in flight, so the effect runs again before it ends.
+    let passCheck!: (value: unknown) => void;
+    runSignInMutation.mockReturnValueOnce(
+      new Promise((resolve) => {
+        passCheck = resolve;
+      }),
+    );
+    let emailCode = "code-9";
+    const { result, rerender } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode }),
+    );
+    await waitFor(() => expect(runSignInMutation).toHaveBeenCalledTimes(1));
+    expect(result.current.hook).toEqual({ status: "pending" });
+
+    // A new code changes the effect's dependencies, so the effect runs again.
+    emailCode = "code-10";
+    rerender();
+    await act(async () => {
+      passCheck(checkPassed);
+    });
+
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    expect(runSignInMutation).toHaveBeenCalledTimes(1);
+    expect(runSignInMutation).toHaveBeenCalledWith({
+      emailCode: "code-9",
+      browserSecret: "secret-9",
+    });
+  });
+
+  test("a failing check ends the flow without a form", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    runSignInMutation.mockResolvedValueOnce({
+      success: false,
+      userError: { error: "INCORRECT_CODE" },
+    });
     const { result } = renderWithProviders(() =>
-      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "INCORRECT_CODE" },
+      }),
+    );
+    expect(runSignInMutation).toHaveBeenCalledTimes(1);
+  });
+
+  test("a thrown check folds into OTHER_ERROR preserving cause", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const cause = new Error("network blip");
+    runSignInMutation.mockRejectedValueOnce(cause);
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "OTHER_ERROR", cause },
+      }),
+    );
+  });
+
+  test("completing adopts the session and clears the secret", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    runSignInMutation
+      .mockResolvedValueOnce(checkPassed)
+      .mockResolvedValueOnce({ status: "complete", tokens: bundle });
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
     );
     await waitFor(() => expect(result.current.hook.status).toBe("ready"));
     const ready = result.current.hook;
@@ -453,7 +526,7 @@ describe("useCompletePasswordRecovery", () => {
       });
     });
 
-    expect(runSignInMutation).toHaveBeenCalledWith({
+    expect(runSignInMutation).toHaveBeenLastCalledWith({
       emailCode: "code-9",
       browserSecret: "secret-9",
       newPassword: "brand new horse staple",
@@ -464,9 +537,9 @@ describe("useCompletePasswordRecovery", () => {
     expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBeNull();
   });
 
-  test("is MISSING_SECRET when this browser did not start the flow", async () => {
+  test("is MISSING_SECRET without a check when this browser did not start the flow", async () => {
     const { result } = renderWithProviders(() =>
-      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({
@@ -483,9 +556,11 @@ describe("useCompletePasswordRecovery", () => {
       status: "error",
       userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 8 },
     };
-    runSignInMutation.mockResolvedValue(failure);
+    runSignInMutation
+      .mockResolvedValueOnce(checkPassed)
+      .mockResolvedValueOnce(failure);
     const { result } = renderWithProviders(() =>
-      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
     );
     await waitFor(() => expect(result.current.hook.status).toBe("ready"));
     const ready = result.current.hook;
@@ -503,14 +578,14 @@ describe("useCompletePasswordRecovery", () => {
     expect(result.current.auth.isAuthenticated).toBe(false);
   });
 
-  test("an unusable link ends the flow", async () => {
+  test("a link that dies after the check ends the flow at submit", async () => {
     secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
-    runSignInMutation.mockResolvedValue({
+    runSignInMutation.mockResolvedValueOnce(checkPassed).mockResolvedValueOnce({
       status: "error",
       userError: { error: "INVALID_CHALLENGE" },
     });
     const { result } = renderWithProviders(() =>
-      useCompletePasswordRecovery(signInMutation, { emailCode: "code-9" }),
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
     );
     await waitFor(() => expect(result.current.hook.status).toBe("ready"));
     const ready = result.current.hook;

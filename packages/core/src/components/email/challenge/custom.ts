@@ -23,6 +23,7 @@ import {
   startPreconditions,
   createChallengeAndSendEmail,
   claimChallenge,
+  findClaimableChallenge,
   type StartChallengeResult,
 } from "./common.ts";
 
@@ -108,6 +109,30 @@ const completeResult = v.union(
   completeChallengeFailure,
 );
 type CompleteResult = Infer<typeof completeResult>;
+
+/**
+ * Report what `complete` would return for this link, without claiming it. A
+ * landing page calls it to tell the user that a link is dead before it asks
+ * for input.
+ *
+ * A `peek` that passes does not guarantee that a later `complete` passes:
+ * the link can expire or be claimed between the two calls.
+ */
+export const peek = mutation({
+  args: { ...vClaimArgs, ...vPurpose },
+  returns: completeResult,
+  handler: async (ctx, args): Promise<CompleteResult> => {
+    const claim = await findClaimableChallenge(ctx, {
+      emailCode: args.emailCode,
+      browserSecret: args.browserSecret,
+      purpose: { kind: "custom", userId: args.userId, purpose: args.purpose },
+    });
+    if (!claim.success) {
+      return claim.failure;
+    }
+    return { success: true, userId: args.userId, email: claim.row.email };
+  },
+});
 
 /**
  * Complete a `custom` challenge. The `purpose` and the `userId` must be the

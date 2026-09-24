@@ -27,6 +27,7 @@ import type {
   StartChangeEmailResult as StartChangeEmailMutationResult,
   CompleteChangeEmailResult,
   StartPasswordRecoveryResult as StartPasswordRecoveryMutationResult,
+  CheckPasswordRecoveryResult as CheckPasswordRecoveryMutationResult,
   CompletePasswordRecoveryResult as CompletePasswordRecoveryMutationResult,
 } from "./setup.ts";
 
@@ -128,12 +129,28 @@ type StartPasswordRecoveryMutation = FunctionReference<
   StartPasswordRecoveryMutationResult
 >;
 
+type CheckPasswordRecoveryMutation = FunctionReference<
+  "mutation",
+  "public",
+  { emailCode: string; browserSecret: string },
+  CheckPasswordRecoveryMutationResult
+>;
+
 type CompletePasswordRecoveryMutation = FunctionReference<
   "mutation",
   "public",
   { emailCode: string; browserSecret: string; newPassword: string },
   ClientView<CompletePasswordRecoveryMutationResult>
 >;
+
+/**
+ * The mutations that {@link useCompletePasswordRecovery} calls. The app's
+ * `api.auth` has both of them.
+ */
+export type PasswordRecoveryApi = {
+  checkPasswordRecovery: CheckPasswordRecoveryMutation;
+  completePasswordRecovery: CompletePasswordRecoveryMutation;
+};
 
 /** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
 export type SignInResult =
@@ -180,13 +197,24 @@ export type CompleteChangeEmailState = LinkFlowState<
 >;
 
 /**
- * The errors of `completePasswordRecovery` that are about the link rather
- * than about the new password. They end the flow: the user needs a new link.
+ * The errors about the link rather than about the new password: the errors
+ * of `checkPasswordRecovery`. They end the flow: the user needs a new link.
  */
-type PasswordRecoveryLinkError = Extract<
-  SignInError<ClientView<CompletePasswordRecoveryMutationResult>>,
-  { error: "INVALID_CHALLENGE" | "INCORRECT_CODE" }
->;
+type PasswordRecoveryLinkError =
+  FailureError<CheckPasswordRecoveryMutationResult>;
+
+// One key for each link error. Thus a new error in the result of
+// `checkPasswordRecovery` is a compile error here.
+const PASSWORD_RECOVERY_LINK_ERRORS: Record<
+  PasswordRecoveryLinkError["error"],
+  true
+> = { INVALID_CHALLENGE: true, INCORRECT_CODE: true };
+
+function isPasswordRecoveryLinkError(
+  userError: SignInError<ClientView<CompletePasswordRecoveryMutationResult>>,
+): userError is PasswordRecoveryLinkError {
+  return userError.error in PASSWORD_RECOVERY_LINK_ERRORS;
+}
 
 /**
  * The state of {@link useCompletePasswordRecovery}. Unlike the other landing
@@ -211,7 +239,7 @@ export type CompletePasswordRecoveryState =
   | { status: "complete" }
   | {
       status: "error";
-      userError: PasswordRecoveryLinkError | MissingSecretError;
+      userError: PasswordRecoveryLinkError | MissingSecretError | OtherError;
     };
 
 //------------------------------------------------------------------------------
@@ -605,27 +633,27 @@ export function useStartPasswordRecovery(
 
 /**
  * Client for the landing page of the password-reset link. As soon as the page
- * opens, it checks that this browser holds the secret stored by
- * {@link useStartPasswordRecovery}; the state is then `ready`, with the
- * function that sets the new password and adopts the minted session.
+ * opens, it reads the secret stored by {@link useStartPasswordRecovery} and
+ * runs `checkPasswordRecovery` with it and the code from the link. When the
+ * link can be used, the state is `ready`, with the function that sets the new
+ * password and adopts the minted session. When the link cannot be used, the
+ * state is `error`, so the page does not ask for a password.
  *
  * The hook does not complete the flow by itself: the flow needs the new
  * password, so call `completePasswordRecovery` when the user submits the
  * form. An error about the password keeps the state `ready`, so show it in
- * the form. An error about the link moves the state to `error`.
+ * the form. An error about the link moves the state to `error`: the link can
+ * expire or be used after the check.
  *
  * ```tsx
  * function ResetPassword({ emailCode }: { emailCode: string }) {
- *   const state = useCompletePasswordRecovery(
- *     api.auth.completePasswordRecovery,
- *     { emailCode },
- *   );
+ *   const state = useCompletePasswordRecovery(api.auth, { emailCode });
  *   const [newPassword, setNewPassword] = useState("");
  *   const [error, setError] = useState<string | null>(null);
  *
  *   switch (state.status) {
  *     case "pending":
- *       return <p>Loading…</p>;
+ *       return <p>Checking the link…</p>;
  *     case "complete":
  *       return <Navigate to="/" replace />;
  *     case "error":
@@ -662,40 +690,64 @@ export function useStartPasswordRecovery(
  * }
  * ```
  *
- * @param completePasswordRecoveryMutation The app's `completePasswordRecovery` mutation reference.
+ * @param recoveryApi The app's `checkPasswordRecovery` and
+ * `completePasswordRecovery` mutation references, for example `api.auth`.
  * @param emailCode The `code` query parameter of the link.
  */
 export function useCompletePasswordRecovery(
-  completePasswordRecoveryMutation: CompletePasswordRecoveryMutation,
+  recoveryApi: PasswordRecoveryApi,
   { emailCode }: { emailCode: string },
 ): CompletePasswordRecoveryState {
+  const { checkPasswordRecovery, completePasswordRecovery: completeMutation } =
+    recoveryApi;
+  const { isLoading } = useAuth();
   const { setSession } = useAuthActions();
   const signInApi = useAuthSignInApi();
   const storage = useSecretStorage();
   const { pending, track } = usePending();
-  // `undefined` while storage loads, `null` when this browser has no secret.
-  const [browserSecret, setBrowserSecret] = useState<string | null | undefined>(
-    undefined,
-  );
-  const [outcome, setOutcome] = useState<
-    | { status: "complete" }
-    | { status: "error"; userError: PasswordRecoveryLinkError }
-    | null
-  >(null);
+  // The `ready` phase keeps the secret that the check accepted.
+  const [phase, setPhase] = useState<
+    | { status: "pending" }
+    | { status: "ready"; browserSecret: string }
+    | Exclude<CompletePasswordRecoveryState, { status: "pending" | "ready" }>
+  >({ status: "pending" });
+  const started = useRef(false);
 
+  // Check the link once per mounted component, like `useLinkFlow`.
   useEffect(() => {
-    let canceled = false;
+    if (isLoading || started.current) {
+      return;
+    }
+    started.current = true;
     void (async () => {
-      const secret = await storage.get(SECRET_STORAGE_KEYS.passwordRecovery);
-      if (!canceled) {
-        setBrowserSecret(secret ?? null);
+      try {
+        const browserSecret = await storage.get(
+          SECRET_STORAGE_KEYS.passwordRecovery,
+        );
+        if (browserSecret === null || browserSecret === undefined) {
+          setPhase({ status: "error", userError: { error: "MISSING_SECRET" } });
+          return;
+        }
+        const result = await signInApi.mutation(checkPasswordRecovery, {
+          emailCode,
+          browserSecret,
+        });
+        setPhase(
+          result.success
+            ? { status: "ready", browserSecret }
+            : { status: "error", userError: result.userError },
+        );
+      } catch (cause) {
+        setPhase({
+          status: "error",
+          userError: { error: "OTHER_ERROR", cause },
+        });
       }
     })();
-    return () => {
-      canceled = true;
-    };
-  }, [storage]);
+  }, [isLoading, storage, signInApi, checkPasswordRecovery, emailCode]);
 
+  const browserSecret =
+    phase.status === "ready" ? phase.browserSecret : undefined;
   const completePasswordRecovery = useCallback(
     async ({
       newPassword,
@@ -703,26 +755,24 @@ export function useCompletePasswordRecovery(
       newPassword: string;
     }): Promise<CompletePasswordRecoveryResult> =>
       track(async () => {
-        if (typeof browserSecret !== "string") {
+        if (browserSecret === undefined) {
           // Only reachable through the `ready` state, which has the secret.
           throw new Error(
             "completePasswordRecovery was called before the flow was ready",
           );
         }
         try {
-          const result = await signInApi.mutation(
-            completePasswordRecoveryMutation,
-            { emailCode, browserSecret, newPassword },
-          );
+          const result = await signInApi.mutation(completeMutation, {
+            emailCode,
+            browserSecret,
+            newPassword,
+          });
           if (result.status === "complete") {
             await setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.passwordRecovery);
-            setOutcome({ status: "complete" });
-          } else if (
-            result.userError.error === "INVALID_CHALLENGE" ||
-            result.userError.error === "INCORRECT_CODE"
-          ) {
-            setOutcome({ status: "error", userError: result.userError });
+            setPhase({ status: "complete" });
+          } else if (isPasswordRecoveryLinkError(result.userError)) {
+            setPhase({ status: "error", userError: result.userError });
           }
           return result;
         } catch (cause) {
@@ -731,7 +781,7 @@ export function useCompletePasswordRecovery(
       }),
     [
       signInApi,
-      completePasswordRecoveryMutation,
+      completeMutation,
       emailCode,
       browserSecret,
       storage,
@@ -740,16 +790,10 @@ export function useCompletePasswordRecovery(
     ],
   );
 
-  if (outcome !== null) {
-    return outcome;
+  if (phase.status === "ready") {
+    return { status: "ready", completePasswordRecovery, pending };
   }
-  if (browserSecret === undefined) {
-    return { status: "pending" };
-  }
-  if (browserSecret === null) {
-    return { status: "error", userError: { error: "MISSING_SECRET" } };
-  }
-  return { status: "ready", completePasswordRecovery, pending };
+  return phase;
 }
 
 //------------------------------------------------------------------------------
