@@ -247,17 +247,6 @@ export function setupEmailPassword<UsersTable extends string>(
     });
   };
 
-  /** The user's primary verified email, or `null`. */
-  const primaryEmail = async (
-    ctx: MutationCtx,
-    userId: string,
-  ): Promise<string | null> => {
-    const emails = await ctx.runQuery(component.verifiedEmails.getEmails, {
-      userId,
-    });
-    return emails.find((entry) => entry.isPrimary)?.email ?? null;
-  };
-
   const PASSWORD_CHANGED_SUBJECT = "Your password was changed";
   const PASSWORD_CHANGED_TEXT =
     "The password of your account was changed.\n\n" +
@@ -489,7 +478,10 @@ export function setupEmailPassword<UsersTable extends string>(
               return { success: false, userError: setResult.userError };
             }
 
-            const to = await primaryEmail(ctx, userId);
+            const to = await ctx.runQuery(
+              component.verifiedEmails.getPrimaryEmail,
+              { userId },
+            );
             if (to !== null) {
               await notify(
                 ctx,
