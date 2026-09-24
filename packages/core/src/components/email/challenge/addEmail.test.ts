@@ -209,6 +209,26 @@ describe("the userId of an addEmail challenge", () => {
       }),
     ).toMatchObject({ success: true, userId: "user1" });
   });
+
+  test("no userId takes the user from the challenge", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: { kind: "addEmail", userId: "user1" },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    expect(
+      await t.mutation(api.challenge.addEmail.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+      }),
+    ).toEqual({ success: true, userId: "user1", email: "alice@example.com" });
+    expect(
+      await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
+    ).toEqual([{ email: "alice@example.com", isPrimary: true }]);
+  });
 });
 
 describe("challenge.addEmail.start", () => {

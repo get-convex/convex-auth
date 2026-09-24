@@ -72,24 +72,32 @@ const completeResult = v.union(
 type CompleteResult = Infer<typeof completeResult>;
 
 /**
- * Complete an `addEmail` challenge: record the address for the user. The
- * `userId` must be the one given at start. Fails with `EMAIL_TAKEN` when
- * another user verified the address after the start.
+ * Complete an `addEmail` challenge: record the address for the user. When the
+ * caller gives a `userId`, it must be the one given at start. A caller with
+ * no session (sign-up) leaves it out, and the user is the one from the start.
+ * Fails with `EMAIL_TAKEN` when another user verified the address after the
+ * start.
  */
 export const complete = mutation({
-  args: { ...vClaimArgs, userId: v.string() },
+  args: { ...vClaimArgs, userId: v.optional(v.string()) },
   returns: completeResult,
   handler: async (ctx, args): Promise<CompleteResult> => {
-    const { userId } = args;
     const claim = await claimChallenge(ctx, {
       emailCode: args.emailCode,
       browserSecret: args.browserSecret,
-      purpose: { kind: "addEmail", userId },
+      purpose:
+        args.userId === undefined
+          ? { kind: "addEmail" }
+          : { kind: "addEmail", userId: args.userId },
     });
     if (!claim.success) {
       return claim.failure;
     }
     const { row } = claim;
+    if (row.purpose.kind !== "addEmail") {
+      throw new Error("Unreachable: the claim checked the purpose kind");
+    }
+    const { userId } = row.purpose;
     const normalizedEmail = normalizeEmail(row.email);
     const taken = await addressTakenError(ctx, normalizedEmail);
     if (taken !== null) {

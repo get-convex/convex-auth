@@ -312,11 +312,21 @@ export async function createChallengeAndSendEmail(
 // Complete
 //------------------------------------------------------------------------------
 
-function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
+/**
+ * The purpose that a `complete` call expects. It is the purpose of the row,
+ * except that an `addEmail` claim can leave the `userId` out: the caller has
+ * no session (sign-up), so the user is the one that the row was started for.
+ */
+export type ClaimPurpose = ChallengePurpose | { kind: "addEmail" };
+
+function samePurpose(a: ChallengePurpose, b: ClaimPurpose): boolean {
   // Two `custom` challenges match only when the caller's purpose string is
   // the same one that started the flow.
   if (a.kind === "custom" && b.kind === "custom" && a.purpose !== b.purpose) {
     return false;
+  }
+  if (!("userId" in b)) {
+    return a.kind === b.kind;
   }
   return a.kind === b.kind && a.userId === b.userId;
 }
@@ -340,13 +350,13 @@ function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
  * is not the one that the challenge sent. For a link, the link is not the
  * newest one this browser started. For a future short code, it is a typo.
  *
- * A purpose mismatch (another kind, or another `userId`) throws. It is an
- * application bug: the landing page called the wrong function, or gave the
- * wrong user.
+ * A purpose mismatch (another kind, or another `userId` when the caller gives
+ * one) throws. It is an application bug: the landing page called the wrong
+ * function, or gave the wrong user.
  */
 export async function claimChallenge(
   ctx: MutationCtx,
-  args: { emailCode: string; browserSecret: string; purpose: ChallengePurpose },
+  args: { emailCode: string; browserSecret: string; purpose: ClaimPurpose },
 ): Promise<ClaimChallengeResult> {
   const browserSecretHash = await sha256Hex(args.browserSecret);
   const row = await ctx.db
