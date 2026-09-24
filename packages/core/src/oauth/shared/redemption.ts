@@ -9,7 +9,7 @@ import { Infer, v } from "convex/values";
 import type { GenericDataModel, GenericMutationCtx } from "convex/server";
 import { vSignInComplete, vSignInError } from "../../lib/types.ts";
 import type { AuthMutationBuilder } from "../../components/core/setup.ts";
-import { decryptTicketPayload } from "../component/crypto.ts";
+import { decryptTicketPayload } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 
 /**

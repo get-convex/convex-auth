@@ -8,10 +8,10 @@ import {
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
-import { decryptTicketPayload } from "../component/crypto.ts";
+import { testCallbackMethods } from "../shared/componentContract.test.ts";
+import { decryptTicketPayload } from "../shared/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
-import { TOKEN_ENDPOINT } from "./constants.ts";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -19,6 +19,7 @@ const CLIENT_ID = "com.example.app.web";
 const TEAM_ID = "DEF123GHIJ";
 const KEY_ID = "ABC123DEFG";
 const REDIRECT_TO = "https://app.example.com/after";
+const TOKEN_ENDPOINT = "https://appleid.apple.com/auth/token";
 
 /** A real key, so the client secret the handler signs can be decoded. */
 let privateKey: string;
@@ -118,6 +119,7 @@ async function startFlow(t: ReturnType<typeof setup>): Promise<string> {
   await t.mutation(api.provider.createAuthorizationRequest, {
     stateHash: await sha256Hex(state),
     redirectTo: REDIRECT_TO,
+    codeVerifier: "verifier-1",
   });
   return state;
 }
@@ -210,6 +212,7 @@ describe("apple callback", () => {
     expect(body.get("redirect_uri")).toBe(
       "https://test.convex.site/oauth/apple/callback",
     );
+    expect(body.get("code_verifier")).toBe("verifier-1");
 
     const secret = body.get("client_secret")!;
     expect(decodeProtectedHeader(secret)).toEqual({
@@ -321,15 +324,6 @@ describe("apple callback", () => {
     expect(response.status).toBe(400);
   });
 
-  test("the callback is not served over GET", async () => {
-    const t = setup();
-    const state = await startFlow(t);
-    const response = await t.fetch(
-      `/callback?${new URLSearchParams({ state, code: "apple-code-1" })}`,
-    );
-    expect(response.status).toBe(404);
-  });
-
   test("a replayed callback finds nothing left to claim", async () => {
     const t = setup();
     const state = await startFlow(t);
@@ -341,3 +335,7 @@ describe("apple callback", () => {
     expect(replay.status).toBe(400);
   });
 });
+
+// Apple posts the callback as a form, so POST is the only method it ever
+// arrives over.
+testCallbackMethods(schema, modules, ["POST"]);

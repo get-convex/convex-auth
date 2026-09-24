@@ -1,7 +1,7 @@
 import { defineApp } from "convex/server";
 import { v } from "convex/values";
 import auth from "@convex-dev/auth/core/convex.config.js";
-import oauth from "@convex-dev/auth/providers/oauth/convex.config.js";
+import google from "@convex-dev/auth/providers/oauth/google/convex.config.js";
 
 const app = defineApp({
   env: {
@@ -27,8 +27,7 @@ app.use(auth, {
 // The full redirect URI will be something like:
 //
 // https://happy-animal-123.convex.site/oauth/google/callback
-app.use(oauth, {
-  name: "oauthGoogle",
+app.use(google, {
   httpPrefix: "/oauth/google",
   env: {
     CLIENT_ID: app.env.AUTH_GOOGLE_CLIENT_ID,

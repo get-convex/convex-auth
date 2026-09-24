@@ -4,20 +4,22 @@
  *
  * @module
  */
-import { mutationGeneric } from "convex/server";
 import { Infer, v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
-import { sha256Hex } from "../../lib/crypto.ts";
-import { generateRandomToken } from "../component/crypto.ts";
+import { buildStartSignIn } from "../shared/authorize.ts";
 import {
   buildCompleteSignIn,
-  parseUrl,
   validateAllowedRedirectOrigins,
   type OidcClaims,
 } from "../shared/redemption.ts";
 import type { ComponentApi } from "./_generated/component.ts";
-import { AUTHORIZATION_ENDPOINT, PROVIDER_NAME, SCOPES } from "./constants.ts";
+import {
+  AUTHORIZATION_ENDPOINT,
+  CALLBACK_METHOD,
+  PROVIDER_NAME,
+  SCOPES,
+} from "./constants.ts";
 import type { SanitizedAppleUser } from "./user.ts";
 
 export type { SanitizedAppleUser };
@@ -146,51 +148,13 @@ export function setupApple<UsersTable extends string>(
         onSignIn: callbacks.onSignIn,
       });
 
-      /**
-       * Start an Apple sign-in. The server mints `state` and returns it; the
-       * client keeps it (it must present the same value again to complete
-       * sign-in) and navigates to the returned `redirect` URL.
-       */
-      const startSignIn = mutationGeneric({
-        args: {
-          redirectTo: v.string(),
-        },
-        returns: v.object({ redirect: v.string(), state: v.string() }),
-        handler: async (ctx, args) => {
-          const redirectTo = parseUrl(args.redirectTo);
-          if (redirectTo === null) {
-            throw new Error("redirectTo must be an absolute URL");
-          }
-          if (!allowedOrigins.includes(redirectTo.origin)) {
-            throw new Error(
-              `redirectTo origin "${redirectTo.origin}" is not in allowedRedirectOrigins`,
-            );
-          }
-
-          // Apple supports no PKCE, so state is the whole of the binding
-          // between this request and the callback that answers it.
-          const state = generateRandomToken();
-          const { clientId, callbackUrl } = await ctx.runMutation(
-            options.component.provider.createAuthorizationRequest,
-            { stateHash: await sha256Hex(state), redirectTo: args.redirectTo },
-          );
-
-          const url = new URL(AUTHORIZATION_ENDPOINT);
-          const params: Record<string, string> = {
-            response_type: "code",
-            // Asking for any scope obliges us to take the callback as a POST.
-            response_mode: "form_post",
-            client_id: clientId,
-            redirect_uri: callbackUrl,
-            scope: SCOPES.join(" "),
-            state,
-          };
-          for (const [key, value] of Object.entries(params)) {
-            url.searchParams.set(key, value);
-          }
-
-          return { redirect: url.toString(), state };
-        },
+      const startSignIn = buildStartSignIn({
+        allowedOrigins,
+        authorizationEndpoint: AUTHORIZATION_ENDPOINT,
+        scopes: SCOPES,
+        callbackMethod: CALLBACK_METHOD,
+        createAuthorizationRequest:
+          options.component.provider.createAuthorizationRequest,
       });
 
       /**

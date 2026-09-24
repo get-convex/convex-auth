@@ -1,10 +1,9 @@
 /**
  * The provider callback, shared by every OAuth component.
  *
- * A component's `http.ts` is the transport adapter around this: it reads the
- * callback parameters out of whatever the provider sent (a GET query string,
- * a POST form body), supplies the endpoints and credentials to exchange the
- * code with, and hands the rest to {@link runCallback}.
+ * This takes the callback parameters already pulled out of the request, plus
+ * the endpoints and credentials to exchange the code with, and runs the rest
+ * of the flow.
  *
  * @module
  */
@@ -13,7 +12,7 @@ import {
   encryptTicketPayload,
   generateRandomToken,
   type IssuerDeliveredJwt,
-} from "../component/crypto.ts";
+} from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../../lib/oauthParams.ts";
 import type { OidcClaims, TicketPayload } from "./redemption.ts";
@@ -51,6 +50,22 @@ export function redirectToApp(
     url.searchParams.set(key, value);
   }
   return redirect(url.toString(), status);
+}
+
+/**
+ * The response for a callback request that is rejected as invalid. It is sent
+ * before any flow is claimed, so there is no `redirectTo` to send the user
+ * back to.
+ */
+export function invalidCallbackResponse(
+  path: string,
+  reason: string,
+): Response {
+  console.warn(`OAuth callback at "${path}": ${reason}`);
+  return new Response(
+    "This sign-in link is invalid. Return to the app and try signing in again.",
+    { status: 400 },
+  );
 }
 
 /**
@@ -114,7 +129,7 @@ export async function exchangeCode(args: {
   tokenEndpoint: string;
   code: string;
   callbackUrl: string;
-  codeVerifier: string | undefined;
+  codeVerifier: string;
   clientId: string;
   clientSecret: string;
 }): Promise<{
@@ -129,10 +144,8 @@ export async function exchangeCode(args: {
     // Must byte-match the redirect_uri from the authorization request, so
     // it comes off the authorization request rather than being rebuilt here.
     redirect_uri: args.callbackUrl,
+    code_verifier: args.codeVerifier,
   });
-  if (args.codeVerifier !== undefined) {
-    body.set("code_verifier", args.codeVerifier);
-  }
   const response = await fetchRefusingRedirects(args.tokenEndpoint, {
     method: "POST",
     headers: {
@@ -255,11 +268,17 @@ export type ClaimedRequest = {
   stateHash: string;
   redirectTo: string;
   callbackUrl: string;
+  codeVerifier: string;
 };
 
 /** What claiming an authorization request can produce. */
 export type ClaimResult<Request extends ClaimedRequest> =
   null | { expired: true; redirectTo: string } | ({ expired: false } & Request);
+
+export type MintedTicket = {
+  ticketCodeHash: string;
+  encryptedPayload: string;
+};
 
 /** Everything needed to exchange the code with one provider. */
 export type ExchangeConfig = {
@@ -276,8 +295,6 @@ export type ExchangeConfig = {
    * where a failure redirects back to the app with `oauth_error`.
    */
   clientSecret: () => string | Promise<string>;
-  /** PKCE verifier, for a provider the flow enabled PKCE for. */
-  codeVerifier?: string;
   /** Accepted `iss` values, required when the provider returns an id_token. */
   issuers?: string[];
   /** Endpoints to fetch with the access token, keyed as the mapping reads them. */
@@ -302,10 +319,7 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
   /** Claim the flow by state hash, in this component's own tables. */
   claim: (stateHash: string) => Promise<ClaimResult<Request>>;
   /** Store the minted ticket in this component's own tables. */
-  mintTicket: (
-    request: Request,
-    ticket: { ticketCodeHash: string; encryptedPayload: string },
-  ) => Promise<null>;
+  mintTicket: (request: Request, ticket: MintedTicket) => Promise<null>;
   /** The endpoints and credentials for this flow's provider. */
   exchangeConfig: (request: Request) => ExchangeConfig;
   /**
@@ -324,13 +338,9 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
 }): Promise<Response> {
   const { params, redirectStatus } = options;
 
-  // Without state we can't identify the flow, so there's no stored
-  // redirectTo to send the user back to; a bare 400 is all we have.
+  // Without state we can't identify the flow.
   if (params.state === null) {
-    return new Response(
-      "This sign-in link is invalid. Return to the app and try signing in again.",
-      { status: 400 },
-    );
+    return invalidCallbackResponse(options.path, "no state parameter");
   }
 
   // Claiming is atomic (find + delete in one mutation), so a replayed or
@@ -389,7 +399,7 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
       tokenEndpoint: config.tokenEndpoint,
       code: params.code,
       callbackUrl: authRequest.callbackUrl,
-      codeVerifier: config.codeVerifier,
+      codeVerifier: authRequest.codeVerifier,
       clientId: config.clientId,
       clientSecret: await config.clientSecret(),
     });

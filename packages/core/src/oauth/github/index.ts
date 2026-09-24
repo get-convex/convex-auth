@@ -1,12 +1,26 @@
+/**
+ * The GitHub OAuth provider, exported at
+ * `@convex-dev/auth/providers/oauth/github`.
+ *
+ * @module
+ */
 import { Infer, v } from "convex/values";
 import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../components/core/setup.ts";
+import { buildStartSignIn } from "../shared/authorize.ts";
 import {
-  setupOauth,
-  type OauthCatalog,
-  type OauthProfile,
-  type OauthProviderOptions,
-} from "./setup.ts";
+  buildCompleteSignIn,
+  validateAllowedRedirectOrigins,
+} from "../shared/redemption.ts";
+import type { ComponentApi } from "./_generated/component.ts";
+import {
+  AUTHORIZATION_ENDPOINT,
+  PROVIDER_NAME,
+  SCOPES,
+  type GithubUserInfo,
+} from "./constants.ts";
+
+export type { GithubUserInfo };
 
 /**
  * The account profile the GitHub provider produces. GitHub is plain OAuth
@@ -31,36 +45,18 @@ export const vGithubProfile = v.object({
 
 export type GithubProfile = Infer<typeof vGithubProfile>;
 
-/** A GitHub `/user/emails` entry, the fields the mapping reads. */
-type GithubEmail = { email: string; primary: boolean; verified: boolean };
-
-/** The GitHub `/user` fields the mapping reads. */
-type GithubUser = {
-  id: number | string;
-  login: string;
-  name?: string | null;
-  email?: string | null;
-  avatar_url?: string;
-};
-
-/**
- * The userinfo responses the catalog's endpoints produce, keyed like its
- * `userInfoEndpoints` (see {@link OauthProfile}).
- */
-type GithubUserInfo = { user: GithubUser; emails: GithubEmail[] };
-
 /** Map GitHub's userinfo responses to {@link GithubProfile}. */
-export const normalizeGithubProfile: OauthProfile<
-  GithubProfile,
-  GithubUserInfo
-> = (_claims, userInfoResponses) => {
+export function normalizeGithubProfile(
+  userInfoResponses: GithubUserInfo | undefined,
+): GithubProfile {
   const user = userInfoResponses?.user;
   if (user === undefined) {
     throw new Error("GitHub userinfo response is missing the `user` entry");
   }
   // The response is untrusted JSON, and String() would turn a missing id
   // into the literal string "undefined", collapsing every affected user
-  // into one account.
+  // into one account. A missing `login` needs no such check: it fails the
+  // profile validator instead of corrupting anything.
   if (typeof user.id !== "number" && typeof user.id !== "string") {
     throw new Error("GitHub userinfo `user` entry is missing an id");
   }
@@ -76,24 +72,21 @@ export const normalizeGithubProfile: OauthProfile<
     emailVerified: verifiedEmail !== undefined,
     avatarUrl: user.avatar_url,
   };
-};
+}
 
-/** GitHub's endpoints, scopes, and profile mapping. */
-const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
-  authorizationEndpoint: "https://github.com/login/oauth/authorize",
-  tokenEndpoint: "https://github.com/login/oauth/access_token",
-  scopes: ["read:user", "user:email"],
-  pkce: true,
-  userInfoEndpoints: {
-    user: "https://api.github.com/user",
-    emails: "https://api.github.com/user/emails",
-  },
-  profile: normalizeGithubProfile,
+/** App-defined config for setting up the GitHub provider. */
+export type GithubProviderOptions = {
+  /** The GitHub oauth component instance, i.e. `components.oauthGithub`. */
+  component: ComponentApi;
+  /**
+   * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`
+   * for open-redirect prevention.
+   */
+  allowedRedirectOrigins: string[];
 };
 
 /**
- * Built-in GitHub OAuth provider. Wire it up with its own oauth component
- * instance:
+ * Built-in GitHub OAuth provider. Wire it up with the GitHub oauth component:
  *
  * ```ts
  * export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
@@ -114,8 +107,14 @@ const githubCatalog: OauthCatalog<GithubProfile, GithubUserInfo> = {
  */
 export function setupGithub<UsersTable extends string>(
   core: AuthCore<UsersTable>,
-  options: OauthProviderOptions,
+  options: GithubProviderOptions,
 ) {
+  // Validate the app-supplied options up front so mistakes fail at deploy
+  // time, not on the first sign-in.
+  const allowedOrigins = validateAllowedRedirectOrigins(
+    options.allowedRedirectOrigins,
+  );
+
   return {
     /**
      * Supply the app's user callbacks (see {@link UserCallbacks} for how their
@@ -124,13 +123,31 @@ export function setupGithub<UsersTable extends string>(
     attachUserCallbacks(
       callbacks: UserCallbacks<"github", GithubProfile, UsersTable>,
     ) {
-      const { startSignIn, completeSignIn } = setupOauth(
-        core,
-        "github",
-        githubCatalog,
-        callbacks,
-        options,
-      );
+      const { authMutation } = core.bindProvider({
+        name: PROVIDER_NAME,
+        createUser: callbacks.createUser,
+        onSignIn: callbacks.onSignIn,
+      });
+
+      const startSignIn = buildStartSignIn({
+        allowedOrigins,
+        authorizationEndpoint: AUTHORIZATION_ENDPOINT,
+        scopes: SCOPES,
+        createAuthorizationRequest:
+          options.component.provider.createAuthorizationRequest,
+      });
+
+      const completeSignIn = buildCompleteSignIn<
+        GithubProfile,
+        { userInfoResponses?: GithubUserInfo }
+      >({
+        providerName: PROVIDER_NAME,
+        authMutation,
+        claimTicket: (ctx, args) =>
+          ctx.runMutation(options.component.provider.claimTicket, args),
+        profile: (payload) => normalizeGithubProfile(payload.userInfoResponses),
+      });
+
       return {
         startSignInGithub: startSignIn,
         completeSignInGithub: completeSignIn,
