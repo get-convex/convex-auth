@@ -13,8 +13,6 @@
   "scripts": {
     "build": "vite build && tsc -p convex --noEmit",
     "dev": "convex dev --start vite",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc -p convex --noEmit"
   },
   "devDependencies": {
