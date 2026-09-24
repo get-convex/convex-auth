@@ -21,13 +21,13 @@ import { AuthClientContext, useAuth } from "../../react/client.tsx";
 import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
 import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
 import type {
-  SignUpResult,
+  SignUpResult as SignUpMutationResult,
   CompleteSignUpResult,
-  SignInResult,
-  StartChangeEmailResult,
+  SignInResult as SignInMutationResult,
+  StartChangeEmailResult as StartChangeEmailMutationResult,
   CompleteChangeEmailResult,
-  StartPasswordRecoveryResult,
-  CompletePasswordRecoveryResult,
+  StartPasswordRecoveryResult as StartPasswordRecoveryMutationResult,
+  CompletePasswordRecoveryResult as CompletePasswordRecoveryMutationResult,
 } from "./setup.ts";
 
 /** The flows that keep a secret in the starting browser's storage. */
@@ -90,7 +90,7 @@ type SignUpMutation = FunctionReference<
   "mutation",
   "public",
   { email: string; password: string },
-  ClientView<SignUpResult>
+  ClientView<SignUpMutationResult>
 >;
 
 type CompleteSignUpMutation = FunctionReference<
@@ -104,14 +104,14 @@ type SignInMutation = FunctionReference<
   "mutation",
   "public",
   { email: string; password: string },
-  ClientView<SignInResult>
+  ClientView<SignInMutationResult>
 >;
 
 type StartChangeEmailMutation = FunctionReference<
   "mutation",
   "public",
   { newEmail: string; currentPassword: string },
-  StartChangeEmailResult
+  StartChangeEmailMutationResult
 >;
 
 type CompleteChangeEmailMutation = FunctionReference<
@@ -125,38 +125,38 @@ type StartPasswordRecoveryMutation = FunctionReference<
   "mutation",
   "public",
   { email: string },
-  StartPasswordRecoveryResult
+  StartPasswordRecoveryMutationResult
 >;
 
 type CompletePasswordRecoveryMutation = FunctionReference<
   "mutation",
   "public",
   { emailCode: string; browserSecret: string; newPassword: string },
-  ClientView<CompletePasswordRecoveryResult>
+  ClientView<CompletePasswordRecoveryMutationResult>
 >;
 
 /** The result of the `signIn` callback from {@link useSignInWithEmailPassword}. */
-export type SignInWithEmailPasswordResult =
-  ClientView<SignInResult> | SignInUnexpectedFailure;
+export type SignInResult =
+  ClientView<SignInMutationResult> | SignInUnexpectedFailure;
 
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
-export type SignUpWithEmailPasswordResult =
-  WithoutSecret<ClientView<SignUpResult>> | UnexpectedFailure;
+export type SignUpResult =
+  WithoutSecret<ClientView<SignUpMutationResult>> | UnexpectedFailure;
 
 /** The result of the `startChangeEmail` callback from {@link useStartChangeEmail}. */
-export type StartChangeEmailClientResult =
-  WithoutSecret<StartChangeEmailResult> | UnexpectedFailure;
+export type StartChangeEmailResult =
+  WithoutSecret<StartChangeEmailMutationResult> | UnexpectedFailure;
 
 /** The result of the `startPasswordRecovery` callback from {@link useStartPasswordRecovery}. */
-export type StartPasswordRecoveryClientResult =
-  WithoutSecret<StartPasswordRecoveryResult> | UnexpectedFailure;
+export type StartPasswordRecoveryResult =
+  WithoutSecret<StartPasswordRecoveryMutationResult> | UnexpectedFailure;
 
 /**
  * The result of the `completePasswordRecovery` callback of the `ready` state
  * of {@link useCompletePasswordRecovery}.
  */
-export type CompletePasswordRecoveryClientResult =
-  ClientView<CompletePasswordRecoveryResult> | SignInUnexpectedFailure;
+export type CompletePasswordRecoveryResult =
+  ClientView<CompletePasswordRecoveryMutationResult> | SignInUnexpectedFailure;
 
 /**
  * The state of a landing page hook: `pending` until the link has been
@@ -184,7 +184,7 @@ export type CompleteChangeEmailState = LinkFlowState<
  * than about the new password. They end the flow: the user needs a new link.
  */
 type PasswordRecoveryLinkError = Extract<
-  SignInError<ClientView<CompletePasswordRecoveryResult>>,
+  SignInError<ClientView<CompletePasswordRecoveryMutationResult>>,
   { error: "INVALID_CHALLENGE" | "INCORRECT_CODE" }
 >;
 
@@ -204,7 +204,7 @@ export type CompletePasswordRecoveryState =
        */
       completePasswordRecovery: (args: {
         newPassword: string;
-      }) => Promise<CompletePasswordRecoveryClientResult>;
+      }) => Promise<CompletePasswordRecoveryResult>;
       /** `true` while `completePasswordRecovery` is in flight. */
       pending: boolean;
     }
@@ -392,7 +392,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
     async (credentials: {
       email: string;
       password: string;
-    }): Promise<SignInWithEmailPasswordResult> =>
+    }): Promise<SignInResult> =>
       track(async () => {
         try {
           const result = await signInApi.mutation(signInMutation, credentials);
@@ -488,7 +488,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
     async (credentials: {
       email: string;
       password: string;
-    }): Promise<SignUpWithEmailPasswordResult> =>
+    }): Promise<SignUpResult> =>
       track(async () => {
         try {
           const result = await signInApi.mutation(signUpMutation, credentials);
@@ -581,9 +581,7 @@ export function useStartPasswordRecovery(
   const { pending, track } = usePending();
 
   const startPasswordRecovery = useCallback(
-    async (args: {
-      email: string;
-    }): Promise<StartPasswordRecoveryClientResult> =>
+    async (args: { email: string }): Promise<StartPasswordRecoveryResult> =>
       track(async () => {
         try {
           const result = await runStartPasswordRecovery(args);
@@ -703,7 +701,7 @@ export function useCompletePasswordRecovery(
       newPassword,
     }: {
       newPassword: string;
-    }): Promise<CompletePasswordRecoveryClientResult> =>
+    }): Promise<CompletePasswordRecoveryResult> =>
       track(async () => {
         if (typeof browserSecret !== "string") {
           // Only reachable through the `ready` state, which has the secret.
@@ -775,7 +773,7 @@ export function useStartChangeEmail(
     async (args: {
       newEmail: string;
       currentPassword: string;
-    }): Promise<StartChangeEmailClientResult> =>
+    }): Promise<StartChangeEmailResult> =>
       track(async () => {
         try {
           const result = await runStartChangeEmail(args);
