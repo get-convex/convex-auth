@@ -205,7 +205,7 @@ describe("useSignUpWithEmailPassword", () => {
       returned = await result.current.hook.signUp(credentials);
     });
 
-    expect(returned).toEqual({ success: true, browserSecret: "secret-1" });
+    expect(returned).toEqual({ success: true });
     // The secret is kept for the completion step; no session was adopted.
     expect(secretStorage.get(SIGN_UP_SECRET_KEY)).toBe("secret-1");
     expect(result.current.auth.isAuthenticated).toBe(false);
@@ -407,7 +407,7 @@ describe("useStartPasswordRecovery", () => {
     });
 
     expect(mutation.mock.calls[0]?.[1]).toEqual({ email: "alice@example.com" });
-    expect(returned).toEqual({ success: true, browserSecret: "secret-9" });
+    expect(returned).toEqual({ success: true });
     expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBe("secret-9");
   });
 
@@ -549,7 +549,7 @@ describe("useStartChangeEmail", () => {
     });
 
     expect(mutation.mock.calls[0]?.[1]).toEqual(args);
-    expect(returned).toEqual({ success: true, browserSecret: "secret-5" });
+    expect(returned).toEqual({ success: true });
     expect(secretStorage.get(CHANGE_EMAIL_SECRET_KEY)).toBe("secret-5");
   });
 

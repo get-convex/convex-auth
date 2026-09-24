@@ -75,6 +75,15 @@ type MissingSecretError = { error: "MISSING_SECRET" };
 
 type UnexpectedFailure = { success: false; userError: OtherError };
 
+/**
+ * The success arm of a "start" result, without the `browserSecret`. The hook
+ * stores the secret itself; the caller has no use for it, and keeping it out
+ * of the result keeps it out of URLs and logs.
+ */
+type WithoutSecret<Result> = Result extends { success: true }
+  ? { success: true }
+  : Result;
+
 type SignInUnexpectedFailure = { status: "error"; userError: OtherError };
 
 type SignUpMutation = FunctionReference<
@@ -132,15 +141,15 @@ export type SignInWithEmailPasswordResult =
 
 /** The result of the `signUp` callback from {@link useSignUpWithEmailPassword}. */
 export type SignUpWithEmailPasswordResult =
-  ClientView<SignUpResult> | UnexpectedFailure;
+  WithoutSecret<ClientView<SignUpResult>> | UnexpectedFailure;
 
 /** The result of the `startChangeEmail` callback from {@link useStartChangeEmail}. */
 export type StartChangeEmailClientResult =
-  StartChangeEmailResult | UnexpectedFailure;
+  WithoutSecret<StartChangeEmailResult> | UnexpectedFailure;
 
 /** The result of the `startPasswordRecovery` callback from {@link useStartPasswordRecovery}. */
 export type StartPasswordRecoveryClientResult =
-  StartPasswordRecoveryResult | UnexpectedFailure;
+  WithoutSecret<StartPasswordRecoveryResult> | UnexpectedFailure;
 
 /**
  * The result of the `completePasswordRecovery` callback of the `ready` state
@@ -485,6 +494,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
           const result = await signInApi.mutation(signUpMutation, credentials);
           if (result.success) {
             await storage.set(SECRET_STORAGE_KEYS.signUp, result.browserSecret);
+            return { success: true };
           }
           return result;
         } catch (cause) {
@@ -582,6 +592,7 @@ export function useStartPasswordRecovery(
               SECRET_STORAGE_KEYS.passwordRecovery,
               result.browserSecret,
             );
+            return { success: true };
           }
           return result;
         } catch (cause) {
@@ -773,6 +784,7 @@ export function useStartChangeEmail(
               SECRET_STORAGE_KEYS.changeEmail,
               result.browserSecret,
             );
+            return { success: true };
           }
           return result;
         } catch (cause) {
