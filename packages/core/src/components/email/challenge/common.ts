@@ -170,8 +170,9 @@ export type CompleteFreeAddressFailure = Infer<
 >;
 
 /**
- * The result of `claimChallenge`. The kinds return `failure` as-is when the
- * claim fails; it already has the shape of a failed `complete` result.
+ * The result of `findClaimableChallenge` and `claimChallenge`. The kinds
+ * return `failure` as-is when the claim fails; it already has the shape of a
+ * failed `complete` result.
  */
 export type ClaimChallengeResult =
   | { success: true; row: Doc<"challenges"> }
@@ -332,15 +333,14 @@ function samePurpose(a: ChallengePurpose, b: ClaimPurpose): boolean {
 }
 
 /**
- * Claim a challenge with the code from the link and the secret from the
- * starting browser. Returns the row when the claim succeeds, or the failure
- * that the `complete` mutation returns to the client.
+ * Find the challenge that the code from the link and the secret from the
+ * starting browser can claim, without claiming it. Returns the row when all
+ * of the checks pass, or the failure that the `complete` mutation returns to
+ * the client.
  *
  * The secret identifies the challenge, and the code proves access to the
  * mailbox. A caller without the secret cannot reach the row, so a person who
  * reads the mailbox alone can neither complete the challenge nor burn it.
- * The row is deleted only when the claim succeeds, so a claimed link can
- * never be replayed.
  *
  * `INVALID_CHALLENGE` means that there is no live challenge for the secret.
  * The challenge may have expired, may already have been used, or may never
@@ -354,8 +354,8 @@ function samePurpose(a: ChallengePurpose, b: ClaimPurpose): boolean {
  * one) throws. It is an application bug: the landing page called the wrong
  * function, or gave the wrong user.
  */
-export async function claimChallenge(
-  ctx: MutationCtx,
+export async function findClaimableChallenge(
+  ctx: QueryCtx,
   args: { emailCode: string; browserSecret: string; purpose: ClaimPurpose },
 ): Promise<ClaimChallengeResult> {
   const browserSecretHash = await sha256Hex(args.browserSecret);
@@ -394,6 +394,21 @@ export async function claimChallenge(
       `Challenge purpose mismatch: the row is for "${row.purpose.kind}", but the complete call expects "${args.purpose.kind}"`,
     );
   }
-  await ctx.db.delete("challenges", row._id);
   return { success: true, row };
+}
+
+/**
+ * Claim a challenge: run the checks of {@link findClaimableChallenge}, then
+ * delete the row. The row is deleted only when the claim succeeds, so a
+ * claimed link can never be replayed.
+ */
+export async function claimChallenge(
+  ctx: MutationCtx,
+  args: { emailCode: string; browserSecret: string; purpose: ClaimPurpose },
+): Promise<ClaimChallengeResult> {
+  const claim = await findClaimableChallenge(ctx, args);
+  if (claim.success) {
+    await ctx.db.delete("challenges", claim.row._id);
+  }
+  return claim;
 }

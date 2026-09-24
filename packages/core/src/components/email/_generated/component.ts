@@ -160,6 +160,23 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             },
           Name
         >;
+        peek: FunctionReference<
+          "query",
+          "internal",
+          {
+            browserSecret: string;
+            emailCode: string;
+            purpose: string;
+            userId: string | null;
+          },
+          | { email: string; success: true; userId: string | null }
+          | {
+              success: false;
+              userError:
+                { error: "INVALID_CHALLENGE" } | { error: "INCORRECT_CODE" };
+            },
+          Name
+        >;
         start: FunctionReference<
           "mutation",
           "internal",
