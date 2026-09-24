@@ -4,7 +4,11 @@
  *
  * @module
  */
-import { createFunctionHandle } from "convex/server";
+import {
+  createFunctionHandle,
+  type GenericMutationCtx,
+  type GenericDataModel,
+} from "convex/server";
 import { Infer, v } from "convex/values";
 import {
   vSignInComplete,
@@ -13,6 +17,7 @@ import {
   type UserCallbacks,
 } from "../../lib/types.ts";
 import type { AuthCore } from "../core/setup.ts";
+import { getAuthUserId } from "../core/userId.ts";
 import type { ComponentApi } from "./_generated/component.js";
 import type { ComponentApi as PasswordComponentApi } from "../password/_generated/component.js";
 import {
@@ -96,6 +101,8 @@ export type EmailPasswordOptions = {
   urls: EmailPasswordUrls;
 };
 
+const vNotLoggedIn = v.object({ error: v.literal("NOT_LOGGED_IN") });
+
 const signUpResult = v.union(
   v.object({
     success: v.literal(true),
@@ -134,6 +141,29 @@ const signInResult = v.union(
 /** The result of `signIn`: the minted session tokens, or an error. */
 export type SignInResult = Infer<typeof signInResult>;
 
+const changePasswordResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(
+      vNotLoggedIn,
+      v.object({ error: v.literal("INVALID_CREDENTIALS") }),
+      v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+      setPasswordUserError,
+    ),
+  }),
+);
+
+/**
+ * The result of `changePassword`.
+ *
+ * `INVALID_CREDENTIALS` and `RATE_LIMITED` are about the current password.
+ * The other errors are about the new password.
+ */
+export type ChangePasswordResult = Infer<typeof changePasswordResult>;
+
+type MutationCtx = GenericMutationCtx<GenericDataModel>;
+
 export type EmailPasswordProfile = Record<string, never>;
 
 /**
@@ -149,23 +179,27 @@ export type EmailPasswordProfile = Record<string, never>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUp, completeSignUp, signIn } = setupEmailPassword(core, {
- *   component: components.authEmail,
- *   passwordComponent: components.authPasswordProvider,
- *   emailSender: {
- *     kind: "resend",
- *     sendEmail: components.resend.lib.sendEmail,
- *     apiKey: env.RESEND_API_KEY,
- *     from: "My App <auth@example.com>",
- *     testMode: false,
- *   },
- *   urls: {
- *     signUp: `${env.SITE_URL}/validate-email`,
- *   },
- * }).attachUserCallback(internal.users.createOrUpdateUser);
+ * export const { signUp, completeSignUp, signIn, changePassword } =
+ *   setupEmailPassword(core, {
+ *     component: components.authEmail,
+ *     passwordComponent: components.authPasswordProvider,
+ *     emailSender: {
+ *       kind: "resend",
+ *       sendEmail: components.resend.lib.sendEmail,
+ *       apiKey: env.RESEND_API_KEY,
+ *       from: "My App <auth@example.com>",
+ *       testMode: false,
+ *     },
+ *     urls: {
+ *       signUp: `${env.SITE_URL}/validate-email`,
+ *     },
+ *   }).attachUserCallbacks({ createUser: internal.users.createUser });
  * ```
  *
  * - Sign-in accepts any verified email of the account.
+ * - Change-password requires the session *and* the current password
+ *   (OWASP ASVS v5 6.2.3), and sends a security notification to the
+ *   primary address (ASVS 6.3.7).
  *
  * Account resolution (email → app user id) is owned by the email component;
  * the password component stores only `{ userId, passwordHash }`.
@@ -192,6 +226,43 @@ export function setupEmailPassword<UsersTable extends string>(
     from: emailSender.from,
     ...senderRuntimeOptions(),
   });
+
+  /**
+   * Send a security notification (ASVS 6.3.7) directly through the Resend
+   * reference. Notifications do not go through the email component: they
+   * need no validation state, only a send.
+   */
+  const notify = async (
+    ctx: MutationCtx,
+    to: string,
+    subject: string,
+    text: string,
+  ): Promise<void> => {
+    await ctx.runMutation(emailSender.sendEmail, {
+      options: senderRuntimeOptions(),
+      from: emailSender.from,
+      to: [to],
+      subject,
+      text,
+    });
+  };
+
+  /** The user's primary verified email, or `null`. */
+  const primaryEmail = async (
+    ctx: MutationCtx,
+    userId: string,
+  ): Promise<string | null> => {
+    const emails = await ctx.runQuery(component.verifiedEmails.getEmails, {
+      userId,
+    });
+    return emails.find((entry) => entry.isPrimary)?.email ?? null;
+  };
+
+  const PASSWORD_CHANGED_SUBJECT = "Your password was changed";
+  const PASSWORD_CHANGED_TEXT =
+    "The password of your account was changed.\n\n" +
+    "If you did this, you can ignore this email. If you did not do " +
+    "this, reset your password immediately.";
 
   return {
     /**
@@ -356,6 +427,78 @@ export function setupEmailPassword<UsersTable extends string>(
               profile: {},
             });
             return { status: "complete", tokens };
+          },
+        }),
+
+        /**
+         * Change the signed-in user's password. Requires the session *and* the
+         * current password (OWASP ASVS v5 6.2.3), and notifies the primary
+         * email address (ASVS 6.3.7).
+         */
+        // TODO: option to invalidate the user's other sessions.
+        changePassword: authMutation({
+          args: { currentPassword: v.string(), newPassword: v.string() },
+          returns: changePasswordResult,
+          handler: async (
+            ctx,
+            { currentPassword, newPassword },
+          ): Promise<ChangePasswordResult> => {
+            const userId = await getAuthUserId(ctx);
+            if (userId === null) {
+              return { success: false, userError: { error: "NOT_LOGGED_IN" } };
+            }
+
+            // Validate the new password before the current password, so that
+            // an invalid new password does not consume the rate limit.
+            const newPasswordError = validateNewPassword(newPassword);
+            if (newPasswordError !== null) {
+              return { success: false, userError: newPasswordError };
+            }
+
+            // TODO: This doesn’t compose with other providers. If the user doesn’t
+            // have a password yet, they currently can’t set one. We should fix this
+            // when we have a first-party “auth-flow” concept so that users can
+            // re-authenticate another way.
+            const verifyResult = await ctx.runMutation(
+              passwordComponent.public.verifyPassword,
+              { userId, password: currentPassword },
+            );
+            if (!verifyResult.success) {
+              if (verifyResult.userError.error === "RATE_LIMITED") {
+                return { success: false, userError: verifyResult.userError };
+              }
+              // `verifyPassword` also returns format errors. Return
+              // INVALID_CREDENTIALS for all of them, so that the user does not
+              // think that the new password has a problem.
+              verifyResult.userError.error satisfies
+                | "PASSWORD_TOO_SHORT"
+                | "PASSWORD_TOO_LONG"
+                | "PASSWORD_HAS_SURROUNDING_WHITESPACE"
+                | "INVALID_CREDENTIALS";
+              return {
+                success: false,
+                userError: { error: "INVALID_CREDENTIALS" },
+              };
+            }
+
+            const setResult = await ctx.runMutation(
+              passwordComponent.public.setPassword,
+              { userId, password: newPassword },
+            );
+            if (!setResult.success) {
+              return { success: false, userError: setResult.userError };
+            }
+
+            const to = await primaryEmail(ctx, userId);
+            if (to !== null) {
+              await notify(
+                ctx,
+                to,
+                PASSWORD_CHANGED_SUBJECT,
+                PASSWORD_CHANGED_TEXT,
+              );
+            }
+            return { success: true };
           },
         }),
       };
