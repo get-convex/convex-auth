@@ -53,7 +53,6 @@ export async function stubEmailSender(
     sendEmailHandle,
     from: "Test App <auth@example.com>",
     apiKey: "re_test_key",
-    testMode: true,
     initialBackoffMs: 0,
     retryAttempts: 0,
   };
