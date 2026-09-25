@@ -40,7 +40,7 @@ const credentials = { username: "alice", password: "hunter2" };
 // The stub signInApi ignores the reference, so any value will do.
 const mutation = {} as never;
 
-const flows = [
+const flows: { name: string; useFlow: () => Flow }[] = [
   {
     name: "useSignInWithPassword",
     useFlow: () => {
@@ -57,7 +57,7 @@ const flows = [
   },
 ];
 
-function renderFlow(useFlow: () => Flow) {
+function renderFlow<F>(useFlow: () => F) {
   const client = new AuthClient({
     mode: "spa",
     authApi: {
@@ -99,6 +99,29 @@ describe.each(flows)("$name", ({ useFlow }) => {
     expect(returned).toEqual({ status: "complete", tokens: bundle });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(result.current.token).toBe("access-1");
+  });
+
+  test("an incomplete sign-in is returned without adopting a session", async () => {
+    // The password was right and the user owes a TOTP code. The attempt token
+    // passes through to the caller, which shows the code prompt.
+    const incomplete = {
+      status: "incomplete",
+      attemptToken: "attempt-1",
+      expiresAt: 3_000,
+      requirements: ["totp"],
+    };
+    runMutation.mockResolvedValue(incomplete);
+    const { result } = renderFlow(useFlow);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Result;
+    await act(async () => {
+      returned = await result.current.flow.run(credentials);
+    });
+
+    expect(returned).toEqual(incomplete);
+    expect(result.current.auth.isAuthenticated).toBe(false);
+    expect(result.current.token).toBeNull();
   });
 
   test("user error is returned without adopting a session", async () => {

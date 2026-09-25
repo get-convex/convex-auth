@@ -88,6 +88,22 @@
       "types": "./dist/components/totp/_generated/component.d.ts",
       "default": "./dist/components/totp/_generated/component.js"
     },
+    "./totp/setup.js": {
+      "types": "./dist/components/totp/setup.d.ts",
+      "default": "./dist/components/totp/setup.js"
+    },
+    "./totp/setup": {
+      "types": "./dist/components/totp/setup.d.ts",
+      "default": "./dist/components/totp/setup.js"
+    },
+    "./totp/react.js": {
+      "types": "./dist/components/totp/react.d.ts",
+      "default": "./dist/components/totp/react.js"
+    },
+    "./totp/react": {
+      "types": "./dist/components/totp/react.d.ts",
+      "default": "./dist/components/totp/react.js"
+    },
     "./providers/anonymous/*.js": {
       "types": "./dist/components/anonymous/*.d.ts",
       "default": "./dist/components/anonymous/*.js"

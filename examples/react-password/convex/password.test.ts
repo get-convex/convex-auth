@@ -5,6 +5,11 @@ import { api, components } from "./_generated/api.js";
 import { registerCore } from "@convex-dev/auth/providers/testing/core";
 import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password";
 import { registerUsername } from "@convex-dev/auth/providers/testing/username";
+import {
+  BACKUP_CODE_COUNT,
+  registerTotp,
+  totp as totpCode,
+} from "@convex-dev/auth/providers/testing/totp";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -33,6 +38,7 @@ async function setup() {
   registerCore(t);
   registerPasswordProvider(t);
   registerUsername(t);
+  registerTotp(t);
   return t;
 }
 
@@ -358,4 +364,327 @@ describe("changePassword", () => {
       userError: { error: "RATE_LIMITED", retryAfterMs: expect.any(Number) },
     });
   });
+});
+
+describe("TOTP second factor", () => {
+  type T = Awaited<ReturnType<typeof setup>>;
+  type SignInResult = Awaited<ReturnType<typeof signIn>>;
+  type Incomplete = Extract<SignInResult, { status: "incomplete" }>;
+
+  const PERIOD_MS = 30_000;
+  // A moment in the middle of a time step, so that a few milliseconds of
+  // test time never cross a step boundary.
+  const START = 1_700_000_015_000;
+
+  // The codes depend on the time. Only `Date` is faked, because convex-test
+  // uses the real timers.
+  const withClock =
+    <R>(fn: () => Promise<R>) =>
+    async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(START);
+      try {
+        return await fn();
+      } finally {
+        vi.useRealTimers();
+      }
+    };
+  const advance = (ms: number) => vi.setSystemTime(Date.now() + ms);
+
+  // The code the user's authenticator app shows for the secret right now.
+  const codeFor = (secret: string) =>
+    totpCode({ secret, algorithm: "SHA-1", digits: 6, period: 30 }, Date.now());
+
+  /**
+   * Sign Alice up and enroll her authenticator the way the app does it,
+   * through the TOTP component. The confirmation code cannot sign in, so the
+   * clock moves one step past it.
+   */
+  async function enrolledAlice(t: T) {
+    const up = await signUp(t, "alice", PASSWORD);
+    const userId = (up as PasswordSuccess).tokens.userId;
+    const { secret, backupCodes } = await t.run(async (ctx) => {
+      const { secret } = await ctx.runMutation(
+        components.authTotp.enrollment.createTotp,
+        { userId, issuerDisplayName: "Example", accountDisplayName: "alice" },
+      );
+      const confirmed = await ctx.runMutation(
+        components.authTotp.enrollment.confirmTotp,
+        { userId, code: await codeFor(secret) },
+      );
+      if (!confirmed.success) throw new Error("enrollment failed");
+      return { secret, backupCodes: confirmed.backupCodes };
+    });
+    advance(PERIOD_MS);
+    return { userId, secret, backupCodes };
+  }
+
+  /** Sign in and assert the sign-in is held for a code. */
+  async function heldSignIn(t: T): Promise<Incomplete> {
+    const result = await signIn(t, "alice", PASSWORD);
+    expect(result).toEqual({
+      status: "incomplete",
+      attemptToken: expect.any(String),
+      expiresAt: expect.any(Number),
+      requirements: ["totp"],
+    });
+    return result as Incomplete;
+  }
+
+  /** The first step of finishing a held sign-in: verify a code for it. */
+  const verify = (
+    t: T,
+    attemptToken: string,
+    code: string,
+    kind?: "totp" | "backup",
+  ) => t.mutation(api.auth.verifyTotpForSignIn, { attemptToken, code, kind });
+
+  /** The second step: ask the core to finish the sign-in. */
+  const continueSignIn = (t: T, attemptToken: string) =>
+    t.mutation(api.auth.continueSignIn, { attemptToken });
+
+  const completeTokens = {
+    accessToken: expect.any(String),
+    accessTokenExpiresAt: expect.any(Number),
+    refreshToken: expect.any(String),
+    refreshTokenExpiresAt: expect.any(Number),
+    userId: expect.any(String),
+  };
+  const expired = {
+    status: "error",
+    userError: { error: "SIGN_IN_EXPIRED" },
+  };
+  const stillOwed = (attemptToken: string) => ({
+    status: "incomplete",
+    attemptToken,
+    expiresAt: expect.any(Number),
+    requirements: ["totp"],
+  });
+
+  test(
+    "a user without TOTP signs in as before",
+    withClock(async () => {
+      const t = await setup();
+      await signUp(t, "alice", PASSWORD);
+      expect(await signIn(t, "alice", PASSWORD)).toMatchObject({
+        status: "complete",
+      });
+    }),
+  );
+
+  test(
+    "an enrolled user's password alone holds the sign-in for a code",
+    withClock(async () => {
+      const t = await setup();
+      await enrolledAlice(t);
+      const held = await heldSignIn(t);
+      expect(held.expiresAt).toBeGreaterThan(Date.now());
+
+      // The wrong password is still the wrong password, held or not.
+      expect(await signIn(t, "alice", "wrong horse battery staple")).toEqual({
+        status: "error",
+        userError: { error: "INVALID_CREDENTIALS" },
+      });
+    }),
+  );
+
+  test(
+    "continuing before a code is verified reports the code still owed",
+    withClock(async () => {
+      const t = await setup();
+      await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+
+      // Nothing was verified, so nothing is minted, and the same token keeps
+      // continuing the sign-in.
+      expect(await continueSignIn(t, attemptToken)).toEqual(
+        stillOwed(attemptToken),
+      );
+      expect(await continueSignIn(t, attemptToken)).toEqual(
+        stillOwed(attemptToken),
+      );
+    }),
+  );
+
+  test(
+    "the right code lets the sign-in finish as the held user, once",
+    withClock(async () => {
+      const t = await setup();
+      const { userId, secret } = await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+
+      // Verifying mints nothing by itself...
+      expect(await verify(t, attemptToken, await codeFor(secret))).toEqual({
+        success: true,
+      });
+      // ...continuing does, as the user the attempt names.
+      const result = await continueSignIn(t, attemptToken);
+      expect(result).toEqual({ status: "complete", tokens: completeTokens });
+      expect(
+        (result as Extract<typeof result, { status: "complete" }>).tokens
+          .userId,
+      ).toBe(userId);
+
+      // The attempt is spent: neither step accepts the token again.
+      advance(PERIOD_MS);
+      expect(await verify(t, attemptToken, await codeFor(secret))).toEqual({
+        success: false,
+        userError: { error: "SIGN_IN_EXPIRED" },
+      });
+      expect(await continueSignIn(t, attemptToken)).toEqual(expired);
+    }),
+  );
+
+  test(
+    "a wrong code is refused and the attempt stays open for another try",
+    withClock(async () => {
+      const t = await setup();
+      const { secret } = await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+
+      expect(await verify(t, attemptToken, "000000")).toEqual({
+        success: false,
+        userError: { error: "INVALID_CODE" },
+      });
+      expect(await continueSignIn(t, attemptToken)).toEqual(
+        stillOwed(attemptToken),
+      );
+      expect(await verify(t, attemptToken, await codeFor(secret))).toEqual({
+        success: true,
+      });
+      expect(await continueSignIn(t, attemptToken)).toMatchObject({
+        status: "complete",
+      });
+    }),
+  );
+
+  test(
+    "a backup code satisfies the sign-in and reports how many remain",
+    withClock(async () => {
+      const t = await setup();
+      const { backupCodes } = await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+
+      expect(await verify(t, attemptToken, backupCodes[0], "backup")).toEqual({
+        success: true,
+        remainingBackupCodes: BACKUP_CODE_COUNT - 1,
+      });
+      expect(await continueSignIn(t, attemptToken)).toMatchObject({
+        status: "complete",
+      });
+    }),
+  );
+
+  test(
+    "a backup code typed as a TOTP code is refused",
+    withClock(async () => {
+      const t = await setup();
+      const { backupCodes } = await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+      expect(await verify(t, attemptToken, backupCodes[0])).toEqual({
+        success: false,
+        userError: { error: "INVALID_CODE" },
+      });
+    }),
+  );
+
+  test(
+    "an unknown attempt token is refused by both steps without checking the code",
+    withClock(async () => {
+      const t = await setup();
+      const { secret } = await enrolledAlice(t);
+      expect(await verify(t, "not-a-token", await codeFor(secret))).toEqual({
+        success: false,
+        userError: { error: "SIGN_IN_EXPIRED" },
+      });
+      expect(await continueSignIn(t, "not-a-token")).toEqual(expired);
+    }),
+  );
+
+  test(
+    "an expired attempt is refused by both steps",
+    withClock(async () => {
+      const t = await setup();
+      const { secret } = await enrolledAlice(t);
+      const { attemptToken, expiresAt } = await heldSignIn(t);
+      vi.setSystemTime(expiresAt + 1);
+      expect(await verify(t, attemptToken, await codeFor(secret))).toEqual({
+        success: false,
+        userError: { error: "SIGN_IN_EXPIRED" },
+      });
+      expect(await continueSignIn(t, attemptToken)).toEqual(expired);
+    }),
+  );
+
+  test(
+    "a fresh sign-in supersedes the earlier attempt, and its verified code with it",
+    withClock(async () => {
+      const t = await setup();
+      const { secret } = await enrolledAlice(t);
+      const first = await heldSignIn(t);
+      // The code is verified for the first attempt...
+      expect(
+        await verify(t, first.attemptToken, await codeFor(secret)),
+      ).toEqual({ success: true });
+      // ...then a second sign-in replaces it. The first token is dead, and the
+      // proof recorded for it does not carry over to the new attempt.
+      const second = await heldSignIn(t);
+      expect(second.attemptToken).not.toBe(first.attemptToken);
+      expect(await continueSignIn(t, first.attemptToken)).toEqual(expired);
+      expect(await continueSignIn(t, second.attemptToken)).toEqual(
+        stillOwed(second.attemptToken),
+      );
+
+      advance(PERIOD_MS);
+      expect(
+        await verify(t, second.attemptToken, await codeFor(secret)),
+      ).toEqual({ success: true });
+      expect(await continueSignIn(t, second.attemptToken)).toMatchObject({
+        status: "complete",
+      });
+    }),
+  );
+
+  test(
+    "code guessing is rate limited per user",
+    withClock(async () => {
+      const t = await setup();
+      await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+      for (let i = 0; i < 5; i++) {
+        expect(await verify(t, attemptToken, "000000")).toEqual({
+          success: false,
+          userError: { error: "INVALID_CODE" },
+        });
+      }
+      expect(await verify(t, attemptToken, "000000")).toEqual({
+        success: false,
+        userError: {
+          error: "RATE_LIMITED",
+          retryAfterMs: expect.any(Number),
+        },
+      });
+    }),
+  );
+
+  test(
+    "a user whose TOTP was turned off mid-flow owes no code",
+    withClock(async () => {
+      const t = await setup();
+      const { userId } = await enrolledAlice(t);
+      const { attemptToken } = await heldSignIn(t);
+      await t.run((ctx) =>
+        ctx.runMutation(components.authTotp.management.deleteUser, { userId }),
+      );
+      // There is no code to verify any more...
+      expect(await verify(t, attemptToken, "000000")).toEqual({
+        success: false,
+        userError: { error: "NOT_ENROLLED" },
+      });
+      // ...and nothing stands between the held sign-in and a session.
+      expect(await continueSignIn(t, attemptToken)).toMatchObject({
+        status: "complete",
+      });
+    }),
+  );
 });
