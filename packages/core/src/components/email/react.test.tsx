@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
@@ -9,26 +10,32 @@ import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
 import {
+  useCompletePasswordRecovery,
   useCompleteSignUp,
   useSignInWithEmailPassword,
   useSignUpWithEmailPassword,
+  useStartPasswordRecovery,
 } from "./react.tsx";
 
-// The hooks run their mutation through the injected `AuthSignInApi`, so the
-// test substitutes a signInApi rather than mocking `convex/react`.
+// The hooks that mint a session run their mutation through the injected
+// `AuthSignInApi`, so the test substitutes a signInApi rather than mocking
+// `convex/react`.
 const { signInApi, run: runSignInMutation } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
 // The hooks read the deployment URL from the surrounding ConvexProvider to
-// namespace their secret storage. The client never connects: no test
-// subscribes to a query.
+// namespace their secret storage, and the hooks that do not mint a session
+// run their mutation through this client. The client never connects: the
+// tests stub its `mutation` method and no test subscribes to a query.
 const convexClient = new ConvexReactClient(NAMESPACE);
+const stubConvexMutation = () => vi.spyOn(convexClient, "mutation");
 
 // The hooks keep flow secrets in `localStorage` (jsdom supplies one),
 // namespaced like the hooks namespace it.
 const secretStorage = new NamespacedStorage(window.localStorage, NAMESPACE);
 const SIGN_UP_SECRET_KEY = "__convexAuthEmailPasswordSignUpSecret";
+const RECOVERY_SECRET_KEY = "__convexAuthEmailPasswordRecoverySecret";
 
 const bundle: TokenBundle = {
   accessToken: "access-1",
@@ -40,6 +47,40 @@ const bundle: TokenBundle = {
 
 // The stub signInApi ignores the reference, so any value will do.
 const signInMutation = {} as never;
+
+// `useMutation` reads the function name of its reference, so the hooks that
+// go through the Convex client need a real one. The stubbed client ignores it.
+const convexMutation = makeFunctionReference<"mutation">("auth:flow") as never;
+const convexQuery = makeFunctionReference<"query">("auth:check") as never;
+
+// A stand-in for the subscription of a query: the hooks that subscribe go
+// through `convexClient.watchQuery`. `emit` gives the subscription a new
+// result, or an `Error` when the query fails.
+function stubConvexQuery() {
+  const listeners = new Set<() => void>();
+  let result: unknown = undefined;
+  const watch = vi.spyOn(convexClient, "watchQuery").mockImplementation(
+    () =>
+      ({
+        onUpdate: (callback: () => void) => {
+          listeners.add(callback);
+          return () => listeners.delete(callback);
+        },
+        localQueryResult: () => {
+          if (result instanceof Error) throw result;
+          return result;
+        },
+        journal: () => undefined,
+      }) as never,
+  );
+  return {
+    watch,
+    emit: (next: unknown) => {
+      result = next;
+      for (const listener of listeners) listener();
+    },
+  };
+}
 
 function renderWithProviders<T>(useHook: () => T) {
   const authClient = new AuthClient({
@@ -370,5 +411,289 @@ describe("useCompleteSignUp", () => {
         userError: { error: "OTHER_ERROR", cause },
       }),
     );
+  });
+});
+
+describe("useStartPasswordRecovery", () => {
+  test("success stores the secret", async () => {
+    const mutation = stubConvexMutation().mockResolvedValue({
+      success: true,
+      browserSecret: "secret-9",
+    });
+    const { result } = renderWithProviders(() =>
+      useStartPasswordRecovery(convexMutation),
+    );
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.startPasswordRecovery>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.startPasswordRecovery({
+        email: "alice@example.com",
+      });
+    });
+
+    expect(mutation.mock.calls[0]?.[1]).toEqual({ email: "alice@example.com" });
+    expect(returned).toEqual({ success: true });
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBe("secret-9");
+  });
+
+  test("a thrown mutation folds into OTHER_ERROR preserving cause", async () => {
+    const cause = new Error("network blip");
+    stubConvexMutation().mockRejectedValue(cause);
+    const { result } = renderWithProviders(() =>
+      useStartPasswordRecovery(convexMutation),
+    );
+
+    let returned!: Awaited<
+      ReturnType<typeof result.current.hook.startPasswordRecovery>
+    >;
+    await act(async () => {
+      returned = await result.current.hook.startPasswordRecovery({
+        email: "alice@example.com",
+      });
+    });
+
+    expect(returned).toEqual({
+      success: false,
+      userError: { error: "OTHER_ERROR", cause },
+    });
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBeNull();
+  });
+});
+
+describe("useCompletePasswordRecovery", () => {
+  // The stub signInApi ignores the mutation reference, so any value will do.
+  // The stubbed client reads the name of the query reference.
+  const recoveryApi = {
+    checkPasswordRecovery: convexQuery,
+    completePasswordRecovery: signInMutation,
+  };
+  const checkPassed = { success: true };
+  const linkDead = {
+    success: false,
+    userError: { error: "INVALID_CHALLENGE" },
+  };
+
+  test("subscribes to the check, and is ready only after it passes", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    expect(result.current.hook).toEqual({ status: "pending" });
+    expect(watch.mock.calls[0]?.[1]).toEqual({
+      emailCode: "code-9",
+      browserSecret: "secret-9",
+    });
+
+    act(() => emit(checkPassed));
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+  });
+
+  test("a failing check ends the flow without a form", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit({ success: false, userError: { error: "INCORRECT_CODE" } }));
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "INCORRECT_CODE" },
+      }),
+    );
+  });
+
+  test("a failing query folds into OTHER_ERROR preserving cause", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    const cause = new Error("network blip");
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit(cause));
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "OTHER_ERROR", cause },
+      }),
+    );
+  });
+
+  test("a link that dies while the page is open ends the flow", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit(checkPassed));
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+
+    // Another tab claims the link, or the server erases it after it expires.
+    act(() => emit(linkDead));
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "INVALID_CHALLENGE" },
+      }),
+    );
+  });
+
+  test("completing adopts the session and clears the secret", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    runSignInMutation.mockResolvedValueOnce({
+      status: "complete",
+      tokens: bundle,
+    });
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit(checkPassed));
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    let returned!: Awaited<ReturnType<typeof ready.completePasswordRecovery>>;
+    await act(async () => {
+      returned = await ready.completePasswordRecovery({
+        newPassword: "brand new horse staple",
+      });
+    });
+
+    expect(runSignInMutation).toHaveBeenLastCalledWith({
+      emailCode: "code-9",
+      browserSecret: "secret-9",
+      newPassword: "brand new horse staple",
+    });
+    expect(returned).toEqual({ status: "complete", tokens: bundle });
+    expect(result.current.hook).toEqual({ status: "complete" });
+    expect(result.current.auth.isAuthenticated).toBe(true);
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBeNull();
+
+    // The claim erased the link. The check now fails, but the flow is over.
+    act(() => emit(linkDead));
+    expect(result.current.hook).toEqual({ status: "complete" });
+  });
+
+  test("the claim reaching the subscription during submit keeps the form", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    let finishSubmit!: (value: unknown) => void;
+    runSignInMutation.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishSubmit = resolve;
+      }),
+    );
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit(checkPassed));
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    let submitted!: ReturnType<typeof ready.completePasswordRecovery>;
+    act(() => {
+      submitted = ready.completePasswordRecovery({
+        newPassword: "brand new horse staple",
+      });
+    });
+    await waitFor(() =>
+      expect(result.current.hook).toMatchObject({
+        status: "ready",
+        pending: true,
+      }),
+    );
+
+    // The mutation's own claim of the link reaches the subscription first.
+    act(() => emit(linkDead));
+    expect(result.current.hook).toMatchObject({
+      status: "ready",
+      pending: true,
+    });
+
+    await act(async () => {
+      finishSubmit({ status: "complete", tokens: bundle });
+      await submitted;
+    });
+    expect(result.current.hook).toEqual({ status: "complete" });
+  });
+
+  test("is MISSING_SECRET without a check when this browser did not start the flow", async () => {
+    const { watch } = stubConvexQuery();
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({
+        status: "error",
+        userError: { error: "MISSING_SECRET" },
+      }),
+    );
+    expect(watch).not.toHaveBeenCalled();
+  });
+
+  test("a rejected password leaves the flow ready for another try", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    const failure = {
+      status: "error",
+      userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 8 },
+    };
+    runSignInMutation.mockResolvedValueOnce(failure);
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit(checkPassed));
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    let returned!: Awaited<ReturnType<typeof ready.completePasswordRecovery>>;
+    await act(async () => {
+      returned = await ready.completePasswordRecovery({ newPassword: "short" });
+    });
+
+    expect(returned).toEqual(failure);
+    expect(result.current.hook.status).toBe("ready");
+    // The link was not consumed: the secret must still work.
+    expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBe("secret-9");
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("a link that dies after the check ends the flow at submit", async () => {
+    secretStorage.set(RECOVERY_SECRET_KEY, "secret-9");
+    const { watch, emit } = stubConvexQuery();
+    runSignInMutation.mockResolvedValueOnce({
+      status: "error",
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+    const { result } = renderWithProviders(() =>
+      useCompletePasswordRecovery(recoveryApi, { emailCode: "code-9" }),
+    );
+    await waitFor(() => expect(watch).toHaveBeenCalled());
+    act(() => emit(checkPassed));
+    await waitFor(() => expect(result.current.hook.status).toBe("ready"));
+    const ready = result.current.hook;
+    if (ready.status !== "ready") throw new Error("unreachable");
+
+    await act(async () => {
+      await ready.completePasswordRecovery({ newPassword: "brand new horse" });
+    });
+
+    expect(result.current.hook).toEqual({
+      status: "error",
+      userError: { error: "INVALID_CHALLENGE" },
+    });
   });
 });
