@@ -17,8 +17,18 @@ export const { signUpWithPassword, signInWithPassword, changePassword } =
     totp: { component: components.authTotp },
   }).attachUserCallbacks({ createUser: internal.users.createUser });
 
-// The TOTP step of a held sign-in: the client verifies a code for the attempt
-// here, then finishes the sign-in with `continueSignIn`.
-export const { verifyTotpForSignIn } = setupTotp(core, {
+// The TOTP second factor. `verifyTotpForSignIn` is the step of a held sign-in
+// where the client verifies a code for the attempt, before `continueSignIn`.
+// The rest is the signed-in user's own authenticator: enrolling an app,
+// turning it off, and renewing backup codes.
+export const {
+  verifyTotpForSignIn,
+  getTotpStatus,
+  startTotpEnrollment,
+  confirmTotpEnrollment,
+  disableTotp,
+  regenerateBackupCodes,
+} = setupTotp(core, {
   component: components.authTotp,
+  issuer: "Convex Auth v2 Password Example",
 });
