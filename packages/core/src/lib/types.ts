@@ -73,13 +73,67 @@ export type SignInError<UserError> = {
 };
 
 /**
+ * A sign-in attempt that has not met all requirements to grant a session.
+ *
+ * One or more *requirements* (a second factor, say) stands between the user
+ * and a session. Nothing was minted. It's up to the client to satisfy the
+ * requirement, then continue sign-in with `attemptToken`.
+ *
+ * `requirements` names what is outstanding, so the client can show the right
+ * step. Each name is the requirement's own (`"totp"` is what the TOTP
+ * component calls itself), the same whichever provider held the sign-in, so
+ * one client step serves every provider that asks for it.
+ *
+ * As with `userError`, the `status` is shared and the payload is
+ * provider-specific:
+ *
+ * ```ts
+ * const signInResult = v.union(
+ *   vSignInComplete,
+ *   vSignInIncomplete(v.literal("totp")),
+ *   vSignInError(v.object({ error: v.literal("USER_NOT_FOUND") })),
+ * );
+ * ```
+ *
+ * The attempt token continues a sign-in whose first factor already passed, so
+ * treat it like a credential: keep it in memory for the duration of the flow,
+ * and nowhere else. The client hands it to the function that satisfies the
+ * requirement, then continues the sign-in with it; the core mints the session
+ * once every check the provider named is satisfied. It is spent by that
+ * completion and expires at `expiresAt` (a Unix timestamp in milliseconds),
+ * after which the user starts the sign-in over. Unlike the refresh token it
+ * does reach browser JS under SSR, since the client needs it for both calls.
+ */
+export function vSignInIncomplete<
+  Requirement extends Validator<string, "required", never>,
+>(requirement: Requirement) {
+  return v.object({
+    status: v.literal("incomplete"),
+    attemptToken: v.string(),
+    expiresAt: v.number(),
+    requirements: v.array(requirement),
+  });
+}
+
+/** The shape of a {@link vSignInIncomplete} arm. */
+export type SignInIncomplete<Requirement extends string = string> = {
+  status: "incomplete";
+  attemptToken: string;
+  expiresAt: number;
+  requirements: Requirement[];
+};
+
+/**
  * The full shared sign-in envelope.
  *
- * Represents sign-ins that ran to completion and those that hit an error.
+ * Represents sign-ins that ran to completion, those that are waiting on a
+ * requirement, and those that hit an error.
  *
- * `userError` is `unknown` here because each provider declares its own codes.
+ * `userError` is `unknown` and the requirement is `string` here because each
+ * provider declares its own codes.
  */
-export type SignInEnvelope = SignInComplete | SignInError<unknown>;
+export type SignInEnvelope =
+  SignInComplete | SignInIncomplete | SignInError<unknown>;
 
 /** The `status` discriminant of every {@link SignInEnvelope}. */
 export type SignInStatus = SignInEnvelope["status"];
@@ -238,6 +292,60 @@ export const vAuthClaims = v.object({
 export type AuthClaims = Infer<typeof vAuthClaims>;
 
 /**
+ * A pending sign-in attempt as the core reports it to a function that
+ * satisfies a requirement: the `userId` whose credentials verified, and the
+ * attempt they verified for.
+ *
+ * `attemptId` identifies the attempt to requirement components. It's up to
+ * them to record satsifaction of a requirement for a given attempt with that
+ * ID.
+ */
+export const vSignInAttempt = v.object({
+  attemptId: v.string(),
+  userId: v.string(),
+  expiresAt: v.number(),
+});
+
+export type SignInAttempt = Infer<typeof vSignInAttempt>;
+
+/**
+ * A query that checks if a requirement has been satsified for a sign-in
+ * attempt.
+ *
+ * A check is a predicate over state its own component owns (has this attempt
+ * verified a TOTP code, say). It gets the `userId` and `attemptId` and returns
+ * `true` when the requirement it stands for is satisfied. A requirement
+ * component exposes one of these, and a component that enforces two things
+ * exposes two.
+ */
+export type CheckSignInFn = FunctionReference<
+  "query",
+  "public" | "internal",
+  { userId: string; attemptId: string },
+  boolean
+>;
+
+/**
+ * A requirement a pending sign-in must satisfy: the check that judges it,
+ * and the name it is reported under in an incomplete sign-in result.
+ *
+ * The requirement component that owns the check names it, and exports the
+ * two together (the TOTP component's `totpSignInCheck`, say). A provider
+ * passes that on among the `checks` of `deferSignIn` and derives its own
+ * `incomplete` result from the same name, so the client sees one name for
+ * the step whichever provider held the sign-in, and whether the provider or
+ * the core's `continueSignIn` reported it.
+ *
+ * The core stores the name and a handle to the check on the pending sign-in,
+ * so what a sign-in must satisfy is fixed when it is parked, and the core
+ * can judge it without the provider when the client continues.
+ */
+export type SignInCheck<Requirement extends string = string> = {
+  requirement: Requirement;
+  check: CheckSignInFn;
+};
+
+/**
  * The `providerAccountId` a provider sends to `completeSignUp` when it has no
  * identifier of its own. The core then keys the new account by the app user id
  * `createUser` returns, and later sign-ins send that user id as the account
@@ -351,6 +459,25 @@ export type BoundAuthHelpers<Profile> = {
     profile: Profile;
   }): Promise<TokenBundle>;
   /**
+   * Create the account and the app user for a *newly established* identity
+   * without signing it in.
+   *
+   * Call this where {@link BoundAuthHelpers.completeSignUp} would otherwise
+   * go when a requirement the provider enforces (an email to verify, say)
+   * stands before the first sign-in, and then defer that sign-in with
+   * {@link BoundAuthHelpers.deferSignIn}.
+   *
+   * The user and the account exist from here on. A user who abandons the
+   * sign-up and signs in later resolves the same account, and the provider's
+   * requirement applies to that sign-in the same way.
+   *
+   * Returns the app user id.
+   */
+  createAccount(args: {
+    providerAccountId: string;
+    profile: Profile;
+  }): Promise<{ userId: string }>;
+  /**
    * Exchange a verified *existing* account identity for a session.
    *
    * Call this once the provider has authenticated a known account its own way
@@ -367,25 +494,45 @@ export type BoundAuthHelpers<Profile> = {
     profile: Profile;
   }): Promise<TokenBundle>;
   /**
-   * Create the account and the app user for a verified identity, but do not
-   * mint a session.
-   *
-   * Call this when the user must complete a step (for example, an email
-   * validation) before the first sign-in. Account creation follows the same
-   * rules as `completeSignUp`: the app's `createUser` mints the user, and an
-   * identity that already has an account is refused. `onSignIn` does not run.
-   * The provider signs the user in later with `completeSignIn`.
-   */
-  signUpWithoutSession(args: {
-    providerAccountId: string;
-    profile: Profile;
-  }): Promise<{ userId: string }>;
-  /**
    * Look up the app user id for a given `providerAccountId`.
    *
    * Returns `null` when no user id is found for the account.
    */
   resolveUserId(providerAccountId: string): Promise<string | null>;
+  /**
+   * Defer the sign-in for a verified *existing* account identity instead of
+   * minting a session, because a requirement the provider enforces is still
+   * outstanding.
+   *
+   * Call this where {@link BoundAuthHelpers.completeSignIn} would otherwise
+   * go. The core resolves the account, records the pending sign-in with the
+   * given `checks` (see {@link SignInCheck}), and hands back the attempt
+   * token the client continues with, the `attemptId` that requirement
+   * components key their proof by, and the app user id. The app's `onSignIn`
+   * does not run: the sign-in has not happened yet.
+   *
+   * The provider is done at this point. The client satisfies the requirement
+   * through the requirement's own functions and then continues the sign-in,
+   * at which point the core runs the checks and mints the session once none
+   * reports anything outstanding.
+   *
+   * An identity has one pending sign-in at a time. Deferring again replaces
+   * it, invalidating the earlier attempt token and id.
+   *
+   * Throws if the identity has no account, like `completeSignIn` does. To
+   * park an identity's *first* sign-in, establish the account with
+   * {@link BoundAuthHelpers.createAccount} first.
+   */
+  deferSignIn(args: {
+    providerAccountId: string;
+    profile: Profile;
+    checks: SignInCheck[];
+  }): Promise<{
+    attemptToken: string;
+    attemptId: string;
+    userId: string;
+    expiresAt: number;
+  }>;
 };
 
 /**

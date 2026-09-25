@@ -1,6 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+/**
+ * A sign-in check as the core stores it: the requirement's name, and a
+ * function handle to the query that judges it.
+ */
+export const vStoredSignInCheck = v.object({
+  requirement: v.string(),
+  handle: v.string(),
+});
+
 export default defineSchema({
   // Maps a provider-scoped identity to an opaque app user id. The app owns the
   // actual users table; we only store the id string it gives us back.
@@ -43,4 +52,37 @@ export default defineSchema({
   })
     .index("by_hash", ["hash"])
     .index("by_session", ["sessionId"]),
+
+  // One row per sign-in that a provider has verified but not finished: its
+  // credentials checked out, and something else (a second factor, say) must
+  // happen before a session is minted. The row holds what minting needs later
+  // and, as function handles, the provider's sign-in checks: the queries the
+  // core runs again each time the sign-in is continued to learn what is still
+  // outstanding. What a sign-in must satisfy is thus fixed when it is parked.
+  //
+  // The client continues the sign-in with a random attempt token, stored here
+  // only as its SHA-256 hash. The row's id is handed out as the `attemptId`
+  // that requirement components key their own proof by, so the token itself
+  // never leaves the core, the provider, and the requirement's own functions.
+  //
+  // An identity has at most one pending sign-in. A fresh sign-in replaces the
+  // row rather than patching it, so the new attempt gets a new id and proof
+  // recorded against the old one cannot satisfy it.
+  pendingSignIns: defineTable({
+    attemptTokenHash: v.string(),
+    provider: v.string(),
+    providerAccountId: v.string(),
+    userId: v.string(),
+    profile: v.any(),
+    // The provider's sign-in checks (see `SignInCheck` in lib/types.ts): the
+    // name of each requirement, next to a handle to the check that judges it.
+    checks: v.array(vStoredSignInCheck),
+    // A handle to the app's `onSignIn` for this provider, to run when the
+    // sign-in completes. Absent when the app attached none.
+    onSignInHandle: v.optional(v.string()),
+    expiresAt: v.number(),
+  })
+    .index("by_attempt_hash", ["attemptTokenHash"])
+    .index("by_provider_account", ["provider", "providerAccountId"])
+    .index("by_expires_at", ["expiresAt"]),
 });

@@ -68,8 +68,8 @@ const COMPLETED = { status: "complete", tokens: FAKE_BUNDLE };
 const INVALID_CODE = { status: "error", userError: { error: "INVALID_CODE" } };
 
 /**
- * A fake core whose builders inject fake {@link BoundAuthHelpers}.
- * `signUpWithoutSession` is never reached by redemption.
+ * A fake core whose builders inject fake {@link BoundAuthHelpers}. The
+ * pending sign-in helpers are never reached by redemption.
  */
 const FAKE_CORE = {
   bindProvider: <Provider extends string, Profile>({
@@ -99,8 +99,11 @@ const FAKE_CORE = {
       completeSignUp: record("signUp"),
       completeSignIn: record("signIn"),
       resolveUserId: async () => resolvedUserId.value,
-      signUpWithoutSession: async () => {
-        throw new Error("signUpWithoutSession is not used by redemption");
+      createAccount: async () => {
+        throw new Error("createAccount is not used by redemption");
+      },
+      deferSignIn: async () => {
+        throw new Error("deferSignIn is not used by redemption");
       },
     };
     const authMutation: AuthMutationBuilder<Profile> = (fn) =>
