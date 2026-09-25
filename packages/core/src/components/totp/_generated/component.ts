@@ -93,10 +93,17 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     verification: {
+      checkSignIn: FunctionReference<
+        "query",
+        "internal",
+        { attemptId: string; userId: string },
+        boolean,
+        Name
+      >;
       verifyBackupCode: FunctionReference<
         "mutation",
         "internal",
-        { code: string; userId: string },
+        { attemptId?: string; code: string; userId: string },
         | { remainingBackupCodes: number; success: true }
         | {
             success: false;
@@ -109,7 +116,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       verifyCode: FunctionReference<
         "mutation",
         "internal",
-        { code: string; userId: string },
+        { attemptId?: string; code: string; userId: string },
         | { success: true }
         | {
             success: false;

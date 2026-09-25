@@ -10,7 +10,9 @@ import rateLimiter from "@convex-dev/rate-limiter/convex.config.js";
  * and maps its own identifiers onto the `userId` it passes in.
  *
  * The component is not an auth provider. It is a second factor that an auth
- * flow asks to verify a code after the first factor succeeds.
+ * flow asks to verify a code after the first factor succeeds. For a pending
+ * sign-in the component also records that the attempt verified a code, and
+ * the flow reads that record back before it finishes the attempt.
  *
  * Mounts the rate-limiter component to throttle code verification per user id.
  */
