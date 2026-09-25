@@ -10,11 +10,17 @@
 // error TS5097.
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
+import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "../totp/schema.ts";
 const modules = import.meta.glob("../totp/**/*.ts");
 
 /**
  * Register the TOTP component with a `convex-test` instance.
+ *
+ * The component throttles code verification through a nested rate-limiter, so
+ * we register that under `<name>/rateLimiter` too — mirroring how it's mounted
+ * when the app `app.use`s the component's `convex.config`.
+ *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The name of the component, as registered in convex.config.ts.
  */
@@ -23,5 +29,6 @@ export function registerTotp(
   name: string = "authTotp",
 ) {
   t.registerComponent(name, schema, modules);
+  registerRateLimiter(t, `${name}/rateLimiter`);
 }
 export default { registerTotp, schema, modules };

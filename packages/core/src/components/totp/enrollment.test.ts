@@ -92,6 +92,12 @@ describe("createTotp", () => {
         .unique(),
     );
     expect(base32Encode(new Uint8Array(active!.secret))).toBe(secret);
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(secret),
+      }),
+    ).toEqual({ success: true });
   });
 
   test("touches only the given user's secrets and backup codes", async () => {
@@ -145,6 +151,18 @@ describe("createTotp", () => {
         await Promise.all(alice.backupCodes.map((code) => hashBackupCode(code)))
       ).sort(),
     );
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(alice.secret),
+      }),
+    ).toEqual({ success: true });
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: alice.backupCodes[0],
+      }),
+    ).toEqual({ success: true, remainingBackupCodes: BACKUP_CODE_COUNT - 1 });
     expect(
       await t.mutation(api.enrollment.confirmTotp, {
         userId: "alice",
@@ -381,6 +399,32 @@ describe("confirmTotp", () => {
     for (const code of second.backupCodes) {
       expect(hashes.has(await hashBackupCode(code))).toBe(true);
     }
+
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(first.secret),
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(second.secret),
+      }),
+    ).toEqual({ success: true });
+
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: first.backupCodes[0],
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: second.backupCodes[0],
+      }),
+    ).toEqual({ success: true, remainingBackupCodes: BACKUP_CODE_COUNT - 1 });
   });
 
   test("records the step of the confirmation code", async () => {
@@ -397,6 +441,19 @@ describe("confirmTotp", () => {
     // The counter of the current step, thus the confirmation code cannot be
     // replayed at sign-in.
     expect(row?.lastUsedCounter).toBe(Math.floor(Date.now() / 1000 / 30));
+  });
+
+  test("the code that confirmed the secret cannot sign in", async () => {
+    const t = setup();
+    const { secret } = await t.mutation(api.enrollment.createTotp, {
+      userId: "alice",
+      ...ENROLLMENT,
+    });
+    const code = await codeFor(secret);
+    await t.mutation(api.enrollment.confirmTotp, { userId: "alice", code });
+    expect(
+      await t.mutation(api.verification.verifyCode, { userId: "alice", code }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
   });
 });
 
