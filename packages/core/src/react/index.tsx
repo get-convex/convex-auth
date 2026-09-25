@@ -17,7 +17,7 @@
 
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { ReactNode, useContext, useMemo } from "react";
+import { ReactNode, useCallback, useContext, useMemo, useState } from "react";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
@@ -25,19 +25,30 @@ import type {
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import { oauth } from "../oauth/client.ts";
-import type { ConvexAuthApi } from "../lib/types.ts";
+import type {
+  ClientView,
+  ContinueSignInFn,
+  ContinueSignInResult,
+  ConvexAuthApi,
+} from "../lib/types.ts";
 import {
   AuthProvider,
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
+  useAuthSignInApi,
 } from "./client.tsx";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 export type { TokenStorage } from "../browser/storage.ts";
-export type { ConvexAuthApi, TokenBundle } from "../lib/types.ts";
+export type {
+  ContinueSignInFn,
+  ContinueSignInResult,
+  ConvexAuthApi,
+  TokenBundle,
+} from "../lib/types.ts";
 export type { ConvexAuthActionsContextType } from "./client.tsx";
 export { useAuthSignInApi, type AuthSignInApi } from "./client.tsx";
 
@@ -192,4 +203,112 @@ export function useAuthActions() {
  */
 export function useAuthToken() {
   return useContext(ConvexAuthTokenContext);
+}
+
+/**
+ * A failure the client produces that the server never returns: the mutation
+ * threw (a network blip, a bug, an unexpected server error) rather than
+ * resolving to a `userError`. The flow hooks fold that into the result as
+ * `OTHER_ERROR` so callers handle *every* failure through the one `userError`
+ * switch and never need their own `try`/`catch`. The thrown value is preserved
+ * on `cause` for callers that want to inspect or log it.
+ */
+export type UnexpectedFailure = {
+  status: "error";
+  userError: { error: "OTHER_ERROR"; cause: unknown };
+};
+
+/**
+ * The result of the `continueSignIn` callback from {@link useContinueSignIn}.
+ */
+export type ContinueSignInHookResult =
+  ClientView<ContinueSignInResult> | UnexpectedFailure;
+
+/**
+ * Client for continuing a sign-in that a provider's hook reported as
+ * `incomplete`: wire the app's `continueSignIn` mutation (from `setupCore`)
+ * to the core client.
+ *
+ * A provider that holds a sign-in on a requirement (a TOTP code, say) hands
+ * the client an `attemptToken`. The client satisfies the requirement through
+ * the requirement's own function, then calls the returned `continueSignIn`
+ * with the token. On success this establishes an authenticated session with
+ * your Convex backend, like a provider's own sign-in hook does.
+ *
+ * ```tsx
+ * import { useContinueSignIn } from "@convex-dev/auth/react";
+ * import { api } from "../convex/_generated/api";
+ *
+ * function CodePrompt({ attemptToken }: { attemptToken: string }) {
+ *   const verify = useMutation(api.auth.verifyTotpForSignIn);
+ *   const { continueSignIn, pending } = useContinueSignIn(api.auth.continueSignIn);
+ *   return (
+ *     <form
+ *       onSubmit={async (e) => {
+ *         e.preventDefault();
+ *         const verified = await verify({ attemptToken, code });
+ *         if (!verified.success) return; // show verified.userError
+ *         const result = await continueSignIn({ attemptToken });
+ *         if (result.status === "incomplete") {
+ *           // result.requirements still stand; show the next step
+ *         } else if (result.status === "error") {
+ *           // SIGN_IN_EXPIRED sends the user back to the first step
+ *         }
+ *       }}
+ *     >
+ *       <button disabled={pending}>Continue</button>
+ *     </form>
+ *   );
+ * }
+ * ```
+ *
+ * @param continueSignInMutation The app's `continueSignIn` mutation reference.
+ */
+export function useContinueSignIn(continueSignInMutation: ContinueSignInFn) {
+  const { setSession } = useAuthActions();
+  // Running through the signInApi rather than `useMutation` is what lets this
+  // hook serve both session models. See {@link useAuthSignInApi}.
+  const signInApi = useAuthSignInApi();
+  const [pending, setPending] = useState(false);
+
+  const continueSignIn = useCallback(
+    async (args: {
+      attemptToken: string;
+    }): Promise<ContinueSignInHookResult> => {
+      setPending(true);
+      try {
+        // Under SSR the proxy has already slimmed the bundle, so what arrives
+        // is the client view whatever the reference's type says.
+        const result = (await signInApi.mutation(
+          continueSignInMutation,
+          args,
+        )) as ClientView<ContinueSignInResult>;
+        if (result.status === "complete") {
+          await setSession(result.tokens);
+        }
+        return result;
+      } catch (cause) {
+        return { status: "error", userError: { error: "OTHER_ERROR", cause } };
+      } finally {
+        setPending(false);
+      }
+    },
+    [signInApi, continueSignInMutation, setSession],
+  );
+
+  return {
+    /**
+     * Continues the sign-in the attempt token names.
+     *
+     * Returns an object with a `status` field. `"complete"` means the
+     * sign-in finished and the client has established an authenticated
+     * session. `"incomplete"` means a requirement still stands, named in
+     * `requirements`; satisfy it and call again with the same token.
+     * `"error"` carries a `userError`: `SIGN_IN_EXPIRED` when the attempt is
+     * gone and the user starts over, or `OTHER_ERROR` when the call threw.
+     */
+    continueSignIn,
+    /** `true` while the sign-in is being continued. */
+    pending,
+  };
 }
