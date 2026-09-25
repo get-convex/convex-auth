@@ -22,6 +22,9 @@ import {
   type RefreshResult,
   USE_USER_ID_AS_ACCOUNT_ID,
   vSignInAttempt,
+  vSignInComplete,
+  vSignInIncomplete,
+  type CheckSignInFn,
   type CreateUserFn,
   type OnSignInFn,
 } from "../../lib/types.ts";
@@ -276,6 +279,12 @@ type OnSignInFunctionHandle = FunctionHandle<
   FunctionReturnType<OnSignInFn<string, unknown>>
 >;
 
+type CheckSignInFunctionHandle = FunctionHandle<
+  CheckSignInFn["_type"],
+  FunctionArgs<CheckSignInFn>,
+  FunctionReturnType<CheckSignInFn>
+>;
+
 type StoredSignInCheck = Infer<typeof vStoredSignInCheck>;
 
 /**
@@ -437,12 +446,8 @@ export const signUp = mutation({
  * framework's `createAccount` helper, ahead of `deferSignIn`, when a
  * requirement (an email to verify, say) stands before the first sign-in.
  *
- * Account creation follows the same rules as `signUp`: the app's `createUser`
- * mints the user, `USE_USER_ID_AS_ACCOUNT_ID` keys the account by the minted
- * user id, and an identity that already has an account is refused. Unlike
- * `signUp`, no session is issued and `onSignIn` does not run: nothing has
- * been signed in. Both happen when the identity is signed in later, through
- * `signIn` or a `deferSignIn` the core later finishes.
+ * This function calls through to the app's `createUser` function which is
+ * where the user id comes from.
  *
  * An identity that already has an account is refused. Unlike `signUp`, no
  * session is issued and the app's `onSignIn` does not run: nothing has been
@@ -613,10 +618,10 @@ function resolvePendingSignInTtlSeconds(args: { attemptTtlSeconds?: number }) {
 /**
  * Create a new pending sign-in.
  *
- * The row carries the handles of the provider's sign-in checks and of the
- * app's `onSignIn`, so the core can judge and finish the attempt without the
- * provider when the client continues it: what the sign-in must satisfy is
- * fixed here.
+ * The inserted row carries the provider's sign-in checks (each requirement's
+ * name and a handle to its check) and a handle to the app's `onSignIn`, so
+ * {@link completePendingSignIn} can judge and finish the attempt without the
+ * provider: what the sign-in must satisfy is fixed here.
  *
  * This replaces any pending sign-in the identity already has.
  *
@@ -686,10 +691,8 @@ type PendingSignIn = Infer<typeof vPendingSignIn>;
  * the app's `onSignIn` into the function handles this takes.
  *
  * The identity must already have an account, like `signIn` requires. A
- * provider parking an identity's *first* sign-in establishes the account with
- * {@link createAccount} first. The app's `onSignIn` does not run: nothing has
- * been signed in yet. It runs when the core mints the session the attempt
- * waits for.
+ * provider deferring an identity's *first* sign-in establishes the account with
+ * {@link createAccount} first.
  *
  * An identity has at most one pending sign-in. Deferring again *replaces* an
  * existing record.
@@ -761,6 +764,100 @@ export const getPendingSignIn = query({
       userId: pending.userId,
       expiresAt: pending.expiresAt,
     };
+  },
+});
+
+/**
+ * Calls each {@link CheckSignInFn} for a pending sign-in attempt.
+ *
+ * Each check gets called with the `_id` and `userId` from the `pending`
+ * sign-in.
+ *
+ * Returns the requirements that are still outstanding, if any.
+ */
+async function outstandingRequirements(
+  ctx: MutationCtx,
+  pending: Doc<"pendingSignIns">,
+): Promise<string[]> {
+  const outstanding = new Set<string>();
+  for (const { requirement, handle } of pending.checks) {
+    const satisfied = await ctx.runQuery(handle as CheckSignInFunctionHandle, {
+      userId: pending.userId,
+      attemptId: pending._id,
+    });
+    if (!satisfied) outstanding.add(requirement);
+  }
+  return [...outstanding];
+}
+
+const vCompletePendingSignInResult = v.union(
+  vSignInComplete,
+  vSignInIncomplete(v.string()),
+  v.null(),
+);
+type CompletePendingSignInResult = Infer<typeof vCompletePendingSignInResult>;
+
+/**
+ * Continue a pending sign-in.
+ *
+ * This runs the checks for each requirement that was included with the pending
+ * sign-in. If every one passes, it deletes the pending sign-in and mints a
+ * session. Otherwise it returns another `"incomplete"` status with the
+ * outstanding requirements.
+ *
+ * Apps don't call this API directly, but instead export the framework's
+ * `continueSignIn` mutation, which wraps it.
+ *
+ * Returns `null` when no pending sign in is found for the `attemptToken`.
+ */
+export const completePendingSignIn = mutation({
+  args: {
+    attemptToken: v.string(),
+    issuer: v.string(),
+    accessTokenTtlSeconds: v.optional(v.number()),
+    refreshTokenTtlSeconds: v.optional(v.number()),
+  },
+  returns: vCompletePendingSignInResult,
+  handler: async (ctx, args): Promise<CompletePendingSignInResult> => {
+    const ttl = resolveTtlConfig(args);
+    const pending = await livePendingSignIn(ctx, args.attemptToken);
+    if (pending === null) return null;
+
+    const requirements = await outstandingRequirements(ctx, pending);
+    if (requirements.length > 0) {
+      return {
+        status: "incomplete",
+        attemptToken: args.attemptToken,
+        expiresAt: pending.expiresAt,
+        requirements,
+      };
+    }
+
+    await ctx.db.delete("pendingSignIns", pending._id);
+
+    // Re-resolve rather than trusting the row: the account could have been
+    // removed while the sign-in waited, and a session must not outlive it.
+    const account = await accountByIdentity(
+      ctx,
+      pending.provider,
+      pending.providerAccountId,
+    );
+    if (account === null) return null;
+
+    const claims: AuthClaims = {
+      providerName: pending.provider,
+      providerAccountId: pending.providerAccountId,
+      profile: pending.profile,
+    };
+    await notifySignIn(ctx, claims, account.userId, pending.onSignInHandle);
+    const tokens = await issueSession(
+      ctx,
+      account._id,
+      account.userId,
+      args.issuer,
+      ttl,
+    );
+    return { status: "complete", tokens };
   },
 });
 

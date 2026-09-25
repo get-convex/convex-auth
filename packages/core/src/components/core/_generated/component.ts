@@ -24,6 +24,34 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      completePendingSignIn: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          accessTokenTtlSeconds?: number;
+          attemptToken: string;
+          issuer: string;
+          refreshTokenTtlSeconds?: number;
+        },
+        | {
+            status: "complete";
+            tokens: {
+              accessToken: string;
+              accessTokenExpiresAt: number;
+              refreshToken: string;
+              refreshTokenExpiresAt: number;
+              userId: string;
+            };
+          }
+        | {
+            attemptToken: string;
+            expiresAt: number;
+            requirements: Array<string>;
+            status: "incomplete";
+          }
+        | null,
+        Name
+      >;
       createAccount: FunctionReference<
         "mutation",
         "internal",

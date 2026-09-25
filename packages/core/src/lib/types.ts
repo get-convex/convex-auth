@@ -95,14 +95,15 @@ export type SignInError<UserError> = {
  * );
  * ```
  *
- * The attempt token continues a sign-in whose first factor already passed, so
- * treat it like a credential: keep it in memory for the duration of the flow,
- * and nowhere else. The client hands it to the function that satisfies the
- * requirement, then continues the sign-in with it; the core mints the session
- * once every check the provider named is satisfied. It is spent by that
- * completion and expires at `expiresAt` (a Unix timestamp in milliseconds),
- * after which the user starts the sign-in over. Unlike the refresh token it
- * does reach browser JS under SSR, since the client needs it for both calls.
+ * The attempt token continues a sign-in that has already proved some
+ * credentials (e.g. a first factor), so treat it like a credential: keep it in
+ * memory for the duration of the flow, and nowhere else.
+ *
+ * The client hands it to the function that satisfies the requirement, then to
+ * the core's `continueSignIn`, which mints the session once every check the
+ * provider named is satisfied. It is spent by that completion and expires at
+ * `expiresAt` (a Unix timestamp in milliseconds), after which a sign-in must
+ * be started over.
  */
 export function vSignInIncomplete<
   Requirement extends Validator<string, "required", never>,
@@ -346,6 +347,34 @@ export type SignInCheck<Requirement extends string = string> = {
 };
 
 /**
+ * The result of the core's `continueSignIn` mutation.
+ *
+ * `complete` carries the minted session. `incomplete` means at least one
+ * check still reports a requirement, listed in `requirements`, and the same
+ * attempt token continues the sign-in once it is met. `SIGN_IN_EXPIRED` means
+ * the attempt is unknown, expired, superseded, or already completed, and the
+ * user starts the sign-in over.
+ */
+export const vContinueSignInResult = v.union(
+  vSignInComplete,
+  vSignInIncomplete(v.string()),
+  vSignInError(v.object({ error: v.literal("SIGN_IN_EXPIRED") })),
+);
+
+export type ContinueSignInResult = Infer<typeof vContinueSignInResult>;
+
+/**
+ * The app's `continueSignIn` mutation reference. See
+ * {@link vContinueSignInResult} for the outcomes.
+ */
+export type ContinueSignInFn = FunctionReference<
+  "mutation",
+  "public",
+  { attemptToken: string },
+  ContinueSignInResult
+>;
+
+/**
  * The `providerAccountId` a provider sends to `completeSignUp` when it has no
  * identifier of its own. The core then keys the new account by the app user id
  * `createUser` returns, and later sign-ins send that user id as the account
@@ -512,9 +541,9 @@ export type BoundAuthHelpers<Profile> = {
    * does not run: the sign-in has not happened yet.
    *
    * The provider is done at this point. The client satisfies the requirement
-   * through the requirement's own functions and then continues the sign-in,
-   * at which point the core runs the checks and mints the session once none
-   * reports anything outstanding.
+   * through the requirement's own functions and then calls the core's
+   * `continueSignIn`, which runs the checks and mints the session once every
+   * one of them passes.
    *
    * An identity has one pending sign-in at a time. Deferring again replaces
    * it, invalidating the earlier attempt token and id.

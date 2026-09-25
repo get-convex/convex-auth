@@ -10,8 +10,11 @@ import { setupUsernamePassword } from "@convex-dev/auth/providers/password/setup
 // provider, `signUpWithPassword` / `signInWithPassword` for the password one.
 // Under SSR those calls get proxied to Convex via the SSR host. The sign-in
 // functions exposed here are wired up to be proxied in src/lib/serverAuth.ts.
+// `continueSignIn` finishes a sign-in a provider held on a requirement (a
+// second factor, say); none of the providers here holds one yet.
 const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+export const { signOut, refreshSession, isAuthenticated, continueSignIn } =
+  core;
 
 // `onSignIn` is optional, and runs on every sign-in including the first. This
 // app uses it to stamp the user's last sign-in.

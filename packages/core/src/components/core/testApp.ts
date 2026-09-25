@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server.ts";
+import { internalMutation, internalQuery } from "./_generated/server.ts";
 import { Infer, v } from "convex/values";
 
 const vProvider = v.object({
@@ -45,6 +45,29 @@ export function resetUserCallbackCalls(): void {
   onSignInCalls.length = 0;
 }
 
+const vCheckSignIn = v.object({ userId: v.string(), attemptId: v.string() });
+type CheckSignInCall = Infer<typeof vCheckSignIn>;
+const checkSignInCalls: CheckSignInCall[] = [];
+// Whether `checkTotp` below is satisfied. Off until a test says the user
+// verified a code, the way a TOTP component records a verification.
+let totpVerified = false;
+
+/** Read the recorded sign-in check calls (test-only). */
+export function getCheckSignInCalls(): readonly CheckSignInCall[] {
+  return checkSignInCalls;
+}
+
+/** Make `checkTotp` report nothing outstanding from now on (test-only). */
+export function verifyTotp(): void {
+  totpVerified = true;
+}
+
+/** Forget the check calls and the TOTP verification (test-only). */
+export function resetSignInChecks(): void {
+  checkSignInCalls.length = 0;
+  totpVerified = false;
+}
+
 /**
  * Stand-in for the app's user-creating callback, used only by the core's
  * isolated test suite. Like a minimal real app it owns no users table, and just
@@ -81,5 +104,41 @@ export const onSignInThatThrows = internalMutation({
   returns: v.null(),
   handler: async () => {
     throw new Error("no sign-ins for you");
+  },
+});
+
+/**
+ * Stand-ins for a provider's sign-in checks (see `CheckSignInFn`). The core
+ * runs each check a pending sign-in was parked with whenever the client
+ * continues it, with the attempt's subject, and reports the requirement
+ * name it was parked under while the check returns `false`. These record
+ * what they were asked about and answer from their name: `checkTotp` passes
+ * once `verifyTotp` is called, `checkEmail` never passes, and
+ * `checkSatisfied` always does.
+ */
+export const checkTotp = internalQuery({
+  args: vCheckSignIn,
+  returns: v.boolean(),
+  handler: async (_ctx, args) => {
+    checkSignInCalls.push({ ...args });
+    return totpVerified;
+  },
+});
+
+export const checkEmail = internalQuery({
+  args: vCheckSignIn,
+  returns: v.boolean(),
+  handler: async (_ctx, args) => {
+    checkSignInCalls.push({ ...args });
+    return false;
+  },
+});
+
+export const checkSatisfied = internalQuery({
+  args: vCheckSignIn,
+  returns: v.boolean(),
+  handler: async (_ctx, args) => {
+    checkSignInCalls.push({ ...args });
+    return true;
   },
 });
