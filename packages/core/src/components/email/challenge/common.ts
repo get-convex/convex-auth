@@ -140,7 +140,7 @@ export type StartChallengeResult = Infer<typeof startChallengeResult>;
 
 /**
  * The `start` result of the kinds that record the address for a user
- * (`addEmail`, `changeEmail`). It adds `EMAIL_TAKEN` to the errors.
+ * (`addEmail`, `changeEmail`, `signUp`). It adds `EMAIL_TAKEN` to the errors.
  */
 export const startFreeAddressResult = v.union(
   startChallengeSuccess,
@@ -259,7 +259,7 @@ export async function addressTakenError(
 
 /**
  * The `start` preconditions of the kinds that record the address for a user
- * (`addEmail`, `changeEmail`): the shared preconditions, then the
+ * (`addEmail`, `changeEmail`, `signUp`): the shared preconditions, then the
  * address must not be verified by any user.
  */
 export async function startFreeAddressPreconditions(
@@ -312,7 +312,18 @@ export async function createChallengeAndSendEmail(
 // Complete
 //------------------------------------------------------------------------------
 
-function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
+/**
+ * The purpose that a `complete` call expects. It is the purpose of the row,
+ * except for `signUp`: the caller has no session, thus it does not know the
+ * user, and the user is the one of the row.
+ */
+export type ExpectedPurpose =
+  Exclude<ChallengePurpose, { kind: "signUp" }> | { kind: "signUp" };
+
+function samePurpose(a: ChallengePurpose, b: ExpectedPurpose): boolean {
+  if (b.kind === "signUp") {
+    return a.kind === "signUp";
+  }
   // Two `custom` challenges match only when the caller's purpose string is
   // the same one that started the flow.
   if (a.kind === "custom" && b.kind === "custom" && a.purpose !== b.purpose) {
@@ -342,11 +353,12 @@ function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
  *
  * A purpose mismatch (another kind, or another `userId`) throws. It is an
  * application bug: the landing page called the wrong function, or gave the
- * wrong user.
+ * wrong user. A `signUp` call gives no `userId`, thus only the kind must
+ * match.
  */
 export async function claimChallenge(
   ctx: MutationCtx,
-  args: { emailCode: string; browserSecret: string; purpose: ChallengePurpose },
+  args: { emailCode: string; browserSecret: string; purpose: ExpectedPurpose },
 ): Promise<ClaimChallengeResult> {
   const browserSecretHash = await sha256Hex(args.browserSecret);
   const row = await ctx.db

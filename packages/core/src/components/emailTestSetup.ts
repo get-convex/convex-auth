@@ -39,6 +39,7 @@ export async function seedEmail(
 export type ChallengePurposeRow =
   | { kind: "addEmail"; userId: string }
   | { kind: "changeEmail"; userId: string }
+  | { kind: "signUp"; userId: string }
   | { kind: "custom"; userId: string | null; purpose: string };
 
 /**
