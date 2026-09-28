@@ -96,6 +96,30 @@
       "types": "./dist/oauth/apple/*.d.ts",
       "default": "./dist/oauth/apple/*.js"
     },
+    "./providers/oauth/github": {
+      "types": "./dist/oauth/github/index.d.ts",
+      "default": "./dist/oauth/github/index.js"
+    },
+    "./providers/oauth/github/*.js": {
+      "types": "./dist/oauth/github/*.d.ts",
+      "default": "./dist/oauth/github/*.js"
+    },
+    "./providers/oauth/github/*": {
+      "types": "./dist/oauth/github/*.d.ts",
+      "default": "./dist/oauth/github/*.js"
+    },
+    "./providers/oauth/google": {
+      "types": "./dist/oauth/google/index.d.ts",
+      "default": "./dist/oauth/google/index.js"
+    },
+    "./providers/oauth/google/*.js": {
+      "types": "./dist/oauth/google/*.d.ts",
+      "default": "./dist/oauth/google/*.js"
+    },
+    "./providers/oauth/google/*": {
+      "types": "./dist/oauth/google/*.d.ts",
+      "default": "./dist/oauth/google/*.js"
+    },
     "./providers/oauth/*.js": {
       "types": "./dist/oauth/component/*.d.ts",
       "default": "./dist/oauth/component/*.js"

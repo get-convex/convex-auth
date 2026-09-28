@@ -1,6 +1,12 @@
-// Crypto helpers for the OAuth provider. Used by both the app-side recipe
-// (PKCE, ticket decryption) and the component itself (ticket encryption,
-// decoding id_tokens).
+/**
+ * The crypto every OAuth component and its app-side half share.
+ *
+ * The app side uses these to mint the PKCE verifier and its challenge and to
+ * decrypt a ticket payload. A component uses them to decode an id_token and to
+ * encrypt a ticket payload.
+ *
+ * @module
+ */
 
 function base64UrlEncode(bytes: Uint8Array): string {
   const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");

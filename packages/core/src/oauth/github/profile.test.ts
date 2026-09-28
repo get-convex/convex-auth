@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { normalizeGithubProfile } from "./github.ts";
+import { normalizeGithubProfile } from "./index.ts";
 
-type GithubUserInfo = NonNullable<Parameters<typeof normalizeGithubProfile>[1]>;
+type GithubUserInfo = NonNullable<Parameters<typeof normalizeGithubProfile>[0]>;
 
 /**
  * Call `normalizeGithubProfile` with fake userinfo responses. The cast lets
@@ -11,7 +11,7 @@ function normalize(
   user: Record<string, unknown>,
   emails?: Array<{ email: string; primary: boolean; verified: boolean }>,
 ) {
-  return normalizeGithubProfile(undefined, { user, emails } as GithubUserInfo);
+  return normalizeGithubProfile({ user, emails } as GithubUserInfo);
 }
 
 describe("normalizeGithubProfile", () => {
@@ -25,7 +25,7 @@ describe("normalizeGithubProfile", () => {
     expect(profile.emailVerified).toBe(true);
   });
 
-  test("falls back to any verified email when none is primary", () => {
+  test("falls back to any verified email when primary is unverified", () => {
     const profile = normalize({ id: 1, login: "octocat" }, [
       { email: "unverified@example.com", primary: true, verified: false },
       { email: "verified@example.com", primary: false, verified: true },
@@ -62,9 +62,9 @@ describe("normalizeGithubProfile", () => {
   });
 
   test("throws when the user response is missing", () => {
-    expect(() =>
-      normalizeGithubProfile(undefined, {} as GithubUserInfo),
-    ).toThrow(/missing the `user` entry/);
+    expect(() => normalizeGithubProfile({} as GithubUserInfo)).toThrow(
+      /missing the `user` entry/,
+    );
   });
 
   test("throws when the user response has no id", () => {

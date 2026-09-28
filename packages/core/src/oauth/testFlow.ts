@@ -54,7 +54,7 @@ export const invalidCode = {
  * path and completion rebuilds the reference from it, so assertions compare
  * paths, not references.
  */
-export const ACME_REFS: OauthProviderRefs = {
+export const acmeRefs: OauthProviderRefs = {
   providerName: "acme",
   startSignIn: makeFunctionReference<"mutation">("auth:startSignInAcme"),
   completeSignIn: makeFunctionReference<"mutation">("auth:completeSignInAcme"),
@@ -80,7 +80,7 @@ export function readFlow(storage: TokenStorage): PendingFlow | null {
 /** Store a pending flow the way `signIn` would before navigating away. */
 export function seedPendingFlow(
   storage: TokenStorage,
-  refs: OauthProviderRefs = ACME_REFS,
+  refs: OauthProviderRefs = acmeRefs,
   state = "state-1",
 ): void {
   void flowStorage(storage).set(

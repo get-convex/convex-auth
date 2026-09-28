@@ -14,12 +14,12 @@ import schema from "../../oauth/component/schema.ts";
 const modules = import.meta.glob("../../oauth/component/**/*.ts");
 
 /**
- * Register the OAuth component with a `convex-test` instance.
+ * Register the custom-provider OAuth component with a `convex-test` instance.
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The mount name of this component instance, as registered in
- *   convex.config.ts (e.g. `"oauthGoogle"` - the component mounts once per
- *   provider). Defaults to `"oauth"`.
+ *   convex.config.ts (the component mounts once per provider, e.g.
+ *   `"oauthAcme"`). Defaults to `"oauth"`.
  */
 export function registerOauth(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,

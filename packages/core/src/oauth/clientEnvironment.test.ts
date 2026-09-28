@@ -3,7 +3,7 @@
 // jsdom always has a `window.location`, so the client's no-page-URL cases need
 // their own file with a node environment.
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { ACME_REFS, readFlow, setupOAuth } from "./testFlow.ts";
+import { acmeRefs, readFlow, setupOAuth } from "./testFlow.ts";
 
 describe("OAuth client with no page URL", () => {
   afterEach(() => {
@@ -38,7 +38,7 @@ describe("OAuth client with no page URL", () => {
     vi.stubGlobal("window", {});
     const { actions, mutation } = setupOAuth();
 
-    await expect(actions.signIn(ACME_REFS)).rejects.toThrow(
+    await expect(actions.signIn(acmeRefs)).rejects.toThrow(
       /`redirectTo` is required/,
     );
     expect(mutation).not.toHaveBeenCalled();
@@ -48,10 +48,10 @@ describe("OAuth client with no page URL", () => {
     vi.stubGlobal("window", {});
     const { actions, flowError } = setupOAuth();
     // A code with no stored flow is the cheapest way to put an error in place.
-    await actions.signIn(ACME_REFS, { code: "code-1" });
+    await actions.signIn(acmeRefs, { code: "code-1" });
     expect(flowError()?.code).toBe("invalid_flow");
 
-    await expect(actions.signIn(ACME_REFS)).rejects.toThrow();
+    await expect(actions.signIn(acmeRefs)).rejects.toThrow();
 
     expect(flowError()?.code).toBe("invalid_flow");
   });
@@ -66,7 +66,7 @@ describe("OAuth client with no page URL", () => {
       state: "state-1",
     });
 
-    const outcome = await actions.signIn(ACME_REFS, {
+    const outcome = await actions.signIn(acmeRefs, {
       redirectTo: "https://app.example/done",
     });
 

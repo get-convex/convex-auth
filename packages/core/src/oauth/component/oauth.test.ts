@@ -5,7 +5,7 @@ import {
   decryptTicketPayload,
   encryptTicketPayload,
   generateRandomToken,
-} from "./crypto.ts";
+} from "../shared/crypto.ts";
 import schema from "./schema.ts";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -31,6 +31,7 @@ const requestArgs = {
   providerName: PROVIDER_NAME,
   stateHash: "0".repeat(64),
   redirectTo: "https://app.example.com/after",
+  codeVerifier: "verifier-1",
   tokenEndpoint: TOKEN_ENDPOINT,
 };
 
@@ -77,6 +78,7 @@ describe("oauth", () => {
       stateHash: requestArgs.stateHash,
       redirectTo: "https://app.example.com/after",
       callbackUrl: "https://test.convex.site/oauth/test-provider/callback",
+      codeVerifier: "verifier-1",
       tokenEndpoint: TOKEN_ENDPOINT,
     });
     const second = await t.mutation(

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { actionGeneric, mutationGeneric } from "convex/server";
-import type { AuthCore } from "../../components/core/setup.ts";
 import type { ComponentApi } from "./_generated/component.ts";
+import { fakeCallbacks, fakeCore } from "../shared/componentContract.test.ts";
 import {
   setupOauth,
   type OauthCatalog,
@@ -9,27 +8,15 @@ import {
 } from "./setup.ts";
 
 /**
- * A minimal plain-OAuth catalog: no issuer or openid scope, no PKCE. Tests
+ * A minimal plain-OAuth catalog: no issuer and no openid scope. Tests
  * override individual fields to exercise each validation rule.
  */
-const CATALOG: OauthCatalog = {
+const minimalCatalog: OauthCatalog = {
   authorizationEndpoint: "https://provider.example/authorize",
   tokenEndpoint: "https://provider.example/token",
   scopes: [],
-  pkce: false,
   profile: () => ({ id: "account-1" }),
 };
-
-/**
- * A core that hands back plain function builders. Nothing here calls the
- * built functions, so the injected `ctx.convexAuth` is never needed.
- */
-const CORE = {
-  bindProvider: () => ({
-    authMutation: mutationGeneric,
-    authAction: actionGeneric,
-  }),
-} as unknown as AuthCore;
 
 /**
  * Run the provider's setup with the given options merged over a valid base.
@@ -38,9 +25,9 @@ const CORE = {
  */
 function setup(
   options: Partial<OauthProviderOptions> = {},
-  catalog: OauthCatalog = CATALOG,
+  catalog: OauthCatalog = minimalCatalog,
 ) {
-  return setupOauth(CORE, "acme", catalog, {} as never, {
+  return setupOauth(fakeCore, "acme", catalog, fakeCallbacks, {
     component: {} as ComponentApi,
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
@@ -89,8 +76,51 @@ describe("setupOauth validation", () => {
   });
 
   test("an openid catalog scope without a catalog issuer is rejected", () => {
-    expect(() => setup({}, { ...CATALOG, scopes: ["openid"] })).toThrow(
+    expect(() => setup({}, { ...minimalCatalog, scopes: ["openid"] })).toThrow(
       /sets no issuer/,
+    );
+  });
+
+  describe.each([
+    {
+      field: "authorizationEndpoint",
+      withEndpoint: (endpoint: string): OauthCatalog => ({
+        ...minimalCatalog,
+        authorizationEndpoint: endpoint,
+      }),
+    },
+    {
+      field: "tokenEndpoint",
+      withEndpoint: (endpoint: string): OauthCatalog => ({
+        ...minimalCatalog,
+        tokenEndpoint: endpoint,
+      }),
+    },
+    {
+      field: "userInfoEndpoints.user",
+      withEndpoint: (endpoint: string): OauthCatalog => ({
+        ...minimalCatalog,
+        userInfoEndpoints: { user: endpoint },
+      }),
+    },
+  ])("catalog $field", ({ field, withEndpoint }) => {
+    test.each([
+      "http://provider.example/x",
+      "javascript:alert(1)",
+      "ftp://provider.example/x",
+      "not a url",
+    ])("%s is rejected", (endpoint) => {
+      expect(() => setup({}, withEndpoint(endpoint))).toThrow(
+        `catalog ${field} is not a valid https URL`,
+      );
+    });
+
+    test.each(["http://localhost:8080/x", "http://127.0.0.1/x"])(
+      "%s is accepted",
+      (endpoint) => {
+        const api = setup({}, withEndpoint(endpoint));
+        expect(api.startSignIn).toBeDefined();
+      },
     );
   });
 });

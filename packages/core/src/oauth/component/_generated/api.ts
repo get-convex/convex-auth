@@ -8,9 +8,6 @@
  * @module
  */
 
-import type * as crypto from "../crypto.js";
-import type * as github from "../github.js";
-import type * as google from "../google.js";
 import type * as http from "../http.js";
 import type * as provider from "../provider.js";
 import type * as setup from "../setup.js";
@@ -23,9 +20,6 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  crypto: typeof crypto;
-  github: typeof github;
-  google: typeof google;
   http: typeof http;
   provider: typeof provider;
   setup: typeof setup;
