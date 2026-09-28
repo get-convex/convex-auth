@@ -109,9 +109,6 @@ export const complete = mutation({
       return claim.failure;
     }
     const { row } = claim;
-    if (row.purpose.kind !== "signUp") {
-      throw new Error("Unreachable: the claim checked the purpose kind");
-    }
     const { userId } = row.purpose;
     // Before `EMAIL_TAKEN`: when the other challenge was for the same address,
     // this user is the one who took it.
