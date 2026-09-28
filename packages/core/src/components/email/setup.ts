@@ -276,9 +276,7 @@ export function setupEmailPassword<UsersTable extends string>(
         /**
          * Complete a sign-up: validate the email with the code from the link
          * and the secret from the starting browser, then sign the user in.
-         * Validation and sign-in happen in one transaction. The user is the
-         * one that the challenge was started for; the browser does not give
-         * it back.
+         * Validation and sign-in happen in one transaction.
          */
         completeSignUp: authMutation({
           args: { emailCode: v.string(), browserSecret: v.string() },
