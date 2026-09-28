@@ -148,7 +148,7 @@ export type EmailPasswordProfile = Record<string, never>;
  *   urls: {
  *     signUp: `${env.SITE_URL}/validate-email`,
  *   },
- * }).attachUserCallback(internal.users.createOrUpdateUser);
+ * }).attachUserCallbacks({ createUser: internal.users.createUser });
  * ```
  *
  *
