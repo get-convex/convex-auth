@@ -46,6 +46,10 @@ type CreateAuthorizationRequestRef = FunctionReference<
  * The server mints `state` and returns it; the client keeps it (it must
  * present the same value again to complete sign-in) and navigates to the
  * returned `redirect` URL.
+ *
+ * The mutation throws on every error. They are all developer or environment
+ * errors, such as a `redirectTo` origin that isn't allowed, so there is
+ * nothing for the user to correct.
  */
 export function buildStartSignIn(options: {
   /** Origins `redirectTo` may point at, already validated and normalized. */
@@ -60,12 +64,13 @@ export function buildStartSignIn(options: {
    */
   callbackMethod?: CallbackMethod;
   /**
-   * Record the request in this provider's component instance, and hand back
-   * what the authorization URL needs.
+   * Record the request in the provider's component, and return what the
+   * authorization URL needs.
    *
-   * A component that records nothing beyond the three arguments takes the
-   * mutation reference itself. One that records more takes a function, which
-   * adds its own fields before calling the component.
+   * If the component's `createAuthorizationRequest` mutation takes exactly
+   * {@link CreateAuthorizationRequestArgs}, pass its reference. If the
+   * mutation takes more fields, pass a function that runs it with those
+   * fields added.
    */
   createAuthorizationRequest:
     | CreateAuthorizationRequestRef

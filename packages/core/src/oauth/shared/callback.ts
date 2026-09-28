@@ -275,6 +275,7 @@ export type ClaimedRequest = {
 export type ClaimResult<Request extends ClaimedRequest> =
   null | { expired: true; redirectTo: string } | ({ expired: false } & Request);
 
+/** The fields of a new ticket, for `mintTicket` to store. */
 export type MintedTicket = {
   ticketCodeHash: string;
   encryptedPayload: string;

@@ -43,7 +43,7 @@ const http: HttpRouter = buildCallbackRouter<ClaimedRequest>({
   }),
   // The name is browser-relayed, so it is sanitized before it can reach the
   // ticket payload. Apple sends it on a first authorization only.
-  callbackParams: (fields) => {
+  sanitizeParams: (fields) => {
     const user = sanitizeAppleUser(fields.get("user"));
     return user === undefined ? undefined : { user };
   },

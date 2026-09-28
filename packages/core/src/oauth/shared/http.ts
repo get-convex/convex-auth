@@ -40,6 +40,31 @@ export type CallbackMethod = "GET" | "POST";
  * Build the router a component's `http.ts` default-exports. The callback is
  * served at `/callback`, under whichever `httpPrefix` the app installed the
  * component with.
+ *
+ * Each provider's component customizes the callback through these options,
+ * such as its token endpoint and the methods the callback is served over.
+ *
+ * ```ts
+ * const http = buildCallbackRouter<ClaimedRequest>({
+ *   claim: (ctx, stateHash) =>
+ *     ctx.runMutation(internal.provider.claimAuthorizationRequest, {
+ *       stateHash,
+ *     }),
+ *   mintTicket: (ctx, request, ticket) =>
+ *     ctx.runMutation(internal.provider.createTicket, {
+ *       stateHash: request.stateHash,
+ *       ...ticket,
+ *     }),
+ *   exchangeConfig: () => ({
+ *     providerName: PROVIDER_NAME,
+ *     tokenEndpoint: TOKEN_ENDPOINT,
+ *     clientId: env.CLIENT_ID,
+ *     clientSecret: () => env.CLIENT_SECRET,
+ *   }),
+ * });
+ *
+ * export default http;
+ * ```
  */
 export function buildCallbackRouter<Request extends ClaimedRequest>(options: {
   /**
@@ -58,11 +83,11 @@ export function buildCallbackRouter<Request extends ClaimedRequest>(options: {
   /** The endpoints and credentials for this flow's provider. */
   exchangeConfig: (request: Request) => ExchangeConfig;
   /**
-   * Read provider data that arrived in the callback request itself rather
-   * than through a token, such as Apple's `user` field. The browser relayed
-   * it, so it is user-controlled and this must sanitize it.
+   * Read and sanitize provider data that arrived in the callback request
+   * itself rather than through a token, such as Apple's `user` field. The
+   * browser relayed it, so it is user-controlled.
    */
-  callbackParams?: (
+  sanitizeParams?: (
     fields: URLSearchParams,
   ) => Record<string, unknown> | undefined;
   /**
@@ -118,7 +143,7 @@ export function buildCallbackRouter<Request extends ClaimedRequest>(options: {
       mintTicket: (authRequest, ticket) =>
         options.mintTicket(ctx, authRequest, ticket),
       exchangeConfig: options.exchangeConfig,
-      callbackParams: options.callbackParams?.(fields),
+      callbackParams: options.sanitizeParams?.(fields),
       extraDeniedErrorCodes: options.extraDeniedErrorCodes,
       redirectStatus: request.method === "POST" ? 303 : 302,
     });
