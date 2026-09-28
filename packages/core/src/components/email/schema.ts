@@ -39,9 +39,9 @@ export default defineSchema({
       // If there is already another primary email address, the new email address will be added as secondary.
       // Useful for apps that support multiple email addresses per user.
       v.object({ kind: v.literal("addEmail"), userId: v.string() }),
-      // On completion, adds the verified email to `verifiedEmails` for a user
-      // that a sign-up has just created. The user has no session yet, thus the
-      // completion takes the user from this row, not from the caller.
+      // On completion, adds the verified email to `verifiedEmails` as the primary email address
+      // of a user that a sign-up has just created (and fails if they already have an email address).
+      // The user has no session yet, thus the completion takes the user from this row, not from the caller.
       v.object({ kind: v.literal("signUp"), userId: v.string() }),
       // Custom flow: doesn’t do anything in the component itself on completion,
       // the caller will implement the right behavior instead.

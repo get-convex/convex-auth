@@ -39,8 +39,8 @@ export const check = mutation({
  * created. Fails with `EMAIL_TAKEN` when a user has already verified the
  * address.
  *
- * Throws when the user already has an email address: `signUp` is only for a
- * new user, and calling it for another user is an application bug.
+ * Throws when the user already has an email address: it is an application
+ * bug. Give only a user that the same mutation has just created.
  */
 export const start = mutation({
   args: { ...vStartArgs, userId: v.string() },
@@ -84,17 +84,16 @@ type CompleteResult = Infer<typeof completeResult>;
 
 /**
  * Complete a `signUp` challenge: record the address for the user that the
- * challenge was started for, and return that user. Fails with `EMAIL_TAKEN`
- * when another user verified the address after the start.
+ * challenge was started for, and return that user.
+ *
+ * Fails with `EMAIL_TAKEN` when another user verified the address after the start.
  *
  * Fails with `INVALID_CHALLENGE` when the user already has an email address.
  * This happens when the app started more than one `signUp` challenge for the
  * user, and another one completed first: the sign-up is done, thus this link
- * is no longer valid.
- *
- * The browser secret and the email code together prove that the caller is
- * the browser that started the sign-up, thus the caller does not give a
- * `userId`.
+ * is no longer valid. (This doesn’t happen when using the official email setup
+ * functions, but it can happen if the user manually implements an auth flow
+ * on top this challenge flow.)
  */
 export const complete = mutation({
   args: vClaimArgs,

@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   registerResendStub,
   stubEmailSender,
@@ -29,6 +29,10 @@ function emailCodeInLink(text: string | undefined): string {
   }
   return decodeURIComponent(match[1]);
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("challenge.signUp.complete", () => {
   test("records the address as primary for the user of the challenge", async () => {
@@ -81,17 +85,18 @@ describe("a user with an email address", () => {
   ] as const) {
     test(`a second signUp challenge for ${name} fails with INVALID_CHALLENGE`, async () => {
       const t = setup();
-      for (const [emailCode, browserSecret, email] of [
-        ["code1", "secret1", "alice@example.com"],
-        ["code2", "secret2", secondEmail],
-      ]) {
-        await seedChallenge(t, {
-          email,
-          purpose: { kind: "signUp", userId: "user1" },
-          emailCode,
-          browserSecret,
-        });
-      }
+      await seedChallenge(t, {
+        email: "alice@example.com",
+        purpose: { kind: "signUp", userId: "user1" },
+        emailCode: "code1",
+        browserSecret: "secret1",
+      });
+      await seedChallenge(t, {
+        email: secondEmail,
+        purpose: { kind: "signUp", userId: "user1" },
+        emailCode: "code2",
+        browserSecret: "secret2",
+      });
       expect(
         await t.mutation(api.challenge.signUp.complete, {
           emailCode: "code1",
@@ -109,7 +114,6 @@ describe("a user with an email address", () => {
       expect(warn).toHaveBeenCalledWith(
         expect.stringMatching(/already has an email address/),
       );
-      warn.mockRestore();
       // The first address stays the only one, and the link is used up.
       expect(
         await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
@@ -131,7 +135,8 @@ describe("the kind of a signUp challenge", () => {
       browserSecret: "secret1",
     });
 
-    // Without this check, a caller could skip the `userId` of `addEmail`.
+    // The kind check keeps a caller from completing an `addEmail` challenge
+    // without its `userId`.
     await expect(
       t.mutation(api.challenge.signUp.complete, {
         emailCode: "code1",
