@@ -38,11 +38,20 @@ export const check = mutation({
  * Start a `signUp` challenge for `userId`, a user that the sign-up has just
  * created. Fails with `EMAIL_TAKEN` when a user has already verified the
  * address.
+ *
+ * Throws when the user already has an email address: `signUp` is only for a
+ * new user, and calling it for another user is an application bug.
  */
 export const start = mutation({
   args: { ...vStartArgs, userId: v.string() },
   returns: startFreeAddressResult,
   handler: async (ctx, args): Promise<StartFreeAddressResult> => {
+    if (await userHasEmail(ctx, args.userId)) {
+      throw new Error(
+        "Cannot start a signUp challenge: the user already has an email " +
+          "address. Use addEmail or changeEmail for an existing user.",
+      );
+    }
     const error = await startFreeAddressPreconditions(
       ctx,
       args.email,

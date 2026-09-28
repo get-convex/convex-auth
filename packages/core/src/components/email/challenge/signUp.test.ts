@@ -172,6 +172,24 @@ describe("challenge.signUp.start", () => {
     ).toEqual({ success: false, userError: { error: "EMAIL_TAKEN" } });
     expect(await sentEmails(t)).toEqual([]);
   });
+
+  test("throws when the user already has an email", async () => {
+    const t = setup();
+    await seedEmail(t, "user1", "alice@example.com", true);
+
+    await expect(
+      t.withRequestMetadata({ ip: IP }).mutation(api.challenge.signUp.start, {
+        email: "alice@work.example",
+        url: URL,
+        emailSender: await stubEmailSender(t),
+        userId: "user1",
+      }),
+    ).rejects.toThrow(/already has an email/);
+    expect(await sentEmails(t)).toEqual([]);
+    expect(await t.run((ctx) => ctx.db.query("challenges").collect())).toEqual(
+      [],
+    );
+  });
 });
 
 describe("challenge.signUp.check", () => {
