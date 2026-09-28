@@ -170,7 +170,13 @@ export function setupEmailPassword<UsersTable extends string>(
     retryAttempts: 5,
   });
 
-  /** The sender config the email component's `start` mutations accept. */
+  /**
+   * The sender config the email component's `start` mutations accept.
+   *
+   * This is a function because `createFunctionHandle` is asynchronous, and
+   * it works only while a Convex function runs, not when `convex/auth.ts`
+   * is imported and this setup runs.
+   */
   const senderConfig = async (): Promise<EmailSenderConfig> => ({
     kind: "resend",
     sendEmailHandle: await createFunctionHandle(emailSender.sendEmail),
