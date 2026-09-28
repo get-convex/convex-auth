@@ -87,7 +87,7 @@ type UnexpectedFailure = { success: false; userError: OtherError };
  * of the result keeps it out of URLs and logs.
  */
 type WithoutSecret<Result> = Result extends { success: true }
-  ? { success: true }
+  ? Omit<Result, "browserSecret">
   : Result;
 
 type SignInUnexpectedFailure = { status: "error"; userError: OtherError };
@@ -609,7 +609,9 @@ export function useCompleteSignUp(
 /**
  * Client for starting a password recovery: run the backend's
  * `startPasswordRecovery` mutation and keep the returned secret for
- * {@link useCompletePasswordRecovery}.
+ * {@link useCompletePasswordRecovery}. On success, `sentTo` gives the address
+ * that received the link. Show this address to the user, not the typed one:
+ * the two can differ in case or in Unicode form.
  *
  * @param startPasswordRecoveryMutation The app's `startPasswordRecovery` mutation reference.
  */
@@ -630,7 +632,7 @@ export function useStartPasswordRecovery(
               SECRET_STORAGE_KEYS.passwordRecovery,
               result.browserSecret,
             );
-            return { success: true };
+            return { success: true, sentTo: result.sentTo };
           }
           return result;
         } catch (cause) {

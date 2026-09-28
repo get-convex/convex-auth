@@ -213,7 +213,13 @@ const completeChangeEmailResult = v.union(
 export type CompleteChangeEmailResult = Infer<typeof completeChangeEmailResult>;
 
 const startPasswordRecoveryResult = v.union(
-  v.object({ success: v.literal(true), browserSecret: v.string() }),
+  v.object({
+    success: v.literal(true),
+    browserSecret: v.string(),
+    // The address that received the link, as the user verified it. It can
+    // differ from the typed address in case or in Unicode form.
+    sentTo: v.string(),
+  }),
   v.object({
     success: v.literal(false),
     userError: v.union(startChallengeUserError, emailNotFoundUserError),
@@ -745,7 +751,11 @@ export function setupEmailPassword<UsersTable extends string>(
             if (!start.success) {
               return { success: false, userError: start.userError };
             }
-            return { success: true, browserSecret: start.browserSecret };
+            return {
+              success: true,
+              browserSecret: start.browserSecret,
+              sentTo: lookup.storedEmail,
+            };
           },
         }),
 

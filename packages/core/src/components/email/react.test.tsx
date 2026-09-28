@@ -425,6 +425,7 @@ describe("useStartPasswordRecovery", () => {
     const mutation = stubConvexMutation().mockResolvedValue({
       success: true,
       browserSecret: "secret-9",
+      sentTo: "Alice@example.com",
     });
     const { result } = renderWithProviders(() =>
       useStartPasswordRecovery(convexMutation),
@@ -440,7 +441,7 @@ describe("useStartPasswordRecovery", () => {
     });
 
     expect(mutation.mock.calls[0]?.[1]).toEqual({ email: "alice@example.com" });
-    expect(returned).toEqual({ success: true });
+    expect(returned).toEqual({ success: true, sentTo: "Alice@example.com" });
     expect(secretStorage.get(RECOVERY_SECRET_KEY)).toBe("secret-9");
   });
 
