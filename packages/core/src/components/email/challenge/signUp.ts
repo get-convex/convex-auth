@@ -87,6 +87,11 @@ type CompleteResult = Infer<typeof completeResult>;
  * challenge was started for, and return that user. Fails with `EMAIL_TAKEN`
  * when another user verified the address after the start.
  *
+ * Fails with `INVALID_CHALLENGE` when the user already has an email address.
+ * This happens when the app started more than one `signUp` challenge for the
+ * user, and another one completed first: the sign-up is done, thus this link
+ * is no longer valid.
+ *
  * The browser secret and the email code together prove that the caller is
  * the browser that started the sign-up, thus the caller does not give a
  * `userId`.
@@ -108,19 +113,29 @@ export const complete = mutation({
       throw new Error("Unreachable: the claim checked the purpose kind");
     }
     const { userId } = row.purpose;
+    // Before `EMAIL_TAKEN`: when the other challenge was for the same address,
+    // this user is the one who took it.
+    if (await userHasEmail(ctx, userId)) {
+      console.warn(
+        `Rejected the email challenge ${row._id} for the purpose "signUp": ` +
+          `the user already has an email address, most likely from another ` +
+          `signUp challenge for the user that completed first.`,
+      );
+      return {
+        success: false,
+        userError: { error: "INVALID_CHALLENGE" },
+      };
+    }
     const normalizedEmail = normalizeEmail(row.email);
     const taken = await addressTakenError(ctx, normalizedEmail);
     if (taken !== null) {
       return { success: false, userError: taken };
     }
-    // The user is new, thus the address is usually the first one, and the
-    // first address of a user always becomes primary.
-    const isPrimary = !(await userHasEmail(ctx, userId));
     await ctx.db.insert("verifiedEmails", {
       email: row.email,
       normalizedEmail,
       userId,
-      isPrimary,
+      isPrimary: true,
     });
     return { success: true, userId, email: row.email };
   },

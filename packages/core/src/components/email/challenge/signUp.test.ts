@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import {
   registerResendStub,
   stubEmailSender,
@@ -72,6 +72,53 @@ describe("challenge.signUp.complete", () => {
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
     ).toEqual([]);
   });
+});
+
+describe("a user with an email address", () => {
+  for (const [name, secondEmail] of [
+    ["the same address", "alice@example.com"],
+    ["another address", "alice@work.example"],
+  ] as const) {
+    test(`a second signUp challenge for ${name} fails with INVALID_CHALLENGE`, async () => {
+      const t = setup();
+      for (const [emailCode, browserSecret, email] of [
+        ["code1", "secret1", "alice@example.com"],
+        ["code2", "secret2", secondEmail],
+      ]) {
+        await seedChallenge(t, {
+          email,
+          purpose: { kind: "signUp", userId: "user1" },
+          emailCode,
+          browserSecret,
+        });
+      }
+      expect(
+        await t.mutation(api.challenge.signUp.complete, {
+          emailCode: "code1",
+          browserSecret: "secret1",
+        }),
+      ).toMatchObject({ success: true });
+
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(
+        await t.mutation(api.challenge.signUp.complete, {
+          emailCode: "code2",
+          browserSecret: "secret2",
+        }),
+      ).toEqual({ success: false, userError: { error: "INVALID_CHALLENGE" } });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/already has an email address/),
+      );
+      warn.mockRestore();
+      // The first address stays the only one, and the link is used up.
+      expect(
+        await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
+      ).toEqual([{ email: "alice@example.com", isPrimary: true }]);
+      expect(
+        await t.run((ctx) => ctx.db.query("challenges").collect()),
+      ).toEqual([]);
+    });
+  }
 });
 
 describe("the kind of a signUp challenge", () => {
