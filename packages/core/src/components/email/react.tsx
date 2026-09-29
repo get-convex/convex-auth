@@ -29,7 +29,9 @@ import type {
 /** The flows that keep a secret in the starting browser's storage. */
 type EmailPasswordFlow = "signUp";
 
-// One storage key per flow, so concurrent flows do not overwrite each other.
+// One storage key per type of flow, so flows of different types can run at
+// the same time. Two flows of the same type share one key: the second flow
+// replaces the secret of the first.
 const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
   signUp: "__convexAuthEmailPasswordSignUpSecret",
 };
