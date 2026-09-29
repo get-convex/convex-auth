@@ -34,7 +34,7 @@ async function startArgs(t: ReturnType<typeof setup>) {
     url: URL,
     emailSender: await stubEmailSender(t),
     purpose: PURPOSE,
-    userId: "user1",
+    expectedUserId: "user1",
     subject: "Confirm it is you",
     intro: "Open this link to continue:",
   };
@@ -70,7 +70,7 @@ describe("challenge.custom.complete", () => {
       emailCode: "code1",
       browserSecret: "secret1",
       purpose: PURPOSE,
-      userId: "user1",
+      currentUserId: "user1",
     });
     expect(result).toEqual({
       success: true,
@@ -87,7 +87,7 @@ describe("challenge.custom.complete", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: null, purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -97,7 +97,7 @@ describe("challenge.custom.complete", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: PURPOSE,
-        userId: null,
+        currentUserId: null,
       }),
     ).toEqual({ success: true, userId: null, email: "alice@example.com" });
   });
@@ -106,7 +106,7 @@ describe("challenge.custom.complete", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "nobody@example.com",
-      purpose: { kind: "custom", userId: null, purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -116,7 +116,7 @@ describe("challenge.custom.complete", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: PURPOSE,
-        userId: null,
+        currentUserId: null,
       }),
     ).toMatchObject({ success: true });
     expect(
@@ -140,7 +140,7 @@ describe("challenge.custom.complete", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: "myApp/otherFlow",
-        userId: "user1",
+        currentUserId: "user1",
       }),
     ).rejects.toThrow();
     expect(
@@ -148,12 +148,12 @@ describe("challenge.custom.complete", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: PURPOSE,
-        userId: "user1",
+        currentUserId: "user1",
       }),
     ).toMatchObject({ success: true });
   });
 
-  test("another userId throws, and null does not match a user", async () => {
+  test("another currentUserId throws, and null does not match a user in either direction", async () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
@@ -163,7 +163,7 @@ describe("challenge.custom.complete", () => {
     });
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: null, purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code2",
       browserSecret: "secret2",
     });
@@ -173,15 +173,25 @@ describe("challenge.custom.complete", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: PURPOSE,
-        userId: "user2",
+        currentUserId: "user2",
       }),
     ).rejects.toThrow();
+    // A challenge for a user rejects a caller that is not signed in.
+    await expect(
+      t.mutation(api.challenge.custom.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        purpose: PURPOSE,
+        currentUserId: null,
+      }),
+    ).rejects.toThrow();
+    // A challenge without a user rejects a caller that is signed in.
     await expect(
       t.mutation(api.challenge.custom.complete, {
         emailCode: "code2",
         browserSecret: "secret2",
         purpose: PURPOSE,
-        userId: "user1",
+        currentUserId: "user1",
       }),
     ).rejects.toThrow();
   });
@@ -200,7 +210,7 @@ describe("challenge.custom.complete", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: "addEmail",
-        userId: "user1",
+        currentUserId: "user1",
       }),
     ).rejects.toThrow();
   });
@@ -239,9 +249,26 @@ describe("challenge.custom.start", () => {
         emailCode: emailCodeInLink(sent[0].text),
         browserSecret: result.browserSecret,
         purpose: PURPOSE,
-        userId: "user1",
+        currentUserId: "user1",
       }),
     ).toEqual({ success: true, userId: "user1", email: "alice@example.com" });
+  });
+
+  test("a null expectedUserId stores no user", async () => {
+    const t = setup();
+    const result = await t
+      .withRequestMetadata({ ip: IP })
+      .mutation(api.challenge.custom.start, {
+        ...(await startArgs(t)),
+        expectedUserId: null,
+      });
+    if (!result.success) {
+      throw new Error("unreachable");
+    }
+    const row = await t.run((ctx) =>
+      ctx.db.get("challenges", result.challengeId),
+    );
+    expect(row?.purpose).toEqual({ kind: "custom", purpose: PURPOSE });
   });
 
   test("uses the default TTL when ttlMs is absent", async () => {

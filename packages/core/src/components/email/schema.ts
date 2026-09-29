@@ -47,7 +47,9 @@ export default defineSchema({
       // the caller will implement the right behavior instead.
       v.object({
         kind: v.literal("custom"),
-        userId: v.union(v.string(), v.null()),
+        // The user that started the flow. Absent when no user was signed in
+        // at start.
+        userId: v.optional(v.string()),
         // Opaque “purpose” string that is set by the code that creates the challnge
         // and must be identical on completion to avoid auth flow confusion.
         purpose: v.string(),
