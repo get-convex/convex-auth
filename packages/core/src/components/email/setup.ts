@@ -30,7 +30,9 @@ import {
   startFreeAddressUserError,
   completeChallengeUserError,
   completeFreeAddressUserError,
+  wrongUserUserError,
   emailNotFoundUserError,
+  validateEmailFormat,
   type EmailSenderConfig,
 } from "./validation.ts";
 import type { SendEmailRef } from "./helpers.ts";
@@ -206,7 +208,11 @@ const completeChangeEmailResult = v.union(
   v.object({ success: v.literal(true) }),
   v.object({
     success: v.literal(false),
-    userError: v.union(vNotLoggedIn, completeFreeAddressUserError),
+    userError: v.union(
+      vNotLoggedIn,
+      completeFreeAddressUserError,
+      wrongUserUserError,
+    ),
   }),
 );
 
@@ -606,14 +612,14 @@ export function setupEmailPassword<UsersTable extends string>(
               return { success: false, userError: { error: "NOT_LOGGED_IN" } };
             }
 
-            // Check the new address before the password: a rejected address
-            // must not consume the password-verification rate limit.
-            const emailError = await ctx.runMutation(
-              component.challenge.changeEmail.check,
-              { email: newEmail },
-            );
-            if (emailError !== null) {
-              return { success: false, userError: emailError };
+            // Check the format of the new address before the password: a
+            // malformed address must not consume the password-verification
+            // rate limit. The other checks (the rate limits and
+            // `EMAIL_TAKEN`) run in `start`, after the password, so that a
+            // session without the password cannot probe addresses.
+            const formatError = validateEmailFormat(newEmail);
+            if (formatError !== null) {
+              return { success: false, userError: formatError };
             }
 
             const verifyResult = await ctx.runMutation(
@@ -655,7 +661,8 @@ export function setupEmailPassword<UsersTable extends string>(
             { emailCode, browserSecret },
           ): Promise<CompleteChangeEmailResult> => {
             // The link is bound to the user who started the change, so the
-            // same user must be signed in to complete it.
+            // same user must be signed in to complete it. Another user gets
+            // `WRONG_USER`, and the link still works for the right user.
             const userId = await getAuthUserId(ctx);
             if (userId === null) {
               return { success: false, userError: { error: "NOT_LOGGED_IN" } };
