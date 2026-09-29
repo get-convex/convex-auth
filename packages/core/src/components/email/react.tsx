@@ -26,13 +26,16 @@ import type {
   SignInResult as SignInMutationResult,
 } from "./setup.ts";
 
-/** The flows that keep a secret in the starting browser's storage. */
-type EmailPasswordFlow = "signUp";
+/**
+ * The flows that the user completes with a link from an email. Each flow keeps
+ * a secret in the storage of the browser that started it.
+ */
+type EmailLinkFlow = "signUp";
 
 // One storage key per type of flow, so flows of different types can run at
 // the same time. Two flows of the same type share one key: the second flow
 // replaces the secret of the first.
-const SECRET_STORAGE_KEYS: Record<EmailPasswordFlow, string> = {
+const SECRET_STORAGE_KEYS: Record<EmailLinkFlow, string> = {
   signUp: "__convexAuthEmailPasswordSignUpSecret",
 };
 
@@ -193,7 +196,7 @@ const foldSignInError = (cause: unknown): SignInUnexpectedFailure => ({
  * user confirmation.
  */
 function useLinkFlow<UserError>(
-  flow: EmailPasswordFlow,
+  flow: EmailLinkFlow,
   complete: (
     browserSecret: string,
   ) => Promise<{ done: true } | { done: false; userError: UserError }>,
