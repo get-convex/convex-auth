@@ -606,6 +606,16 @@ export function setupEmailPassword<UsersTable extends string>(
               return { success: false, userError: { error: "NOT_LOGGED_IN" } };
             }
 
+            // Check the new address before the password: a rejected address
+            // must not consume the password-verification rate limit.
+            const emailError = await ctx.runMutation(
+              component.challenge.changeEmail.check,
+              { email: newEmail },
+            );
+            if (emailError !== null) {
+              return { success: false, userError: emailError };
+            }
+
             const verifyResult = await ctx.runMutation(
               passwordComponent.public.verifyPassword,
               { userId, password: currentPassword },
