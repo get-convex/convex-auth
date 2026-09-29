@@ -273,11 +273,17 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         string | null,
         Name
       >;
-      getUserIdByEmail: FunctionReference<
-        "query",
+      lookupEmail: FunctionReference<
+        "mutation",
         "internal",
         { email: string },
-        { email: string; userId: string } | null,
+        | { storedEmail: string; success: true; userId: string }
+        | {
+            success: false;
+            userError:
+              | { error: "EMAIL_NOT_FOUND" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number };
+          },
         Name
       >;
     };

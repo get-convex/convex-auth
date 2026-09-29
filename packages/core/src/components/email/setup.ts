@@ -30,6 +30,7 @@ import {
   startFreeAddressUserError,
   completeChallengeUserError,
   completeFreeAddressUserError,
+  emailNotFoundUserError,
   type EmailSenderConfig,
 } from "./validation.ts";
 import type { SendEmailRef } from "./helpers.ts";
@@ -54,9 +55,6 @@ const RECOVERY_EMAIL = {
   subject: "Reset your password",
   intro: "Open this link to reset your password:",
 };
-
-/** No account has verified the address that recovery was asked for. */
-const vEmailNotFound = v.object({ error: v.literal("EMAIL_NOT_FOUND") });
 
 /**
  * How the provider sends emails: challenge links (through the email
@@ -191,7 +189,7 @@ const startPasswordRecoveryResult = v.union(
   v.object({ success: v.literal(true), browserSecret: v.string() }),
   v.object({
     success: v.literal(false),
-    userError: v.union(startChallengeUserError, vEmailNotFound),
+    userError: v.union(startChallengeUserError, emailNotFoundUserError),
   }),
 );
 
@@ -444,25 +442,28 @@ export function setupEmailPassword<UsersTable extends string>(
          * `USER_NOT_FOUND` when no account has verified the email and
          * `INVALID_CREDENTIALS` when the password is wrong. (Address existence
          * is already observable via sign-up's `EMAIL_TAKEN`, so distinguishing
-         * them here leaks nothing new.)
+         * them here leaks nothing new.) The lookup of the address has a
+         * per-IP limit, and returns `RATE_LIMITED` when the client has done
+         * too many lookups.
          */
         signIn: authMutation({
           args: { email: v.string(), password: v.string() },
           returns: signInResult,
           handler: async (ctx, { email, password }): Promise<SignInResult> => {
-            const existing = await ctx.runQuery(
-              component.verifiedEmails.getUserIdByEmail,
-              {
-                email,
-              },
+            const lookup = await ctx.runMutation(
+              component.verifiedEmails.lookupEmail,
+              { email },
             );
-            if (existing === null) {
+            if (!lookup.success) {
+              if (lookup.userError.error === "RATE_LIMITED") {
+                return { status: "error", userError: lookup.userError };
+              }
               return {
                 status: "error",
                 userError: { error: "USER_NOT_FOUND" },
               };
             }
-            const { userId } = existing;
+            const { userId } = lookup;
 
             const verifyResult = await ctx.runMutation(
               passwordComponent.public.verifyPassword,
@@ -562,9 +563,8 @@ export function setupEmailPassword<UsersTable extends string>(
          *
          * `EMAIL_NOT_FOUND` is surfaced to the caller. This reveals whether an
          * address has an account, which sign-up's `EMAIL_TAKEN` reveals
-         * anyway; the recipe accepts that trade-off for a clearer flow.
-         * TODO: the lookups are not rate limited, so a client can probe
-         * addresses freely. Add a consuming per-IP limit on the lookup.
+         * anyway; the recipe accepts that trade-off for a clearer flow. The
+         * lookup has a per-IP limit, so a client cannot probe many addresses.
          */
         startPasswordRecovery: authMutation({
           args: { email: v.string() },
@@ -576,17 +576,14 @@ export function setupEmailPassword<UsersTable extends string>(
             // The address must belong to an account. The check runs again at
             // completion: the component does not verify the address for a
             // custom challenge.
-            const account = await ctx.runQuery(
-              component.verifiedEmails.getUserIdByEmail,
+            // TODO: Should we allow users to start a recovery flow through
+            // a secondary email? Or support options to customize this?
+            const lookup = await ctx.runMutation(
+              component.verifiedEmails.lookupEmail,
               { email },
-              // TODO: Should we allow users to start a recovery flow through
-              // a secondary email? Or support options to customize this?
             );
-            if (account === null) {
-              return {
-                success: false,
-                userError: { error: "EMAIL_NOT_FOUND" },
-              };
+            if (!lookup.success) {
+              return { success: false, userError: lookup.userError };
             }
 
             const start = await ctx.runMutation(
@@ -596,7 +593,7 @@ export function setupEmailPassword<UsersTable extends string>(
                 // The lookup ignores the case, but a mail server can treat
                 // `Alice@` and `alice@` as two mailboxes. Only the case that
                 // the owner verified must receive a recovery link.
-                email: account.email,
+                email: lookup.storedEmail,
                 purpose: RECOVERY_PURPOSE,
                 // Nobody is signed in: the account is found again from the
                 // verified address at completion.

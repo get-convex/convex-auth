@@ -120,6 +120,36 @@ export type CompleteFreeAddressUserError = Infer<
   typeof completeFreeAddressUserError
 >;
 
+/** No user has verified this address. */
+export const emailNotFoundUserError = v.object({
+  error: v.literal("EMAIL_NOT_FOUND"),
+});
+export type EmailNotFoundUserError = Infer<typeof emailNotFoundUserError>;
+
+/**
+ * The result of `lookupEmail`: the user that the address identifies, and the
+ * stored form of the address. `RATE_LIMITED` means that the client IP has
+ * done too many lookups.
+ */
+export const lookupEmailResult = v.union(
+  v.object({
+    success: v.literal(true),
+    userId: v.string(),
+    // The address as the user verified it. It is the address that matched
+    // the argument, not the primary address of the user. It can differ from
+    // the argument in case or in Unicode form.
+    storedEmail: v.string(),
+  }),
+  v.object({
+    success: v.literal(false),
+    userError: v.union(
+      emailNotFoundUserError,
+      v.object({ error: v.literal("RATE_LIMITED"), retryAfterMs: v.number() }),
+    ),
+  }),
+);
+export type LookupEmailResult = Infer<typeof lookupEmailResult>;
+
 /**
  * How the `start` mutations send their email. The caller (the provider recipe)
  * resolves the function handle and the runtime options; the component only

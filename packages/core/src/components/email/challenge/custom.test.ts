@@ -15,6 +15,7 @@ import {
   seedEmail,
   seedChallenge,
   setup as setupComponent,
+  verifiedEmailRow,
 } from "../../emailTestSetup.ts";
 
 /** The component's test instance, plus the stub that catches the emails. */
@@ -175,11 +176,7 @@ describe("challenge.custom.complete", () => {
       email: "nobody@example.com",
       emailOwnerId: null,
     });
-    expect(
-      await t.query(api.verifiedEmails.getUserIdByEmail, {
-        email: "nobody@example.com",
-      }),
-    ).toBeNull();
+    expect(await verifiedEmailRow(t, "nobody@example.com")).toBeNull();
   });
 
   test("another purpose string throws and keeps the row", async () => {
