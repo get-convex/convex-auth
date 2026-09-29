@@ -21,6 +21,25 @@ export const getEmails = query({
 });
 
 /**
+ * Get the primary email address of a user.
+ *
+ * The function returns `null` when the user has no verified email.
+ */
+export const getPrimaryEmail = query({
+  args: { userId: v.string() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, { userId }): Promise<string | null> => {
+    const row = await ctx.db
+      .query("verifiedEmails")
+      .withIndex("by_userId_isPrimary", (q) =>
+        q.eq("userId", userId).eq("isPrimary", true),
+      )
+      .unique();
+    return row === null ? null : row.email;
+  },
+});
+
+/**
  * Find the user that a verified email address identifies.
  *
  * The lookup ignores the case and the Unicode normalization form of the
