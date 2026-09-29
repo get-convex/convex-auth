@@ -140,7 +140,7 @@ export type StartChallengeResult = Infer<typeof startChallengeResult>;
 
 /**
  * The `start` result of the kinds that record the address for a user
- * (`addEmail`, `changeEmail`). It adds `EMAIL_TAKEN` to the errors.
+ * (`addEmail`, `changeEmail`, `signUp`). It adds `EMAIL_TAKEN` to the errors.
  */
 export const startFreeAddressResult = v.union(
   startChallengeSuccess,
@@ -169,17 +169,26 @@ export type CompleteFreeAddressFailure = Infer<
   typeof completeFreeAddressFailure
 >;
 
+/** A challenge row whose purpose has the kind `Kind`. */
+export type ChallengeOfKind<Kind extends ChallengePurpose["kind"]> =
+  Doc<"challenges"> & {
+    purpose: Extract<ChallengePurpose, { kind: Kind }>;
+  };
+
 /**
  * The result of `claimChallenge`. The kinds return `failure` as-is when the
  * claim fails; it already has the shape of a failed `complete` result.
  */
-export type ClaimChallengeResult =
-  | { success: true; row: Doc<"challenges"> }
+export type ClaimChallengeResult<
+  Kind extends ChallengePurpose["kind"] = ChallengePurpose["kind"],
+> =
+  | { success: true; row: ChallengeOfKind<Kind> }
   | { success: false; failure: CompleteChallengeFailure };
 
-function claimFailure(
-  error: CompleteChallengeFailure["userError"]["error"],
-): ClaimChallengeResult {
+function claimFailure(error: CompleteChallengeFailure["userError"]["error"]): {
+  success: false;
+  failure: CompleteChallengeFailure;
+} {
   return { success: false, failure: { success: false, userError: { error } } };
 }
 
@@ -259,7 +268,7 @@ export async function addressTakenError(
 
 /**
  * The `start` preconditions of the kinds that record the address for a user
- * (`addEmail`, `changeEmail`): the shared preconditions, then the
+ * (`addEmail`, `changeEmail`, `signUp`): the shared preconditions, then the
  * address must not be verified by any user.
  */
 export async function startFreeAddressPreconditions(
@@ -312,13 +321,32 @@ export async function createChallengeAndSendEmail(
 // Complete
 //------------------------------------------------------------------------------
 
-function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
+/**
+ * The purpose that a `complete` call expects. For `signUp`, it has no
+ * `userId`: the caller has no session, thus `complete` takes the user from
+ * the row.
+ */
+export type ExpectedPurpose =
+  Exclude<ChallengePurpose, { kind: "signUp" }> | { kind: "signUp" };
+
+function samePurpose<Expected extends ExpectedPurpose>(
+  row: Doc<"challenges">,
+  expected: Expected,
+): row is ChallengeOfKind<Expected["kind"]> {
+  const actual = row.purpose;
+  if (expected.kind === "signUp") {
+    return actual.kind === "signUp";
+  }
   // Two `custom` challenges match only when the caller's purpose string is
   // the same one that started the flow.
-  if (a.kind === "custom" && b.kind === "custom" && a.purpose !== b.purpose) {
+  if (
+    actual.kind === "custom" &&
+    expected.kind === "custom" &&
+    actual.purpose !== expected.purpose
+  ) {
     return false;
   }
-  return a.kind === b.kind && a.userId === b.userId;
+  return actual.kind === expected.kind && actual.userId === expected.userId;
 }
 
 /**
@@ -342,12 +370,13 @@ function samePurpose(a: ChallengePurpose, b: ChallengePurpose): boolean {
  *
  * A purpose mismatch (another kind, or another `userId`) throws. It is an
  * application bug: the landing page called the wrong function, or gave the
- * wrong user.
+ * wrong user. A `signUp` call gives no `userId`, thus only the kind must
+ * match.
  */
-export async function claimChallenge(
+export async function claimChallenge<Expected extends ExpectedPurpose>(
   ctx: MutationCtx,
-  args: { emailCode: string; browserSecret: string; purpose: ChallengePurpose },
-): Promise<ClaimChallengeResult> {
+  args: { emailCode: string; browserSecret: string; purpose: Expected },
+): Promise<ClaimChallengeResult<Expected["kind"]>> {
   const browserSecretHash = await sha256Hex(args.browserSecret);
   const row = await ctx.db
     .query("challenges")
@@ -379,7 +408,7 @@ export async function claimChallenge(
     );
     return claimFailure("INCORRECT_CODE");
   }
-  if (!samePurpose(row.purpose, args.purpose)) {
+  if (!samePurpose(row, args.purpose)) {
     throw new Error(
       `Challenge purpose mismatch: the row is for "${row.purpose.kind}", but the complete call expects "${args.purpose.kind}"`,
     );

@@ -12,6 +12,7 @@ import type * as challenge_addEmail from "../challenge/addEmail.js";
 import type * as challenge_changeEmail from "../challenge/changeEmail.js";
 import type * as challenge_common from "../challenge/common.js";
 import type * as challenge_custom from "../challenge/custom.js";
+import type * as challenge_signUp from "../challenge/signUp.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
 import type * as validation from "../validation.js";
@@ -29,6 +30,7 @@ const fullApi: ApiFromModules<{
   "challenge/changeEmail": typeof challenge_changeEmail;
   "challenge/common": typeof challenge_common;
   "challenge/custom": typeof challenge_custom;
+  "challenge/signUp": typeof challenge_signUp;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
   validation: typeof validation;
