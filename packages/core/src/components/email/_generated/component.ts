@@ -45,7 +45,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               userError:
                 | { error: "INVALID_CHALLENGE" }
                 | { error: "INCORRECT_CODE" }
-                | { error: "EMAIL_TAKEN" };
+                | { error: "EMAIL_TAKEN" }
+                | { error: "WRONG_USER" };
             },
           Name
         >;
@@ -103,7 +104,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               userError:
                 | { error: "INVALID_CHALLENGE" }
                 | { error: "INCORRECT_CODE" }
-                | { error: "EMAIL_TAKEN" };
+                | { error: "EMAIL_TAKEN" }
+                | { error: "WRONG_USER" };
             },
           Name
         >;
@@ -154,11 +156,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             emailCode: string;
             purpose: string;
           },
-          | { email: string; success: true; userId: string | null }
+          | { email: string; emailOwnerId: string | null; success: true }
           | {
               success: false;
               userError:
-                { error: "INVALID_CHALLENGE" } | { error: "INCORRECT_CODE" };
+                | { error: "INVALID_CHALLENGE" }
+                | { error: "INCORRECT_CODE" }
+                | { error: "WRONG_USER" };
             },
           Name
         >;

@@ -10,7 +10,7 @@ import { seedChallenge, setup } from "../../emailTestSetup.ts";
 import { startPreconditions } from "./common.ts";
 
 const PURPOSE = "myApp/flow";
-const CLAIM = { purpose: PURPOSE, currentUserId: "user1" };
+const CLAIM = { purpose: PURPOSE, currentUserId: null };
 
 async function challengeCount(t: ReturnType<typeof setup>): Promise<number> {
   return (await t.run((ctx) => ctx.db.query("challenges").collect())).length;
@@ -21,7 +21,7 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -48,7 +48,7 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -65,7 +65,7 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -94,7 +94,7 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -116,7 +116,7 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
       expiresAt: Date.now() - 1000,
@@ -170,7 +170,7 @@ describe("the pending challenge address", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "Alice@Example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -184,7 +184,7 @@ describe("the pending challenge address", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "Alice@Example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: { kind: "custom", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });

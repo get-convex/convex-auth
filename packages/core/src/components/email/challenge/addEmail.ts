@@ -14,7 +14,7 @@ import {
   vStartArgs,
   vClaimArgs,
   startFreeAddressResult,
-  completeFreeAddressFailure,
+  completeCallerAddressFailure,
   startFreeAddressPreconditions,
   addressTakenError,
   createChallengeAndSendEmail,
@@ -67,13 +67,14 @@ const completeResult = v.union(
     userId: v.string(),
     email: v.string(),
   }),
-  completeFreeAddressFailure,
+  completeCallerAddressFailure,
 );
 type CompleteResult = Infer<typeof completeResult>;
 
 /**
  * Complete an `addEmail` challenge: record the address for the user. The
- * `userId` must be the one given at start. Fails with `EMAIL_TAKEN` when
+ * `userId` must be the one given at start; another user fails with
+ * `WRONG_USER`, and the challenge stays. Fails with `EMAIL_TAKEN` when
  * another user verified the address after the start.
  */
 export const complete = mutation({

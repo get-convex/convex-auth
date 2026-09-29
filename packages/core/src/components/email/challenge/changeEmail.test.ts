@@ -114,7 +114,7 @@ describe("challenge.changeEmail.complete", () => {
 });
 
 describe("the userId of a changeEmail challenge", () => {
-  test("another userId throws and keeps the row", async () => {
+  test("another userId fails with WRONG_USER and keeps the row", async () => {
     const t = setup();
     await seedEmail(t, "user1", "old1@example.com", true);
     await seedEmail(t, "user2", "old2@example.com", true);
@@ -125,13 +125,13 @@ describe("the userId of a changeEmail challenge", () => {
       browserSecret: "secret1",
     });
 
-    await expect(
-      t.mutation(api.challenge.changeEmail.complete, {
+    expect(
+      await t.mutation(api.challenge.changeEmail.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
         userId: "user2",
       }),
-    ).rejects.toThrow();
+    ).toEqual({ success: false, userError: { error: "WRONG_USER" } });
     // The primary address of each user stays in place.
     expect(
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),

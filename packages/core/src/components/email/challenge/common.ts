@@ -65,8 +65,9 @@
  * mailbox. The row goes away only when the claim succeeds, thus no link works
  * twice, and a person who has only the link cannot burn the challenge. A
  * missing or expired row gives `INVALID_CHALLENGE`, and a wrong code gives
- * `INCORRECT_CODE`. A purpose mismatch throws, because it is an application
- * bug and not a user error.
+ * `INCORRECT_CODE`. A challenge of another user gives `WRONG_USER` and
+ * stays. A challenge of another kind or purpose throws, because it is an
+ * application bug and not a user error.
  *
  * @module
  */
@@ -87,7 +88,6 @@ import {
 import {
   startChallengeUserError,
   startFreeAddressUserError,
-  completeChallengeUserError,
   completeFreeAddressUserError,
   normalizeEmail,
   validateEmailFormat,
@@ -96,6 +96,9 @@ import {
   type EmailTakenUserError,
   type StartChallengeUserError,
   type StartFreeAddressUserError,
+  type CompleteChallengeUserError,
+  type WrongUserUserError,
+  wrongUserUserError,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -151,12 +154,6 @@ export const startFreeAddressResult = v.union(
 );
 export type StartFreeAddressResult = Infer<typeof startFreeAddressResult>;
 
-export const completeChallengeFailure = v.object({
-  success: v.literal(false),
-  userError: completeChallengeUserError,
-});
-export type CompleteChallengeFailure = Infer<typeof completeChallengeFailure>;
-
 /**
  * The failed `complete` result of the kinds that record the address for a
  * user. It adds `EMAIL_TAKEN` to the errors.
@@ -165,9 +162,16 @@ export const completeFreeAddressFailure = v.object({
   success: v.literal(false),
   userError: completeFreeAddressUserError,
 });
-export type CompleteFreeAddressFailure = Infer<
-  typeof completeFreeAddressFailure
->;
+
+/**
+ * The failed `complete` result of the kinds that record the address for the
+ * caller (`addEmail`, `changeEmail`). It adds `WRONG_USER` to the errors of
+ * `completeFreeAddressFailure`.
+ */
+export const completeCallerAddressFailure = v.object({
+  success: v.literal(false),
+  userError: v.union(completeFreeAddressUserError, wrongUserUserError),
+});
 
 /** A challenge row whose purpose has the kind `Kind`. */
 export type ChallengeOfKind<Kind extends ChallengePurpose["kind"]> =
@@ -177,17 +181,29 @@ export type ChallengeOfKind<Kind extends ChallengePurpose["kind"]> =
 
 /**
  * The result of `claimChallenge`. The kinds return `failure` as-is when the
- * claim fails; it already has the shape of a failed `complete` result.
+ * claim fails; it already has the shape of a failed `complete` result. A
+ * `signUp` claim has no caller user, thus it never fails with `WRONG_USER`.
  */
 export type ClaimChallengeResult<
   Kind extends ChallengePurpose["kind"] = ChallengePurpose["kind"],
 > =
   | { success: true; row: ChallengeOfKind<Kind> }
-  | { success: false; failure: CompleteChallengeFailure };
+  | { success: false; failure: ClaimFailure<Kind> };
 
-function claimFailure(error: CompleteChallengeFailure["userError"]["error"]): {
+type ClaimFailure<Kind extends ChallengePurpose["kind"]> = {
   success: false;
-  failure: CompleteChallengeFailure;
+  userError:
+    | CompleteChallengeUserError
+    | (Kind extends "signUp" ? never : WrongUserUserError);
+};
+
+function claimFailure<
+  Code extends ClaimFailure<ChallengePurpose["kind"]>["userError"]["error"],
+>(
+  error: Code,
+): {
+  success: false;
+  failure: { success: false; userError: { error: Code } };
 } {
   return { success: false, failure: { success: false, userError: { error } } };
 }
@@ -329,24 +345,31 @@ export async function createChallengeAndSendEmail(
 export type ExpectedPurpose =
   Exclude<ChallengePurpose, { kind: "signUp" }> | { kind: "signUp" };
 
-function samePurpose<Expected extends ExpectedPurpose>(
+function sameKind<Expected extends ExpectedPurpose>(
   row: Doc<"challenges">,
   expected: Expected,
 ): row is ChallengeOfKind<Expected["kind"]> {
   const actual = row.purpose;
-  if (expected.kind === "signUp") {
-    return actual.kind === "signUp";
-  }
   // Two `custom` challenges match only when the caller's purpose string is
   // the same one that started the flow.
-  if (
-    actual.kind === "custom" &&
-    expected.kind === "custom" &&
-    actual.purpose !== expected.purpose
-  ) {
-    return false;
+  if (actual.kind === "custom" && expected.kind === "custom") {
+    return actual.purpose === expected.purpose;
   }
-  return actual.kind === expected.kind && actual.userId === expected.userId;
+  return actual.kind === expected.kind;
+}
+
+function sameUser(row: Doc<"challenges">, expected: ExpectedPurpose): boolean {
+  const actual = row.purpose;
+  // A `signUp` call has no session: `complete` takes the user from the row.
+  if (expected.kind === "signUp" || actual.kind === "signUp") {
+    return true;
+  }
+  // A `custom` challenge that expects no user matches any caller: it does
+  // not give access to an account.
+  if (actual.kind === "custom" && actual.userId === undefined) {
+    return true;
+  }
+  return actual.userId === expected.userId;
 }
 
 /**
@@ -363,15 +386,20 @@ function samePurpose<Expected extends ExpectedPurpose>(
  * `INVALID_CHALLENGE` means that there is no live challenge for the secret.
  * The challenge may have expired, may already have been used, or may never
  * have existed. The client cannot tell these apart, and the user action is
- * the same, start again. The server writes the difference to the log, to help
- * you find a bug or a misuse. `INCORRECT_CODE` means the row exists but the code
+ * the same, start again. The server writes the difference to the log, to
+ * help you find a bug or a misuse. `INCORRECT_CODE` means the row exists but the code
  * is not the one that the challenge sent. For a link, the link is not the
  * newest one this browser started. For a future short code, it is a typo.
  *
- * A purpose mismatch (another kind, or another `userId`) throws. It is an
- * application bug: the landing page called the wrong function, or gave the
- * wrong user. A `signUp` call gives no `userId`, thus only the kind must
- * match.
+ * `WRONG_USER` means that the challenge is for another user than the
+ * caller. This occurs in normal use: a user starts a flow, signs out, and
+ * another user signs in in the same browser. The row stays, thus the right
+ * user can still complete the challenge.
+ *
+ * A challenge of another kind, or a `custom` challenge with another purpose
+ * string, throws. It is an application bug: the landing page called the
+ * wrong function. A `signUp` call gives no `userId`, thus only the kind must
+ * match. A `custom` challenge without a `userId` matches any `userId`.
  */
 export async function claimChallenge<Expected extends ExpectedPurpose>(
   ctx: MutationCtx,
@@ -408,10 +436,18 @@ export async function claimChallenge<Expected extends ExpectedPurpose>(
     );
     return claimFailure("INCORRECT_CODE");
   }
-  if (!samePurpose(row, args.purpose)) {
+  if (!sameKind(row, args.purpose)) {
     throw new Error(
       `Challenge purpose mismatch: the row is for "${row.purpose.kind}", but the complete call expects "${args.purpose.kind}"`,
     );
+  }
+  if (!sameUser(row, args.purpose)) {
+    console.warn(
+      `Rejected the email challenge ${row._id} for the purpose ` +
+        `"${row.purpose.kind}": it is for another user than the caller.`,
+    );
+    // `sameUser` accepts any `signUp` claim, thus `Expected` is not `signUp`.
+    return claimFailure("WRONG_USER") as ClaimChallengeResult<Expected["kind"]>;
   }
   await ctx.db.delete("challenges", row._id);
   return { success: true, row };

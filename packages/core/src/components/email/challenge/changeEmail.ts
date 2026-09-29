@@ -11,7 +11,7 @@ import {
   vStartArgs,
   vClaimArgs,
   startFreeAddressResult,
-  completeFreeAddressFailure,
+  completeCallerAddressFailure,
   startFreeAddressPreconditions,
   addressTakenError,
   createChallengeAndSendEmail,
@@ -67,14 +67,15 @@ const completeResult = v.union(
     // `null` when there was none. Callers use it to notify the old address.
     previousEmail: v.union(v.string(), v.null()),
   }),
-  completeFreeAddressFailure,
+  completeCallerAddressFailure,
 );
 type CompleteResult = Infer<typeof completeResult>;
 
 /**
  * Complete a `changeEmail` challenge: remove the old primary address and
  * record the new one as primary. The `userId` must be the one given at
- * start.
+ * start; another user fails with `WRONG_USER`, and
+ * the challenge stays.
  *
  * This can fail with `EMAIL_TAKEN` in the very rare case where the email is
  * assigned to someone else on verification. This can happen in the following scenario:
