@@ -588,10 +588,11 @@ export function setupEmailPassword<UsersTable extends string>(
         }),
 
         /**
-         * Start changing the signed-in user's primary email address. Requires
-         * the session *and* the current password (OWASP ASVS v5 6.2.3). Sends
-         * a challenge link to the new address; the change happens in
-         * `completeChangeEmail`.
+         * Start changing the signed-in user's primary email address. The new
+         * address replaces the old one: after the change, the account no
+         * longer has the old address. Requires the session *and* the current
+         * password (OWASP ASVS v5 6.2.3). Sends a challenge link to the new
+         * address; the change happens in `completeChangeEmail`.
          */
         startChangeEmail: authMutation({
           args: { newEmail: v.string(), currentPassword: v.string() },
@@ -631,8 +632,9 @@ export function setupEmailPassword<UsersTable extends string>(
 
         /**
          * Complete an email change: validate the new address, replace the old
-         * primary, and notify the old address (ASVS 6.3.7). No session is
-         * minted — the user already has one.
+         * primary, and notify the old address (ASVS 6.3.7). The old address is
+         * deleted, not kept as a secondary address: the notification is the
+         * last use of it. No session is minted — the user already has one.
          */
         completeChangeEmail: authMutation({
           args: { emailCode: v.string(), browserSecret: v.string() },
