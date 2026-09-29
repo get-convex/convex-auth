@@ -343,7 +343,7 @@ export function setupEmailPassword<UsersTable extends string>(
   const PASSWORD_CHANGED_TEXT =
     "The password of your account was changed.\n\n" +
     "If you did this, you can ignore this email. If you did not do " +
-    "this, reset your password immediately.";
+    "this, change your password immediately or contact support.";
 
   return {
     /**
@@ -631,10 +631,11 @@ export function setupEmailPassword<UsersTable extends string>(
         }),
 
         /**
-         * Complete an email change: validate the new address, replace the old
-         * primary, and notify the old address (ASVS 6.3.7). The old address is
-         * deleted, not kept as a secondary address: the notification is the
-         * last use of it. No session is minted — the user already has one.
+         * Complete an email change. The old primary address is removed and
+         * replaced with the new address. This also notifies old address
+         * (OWASP ASVS 6.3.7).
+         *
+         * No session is minted — the user already has one.
          */
         completeChangeEmail: authMutation({
           args: { emailCode: v.string(), browserSecret: v.string() },
