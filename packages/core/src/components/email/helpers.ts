@@ -8,7 +8,7 @@ import type {
 } from "convex/server";
 import type { ComponentApi as ResendApi } from "@convex-dev/resend/_generated/component.js";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
-import { EmailSenderConfig } from "./validation.ts";
+import { EmailSenderConfig, type NormalizedEmail } from "./validation.ts";
 
 //------------------------------------------------------------------------------
 
@@ -101,7 +101,7 @@ export async function userHasVerifiedEmail(
  */
 export function getVerifiedEmail(
   ctx: QueryCtx,
-  normalizedEmail: string,
+  normalizedEmail: NormalizedEmail,
 ): Promise<Doc<"verifiedEmails"> | null> {
   return ctx.db
     .query("verifiedEmails")

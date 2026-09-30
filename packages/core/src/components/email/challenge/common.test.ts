@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 import { api } from "../_generated/api.ts";
 import { rateLimiter } from "../helpers.ts";
 import { seedChallenge, setup } from "../../emailTestSetup.ts";
-import { startPreconditions } from "./common.ts";
+import { preconditionsUserError, startPreconditions } from "./common.ts";
 
 const PURPOSE = "myApp/flow";
 const CLAIM = { purpose: PURPOSE, currentUserId: null };
@@ -235,7 +235,9 @@ function run(
   ip: string | null = IP,
 ) {
   const runner = ip === null ? t : t.withRequestMetadata({ ip });
-  return runner.run((ctx) => startPreconditions(ctx, email, mode));
+  return runner.run(async (ctx) =>
+    preconditionsUserError(await startPreconditions(ctx, email, mode)),
+  );
 }
 
 describe("startPreconditions", () => {

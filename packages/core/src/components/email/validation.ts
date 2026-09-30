@@ -31,17 +31,33 @@ export const emailFormatUserError = v.object({
 export type EmailFormatUserError = Infer<typeof emailFormatUserError>;
 
 /**
- * Examine an email address against the format rules. Return an
- * `INVALID_EMAIL` user error for a malformed address, or `null` when the
- * address is acceptable.
+ * An email address that passed `validateEmailFormat`, with no other change.
+ * It keeps the case that the user gave: the component shows this form to the
+ * user and sends email to it, because the local part of an address can be
+ * case-sensitive (RFC 5321).
+ */
+export type VerbatimEmail = string & { readonly __brand: "VerbatimEmail" };
+
+/**
+ * An email address after `normalizeEmail`. Lookups and uniqueness checks use
+ * this form, never the `VerbatimEmail`.
+ */
+export type NormalizedEmail = string & { readonly __brand: "NormalizedEmail" };
+
+/**
+ * Examine an email address against the format rules. Return the address as a
+ * `VerbatimEmail` when it is acceptable, or an `INVALID_EMAIL` user error for
+ * a malformed address.
  */
 export function validateEmailFormat(
   email: string,
-): EmailFormatUserError | null {
+):
+  | { success: true; email: VerbatimEmail }
+  | { success: false; userError: EmailFormatUserError } {
   if (email.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(email)) {
-    return { error: "INVALID_EMAIL" };
+    return { success: false, userError: { error: "INVALID_EMAIL" } };
   }
-  return null;
+  return { success: true, email: email as VerbatimEmail };
 }
 
 /**
@@ -183,12 +199,12 @@ export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
  * compare as equal. The order is important: the lowercase operation can make
  * a string that is not in the NFC form.
  */
-export function normalizeEmail(email: string): string {
-  return email.toLowerCase().normalize("NFC");
+export function normalizeEmail(email: VerbatimEmail): NormalizedEmail {
+  return email.toLowerCase().normalize("NFC") as NormalizedEmail;
 
   // Note that in theory, email addresses are case-sensitive (https://stackoverflow.com/a/9808332/4652564).
-  // In this project we always store the canonical email representation using the
-  // case that the user used, but use a normalized lowercase version to check for existing accounts.
+  // In this project we always store the `VerbatimEmail`, with the case that the
+  // user used, but use the `NormalizedEmail` to check for existing accounts.
   //
   // This means that if Jane.Doe@example.com creates an account, we will store her email
   // as Jane.Doe@example.com (and the app will display her email using that case).

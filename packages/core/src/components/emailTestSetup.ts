@@ -7,7 +7,7 @@ import type { DataModelFromSchemaDefinition } from "convex/server";
 import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "./email/schema.ts";
-import { normalizeEmail } from "./email/validation.ts";
+import { normalizeEmail, type VerbatimEmail } from "./email/validation.ts";
 import { getVerifiedEmail } from "./email/helpers.ts";
 import { sha256Hex } from "../lib/crypto.ts";
 
@@ -41,6 +41,14 @@ export function setupClient(): TestClient {
   return setup().withRequestMetadata({ ip: IP });
 }
 
+/**
+ * Treat a test address as a `VerbatimEmail`. The seed helpers write rows
+ * directly, without the format check of the `start` mutations.
+ */
+function verbatim(email: string): VerbatimEmail {
+  return email as VerbatimEmail;
+}
+
 /** Seed a verified email row directly; the challenge arrives later. */
 export async function seedEmail(
   t: TestClient,
@@ -50,8 +58,8 @@ export async function seedEmail(
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("verifiedEmails", {
-      email,
-      normalizedEmail: normalizeEmail(email),
+      email: verbatim(email),
+      normalizedEmail: normalizeEmail(verbatim(email)),
       userId,
       isPrimary,
     });
@@ -67,7 +75,7 @@ export async function verifiedEmailRow(
   email: string,
 ): Promise<{ userId: string; email: string } | null> {
   return await t.run(async (ctx) => {
-    const row = await getVerifiedEmail(ctx, normalizeEmail(email));
+    const row = await getVerifiedEmail(ctx, normalizeEmail(verbatim(email)));
     return row === null ? null : { userId: row.userId, email: row.email };
   });
 }
@@ -94,7 +102,7 @@ export async function seedChallenge(
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("challenges", {
-      email: args.email,
+      email: verbatim(args.email),
       purpose: args.purpose,
       emailCodeHash: await sha256Hex(args.emailCode),
       browserSecretHash: await sha256Hex(args.browserSecret),

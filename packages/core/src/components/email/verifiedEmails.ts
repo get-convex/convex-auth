@@ -9,6 +9,7 @@ import {
 import {
   lookupEmailResult,
   normalizeEmail,
+  validateEmailFormat,
   type LookupEmailResult,
 } from "./validation.ts";
 
@@ -79,7 +80,11 @@ export const lookupEmail = mutation({
         userError: { error: "RATE_LIMITED", retryAfterMs: limit.retryAfter },
       };
     }
-    const row = await getVerifiedEmail(ctx, normalizeEmail(email));
+    // A malformed address can not be a verified address.
+    const format = validateEmailFormat(email);
+    const row = format.success
+      ? await getVerifiedEmail(ctx, normalizeEmail(format.email))
+      : null;
     if (row === null) {
       return { success: false, userError: { error: "EMAIL_NOT_FOUND" } };
     }
