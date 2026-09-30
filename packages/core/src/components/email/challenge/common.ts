@@ -80,7 +80,7 @@ import { scheduleChallengeCleanup } from "../cleanup.ts";
 import {
   rateLimiter,
   getClientIp,
-  emailByNormalizedEmail,
+  getVerifiedEmail,
   buildLink,
   sendChallengeEmail,
   type ChallengeEmailCopy,
@@ -279,7 +279,7 @@ export async function addressTakenError(
   ctx: QueryCtx,
   normalizedEmail: string,
 ): Promise<EmailTakenUserError | null> {
-  const existing = await emailByNormalizedEmail(ctx, normalizedEmail);
+  const existing = await getVerifiedEmail(ctx, normalizedEmail);
   return existing === null ? null : { error: "EMAIL_TAKEN" };
 }
 

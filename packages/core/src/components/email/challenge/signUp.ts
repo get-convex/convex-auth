@@ -8,7 +8,7 @@ import { mutation } from "../_generated/server.ts";
 import {
   ADD_EMAIL_TTL_MS,
   VALIDATE_EMAIL_COPY,
-  userHasEmail,
+  userHasVerifiedEmail,
 } from "../helpers.ts";
 import { normalizeEmail, startFreeAddressUserError } from "../validation.ts";
 import {
@@ -46,7 +46,7 @@ export const start = mutation({
   args: { ...vStartArgs, userId: v.string() },
   returns: startFreeAddressResult,
   handler: async (ctx, args): Promise<StartFreeAddressResult> => {
-    if (await userHasEmail(ctx, args.userId)) {
+    if (await userHasVerifiedEmail(ctx, args.userId)) {
       throw new Error(
         "Cannot start a signUp challenge: the user already has an email " +
           "address. Use addEmail or changeEmail for an existing user.",
@@ -111,7 +111,7 @@ export const complete = mutation({
     const { userId } = row.purpose;
     // Before `EMAIL_TAKEN`: when the other challenge was for the same address,
     // this user is the one who took it.
-    if (await userHasEmail(ctx, userId)) {
+    if (await userHasVerifiedEmail(ctx, userId)) {
       console.warn(
         `Rejected the email challenge ${row._id} for the purpose "signUp": ` +
           `the user already has an email address, most likely from another ` +

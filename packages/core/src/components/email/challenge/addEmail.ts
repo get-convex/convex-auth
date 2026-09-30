@@ -7,7 +7,7 @@ import { mutation } from "../_generated/server.ts";
 import {
   ADD_EMAIL_TTL_MS,
   VALIDATE_EMAIL_COPY,
-  userHasEmail,
+  userHasVerifiedEmail,
 } from "../helpers.ts";
 import { normalizeEmail, startFreeAddressUserError } from "../validation.ts";
 import {
@@ -97,7 +97,7 @@ export const complete = mutation({
       return { success: false, userError: taken };
     }
     // The first address of a user always becomes primary.
-    const isPrimary = !(await userHasEmail(ctx, userId));
+    const isPrimary = !(await userHasVerifiedEmail(ctx, userId));
     await ctx.db.insert("verifiedEmails", {
       email: row.email,
       normalizedEmail,
