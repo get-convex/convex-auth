@@ -9,6 +9,7 @@ import {
   seedEmail,
   seedChallenge,
   setup as setupComponent,
+  verifiedEmailRow,
 } from "../../emailTestSetup.ts";
 
 /** The component's test instance, plus the stub that catches the emails. */
@@ -56,11 +57,7 @@ describe("challenge.changeEmail.complete", () => {
     expect(
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
     ).toEqual([{ email: "new@example.com", isPrimary: true }]);
-    expect(
-      await t.query(api.verifiedEmails.getUserIdByEmail, {
-        email: "old@example.com",
-      }),
-    ).toBeNull();
+    expect(await verifiedEmailRow(t, "old@example.com")).toBeNull();
   });
 
   test("a first email has no previous primary", async () => {

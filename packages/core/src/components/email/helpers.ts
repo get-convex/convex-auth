@@ -42,9 +42,15 @@ export const CUSTOM_TTL_MAX_MS = 24 * 60 * 60 * 1000; // 24 hours
 // reputation from abuse:
 // - per destination address, so an attacker cannot flood one mailbox;
 // - per client IP, so one machine cannot spray many addresses.
+//
+// A separate limit throttles `lookupEmail`, so that one machine cannot probe
+// many addresses to find which ones have an account. Each sign-in uses a
+// lookup, thus this limit is higher than the limits for the challenges.
+// TODO: review these values.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
   startChallengePerEmail: { kind: "token bucket", rate: 5, period: HOUR },
   startChallengePerIp: { kind: "token bucket", rate: 20, period: HOUR },
+  lookupEmailPerIp: { kind: "token bucket", rate: 60, period: HOUR },
 });
 
 //------------------------------------------------------------------------------
@@ -56,8 +62,8 @@ export async function getClientIp(ctx: MutationCtx): Promise<string> {
   if (ip === null) {
     throw new Error(
       "The email component could not read the client IP for rate " +
-        "limiting. Start challenges from a client request, not from " +
-        "a scheduled or cron function.",
+        "limiting. Start challenges and look up emails from a client " +
+        "request, not from a scheduled or cron function.",
     );
   }
   return ip;

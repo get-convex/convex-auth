@@ -9,6 +9,7 @@ import {
   seedEmail,
   seedChallenge,
   setup as setupComponent,
+  verifiedEmailRow,
 } from "../../emailTestSetup.ts";
 
 /** The component's test instance, plus the stub that catches the emails. */
@@ -121,11 +122,10 @@ describe("challenge.addEmail.complete", () => {
       userError: { error: "EMAIL_TAKEN" },
     });
     // The address still belongs to the user who verified it first.
-    expect(
-      await t.query(api.verifiedEmails.getUserIdByEmail, {
-        email: "alice@example.com",
-      }),
-    ).toEqual({ userId: "user2", email: "alice@example.com" });
+    expect(await verifiedEmailRow(t, "alice@example.com")).toEqual({
+      userId: "user2",
+      email: "alice@example.com",
+    });
   });
 
   test("records the case that the user gave", async () => {
@@ -150,11 +150,10 @@ describe("challenge.addEmail.complete", () => {
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
     ).toEqual([{ email: "Alice@Example.com", isPrimary: true }]);
     // The recorded row carries both forms, so a lookup in any case finds it.
-    expect(
-      await t.query(api.verifiedEmails.getUserIdByEmail, {
-        email: "ALICE@EXAMPLE.COM",
-      }),
-    ).toEqual({ userId: "user1", email: "Alice@Example.com" });
+    expect(await verifiedEmailRow(t, "ALICE@EXAMPLE.COM")).toEqual({
+      userId: "user1",
+      email: "Alice@Example.com",
+    });
   });
 
   test("an address verified in another case fails with EMAIL_TAKEN", async () => {
@@ -196,11 +195,7 @@ describe("the userId of an addEmail challenge", () => {
       }),
     ).toEqual({ success: false, userError: { error: "WRONG_USER" } });
     // Nothing was recorded for either user, and the right user still works.
-    expect(
-      await t.query(api.verifiedEmails.getUserIdByEmail, {
-        email: "alice@example.com",
-      }),
-    ).toBeNull();
+    expect(await verifiedEmailRow(t, "alice@example.com")).toBeNull();
     expect(
       await t.mutation(api.challenge.addEmail.complete, {
         emailCode: "code1",
