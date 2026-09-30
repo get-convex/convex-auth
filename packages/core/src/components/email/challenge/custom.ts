@@ -66,7 +66,9 @@ export const start = mutation({
     // when no user is signed in (for example, account recovery).
     //
     // With a user ID, `complete` succeeds only if `currentUserId` is this
-    // user and this user has verified the address at completion.
+    // user and the address is still a verified address of this user when
+    // `complete` runs. The user verified it before the flow started (for
+    // example, with `addEmail`).
     //
     // With `null`, `complete` accepts any `currentUserId` and does not check
     // the owner of the address: it gives the owner in `emailOwnerId`, or
@@ -114,8 +116,9 @@ const completeResult = v.union(
   v.object({
     success: v.literal(true),
     email: v.string(),
-    // The user that has verified `email` at completion, or `null` when no
-    // user has. When `start` got a user ID, it is this user.
+    // The user that `email` is a verified address of when `complete` runs,
+    // or `null` when it is no user's verified address. When `start` got a
+    // user ID, it is this user.
     emailOwnerId: v.union(v.string(), v.null()),
   }),
   v.object({
