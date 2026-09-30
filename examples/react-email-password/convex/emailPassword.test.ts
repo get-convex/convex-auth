@@ -115,10 +115,14 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().normalize("NFC");
 }
 
-/** The purpose of the recipe's recovery challenge, which has no user. */
+/**
+ * The purpose of the recipe's recovery challenge. It has no user, but some
+ * user must own the address (the expected owner `anyUser`).
+ */
 const RECOVERY = {
   kind: "custom",
   purpose: "convexAuth/emailPassword/recovery",
+  expectedOwner: { kind: "anyUser" },
 } as const;
 
 /** Seed a pending challenge, hashing the code + secret like production. */
@@ -130,7 +134,14 @@ async function seedChallenge(
       | { kind: "addEmail"; userId: string }
       | { kind: "changeEmail"; userId: string }
       | { kind: "signUp"; userId: string }
-      | { kind: "custom"; userId?: string; purpose: string };
+      | {
+          kind: "custom";
+          purpose: string;
+          expectedOwner:
+            | { kind: "user"; userId: string }
+            | { kind: "anyUser" }
+            | { kind: "anyone" };
+        };
     emailCode: string;
     browserSecret: string;
   },

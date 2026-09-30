@@ -86,8 +86,8 @@ import {
   type ChallengeEmailCopy,
 } from "../helpers.ts";
 import {
-  startChallengeUserError,
   startFreeAddressUserError,
+  startCustomUserError,
   completeFreeAddressUserError,
   normalizeEmail,
   validateEmailFormat,
@@ -137,11 +137,15 @@ const startChallengeSuccess = v.object({
   challengeId: v.id("challenges"),
 });
 
-export const startChallengeResult = v.union(
+/**
+ * The `start` result of the `custom` kind. It adds `EMAIL_NOT_FOUND` to the
+ * errors.
+ */
+export const startCustomResult = v.union(
   startChallengeSuccess,
-  v.object({ success: v.literal(false), userError: startChallengeUserError }),
+  v.object({ success: v.literal(false), userError: startCustomUserError }),
 );
-export type StartChallengeResult = Infer<typeof startChallengeResult>;
+export type StartCustomResult = Infer<typeof startCustomResult>;
 
 /**
  * The `start` result of the kinds that record the address for a user
@@ -379,7 +383,11 @@ export async function createChallengeAndSendEmail(
  * the row.
  */
 export type ExpectedPurpose =
-  Exclude<ChallengePurpose, { kind: "signUp" }> | { kind: "signUp" };
+  | Exclude<ChallengePurpose, { kind: "signUp" | "custom" }>
+  | { kind: "signUp" }
+  // For `custom`, `userId` is the caller, or `undefined` when no user is
+  // signed in.
+  | { kind: "custom"; purpose: string; userId: string | undefined };
 
 function sameKind<Expected extends ExpectedPurpose>(
   row: Doc<"challenges">,
@@ -400,10 +408,14 @@ function sameUser(row: Doc<"challenges">, expected: ExpectedPurpose): boolean {
   if (expected.kind === "signUp" || actual.kind === "signUp") {
     return true;
   }
-  // A `custom` challenge that expects no user matches any caller: it does
-  // not give access to an account.
-  if (actual.kind === "custom" && actual.userId === undefined) {
-    return true;
+  // Only the `user` kind binds a `custom` challenge to a caller. The other
+  // kinds match any caller: they do not give access to the account of the
+  // caller.
+  if (actual.kind === "custom") {
+    return (
+      actual.expectedOwner.kind !== "user" ||
+      actual.expectedOwner.userId === expected.userId
+    );
   }
   return actual.userId === expected.userId;
 }

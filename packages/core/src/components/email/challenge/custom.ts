@@ -8,7 +8,12 @@
 // use, for example `"myApp/reauthenticate"`.
 
 import { Infer, ObjectType, v } from "convex/values";
-import { mutation, query, type QueryCtx } from "../_generated/server.ts";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "../_generated/server.ts";
 import {
   CUSTOM_TTL_DEFAULT_MS,
   CUSTOM_TTL_MAX_MS,
@@ -19,23 +24,77 @@ import {
   completeChallengeUserError,
   wrongUserUserError,
   normalizeEmail,
-  startChallengeUserError,
+  startCustomUserError,
+  vExpectedOwner,
+  type ExpectedOwner,
+  type StartCustomUserError,
+  type VerbatimEmail,
 } from "../validation.ts";
 import {
   vStartArgs,
   vClaimArgs,
-  startChallengeResult,
+  startCustomResult,
   startPreconditions,
   preconditionsUserError,
   createChallengeAndSendEmail,
   claimChallenge,
   findClaimableChallenge,
   type ChallengeOfKind,
-  type StartChallengeResult,
+  type PreconditionsResult,
+  type StartCustomResult,
 } from "./common.ts";
 
 // The application's name for the flow. Opaque to the component.
 const vPurposeName = v.string();
+
+/** Tell whether `emailOwnerId` satisfies `expected`. */
+function ownerMatches(
+  expected: ExpectedOwner,
+  emailOwnerId: string | null,
+): boolean {
+  switch (expected.kind) {
+    case "user":
+      return emailOwnerId === expected.userId;
+    case "anyUser":
+      return emailOwnerId !== null;
+    case "anyone":
+      return true;
+  }
+}
+
+/** The user that has `email` as a verified address, or `null`. */
+async function emailOwnerIdOf(
+  ctx: QueryCtx,
+  email: VerbatimEmail,
+): Promise<string | null> {
+  const verifiedEmail = await getVerifiedEmail(ctx, normalizeEmail(email));
+  return verifiedEmail === null ? null : verifiedEmail.userId;
+}
+
+/**
+ * The `start` preconditions of a `custom` challenge: the shared
+ * preconditions, then the owner of the address must satisfy
+ * `expectedOwner`. Another owner, or no owner, gives `EMAIL_NOT_FOUND`, thus
+ * the caller cannot tell the two cases apart.
+ *
+ * The owner check runs after the rate limits, on purpose: a free answer
+ * would make this an unlimited enumeration oracle.
+ */
+async function customStartPreconditions(
+  ctx: MutationCtx,
+  args: { email: string; expectedOwner: ExpectedOwner },
+  mode: "check" | "consume",
+): Promise<PreconditionsResult<StartCustomUserError>> {
+  const result = await startPreconditions(ctx, args.email, mode);
+  if (!result.success) {
+    return result;
+  }
+  const emailOwnerId = await emailOwnerIdOf(ctx, result.email);
+  if (!ownerMatches(args.expectedOwner, emailOwnerId)) {
+    return { success: false, userError: { error: "EMAIL_NOT_FOUND" } };
+  }
+  return result;
+}
 
 /**
  * Tell whether `start` would fail with a `userError` for this address,
@@ -48,10 +107,10 @@ const vPurposeName = v.string();
  * one transaction, so the limits cannot change in between.
  */
 export const check = mutation({
-  args: { email: v.string() },
-  returns: v.union(startChallengeUserError, v.null()),
-  handler: async (ctx, { email }) =>
-    preconditionsUserError(await startPreconditions(ctx, email, "check")),
+  args: { email: v.string(), expectedOwner: vExpectedOwner },
+  returns: v.union(startCustomUserError, v.null()),
+  handler: async (ctx, args) =>
+    preconditionsUserError(await customStartPreconditions(ctx, args, "check")),
 });
 
 /**
@@ -66,25 +125,16 @@ export const start = mutation({
   args: {
     ...vStartArgs,
     purpose: vPurposeName,
-    // The user that must complete the flow and own the address, or `null`
-    // when no user is signed in (for example, account recovery).
-    //
-    // With a user ID, `complete` succeeds only if `currentUserId` is this
-    // user and the address is still a verified address of this user when
-    // `complete` runs. The user verified it before the flow started (for
-    // example, with `addEmail`).
-    //
-    // With `null`, `complete` accepts any `currentUserId` and does not check
-    // the owner of the address: it gives the owner in `emailOwnerId`, or
-    // `null` when no user has verified the address. `null` does NOT require
-    // that the address has no owner.
-    expectedUserId: v.union(v.string(), v.null()),
+    // The owner that the address must have, at start and at completion
+    // (see `vExpectedOwner`). At start, another owner or no owner fails with
+    // `EMAIL_NOT_FOUND`. At completion, it fails with `INVALID_CHALLENGE`.
+    expectedOwner: vExpectedOwner,
     subject: v.string(),
     intro: v.string(),
     ttlMs: v.optional(v.number()),
   },
-  returns: startChallengeResult,
-  handler: async (ctx, args): Promise<StartChallengeResult> => {
+  returns: startCustomResult,
+  handler: async (ctx, args): Promise<StartCustomResult> => {
     const ttlMs = args.ttlMs ?? CUSTOM_TTL_DEFAULT_MS;
     if (
       !Number.isFinite(ttlMs) ||
@@ -96,7 +146,7 @@ export const start = mutation({
           `got ${ttlMs}`,
       );
     }
-    const preconditions = await startPreconditions(ctx, args.email, "consume");
+    const preconditions = await customStartPreconditions(ctx, args, "consume");
     if (!preconditions.success) {
       return preconditions;
     }
@@ -104,8 +154,8 @@ export const start = mutation({
       email: preconditions.email,
       purpose: {
         kind: "custom",
-        userId: args.expectedUserId ?? undefined,
         purpose: args.purpose,
+        expectedOwner: args.expectedOwner,
       },
       ttlMs,
       url: args.url,
@@ -121,8 +171,9 @@ const completeResult = v.union(
     success: v.literal(true),
     email: v.string(),
     // The user that `email` is a verified address of when `complete` runs,
-    // or `null` when it is no user's verified address. When `start` got a
-    // user ID, it is this user.
+    // or `null` when it is no user's verified address. It is never `null`
+    // for the `expectedOwner` kinds `user` and `anyUser`. For `user`, it is
+    // that user.
     emailOwnerId: v.union(v.string(), v.null()),
   }),
   v.object({
@@ -153,13 +204,13 @@ async function claimableResult(
   ctx: QueryCtx,
   row: ChallengeOfKind<"custom">,
 ): Promise<CompleteResult> {
-  const verifiedEmail = await getVerifiedEmail(ctx, normalizeEmail(row.email));
-  const emailOwnerId = verifiedEmail === null ? null : verifiedEmail.userId;
-  const expectedUserId = row.purpose.userId;
-  if (expectedUserId !== undefined && emailOwnerId !== expectedUserId) {
+  const emailOwnerId = await emailOwnerIdOf(ctx, row.email);
+  const { expectedOwner } = row.purpose;
+  if (!ownerMatches(expectedOwner, emailOwnerId)) {
     console.warn(
       `Rejected the email challenge ${row._id} for the purpose "custom": ` +
-        `the expected user does not own the address now.`,
+        `the owner of the address does not satisfy the expected owner ` +
+        `"${expectedOwner.kind}" now.`,
     );
     return { success: false, userError: { error: "INVALID_CHALLENGE" } };
   }
@@ -197,13 +248,13 @@ export const peek = query({
  * start.
  *
  * `currentUserId` is the user that is signed in now, or `null` when no user
- * is. When `start` got a user ID, `currentUserId` must be this user. Another
- * value fails with `WRONG_USER` and keeps the challenge, thus this user can
- * still complete it. When `start` got `null`, any value is
- * accepted. It is required, thus a caller cannot skip the check by
- * accident.
+ * is. When `start` got an `expectedOwner` of the kind `user`,
+ * `currentUserId` must be this user. Another value fails with `WRONG_USER`
+ * and keeps the challenge, thus this user can still complete it. For the
+ * other kinds, any value is accepted. It is required, thus a caller cannot
+ * skip the check by accident.
  *
- * When `start` got a user ID and this user does not own the address now,
+ * When the owner of the address does not satisfy the `expectedOwner` now,
  * `complete` fails with `INVALID_CHALLENGE`: after the start, the address
  * moved to another user or was removed. The claim still deletes the row,
  * thus the link does not work again.

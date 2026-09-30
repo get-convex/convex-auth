@@ -21,7 +21,11 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -48,7 +52,11 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -65,7 +73,11 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -94,7 +106,11 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -116,7 +132,11 @@ describe("the one-shot claim", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
       expiresAt: Date.now() - 1000,
@@ -170,7 +190,11 @@ describe("the pending challenge address", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "Alice@Example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -184,7 +208,11 @@ describe("the pending challenge address", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "Alice@Example.com",
-      purpose: { kind: "custom", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "anyone" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -204,25 +232,40 @@ describe("deleteUser with challenges", () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
-      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "user", userId: "user1" },
+      },
       emailCode: "code1",
       browserSecret: "secret1",
     });
     await seedChallenge(t, {
       email: "bob@example.com",
-      purpose: { kind: "custom", userId: "user2", purpose: PURPOSE },
+      purpose: {
+        kind: "custom",
+        purpose: PURPOSE,
+        expectedOwner: { kind: "user", userId: "user2" },
+      },
       emailCode: "code2",
       browserSecret: "secret2",
     });
 
+    await seedChallenge(t, {
+      email: "carol@example.com",
+      purpose: { kind: "addEmail", userId: "user1" },
+      emailCode: "code3",
+      browserSecret: "secret3",
+    });
+
     await t.mutation(api.verifiedEmails.deleteUser, { userId: "user1" });
 
+    // Both indexes find the challenges of the user: `purpose.userId` for the
+    // built-in kinds, and `purpose.expectedOwner.userId` for `custom`.
     const remaining = await t.run(async (ctx) =>
-      (await ctx.db.query("challenges").collect()).map(
-        (row) => row.purpose.userId,
-      ),
+      (await ctx.db.query("challenges").collect()).map((row) => row.email),
     );
-    expect(remaining).toEqual(["user2"]);
+    expect(remaining).toEqual(["bob@example.com"]);
   });
 });
 

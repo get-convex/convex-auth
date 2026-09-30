@@ -7,7 +7,11 @@ import type { DataModelFromSchemaDefinition } from "convex/server";
 import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "./email/schema.ts";
-import { normalizeEmail, type VerbatimEmail } from "./email/validation.ts";
+import {
+  normalizeEmail,
+  type ExpectedOwner,
+  type VerbatimEmail,
+} from "./email/validation.ts";
 import { getVerifiedEmail } from "./email/helpers.ts";
 import { sha256Hex } from "../lib/crypto.ts";
 
@@ -84,7 +88,7 @@ export type ChallengePurposeRow =
   | { kind: "addEmail"; userId: string }
   | { kind: "changeEmail"; userId: string }
   | { kind: "signUp"; userId: string }
-  | { kind: "custom"; userId?: string; purpose: string };
+  | { kind: "custom"; purpose: string; expectedOwner: ExpectedOwner };
 
 /**
  * Seed a pending challenge row directly, with the hashes of the code and the
