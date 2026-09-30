@@ -65,6 +65,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
       >;
     };
     verification: {
+      verifyBackupCode: FunctionReference<
+        "mutation",
+        "internal",
+        { code: string; userId: string },
+        | { remainingBackupCodes: number; success: true }
+        | {
+            success: false;
+            userError:
+              | { error: "INVALID_CODE" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number };
+          },
+        Name
+      >;
       verifyCode: FunctionReference<
         "mutation",
         "internal",

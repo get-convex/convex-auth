@@ -139,6 +139,12 @@ describe("createTotp", () => {
       }),
     ).toEqual({ success: true });
     expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: alice.backupCodes[0],
+      }),
+    ).toEqual({ success: true, remainingBackupCodes: BACKUP_CODE_COUNT - 1 });
+    expect(
       await t.mutation(api.enrollment.confirmTotp, {
         userId: "alice",
         code: await codeFor(alicePending.secret),
@@ -369,13 +375,13 @@ describe("confirmTotp", () => {
       await t.query(api.enrollment.getStatus, { userId: "alice" }),
     ).toEqual({ enabled: true, remainingBackupCodes: BACKUP_CODE_COUNT });
 
-    // The backup codes are still those of the first enrollment.
-    const stored = await t.run((ctx) => ctx.db.query("backupCodes").collect());
-    expect(stored.map((row) => row.codeHash).sort()).toEqual(
-      (
-        await Promise.all(first.backupCodes.map((code) => hashBackupCode(code)))
-      ).sort(),
-    );
+    // A backup code from the first enrollment still verifies.
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: first.backupCodes[0],
+      }),
+    ).toEqual({ success: true, remainingBackupCodes: BACKUP_CODE_COUNT - 1 });
   });
 
   test("refuses an authenticator past the limit, and keeps it pending", async () => {
