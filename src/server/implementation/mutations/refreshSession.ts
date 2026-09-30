@@ -28,14 +28,23 @@ export async function refreshSessionImpl(
   config: Provider.Config,
 ): Promise<ReturnType> {
   const { refreshToken } = args;
-  const { refreshTokenId, sessionId: tokenSessionId } =
+  const { refreshTokenId: parsedRefreshTokenId, sessionId: parsedSessionId } =
     parseRefreshToken(refreshToken);
   logWithLevel(
     "DEBUG",
-    `refreshSessionImpl args: Token ID: ${maybeRedact(refreshTokenId)} Session ID: ${maybeRedact(
-      tokenSessionId,
+    `refreshSessionImpl args: Token ID: ${maybeRedact(parsedRefreshTokenId)} Session ID: ${maybeRedact(
+      parsedSessionId,
     )}`,
   );
+  const refreshTokenId = ctx.db.normalizeId(
+    "authRefreshTokens",
+    parsedRefreshTokenId,
+  );
+  const tokenSessionId = ctx.db.normalizeId("authSessions", parsedSessionId);
+  if (refreshTokenId === null || tokenSessionId === null) {
+    logWithLevel("INFO", "Invalid refresh token");
+    return null;
+  }
   const validationResult = await refreshTokenIfValid(
     ctx,
     refreshTokenId,
