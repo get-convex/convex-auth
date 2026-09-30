@@ -4,6 +4,10 @@
  * modules (OAuth, and future auth methods) use these to expose their state as
  * hooks.
  *
+ * A sign-in hook hands every result its sign-in function returns to
+ * {@link useAdoptSignInResult}, which adopts the session of a `complete` one
+ * and holds an `incomplete` one for the app's `usePendingSignIn`.
+ *
  * An ambient sign-in publishes its actions and status from its
  * {@link AmbientSignInClient} (passed to `ConvexAuthProvider`'s
  * `ambientSignIns` prop); its hooks read them back with
@@ -14,7 +18,13 @@
 "use client";
 
 import { useCallback, useContext, useSyncExternalStore } from "react";
-import { AuthClientContext } from "./client.tsx";
+import {
+  AuthClientContext,
+  usePendingSignInContext,
+  type AdoptableSignInResult,
+} from "./client.tsx";
+
+export type { AdoptableSignInResult };
 
 export type {
   AmbientSignInClient,
@@ -51,4 +61,19 @@ export function useAmbientSignInValue<T>(
     [client, id, key],
   );
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
+ * The function a provider's sign-in hook hands its sign-in function's result
+ * to, in place of calling `setSession` itself.
+ *
+ * A `complete` result's session is adopted. An `incomplete` one becomes the
+ * pending sign-in the app reads with `usePendingSignIn`, so the app renders
+ * the step its requirements name. `SIGN_IN_EXPIRED` marks the pending
+ * sign-in expired. Other errors are left to the hook's caller.
+ */
+export function useAdoptSignInResult(): (
+  result: AdoptableSignInResult,
+) => Promise<void> {
+  return usePendingSignInContext().adopt;
 }
