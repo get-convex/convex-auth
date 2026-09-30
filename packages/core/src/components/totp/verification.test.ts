@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api.ts";
+import { BACKUP_CODE_COUNT } from "./backupCodes.ts";
 import {
   ENROLLMENT,
   PERIOD_MS,
@@ -300,6 +301,139 @@ describe("verifyCode", () => {
       t.mutation(api.verification.verifyCode, {
         userId: "alice",
         code: await codeFor(secret),
+      }),
+    ).rejects.toThrow(/No active TOTP secret/);
+  });
+});
+
+describe("verifyBackupCode", () => {
+  test("accepts a backup code once", async () => {
+    const t = setup();
+    const { backupCodes } = await enroll(t);
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: backupCodes[3],
+      }),
+    ).toEqual({ success: true, remainingBackupCodes: BACKUP_CODE_COUNT - 1 });
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: backupCodes[3],
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
+    expect(
+      await t.query(api.enrollment.getStatus, { userId: "alice" }),
+    ).toEqual({
+      enabled: true,
+      remainingBackupCodes: BACKUP_CODE_COUNT - 1,
+    });
+  });
+
+  test("ignores the case, the hyphen and spaces", async () => {
+    const t = setup();
+    const { backupCodes } = await enroll(t);
+    const [a, b, c] = backupCodes;
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: a.toUpperCase(),
+      }),
+    ).toMatchObject({ success: true });
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: b.replace("-", ""),
+      }),
+    ).toMatchObject({ success: true });
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: ` ${c.replace("-", " ")} `,
+      }),
+    ).toMatchObject({ success: true });
+  });
+
+  test("rejects an unknown code", async () => {
+    const t = setup();
+    await enroll(t);
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: "00000-00000",
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
+  });
+
+  test("rejects the backup code of a different user", async () => {
+    const t = setup();
+    await enroll(t, "alice");
+    const bob = await enroll(t, "bob");
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: bob.backupCodes[0],
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
+  });
+
+  test("shares the rate limit with verifyCode", async () => {
+    const t = setup();
+    const { backupCodes } = await enroll(t);
+    for (let i = 0; i < 5; i++) {
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: "000000",
+      });
+    }
+    expect(
+      await t.mutation(api.verification.verifyBackupCode, {
+        userId: "alice",
+        code: backupCodes[0],
+      }),
+    ).toMatchObject({
+      success: false,
+      userError: { error: "RATE_LIMITED" },
+    });
+  });
+
+  test("counts wrong backup codes, and not right ones, against the shared limit", async () => {
+    const t = setup();
+    const { secret, backupCodes } = await enroll(t);
+    // More right backup codes than the bucket holds.
+    for (let i = 0; i < 6; i++) {
+      expect(
+        await t.mutation(api.verification.verifyBackupCode, {
+          userId: "alice",
+          code: backupCodes[i],
+        }),
+        `right backup code ${i}`,
+      ).toMatchObject({ success: true });
+    }
+    // Wrong backup codes use up the same budget as wrong TOTP codes.
+    for (let i = 0; i < 5; i++) {
+      expect(
+        await t.mutation(api.verification.verifyBackupCode, {
+          userId: "alice",
+          code: "00000-00000",
+        }),
+        `wrong backup code ${i}`,
+      ).toEqual({ success: false, userError: { error: "INVALID_CODE" } });
+    }
+    expect(
+      await t.mutation(api.verification.verifyCode, {
+        userId: "alice",
+        code: await codeFor(secret),
+      }),
+    ).toMatchObject({ success: false, userError: { error: "RATE_LIMITED" } });
+  });
+
+  test("throws when the user has no active secret", async () => {
+    const t = setup();
+    await expect(
+      t.mutation(api.verification.verifyBackupCode, {
+        userId: "nobody",
+        code: "00000-00000",
       }),
     ).rejects.toThrow(/No active TOTP secret/);
   });

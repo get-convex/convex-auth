@@ -9,11 +9,13 @@ import { Doc } from "./_generated/dataModel.ts";
 import { components } from "./_generated/api.ts";
 import { Infer, v } from "convex/values";
 import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
-import { verifyCodeUserError } from "./validation.ts";
-import { activeSecrets, matchCode } from "./helpers.ts";
+import { hashBackupCode } from "./backupCodes.ts";
+import { CodeKind, verifyCodeUserError } from "./validation.ts";
+import { activeSecrets, backupCodesByUserId, matchCode } from "./helpers.ts";
 
-// Throttle for wrong codes, per user id. A verification only takes a token
-// from the bucket when the code is wrong.
+// Throttle for wrong codes, per user id. `verifyCode` and `verifyBackupCode`
+// share one bucket. A verification only takes a token from the bucket when the
+// code is wrong.
 //
 // A 6-digit code with the ±1 step window of `matchCode` gives an attacker 3
 // valid guesses in a million per attempt. A token bucket of 5 that refills at
@@ -63,7 +65,49 @@ export const verifyCode = mutation({
   returns: verifyCodeResult,
   handler: async (ctx, { userId, code }): Promise<VerifyCodeResult> => {
     const active = await requireActiveSecrets(ctx, userId);
-    return await checkSecondFactor(ctx, userId, active, code);
+    return await checkSecondFactor(ctx, userId, active, code, "totp");
+  },
+});
+
+const verifyBackupCodeResult = v.union(
+  v.object({
+    success: v.literal(true),
+    // The number of backup codes the user has left. An app warns the user
+    // when this gets low, and offers `regenerateBackupCodes`.
+    remainingBackupCodes: v.number(),
+  }),
+  v.object({ success: v.literal(false), userError: verifyCodeUserError }),
+);
+type VerifyBackupCodeResult = Infer<typeof verifyBackupCodeResult>;
+
+/**
+ * Verify a backup code of a user, in place of a TOTP code.
+ *
+ * A backup code works once: the function deletes it on success. The
+ * comparison ignores the case of the code, the hyphen and any spaces.
+ *
+ * This enforces the same rate limit as `verifyCode`.
+ *
+ * The function throws when the user has no active secret, as `verifyCode`
+ * does.
+ */
+export const verifyBackupCode = mutation({
+  args: { userId: v.string(), code: v.string() },
+  returns: verifyBackupCodeResult,
+  handler: async (ctx, { userId, code }): Promise<VerifyBackupCodeResult> => {
+    const active = await requireActiveSecrets(ctx, userId);
+    const checked = await checkSecondFactor(
+      ctx,
+      userId,
+      active,
+      code,
+      "backup",
+    );
+    if (!checked.success) {
+      return checked;
+    }
+    const remaining = await backupCodesByUserId(ctx, userId);
+    return { success: true, remainingBackupCodes: remaining.length };
   },
 });
 
@@ -85,25 +129,30 @@ async function requireActiveSecrets(
 
 /**
  * Check that `code` proves the user holds the second factor: a current code
- * of one of their active secrets. This is the one place a code is checked,
- * under the rate limit on wrong codes (see `rateLimiter` above), for the
- * verification mutations of this module.
+ * of one of their active secrets, or one of their backup codes, as `kind`
+ * says. This is the one place a code is checked, under the rate limit on
+ * wrong codes (see `rateLimiter` above), for the verification mutations of
+ * this module.
  *
- * A right code marks its time step used on the secret it matched, thus it
- * cannot be replayed. A wrong code takes one token from the bucket of the
- * user, however many secrets it was checked against.
+ * A right TOTP code marks its time step used on the secret it matched, thus
+ * it cannot be replayed. A right backup code is deleted, thus it works once.
+ * A wrong code of either kind takes one token from the bucket of the user,
+ * however many secrets it was checked against.
  */
 async function checkSecondFactor(
   ctx: MutationCtx,
   userId: string,
   active: Doc<"totpSecrets">[],
   code: string,
+  kind: CodeKind,
 ): Promise<VerifyCodeResult> {
   const rateLimited = await checkVerificationLimit(ctx, userId);
   if (rateLimited !== null) {
     return rateLimited;
   }
-  return await checkTotpCode(ctx, userId, active, code);
+  return kind === "backup"
+    ? await checkBackupCode(ctx, userId, code)
+    : await checkTotpCode(ctx, userId, active, code);
 }
 
 async function checkTotpCode(
@@ -127,6 +176,27 @@ async function checkTotpCode(
     }
   }
   return await chargeWrongCode(ctx, userId);
+}
+
+async function checkBackupCode(
+  ctx: MutationCtx,
+  userId: string,
+  code: string,
+): Promise<VerifyCodeResult> {
+  // The hash lookup, and not a comparison of the hashes in JavaScript, is
+  // what keeps the check independent of the content of the code.
+  const codeHash = await hashBackupCode(code);
+  const row = await ctx.db
+    .query("backupCodes")
+    .withIndex("by_userId_codeHash", (q) =>
+      q.eq("userId", userId).eq("codeHash", codeHash),
+    )
+    .unique();
+  if (row === null) {
+    return await chargeWrongCode(ctx, userId);
+  }
+  await ctx.db.delete("backupCodes", row._id);
+  return { success: true };
 }
 
 /**
