@@ -26,16 +26,8 @@ import {
   type StartChallengeResult,
 } from "./common.ts";
 
-const vPurpose = {
-  // The application's name for the flow. Opaque to the component.
-  purpose: v.string(),
-  // The user that the caller asserts owns the flow, or `null` when no user
-  // is signed in (for example, account recovery). The component only stores
-  // this value and gives it back at completion: it does NOT verify that the
-  // user owns the address. A flow that gives access to an account must check
-  // itself, after `complete`, that the address is verified for that account.
-  userId: v.union(v.string(), v.null()),
-};
+// The application's name for the flow. Opaque to the component.
+const vPurposeName = v.string();
 
 /**
  * Tell whether `start` would fail with a `userError` for this address,
@@ -64,7 +56,15 @@ export const check = mutation({
 export const start = mutation({
   args: {
     ...vStartArgs,
-    ...vPurpose,
+    purpose: vPurposeName,
+    // The user that the caller asserts owns the flow, or `null` when no user
+    // is signed in (for example, account recovery). The component only
+    // stores this value and gives it back at completion: it does NOT verify
+    // that the user owns the address. A flow that gives access to an
+    // account must check itself, after `complete`, that the address is
+    // verified for that account.
+    // TODO(#663): `complete` will verify that this user owns the address.
+    expectedUserId: v.union(v.string(), v.null()),
     subject: v.string(),
     intro: v.string(),
     ttlMs: v.optional(v.number()),
@@ -88,7 +88,11 @@ export const start = mutation({
     }
     const created = await createChallengeAndSendEmail(ctx, {
       email: args.email,
-      purpose: { kind: "custom", userId: args.userId, purpose: args.purpose },
+      purpose: {
+        kind: "custom",
+        userId: args.expectedUserId ?? undefined,
+        purpose: args.purpose,
+      },
       ttlMs,
       url: args.url,
       emailSender: args.emailSender,
@@ -101,7 +105,8 @@ export const start = mutation({
 const completeResult = v.union(
   v.object({
     success: v.literal(true),
-    // The `userId` that the caller gave at start. Not verified: see `start`.
+    // The `expectedUserId` that the caller gave at start. Not verified: see
+    // `start`.
     userId: v.union(v.string(), v.null()),
     email: v.string(),
   }),
@@ -110,21 +115,38 @@ const completeResult = v.union(
 type CompleteResult = Infer<typeof completeResult>;
 
 /**
- * Complete a `custom` challenge. The `purpose` and the `userId` must be the
- * ones given at start.
+ * Complete a `custom` challenge. The `purpose` must be the one given at
+ * start.
+ *
+ * `currentUserId` is the user that is signed in now, or `null` when no user
+ * is. It must be the `expectedUserId` of `start`. Another value throws: the
+ * flow is for another user. It is required, thus a caller cannot skip the
+ * check by accident.
  */
 export const complete = mutation({
-  args: { ...vClaimArgs, ...vPurpose },
+  args: {
+    ...vClaimArgs,
+    purpose: vPurposeName,
+    currentUserId: v.union(v.string(), v.null()),
+  },
   returns: completeResult,
   handler: async (ctx, args): Promise<CompleteResult> => {
     const claim = await claimChallenge(ctx, {
       emailCode: args.emailCode,
       browserSecret: args.browserSecret,
-      purpose: { kind: "custom", userId: args.userId, purpose: args.purpose },
+      purpose: {
+        kind: "custom",
+        userId: args.currentUserId ?? undefined,
+        purpose: args.purpose,
+      },
     });
     if (!claim.success) {
       return claim.failure;
     }
-    return { success: true, userId: args.userId, email: claim.row.email };
+    return {
+      success: true,
+      userId: args.currentUserId,
+      email: claim.row.email,
+    };
   },
 });

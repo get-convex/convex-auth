@@ -150,9 +150,9 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "internal",
           {
             browserSecret: string;
+            currentUserId: string | null;
             emailCode: string;
             purpose: string;
-            userId: string | null;
           },
           | { email: string; success: true; userId: string | null }
           | {
@@ -176,12 +176,12 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               sendEmailHandle: string;
               testMode: boolean;
             };
+            expectedUserId: string | null;
             intro: string;
             purpose: string;
             subject: string;
             ttlMs?: number;
             url: string;
-            userId: string | null;
           },
           | { browserSecret: string; challengeId: string; success: true }
           | {

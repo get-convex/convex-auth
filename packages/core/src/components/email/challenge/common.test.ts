@@ -10,7 +10,7 @@ import { seedChallenge, setup } from "../../emailTestSetup.ts";
 import { startPreconditions } from "./common.ts";
 
 const PURPOSE = "myApp/flow";
-const CLAIM = { purpose: PURPOSE, userId: "user1" };
+const CLAIM = { purpose: PURPOSE, currentUserId: "user1" };
 
 async function challengeCount(t: ReturnType<typeof setup>): Promise<number> {
   return (await t.run((ctx) => ctx.db.query("challenges").collect())).length;
@@ -151,7 +151,7 @@ describe("the kind of a challenge", () => {
         emailCode: "code1",
         browserSecret: "secret1",
         purpose: "addEmail",
-        userId: "user1",
+        currentUserId: "user1",
       }),
     ).rejects.toThrow(/"addEmail".*"custom"/);
     expect(await challengeCount(t)).toBe(1);

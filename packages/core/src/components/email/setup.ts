@@ -600,7 +600,7 @@ export function setupEmailPassword<UsersTable extends string>(
                 purpose: RECOVERY_PURPOSE,
                 // Nobody is signed in: the account is found again from the
                 // verified address at completion.
-                userId: null,
+                expectedUserId: null,
                 url: urls.recovery,
                 emailSender: await senderConfig(),
                 ttlMs: RECOVERY_TTL_MS,
@@ -643,7 +643,7 @@ export function setupEmailPassword<UsersTable extends string>(
                 emailCode,
                 browserSecret,
                 purpose: RECOVERY_PURPOSE,
-                userId: null,
+                currentUserId: null,
               },
             );
             if (!complete.success) {

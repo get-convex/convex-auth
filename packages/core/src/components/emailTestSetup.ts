@@ -40,7 +40,7 @@ export type ChallengePurposeRow =
   | { kind: "addEmail"; userId: string }
   | { kind: "changeEmail"; userId: string }
   | { kind: "signUp"; userId: string }
-  | { kind: "custom"; userId: string | null; purpose: string };
+  | { kind: "custom"; userId?: string; purpose: string };
 
 /**
  * Seed a pending challenge row directly, with the hashes of the code and the
