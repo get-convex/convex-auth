@@ -12,6 +12,7 @@ import type * as backupCodes from "../backupCodes.js";
 import type * as enrollment from "../enrollment.js";
 import type * as helpers from "../helpers.js";
 import type * as management from "../management.js";
+import type * as requirement from "../requirement.js";
 import type * as totp from "../totp.js";
 import type * as validation from "../validation.js";
 import type * as verification from "../verification.js";
@@ -28,6 +29,7 @@ const fullApi: ApiFromModules<{
   enrollment: typeof enrollment;
   helpers: typeof helpers;
   management: typeof management;
+  requirement: typeof requirement;
   totp: typeof totp;
   validation: typeof validation;
   verification: typeof verification;
