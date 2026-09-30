@@ -13,6 +13,7 @@ import type * as enrollment from "../enrollment.js";
 import type * as helpers from "../helpers.js";
 import type * as totp from "../totp.js";
 import type * as validation from "../validation.js";
+import type * as verification from "../verification.js";
 
 import type {
   ApiFromModules,
@@ -27,6 +28,7 @@ const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   totp: typeof totp;
   validation: typeof validation;
+  verification: typeof verification;
 }> = anyApi as any;
 
 /**
@@ -55,4 +57,6 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {};
+export const components = componentsGeneric() as unknown as {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};

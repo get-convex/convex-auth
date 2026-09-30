@@ -1,5 +1,6 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, vi } from "vitest";
+import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import { api } from "./totp/_generated/api.ts";
 import schema from "./totp/schema.ts";
 import { DEFAULT_PERIOD, totp } from "./totp/totp.ts";
@@ -15,14 +16,21 @@ export const ENROLLMENT = {
   accountDisplayName: "alice@example.com",
 };
 
-/** Make a test instance of the component. */
+/**
+ * Make a test instance of the component. The component mounts the rate
+ * limiter, so register it with the test instance too: the throttle of
+ * `verifyCode` needs a backing component.
+ */
 export function setup(): TestConvex<typeof schema> {
-  return convexTest(schema, modules);
+  const t = convexTest(schema, modules);
+  registerRateLimiter(t);
+  return t;
 }
 
 /**
  * Let the tests of the calling file control the clock: the codes depend on
- * the time. Only `Date` is faked, because convex-test uses the real timers.
+ * the time, and the rate limiter refills with it. Only `Date` is faked,
+ * because convex-test uses the real timers.
  */
 export function controlClock(): void {
   beforeEach(() => {

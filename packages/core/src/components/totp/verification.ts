@@ -1,0 +1,166 @@
+/**
+ * TOTP verification at sign-in: the functions of the component that check a
+ * code from an enrolled user, and the throttle that guards them.
+ *
+ * @module
+ */
+import { mutation, MutationCtx } from "./_generated/server.ts";
+import { Doc } from "./_generated/dataModel.ts";
+import { components } from "./_generated/api.ts";
+import { Infer, v } from "convex/values";
+import { RateLimiter, MINUTE } from "@convex-dev/rate-limiter";
+import { verifyCodeUserError } from "./validation.ts";
+import { activeSecrets, matchCode } from "./helpers.ts";
+
+// Throttle for wrong codes, per user id. A verification only takes a token
+// from the bucket when the code is wrong.
+//
+// A 6-digit code with the ±1 step window of `matchCode` gives an attacker 3
+// valid guesses in a million per attempt. A token bucket of 5 that refills at
+// one attempt every 5 minutes caps a persistent attacker at about 105k guesses
+// a year, thus about 0.3 expected successes a year against one account, and
+// only after the first factor has been defeated. A legitimate user gets 5
+// tries at once, which covers a typo or a slow hand, and their right codes
+// (a sign-in, then turning the second factor off, say) never use up a try.
+//
+// As with the password provider, the limit is keyed on the user id and not on
+// an IP address (see OWASP): an IP limit hurts legitimate users behind a shared
+// address and is bypassed with proxies. A malicious user can exhaust the bucket
+// of a legitimate user, who then waits at most 5 minutes for one more try.
+const rateLimiter = new RateLimiter(components.rateLimiter, {
+  verifyCode: {
+    kind: "token bucket",
+    rate: 1,
+    period: 5 * MINUTE,
+    capacity: 5,
+  },
+});
+
+const verifyCodeResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), userError: verifyCodeUserError }),
+);
+type VerifyCodeResult = Infer<typeof verifyCodeResult>;
+
+/**
+ * Verify a TOTP code from an authenticator of a user. A code from any of the
+ * user's active secrets is accepted.
+ *
+ * The function accepts the code of the current time step and, to tolerate
+ * clock drift, the codes of the previous and the next step. A code is
+ * accepted once: a second call with the same code, or with the code of an
+ * earlier step, returns `INVALID_CODE`.
+ *
+ * This enforces a rate limit on wrong codes (see `rateLimiter` above): a
+ * right code is never charged, and an empty bucket refuses any code.
+ *
+ * The function throws when the user has no active secret: the app checks
+ * `getStatus` before it asks for a code, thus this is a programming error
+ * and not a user-facing condition.
+ */
+export const verifyCode = mutation({
+  args: { userId: v.string(), code: v.string() },
+  returns: verifyCodeResult,
+  handler: async (ctx, { userId, code }): Promise<VerifyCodeResult> => {
+    const active = await requireActiveSecrets(ctx, userId);
+    return await checkSecondFactor(ctx, userId, active, code);
+  },
+});
+
+/**
+ * The active secrets of the user, for the verification mutations, which throw
+ * when there are none: the flow that asks for a code knows that the user is
+ * enrolled, thus a missing secret is a programming error.
+ */
+async function requireActiveSecrets(
+  ctx: MutationCtx,
+  userId: string,
+): Promise<Doc<"totpSecrets">[]> {
+  const active = await activeSecrets(ctx, userId);
+  if (active.length === 0) {
+    throw new Error(`No active TOTP secret for userId ${userId}.`);
+  }
+  return active;
+}
+
+/**
+ * Check that `code` proves the user holds the second factor: a current code
+ * of one of their active secrets. This is the one place a code is checked,
+ * under the rate limit on wrong codes (see `rateLimiter` above), for the
+ * verification mutations of this module.
+ *
+ * A right code marks its time step used on the secret it matched, thus it
+ * cannot be replayed. A wrong code takes one token from the bucket of the
+ * user, however many secrets it was checked against.
+ */
+async function checkSecondFactor(
+  ctx: MutationCtx,
+  userId: string,
+  active: Doc<"totpSecrets">[],
+  code: string,
+): Promise<VerifyCodeResult> {
+  const rateLimited = await checkVerificationLimit(ctx, userId);
+  if (rateLimited !== null) {
+    return rateLimited;
+  }
+  return await checkTotpCode(ctx, userId, active, code);
+}
+
+async function checkTotpCode(
+  ctx: MutationCtx,
+  userId: string,
+  active: Doc<"totpSecrets">[],
+  code: string,
+): Promise<VerifyCodeResult> {
+  const now = Date.now();
+  for (const secret of active) {
+    const matchedCounter = await matchCode(secret, code, now);
+    if (
+      matchedCounter !== null &&
+      (secret.lastUsedCounter === undefined ||
+        matchedCounter > secret.lastUsedCounter)
+    ) {
+      await ctx.db.patch("totpSecrets", secret._id, {
+        lastUsedCounter: matchedCounter,
+      });
+      return { success: true };
+    }
+  }
+  return await chargeWrongCode(ctx, userId);
+}
+
+/**
+ * Take one token from the bucket of wrong codes for the user.
+ *
+ * Returns an `INVALID_CODE` result that can be passed along to the caller that
+ * attempted to verify a code.
+ */
+async function chargeWrongCode(
+  ctx: MutationCtx,
+  userId: string,
+): Promise<Extract<VerifyCodeResult, { success: false }>> {
+  await rateLimiter.limit(ctx, "verifyCode", { key: userId });
+  return { success: false, userError: { error: "INVALID_CODE" } };
+}
+
+/**
+ * Check the bucket of wrong codes of the user, without taking from it. Return
+ * the `RATE_LIMITED` result when the bucket is empty, `null` otherwise.
+ *
+ * Run this before the code is checked, and `chargeWrongCode` after a wrong
+ * one. Mutations are serializable, thus concurrent guesses cannot slip between
+ * the check and the charge: each wrong guess reads and writes the same bucket.
+ */
+async function checkVerificationLimit(
+  ctx: MutationCtx,
+  userId: string,
+): Promise<Extract<VerifyCodeResult, { success: false }> | null> {
+  const status = await rateLimiter.check(ctx, "verifyCode", { key: userId });
+  if (status.ok) {
+    return null;
+  }
+  return {
+    success: false,
+    userError: { error: "RATE_LIMITED", retryAfterMs: status.retryAfter },
+  };
+}
