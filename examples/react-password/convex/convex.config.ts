@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import auth from "@convex-dev/auth/core/convex.config.js";
 import passwordProvider from "@convex-dev/auth/providers/password/convex.config.js";
 import username from "@convex-dev/auth/username/convex.config.js";
+import totp from "@convex-dev/auth/totp/convex.config.js";
 
 const app = defineApp({
   env: {
@@ -20,5 +21,6 @@ app.use(auth, {
 });
 app.use(passwordProvider);
 app.use(username);
+app.use(totp);
 
 export default app;

@@ -1,15 +1,25 @@
-import { mutationGeneric } from "convex/server";
+import { mutationGeneric, type RegisteredMutation } from "convex/server";
 import { Infer, v } from "convex/values";
 import { getAuthUserId } from "../core/userId.ts";
 import {
   vSignInComplete,
   vSignInError,
+  vSignInIncomplete,
   USE_USER_ID_AS_ACCOUNT_ID,
+  type SignInComplete,
+  type SignInError,
+  type SignInIncomplete,
   type UserCallbacks,
 } from "../../lib/types.ts";
 import type { AuthCore } from "../core/setup.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import type { ComponentApi as UsernameComponentApi } from "../username/_generated/component.ts";
+import type { ComponentApi as TotpComponentApi } from "../totp/_generated/component.ts";
+import {
+  totpSignInCheck,
+  vTotpRequirement,
+  type TotpRequirement,
+} from "../totp/requirement.ts";
 import {
   setUsernameUserError,
   validateUsernameFormat,
@@ -38,24 +48,57 @@ export type UsernamePasswordOptions = {
    * at sign-up and reads it back at sign-in.
    */
   usernameComponent: UsernameComponentApi;
+  /**
+   * Require a TOTP code at sign-in from every user who has enrolled one.
+   *
+   * Pass the mounted TOTP component (`components.authTotp`). Once a user with
+   * an active TOTP secret gives the right password, `signInWithPassword`
+   * returns `{ status: "incomplete", requirements: ["totp"] }` with an attempt
+   * token instead of a session. The user then verifies a code with
+   * `verifyTotpForSignIn` (from `setupTotp`) and finishes the sign-in with the
+   * core's `continueSignIn`. Users who have not enrolled sign in as before.
+   *
+   * The provider only asks. The TOTP component judges whether the attempt
+   * has verified a code, through the check the provider parks the sign-in
+   * with, and the app enrolls users through `setupTotp`.
+   */
+  totp?: { component: TotpComponentApi };
 };
 
+/** Whether {@link UsernamePasswordOptions} enable the TOTP second factor. */
+type HasTotp<Options extends UsernamePasswordOptions> = Options extends {
+  totp: { component: TotpComponentApi };
+}
+  ? true
+  : false;
+
+const signInUserError = v.union(
+  verifyPasswordUserError,
+  v.object({ error: v.literal("USER_NOT_FOUND") }),
+);
+
+// The one requirement this provider can hold a sign-in on, under the name
+// the TOTP component gives it.
 const signInResult = v.union(
   vSignInComplete,
-  vSignInError(
-    v.union(
-      verifyPasswordUserError,
-      v.object({ error: v.literal("USER_NOT_FOUND") }),
-    ),
-  ),
+  vSignInIncomplete(vTotpRequirement),
+  vSignInError(signInUserError),
 );
 
 /**
  * The result of `signInWithPassword`.
  *
- * When complete the minted session tokens, otherwise a user-facing `userError`.
+ * When complete the minted session tokens, when incomplete the attempt token
+ * to finish the sign-in with once the TOTP code is verified, otherwise a
+ * user-facing `userError`.
+ *
+ * `Totp` is whether the recipe was set up with the `totp` option. Without it
+ * the incomplete arm is not part of the type.
  */
-export type SignInResult = Infer<typeof signInResult>;
+export type SignInResult<Totp extends boolean = boolean> =
+  | SignInComplete
+  | (Totp extends true ? SignInIncomplete<TotpRequirement> : never)
+  | SignInError<Infer<typeof signInUserError>>;
 
 const signUpResult = v.union(
   vSignInComplete,
@@ -90,6 +133,32 @@ const changePasswordResult = v.union(
  */
 export type ChangePasswordResult = Infer<typeof changePasswordResult>;
 
+type Credentials = { username: string; password: string };
+
+/**
+ * The functions `attachUserCallbacks` returns for the app to export.
+ *
+ * `Totp` is whether the recipe was set up with the `totp` option, which is
+ * what gives `signInWithPassword` its `incomplete` arm.
+ */
+export type UsernamePasswordApi<Totp extends boolean> = {
+  signUpWithPassword: RegisteredMutation<
+    "public",
+    Credentials,
+    Promise<SignUpResult>
+  >;
+  signInWithPassword: RegisteredMutation<
+    "public",
+    Credentials,
+    Promise<SignInResult<Totp>>
+  >;
+  changePassword: RegisteredMutation<
+    "public",
+    { currentPassword: string; newPassword: string },
+    Promise<ChangePasswordResult>
+  >;
+};
+
 /**
  * The simplest password recipe: every account is a `(username, password)` pair,
  * with no email or email verification. Wire it up in `convex/auth.ts`:
@@ -108,16 +177,37 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
  * / `changePassword` mutations so its clients can call them.
  *
+ * With the `totp` option, `signInWithPassword` holds the sign-in of a
+ * TOTP-enrolled user for a code. The app also exports the core's
+ * `continueSignIn` and the TOTP recipe's `verifyTotpForSignIn`, which is how
+ * the client satisfies the requirement and finishes the sign-in:
+ *
+ * ```ts
+ * export const { signOut, refreshSession, isAuthenticated, continueSignIn } =
+ *   core;
+ *
+ * export const { signUpWithPassword, signInWithPassword, changePassword } =
+ *   setupUsernamePassword(core, {
+ *     component: components.authPasswordProvider,
+ *     usernameComponent: components.authUsername,
+ *     totp: { component: components.authTotp },
+ *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
+ *
+ * export const { verifyTotpForSignIn } = setupTotp(core, {
+ *   component: components.authTotp,
+ * });
+ * ```
+ *
  * Account resolution (username → app user id) is owned by the username
  * component: the provider stores the username there at sign-up, and reads the
  * user id back from it at sign-in. The password component itself stores only
  * `{ userId, passwordHash }` and knows nothing about usernames.
  */
-export function setupUsernamePassword<UsersTable extends string>(
-  core: AuthCore<UsersTable>,
-  options: UsernamePasswordOptions,
-) {
-  const { component, usernameComponent } = options;
+export function setupUsernamePassword<
+  UsersTable extends string,
+  Options extends UsernamePasswordOptions,
+>(core: AuthCore<UsersTable>, options: Options) {
+  const { component, usernameComponent, totp } = options;
 
   return {
     /**
@@ -127,217 +217,250 @@ export function setupUsernamePassword<UsersTable extends string>(
     attachUserCallbacks({
       createUser,
       onSignIn,
-    }: UserCallbacks<"password", Record<string, never>, UsersTable>) {
+    }: UserCallbacks<
+      "password",
+      Record<string, never>,
+      UsersTable
+    >): UsernamePasswordApi<HasTotp<Options>> {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,
       });
 
-      return {
-        /**
-         * Create a new account: reject a taken username or an invalid password,
-         * otherwise create the user + session and store the username and the
-         * password.
-         */
-        signUpWithPassword: authMutation({
-          args: { username: v.string(), password: v.string() },
-          returns: signUpResult,
-          handler: async (
-            ctx,
-            { username, password },
-          ): Promise<SignUpResult> => {
-            // Validate the username and the password *before* creating
-            // anything, so invalid input never mints a session.
-            // (`setUsername` and `setPassword` do the same checks again, but by
-            // then the account would already exist.)
-            // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
-            const usernameError = validateUsernameFormat(username);
-            if (usernameError !== null) {
-              return { status: "error", userError: usernameError };
-            }
-            const userError = validateNewPassword(password);
-            if (userError !== null) {
-              return { status: "error", userError };
-            }
+      /**
+       * Create a new account: reject a taken username or an invalid password,
+       * otherwise create the user + session and store the username and the
+       * password.
+       */
+      const signUpWithPassword = authMutation({
+        args: { username: v.string(), password: v.string() },
+        returns: signUpResult,
+        handler: async (ctx, { username, password }): Promise<SignUpResult> => {
+          // Validate the username and the password *before* creating
+          // anything, so invalid input never mints a session.
+          // (`setUsername` and `setPassword` do the same checks again, but by
+          // then the account would already exist.)
+          // TODO(nicolas) Make the first-party providers apply stronger validation rules by default
+          const usernameError = validateUsernameFormat(username);
+          if (usernameError !== null) {
+            return { status: "error", userError: usernameError };
+          }
+          const userError = validateNewPassword(password);
+          if (userError !== null) {
+            return { status: "error", userError };
+          }
 
-            const existing = await ctx.runQuery(
-              usernameComponent.public.getUserIdByUsername,
-              { username },
+          const existing = await ctx.runQuery(
+            usernameComponent.public.getUserIdByUsername,
+            { username },
+          );
+          if (existing !== null) {
+            return {
+              status: "error",
+              userError: { error: "USERNAME_TAKEN" },
+            };
+          }
+
+          // Create the account + app user (via the app's createUser) and
+          // mint the session. Password accounts are keyed by the app user id,
+          // which does not exist before this call mints it, hence the
+          // placeholder; sign-in passes the user id itself.
+          //
+          // TODO(nicolas) The app's user callbacks should not receive a
+          // provider account ID for the password provider at all: the value
+          // is an internal key ("" at sign-up, the user id afterwards) with
+          // no meaning to the app. We will probably improve this when
+          // providers support typesafe profiles.
+          const tokens = await ctx.convexAuth.completeSignUp({
+            providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
+            profile: {},
+          });
+
+          const setUsernameResult = await ctx.runMutation(
+            usernameComponent.public.setUsername,
+            { userId: tokens.userId, username },
+          );
+          if (!setUsernameResult.success) {
+            // Unexpected: we validated the username above, and this handler
+            // is a mutation, thus the check for a conflict above and this
+            // call are in the same transaction.
+            // Throwing so that the transaction doesn’t commit.
+            throw new Error(
+              "Unexpected error when setting the username: " +
+                setUsernameResult.userError.error,
+              { cause: setUsernameResult.userError },
             );
-            if (existing !== null) {
-              return {
-                status: "error",
-                userError: { error: "USERNAME_TAKEN" },
-              };
-            }
+          }
 
-            // Create the account + app user (via the app's createUser) and
-            // mint the session. Password accounts are keyed by the app user id,
-            // which does not exist before this call mints it, hence the
-            // placeholder; sign-in passes the user id itself.
+          const setResult = await ctx.runMutation(
+            component.public.setPassword,
+            {
+              userId: tokens.userId,
+              password,
+            },
+          );
+          if (!setResult.success) {
+            // Unexpected: we pre-validated the password above,
+            // so this call should not fail.
+            // Throwing so that the transaction doesn’t commit.
             //
-            // TODO(nicolas) The app's user callbacks should not receive a
-            // provider account ID for the password provider at all: the value
-            // is an internal key ("" at sign-up, the user id afterwards) with
-            // no meaning to the app. We will probably improve this when
-            // providers support typesafe profiles.
-            const tokens = await ctx.convexAuth.completeSignUp({
-              providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-              profile: {},
-            });
-
-            const setUsernameResult = await ctx.runMutation(
-              usernameComponent.public.setUsername,
-              { userId: tokens.userId, username },
+            // TODO(nicolas) can we improve this?
+            throw new Error(
+              "Unexpected error when setting the password: " + userError,
+              { cause: userError },
             );
-            if (!setUsernameResult.success) {
-              // Unexpected: we validated the username above, and this handler
-              // is a mutation, thus the check for a conflict above and this
-              // call are in the same transaction.
-              // Throwing so that the transaction doesn’t commit.
-              throw new Error(
-                "Unexpected error when setting the username: " +
-                  setUsernameResult.userError.error,
-                { cause: setUsernameResult.userError },
-              );
-            }
+          }
 
-            const setResult = await ctx.runMutation(
-              component.public.setPassword,
+          return { status: "complete", tokens };
+        },
+      });
+
+      /**
+       * Verify an existing account's password and, on success, mint a session
+       * or, for a user who owes a TOTP code, hold the sign-in until the code
+       * is verified and the core's `continueSignIn` finishes it.
+       *
+       * Returns `USER_NOT_FOUND` when the username has no account and
+       * `INVALID_CREDENTIALS` when the password is wrong, so callers can tell
+       * the two apart. (Account existence is already observable via sign-up's
+       * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
+       */
+      const signInWithPassword = authMutation({
+        args: { username: v.string(), password: v.string() },
+        returns: signInResult,
+        handler: async (ctx, { username, password }): Promise<SignInResult> => {
+          const userId = await ctx.runQuery(
+            usernameComponent.public.getUserIdByUsername,
+            { username },
+          );
+          if (userId === null) {
+            return {
+              status: "error",
+              userError: { error: "USER_NOT_FOUND" },
+            };
+          }
+
+          const verifyResult = await ctx.runMutation(
+            component.public.verifyPassword,
+            { userId, password },
+          );
+          if (!verifyResult.success) {
+            return { status: "error", userError: verifyResult.userError };
+          }
+
+          // The password is the first factor. A user who has enrolled TOTP
+          // owes a second one, so the sign-in is parked rather than finished,
+          // with the TOTP component's own check as the judge of when the
+          // code has been given: the core runs it when the client continues.
+          // The requirement carries the TOTP component's name for itself, and
+          // the core reports it under that same name.
+          if (totp !== undefined) {
+            const status = await ctx.runQuery(
+              totp.component.enrollment.getStatus,
               {
-                userId: tokens.userId,
-                password,
+                userId,
               },
             );
-            if (!setResult.success) {
-              // Unexpected: we pre-validated the password above,
-              // so this call should not fail.
-              // Throwing so that the transaction doesn’t commit.
-              //
-              // TODO(nicolas) can we improve this?
-              throw new Error(
-                "Unexpected error when setting the password: " + userError,
-                { cause: userError },
-              );
-            }
-
-            return { status: "complete", tokens };
-          },
-        }),
-
-        /**
-         * Verify an existing account's password and, on success, mint a session.
-         * Returns `USER_NOT_FOUND` when the username has no account and
-         * `INVALID_CREDENTIALS` when the password is wrong, so callers can tell
-         * the two apart. (Account existence is already observable via sign-up's
-         * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
-         */
-        signInWithPassword: authMutation({
-          args: { username: v.string(), password: v.string() },
-          returns: signInResult,
-          handler: async (
-            ctx,
-            { username, password },
-          ): Promise<SignInResult> => {
-            const userId = await ctx.runQuery(
-              usernameComponent.public.getUserIdByUsername,
-              { username },
-            );
-            if (userId === null) {
+            if (status.enabled) {
+              const checks = [totpSignInCheck(totp.component)];
+              const deferred = await ctx.convexAuth.deferSignIn({
+                providerAccountId: userId,
+                profile: {},
+                checks,
+              });
               return {
-                status: "error",
-                userError: { error: "USER_NOT_FOUND" },
+                status: "incomplete",
+                attemptToken: deferred.attemptToken,
+                expiresAt: deferred.expiresAt,
+                requirements: checks.map((check) => check.requirement),
               };
             }
+          }
 
-            const verifyResult = await ctx.runMutation(
-              component.public.verifyPassword,
-              { userId, password },
+          // The username resolved to a user id and its password verified, so
+          // the account exists and `completeSignIn` (which throws otherwise)
+          // is the right helper.
+          const tokens = await ctx.convexAuth.completeSignIn({
+            providerAccountId: userId,
+            profile: {},
+          });
+          return { status: "complete", tokens };
+        },
+      });
+
+      /**
+       * Change the password of the signed-in user. The user must re-authenticate
+       * by giving their current password.
+       */
+      const changePassword = mutationGeneric({
+        args: { currentPassword: v.string(), newPassword: v.string() },
+        returns: changePasswordResult,
+        handler: async (
+          ctx,
+          { currentPassword, newPassword },
+        ): Promise<ChangePasswordResult> => {
+          const userId = await getAuthUserId(ctx);
+          if (userId === null) {
+            return { success: false, userError: { error: "NOT_SIGNED_IN" } };
+          }
+
+          // Validate the new password before verifying the current one, so
+          // that invalid new password are ignored by the rate limit.
+          const newPasswordError = validateNewPassword(newPassword);
+          if (newPasswordError !== null) {
+            return { success: false, userError: newPasswordError };
+          }
+
+          // TODO(nicolas) This does not compose with other auth
+          // providers yet: we require users to reauthenticate with their
+          // current password, so this doesn’t allow users who don’t have
+          // a password at this point to add a password to their account.
+          const verifyResult = await ctx.runMutation(
+            component.public.verifyPassword,
+            { userId, password: currentPassword },
+          );
+          if (!verifyResult.success) {
+            if (verifyResult.userError.error === "RATE_LIMITED") {
+              return { success: false, userError: verifyResult.userError };
+            }
+            // `verifyPassword` also reports format errors. Here we use
+            // INVALID_CREDENTIALS for all current password formatting errors,
+            // so that the user doesn’t think that there is an issue
+            // in their new password.
+            verifyResult.userError.error satisfies
+              | "PASSWORD_TOO_SHORT"
+              | "PASSWORD_TOO_LONG"
+              | "PASSWORD_HAS_SURROUNDING_WHITESPACE"
+              | "INVALID_CREDENTIALS";
+            return {
+              success: false,
+              userError: { error: "INVALID_CREDENTIALS" },
+            };
+          }
+
+          const setResult = await ctx.runMutation(
+            component.public.setPassword,
+            { userId, password: newPassword },
+          );
+          if (!setResult.success) {
+            // Unexpected: we pre-validated the new password above.
+            throw new Error(
+              "Unexpected error when setting the password: " +
+                setResult.userError.error,
+              { cause: setResult.userError },
             );
-            if (!verifyResult.success) {
-              return { status: "error", userError: verifyResult.userError };
-            }
+          }
 
-            // The username resolved to a user id and its password verified, so
-            // the account exists and `completeSignIn` (which throws otherwise)
-            // is the right helper.
-            const tokens = await ctx.convexAuth.completeSignIn({
-              providerAccountId: userId,
-              profile: {},
-            });
-            return { status: "complete", tokens };
-          },
-        }),
+          // TODO(nicolas) Allow the user to choose to revoke their existing sessions here (needs core support)
+          return { success: true };
+        },
+      });
 
-        /**
-         * Change the password of the signed-in user. The user must re-authenticate
-         * by giving their current password.
-         */
-        changePassword: mutationGeneric({
-          args: { currentPassword: v.string(), newPassword: v.string() },
-          returns: changePasswordResult,
-          handler: async (
-            ctx,
-            { currentPassword, newPassword },
-          ): Promise<ChangePasswordResult> => {
-            const userId = await getAuthUserId(ctx);
-            if (userId === null) {
-              return { success: false, userError: { error: "NOT_SIGNED_IN" } };
-            }
-
-            // Validate the new password before verifying the current one, so
-            // that invalid new password are ignored by the rate limit.
-            const newPasswordError = validateNewPassword(newPassword);
-            if (newPasswordError !== null) {
-              return { success: false, userError: newPasswordError };
-            }
-
-            // TODO(nicolas) This does not compose with other auth
-            // providers yet: we require users to reauthenticate with their
-            // current password, so this doesn’t allow users who don’t have
-            // a password at this point to add a password to their account.
-            const verifyResult = await ctx.runMutation(
-              component.public.verifyPassword,
-              { userId, password: currentPassword },
-            );
-            if (!verifyResult.success) {
-              if (verifyResult.userError.error === "RATE_LIMITED") {
-                return { success: false, userError: verifyResult.userError };
-              }
-              // `verifyPassword` also reports format errors. Here we use
-              // INVALID_CREDENTIALS for all current password formatting errors,
-              // so that the user doesn’t think that there is an issue
-              // in their new password.
-              verifyResult.userError.error satisfies
-                | "PASSWORD_TOO_SHORT"
-                | "PASSWORD_TOO_LONG"
-                | "PASSWORD_HAS_SURROUNDING_WHITESPACE"
-                | "INVALID_CREDENTIALS";
-              return {
-                success: false,
-                userError: { error: "INVALID_CREDENTIALS" },
-              };
-            }
-
-            const setResult = await ctx.runMutation(
-              component.public.setPassword,
-              { userId, password: newPassword },
-            );
-            if (!setResult.success) {
-              // Unexpected: we pre-validated the new password above.
-              throw new Error(
-                "Unexpected error when setting the password: " +
-                  setResult.userError.error,
-                { cause: setResult.userError },
-              );
-            }
-
-            // TODO(nicolas) Allow the user to choose to revoke their existing sessions here (needs core support)
-            return { success: true };
-          },
-        }),
-      };
+      // Only the type of `signInWithPassword` follows the options: without
+      // the `totp` option nothing ever produces the incomplete arm.
+      const api = { signUpWithPassword, signInWithPassword, changePassword };
+      return api as UsernamePasswordApi<HasTotp<Options>>;
     },
   };
 }

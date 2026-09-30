@@ -6,7 +6,7 @@ import { AuthClient } from "../../browser/sessionManager.ts";
 import { InMemoryStorage } from "../../browser/storage.ts";
 import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
-import { useAuthToken } from "../../react/index.tsx";
+import { useAuthToken, usePendingSignIn } from "../../react/index.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
 import {
   SignInWithPasswordResult,
@@ -40,7 +40,7 @@ const credentials = { username: "alice", password: "hunter2" };
 // The stub signInApi ignores the reference, so any value will do.
 const mutation = {} as never;
 
-const flows = [
+const flows: { name: string; useFlow: () => Flow }[] = [
   {
     name: "useSignInWithPassword",
     useFlow: () => {
@@ -57,7 +57,7 @@ const flows = [
   },
 ];
 
-function renderFlow(useFlow: () => Flow) {
+function renderFlow<F>(useFlow: () => F) {
   const client = new AuthClient({
     mode: "spa",
     authApi: {
@@ -73,7 +73,12 @@ function renderFlow(useFlow: () => Flow) {
     </AuthProvider>
   );
   return renderHook(
-    () => ({ auth: useAuth(), token: useAuthToken(), flow: useFlow() }),
+    () => ({
+      auth: useAuth(),
+      token: useAuthToken(),
+      pending: usePendingSignIn(),
+      flow: useFlow(),
+    }),
     { wrapper },
   );
 }
@@ -99,6 +104,30 @@ describe.each(flows)("$name", ({ useFlow }) => {
     expect(returned).toEqual({ status: "complete", tokens: bundle });
     expect(result.current.auth.isAuthenticated).toBe(true);
     expect(result.current.token).toBe("access-1");
+  });
+
+  test("an incomplete sign-in is returned and held, without adopting a session", async () => {
+    // The password was right and the user owes a TOTP code. The attempt is
+    // held as the pending sign-in, and the result passes through as it is.
+    const incomplete = {
+      status: "incomplete",
+      attemptToken: "attempt-1",
+      expiresAt: 3_000,
+      requirements: ["totp"],
+    };
+    runMutation.mockResolvedValue(incomplete);
+    const { result } = renderFlow(useFlow);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    let returned!: Result;
+    await act(async () => {
+      returned = await result.current.flow.run(credentials);
+    });
+
+    expect(returned).toEqual(incomplete);
+    expect(result.current.pending.pendingSignIn).toEqual(incomplete);
+    expect(result.current.auth.isAuthenticated).toBe(false);
+    expect(result.current.token).toBeNull();
   });
 
   test("user error is returned without adopting a session", async () => {
