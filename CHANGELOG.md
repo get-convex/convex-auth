@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.96
+
+- fix: check ID tables for refresh tokens and verifiers (#665)
+- fix: remove and redact some values in DEBUG logs (#598)
+
 ## 0.0.95
 
 - fix: a failed OTP/magic-link sign-in no longer consumes the verification code
