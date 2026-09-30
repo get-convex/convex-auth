@@ -3,7 +3,8 @@ import { setupCore } from "@convex-dev/auth/core/setup";
 import { setupUsernamePassword } from "@convex-dev/auth/providers/password/setup";
 
 const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+export const { signOut, refreshSession, isAuthenticated, continueSignIn } =
+  core;
 
 export const { signUpWithPassword, signInWithPassword, changePassword } =
   setupUsernamePassword(core, {
