@@ -62,6 +62,24 @@ export type PasskeyAutofillGates = {
 // that the user finally redeems is never expired.
 const AUTOFILL_REFRESH_MS = CHALLENGE_TTL_MS - 2 * 60 * 1000;
 
+// How often a pending autofill request compares the age of its challenge
+// against `AUTOFILL_REFRESH_MS`. The age is wall-clock time, which a single
+// long timer does not track: browsers throttle timers in background tabs,
+// and page timers do not advance while the computer sleeps, whereas the
+// server's TTL keeps running. The check is a clock read, so checking after
+// a short period is cheap.
+const AUTOFILL_STALENESS_CHECK_MS = 10 * 1000;
+
+// The page events after which a pending autofill request re-checks the age
+// of its challenge right away, rather than on the next periodic check: the
+// user coming back to the page, and the user focusing a field (such as the
+// username field whose autocompletion list offers the passkeys).
+const STALENESS_CHECK_WINDOW_EVENTS = ["focus", "pageshow"] as const;
+const STALENESS_CHECK_DOCUMENT_EVENTS = [
+  "visibilitychange",
+  "focusin",
+] as const;
+
 // After this many autofill assertions in a row come back as a failure,
 // the autofill flow stops instead of asking the browser again.
 const MAX_AUTOFILL_FAILURES = 3;
@@ -129,8 +147,8 @@ export function usePasskeyAutofill<E = never>(options: {
   // The implementation flows from the following constraints:
   // - While usePasskeyAutofill is mounted, we (generally) have an ongoing
   //   conditional mediation request running.
-  // - We start a new request every ~8 minutes because the challenge
-  //   has a TTL of 10 minutes.
+  // - We start a new request once the challenge is ~8 minutes old (by the
+  //   wall clock) because the challenge has a TTL of 10 minutes.
   // - The autofill system can be paused and then resumed. This is necessary
   //   because the browser doesn’t allow you to have concurrent WebAuthn
   //   challenges, so we need to pause autofill while a modal passkey
@@ -238,6 +256,9 @@ export function usePasskeyAutofill<E = never>(options: {
         }
 
         setStatus("waiting");
+        // Taken before the start mutation runs, so the age this loop
+        // measures is never shorter than the age the server measures.
+        const requestedAt = Date.now();
         let requestOptions;
         try {
           requestOptions = await optionsRef.current.start();
@@ -274,10 +295,28 @@ export function usePasskeyAutofill<E = never>(options: {
         // the result: the challenge the user redeemed is still inside its
         // TTL, and `get()` resolves with the assertion rather than with the
         // abort.
-        const refreshTimer = setTimeout(
-          () => controller.abort(),
-          AUTOFILL_REFRESH_MS,
+        //
+        // The age is read from the wall clock, periodically and whenever
+        // the user comes back to the page, instead of from one timer set
+        // to `AUTOFILL_REFRESH_MS`: such a timer fires late in a throttled
+        // background tab, and it does not count the time the computer
+        // sleeps, which would leave an expired challenge pending on a page
+        // that sat idle.
+        const refreshIfStale = () => {
+          if (Date.now() - requestedAt >= AUTOFILL_REFRESH_MS) {
+            controller.abort();
+          }
+        };
+        const refreshTimer = setInterval(
+          refreshIfStale,
+          AUTOFILL_STALENESS_CHECK_MS,
         );
+        for (const event of STALENESS_CHECK_WINDOW_EVENTS) {
+          window.addEventListener(event, refreshIfStale);
+        }
+        for (const event of STALENESS_CHECK_DOCUMENT_EVENTS) {
+          document.addEventListener(event, refreshIfStale);
+        }
 
         const result = await authenticateWithAutofill(
           requestOptions,
@@ -286,7 +325,13 @@ export function usePasskeyAutofill<E = never>(options: {
         if (controllerRef.current === controller) {
           controllerRef.current = null;
         }
-        clearTimeout(refreshTimer);
+        clearInterval(refreshTimer);
+        for (const event of STALENESS_CHECK_WINDOW_EVENTS) {
+          window.removeEventListener(event, refreshIfStale);
+        }
+        for (const event of STALENESS_CHECK_DOCUMENT_EVENTS) {
+          document.removeEventListener(event, refreshIfStale);
+        }
         if (!alive) {
           return;
         }
