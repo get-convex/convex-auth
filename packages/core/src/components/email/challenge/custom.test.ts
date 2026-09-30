@@ -176,7 +176,7 @@ describe("challenge.custom.complete", () => {
         currentUserId: "user2",
       }),
     ).rejects.toThrow();
-    // A challenge for a user rejects a caller that is not signed in.
+    // A challenge created for a user rejects a caller that passes a null userId.
     await expect(
       t.mutation(api.challenge.custom.complete, {
         emailCode: "code1",
@@ -185,7 +185,7 @@ describe("challenge.custom.complete", () => {
         currentUserId: null,
       }),
     ).rejects.toThrow();
-    // A challenge without a user rejects a caller that is signed in.
+    // A challenge created without a user rejects a caller passes a userId.
     await expect(
       t.mutation(api.challenge.custom.complete, {
         emailCode: "code2",
