@@ -40,17 +40,14 @@ export const formatRefreshToken = (
 export const parseRefreshToken = (
   refreshToken: string,
 ): {
-  refreshTokenId: GenericId<"authRefreshTokens">;
-  sessionId: GenericId<"authSessions">;
+  refreshTokenId: string;
+  sessionId: string;
 } => {
   const [refreshTokenId, sessionId] = refreshToken.split(REFRESH_TOKEN_DIVIDER);
   if (!refreshTokenId || !sessionId) {
     throw new Error(`Can't parse refresh token: ${maybeRedact(refreshToken)}`);
   }
-  return {
-    refreshTokenId: refreshTokenId as GenericId<"authRefreshTokens">,
-    sessionId: sessionId as GenericId<"authSessions">,
-  };
+  return { refreshTokenId, sessionId };
 };
 
 /**
@@ -114,12 +111,10 @@ export async function deleteAllRefreshTokens(
 
 export async function refreshTokenIfValid(
   ctx: MutationCtx,
-  refreshTokenId: string,
-  tokenSessionId: string,
+  refreshTokenId: GenericId<"authRefreshTokens">,
+  tokenSessionId: GenericId<"authSessions">,
 ) {
-  const refreshTokenDoc = await ctx.db.get(
-    refreshTokenId as GenericId<"authRefreshTokens">,
-  );
+  const refreshTokenDoc = await ctx.db.get(refreshTokenId);
 
   if (refreshTokenDoc === null) {
     // Expected: the token was already deleted (e.g. after sign out or session cleanup)

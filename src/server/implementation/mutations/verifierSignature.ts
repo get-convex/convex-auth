@@ -1,4 +1,4 @@
-import { GenericId, Infer, v } from "convex/values";
+import { Infer, v } from "convex/values";
 import { ActionCtx, MutationCtx } from "../types.js";
 
 export const verifierSignatureArgs = v.object({
@@ -13,7 +13,8 @@ export async function verifierSignatureImpl(
   args: Infer<typeof verifierSignatureArgs>,
 ): Promise<ReturnType> {
   const { verifier, signature } = args;
-  const verifierDoc = await ctx.db.get(verifier as GenericId<"authVerifiers">);
+  const verifierId = ctx.db.normalizeId("authVerifiers", verifier);
+  const verifierDoc = verifierId === null ? null : await ctx.db.get(verifierId);
   if (verifierDoc === null) {
     throw new Error("Invalid verifier");
   }
