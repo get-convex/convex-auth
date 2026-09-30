@@ -367,7 +367,7 @@ export function setupEmailPassword<UsersTable extends string>(
             // keyed by the app user id, which does not exist before this call
             // mints it, hence the placeholder; sign-in passes the user id
             // itself.
-            const { userId } = await ctx.convexAuth.signUpWithoutSession({
+            const { userId } = await ctx.convexAuth.createAccount({
               providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
               profile: {},
             });

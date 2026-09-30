@@ -27,6 +27,20 @@ export async function signJwt(opts: {
 
 /** Cryptographically random opaque refresh token. */
 export function generateRefreshToken(): string {
+  return randomToken();
+}
+
+/**
+ * Cryptographically random opaque attempt token, which continues a pending
+ * sign-in. Same strength as a refresh token: both are bearer credentials that
+ * are stored only as hashes.
+ */
+export function generateAttemptToken(): string {
+  return randomToken();
+}
+
+/** 32 random bytes, base64url-encoded without padding. */
+function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);

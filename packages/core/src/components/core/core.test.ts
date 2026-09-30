@@ -82,6 +82,17 @@ async function signUp(t: ConvexTestApi, c: AuthClaims) {
   });
 }
 
+/**
+ * Establish a brand new identity without a session, as a provider with a
+ * requirement before the first sign-in does ahead of parking it.
+ */
+async function createAccount(t: ConvexTestApi, c: AuthClaims) {
+  return await t.mutation(api.public.createAccount, {
+    claims: c,
+    createUserHandle: CREATE_USER_HANDLE,
+  });
+}
+
 /** Sign a known identity back in, as an app that attached an `onSignIn` does. */
 async function signIn(t: ConvexTestApi, c: AuthClaims) {
   return await t.mutation(api.public.signIn, {
@@ -314,89 +325,6 @@ describe("signIn", () => {
       async (ctx) => (await ctx.db.query("sessions").collect()).length,
     );
     expect(sessions).toBe(0);
-  });
-});
-
-describe("signUpWithoutSession", () => {
-  test("creates the user and the account, but no session", async () => {
-    const t = setup();
-    resetUserCallbackCalls();
-
-    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-    });
-
-    // The app's createUser echoes the providerAccountId as the user id.
-    expect(userId).toBe("alice");
-    expect(getCreateUserCalls()).toHaveLength(1);
-    // No sign-in happened, so onSignIn does not run.
-    expect(getOnSignInCalls()).toHaveLength(0);
-
-    // The account exists, but no session was minted.
-    const counts = await t.run(async (ctx) => ({
-      accounts: (await ctx.db.query("accounts").collect()).length,
-      sessions: (await ctx.db.query("sessions").collect()).length,
-    }));
-    expect(counts).toEqual({ accounts: 1, sessions: 0 });
-  });
-
-  test("a later signIn resolves the same user and mints a session", async () => {
-    const t = setup();
-    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
-      claims: claims(),
-      createUserHandle: CREATE_USER_HANDLE,
-    });
-
-    const bundle = await signIn(t, claims());
-    expect(bundle.userId).toBe(userId);
-
-    // The sign-in reused the account that signUpWithoutSession made.
-    const counts = await t.run(async (ctx) => ({
-      accounts: (await ctx.db.query("accounts").collect()).length,
-      sessions: (await ctx.db.query("sessions").collect()).length,
-    }));
-    expect(counts).toEqual({ accounts: 1, sessions: 1 });
-  });
-
-  test("keys the account by the minted user id with USE_USER_ID_AS_ACCOUNT_ID", async () => {
-    const t = setup();
-    const { userId } = await t.mutation(api.public.signUpWithoutSession, {
-      claims: claims({
-        providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
-        profile: { email: "alice@example.com" },
-      }),
-      createUserHandle: CREATE_USER_HANDLE,
-    });
-
-    // The account's identifier is the user id the app minted, so a later
-    // sign-in that passes the user id resolves the same user.
-    const bundle = await signIn(t, claims({ providerAccountId: userId }));
-    expect(bundle.userId).toBe(userId);
-
-    const accounts = await t.run(
-      async (ctx) => await ctx.db.query("accounts").collect(),
-    );
-    expect(accounts).toHaveLength(1);
-    expect(accounts[0].providerAccountId).toBe(userId);
-  });
-
-  test("refuses an identity that already has an account", async () => {
-    const t = setup();
-    await signUp(t, claims());
-
-    // Like signUp: a second app user for the same identity is never minted.
-    await expect(
-      t.mutation(api.public.signUpWithoutSession, {
-        claims: claims(),
-        createUserHandle: CREATE_USER_HANDLE,
-      }),
-    ).rejects.toThrow(/already\s+exists/i);
-
-    const accounts = await t.run(
-      async (ctx) => (await ctx.db.query("accounts").collect()).length,
-    );
-    expect(accounts).toBe(1);
   });
 });
 
@@ -774,5 +702,264 @@ describe("getUserIdByAccount", () => {
       providerAccountId: "alice",
     });
     expect(other).toBeNull();
+  });
+});
+
+describe("createAccount", () => {
+  test("creates the user and the account, but no session and no sign-in", async () => {
+    const t = setup();
+    resetUserCallbackCalls();
+
+    const { userId } = await createAccount(t, claims());
+    // The app's createUser echoes the providerAccountId as the user id.
+    expect(userId).toBe("alice");
+    expect(getCreateUserCalls()).toHaveLength(1);
+    // Nothing was signed in, so the app was not told about a sign-in.
+    expect(getOnSignInCalls()).toHaveLength(0);
+
+    const counts = await t.run(async (ctx) => ({
+      accounts: (await ctx.db.query("accounts").collect()).length,
+      sessions: (await ctx.db.query("sessions").collect()).length,
+    }));
+    expect(counts).toEqual({ accounts: 1, sessions: 0 });
+    const resolved = await t.query(api.public.getUserIdByAccount, {
+      provider: "password",
+      providerAccountId: "alice",
+    });
+    expect(resolved).toBe(userId);
+  });
+
+  test("a later signIn resolves the account", async () => {
+    const t = setup();
+    const { userId } = await createAccount(t, claims());
+    resetUserCallbackCalls();
+
+    // The requirement was never met, or was met another day. Signing in finds
+    // the same user rather than failing or minting a duplicate, and that is
+    // the identity's first sign-in as far as the app can tell.
+    const bundle = await signIn(t, claims());
+    expect(bundle.userId).toBe(userId);
+    expect(getCreateUserCalls()).toHaveLength(0);
+    expect(getOnSignInCalls()).toHaveLength(1);
+    const accounts = await t.run(
+      async (ctx) => (await ctx.db.query("accounts").collect()).length,
+    );
+    expect(accounts).toBe(1);
+  });
+
+  test("keys the account by the minted user id with USE_USER_ID_AS_ACCOUNT_ID", async () => {
+    const t = setup();
+    const { userId } = await createAccount(
+      t,
+      claims({
+        providerAccountId: USE_USER_ID_AS_ACCOUNT_ID,
+        profile: { email: "alice@example.com" },
+      }),
+    );
+
+    const accounts = await t.run(
+      async (ctx) => await ctx.db.query("accounts").collect(),
+    );
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ providerAccountId: userId, userId });
+  });
+
+  test("refuses an identity that already has an account", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    resetUserCallbackCalls();
+
+    // Like signUp: a second app user for the same identity is never minted.
+    await expect(createAccount(t, claims())).rejects.toThrow(
+      /already\s+exists/i,
+    );
+    expect(getCreateUserCalls()).toHaveLength(0);
+    const accounts = await t.run(
+      async (ctx) => (await ctx.db.query("accounts").collect()).length,
+    );
+    expect(accounts).toBe(1);
+  });
+});
+
+describe("pending sign-ins", () => {
+  // A sign-in check, as a provider's helper would have stored it: the
+  // requirement's name, next to the handle of its check. The core stores it
+  // with the attempt; nothing here runs it.
+  const TOTP_CHECK = { requirement: "totp", handle: "testApp:checkTotp" };
+  type StoredCheck = typeof TOTP_CHECK;
+
+  /**
+   * Park a known identity's sign-in, as a provider with an unmet requirement
+   * does. Parked on the TOTP check alone unless told otherwise.
+   */
+  async function defer(
+    t: ConvexTestApi,
+    c: AuthClaims,
+    options: { checks?: StoredCheck[]; attemptTtlSeconds?: number } = {},
+  ) {
+    return await t.mutation(api.public.deferSignIn, {
+      claims: c,
+      checks: options.checks ?? [TOTP_CHECK],
+      onSignInHandle: ON_SIGN_IN_HANDLE,
+      attemptTtlSeconds: options.attemptTtlSeconds,
+    });
+  }
+
+  /** Resolve an attempt token the way a requirement-satisfying function does. */
+  async function getPending(t: ConvexTestApi, attemptToken: string) {
+    return await t.query(api.public.getPendingSignIn, { attemptToken });
+  }
+
+  /** How many pending sign-ins currently exist. */
+  async function pendingCount(t: ConvexTestApi) {
+    return await t.run(
+      async (ctx) => (await ctx.db.query("pendingSignIns").collect()).length,
+    );
+  }
+
+  /** The one pending sign-in row. */
+  async function storedPending(t: ConvexTestApi) {
+    return await t.run(
+      async (ctx) => (await ctx.db.query("pendingSignIns").unique())!,
+    );
+  }
+
+  test("parks the sign-in: no session, no onSignIn, and a resolvable token", async () => {
+    const t = setup();
+    const { userId } = await signUp(t, claims());
+    resetUserCallbackCalls();
+
+    const deferred = await defer(t, claims());
+    expect(deferred.userId).toBe(userId);
+    expect(deferred.expiresAt).toBeGreaterThan(Date.now());
+    // Only the sign-up's session exists: deferring minted nothing.
+    expect(await sessionCount(t)).toBe(1);
+    // Nothing was signed in yet, so the app was not told about a sign-in.
+    expect(getOnSignInCalls()).toHaveLength(0);
+
+    // The token is stored only as a hash. The row keeps the identity for
+    // minting later, and pins the checks and the onSignIn to run then.
+    const stored = await storedPending(t);
+    expect(stored.attemptTokenHash).toBe(
+      await sha256Hex(deferred.attemptToken),
+    );
+    expect(stored._id).toBe(deferred.attemptId);
+    expect(stored).toMatchObject({
+      provider: "password",
+      providerAccountId: "alice",
+      profile: { name: "Alice" },
+      checks: [TOTP_CHECK],
+      onSignInHandle: ON_SIGN_IN_HANDLE,
+    });
+    // The token resolves to the subject and the attempt, and to nothing else:
+    // a requirement verifies a factor for a user, not for a profile.
+    expect(await getPending(t, deferred.attemptToken)).toEqual({
+      attemptId: deferred.attemptId,
+      userId,
+      expiresAt: deferred.expiresAt,
+    });
+  });
+
+  test("refuses to defer an identity with no account", async () => {
+    const t = setup();
+    await expect(defer(t, claims())).rejects.toThrow(/no account/);
+    expect(await pendingCount(t)).toBe(0);
+  });
+
+  test("parks the first sign-in of an account created without a session", async () => {
+    const t = setup();
+    resetUserCallbackCalls();
+    // A provider with a requirement before the first sign-in establishes the
+    // account without a session, then parks the sign-in like any other.
+    const { userId } = await createAccount(t, claims());
+    const deferred = await defer(t, claims());
+    expect(deferred.userId).toBe(userId);
+    expect(await sessionCount(t)).toBe(0);
+    expect(getOnSignInCalls()).toHaveLength(0);
+    expect(await getPending(t, deferred.attemptToken)).toMatchObject({
+      attemptId: deferred.attemptId,
+      userId,
+    });
+  });
+
+  test("an unknown token resolves to nothing", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    await defer(t, claims());
+
+    expect(await getPending(t, "not-a-real-token")).toBeNull();
+    // The real attempt is untouched.
+    expect(await pendingCount(t)).toBe(1);
+  });
+
+  test("an expired attempt resolves to nothing", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    const { attemptToken } = await defer(t, claims());
+    await t.run(async (ctx) => {
+      const pending = (await ctx.db.query("pendingSignIns").unique())!;
+      await ctx.db.patch("pendingSignIns", pending._id, {
+        expiresAt: Date.now() - 1000,
+      });
+    });
+
+    expect(await getPending(t, attemptToken)).toBeNull();
+    expect(await sessionCount(t)).toBe(1);
+  });
+
+  test("a fresh deferral supersedes the identity's earlier attempt", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    const first = await defer(t, claims());
+    const second = await defer(t, claims());
+
+    // One live attempt per identity, and the new one has a new id: proof a
+    // requirement component recorded against the first id keys nothing now.
+    expect(await pendingCount(t)).toBe(1);
+    expect(second.attemptId).not.toBe(first.attemptId);
+    expect(await getPending(t, first.attemptToken)).toBeNull();
+    expect(await getPending(t, second.attemptToken)).not.toBeNull();
+  });
+
+  test("deferring sweeps expired attempts, and only those", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    await signUp(t, claims({ providerAccountId: "bob" }));
+    await signUp(t, claims({ providerAccountId: "carol" }));
+    await defer(t, claims());
+    await defer(t, claims({ providerAccountId: "bob" }));
+    // Alice's attempt lapses; Bob's is still live.
+    await t.run(async (ctx) => {
+      const alice = (await ctx.db
+        .query("pendingSignIns")
+        .withIndex("by_provider_account", (q) =>
+          q.eq("provider", "password").eq("providerAccountId", "alice"),
+        )
+        .unique())!;
+      await ctx.db.patch("pendingSignIns", alice._id, {
+        expiresAt: Date.now() - 1000,
+      });
+    });
+
+    await defer(t, claims({ providerAccountId: "carol" }));
+    const remaining = await t.run(async (ctx) =>
+      (await ctx.db.query("pendingSignIns").collect()).map(
+        (r) => r.providerAccountId,
+      ),
+    );
+    expect(remaining.sort()).toEqual(["bob", "carol"]);
+  });
+
+  test("honors a custom attempt TTL and rejects a nonsensical one", async () => {
+    const t = setup();
+    await signUp(t, claims());
+    const before = Date.now();
+    const deferred = await defer(t, claims(), { attemptTtlSeconds: 60 });
+    expect(deferred.expiresAt).toBeGreaterThanOrEqual(before + 60_000);
+    expect(deferred.expiresAt).toBeLessThan(before + 60_000 + 5_000);
+
+    await expect(defer(t, claims(), { attemptTtlSeconds: 0 })).rejects.toThrow(
+      /positive/,
+    );
   });
 });
