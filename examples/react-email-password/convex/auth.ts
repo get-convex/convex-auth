@@ -30,7 +30,6 @@ export const {
     // onboarding sender (onboarding@resend.dev), which only delivers to the
     // email address of your own Resend account.
     from: `${env.SENDER_NAME ?? "My App"} <${env.SENDER_EMAIL}>`,
-    testMode: false,
   },
   urls: {
     signUp: `${SITE_URL}/validate-email`,
