@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { api } from "./_generated/api.ts";
-import { seedEmail, setup, verifiedEmailRow } from "../emailTestSetup.ts";
+import {
+  seedEmail,
+  setup,
+  setupClient,
+  verifiedEmailRow,
+} from "../emailTestSetup.ts";
 
 describe("getEmails", () => {
   test("returns an empty array for a user with no emails", async () => {
@@ -51,30 +56,24 @@ describe("getPrimaryEmail", () => {
   });
 });
 
-const IP = "203.0.113.7";
-
 describe("lookupEmail", () => {
   test("returns EMAIL_NOT_FOUND for an unknown email", async () => {
-    const t = setup();
+    const t = setupClient();
     expect(
-      await t
-        .withRequestMetadata({ ip: IP })
-        .mutation(api.verifiedEmails.lookupEmail, {
-          email: "nobody@example.com",
-        }),
+      await t.mutation(api.verifiedEmails.lookupEmail, {
+        email: "nobody@example.com",
+      }),
     ).toEqual({ success: false, userError: { error: "EMAIL_NOT_FOUND" } });
   });
 
   test("finds the user with the same case as the stored address", async () => {
-    const t = setup();
+    const t = setupClient();
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
     expect(
-      await t
-        .withRequestMetadata({ ip: IP })
-        .mutation(api.verifiedEmails.lookupEmail, {
-          email: "Alice@Example.com",
-        }),
+      await t.mutation(api.verifiedEmails.lookupEmail, {
+        email: "Alice@Example.com",
+      }),
     ).toEqual({
       success: true,
       userId: "user1",
@@ -83,7 +82,7 @@ describe("lookupEmail", () => {
   });
 
   test("finds the user with a different case, and returns the stored address", async () => {
-    const t = setup();
+    const t = setupClient();
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
     for (const email of [
@@ -92,9 +91,7 @@ describe("lookupEmail", () => {
       "aLiCe@eXaMpLe.CoM",
     ]) {
       expect(
-        await t
-          .withRequestMetadata({ ip: IP })
-          .mutation(api.verifiedEmails.lookupEmail, { email }),
+        await t.mutation(api.verifiedEmails.lookupEmail, { email }),
       ).toEqual({
         success: true,
         userId: "user1",
@@ -104,17 +101,15 @@ describe("lookupEmail", () => {
   });
 
   test("finds the user with a different Unicode normalization form", async () => {
-    const t = setup();
+    const t = setupClient();
     // The stored address uses the composed form ("é" as U+00E9).
     await seedEmail(t, "user1", "H\u00e9l\u00e8ne@example.com", true);
 
     // The argument uses the decomposed form ("e" + a combining accent).
     expect(
-      await t
-        .withRequestMetadata({ ip: IP })
-        .mutation(api.verifiedEmails.lookupEmail, {
-          email: "he\u0301le\u0300ne@example.com",
-        }),
+      await t.mutation(api.verifiedEmails.lookupEmail, {
+        email: "he\u0301le\u0300ne@example.com",
+      }),
     ).toEqual({
       success: true,
       userId: "user1",
@@ -123,16 +118,14 @@ describe("lookupEmail", () => {
   });
 
   test("returns the address that matched, not the primary address", async () => {
-    const t = setup();
+    const t = setupClient();
     await seedEmail(t, "user1", "alice@example.com", true);
     await seedEmail(t, "user1", "Alice@Work.example", false);
 
     expect(
-      await t
-        .withRequestMetadata({ ip: IP })
-        .mutation(api.verifiedEmails.lookupEmail, {
-          email: "alice@work.example",
-        }),
+      await t.mutation(api.verifiedEmails.lookupEmail, {
+        email: "alice@work.example",
+      }),
     ).toEqual({
       success: true,
       userId: "user1",
@@ -141,30 +134,26 @@ describe("lookupEmail", () => {
   });
 
   test("does not match a different address that normalizes differently", async () => {
-    const t = setup();
+    const t = setupClient();
     await seedEmail(t, "user1", "Alice@Example.com", true);
 
     for (const email of ["alice@example.org", "alic@example.com"]) {
       expect(
-        await t
-          .withRequestMetadata({ ip: IP })
-          .mutation(api.verifiedEmails.lookupEmail, { email }),
+        await t.mutation(api.verifiedEmails.lookupEmail, { email }),
       ).toEqual({ success: false, userError: { error: "EMAIL_NOT_FOUND" } });
     }
   });
 
   test("limits the lookups per IP, for found and unknown addresses", async () => {
-    const t = setup();
+    const t = setupClient();
     await seedEmail(t, "user1", "alice@example.com", true);
 
     // Use all the tokens of the IP. Half of the lookups find nothing: a
     // probe for unknown addresses also takes tokens.
     for (let i = 0; i < 60; i++) {
-      const result = await t
-        .withRequestMetadata({ ip: IP })
-        .mutation(api.verifiedEmails.lookupEmail, {
-          email: i % 2 === 0 ? "alice@example.com" : `nobody${i}@example.com`,
-        });
+      const result = await t.mutation(api.verifiedEmails.lookupEmail, {
+        email: i % 2 === 0 ? "alice@example.com" : `nobody${i}@example.com`,
+      });
       expect(result.success || result.userError.error).not.toBe("RATE_LIMITED");
     }
 
@@ -172,9 +161,7 @@ describe("lookupEmail", () => {
     // and for an unknown address. Thus a probe cannot tell them apart.
     for (const email of ["alice@example.com", "nobody@example.com"]) {
       expect(
-        await t
-          .withRequestMetadata({ ip: IP })
-          .mutation(api.verifiedEmails.lookupEmail, { email }),
+        await t.mutation(api.verifiedEmails.lookupEmail, { email }),
       ).toEqual({
         success: false,
         userError: { error: "RATE_LIMITED", retryAfterMs: expect.any(Number) },

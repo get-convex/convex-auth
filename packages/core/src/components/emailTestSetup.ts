@@ -1,4 +1,9 @@
-import { convexTest, type TestConvex } from "convex-test";
+import {
+  convexTest,
+  type TestConvex,
+  type TestConvexForDataModel,
+} from "convex-test";
+import type { DataModelFromSchemaDefinition } from "convex/server";
 import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "./email/schema.ts";
@@ -20,9 +25,25 @@ export function setup(): TestConvex<typeof schema> {
   return t;
 }
 
+/** A test instance, with or without request metadata. */
+export type TestClient = TestConvexForDataModel<
+  DataModelFromSchemaDefinition<typeof schema>
+>;
+
+/** The client IP of the test requests. */
+const IP = "203.0.113.7";
+
+/**
+ * Make a test instance of the component that sends its requests from `IP`.
+ * Use it for the functions that rate-limit per client IP.
+ */
+export function setupClient(): TestClient {
+  return setup().withRequestMetadata({ ip: IP });
+}
+
 /** Seed a verified email row directly; the challenge arrives later. */
 export async function seedEmail(
-  t: TestConvex<typeof schema>,
+  t: TestClient,
   userId: string,
   email: string,
   isPrimary: boolean,
@@ -42,7 +63,7 @@ export async function seedEmail(
  * `lookupEmail`. The lookup ignores the case, like `lookupEmail`.
  */
 export async function verifiedEmailRow(
-  t: TestConvex<typeof schema>,
+  t: TestClient,
   email: string,
 ): Promise<{ userId: string; email: string } | null> {
   return await t.run(async (ctx) => {
@@ -62,7 +83,7 @@ export type ChallengePurposeRow =
  * secret.
  */
 export async function seedChallenge(
-  t: TestConvex<typeof schema>,
+  t: TestClient,
   args: {
     email: string;
     purpose: ChallengePurposeRow;
