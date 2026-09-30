@@ -179,7 +179,7 @@ describe("challenge.addEmail.complete", () => {
 });
 
 describe("the userId of an addEmail challenge", () => {
-  test("another userId throws and keeps the row", async () => {
+  test("another userId fails with WRONG_USER and keeps the row", async () => {
     const t = setup();
     await seedChallenge(t, {
       email: "alice@example.com",
@@ -188,13 +188,13 @@ describe("the userId of an addEmail challenge", () => {
       browserSecret: "secret1",
     });
 
-    await expect(
-      t.mutation(api.challenge.addEmail.complete, {
+    expect(
+      await t.mutation(api.challenge.addEmail.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
         userId: "user2",
       }),
-    ).rejects.toThrow();
+    ).toEqual({ success: false, userError: { error: "WRONG_USER" } });
     // Nothing was recorded for either user, and the right user still works.
     expect(
       await t.query(api.verifiedEmails.getUserIdByEmail, {

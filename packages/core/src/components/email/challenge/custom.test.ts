@@ -56,9 +56,9 @@ afterEach(() => {
 const PURPOSE = "myApp/reauthenticate";
 
 describe("challenge.custom.complete", () => {
-  test("returns the email and the caller's userId, and writes nothing", async () => {
+  test("with an expectedUserId, succeeds when that user owns the address, and writes nothing", async () => {
     const t = setup();
-    await seedEmail(t, "user1", "alice@example.com", true);
+    await seedEmail(t, "user1", "Alice@Example.com", true);
     await seedChallenge(t, {
       email: "alice@example.com",
       purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
@@ -66,25 +66,73 @@ describe("challenge.custom.complete", () => {
       browserSecret: "secret1",
     });
 
-    const result = await t.mutation(api.challenge.custom.complete, {
-      emailCode: "code1",
-      browserSecret: "secret1",
-      purpose: PURPOSE,
-      currentUserId: "user1",
-    });
-    expect(result).toEqual({
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        purpose: PURPOSE,
+        currentUserId: "user1",
+      }),
+    ).toEqual({
       success: true,
-      userId: "user1",
       email: "alice@example.com",
+      emailOwnerId: "user1",
     });
     // The emails table did not change.
     expect(
       await t.query(api.verifiedEmails.getEmails, { userId: "user1" }),
-    ).toEqual([{ email: "alice@example.com", isPrimary: true }]);
+    ).toEqual([{ email: "Alice@Example.com", isPrimary: true }]);
   });
 
-  test("works without a user, and echoes null", async () => {
+  test("with an expectedUserId, fails with INVALID_CHALLENGE when another user owns the address", async () => {
     const t = setup();
+    // The flow started for user1, but user2 has the address now.
+    await seedEmail(t, "user2", "alice@example.com", true);
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+    const args = {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      purpose: PURPOSE,
+      currentUserId: "user1",
+    };
+
+    expect(await t.mutation(api.challenge.custom.complete, args)).toEqual({
+      success: false,
+      userError: { error: "INVALID_CHALLENGE" },
+    });
+    // The claim deleted the row: the link does not work again.
+    expect(await t.run((ctx) => ctx.db.query("challenges").collect())).toEqual(
+      [],
+    );
+  });
+
+  test("with an expectedUserId, fails with INVALID_CHALLENGE when no user owns the address", async () => {
+    const t = setup();
+    await seedChallenge(t, {
+      email: "alice@example.com",
+      purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
+      emailCode: "code1",
+      browserSecret: "secret1",
+    });
+
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
+        emailCode: "code1",
+        browserSecret: "secret1",
+        purpose: PURPOSE,
+        currentUserId: "user1",
+      }),
+    ).toEqual({ success: false, userError: { error: "INVALID_CHALLENGE" } });
+  });
+
+  test("with a null expectedUserId, gives the owner of the address", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "Alice@Example.com", true);
     await seedChallenge(t, {
       email: "alice@example.com",
       purpose: { kind: "custom", purpose: PURPOSE },
@@ -99,10 +147,14 @@ describe("challenge.custom.complete", () => {
         purpose: PURPOSE,
         currentUserId: null,
       }),
-    ).toEqual({ success: true, userId: null, email: "alice@example.com" });
+    ).toEqual({
+      success: true,
+      email: "alice@example.com",
+      emailOwnerId: "user2",
+    });
   });
 
-  test("does not require the address to be verified", async () => {
+  test("with a null expectedUserId, does not require the address to be verified", async () => {
     const t = setup();
     await seedChallenge(t, {
       email: "nobody@example.com",
@@ -118,7 +170,11 @@ describe("challenge.custom.complete", () => {
         purpose: PURPOSE,
         currentUserId: null,
       }),
-    ).toMatchObject({ success: true });
+    ).toEqual({
+      success: true,
+      email: "nobody@example.com",
+      emailOwnerId: null,
+    });
     expect(
       await t.query(api.verifiedEmails.getUserIdByEmail, {
         email: "nobody@example.com",
@@ -128,6 +184,7 @@ describe("challenge.custom.complete", () => {
 
   test("another purpose string throws and keeps the row", async () => {
     const t = setup();
+    await seedEmail(t, "user1", "alice@example.com", true);
     await seedChallenge(t, {
       email: "alice@example.com",
       purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
@@ -153,47 +210,68 @@ describe("challenge.custom.complete", () => {
     ).toMatchObject({ success: true });
   });
 
-  test("another currentUserId throws, and null does not match a user in either direction", async () => {
+  test("with an expectedUserId, another or a null currentUserId fails with WRONG_USER and keeps the row", async () => {
     const t = setup();
+    await seedEmail(t, "user1", "alice@example.com", true);
     await seedChallenge(t, {
       email: "alice@example.com",
       purpose: { kind: "custom", userId: "user1", purpose: PURPOSE },
       emailCode: "code1",
       browserSecret: "secret1",
     });
+    const args = {
+      emailCode: "code1",
+      browserSecret: "secret1",
+      purpose: PURPOSE,
+    };
+
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
+        ...args,
+        currentUserId: "user2",
+      }),
+    ).toEqual({ success: false, userError: { error: "WRONG_USER" } });
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
+        ...args,
+        currentUserId: null,
+      }),
+    ).toEqual({ success: false, userError: { error: "WRONG_USER" } });
+    // The row is kept: the right user can still complete the flow.
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
+        ...args,
+        currentUserId: "user1",
+      }),
+    ).toEqual({
+      success: true,
+      email: "alice@example.com",
+      emailOwnerId: "user1",
+    });
+  });
+
+  test("with a null expectedUserId, accepts a signed-in currentUserId", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "alice@example.com", true);
     await seedChallenge(t, {
       email: "alice@example.com",
       purpose: { kind: "custom", purpose: PURPOSE },
-      emailCode: "code2",
-      browserSecret: "secret2",
+      emailCode: "code1",
+      browserSecret: "secret1",
     });
 
-    await expect(
-      t.mutation(api.challenge.custom.complete, {
+    expect(
+      await t.mutation(api.challenge.custom.complete, {
         emailCode: "code1",
         browserSecret: "secret1",
-        purpose: PURPOSE,
-        currentUserId: "user2",
-      }),
-    ).rejects.toThrow();
-    // A challenge created for a user rejects a caller that passes a null userId.
-    await expect(
-      t.mutation(api.challenge.custom.complete, {
-        emailCode: "code1",
-        browserSecret: "secret1",
-        purpose: PURPOSE,
-        currentUserId: null,
-      }),
-    ).rejects.toThrow();
-    // A challenge created without a user rejects a caller passes a userId.
-    await expect(
-      t.mutation(api.challenge.custom.complete, {
-        emailCode: "code2",
-        browserSecret: "secret2",
         purpose: PURPOSE,
         currentUserId: "user1",
       }),
-    ).rejects.toThrow();
+    ).toEqual({
+      success: true,
+      email: "alice@example.com",
+      emailOwnerId: "user2",
+    });
   });
 
   test("a built-in challenge cannot be completed as a custom one", async () => {
@@ -219,6 +297,7 @@ describe("challenge.custom.complete", () => {
 describe("challenge.custom.start", () => {
   test("sends the caller's subject and intro, and returns the secret and the challengeId", async () => {
     const t = setup();
+    await seedEmail(t, "user1", "alice@example.com", true);
     const result = await t
       .withRequestMetadata({ ip: IP })
       .mutation(api.challenge.custom.start, await startArgs(t));
@@ -251,7 +330,11 @@ describe("challenge.custom.start", () => {
         purpose: PURPOSE,
         currentUserId: "user1",
       }),
-    ).toEqual({ success: true, userId: "user1", email: "alice@example.com" });
+    ).toEqual({
+      success: true,
+      email: "alice@example.com",
+      emailOwnerId: "user1",
+    });
   });
 
   test("a null expectedUserId stores no user", async () => {

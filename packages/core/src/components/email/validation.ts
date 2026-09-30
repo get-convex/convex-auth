@@ -96,6 +96,18 @@ export type CompleteChallengeUserError = Infer<
 >;
 
 /**
+ * The challenge is for another user than the caller. For example, a user
+ * starts a flow, signs out, and another user signs in in the same browser.
+ * The challenge stays: the user must sign in with the account that started
+ * the flow, and open the link again. Only the kinds that take a user return
+ * this error (`addEmail`, `changeEmail`, and `custom`).
+ */
+export const wrongUserUserError = v.object({
+  error: v.literal("WRONG_USER"),
+});
+export type WrongUserUserError = Infer<typeof wrongUserUserError>;
+
+/**
  * The user-facing errors for the `complete` mutations of the kinds that
  * record the address for a user: the shared errors, plus `EMAIL_TAKEN` when
  * another user verified the address after the flow started.

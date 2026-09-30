@@ -13,13 +13,18 @@ import {
   CUSTOM_TTL_DEFAULT_MS,
   CUSTOM_TTL_MAX_MS,
   CUSTOM_TTL_MIN_MS,
+  emailByNormalizedEmail,
 } from "../helpers.ts";
-import { startChallengeUserError } from "../validation.ts";
+import {
+  completeChallengeUserError,
+  wrongUserUserError,
+  normalizeEmail,
+  startChallengeUserError,
+} from "../validation.ts";
 import {
   vStartArgs,
   vClaimArgs,
   startChallengeResult,
-  completeChallengeFailure,
   startPreconditions,
   createChallengeAndSendEmail,
   claimChallenge,
@@ -57,13 +62,18 @@ export const start = mutation({
   args: {
     ...vStartArgs,
     purpose: vPurposeName,
-    // The user that the caller asserts owns the flow, or `null` when no user
-    // is signed in (for example, account recovery). The component only
-    // stores this value and gives it back at completion: it does NOT verify
-    // that the user owns the address. A flow that gives access to an
-    // account must check itself, after `complete`, that the address is
-    // verified for that account.
-    // TODO(#663): `complete` will verify that this user owns the address.
+    // The user that must complete the flow and own the address, or `null`
+    // when no user is signed in (for example, account recovery).
+    //
+    // With a user ID, `complete` succeeds only if `currentUserId` is this
+    // user and the address is still a verified address of this user when
+    // `complete` runs. The user verified it before the flow started (for
+    // example, with `addEmail`).
+    //
+    // With `null`, `complete` accepts any `currentUserId` and does not check
+    // the owner of the address: it gives the owner in `emailOwnerId`, or
+    // `null` when no user has verified the address. `null` does NOT require
+    // that the address has no owner.
     expectedUserId: v.union(v.string(), v.null()),
     subject: v.string(),
     intro: v.string(),
@@ -105,12 +115,16 @@ export const start = mutation({
 const completeResult = v.union(
   v.object({
     success: v.literal(true),
-    // The `expectedUserId` that the caller gave at start. Not verified: see
-    // `start`.
-    userId: v.union(v.string(), v.null()),
     email: v.string(),
+    // The user that `email` is a verified address of when `complete` runs,
+    // or `null` when it is no user's verified address. When `start` got a
+    // user ID, it is this user.
+    emailOwnerId: v.union(v.string(), v.null()),
   }),
-  completeChallengeFailure,
+  v.object({
+    success: v.literal(false),
+    userError: v.union(completeChallengeUserError, wrongUserUserError),
+  }),
 );
 type CompleteResult = Infer<typeof completeResult>;
 
@@ -119,9 +133,15 @@ type CompleteResult = Infer<typeof completeResult>;
  * start.
  *
  * `currentUserId` is the user that is signed in now, or `null` when no user
- * is. It must be the `expectedUserId` of `start`. Another value throws: the
- * flow is for another user. It is required, thus a caller cannot skip the
- * check by accident.
+ * is. When `start` got a user ID, `currentUserId` must be this user. Another
+ * value fails with `WRONG_USER` and keeps the challenge, thus this user can
+ * still complete it. When `start` got `null`, any value is
+ * accepted. It is required, thus a caller cannot skip the check by
+ * accident.
+ *
+ * When `start` got a user ID and this user does not own the address now,
+ * `complete` fails with `INVALID_CHALLENGE`: after the start, the address
+ * moved to another user or was removed.
  */
 export const complete = mutation({
   args: {
@@ -143,10 +163,20 @@ export const complete = mutation({
     if (!claim.success) {
       return claim.failure;
     }
-    return {
-      success: true,
-      userId: args.currentUserId,
-      email: claim.row.email,
-    };
+    const owner = await emailByNormalizedEmail(
+      ctx,
+      normalizeEmail(claim.row.email),
+    );
+    const emailOwnerId = owner === null ? null : owner.userId;
+    const expectedUserId = claim.row.purpose.userId;
+    if (expectedUserId !== undefined && emailOwnerId !== expectedUserId) {
+      // The claim deleted the row: the link does not work again.
+      console.warn(
+        `Rejected the email challenge ${claim.row._id} for the purpose ` +
+          `"custom": the expected user does not own the address now.`,
+      );
+      return { success: false, userError: { error: "INVALID_CHALLENGE" } };
+    }
+    return { success: true, email: claim.row.email, emailOwnerId };
   },
 });

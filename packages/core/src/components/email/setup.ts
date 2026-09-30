@@ -647,6 +647,10 @@ export function setupEmailPassword<UsersTable extends string>(
               },
             );
             if (!complete.success) {
+              if (complete.userError.error === "WRONG_USER") {
+                // Unexpected: the `expectedUserId` of the flow is `null`.
+                throw new Error("Unexpected WRONG_USER in a recovery");
+              }
               return { status: "error", userError: complete.userError };
             }
 
@@ -656,20 +660,14 @@ export function setupEmailPassword<UsersTable extends string>(
             // flow started. Any verified address of the account can reset
             // the password, because each of them passed the same ownership
             // challenge.
-            const account = await ctx.runQuery(
-              component.verifiedEmails.getUserIdByEmail,
-              { email: complete.email },
-              // TODO: Should we allow users to start a recovery flow through
-              // a secondary email? Or support options to customize this?
-            );
-            if (account === null) {
+            const userId = complete.emailOwnerId;
+            if (userId === null) {
               return {
                 status: "error",
                 userError: { error: "INVALID_CHALLENGE" },
               };
             }
 
-            const { userId } = account;
             const setResult = await ctx.runMutation(
               passwordComponent.public.setPassword,
               { userId, password: newPassword },
@@ -695,7 +693,7 @@ export function setupEmailPassword<UsersTable extends string>(
               ctx,
               (await ctx.runQuery(component.verifiedEmails.getPrimaryEmail, {
                 userId,
-              })) ?? account.email,
+              })) ?? complete.email,
               PASSWORD_CHANGED_SUBJECT,
               PASSWORD_CHANGED_TEXT,
             );
