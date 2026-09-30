@@ -1,6 +1,8 @@
 /**
  * TOTP verification at sign-in: the functions of the component that check a
- * code from an enrolled user, and the throttle that guards them.
+ * code from an enrolled user, and the throttle that guards them. The same
+ * check, as {@link checkSecondFactor}, is what the management functions of
+ * `management.ts` demand before they weaken the second factor.
  *
  * @module
  */
@@ -132,14 +134,15 @@ async function requireActiveSecrets(
  * of one of their active secrets, or one of their backup codes, as `kind`
  * says. This is the one place a code is checked, under the rate limit on
  * wrong codes (see `rateLimiter` above), for the verification mutations of
- * this module.
+ * this module and for the functions of `management.ts` that change the
+ * second factor.
  *
  * A right TOTP code marks its time step used on the secret it matched, thus
  * it cannot be replayed. A right backup code is deleted, thus it works once.
  * A wrong code of either kind takes one token from the bucket of the user,
  * however many secrets it was checked against.
  */
-async function checkSecondFactor(
+export async function checkSecondFactor(
   ctx: MutationCtx,
   userId: string,
   active: Doc<"totpSecrets">[],
