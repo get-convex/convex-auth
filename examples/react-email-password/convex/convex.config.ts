@@ -9,8 +9,11 @@ const app = defineApp({
   env: {
     AUTH_PRIVATE_KEY: v.string(),
     AUTH_JWKS: v.string(),
-    RESEND_API_KEY: v.string(),
-    SENDER_EMAIL: v.string(),
+    // Required to send through Resend, see auth.ts.
+    RESEND_API_KEY: v.optional(v.string()),
+    SENDER_EMAIL: v.optional(v.string()),
+    // Sends through Convex's email service instead of Resend, see auth.ts.
+    CONVEX_EMAIL_SERVICE_URL: v.optional(v.string()),
     // Defaults in auth.ts.
     SENDER_NAME: v.optional(v.string()),
     SITE_URL: v.optional(v.string()),

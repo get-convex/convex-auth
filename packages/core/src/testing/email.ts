@@ -14,6 +14,13 @@ export {
   type SentEmail,
 } from "./resend.ts";
 
+// The `convex` sender schedules each email for Convex's email service. These
+// helpers configure that sender and read the scheduled emails.
+export {
+  convexEmailSender,
+  scheduledConvexEmails,
+} from "./authEmailsService.ts";
+
 /**
  * Register the email component with a `convex-test` instance.
  *
