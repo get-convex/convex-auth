@@ -72,9 +72,10 @@ function getCookieStore(
     requestHeaders.get("Host") ?? ""
   );
   const prefix = isLocalhost ? "" : "__Host-";
-  const tokenName = prefix + "__convexAuthJWT";
-  const refreshTokenName = prefix + "__convexAuthRefreshToken";
-  const verifierName = prefix + "__convexAuthOAuthVerifier";
+  const suffix = isLocalhost ? localhostCookieNameSuffix() : "";
+  const tokenName = prefix + "__convexAuthJWT" + suffix;
+  const refreshTokenName = prefix + "__convexAuthRefreshToken" + suffix;
+  const verifierName = prefix + "__convexAuthOAuthVerifier" + suffix;
   function getValue(name: string) {
     return responseCookies.get(name)?.value ?? null;
   }
@@ -117,6 +118,28 @@ function getCookieStore(
       setValue(verifierName, value);
     },
   };
+}
+
+/**
+ * Browsers scope cookies to a host but not to its port, so every app running
+ * on localhost shares one cookie jar, whether side by side on different ports
+ * or one after another on the same port. Without a namespace, an app reads
+ * tokens issued by another app's Convex deployment, fails to validate or
+ * refresh them, and clears them, signing the user out of the other app.
+ *
+ * On localhost the cookie names are therefore namespaced by the Convex URL,
+ * the same way `ConvexAuthNextjsProvider` namespaces its client-side storage
+ * keys by default. Apps that share a deployment still share a session.
+ *
+ * Production cookie names are left unchanged, since each app there has its own
+ * host and renaming the cookies would sign every existing user out.
+ */
+function localhostCookieNameSuffix() {
+  const namespace = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!namespace) {
+    return "";
+  }
+  return "_" + namespace.replace(/[^a-zA-Z0-9]/g, "");
 }
 
 function getCookieOptions(
