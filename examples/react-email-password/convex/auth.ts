@@ -18,6 +18,7 @@ export const {
   startChangeEmail,
   completeChangeEmail,
   startPasswordRecovery,
+  checkPasswordRecovery,
   completePasswordRecovery,
 } = setupEmailPassword(core, {
   component: components.authEmail,

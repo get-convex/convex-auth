@@ -6,6 +6,7 @@
  */
 import {
   createFunctionHandle,
+  queryGeneric,
   type GenericMutationCtx,
   type GenericDataModel,
 } from "convex/server";
@@ -224,6 +225,19 @@ export type StartPasswordRecoveryResult = Infer<
   typeof startPasswordRecoveryResult
 >;
 
+const checkPasswordRecoveryResult = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({
+    success: v.literal(false),
+    userError: completeChallengeUserError,
+  }),
+);
+
+/** The result of `checkPasswordRecovery`. */
+export type CheckPasswordRecoveryResult = Infer<
+  typeof checkPasswordRecoveryResult
+>;
+
 const completePasswordRecoveryResult = v.union(
   vSignInComplete,
   vSignInError(v.union(completeChallengeUserError, setPasswordUserError)),
@@ -257,6 +271,7 @@ export type EmailPasswordProfile = Record<string, never>;
  *   signIn,
  *   changePassword,
  *   startPasswordRecovery,
+ *   checkPasswordRecovery,
  *   completePasswordRecovery,
  *   startChangeEmail,
  *   completeChangeEmail,
@@ -731,6 +746,43 @@ export function setupEmailPassword<UsersTable extends string>(
               return { success: false, userError: start.userError };
             }
             return { success: true, browserSecret: start.browserSecret };
+          },
+        }),
+
+        /**
+         * Check a password recovery link before the user types a new
+         * password: tell whether `completePasswordRecovery` would accept the
+         * link code + browser secret. It does not consume the link.
+         */
+        checkPasswordRecovery: queryGeneric({
+          args: { emailCode: v.string(), browserSecret: v.string() },
+          returns: checkPasswordRecoveryResult,
+          handler: async (
+            ctx,
+            { emailCode, browserSecret },
+          ): Promise<CheckPasswordRecoveryResult> => {
+            const peek = await ctx.runQuery(component.challenge.custom.peek, {
+              emailCode,
+              browserSecret,
+              purpose: RECOVERY_PURPOSE,
+              currentUserId: null,
+            });
+            if (!peek.success) {
+              if (peek.userError.error === "WRONG_USER") {
+                // Unexpected: the `expectedUserId` of the flow is `null`.
+                throw new Error("Unexpected WRONG_USER in a recovery");
+              }
+              return { success: false, userError: peek.userError };
+            }
+
+            // The same account check as `completePasswordRecovery`.
+            if (peek.emailOwnerId === null || peek.emailOwnerId === undefined) {
+              return {
+                success: false,
+                userError: { error: "INVALID_CHALLENGE" },
+              };
+            }
+            return { success: true };
           },
         }),
 
