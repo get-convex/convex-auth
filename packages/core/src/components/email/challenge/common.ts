@@ -180,9 +180,10 @@ export type ChallengeOfKind<Kind extends ChallengePurpose["kind"]> =
   };
 
 /**
- * The result of `claimChallenge`. The kinds return `failure` as-is when the
- * claim fails; it already has the shape of a failed `complete` result. A
- * `signUp` claim has no caller user, thus it never fails with `WRONG_USER`.
+ * The result of `findClaimableChallenge` and `claimChallenge`. The kinds
+ * return `failure` as-is when the claim fails; it already has the shape of a
+ * failed `complete` result. A `signUp` claim has no caller user, thus it
+ * never fails with `WRONG_USER`.
  */
 export type ClaimChallengeResult<
   Kind extends ChallengePurpose["kind"] = ChallengePurpose["kind"],
@@ -373,15 +374,14 @@ function sameUser(row: Doc<"challenges">, expected: ExpectedPurpose): boolean {
 }
 
 /**
- * Claim a challenge with the code from the link and the secret from the
- * starting browser. Returns the row when the claim succeeds, or the failure
- * that the `complete` mutation returns to the client.
+ * Find the challenge that the code from the link and the secret from the
+ * starting browser can claim, without claiming it. Returns the row when all
+ * of the checks pass, or the failure that the `complete` mutation returns to
+ * the client.
  *
  * The secret identifies the challenge, and the code proves access to the
  * mailbox. A caller without the secret cannot reach the row, so a person who
  * reads the mailbox alone can neither complete the challenge nor burn it.
- * The row is deleted only when the claim succeeds, so a claimed link can
- * never be replayed.
  *
  * `INVALID_CHALLENGE` means that there is no live challenge for the secret.
  * The challenge may have expired, may already have been used, or may never
@@ -401,8 +401,8 @@ function sameUser(row: Doc<"challenges">, expected: ExpectedPurpose): boolean {
  * wrong function. A `signUp` call gives no `userId`, thus only the kind must
  * match. A `custom` challenge without a `userId` matches any `userId`.
  */
-export async function claimChallenge<Expected extends ExpectedPurpose>(
-  ctx: MutationCtx,
+export async function findClaimableChallenge<Expected extends ExpectedPurpose>(
+  ctx: QueryCtx,
   args: { emailCode: string; browserSecret: string; purpose: Expected },
 ): Promise<ClaimChallengeResult<Expected["kind"]>> {
   const browserSecretHash = await sha256Hex(args.browserSecret);
@@ -449,6 +449,21 @@ export async function claimChallenge<Expected extends ExpectedPurpose>(
     // `sameUser` accepts any `signUp` claim, thus `Expected` is not `signUp`.
     return claimFailure("WRONG_USER") as ClaimChallengeResult<Expected["kind"]>;
   }
-  await ctx.db.delete("challenges", row._id);
   return { success: true, row };
+}
+
+/**
+ * Claim a challenge: run the checks of {@link findClaimableChallenge}, then
+ * delete the row. The row is deleted only when the claim succeeds, so a
+ * claimed link can never be replayed.
+ */
+export async function claimChallenge<Expected extends ExpectedPurpose>(
+  ctx: MutationCtx,
+  args: { emailCode: string; browserSecret: string; purpose: Expected },
+): Promise<ClaimChallengeResult<Expected["kind"]>> {
+  const claim = await findClaimableChallenge(ctx, args);
+  if (claim.success) {
+    await ctx.db.delete("challenges", claim.row._id);
+  }
+  return claim;
 }

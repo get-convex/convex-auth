@@ -7,8 +7,8 @@
 // string at start and at completion; a different string fails. Give each purpose a name that another library or flow does not
 // use, for example `"myApp/reauthenticate"`.
 
-import { Infer, v } from "convex/values";
-import { mutation } from "../_generated/server.ts";
+import { Infer, ObjectType, v } from "convex/values";
+import { mutation, query, type QueryCtx } from "../_generated/server.ts";
 import {
   CUSTOM_TTL_DEFAULT_MS,
   CUSTOM_TTL_MAX_MS,
@@ -28,6 +28,8 @@ import {
   startPreconditions,
   createChallengeAndSendEmail,
   claimChallenge,
+  findClaimableChallenge,
+  type ChallengeOfKind,
   type StartChallengeResult,
 } from "./common.ts";
 
@@ -128,6 +130,66 @@ const completeResult = v.union(
 );
 type CompleteResult = Infer<typeof completeResult>;
 
+/** The claim arguments of `peek` and `complete`. */
+const vCompleteArgs = {
+  ...vClaimArgs,
+  purpose: vPurposeName,
+  currentUserId: v.union(v.string(), v.null()),
+};
+
+/** The purpose that `peek` and `complete` expect. */
+function expectedPurpose(args: ObjectType<typeof vCompleteArgs>) {
+  return {
+    kind: "custom" as const,
+    userId: args.currentUserId ?? undefined,
+    purpose: args.purpose,
+  };
+}
+
+/** The result of `peek` and `complete` for a claimable challenge. */
+async function claimableResult(
+  ctx: QueryCtx,
+  row: ChallengeOfKind<"custom">,
+): Promise<CompleteResult> {
+  const owner = await emailByNormalizedEmail(ctx, normalizeEmail(row.email));
+  const emailOwnerId = owner === null ? null : owner.userId;
+  const expectedUserId = row.purpose.userId;
+  if (expectedUserId !== undefined && emailOwnerId !== expectedUserId) {
+    console.warn(
+      `Rejected the email challenge ${row._id} for the purpose "custom": ` +
+        `the expected user does not own the address now.`,
+    );
+    return { success: false, userError: { error: "INVALID_CHALLENGE" } };
+  }
+  return { success: true, email: row.email, emailOwnerId };
+}
+
+/**
+ * Report what `complete` would return for this link, without claiming it. A
+ * landing page calls it to tell the user that a link is dead before it asks
+ * for input. It is a query, thus a subscribed page learns that the link was
+ * claimed elsewhere, or that the cleanup loop erased it after it expired.
+ * It takes the same arguments as `complete`.
+ *
+ * A `peek` that passes does not guarantee that a later `complete` passes:
+ * the link can expire or be claimed between the two calls.
+ */
+export const peek = query({
+  args: vCompleteArgs,
+  returns: completeResult,
+  handler: async (ctx, args): Promise<CompleteResult> => {
+    const claim = await findClaimableChallenge(ctx, {
+      emailCode: args.emailCode,
+      browserSecret: args.browserSecret,
+      purpose: expectedPurpose(args),
+    });
+    if (!claim.success) {
+      return claim.failure;
+    }
+    return await claimableResult(ctx, claim.row);
+  },
+});
+
 /**
  * Complete a `custom` challenge. The `purpose` must be the one given at
  * start.
@@ -141,42 +203,21 @@ type CompleteResult = Infer<typeof completeResult>;
  *
  * When `start` got a user ID and this user does not own the address now,
  * `complete` fails with `INVALID_CHALLENGE`: after the start, the address
- * moved to another user or was removed.
+ * moved to another user or was removed. The claim still deletes the row,
+ * thus the link does not work again.
  */
 export const complete = mutation({
-  args: {
-    ...vClaimArgs,
-    purpose: vPurposeName,
-    currentUserId: v.union(v.string(), v.null()),
-  },
+  args: vCompleteArgs,
   returns: completeResult,
   handler: async (ctx, args): Promise<CompleteResult> => {
     const claim = await claimChallenge(ctx, {
       emailCode: args.emailCode,
       browserSecret: args.browserSecret,
-      purpose: {
-        kind: "custom",
-        userId: args.currentUserId ?? undefined,
-        purpose: args.purpose,
-      },
+      purpose: expectedPurpose(args),
     });
     if (!claim.success) {
       return claim.failure;
     }
-    const owner = await emailByNormalizedEmail(
-      ctx,
-      normalizeEmail(claim.row.email),
-    );
-    const emailOwnerId = owner === null ? null : owner.userId;
-    const expectedUserId = claim.row.purpose.userId;
-    if (expectedUserId !== undefined && emailOwnerId !== expectedUserId) {
-      // The claim deleted the row: the link does not work again.
-      console.warn(
-        `Rejected the email challenge ${claim.row._id} for the purpose ` +
-          `"custom": the expected user does not own the address now.`,
-      );
-      return { success: false, userError: { error: "INVALID_CHALLENGE" } };
-    }
-    return { success: true, email: claim.row.email, emailOwnerId };
+    return await claimableResult(ctx, claim.row);
   },
 });
