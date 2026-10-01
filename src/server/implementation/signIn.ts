@@ -237,7 +237,8 @@ async function handleOAuthProvider(
     };
   }
   const redirect = new URL(
-    (process.env.CUSTOM_AUTH_SITE_URL ?? requireEnv("CONVEX_SITE_URL")) + `/api/auth/signin/${provider.id}`,
+    (process.env.CUSTOM_AUTH_SITE_URL ?? requireEnv("CONVEX_SITE_URL")) +
+      `/api/auth/signin/${provider.id}`,
   );
   const verifier = await callVerifier(ctx);
   redirect.searchParams.set("code", verifier);
@@ -248,6 +249,14 @@ async function handleOAuthProvider(
       );
     }
     redirect.searchParams.set("redirectTo", args.params.redirectTo);
+  }
+  if (args.params?.scope !== undefined) {
+    if (typeof args.params.scope !== "string") {
+      throw new Error(
+        `Expected \`scope\` to be a string, got ${args.params.scope}`,
+      );
+    }
+    redirect.searchParams.set("scope", args.params.scope);
   }
   return { kind: "redirect", redirect: redirect.toString(), verifier };
 }
