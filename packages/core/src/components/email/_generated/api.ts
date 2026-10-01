@@ -15,6 +15,7 @@ import type * as challenge_custom from "../challenge/custom.js";
 import type * as challenge_signUp from "../challenge/signUp.js";
 import type * as cleanup from "../cleanup.js";
 import type * as helpers from "../helpers.js";
+import type * as react from "../react.js";
 import type * as setup from "../setup.js";
 import type * as validation from "../validation.js";
 import type * as verifiedEmails from "../verifiedEmails.js";
@@ -34,6 +35,7 @@ const fullApi: ApiFromModules<{
   "challenge/signUp": typeof challenge_signUp;
   cleanup: typeof cleanup;
   helpers: typeof helpers;
+  react: typeof react;
   setup: typeof setup;
   validation: typeof validation;
   verifiedEmails: typeof verifiedEmails;
