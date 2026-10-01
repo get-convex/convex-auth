@@ -193,6 +193,10 @@ export async function sendChallengeEmail(
     ttlMs: number;
   },
 ): Promise<void> {
+  if (sender.kind === "convex") {
+    // TODO: send through the convex email service.
+    throw new Error("The convex email sender cannot send emails yet");
+  }
   await ctx.runMutation(sender.sendEmailHandle as SendEmailHandle, {
     options: {
       apiKey: sender.apiKey,

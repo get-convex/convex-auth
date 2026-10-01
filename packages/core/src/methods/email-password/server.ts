@@ -60,33 +60,58 @@ const RECOVERY_EMAIL = {
 };
 
 /**
- * How the provider sends emails: challenge links (through the email
- * component) and security notifications (directly).
+ * The URL of Convex's production email service: the custom domain of the
+ * production auth-emails deployment's `convex.cloud` URL.
  *
- * Only Resend is supported for now, through the `@convex-dev/resend`
- * component. Mount that component in the app and pass its `sendEmail`
- * reference and your Resend API key here.
+ * TODO: get the URL from the backend with `getServiceUrl`, once the backend
+ * knows the email service.
+ */
+const DEFAULT_CONVEX_EMAIL_SERVICE_URL = "https://api.auth-emails.com";
+
+/**
+ * How the provider sends emails: challenge links (through the email
+ * component) and security notifications.
+ *
+ * - `convex`: Convex's email service sends the emails from a Convex
+ *   address, with fixed plain-text templates. It needs no account or domain
+ *   setup, which makes it the quickest way to start.
+ * - `resend`: your own Resend account sends the emails from your domain,
+ *   through the `@convex-dev/resend` component. Mount that component in the
+ *   app and pass its `sendEmail` reference and your Resend API key here.
  *
  * TODO: support other email providers.
- * TODO: offer a first-party zero-configuration email service.
  * TODO: let applications customize the email templates.
  */
-export type EmailSenderOptions = {
-  kind: "resend";
-  /** The mounted Resend component's `lib.sendEmail` reference. */
-  sendEmail: SendEmailRef;
-  /**
-   * The Resend API key. Read it from an environment variable of the
-   * deployment (e.g. `env.RESEND_API_KEY`) rather than writing it in the
-   * source.
-   */
-  apiKey: string;
-  /**
-   * The From address, e.g. `"My App <auth@example.com>"`. The address must be
-   * on a domain you verified with Resend.
-   */
-  from: string;
-};
+export type EmailSenderOptions =
+  | {
+      kind: "resend";
+      /** The mounted Resend component's `lib.sendEmail` reference. */
+      sendEmail: SendEmailRef;
+      /**
+       * The Resend API key. Read it from an environment variable of the
+       * deployment (e.g. `env.RESEND_API_KEY`) rather than writing it in the
+       * source.
+       */
+      apiKey: string;
+      /**
+       * The From address, e.g. `"My App <auth@example.com>"`. The address
+       * must be on a domain you verified with Resend.
+       */
+      from: string;
+    }
+  | {
+      kind: "convex";
+      /**
+       * The app name that the emails show, e.g. "Validate your email address
+       * for My App". At most 64 characters, and it must not look like a URL.
+       */
+      appName?: string;
+      /**
+       * The URL of the email service. Leave it unset outside of the
+       * development of the service itself.
+       */
+      url?: string;
+    };
 
 /**
  * The landing pages the emailed links point at. The link's `code` query
@@ -315,8 +340,8 @@ export function setupEmailPassword<UsersTable extends string>(
   const { component, passwordComponent, emailSender, urls } = options;
 
   /** The Resend runtime options `lib.sendEmail` requires. */
-  const senderRuntimeOptions = () => ({
-    apiKey: emailSender.apiKey,
+  const resendRuntimeOptions = (apiKey: string) => ({
+    apiKey,
     // TODO: review these values (and make them configurable).
     initialBackoffMs: 30 * 1000,
     retryAttempts: 5,
@@ -329,17 +354,26 @@ export function setupEmailPassword<UsersTable extends string>(
    * it works only while a Convex function runs, not when `convex/auth.ts`
    * is imported and this setup runs.
    */
-  const senderConfig = async (): Promise<EmailSenderConfig> => ({
-    kind: "resend",
-    sendEmailHandle: await createFunctionHandle(emailSender.sendEmail),
-    from: emailSender.from,
-    ...senderRuntimeOptions(),
-  });
+  const senderConfig = async (): Promise<EmailSenderConfig> => {
+    if (emailSender.kind === "convex") {
+      return {
+        kind: "convex",
+        url: emailSender.url ?? DEFAULT_CONVEX_EMAIL_SERVICE_URL,
+        appName: emailSender.appName,
+      };
+    }
+    return {
+      kind: "resend",
+      sendEmailHandle: await createFunctionHandle(emailSender.sendEmail),
+      from: emailSender.from,
+      ...resendRuntimeOptions(emailSender.apiKey),
+    };
+  };
 
   /**
-   * Send a security notification (ASVS 6.3.7) directly through the Resend
-   * reference. Notifications do not go through the email component: they
-   * need no validation state, only a send.
+   * Send a security notification (ASVS 6.3.7). Notifications do not go
+   * through the email challenges: they need no validation state, only a
+   * send.
    */
   const notify = async (
     ctx: MutationCtx,
@@ -347,8 +381,12 @@ export function setupEmailPassword<UsersTable extends string>(
     subject: string,
     text: string,
   ): Promise<void> => {
+    if (emailSender.kind === "convex") {
+      // TODO: send through the convex email service.
+      throw new Error("The convex email sender cannot send emails yet");
+    }
     await ctx.runMutation(emailSender.sendEmail, {
-      options: { ...senderRuntimeOptions(), testMode: false },
+      options: { ...resendRuntimeOptions(emailSender.apiKey), testMode: false },
       from: emailSender.from,
       to: [to],
       subject,

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as authEmailsApi from "../authEmailsApi.js";
 import type * as challenge_addEmail from "../challenge/addEmail.js";
 import type * as challenge_changeEmail from "../challenge/changeEmail.js";
 import type * as challenge_common from "../challenge/common.js";
@@ -26,6 +27,7 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
+  authEmailsApi: typeof authEmailsApi;
   "challenge/addEmail": typeof challenge_addEmail;
   "challenge/changeEmail": typeof challenge_changeEmail;
   "challenge/common": typeof challenge_common;

@@ -55,14 +55,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "internal",
           {
             email: string;
-            emailSender: {
-              apiKey: string;
-              from: string;
-              initialBackoffMs: number;
-              kind: "resend";
-              retryAttempts: number;
-              sendEmailHandle: string;
-            };
+            emailSender:
+              | {
+                  apiKey: string;
+                  from: string;
+                  initialBackoffMs: number;
+                  kind: "resend";
+                  retryAttempts: number;
+                  sendEmailHandle: string;
+                }
+              | { appName?: string; kind: "convex"; url: string };
             url: string;
             userId: string;
           },
@@ -113,14 +115,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "internal",
           {
             email: string;
-            emailSender: {
-              apiKey: string;
-              from: string;
-              initialBackoffMs: number;
-              kind: "resend";
-              retryAttempts: number;
-              sendEmailHandle: string;
-            };
+            emailSender:
+              | {
+                  apiKey: string;
+                  from: string;
+                  initialBackoffMs: number;
+                  kind: "resend";
+                  retryAttempts: number;
+                  sendEmailHandle: string;
+                }
+              | { appName?: string; kind: "convex"; url: string };
             url: string;
             userId: string;
           },
@@ -188,14 +192,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "internal",
           {
             email: string;
-            emailSender: {
-              apiKey: string;
-              from: string;
-              initialBackoffMs: number;
-              kind: "resend";
-              retryAttempts: number;
-              sendEmailHandle: string;
-            };
+            emailSender:
+              | {
+                  apiKey: string;
+                  from: string;
+                  initialBackoffMs: number;
+                  kind: "resend";
+                  retryAttempts: number;
+                  sendEmailHandle: string;
+                }
+              | { appName?: string; kind: "convex"; url: string };
             expectedUserId: string | null;
             intro: string;
             purpose: string;
@@ -243,14 +249,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "internal",
           {
             email: string;
-            emailSender: {
-              apiKey: string;
-              from: string;
-              initialBackoffMs: number;
-              kind: "resend";
-              retryAttempts: number;
-              sendEmailHandle: string;
-            };
+            emailSender:
+              | {
+                  apiKey: string;
+                  from: string;
+                  initialBackoffMs: number;
+                  kind: "resend";
+                  retryAttempts: number;
+                  sendEmailHandle: string;
+                }
+              | { appName?: string; kind: "convex"; url: string };
             url: string;
             userId: string;
           },

@@ -155,23 +155,34 @@ export type LookupEmailResult = Infer<typeof lookupEmailResult>;
  * resolves the function handle and the runtime options; the component only
  * calls the handle.
  *
- * Only Resend is supported for now, through the `@convex-dev/resend`
- * component's `lib.sendEmail` mutation.
+ * - `resend`: the app's own Resend account, through the `@convex-dev/resend`
+ *   component's `lib.sendEmail` mutation.
+ * - `convex`: Convex's email service (auth-emails), which sends fixed templates
+ *   from a Convex address and needs no configuration from the app.
  *
  * TODO: consider supporting other email providers.
  * TODO: let applications customize the email templates.
  */
-export const vEmailSenderConfig = v.object({
-  kind: v.literal("resend"),
-  // Function handle for the Resend component's `lib.sendEmail` mutation.
-  sendEmailHandle: v.string(),
-  // The From address, e.g. `"My App <auth@example.com>"`.
-  from: v.string(),
-  // Runtime options that `lib.sendEmail` requires.
-  apiKey: v.string(),
-  initialBackoffMs: v.number(),
-  retryAttempts: v.number(),
-});
+export const vEmailSenderConfig = v.union(
+  v.object({
+    kind: v.literal("resend"),
+    // Function handle for the Resend component's `lib.sendEmail` mutation.
+    sendEmailHandle: v.string(),
+    // The From address, e.g. `"My App <auth@example.com>"`.
+    from: v.string(),
+    // Runtime options that `lib.sendEmail` requires.
+    apiKey: v.string(),
+    initialBackoffMs: v.number(),
+    retryAttempts: v.number(),
+  }),
+  v.object({
+    kind: v.literal("convex"),
+    // The URL of the auth-emails deployment, e.g. `https://<name>.convex.cloud`.
+    url: v.string(),
+    // The app name that the email copy shows.
+    appName: v.optional(v.string()),
+  }),
+);
 export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
 
 /**
