@@ -94,6 +94,18 @@ If you don't set this option, the cookie will be considered a "session cookie"
 and be deleted when the browser session ends, which depends from browser to
 browser.
 
+## Running several apps on localhost
+
+Browsers share cookies between all ports of a host, so every app you run on
+`localhost` sees the same cookies. To keep apps that use different Convex
+deployments from signing each other out, Convex Auth adds the letters and digits
+of `NEXT_PUBLIC_CONVEX_URL` to its cookie names on localhost. This is the same
+namespace `ConvexAuthNextjsProvider` uses for its client-side storage, so apps
+that share a deployment also share a session. For `http://127.0.0.1:3210`, the
+access token cookie is named `__convexAuthJWT_http1270013210`.
+
+Cookie names in production don't change.
+
 ## Preloading and loading data
 
 To preload or load data on your Next.js server from your Convex backend, you can
