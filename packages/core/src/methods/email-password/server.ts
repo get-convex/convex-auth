@@ -34,6 +34,7 @@ import {
   wrongUserUserError,
   emailNotFoundUserError,
   validateEmailFormat,
+  type ConvexEmailSenderConfig,
   type EmailSenderConfig,
 } from "../../components/email/validation.ts";
 import type { SendEmailRef } from "../../components/email/helpers.ts";
@@ -57,7 +58,49 @@ const RECOVERY_TTL_MS = 10 * 60 * 1000;
 const RECOVERY_EMAIL = {
   subject: "Reset your password",
   intro: "Open this link to reset your password:",
+  convexTemplate: "resetPassword" as const,
 };
+
+function convexSenderConfig(
+  options: Extract<EmailSenderOptions, { kind: "convex" }>,
+): ConvexEmailSenderConfig {
+  return {
+    kind: "convex",
+    url: options.url ?? DEFAULT_CONVEX_EMAIL_SERVICE_URL,
+    appName: options.appName,
+  };
+}
+
+/** The security notifications (OWASP ASVS v5 6.3.7) the provider sends. */
+type Notification =
+  { kind: "passwordChanged" } | { kind: "emailChanged"; newEmail: string };
+
+/** The copy of a notification, for the `resend` sender. */
+function notificationCopy(notification: Notification): {
+  subject: string;
+  text: string;
+} {
+  switch (notification.kind) {
+    case "passwordChanged":
+      return {
+        subject: "Your password was changed",
+        text:
+          "The password of your account was changed.\n\n" +
+          "If you did this, you can ignore this email. If you did not do " +
+          "this, change your password immediately or contact support.",
+      };
+    case "emailChanged":
+      return {
+        subject: "Your email address was changed",
+        text:
+          "The email address of your account was changed to " +
+          `${notification.newEmail}.\n\n` +
+          "If you did this, you can ignore this email. If you did " +
+          "not do this, reset your password immediately or contact " +
+          "support.",
+      };
+  }
+}
 
 /**
  * The URL of Convex's production email service: the custom domain of the
@@ -356,11 +399,7 @@ export function setupEmailPassword<UsersTable extends string>(
    */
   const senderConfig = async (): Promise<EmailSenderConfig> => {
     if (emailSender.kind === "convex") {
-      return {
-        kind: "convex",
-        url: emailSender.url ?? DEFAULT_CONVEX_EMAIL_SERVICE_URL,
-        appName: emailSender.appName,
-      };
+      return convexSenderConfig(emailSender);
     }
     return {
       kind: "resend",
@@ -378,13 +417,17 @@ export function setupEmailPassword<UsersTable extends string>(
   const notify = async (
     ctx: MutationCtx,
     to: string,
-    subject: string,
-    text: string,
+    notification: Notification,
   ): Promise<void> => {
     if (emailSender.kind === "convex") {
-      // TODO: send through the convex email service.
-      throw new Error("The convex email sender cannot send emails yet");
+      await ctx.runMutation(component.authEmailsService.sendNotification, {
+        emailSender: convexSenderConfig(emailSender),
+        to,
+        template: notification,
+      });
+      return;
     }
+    const { subject, text } = notificationCopy(notification);
     await ctx.runMutation(emailSender.sendEmail, {
       options: { ...resendRuntimeOptions(emailSender.apiKey), testMode: false },
       from: emailSender.from,
@@ -393,12 +436,6 @@ export function setupEmailPassword<UsersTable extends string>(
       text,
     });
   };
-
-  const PASSWORD_CHANGED_SUBJECT = "Your password was changed";
-  const PASSWORD_CHANGED_TEXT =
-    "The password of your account was changed.\n\n" +
-    "If you did this, you can ignore this email. If you did not do " +
-    "this, change your password immediately or contact support.";
 
   return {
     /**
@@ -633,12 +670,7 @@ export function setupEmailPassword<UsersTable extends string>(
               { userId },
             );
             if (to !== null) {
-              await notify(
-                ctx,
-                to,
-                PASSWORD_CHANGED_SUBJECT,
-                PASSWORD_CHANGED_TEXT,
-              );
+              await notify(ctx, to, { kind: "passwordChanged" });
             }
             return { success: true };
           },
@@ -726,16 +758,10 @@ export function setupEmailPassword<UsersTable extends string>(
               return { success: false, userError: complete.userError };
             }
             if (complete.previousEmail !== null) {
-              await notify(
-                ctx,
-                complete.previousEmail,
-                "Your email address was changed",
-                "The email address of your account was changed to " +
-                  `${complete.email}.\n\n` +
-                  "If you did this, you can ignore this email. If you did " +
-                  "not do this, reset your password immediately or contact " +
-                  "support.",
-              );
+              await notify(ctx, complete.previousEmail, {
+                kind: "emailChanged",
+                newEmail: complete.email,
+              });
             }
             return { success: true };
           },
@@ -917,8 +943,7 @@ export function setupEmailPassword<UsersTable extends string>(
               (await ctx.runQuery(component.verifiedEmails.getPrimaryEmail, {
                 userId,
               })) ?? complete.email,
-              PASSWORD_CHANGED_SUBJECT,
-              PASSWORD_CHANGED_TEXT,
+              { kind: "passwordChanged" },
             );
             return { status: "complete", tokens };
           },
