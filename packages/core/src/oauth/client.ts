@@ -44,12 +44,6 @@ export type OauthProviderApi = {
   >;
 };
 
-/** One provider's mutations plus its name. */
-export type OauthProviderRefs = {
-  /** The provider's name, e.g. `"google"`. Only a label, never a lookup key. */
-  providerName: string;
-} & OauthProviderApi;
-
 /**
  * Why the last sign-in attempt failed. Apps map each code to their own
  * user-facing copy.
@@ -112,8 +106,6 @@ export const OAUTH_FLOW_STORAGE_KEY = "__convexAuthOauthFlow";
 
 /** What `signIn` saves before it navigates to the identity provider. */
 export type PendingFlow = {
-  /** Which provider the flow belongs to. */
-  providerName: string;
   /**
    * The state the server gave back at sign-in. Proof this client started the
    * flow.
@@ -248,7 +240,7 @@ export class OauthClient {
    * `options.code` is set. Starting navigates away to the identity provider.
    */
   signIn = async (
-    refs: OauthProviderRefs,
+    refs: OauthProviderApi,
     options?: SignInOptions,
   ): Promise<SignInOutcome> => {
     if (options?.code !== undefined) {
@@ -274,7 +266,6 @@ export class OauthClient {
       await this.#storage.set(
         OAUTH_FLOW_STORAGE_KEY,
         JSON.stringify({
-          providerName: refs.providerName,
           state,
           completeSignIn: getFunctionName(refs.completeSignIn),
         } satisfies PendingFlow),
@@ -373,19 +364,16 @@ export class OauthClient {
     }
     try {
       const parsed = JSON.parse(raw) as {
-        providerName?: unknown;
         state?: unknown;
         completeSignIn?: unknown;
       };
       if (
-        typeof parsed.providerName !== "string" ||
         typeof parsed.state !== "string" ||
         typeof parsed.completeSignIn !== "string"
       ) {
         return null;
       }
       return {
-        providerName: parsed.providerName,
         state: parsed.state,
         completeSignIn: parsed.completeSignIn,
       };

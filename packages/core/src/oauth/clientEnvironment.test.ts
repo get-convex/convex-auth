@@ -72,7 +72,6 @@ describe("OAuth client with no page URL", () => {
       redirect: new URL("https://provider.example/auth"),
     });
     expect(readFlow(storage)).toEqual({
-      providerName: "acme",
       state: "state-1",
       completeSignIn: "auth:completeSignInAcme",
     });

@@ -187,7 +187,7 @@ describe("OAuth client", () => {
     const storage = new InMemoryStorage();
     void flowStorage(storage).set(
       OAUTH_FLOW_STORAGE_KEY,
-      JSON.stringify({ providerName: "acme", state: "state-1" }),
+      JSON.stringify({ state: "state-1" }),
     );
     const { mutation, flowError, start } = setupOAuth({ storage });
 
@@ -320,7 +320,6 @@ describe("OAuth client", () => {
     // The persisted flow has the completeSignIn function path, so
     // completion can run on a page that never held the references.
     expect(readFlow(storage)).toEqual({
-      providerName: "acme",
       state: "state-1",
       completeSignIn: "auth:completeSignInAcme",
     });

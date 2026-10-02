@@ -14,7 +14,6 @@ import {
   useSignInWithGithub,
   useSignInWithGoogle,
   type OauthProviderApi,
-  type OauthProviderRefs,
 } from "./react.ts";
 import {
   acmeRefs,
@@ -55,8 +54,7 @@ const githubApi = {
 };
 
 /** What the Google hook builds from {@link googleApi}, for seeding a flow. */
-const googleRefs: OauthProviderRefs = {
-  providerName: "google",
+const googleRefs: OauthProviderApi = {
   startSignIn: googleStart,
   completeSignIn: googleComplete,
 };
@@ -188,7 +186,6 @@ describe("OAuth React client", () => {
     // The persisted flow carries the completeSignIn function path, so
     // completion can run on a page that never mounted the hook.
     expect(readFlow(storage)).toEqual({
-      providerName: "google",
       state: "state-1",
       completeSignIn: "auth:completeSignInGoogle",
     });
@@ -217,7 +214,6 @@ describe("OAuth React client", () => {
       { redirectTo: "http://localhost/app" },
     );
     expect(readFlow(storage)).toEqual({
-      providerName: "github",
       state: "state-2",
       completeSignIn: "auth:completeSignInGithub",
     });
@@ -248,7 +244,6 @@ describe("OAuth React client", () => {
       redirect: new URL("https://acme.example/auth"),
     });
     expect(readFlow(storage)).toEqual({
-      providerName: "acme",
       state: "state-3",
       completeSignIn: "auth:completeSignInAcme",
     });

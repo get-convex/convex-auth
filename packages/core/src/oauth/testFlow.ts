@@ -16,7 +16,7 @@ import type { TokenBundle } from "../lib/types.ts";
 import {
   OAUTH_FLOW_STORAGE_KEY,
   OauthClient,
-  type OauthProviderRefs,
+  type OauthProviderApi,
   type PendingFlow,
 } from "./client.ts";
 
@@ -50,8 +50,7 @@ export const invalidCode = {
  * path and completion rebuilds the reference from it, so assertions compare
  * paths, not references.
  */
-export const acmeRefs: OauthProviderRefs = {
-  providerName: "acme",
+export const acmeRefs: OauthProviderApi = {
   startSignIn: makeFunctionReference<"mutation">("auth:startSignInAcme"),
   completeSignIn: makeFunctionReference<"mutation">("auth:completeSignInAcme"),
 };
@@ -77,13 +76,12 @@ export function readFlow(storage: TokenStorage): PendingFlow | null {
 /** Store a pending flow the way `signIn` would before navigating away. */
 export function seedPendingFlow(
   storage: TokenStorage,
-  refs: OauthProviderRefs = acmeRefs,
+  refs: OauthProviderApi = acmeRefs,
   state = "state-1",
 ): void {
   void flowStorage(storage).set(
     OAUTH_FLOW_STORAGE_KEY,
     JSON.stringify({
-      providerName: refs.providerName,
       state,
       completeSignIn: getFunctionName(refs.completeSignIn),
     } satisfies PendingFlow),

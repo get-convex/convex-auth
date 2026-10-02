@@ -28,7 +28,6 @@ import type {
   OauthClient,
   OauthFlowError,
   OauthProviderApi,
-  OauthProviderRefs,
   SignInOptions,
   SignInOutcome,
 } from "./client.ts";
@@ -37,7 +36,6 @@ export type {
   OauthFlowError,
   OauthFlowErrorCode,
   OauthProviderApi,
-  OauthProviderRefs,
   SignInOptions,
   SignInOutcome,
 } from "./client.ts";
@@ -103,20 +101,19 @@ export type UseOauthSignInReturn = {
  * after the redirect back have no caller left to catch them, so every failure
  * is also reported through {@link useOauth}'s `flowError`.
  */
-export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
+export function useOauthSignIn(refs: OauthProviderApi): UseOauthSignInReturn {
   const oauthClient = useOauthClient();
   // Generated api objects create a fresh reference object on every property
   // access, so the memo depends on the function paths instead. The `refs` it
   // captures can then be from an earlier render, which is fine because the
-  // deps cover all three of its fields.
+  // deps cover both of its fields.
   const startPath = getFunctionName(refs.startSignIn);
   const completePath = getFunctionName(refs.completeSignIn);
-  const { providerName } = refs;
   const signIn = useMemo(
     () =>
       (options?: SignInOptions): Promise<SignInOutcome> =>
         oauthClient.signIn(refs, options),
-    [oauthClient, providerName, startPath, completePath],
+    [oauthClient, startPath, completePath],
   );
   return { signIn };
 }
@@ -137,7 +134,6 @@ export function useSignInWithGoogle(api: {
   completeSignInGoogle: OauthProviderApi["completeSignIn"];
 }): UseSignInWithGoogleReturn {
   const { signIn } = useOauthSignIn({
-    providerName: "google",
     startSignIn: api.startSignInGoogle,
     completeSignIn: api.completeSignInGoogle,
   });
@@ -160,7 +156,6 @@ export function useSignInWithApple(api: {
   completeSignInApple: OauthProviderApi["completeSignIn"];
 }): UseSignInWithAppleReturn {
   const { signIn } = useOauthSignIn({
-    providerName: "apple",
     startSignIn: api.startSignInApple,
     completeSignIn: api.completeSignInApple,
   });
@@ -183,7 +178,6 @@ export function useSignInWithGithub(api: {
   completeSignInGithub: OauthProviderApi["completeSignIn"];
 }): UseSignInWithGithubReturn {
   const { signIn } = useOauthSignIn({
-    providerName: "github",
     startSignIn: api.startSignInGithub,
     completeSignIn: api.completeSignInGithub,
   });
