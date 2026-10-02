@@ -99,6 +99,8 @@ import {
   type CompleteChallengeUserError,
   type WrongUserUserError,
   wrongUserUserError,
+  type NormalizedEmail,
+  type VerbatimEmail,
 } from "../validation.ts";
 
 export type ChallengePurpose = Doc<"challenges">["purpose"];
@@ -214,21 +216,30 @@ function claimFailure<
 //------------------------------------------------------------------------------
 
 /**
+ * The result of the `start` preconditions: the validated address, or the
+ * error to give the user.
+ */
+export type PreconditionsResult<UserError> =
+  | { success: true; email: VerbatimEmail }
+  | { success: false; userError: UserError };
+
+/**
  * The preconditions that every `start` shares: the format of the address,
  * then the two rate limits (one for the destination address, one for the
- * client IP). Returns the error to give the user, or `null` when the start
- * can go on. In `"consume"` mode, the limits take a token only when the start
- * passes all of the checks.
+ * client IP). Returns the address as a `VerbatimEmail` when the start can go
+ * on, or the error to give the user. In `"consume"` mode, the limits take a
+ * token only when the start passes all of the checks.
  */
 export async function startPreconditions(
   ctx: MutationCtx,
-  email: string,
+  rawEmail: string,
   mode: "check" | "consume",
-): Promise<StartChallengeUserError | null> {
-  const formatError = validateEmailFormat(email);
-  if (formatError !== null) {
-    return formatError;
+): Promise<PreconditionsResult<StartChallengeUserError>> {
+  const format = validateEmailFormat(rawEmail);
+  if (!format.success) {
+    return format;
   }
+  const { email } = format;
 
   // Read both limits before either one takes a token. Otherwise a start that
   // the IP limit denies would still take a token from the address, and a
@@ -239,13 +250,13 @@ export async function startPreconditions(
     key: emailKey,
   });
   if (!perEmail.ok) {
-    return { error: "RATE_LIMITED", retryAfterMs: perEmail.retryAfter };
+    return rateLimited(perEmail.retryAfter);
   }
   const perIp = await rateLimiter.check(ctx, "startChallengePerIp", {
     key: ipKey,
   });
   if (!perIp.ok) {
-    return { error: "RATE_LIMITED", retryAfterMs: perIp.retryAfter };
+    return rateLimited(perIp.retryAfter);
   }
 
   if (mode === "consume") {
@@ -259,7 +270,17 @@ export async function startPreconditions(
     });
   }
 
-  return null;
+  return { success: true, email };
+}
+
+function rateLimited(retryAfterMs: number): {
+  success: false;
+  userError: StartChallengeUserError;
+} {
+  return {
+    success: false,
+    userError: { error: "RATE_LIMITED", retryAfterMs },
+  };
 }
 
 /**
@@ -277,7 +298,7 @@ export async function startPreconditions(
  */
 export async function addressTakenError(
   ctx: QueryCtx,
-  normalizedEmail: string,
+  normalizedEmail: NormalizedEmail,
 ): Promise<EmailTakenUserError | null> {
   const existing = await getVerifiedEmail(ctx, normalizedEmail);
   return existing === null ? null : { error: "EMAIL_TAKEN" };
@@ -290,14 +311,28 @@ export async function addressTakenError(
  */
 export async function startFreeAddressPreconditions(
   ctx: MutationCtx,
-  email: string,
+  rawEmail: string,
   mode: "check" | "consume",
-): Promise<StartFreeAddressUserError | null> {
-  const error = await startPreconditions(ctx, email, mode);
-  if (error !== null) {
-    return error;
+): Promise<PreconditionsResult<StartFreeAddressUserError>> {
+  const result = await startPreconditions(ctx, rawEmail, mode);
+  if (!result.success) {
+    return result;
   }
-  return addressTakenError(ctx, normalizeEmail(email));
+  const taken = await addressTakenError(ctx, normalizeEmail(result.email));
+  if (taken !== null) {
+    return { success: false, userError: taken };
+  }
+  return result;
+}
+
+/**
+ * The `userError` of a failed preconditions result, or `null` on success.
+ * The `check` mutations return this value.
+ */
+export function preconditionsUserError<UserError>(
+  result: PreconditionsResult<UserError>,
+): UserError | null {
+  return result.success ? null : result.userError;
 }
 
 /**
@@ -307,7 +342,7 @@ export async function startFreeAddressPreconditions(
 export async function createChallengeAndSendEmail(
   ctx: MutationCtx,
   args: {
-    email: string;
+    email: VerbatimEmail;
     purpose: ChallengePurpose;
     ttlMs: number;
     url: string;

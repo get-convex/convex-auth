@@ -26,6 +26,7 @@ import {
   vClaimArgs,
   startChallengeResult,
   startPreconditions,
+  preconditionsUserError,
   createChallengeAndSendEmail,
   claimChallenge,
   findClaimableChallenge,
@@ -49,7 +50,8 @@ const vPurposeName = v.string();
 export const check = mutation({
   args: { email: v.string() },
   returns: v.union(startChallengeUserError, v.null()),
-  handler: (ctx, { email }) => startPreconditions(ctx, email, "check"),
+  handler: async (ctx, { email }) =>
+    preconditionsUserError(await startPreconditions(ctx, email, "check")),
 });
 
 /**
@@ -94,12 +96,12 @@ export const start = mutation({
           `got ${ttlMs}`,
       );
     }
-    const error = await startPreconditions(ctx, args.email, "consume");
-    if (error !== null) {
-      return { success: false, userError: error };
+    const preconditions = await startPreconditions(ctx, args.email, "consume");
+    if (!preconditions.success) {
+      return preconditions;
     }
     const created = await createChallengeAndSendEmail(ctx, {
-      email: args.email,
+      email: preconditions.email,
       purpose: {
         kind: "custom",
         userId: args.expectedUserId ?? undefined,

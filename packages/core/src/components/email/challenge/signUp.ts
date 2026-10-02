@@ -17,6 +17,7 @@ import {
   startFreeAddressResult,
   completeFreeAddressFailure,
   startFreeAddressPreconditions,
+  preconditionsUserError,
   addressTakenError,
   createChallengeAndSendEmail,
   claimChallenge,
@@ -30,8 +31,10 @@ import {
 export const check = mutation({
   args: { email: v.string() },
   returns: v.union(startFreeAddressUserError, v.null()),
-  handler: (ctx, { email }) =>
-    startFreeAddressPreconditions(ctx, email, "check"),
+  handler: async (ctx, { email }) =>
+    preconditionsUserError(
+      await startFreeAddressPreconditions(ctx, email, "check"),
+    ),
 });
 
 /**
@@ -52,16 +55,16 @@ export const start = mutation({
           "address. Use addEmail or changeEmail for an existing user.",
       );
     }
-    const error = await startFreeAddressPreconditions(
+    const preconditions = await startFreeAddressPreconditions(
       ctx,
       args.email,
       "consume",
     );
-    if (error !== null) {
-      return { success: false, userError: error };
+    if (!preconditions.success) {
+      return preconditions;
     }
     const created = await createChallengeAndSendEmail(ctx, {
-      email: args.email,
+      email: preconditions.email,
       purpose: { kind: "signUp", userId: args.userId },
       ttlMs: ADD_EMAIL_TTL_MS,
       url: args.url,

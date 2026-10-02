@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { v, type VString } from "convex/values";
+import type { NormalizedEmail, VerbatimEmail } from "./validation.ts";
 
 export default defineSchema({
   // One row for each verified email address.
@@ -10,10 +11,10 @@ export default defineSchema({
   verifiedEmails: defineTable({
     // The address with the case that the user gave. The app shows this value
     // to the end user.
-    email: v.string(),
+    email: v.string() as VString<VerbatimEmail>,
     // The same address after normalization (see `normalizeEmail`). Lookups and
     // uniqueness checks use this field, not `email`.
-    normalizedEmail: v.string(),
+    normalizedEmail: v.string() as VString<NormalizedEmail>,
     userId: v.string(),
     // `true` for the user's primary address.
     // The primary address can be used by the app when it needs to email
@@ -27,7 +28,7 @@ export default defineSchema({
   // One row for each challenge that has started and is not complete.
   challenges: defineTable({
     // The address under challenge, with the case that the user gave.
-    email: v.string(),
+    email: v.string() as VString<VerbatimEmail>,
     // The kind of the challenge, i.e. the type of flow that caused it.
     // Different flows have different effects on completion.
     purpose: v.union(

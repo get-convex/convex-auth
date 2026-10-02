@@ -628,9 +628,9 @@ export function setupEmailPassword<UsersTable extends string>(
             // rate limit. The other checks (the rate limits and
             // `EMAIL_TAKEN`) run in `start`, after the password, so that a
             // session without the password cannot probe addresses.
-            const formatError = validateEmailFormat(newEmail);
-            if (formatError !== null) {
-              return { success: false, userError: formatError };
+            const format = validateEmailFormat(newEmail);
+            if (!format.success) {
+              return format;
             }
 
             const verifyResult = await ctx.runMutation(
@@ -644,7 +644,7 @@ export function setupEmailPassword<UsersTable extends string>(
             const start = await ctx.runMutation(
               component.challenge.changeEmail.start,
               {
-                email: newEmail,
+                email: format.email,
                 userId,
                 url: urls.changeEmail,
                 emailSender: await senderConfig(),
