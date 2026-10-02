@@ -717,9 +717,9 @@ export function setupEmailPassword<UsersTable extends string>(
             ctx,
             { email },
           ): Promise<StartPasswordRecoveryResult> => {
-            // The address must belong to an account. The check runs again at
-            // completion: the component does not verify the address for a
-            // custom challenge.
+            // Find the account, and the address with the case that its owner
+            // verified. The `anyUser` challenge checks the owner again at
+            // start and at completion.
             // TODO: Should we allow users to start a recovery flow through
             // a secondary email? Or support options to customize this?
             const lookup = await ctx.runMutation(
@@ -741,7 +741,7 @@ export function setupEmailPassword<UsersTable extends string>(
                 purpose: RECOVERY_PURPOSE,
                 // Nobody is signed in: the account is found again from the
                 // verified address at completion.
-                expectedUserId: null,
+                expectedOwner: { kind: "anyUser" },
                 url: urls.recovery,
                 emailSender: await senderConfig(),
                 ttlMs: RECOVERY_TTL_MS,
@@ -779,18 +779,16 @@ export function setupEmailPassword<UsersTable extends string>(
             });
             if (!peek.success) {
               if (peek.userError.error === "WRONG_USER") {
-                // Unexpected: the `expectedUserId` of the flow is `null`.
+                // Unexpected: the `expectedOwner` of the flow is `anyUser`.
                 throw new Error("Unexpected WRONG_USER in a recovery");
               }
               return { success: false, userError: peek.userError };
             }
 
-            // The same account check as `completePasswordRecovery`.
-            if (peek.emailOwnerId === null || peek.emailOwnerId === undefined) {
-              return {
-                success: false,
-                userError: { error: "INVALID_CHALLENGE" },
-              };
+            if (peek.emailOwnerId === null) {
+              // Unexpected: an `anyUser` challenge fails when no user owns
+              // the address.
+              throw new Error("Unexpected missing owner in a recovery");
             }
             return { success: true };
           },
@@ -830,24 +828,24 @@ export function setupEmailPassword<UsersTable extends string>(
             );
             if (!complete.success) {
               if (complete.userError.error === "WRONG_USER") {
-                // Unexpected: the `expectedUserId` of the flow is `null`.
+                // Unexpected: the `expectedOwner` of the flow is `anyUser`.
                 throw new Error("Unexpected WRONG_USER in a recovery");
               }
               return { status: "error", userError: complete.userError };
             }
 
             // The link proves control of the address, not of an account. The
-            // address must still be a verified address of an account: it
-            // could have moved to another user, or been removed, since the
-            // flow started. Any verified address of the account can reset
-            // the password, because each of them passed the same ownership
-            // challenge.
+            // `anyUser` challenge makes sure that the address is still a
+            // verified address of an account: it could have moved to another
+            // user, or been removed, since the flow started. The account
+            // that owns it now is the one to recover. Any verified address of
+            // the account can reset the password, because each of them
+            // passed the same ownership challenge.
             const userId = complete.emailOwnerId;
             if (userId === null) {
-              return {
-                status: "error",
-                userError: { error: "INVALID_CHALLENGE" },
-              };
+              // Unexpected: an `anyUser` challenge fails when no user owns
+              // the address. Throw so the claimed link rolls back.
+              throw new Error("Unexpected missing owner in a recovery");
             }
 
             const setResult = await ctx.runMutation(

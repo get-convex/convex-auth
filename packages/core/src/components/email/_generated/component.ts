@@ -139,9 +139,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         check: FunctionReference<
           "mutation",
           "internal",
-          { email: string },
+          {
+            email: string;
+            expectedOwner:
+              | { kind: "user"; userId: string }
+              | { kind: "anyUser" }
+              | { kind: "anyone" };
+          },
           | { error: "INVALID_EMAIL" }
           | { error: "RATE_LIMITED"; retryAfterMs: number }
+          | { error: "EMAIL_NOT_FOUND" }
           | null,
           Name
         >;
@@ -196,7 +203,10 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               retryAttempts: number;
               sendEmailHandle: string;
             };
-            expectedUserId: string | null;
+            expectedOwner:
+              | { kind: "user"; userId: string }
+              | { kind: "anyUser" }
+              | { kind: "anyone" };
             intro: string;
             purpose: string;
             subject: string;
@@ -208,7 +218,8 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               success: false;
               userError:
                 | { error: "INVALID_EMAIL" }
-                | { error: "RATE_LIMITED"; retryAfterMs: number };
+                | { error: "RATE_LIMITED"; retryAfterMs: number }
+                | { error: "EMAIL_NOT_FOUND" };
             },
           Name
         >;

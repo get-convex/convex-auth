@@ -106,10 +106,18 @@ export const deleteUser = mutation({
     for (const row of rows) {
       await ctx.db.delete("verifiedEmails", row._id);
     }
-    const challenges = await ctx.db
-      .query("challenges")
-      .withIndex("by_purpose_userId", (q) => q.eq("purpose.userId", userId))
-      .collect();
+    const challenges = [
+      ...(await ctx.db
+        .query("challenges")
+        .withIndex("by_purpose_userId", (q) => q.eq("purpose.userId", userId))
+        .collect()),
+      ...(await ctx.db
+        .query("challenges")
+        .withIndex("by_purpose_expectedOwner_userId", (q) =>
+          q.eq("purpose.expectedOwner.userId", userId),
+        )
+        .collect()),
+    ];
     for (const row of challenges) {
       await ctx.db.delete("challenges", row._id);
     }

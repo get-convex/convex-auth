@@ -1,6 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v, type VString } from "convex/values";
-import type { NormalizedEmail, VerbatimEmail } from "./validation.ts";
+import {
+  vExpectedOwner,
+  type NormalizedEmail,
+  type VerbatimEmail,
+} from "./validation.ts";
 
 export default defineSchema({
   // One row for each verified email address.
@@ -48,9 +52,9 @@ export default defineSchema({
       // the caller will implement the right behavior instead.
       v.object({
         kind: v.literal("custom"),
-        // The user that must own the address at completion. Absent when
-        // `start` got `null`: then `complete` does not check the user.
-        userId: v.optional(v.string()),
+        // The `expectedOwner` that `start` got (see `vExpectedOwner`).
+        // `complete` checks the owner of the address against it again.
+        expectedOwner: vExpectedOwner,
         // Opaque “purpose” string that is set by the code that creates the challnge
         // and must be identical on completion to avoid auth flow confusion.
         purpose: v.string(),
@@ -67,6 +71,8 @@ export default defineSchema({
   })
     .index("by_browserSecretHash", ["browserSecretHash"])
     .index("by_purpose_userId", ["purpose.userId"])
+    // The `custom` challenges of a user (`expectedOwner` of the kind `user`).
+    .index("by_purpose_expectedOwner_userId", ["purpose.expectedOwner.userId"])
     // For the cleanup loop (see cleanup.ts).
     .index("by_expiresAt", ["expiresAt"]),
 });

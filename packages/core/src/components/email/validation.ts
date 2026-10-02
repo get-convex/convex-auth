@@ -143,6 +143,39 @@ export const emailNotFoundUserError = v.object({
 export type EmailNotFoundUserError = Infer<typeof emailNotFoundUserError>;
 
 /**
+ * The owner that the address must have, at start and at completion:
+ *
+ * - `user`: the address must be a verified address of `userId`, and
+ *   `currentUserId` must be `userId` at completion. For example, a new
+ *   verification before a dangerous action.
+ * - `anyUser`: the address must be a verified address of some user. The
+ *   caller can be any user, or no user. For example, account recovery.
+ * - `anyone`: the component does not check the owner of the address. The
+ *   address can have no owner, and the caller can be any user, or no user.
+ *   For example, a flow that proves control of an address before an account
+ *   exists.
+ *
+ * In all kinds, `complete` gives the owner in `emailOwnerId`.
+ */
+export const vExpectedOwner = v.union(
+  v.object({ kind: v.literal("user"), userId: v.string() }),
+  v.object({ kind: v.literal("anyUser") }),
+  v.object({ kind: v.literal("anyone") }),
+);
+export type ExpectedOwner = Infer<typeof vExpectedOwner>;
+
+/**
+ * The user-facing errors for the `start` and `check` mutations of the
+ * `custom` kind: the shared errors, plus `EMAIL_NOT_FOUND` when the owner of
+ * the address does not satisfy the `expectedOwner`.
+ */
+export const startCustomUserError = v.union(
+  startChallengeUserError,
+  emailNotFoundUserError,
+);
+export type StartCustomUserError = Infer<typeof startCustomUserError>;
+
+/**
  * The result of `lookupEmail`: the user that the address identifies, and the
  * stored form of the address. `RATE_LIMITED` means that the client IP has
  * done too many lookups.
