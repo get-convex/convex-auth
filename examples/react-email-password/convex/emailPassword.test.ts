@@ -673,6 +673,7 @@ describe("startPasswordRecovery", () => {
     expect(result).toMatchObject({
       success: true,
       browserSecret: expect.any(String),
+      sentTo: EMAIL,
     });
     if (!result.success) {
       throw new Error("unreachable");
@@ -706,7 +707,12 @@ describe("startPasswordRecovery", () => {
     const result = await t
       .withRequestMetadata({ ip: IP })
       .mutation(api.auth.startPasswordRecovery, { email: "alice@example.com" });
-    expect(result).toMatchObject({ success: true });
+    // The result names the stored address, so the page shows the mailbox
+    // that received the link.
+    expect(result).toMatchObject({
+      success: true,
+      sentTo: "Alice@example.com",
+    });
     const sent = await sentEmails(t);
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["Alice@example.com"]);
