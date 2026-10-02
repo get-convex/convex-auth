@@ -1,8 +1,8 @@
 import { mutation, query } from "./_generated/server.ts";
 import { v } from "convex/values";
 import {
-  emailsByUserId,
-  emailByNormalizedEmail,
+  getVerifiedEmailsByUserId,
+  getVerifiedEmail,
   getClientIp,
   rateLimiter,
 } from "./helpers.ts";
@@ -24,7 +24,7 @@ export const getEmails = query({
     ctx,
     { userId },
   ): Promise<{ email: string; isPrimary: boolean }[]> => {
-    const rows = await emailsByUserId(ctx, userId);
+    const rows = await getVerifiedEmailsByUserId(ctx, userId);
     return rows.map((row) => ({ email: row.email, isPrimary: row.isPrimary }));
   },
 });
@@ -79,7 +79,7 @@ export const lookupEmail = mutation({
         userError: { error: "RATE_LIMITED", retryAfterMs: limit.retryAfter },
       };
     }
-    const row = await emailByNormalizedEmail(ctx, normalizeEmail(email));
+    const row = await getVerifiedEmail(ctx, normalizeEmail(email));
     if (row === null) {
       return { success: false, userError: { error: "EMAIL_NOT_FOUND" } };
     }
@@ -97,7 +97,7 @@ export const deleteUser = mutation({
   args: { userId: v.string() },
   returns: v.null(),
   handler: async (ctx, { userId }): Promise<null> => {
-    const rows = await emailsByUserId(ctx, userId);
+    const rows = await getVerifiedEmailsByUserId(ctx, userId);
     for (const row of rows) {
       await ctx.db.delete("verifiedEmails", row._id);
     }

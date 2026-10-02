@@ -8,7 +8,7 @@ import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "./email/schema.ts";
 import { normalizeEmail } from "./email/validation.ts";
-import { emailByNormalizedEmail } from "./email/helpers.ts";
+import { getVerifiedEmail } from "./email/helpers.ts";
 import { sha256Hex } from "../lib/crypto.ts";
 
 export const modules = import.meta.glob("./email/**/*.ts");
@@ -67,7 +67,7 @@ export async function verifiedEmailRow(
   email: string,
 ): Promise<{ userId: string; email: string } | null> {
   return await t.run(async (ctx) => {
-    const row = await emailByNormalizedEmail(ctx, normalizeEmail(email));
+    const row = await getVerifiedEmail(ctx, normalizeEmail(email));
     return row === null ? null : { userId: row.userId, email: row.email };
   });
 }

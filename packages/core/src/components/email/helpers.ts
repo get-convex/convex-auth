@@ -69,7 +69,8 @@ export async function getClientIp(ctx: MutationCtx): Promise<string> {
   return ip;
 }
 
-export function emailsByUserId(
+/** The verified address rows of `userId`. */
+export function getVerifiedEmailsByUserId(
   ctx: QueryCtx,
   userId: string,
 ): Promise<Doc<"verifiedEmails">[]> {
@@ -81,9 +82,9 @@ export function emailsByUserId(
 
 /**
  * Tell whether the user has at least one verified address. Reads one row at
- * most, unlike `emailsByUserId`.
+ * most, unlike `getVerifiedEmailsByUserId`.
  */
-export async function userHasEmail(
+export async function userHasVerifiedEmail(
   ctx: QueryCtx,
   userId: string,
 ): Promise<boolean> {
@@ -94,7 +95,11 @@ export async function userHasEmail(
   return first !== null;
 }
 
-export function emailByNormalizedEmail(
+/**
+ * The verified address row for `normalizedEmail`, or `null` when no user has
+ * verified this address.
+ */
+export function getVerifiedEmail(
   ctx: QueryCtx,
   normalizedEmail: string,
 ): Promise<Doc<"verifiedEmails"> | null> {

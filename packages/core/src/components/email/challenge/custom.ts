@@ -13,7 +13,7 @@ import {
   CUSTOM_TTL_DEFAULT_MS,
   CUSTOM_TTL_MAX_MS,
   CUSTOM_TTL_MIN_MS,
-  emailByNormalizedEmail,
+  getVerifiedEmail,
 } from "../helpers.ts";
 import {
   completeChallengeUserError,
@@ -151,8 +151,8 @@ async function claimableResult(
   ctx: QueryCtx,
   row: ChallengeOfKind<"custom">,
 ): Promise<CompleteResult> {
-  const owner = await emailByNormalizedEmail(ctx, normalizeEmail(row.email));
-  const emailOwnerId = owner === null ? null : owner.userId;
+  const verifiedEmail = await getVerifiedEmail(ctx, normalizeEmail(row.email));
+  const emailOwnerId = verifiedEmail === null ? null : verifiedEmail.userId;
   const expectedUserId = row.purpose.userId;
   if (expectedUserId !== undefined && emailOwnerId !== expectedUserId) {
     console.warn(
