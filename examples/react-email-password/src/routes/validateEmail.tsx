@@ -20,7 +20,7 @@ export function ValidateEmail() {
 function ValidateEmailWithCode({ emailCode }: { emailCode: string }) {
   const state = useCompleteSignUp(api.auth.completeSignUp, { emailCode });
 
-  if (state.status === "pending") {
+  if (state.status === "loading") {
     return <p>Validating your email…</p>;
   }
   if (state.status === "complete") {
@@ -62,7 +62,7 @@ function ValidateEmailWithCode({ emailCode }: { emailCode: string }) {
     case "EMAIL_TAKEN":
       return (
         <ValidateEmailError>
-          Another account validated this email address first.
+          This email address is already in use. Sign in instead.
         </ValidateEmailError>
       );
     case "OTHER_ERROR":
