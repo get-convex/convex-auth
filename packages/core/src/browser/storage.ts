@@ -83,23 +83,6 @@ export function defaultStorage(): TokenStorage {
 }
 
 /**
- * A read/write view over a {@link NamespacedStorage} for one ambient sign-in,
- * with every key prefixed by that sign-in's id. The shape handed to an
- * ambient sign-in's setup.
- *
- * Keys are stored as-is, so use only characters in `[A-Za-z0-9._-]` to stay
- * compatible with React Native storage backends like Expo SecureStore.
- */
-export type SignInStorage = {
-  /** Read a value. */
-  get(key: string): ReturnType<TokenStorage["getItem"]>;
-  /** Write a value. */
-  set(key: string, value: string): ReturnType<TokenStorage["setItem"]>;
-  /** Remove a value. */
-  remove(key: string): ReturnType<TokenStorage["removeItem"]>;
-};
-
-/**
  * A view over a {@link TokenStorage} that suffixes every key with a sanitized
  * namespace. Keying by (e.g.) the deployment URL keeps tokens for different
  * deployments from colliding when they share one origin's `localStorage` (the
@@ -134,20 +117,5 @@ export class NamespacedStorage {
   }
   remove(key: string) {
     return this.storage.removeItem(this.key(key));
-  }
-
-  /**
-   * A {@link SignInStorage} for the ambient sign-in registered under `id`,
-   * mapping `key` to `__convexAuthProvider_<id>_<key>` before the namespace
-   * suffix. A sign-in's keys can then never collide with the core token keys
-   * or another sign-in's.
-   */
-  forSignIn(id: string): SignInStorage {
-    const prefix = `__convexAuthProvider_${id}_`;
-    return {
-      get: (key) => this.get(`${prefix}${key}`),
-      set: (key, value) => this.set(`${prefix}${key}`, value),
-      remove: (key) => this.remove(`${prefix}${key}`),
-    };
   }
 }

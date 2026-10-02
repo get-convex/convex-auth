@@ -50,11 +50,13 @@ URL.
 
 ## OAuth isn't wired into the Next.js client
 
-`ConvexAuthNextjsProvider` builds its `AuthClient` with no ambient sign-ins and
-takes no prop for them (`packages/core/src/nextjs/index.tsx`), so `oauth()` is
-never registered and the OAuth hooks throw wherever they're used under SSR. The
-sign-in api pointed at the auth proxy is already there, so what's missing is the
-registration.
+`ConvexAuthNextjsProvider` builds no `OauthClient` and passes none to
+`AuthProvider` (`packages/core/src/nextjs/index.tsx`), so the OAuth hooks throw
+wherever they're used under SSR. The sign-in api pointed at the auth proxy is
+already there, so what's missing is building the client the way
+`ConvexAuthProvider` does (`packages/core/src/react/index.tsx`) and checking that
+the auth proxy moves the refresh token from a `completeSignIn` response into the
+cookie.
 
 ## Refresh-token reuse detection has a bounded horizon
 

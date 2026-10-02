@@ -9,12 +9,13 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
-import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
 import {
   INITIAL_AUTH_STATE,
   type AuthClient,
 } from "../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
+import type { OauthClient } from "../oauth/client.ts";
 
 export type { AuthSignInApi };
 
@@ -65,10 +66,18 @@ export const ConvexAuthActionsContext = createContext<
 >(undefined);
 
 /**
- * The bound {@link AuthClient}. Consumed by the provider-author surface
- * (`useAmbientSignInValue` in `react/providers.ts`), not by apps.
+ * The bound {@link AuthClient}. Consumed by provider hooks that need the
+ * client itself (e.g. its `withSignInPending`), not by apps.
  */
 export const AuthClientContext = createContext<AuthClient | undefined>(
+  undefined,
+);
+
+/**
+ * The {@link OauthClient}, read by the OAuth hooks. Undefined where the
+ * surrounding auth provider doesn't set one up.
+ */
+export const OauthClientContext = createContext<OauthClient | undefined>(
   undefined,
 );
 
@@ -111,11 +120,14 @@ export function useAuth() {
 export function AuthProvider({
   authClient,
   signInApi,
+  oauthClient,
   children,
 }: {
   authClient: AuthClient;
   /** How provider hooks execute their sign-in functions. See {@link AuthSignInApi}. */
   signInApi: AuthSignInApi;
+  /** The OAuth client, whose callback is handled when the client starts. */
+  oauthClient?: OauthClient;
   children: ReactNode;
 }) {
   const state = useSyncExternalStore(
@@ -125,13 +137,17 @@ export function AuthProvider({
   );
 
   useEffect(() => {
+    // Before init, so a callback redemption it starts holds the auth state on
+    // loading through the session load. In StrictMode it runs twice, and the
+    // second run finds the callback params already stripped from the URL.
+    oauthClient?.handleCallback();
     // In StrictMode (dev) React runs this mount → cleanup → mount on the same
     // client instance, so it is init'd, disposed, then init'd again. That's
     // fine because init()/dispose() are symmetric, and the second init()
     // re-attaches the cross-tab listener the dispose() removed.
     void authClient.init();
     return () => authClient.dispose();
-  }, [authClient]);
+  }, [authClient, oauthClient]);
 
   const fetchAccessToken = useCallback(
     (args: { forceRefreshToken: boolean }) => authClient.fetchAccessToken(args),
@@ -157,15 +173,17 @@ export function AuthProvider({
 
   return (
     <AuthClientContext.Provider value={authClient}>
-      <ConvexAuthInternalContext.Provider value={authState}>
-        <ConvexAuthSignInApiContext.Provider value={signInApi}>
-          <ConvexAuthActionsContext.Provider value={actions}>
-            <ConvexAuthTokenContext.Provider value={state.token}>
-              {children}
-            </ConvexAuthTokenContext.Provider>
-          </ConvexAuthActionsContext.Provider>
-        </ConvexAuthSignInApiContext.Provider>
-      </ConvexAuthInternalContext.Provider>
+      <OauthClientContext.Provider value={oauthClient}>
+        <ConvexAuthInternalContext.Provider value={authState}>
+          <ConvexAuthSignInApiContext.Provider value={signInApi}>
+            <ConvexAuthActionsContext.Provider value={actions}>
+              <ConvexAuthTokenContext.Provider value={state.token}>
+                {children}
+              </ConvexAuthTokenContext.Provider>
+            </ConvexAuthActionsContext.Provider>
+          </ConvexAuthSignInApiContext.Provider>
+        </ConvexAuthInternalContext.Provider>
+      </OauthClientContext.Provider>
     </AuthClientContext.Provider>
   );
 }

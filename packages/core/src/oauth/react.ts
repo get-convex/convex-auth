@@ -2,10 +2,11 @@
  * React client for the OAuth providers, exported at
  * `@convex-dev/auth/providers/oauth/react`.
  *
- * OAuth is registered by default in `ConvexAuthProvider`. Each supported
- * provider ships a hook that reads its sign-in functions from the module you
- * pass in, usually the generated `api.auth`. {@link useOauth} returns the
- * state that isn't tied to one provider.
+ * `ConvexAuthProvider` sets up OAuth, including finishing a flow the
+ * provider's callback redirected back to. Each supported provider ships a
+ * hook that reads its sign-in functions from the module you pass in, usually
+ * the generated `api.auth`. {@link useOauth} returns the state that isn't tied
+ * to one provider.
  *
  * ```tsx
  * const { signInGoogle } = useSignInWithGoogle(api.auth);
@@ -21,23 +22,18 @@
 "use client";
 
 import { getFunctionName } from "convex/server";
-import { useMemo } from "react";
-import { useAmbientSignInValue } from "../react/providers.ts";
-import {
-  OAUTH_ACTIONS_KEY,
-  OAUTH_FLOW_ERROR_KEY,
-  OAUTH_SETUP_ID,
-  type OauthActions,
-  type OauthFlowError,
-  type OauthProviderApi,
-  type OauthProviderRefs,
-  type SignInOptions,
-  type SignInOutcome,
+import { useContext, useMemo, useSyncExternalStore } from "react";
+import { OauthClientContext } from "../react/client.tsx";
+import type {
+  OauthClient,
+  OauthFlowError,
+  OauthProviderApi,
+  OauthProviderRefs,
+  SignInOptions,
+  SignInOutcome,
 } from "./client.ts";
 
-export { oauth } from "./client.ts";
 export type {
-  OauthActions,
   OauthFlowError,
   OauthFlowErrorCode,
   OauthProviderApi,
@@ -46,12 +42,17 @@ export type {
   SignInOutcome,
 } from "./client.ts";
 
-/** What every hook here throws when the OAuth setup published nothing. */
-const NOT_REGISTERED_ERROR =
-  "No OAuth setup is registered. ConvexAuthProvider registers oauth() from " +
-  "@convex-dev/auth/providers/oauth/react by default, so include it yourself " +
-  "if you set the `ambientSignIns` prop. OAuth isn't supported under " +
-  "ConvexAuthNextjsProvider yet.";
+/** The OAuth client from the surrounding `ConvexAuthProvider`. */
+function useOauthClient(): OauthClient {
+  const oauthClient = useContext(OauthClientContext);
+  if (oauthClient === undefined) {
+    throw new Error(
+      "The OAuth hooks must be used within a <ConvexAuthProvider>. OAuth " +
+        "isn't supported under ConvexAuthNextjsProvider yet.",
+    );
+  }
+  return oauthClient;
+}
 
 /** What {@link useOauth} returns. */
 export type UseOauthReturn = {
@@ -70,15 +71,14 @@ export type UseOauthReturn = {
  * here without any provider's function references.
  */
 export function useOauth(): UseOauthReturn {
-  const flowError = useAmbientSignInValue<OauthFlowError | null>(
-    OAUTH_SETUP_ID,
-    OAUTH_FLOW_ERROR_KEY,
+  const oauthClient = useOauthClient();
+  const flowError = useSyncExternalStore(
+    oauthClient.subscribe,
+    oauthClient.getFlowError,
+    // There is never a flow error during SSR, so the server snapshot is the
+    // same read.
+    oauthClient.getFlowError,
   );
-  // The value is published at setup, so `undefined` means oauth() was never
-  // registered.
-  if (flowError === undefined) {
-    throw new Error(NOT_REGISTERED_ERROR);
-  }
   return { flowError };
 }
 
@@ -104,10 +104,7 @@ export type UseOauthSignInReturn = {
  * is also reported through {@link useOauth}'s `flowError`.
  */
 export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
-  const actions = useAmbientSignInValue<OauthActions>(
-    OAUTH_SETUP_ID,
-    OAUTH_ACTIONS_KEY,
-  );
+  const oauthClient = useOauthClient();
   // Generated api objects create a fresh reference object on every property
   // access, so the memo depends on the function paths instead. The `refs` it
   // captures can then be from an earlier render, which is fine because the
@@ -115,13 +112,12 @@ export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
   const startPath = getFunctionName(refs.startSignIn);
   const completePath = getFunctionName(refs.completeSignIn);
   const { providerName } = refs;
-  const signIn = useMemo(() => {
-    if (actions === undefined) {
-      throw new Error(NOT_REGISTERED_ERROR);
-    }
-    return (options?: SignInOptions): Promise<SignInOutcome> =>
-      actions.signIn(refs, options);
-  }, [actions, providerName, startPath, completePath]);
+  const signIn = useMemo(
+    () =>
+      (options?: SignInOptions): Promise<SignInOutcome> =>
+        oauthClient.signIn(refs, options),
+    [oauthClient, providerName, startPath, completePath],
+  );
   return { signIn };
 }
 

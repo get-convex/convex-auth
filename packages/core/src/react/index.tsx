@@ -18,13 +18,10 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
-import type {
-  AmbientSignInClient,
-  AuthSignInApi,
-} from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
-import { oauth } from "../oauth/client.ts";
+import { OauthClient } from "../oauth/client.ts";
 import type { ConvexAuthApi } from "../lib/types.ts";
 import {
   AuthProvider,
@@ -35,7 +32,6 @@ import {
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
-export type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 export type { TokenStorage } from "../browser/storage.ts";
 export type { ConvexAuthApi, TokenBundle } from "../lib/types.ts";
 export type { ConvexAuthActionsContextType } from "./client.tsx";
@@ -68,7 +64,6 @@ export function ConvexAuthProvider({
   api,
   storage,
   storageNamespace,
-  ambientSignIns,
   children,
 }: {
   /** Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). */
@@ -104,21 +99,9 @@ export function ConvexAuthProvider({
    * Non-alphanumeric characters are ignored. Defaults to the deployment URL.
    */
   storageNamespace?: string;
-  /**
-   * Advanced. Ambient sign-ins run initialization for auth providers that can
-   * take action outside of a user activated sign in flow, such as reading an
-   * oauth code from a url query param.
-   *
-   * Setting this replaces the default (`[oauth()]`) entirely rather than adding
-   * to it. Pass `[]` to register nothing, or include `oauth()` (from
-   * `@convex-dev/auth/providers/oauth/react`) yourself to keep it alongside
-   * other sign-ins. Read once when the client is created and not expected to
-   * change.
-   */
-  ambientSignIns?: AmbientSignInClient[];
   children: ReactNode;
 }) {
-  const { authClient, signInApi } = useMemo(() => {
+  const { authClient, signInApi, oauthClient } = useMemo(() => {
     // Refresh and sign-out go over a *separate* HTTP client, not the websocket
     // `client`. A refresh happens while `client` is paused waiting for a token,
     // so calling it through `client` would deadlock on the very handshake the
@@ -129,12 +112,14 @@ export function ConvexAuthProvider({
     // Sign-in functions run against the deployment over the same websocket
     // client as the rest of the app (it isn't paused pre-auth, unlike the
     // refresh path below), so the response carries the full token bundle for
-    // `setSession` to persist. The same object serves provider setups here
+    // `setSession` to persist. The same object serves the OAuth client here
     // and, via AuthProvider below, provider hooks.
     const signInApi: AuthSignInApi = {
       mutation: (fn, args) => client.mutation(fn, args),
       action: (fn, args) => client.action(fn, args),
     };
+    const tokenStorage = storage ?? defaultStorage();
+    const namespace = storageNamespace ?? client.url;
     const authClient = new AuthClient({
       mode: "spa",
       authApi: {
@@ -144,17 +129,26 @@ export function ConvexAuthProvider({
           await httpClient.mutation(api.signOut, { refreshToken });
         },
       },
-      storage: storage ?? defaultStorage(),
-      storageNamespace: storageNamespace ?? client.url,
-      ambientSignIns: { signIns: ambientSignIns ?? [oauth()], signInApi },
+      storage: tokenStorage,
+      storageNamespace: namespace,
     });
-    return { authClient, signInApi };
+    const oauthClient = new OauthClient({
+      authClient,
+      signInApi,
+      storage: tokenStorage,
+      storageNamespace: namespace,
+    });
+    return { authClient, signInApi, oauthClient };
     // `client` identity is what matters. The other props are read once at
     // construction and are not expected to change.
   }, [client]);
 
   return (
-    <AuthProvider authClient={authClient} signInApi={signInApi}>
+    <AuthProvider
+      authClient={authClient}
+      signInApi={signInApi}
+      oauthClient={oauthClient}
+    >
       <ConvexProviderWithAuth client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>

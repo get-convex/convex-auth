@@ -3,12 +3,7 @@ import type {
   SlimTokenBundle,
   TokenBundle,
 } from "../lib/types.ts";
-import { KeyedStore, type SignInValuesReader } from "./keyedStore.ts";
 import { runWithMutex } from "./mutex.ts";
-import type {
-  AmbientSignInClient,
-  AuthSignInApi,
-} from "./ambientSignInClient.ts";
 import { retryOnNetworkError } from "./retry.ts";
 import {
   JWT_STORAGE_KEY,
@@ -55,14 +50,6 @@ interface AuthClientConfigBase {
    * an SSR host.
    */
   initialAccessToken?: string | null;
-  /**
-   * Ambient sign-ins to set up while the client is constructed, along with
-   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
-   */
-  ambientSignIns?: {
-    signIns: ReadonlyArray<AmbientSignInClient>;
-    signInApi: AuthSignInApi;
-  };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
 }
@@ -239,9 +226,6 @@ export class AuthClient {
       };
       this.#signOutInternal = () => authApi.signOut();
     }
-
-    // Runs last so setups see a fully initialized client.
-    this.#registerAmbientSignIns(config.ambientSignIns);
   }
 
   // --- Observable store API ------------------------------------------------
@@ -268,72 +252,16 @@ export class AuthClient {
     return this.#accessToken;
   }
 
-  // --- Ambient sign-in surface ----------------------------------------------
-
-  /**
-   * What ambient sign-ins publish, keyed by sign-in id. A setup writes
-   * through the scoped view it is handed, and hooks read it back through
-   * {@link ambientSignInValues}.
-   */
-  readonly #ambientValues = new KeyedStore();
-
-  /**
-   * A read-only view of the values published under an ambient sign-in's id,
-   * for hooks and other bindings to read and subscribe to. Only the sign-in
-   * itself can write.
-   */
-  ambientSignInValues(id: string): SignInValuesReader {
-    return this.#ambientValues.forSignInReader(id);
-  }
-
-  /** Ambient sign-in onInit callbacks, run once inside {@link init}. */
-  readonly #initCallbacks: Array<{ id: string; callback: () => void }> = [];
-
-  /**
-   * Run the configured ambient sign-in setups, handing each its scoped
-   * views, and collect their onInit callbacks for {@link init} to run.
-   * Throws when a sign-in id is invalid or registered twice.
-   */
-  #registerAmbientSignIns(
-    ambientSignIns: AuthClientConfig["ambientSignIns"],
-  ): void {
-    if (ambientSignIns === undefined) return;
-    const seen = new Set<string>();
-    for (const { id, setup } of ambientSignIns.signIns) {
-      if (!/^[a-zA-Z0-9]+$/.test(id)) {
-        throw new Error(
-          `Ambient sign-in id "${id}" is invalid; ids must be alphanumeric`,
-        );
-      }
-      if (seen.has(id)) {
-        throw new Error(
-          `Ambient sign-in id "${id}" is registered twice; each auth ` +
-            `method registers once per ConvexAuthProvider`,
-        );
-      }
-      seen.add(id);
-      const registration = setup({
-        client: this,
-        values: this.#ambientValues.forSignIn(id),
-        storage: this.#storage.forSignIn(id),
-        signInApi: ambientSignIns.signInApi,
-      });
-      if (registration?.onInit !== undefined) {
-        this.#initCallbacks.push({ id, callback: registration.onInit });
-      }
-    }
-  }
-
   // --- Lifecycle -----------------------------------------------------------
 
   /**
-   * Run ambient sign-in onInit callbacks, load any persisted session from
-   * storage, and start listening for cross-tab changes (if applicable).
-   * Until this resolves, the client reports `isLoading`.
+   * Load any persisted session from storage, and start listening for
+   * cross-tab changes (if applicable). Until this resolves, the client
+   * reports `isLoading`.
    *
-   * Symmetric and repeatable with {@link dispose}. The callbacks and session
-   * load happen once, but the cross-tab listener is (re)attached on every
-   * call, so an `init` after a `dispose` fully restores the client.
+   * Symmetric and repeatable with {@link dispose}. The session load happens
+   * once, but the cross-tab listener is (re)attached on every call, so an
+   * `init` after a `dispose` fully restores the client.
    */
   async init(): Promise<void> {
     // Attach before the one-time guard so a dispose()/init() cycle re-attaches
@@ -342,21 +270,6 @@ export class AuthClient {
     this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
-    // Run ambient sign-in onInit callbacks before anything observable
-    // happens, so a withSignInPending call inside one marks loading before
-    // the session
-    // loads. A callback that throws is logged and skipped, so the others
-    // still run and the session still loads.
-    for (const { id, callback } of this.#initCallbacks) {
-      try {
-        callback();
-      } catch (error) {
-        console.error(
-          `[convex-auth] onInit for ambient sign-in "${id}" threw:`,
-          error,
-        );
-      }
-    }
     // An initially provided token is considered to be the freshest value, so
     // persist it before the load below reads it back (and so other tabs see
     // it).
@@ -409,7 +322,8 @@ export class AuthClient {
    * like redeeming an OAuth callback code after a redirect, so the UI shows
    * a loading state instead of flashing unauthenticated. The wrapped
    * function should include its {@link setSession} call, so the loading
-   * state holds until the client is authenticated.
+   * state holds until the client is authenticated. Called before
+   * {@link init}, it holds the loading state through the session load too.
    */
   withSignInPending = async <T>(fn: () => Promise<T>): Promise<T> => {
     this.#pendingSignIns++;

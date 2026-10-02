@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { StrictMode } from "react";
-import { describe, expect, test, vi } from "vitest";
-import type {
-  AmbientSignInClient,
-  AuthSignInApi,
-} from "../browser/ambientSignInClient.ts";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
+import { InMemoryStorage } from "../browser/storage.ts";
 import { useOauth } from "../oauth/react.ts";
+import {
+  calledPath,
+  invalidCode,
+  readFlow,
+  seedPendingFlow,
+} from "../oauth/testFlow.ts";
 import { ConvexAuthProvider, useAuthSignInApi } from "./index.tsx";
-import { useAmbientSignInValue } from "./providers.ts";
 
 const API = {
   refreshSession: makeFunctionReference<"mutation">("auth:refreshSession"),
@@ -25,79 +28,19 @@ function makeConvexClient() {
   return new ConvexReactClient("https://happy-animal-123.convex.cloud");
 }
 
-/** Renders the value a probe setup publishes under its scoped `status` key. */
-function ProbeStatus() {
-  const status = useAmbientSignInValue<string>("probe", "status");
-  return <div>{status ?? "missing"}</div>;
-}
-
 /**
- * Renders the flow error from the default oauth setup. The hook throws when
- * oauth() was never registered, so rendering this at all is the assertion.
+ * Renders the OAuth flow error. The hook throws without an OAuth client, so
+ * rendering this at all is an assertion.
  */
 function OauthFlowError() {
-  return <div>{String(useOauth().flowError)}</div>;
+  const { flowError } = useOauth();
+  return <div>{flowError === null ? "no error" : flowError.code}</div>;
 }
 
-describe("ConvexAuthProvider ambient sign-ins", () => {
-  test("published setup values are readable on the first render", () => {
-    const client = makeConvexClient();
-    const probe: AmbientSignInClient = {
-      id: "probe",
-      setup: (ctx) => {
-        ctx.values.set("status", "registered");
-      },
-    };
-    render(
-      <ConvexAuthProvider client={client} api={API} ambientSignIns={[probe]}>
-        <ProbeStatus />
-      </ConvexAuthProvider>,
-    );
-    expect(screen.getByText("registered")).toBeDefined();
-  });
-
-  test("onInit runs once per client under StrictMode", () => {
-    const client = makeConvexClient();
-    const onInit = vi.fn();
-    render(
-      <StrictMode>
-        <ConvexAuthProvider
-          client={client}
-          api={API}
-          ambientSignIns={[{ id: "probe", setup: () => ({ onInit }) }]}
-        >
-          <div />
-        </ConvexAuthProvider>
-      </StrictMode>,
-    );
-    expect(onInit).toHaveBeenCalledTimes(1);
-  });
-
-  test("setups and hooks receive the same sign-in api", () => {
-    const client = makeConvexClient();
-    const fromSetup: AuthSignInApi[] = [];
-    const fromHook: AuthSignInApi[] = [];
-    function Capture() {
-      fromHook.push(useAuthSignInApi());
-      return null;
-    }
-    render(
-      <ConvexAuthProvider
-        client={client}
-        api={API}
-        ambientSignIns={[
-          {
-            id: "probe",
-            setup: (ctx) => {
-              fromSetup.push(ctx.signInApi);
-            },
-          },
-        ]}
-      >
-        <Capture />
-      </ConvexAuthProvider>,
-    );
-    expect(fromHook[0]).toBe(fromSetup[0]);
+describe("ConvexAuthProvider sign-in wiring", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
   });
 
   test("the sign-in api routes through the Convex client", async () => {
@@ -120,13 +63,40 @@ describe("ConvexAuthProvider ambient sign-ins", () => {
     expect(mutationSpy).toHaveBeenCalledWith(signIn, {});
   });
 
-  test("oauth() is registered when no ambient sign-ins are given", () => {
+  test("OAuth is set up", () => {
     const client = makeConvexClient();
     render(
       <ConvexAuthProvider client={client} api={API}>
         <OauthFlowError />
       </ConvexAuthProvider>,
     );
-    expect(screen.getByText("null")).toBeDefined();
+    expect(screen.getByText("no error")).toBeDefined();
+  });
+
+  test("a callback code is redeemed once under StrictMode", async () => {
+    // The redemption fails, so the client never authenticates and the Convex
+    // client never connects. Reaching the failure is what proves the wiring:
+    // the callback was handled, through the Convex client, with the saved
+    // flow from the storage the provider was given.
+    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage);
+    const client = makeConvexClient();
+    const mutationSpy = vi
+      .spyOn(client, "mutation")
+      .mockResolvedValue(invalidCode as never);
+    render(
+      <StrictMode>
+        <ConvexAuthProvider client={client} api={API} storage={storage}>
+          <OauthFlowError />
+        </ConvexAuthProvider>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(screen.getByText("expired")).toBeDefined());
+    expect(mutationSpy).toHaveBeenCalledOnce();
+    expect(calledPath(mutationSpy)).toBe("auth:completeSignInAcme");
+    expect(readFlow(storage)).toBeNull();
+    expect(window.location.search).toBe("");
   });
 });

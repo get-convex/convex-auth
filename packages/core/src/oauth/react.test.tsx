@@ -85,10 +85,10 @@ function renderOAuth<T>(
     onMutation?: (mutation: ReturnType<typeof vi.fn>) => void;
   } = {},
 ) {
-  const { client, signInApi, mutation } = oauthClient(storage);
+  const { client, oauth, signInApi, mutation } = oauthClient(storage);
   onMutation?.(mutation);
   const tree = (children: ReactNode) => (
-    <AuthProvider authClient={client} signInApi={signInApi}>
+    <AuthProvider authClient={client} signInApi={signInApi} oauthClient={oauth}>
       {children}
     </AuthProvider>
   );
@@ -105,7 +105,8 @@ describe("OAuth React client", () => {
     restoreNavigatorProduct();
   });
 
-  test("the hooks throw when oauth() is not registered", () => {
+  test("the hooks throw without an OAuth client", () => {
+    // The ConvexAuthNextjsProvider shape: an AuthProvider with no OAuth client.
     const client = new AuthClient({
       mode: "spa",
       authApi: {
@@ -122,9 +123,9 @@ describe("OAuth React client", () => {
     );
     expect(() =>
       renderHook(() => useSignInWithGoogle(googleApi), { wrapper }),
-    ).toThrow(/No OAuth setup is registered/);
+    ).toThrow(/must be used within a <ConvexAuthProvider>/);
     expect(() => renderHook(() => useOauth(), { wrapper })).toThrow(
-      /No OAuth setup is registered/,
+      /must be used within a <ConvexAuthProvider>/,
     );
   });
 
