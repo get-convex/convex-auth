@@ -4,7 +4,7 @@ import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
+import type { AuthSignInApi } from "../lib/types.ts";
 import { InMemoryStorage } from "../browser/storage.ts";
 import { useOauth } from "../oauth/react.ts";
 import {

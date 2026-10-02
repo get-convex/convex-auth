@@ -17,10 +17,9 @@ import {
 import { ConvexError } from "convex/values";
 import { retryOnNetworkError } from "../browser/retry.ts";
 import type { AuthClient } from "../browser/sessionManager.ts";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
 import { NamespacedStorage, type TokenStorage } from "../browser/storage.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams.ts";
-import type { ClientView } from "../lib/types.ts";
+import type { AuthSignInApi, ClientView } from "../lib/types.ts";
 import type { CompleteSignInResult } from "./shared/redemption.ts";
 
 /**

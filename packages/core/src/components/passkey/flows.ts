@@ -7,8 +7,8 @@
 
 import type { ConvexReactClient } from "convex/react";
 import type { FunctionReference } from "convex/server";
-import type { AuthSignInApi } from "../../browser/signInApi.ts";
 import type {
+  AuthSignInApi,
   ClientView,
   SignInError,
   SlimTokenBundle,

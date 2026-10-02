@@ -13,8 +13,11 @@ import {
   INITIAL_AUTH_STATE,
   type AuthClient,
 } from "../browser/sessionManager.ts";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
-import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
+import type {
+  AuthSignInApi,
+  SlimTokenBundle,
+  TokenBundle,
+} from "../lib/types.ts";
 import type { OauthClient } from "../oauth/client.ts";
 
 export type { AuthSignInApi };

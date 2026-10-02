@@ -15,7 +15,7 @@ export {
   REFRESH_TOKEN_STORAGE_KEY,
 } from "./storage.ts";
 export { runWithMutex } from "./mutex.ts";
-export type { AuthSignInApi } from "./signInApi.ts";
+export type { AuthSignInApi } from "../lib/types.ts";
 export {
   AuthClient,
   type SpaAuthApi,

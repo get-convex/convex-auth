@@ -19,10 +19,9 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager.ts";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import { OauthClient } from "../oauth/client.ts";
-import type { ConvexAuthApi } from "../lib/types.ts";
+import type { AuthSignInApi, ConvexAuthApi } from "../lib/types.ts";
 import {
   AuthProvider,
   ConvexAuthActionsContext,

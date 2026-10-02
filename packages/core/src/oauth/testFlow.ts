@@ -6,13 +6,12 @@
 import { getFunctionName, makeFunctionReference } from "convex/server";
 import { vi } from "vitest";
 import { AuthClient } from "../browser/sessionManager.ts";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
 import {
   InMemoryStorage,
   NamespacedStorage,
   type TokenStorage,
 } from "../browser/storage.ts";
-import type { TokenBundle } from "../lib/types.ts";
+import type { AuthSignInApi, TokenBundle } from "../lib/types.ts";
 import {
   OAUTH_FLOW_STORAGE_KEY,
   OauthClient,
