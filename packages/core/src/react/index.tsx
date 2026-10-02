@@ -20,7 +20,7 @@ import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
-import { OauthClient } from "../oauth/client.ts";
+import { createOauthClient } from "../oauth/client.ts";
 import type { AuthSignInApi, ConvexAuthApi } from "../lib/types.ts";
 import {
   AuthProvider,
@@ -131,7 +131,7 @@ export function ConvexAuthProvider({
       storage: tokenStorage,
       storageNamespace: namespace,
     });
-    const oauthClient = new OauthClient({
+    const oauthClient = createOauthClient({
       authClient,
       signInApi,
       storage: tokenStorage,

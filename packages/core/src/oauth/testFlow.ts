@@ -14,7 +14,8 @@ import {
 import type { AuthSignInApi, TokenBundle } from "../lib/types.ts";
 import {
   OAUTH_FLOW_STORAGE_KEY,
-  OauthClient,
+  createOauthClient,
+  type OauthClient,
   type OauthProviderApi,
   type PendingFlow,
 } from "./client.ts";
@@ -109,7 +110,7 @@ export function oauthClient(storage: TokenStorage): {
     storage,
     storageNamespace: NAMESPACE,
   });
-  const oauth = new OauthClient({
+  const oauth = createOauthClient({
     authClient: client,
     signInApi,
     storage,

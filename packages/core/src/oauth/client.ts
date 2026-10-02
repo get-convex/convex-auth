@@ -133,7 +133,7 @@ function currentHref(): string | null {
   return window.location.href;
 }
 
-/** Configuration for the {@link OauthClient}. */
+/** Configuration for {@link createOauthClient}. */
 export type OauthClientConfig = {
   /** The core client a finished sign-in hands its session to. */
   authClient: AuthClient;
@@ -150,36 +150,17 @@ export type OauthClientConfig = {
  * and finishes a flow the callback redirected back to when
  * {@link OauthClient.handleCallback} runs at startup. Provider mutations
  * arrive with each {@link OauthClient.signIn} call, so one client serves
- * every provider.
+ * every provider. Its functions don't depend on `this`, so they can be
+ * passed around on their own.
  */
-export class OauthClient {
-  readonly #authClient: AuthClient;
-  readonly #signInApi: AuthSignInApi;
-  readonly #storage: NamespacedStorage;
-  #flowError: OauthFlowError | null = null;
-  readonly #listeners = new Set<() => void>();
-
-  constructor(config: OauthClientConfig) {
-    this.#authClient = config.authClient;
-    this.#signInApi = config.signInApi;
-    this.#storage = new NamespacedStorage(
-      config.storage,
-      config.storageNamespace,
-    );
-  }
-
+export type OauthClient = {
   /**
-   * Subscribe to changes of {@link getFlowError}. Returns an unsubscribe
-   * function.
+   * Subscribe to changes of {@link OauthClient.getFlowError}. Returns an
+   * unsubscribe function.
    */
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
-  };
-
+  subscribe: (listener: () => void) => () => void;
   /** Why the last sign-in attempt failed, or `null` when it was fine. */
-  getFlowError = (): OauthFlowError | null => this.#flowError;
-
+  getFlowError: () => OauthFlowError | null;
   /**
    * Finish a flow the callback redirected back to. Call it at startup,
    * synchronously and right before `AuthClient.init()`, so a redemption it
@@ -195,7 +176,37 @@ export class OauthClient {
    * It never throws. Every failure becomes a flow error instead, because a
    * throw here would keep the session from loading.
    */
-  handleCallback = (): void => {
+  handleCallback: () => void;
+  /**
+   * Start the given provider's OAuth flow, or finish a saved one when
+   * `options.code` is set. Starting navigates away to the identity provider.
+   */
+  signIn: (
+    refs: OauthProviderApi,
+    options?: SignInOptions,
+  ) => Promise<SignInOutcome>;
+};
+
+/** Create an {@link OauthClient}. */
+export function createOauthClient(config: OauthClientConfig): OauthClient {
+  const { authClient, signInApi } = config;
+  const storage = new NamespacedStorage(
+    config.storage,
+    config.storageNamespace,
+  );
+  let flowError: OauthFlowError | null = null;
+  const listeners = new Set<() => void>();
+
+  function subscribe(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
+
+  function getFlowError(): OauthFlowError | null {
+    return flowError;
+  }
+
+  function handleCallback(): void {
     try {
       const href = currentHref();
       if (href === null) {
@@ -217,8 +228,8 @@ export class OauthClient {
         // The server ended the flow with an error, so the saved state can
         // never be used. Drop it now so a stray code arriving later still
         // reports `invalid_flow`.
-        void this.#dropPendingFlow();
-        this.#setFlowError(
+        void dropPendingFlow();
+        setFlowError(
           SERVER_ERRORS.has(errorParam)
             ? (errorParam as OauthFlowErrorCode)
             : "oauth_error",
@@ -228,23 +239,19 @@ export class OauthClient {
       if (code === null) {
         return;
       }
-      void this.#completeFlow(code);
+      void completeFlow(code);
     } catch {
-      this.#setFlowError("oauth_error");
+      setFlowError("oauth_error");
     }
-  };
+  }
 
-  /**
-   * Start the given provider's OAuth flow, or finish a saved one when
-   * `options.code` is set. Starting navigates away to the identity provider.
-   */
-  signIn = async (
+  async function signIn(
     refs: OauthProviderApi,
     options?: SignInOptions,
-  ): Promise<SignInOutcome> => {
+  ): Promise<SignInOutcome> {
     if (options?.code !== undefined) {
-      this.#setFlowError(null);
-      return { signedIn: await this.#completeFlow(options.code) };
+      setFlowError(null);
+      return { signedIn: await completeFlow(options.code) };
     }
     const href = currentHref();
     const redirectTo = options?.redirectTo ?? href;
@@ -256,13 +263,12 @@ export class OauthClient {
     }
     // Cleared here rather than at the top, so a call that throws above
     // leaves any error the app is showing alone.
-    this.#setFlowError(null);
+    setFlowError(null);
     try {
-      const { redirect, state } = await this.#signInApi.mutation(
-        refs.startSignIn,
-        { redirectTo },
-      );
-      await this.#storage.set(
+      const { redirect, state } = await signInApi.mutation(refs.startSignIn, {
+        redirectTo,
+      });
+      await storage.set(
         OAUTH_FLOW_STORAGE_KEY,
         JSON.stringify({
           state,
@@ -280,15 +286,18 @@ export class OauthClient {
     } catch (error) {
       // Record the failure before rethrowing, so UI reading the flow error
       // still shows something when the caller ignores the rejection.
-      this.#setThrownFlowError(error);
+      setThrownFlowError(error);
       throw error;
     }
-  };
+  }
 
   /** Set or clear the flow error apps read for sign-in feedback. */
-  #setFlowError(code: OauthFlowErrorCode | null, message?: string): void {
-    this.#flowError = code === null ? null : { code, message };
-    for (const listener of this.#listeners) listener();
+  function setFlowError(
+    code: OauthFlowErrorCode | null,
+    message?: string,
+  ): void {
+    flowError = code === null ? null : { code, message };
+    for (const listener of listeners) listener();
   }
 
   /**
@@ -296,15 +305,15 @@ export class OauthClient {
    * the app's backend rejected the sign-in. Anything else is a generic
    * failure.
    */
-  #setThrownFlowError(error: unknown): void {
+  function setThrownFlowError(error: unknown): void {
     if (error instanceof ConvexError) {
-      this.#setFlowError(
+      setFlowError(
         "rejected",
         typeof error.data === "string" ? error.data : undefined,
       );
       return;
     }
-    this.#setFlowError("oauth_error");
+    setFlowError("oauth_error");
   }
 
   /**
@@ -314,14 +323,14 @@ export class OauthClient {
    * than flickering through signed out. It never rejects. Every failure
    * becomes a flow error instead, so callers that don't await it are safe.
    */
-  async #completeFlow(code: string): Promise<boolean> {
-    return await this.#authClient.withSignInPending(async () => {
+  async function completeFlow(code: string): Promise<boolean> {
+    return await authClient.withSignInPending(async () => {
       // The storage read is inside the try so that a failed read becomes a
       // flow error like any other failure here.
       try {
-        const pending = await this.#takePendingFlow();
+        const pending = await takePendingFlow();
         if (pending === null) {
-          this.#setFlowError("invalid_flow");
+          setFlowError("invalid_flow");
           return false;
         }
         // TODO(erquhart) Look at getting this reference without storing
@@ -330,7 +339,7 @@ export class OauthClient {
           pending.completeSignIn,
         ) as OauthProviderApi["completeSignIn"];
         const result = await retryOnNetworkError(() =>
-          this.#signInApi.mutation(completeSignIn, {
+          signInApi.mutation(completeSignIn, {
             code,
             state: pending.state,
           }),
@@ -338,13 +347,13 @@ export class OauthClient {
         if (result.status === "error") {
           // The server can't tell unknown, already redeemed, expired, and
           // mismatched state apart, so they all land here.
-          this.#setFlowError("expired");
+          setFlowError("expired");
           return false;
         }
-        await this.#authClient.setSession(result.tokens);
+        await authClient.setSession(result.tokens);
         return true;
       } catch (error) {
-        this.#setThrownFlowError(error);
+        setThrownFlowError(error);
         return false;
       }
     });
@@ -355,9 +364,9 @@ export class OauthClient {
    * that follows fails, because the code it pairs with is one-time and cannot
    * be used again anyway.
    */
-  async #takePendingFlow(): Promise<PendingFlow | null> {
-    const raw = await this.#storage.get(OAUTH_FLOW_STORAGE_KEY);
-    await this.#storage.remove(OAUTH_FLOW_STORAGE_KEY);
+  async function takePendingFlow(): Promise<PendingFlow | null> {
+    const raw = await storage.get(OAUTH_FLOW_STORAGE_KEY);
+    await storage.remove(OAUTH_FLOW_STORAGE_KEY);
     if (raw === null || raw === undefined) {
       return null;
     }
@@ -386,11 +395,13 @@ export class OauthClient {
    * this, so a failed removal is ignored instead of becoming an unhandled
    * rejection. The caller already recorded why the sign-in failed.
    */
-  async #dropPendingFlow(): Promise<void> {
+  async function dropPendingFlow(): Promise<void> {
     try {
-      await this.#storage.remove(OAUTH_FLOW_STORAGE_KEY);
+      await storage.remove(OAUTH_FLOW_STORAGE_KEY);
     } catch {
       // Nothing to do. The flow was already over.
     }
   }
+
+  return { subscribe, getFlowError, handleCallback, signIn };
 }
