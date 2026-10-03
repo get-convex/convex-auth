@@ -3,6 +3,7 @@ import GitHub from "@auth/core/providers/github";
 import Google from "@auth/core/providers/google";
 import Resend from "@auth/core/providers/resend";
 import Apple from "@auth/core/providers/apple";
+import MicrosoftEntraID from "@auth/core/providers/microsoft-entra-id";
 import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { ConvexError } from "convex/values";
@@ -44,6 +45,20 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         token_endpoint_auth_method: "client_secret_post",
       },
       profile: undefined,
+    }),
+    MicrosoftEntraID({
+      clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+      clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+      // Skip the profile-photo fetch in tests; the default `profile` callback
+      // calls `https://graph.microsoft.com/...` which our test fetch mocks
+      // don't expect.
+      profile(profile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+        };
+      },
     }),
     Resend({
       from: process.env.AUTH_EMAIL ?? "My App <onboarding@resend.dev>",
