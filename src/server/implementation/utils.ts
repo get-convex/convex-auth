@@ -26,6 +26,17 @@ export function generateRandomString(length: number, alphabet: string) {
   return osloGenerateRandomString(random, alphabet, length);
 }
 
+/**
+ * Normalize an email address for storage and comparison.
+ *
+ * Per RFC 5321 the local part *can* be case-sensitive, but in practice
+ * no major provider treats it that way. We lowercase and trim so that
+ * `User@Example.com` and `user@example.com` resolve to the same account.
+ */
+export function normalizeEmail(email: string): string {
+  return email.toLowerCase().trim();
+}
+
 export function logError(error: unknown) {
   logWithLevel(
     LOG_LEVELS.ERROR,
