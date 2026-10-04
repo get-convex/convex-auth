@@ -1,17 +1,21 @@
-import { SignJWT, importPKCS8 } from "jose";
+import { SignJWT, importPKCS8, type KeyLike } from "jose";
 
 const ALG = "RS256";
 
 /** Signs a JWT that Convex will accept as a custom-JWT identity. */
-export async function signJwt(opts: {
-  privateKeyPkcs8: string;
-  kid: string;
-  subject: string;
-  issuer: string;
-  audience: string;
-  expiresInSeconds: number;
-}): Promise<{ token: string; expiresAt: number }> {
-  const key = await importPKCS8(opts.privateKeyPkcs8, ALG);
+export async function signJwt(
+  opts: {
+    kid: string;
+    subject: string;
+    issuer: string;
+    audience: string;
+    expiresInSeconds: number;
+  } & ({ privateKey: KeyLike } | { privateKeyPkcs8: string }),
+): Promise<{ token: string; expiresAt: number }> {
+  const key =
+    "privateKey" in opts
+      ? opts.privateKey
+      : await importPKCS8(opts.privateKeyPkcs8, ALG);
   const nowSeconds = Math.floor(Date.now() / 1000);
   const expSeconds = nowSeconds + opts.expiresInSeconds;
   const token = await new SignJWT()

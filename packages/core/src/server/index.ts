@@ -66,3 +66,9 @@ export type {
   TokenBundle,
 } from "../lib/types.ts";
 export { makeSlimBundle, vSignInSuccess } from "../lib/types.ts";
+
+export {
+  generateAuthKeys,
+  checkAuthConfiguration,
+  type AuthKeys,
+} from "../lib/authKeys.ts";

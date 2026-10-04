@@ -554,3 +554,22 @@ describe("getUserIdByAccount", () => {
     expect(other).toBeNull();
   });
 });
+
+test("configuration is checked before signup callbacks", async () => {
+  const original = process.env.AUTH_PRIVATE_KEY;
+  process.env.AUTH_PRIVATE_KEY = atob(original!);
+  resetUserCallbackCalls();
+  const t = setup();
+  try {
+    await expect(signUp(t, claims())).rejects.toThrow(
+      "AUTH_PRIVATE_KEY must contain base64-encoded PEM",
+    );
+    expect(getCreateUserCalls()).toHaveLength(0);
+    expect(getOnSignInCalls()).toHaveLength(0);
+    await expect(t.query(api.public.checkConfiguration, {})).rejects.toThrow(
+      "AUTH_PRIVATE_KEY must contain base64-encoded PEM",
+    );
+  } finally {
+    process.env.AUTH_PRIVATE_KEY = original;
+  }
+});

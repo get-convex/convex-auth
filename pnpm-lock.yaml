@@ -235,6 +235,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.3
         version: 6.0.3(vite@8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0))
+      convex-test:
+        specifier: ^0.0.55
+        version: 0.0.55(convex@1.43.0(react@19.2.7))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

@@ -17,6 +17,7 @@ import {
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
+import { validateAuthKeys } from "../../lib/authKeys.ts";
 import { CreateUserFn, OnSignInFn } from "../../lib/types.ts";
 
 // --- Configuration ---------------------------------------------------------
@@ -96,17 +97,24 @@ function resolveTtlConfig(args: {
   return { accessTokenTtlSeconds, refreshTokenTtlSeconds };
 }
 
+type SigningKeys = Awaited<ReturnType<typeof validateAuthKeys>>;
+
+function signingKeys(): Promise<SigningKeys> {
+  return validateAuthKeys({
+    authPrivateKey: env.AUTH_PRIVATE_KEY,
+    authJwks: env.AUTH_JWKS,
+  });
+}
+
 async function mintAccessToken(
   userId: string,
   issuer: string,
   ttlSeconds: number,
+  keys: SigningKeys,
 ) {
-  const privateKeyPkcs8 = atob(env.AUTH_PRIVATE_KEY);
-  const { keys } = JSON.parse(env.AUTH_JWKS) as { keys: { kid: string }[] };
-  const kid = keys[0].kid;
   return await signJwt({
-    privateKeyPkcs8,
-    kid,
+    privateKey: keys.privateKey,
+    kid: keys.kid,
     subject: userId,
     issuer,
     audience: AUDIENCE,
@@ -120,6 +128,7 @@ async function issueSession(
   userId: string,
   issuer: string,
   ttl: TtlConfig,
+  keys: SigningKeys,
 ): Promise<TokenBundle> {
   const refreshToken = generateRefreshToken();
   const refreshTokenHash = await sha256Hex(refreshToken);
@@ -135,6 +144,7 @@ async function issueSession(
     userId,
     issuer,
     ttl.accessTokenTtlSeconds,
+    keys,
   );
   return {
     accessToken: access.token,
@@ -183,7 +193,8 @@ async function createAccount(
   ctx: MutationCtx,
   claims: AuthClaims,
   createUser: CreateUserFunctionHandle,
-): Promise<{ accountId: Id<"accounts">; userId: string }> {
+): Promise<{ accountId: Id<"accounts">; userId: string; keys: SigningKeys }> {
+  const keys = await signingKeys();
   // `USE_USER_ID_AS_ACCOUNT_ID` means the account is keyed by the app user id,
   // which does not exist until the callback below mints it. Such claims can
   // never match an existing account (accounts are never stored with an empty
@@ -236,7 +247,7 @@ async function createAccount(
     providerAccountId,
     userId,
   });
-  return { accountId, userId };
+  return { accountId, userId, keys };
 }
 
 /**
@@ -294,13 +305,13 @@ export const signUp = mutation({
   returns: vTokenBundle,
   handler: async (ctx, args): Promise<TokenBundle> => {
     const ttl = resolveTtlConfig(args);
-    const { accountId, userId } = await createAccount(
+    const { accountId, userId, keys } = await createAccount(
       ctx,
       args.claims,
       args.createUserHandle as CreateUserFunctionHandle,
     );
     await notifySignIn(ctx, args.claims, userId, args.onSignInHandle);
-    return await issueSession(ctx, accountId, userId, args.issuer, ttl);
+    return await issueSession(ctx, accountId, userId, args.issuer, ttl, keys);
   },
 });
 
@@ -344,6 +355,7 @@ export const signIn = mutation({
           `A first sign-in for an identity must go through signUp.`,
       );
     }
+    const keys = await signingKeys();
     await notifySignIn(ctx, claims, account.userId, args.onSignInHandle);
     return await issueSession(
       ctx,
@@ -351,6 +363,7 @@ export const signIn = mutation({
       account.userId,
       args.issuer,
       ttl,
+      keys,
     );
   },
 });
@@ -472,6 +485,7 @@ export const refresh = mutation({
       session.userId,
       args.issuer,
       ttl.accessTokenTtlSeconds,
+      await signingKeys(),
     );
     return {
       accessToken: access.token,
@@ -493,6 +507,18 @@ export const signOut = mutation({
       await sha256Hex(args.refreshToken),
     );
     if (session) await ctx.db.delete("sessions", session._id);
+    return null;
+  },
+});
+
+/**
+ * Validate signing keys before a provider starts a ceremony.
+ */
+export const checkConfiguration = query({
+  args: {},
+  returns: v.null(),
+  handler: async () => {
+    await signingKeys();
     return null;
   },
 });
