@@ -1,5 +1,6 @@
 // @vitest-environment node
 import chalk from "chalk";
+import { generateAuthKeys, type AuthKeys } from "../lib/authKeys.ts";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import {
   createProgram,
@@ -12,8 +13,10 @@ const PROJECT = "/project";
 
 // The CLI colors its output when it writes to a terminal. The assertions below
 // match plain text, so turn color off whatever the terminal running the tests.
-beforeAll(() => {
+let keys: AuthKeys;
+beforeAll(async () => {
   chalk.level = 0;
+  keys = await generateAuthKeys();
 });
 
 /** Minimal in-memory stand-in for the subset of `node:fs` the CLI uses. */
@@ -50,10 +53,7 @@ function makeDeps(overrides: Overrides = {}) {
   const logs: string[] = [];
   const warns: string[] = [];
   const setEnvCalls: Array<[string, string]> = [];
-  const generateKeys = vi.fn(
-    overrides.generateKeys ??
-      (async () => ({ authPrivateKey: "PRIV", authJwks: "JWKS" })),
-  );
+  const generateKeys = vi.fn(overrides.generateKeys ?? (async () => keys));
   const deps = {
     cwd: () => PROJECT,
     fs,
@@ -138,8 +138,8 @@ describe("convex-auth init CLI", () => {
     expect(error).toBeUndefined();
     expect(generateKeys).toHaveBeenCalledTimes(1);
     expect(setEnvCalls).toEqual([
-      ["AUTH_PRIVATE_KEY", "PRIV"],
-      ["AUTH_JWKS", "JWKS"],
+      ["AUTH_PRIVATE_KEY", keys.authPrivateKey],
+      ["AUTH_JWKS", keys.authJwks],
     ]);
 
     // The convex/ directory is created and every template is written verbatim.
@@ -197,7 +197,8 @@ describe("convex-auth init CLI", () => {
   test("leaves the keys untouched when both are already set", async () => {
     const { deps, logs, setEnvCalls, generateKeys } = makeDeps({
       files: { "/project/package.json": pkgWithAuth },
-      getEnv: () => "already-set",
+      getEnv: (name) =>
+        name === "AUTH_PRIVATE_KEY" ? keys.authPrivateKey : keys.authJwks,
     });
 
     const { error } = await runCli(deps);
@@ -206,6 +207,53 @@ describe("convex-auth init CLI", () => {
     expect(generateKeys).not.toHaveBeenCalled();
     expect(setEnvCalls).toEqual([]);
     expect(logs.join("\n")).toContain("already set");
+  });
+
+  test.each([
+    "raw PEM",
+    "mismatched JWKS",
+    "missing private key",
+    "missing JWKS",
+  ])("rejects existing %s without writing or scaffolding", async (kind) => {
+    const otherKeys = await generateAuthKeys();
+    const existing = {
+      AUTH_PRIVATE_KEY:
+        kind === "raw PEM" ? atob(keys.authPrivateKey) : keys.authPrivateKey,
+      AUTH_JWKS:
+        kind === "mismatched JWKS" ? otherKeys.authJwks : keys.authJwks,
+    };
+    const { deps, fs, logs, setEnvCalls, generateKeys } = makeDeps({
+      files: { "/project/package.json": pkgWithAuth },
+      getEnv: (name) => {
+        if (kind === "missing private key" && name === "AUTH_PRIVATE_KEY")
+          return null;
+        if (kind === "missing JWKS" && name === "AUTH_JWKS") return null;
+        return existing[name as keyof typeof existing];
+      },
+    });
+    const { error } = await runCli(deps);
+    expect(error).toHaveProperty("data.code", "AUTH_CONFIGURATION_ERROR");
+    expect(generateKeys).not.toHaveBeenCalled();
+    expect(setEnvCalls).toEqual([]);
+    expect(fs.files.has("/project/convex/auth.ts")).toBe(false);
+    expect(logs.join("\n")).not.toContain("already set");
+  });
+
+  test("rejects invalid generated keys before writing either environment variable", async () => {
+    const { deps, fs, setEnvCalls } = makeDeps({
+      files: { "/project/package.json": pkgWithAuth },
+      generateKeys: async () => ({
+        ...keys,
+        authPrivateKey: atob(keys.authPrivateKey),
+      }),
+    });
+    const { error } = await runCli(deps);
+    expect(error).toHaveProperty(
+      "data.message",
+      "AUTH_PRIVATE_KEY must contain base64-encoded PEM",
+    );
+    expect(setEnvCalls).toEqual([]);
+    expect(fs.files.has("/project/convex/auth.ts")).toBe(false);
   });
 
   test("--force rotates the keys even when both are already set", async () => {
@@ -219,8 +267,8 @@ describe("convex-auth init CLI", () => {
     expect(error).toBeUndefined();
     expect(generateKeys).toHaveBeenCalledTimes(1);
     expect(setEnvCalls).toEqual([
-      ["AUTH_PRIVATE_KEY", "PRIV"],
-      ["AUTH_JWKS", "JWKS"],
+      ["AUTH_PRIVATE_KEY", keys.authPrivateKey],
+      ["AUTH_JWKS", keys.authJwks],
     ]);
   });
 

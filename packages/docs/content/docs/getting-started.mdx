@@ -102,8 +102,11 @@ Pick a login method and follow its guide to wire it up:
 `AUTH_PRIVATE_KEY` must contain **base64-encoded PKCS8 PEM**, rather than raw PEM.
 `AUTH_JWKS` must contain the matching public key, with a `kid`, as JWKS JSON.
 The first JWKS key is used for signing; additional public keys can remain for rotation.
-Provider handlers validate the signing configuration before starting signup or a
-passkey ceremony. Configuration failures carry the `AUTH_CONFIGURATION_ERROR`
+The setup CLI validates existing keys before reporting success and validates
+new keys before writing them. An invalid or incomplete existing pair is left
+untouched; correct it or explicitly use `--force` to rotate the keys.
+The core validates signing keys before signup callbacks run, and passkey start
+handlers check the configuration before creating a ceremony challenge. Configuration failures carry the `AUTH_CONFIGURATION_ERROR`
 code and a deployment-oriented diagnostic without including key material.
 
 For custom setup scripts, use the same helper as the CLI:

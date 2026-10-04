@@ -93,7 +93,7 @@ export async function validateAuthKeys({ authPrivateKey, authJwks }: AuthKeys) {
       "AUTH_PRIVATE_KEY must match the signing key in AUTH_JWKS",
     );
   }
-  return { privateKeyPkcs8, kid, privateKey };
+  return { kid, privateKey };
 }
 
 /** Sign a test JWT and verify it against the JWKS actually served by the deployment. */

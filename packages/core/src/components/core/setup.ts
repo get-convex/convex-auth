@@ -87,6 +87,10 @@ export type AuthCore<UsersTable extends string = string> = {
    * available for error messages.
    */
   usersTable: UsersTable;
+  /** Fail before starting a provider ceremony when signing keys are invalid. */
+  checkConfiguration(
+    ctx: Pick<GenericMutationCtx<GenericDataModel>, "runQuery">,
+  ): Promise<void>;
   /**
    * Signs out of the current session.
    *
@@ -364,16 +368,10 @@ export function setupCore<UsersTable extends string = "users">(options: {
         args: fn.args as PropertyValidators,
         returns: fn.returns,
         handler: (ctx, args) =>
-          // The preflight makes the wrapper async; Convex awaits handlers and
-          // validates their resolved result against the original validator.
-          ctx
-            .runQuery(component.public.checkConfiguration, {})
-            .then(() =>
-              fn.handler(
-                { ...ctx, convexAuth: makeHelpers(ctx) },
-                args as Parameters<typeof fn.handler>[1],
-              ),
-            ) as ReturnType<typeof fn.handler>,
+          fn.handler(
+            { ...ctx, convexAuth: makeHelpers(ctx) },
+            args as Parameters<typeof fn.handler>[1],
+          ),
       });
 
     const authAction: AuthActionBuilder<Profile> = (fn) =>
@@ -381,20 +379,27 @@ export function setupCore<UsersTable extends string = "users">(options: {
         args: fn.args as PropertyValidators,
         returns: fn.returns,
         handler: (ctx, args) =>
-          // The preflight makes the wrapper async; Convex awaits handlers and
-          // validates their resolved result against the original validator.
-          ctx
-            .runQuery(component.public.checkConfiguration, {})
-            .then(() =>
-              fn.handler(
-                { ...ctx, convexAuth: makeHelpers(ctx) },
-                args as Parameters<typeof fn.handler>[1],
-              ),
-            ) as ReturnType<typeof fn.handler>,
+          fn.handler(
+            { ...ctx, convexAuth: makeHelpers(ctx) },
+            args as Parameters<typeof fn.handler>[1],
+          ),
       });
 
     return { authMutation, authAction };
   };
 
-  return { usersTable, signOut, refreshSession, isAuthenticated, bindProvider };
+  const checkConfiguration = async (
+    ctx: Pick<GenericMutationCtx<GenericDataModel>, "runQuery">,
+  ): Promise<void> => {
+    await ctx.runQuery(component.public.checkConfiguration, {});
+  };
+
+  return {
+    usersTable,
+    signOut,
+    refreshSession,
+    isAuthenticated,
+    bindProvider,
+    checkConfiguration,
+  };
 }

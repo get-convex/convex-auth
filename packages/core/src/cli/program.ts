@@ -21,7 +21,11 @@
 // so that users don’t need to rely on this.
 
 import { Command } from "commander";
-import { generateAuthKeys, type AuthKeys } from "../lib/authKeys.ts";
+import {
+  generateAuthKeys,
+  validateAuthKeys,
+  type AuthKeys,
+} from "../lib/authKeys.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -262,18 +266,27 @@ async function ensureAuthKeys(
   force: boolean,
 ): Promise<KeyOutcome> {
   const reading = deps.spinner("Reading the deployment environment…");
-  const isSet = deps.getEnv("AUTH_PRIVATE_KEY") && deps.getEnv("AUTH_JWKS");
+  const authPrivateKey = deps.getEnv("AUTH_PRIVATE_KEY");
+  const authJwks = deps.getEnv("AUTH_JWKS");
   reading.stop();
-  if (!force && isSet) return "kept";
+  if (!force && (authPrivateKey !== null || authJwks !== null)) {
+    // Never silently replace an incomplete or invalid existing key pair.
+    await validateAuthKeys({
+      authPrivateKey: authPrivateKey ?? "",
+      authJwks: authJwks ?? "",
+    });
+    return "kept";
+  }
 
   const generating = deps.spinner("Generating an RS256 key pair…");
-  const { authPrivateKey, authJwks } = await deps.generateKeys();
+  const keys = await deps.generateKeys();
   generating.stop();
+  await validateAuthKeys(keys);
 
   const setting = deps.spinner("Setting the keys on the Convex deployment…");
   try {
-    deps.setEnv("AUTH_PRIVATE_KEY", authPrivateKey);
-    deps.setEnv("AUTH_JWKS", authJwks);
+    deps.setEnv("AUTH_PRIVATE_KEY", keys.authPrivateKey);
+    deps.setEnv("AUTH_JWKS", keys.authJwks);
   } finally {
     setting.stop();
   }

@@ -207,6 +207,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
               return { success: false, userError: usernameError };
             }
 
+            await core.checkConfiguration(ctx);
             const userId = await ctx.runQuery(
               usernameComponent.public.getUserIdByUsername,
               { username },
@@ -255,6 +256,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
           args: {},
           returns: startAutofillSignInResult,
           handler: async (ctx): Promise<StartAutofillSignInResult> => {
+            await core.checkConfiguration(ctx);
             const { challenge } = await ctx.runMutation(
               component.authentication.startAuthentication,
               {},
