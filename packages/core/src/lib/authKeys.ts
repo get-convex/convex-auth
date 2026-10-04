@@ -12,7 +12,10 @@ import { ConvexError } from "convex/values";
 
 const ALG = "RS256";
 
-export type AuthKeys = { authPrivateKey: string; authJwks: string };
+export type AuthKeys = {
+  authPrivateKey: string;
+  authJwks: string;
+};
 
 /** Generate deployment-ready AUTH_PRIVATE_KEY (base64 PEM) and AUTH_JWKS. */
 export async function generateAuthKeys(): Promise<AuthKeys> {
@@ -38,7 +41,10 @@ function configurationError(message: string): never {
   throw new ConvexError({ code: "AUTH_CONFIGURATION_ERROR", message });
 }
 
-/** Validate encoding, key material, and signing-key selection without exposing secrets. */
+/**
+ * Validate the private key's encoding and its match with AUTH_JWKS.
+ * Configuration errors never include key material.
+ */
 export async function validateAuthKeys({ authPrivateKey, authJwks }: AuthKeys) {
   let privateKeyPkcs8: string;
   try {
@@ -96,7 +102,9 @@ export async function validateAuthKeys({ authPrivateKey, authJwks }: AuthKeys) {
   return { kid, privateKey };
 }
 
-/** Sign a test JWT and verify it against the JWKS actually served by the deployment. */
+/**
+ * Sign a test JWT and verify it against the deployment's served JWKS.
+ */
 export async function checkAuthConfiguration(
   options: AuthKeys & { jwksUrl: string; issuer: string },
 ): Promise<void> {

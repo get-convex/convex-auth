@@ -231,14 +231,17 @@ describe("convex-auth init CLI", () => {
         return existing[name as keyof typeof existing];
       },
     });
-    const { error } = await runCli(deps);
-    expect(error).toHaveProperty("data.code", "AUTH_CONFIGURATION_ERROR");
-    if (kind === "missing private key" || kind === "missing JWKS") {
-      expect(error).toHaveProperty(
-        "data.message",
-        "AUTH_PRIVATE_KEY and AUTH_JWKS must both be set",
-      );
-    }
+    const { error, stderr } = await runCli(deps);
+    expect(error).toHaveProperty("code", "commander.error");
+    const expected =
+      kind === "missing private key" || kind === "missing JWKS"
+        ? "AUTH_PRIVATE_KEY and AUTH_JWKS must both be set"
+        : kind === "raw PEM"
+          ? "AUTH_PRIVATE_KEY must contain base64-encoded PEM"
+          : "AUTH_PRIVATE_KEY must match the signing key in AUTH_JWKS";
+    expect(error).toHaveProperty("message", expected);
+    expect(stderr).toBe(`✖ ${expected}\n`);
+    expect(stderr).not.toContain(existing.AUTH_PRIVATE_KEY);
     expect(generateKeys).not.toHaveBeenCalled();
     expect(setEnvCalls).toEqual([]);
     expect(fs.files.has("/project/convex/auth.ts")).toBe(false);
@@ -253,10 +256,14 @@ describe("convex-auth init CLI", () => {
         authPrivateKey: atob(keys.authPrivateKey),
       }),
     });
-    const { error } = await runCli(deps);
+    const { error, stderr } = await runCli(deps);
     expect(error).toHaveProperty(
-      "data.message",
+      "message",
       "AUTH_PRIVATE_KEY must contain base64-encoded PEM",
+    );
+    expect(error).toHaveProperty("code", "commander.error");
+    expect(stderr).toContain(
+      "✖ AUTH_PRIVATE_KEY must contain base64-encoded PEM",
     );
     expect(setEnvCalls).toEqual([]);
     expect(fs.files.has("/project/convex/auth.ts")).toBe(false);

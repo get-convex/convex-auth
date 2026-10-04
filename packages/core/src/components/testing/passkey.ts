@@ -5,7 +5,13 @@ import { register as registerBatchWorker } from "@convex-dev/batch-worker/test";
 import schema from "../passkey/schema.js";
 const modules = import.meta.glob("../passkey/**/*.ts");
 
-/** Register the passkey provider and its nested cleanup worker for tests. */
+/**
+ * Register the passkey provider with a test Convex instance.
+ * Its cleanup worker is mounted under `<name>/batchWorker`.
+ *
+ * @param t - The test Convex instance, e.g. from calling `convexTest`.
+ * @param name - The component's name in convex.config.ts.
+ */
 export function registerPasskeyProvider(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
   name: string = "authPasskey",

@@ -511,15 +511,14 @@ export const signOut = mutation({
   },
 });
 
-/** Provider preflight: reject deployment errors before a ceremony or signup starts. */
+/**
+ * Validate signing keys before a provider starts a ceremony.
+ */
 export const checkConfiguration = query({
   args: {},
   returns: v.null(),
   handler: async () => {
-    await validateAuthKeys({
-      authPrivateKey: env.AUTH_PRIVATE_KEY,
-      authJwks: env.AUTH_JWKS,
-    });
+    await signingKeys();
     return null;
   },
 });

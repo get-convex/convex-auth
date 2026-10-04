@@ -22,15 +22,15 @@
 
 import { Command } from "commander";
 import { ConvexError } from "convex/values";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import chalk from "chalk";
 import {
   generateAuthKeys,
   validateAuthKeys,
   type AuthKeys,
 } from "../lib/authKeys.ts";
-import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import chalk from "chalk";
 import {
   codeBlock,
   command as commandLine,
@@ -421,7 +421,22 @@ async function runInit(
 
   deps.log(`${chalk.bold("Convex Auth")} ${chalk.dim(`setup in ${dir}`)}`);
 
-  const keyOutcome = await ensureAuthKeys(deps, options.force ?? false);
+  let keyOutcome: KeyOutcome;
+  try {
+    keyOutcome = await ensureAuthKeys(deps, options.force ?? false);
+  } catch (error) {
+    if (
+      error instanceof ConvexError &&
+      error.data !== null &&
+      typeof error.data === "object" &&
+      error.data.code === "AUTH_CONFIGURATION_ERROR" &&
+      typeof error.data.message === "string"
+    ) {
+      command.error(error.data.message);
+      return;
+    }
+    throw error;
+  }
   reportKeys(deps, keyOutcome);
 
   reportFiles(deps, writeAuthFiles(deps, dir));

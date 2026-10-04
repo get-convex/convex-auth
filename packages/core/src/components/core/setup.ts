@@ -87,7 +87,9 @@ export type AuthCore<UsersTable extends string = string> = {
    * available for error messages.
    */
   usersTable: UsersTable;
-  /** Fail before starting a provider ceremony when signing keys are invalid. */
+  /**
+   * Validate signing keys before starting a provider ceremony.
+   */
   checkConfiguration(
     ctx: Pick<GenericMutationCtx<GenericDataModel>, "runQuery">,
   ): Promise<void>;
