@@ -24,6 +24,7 @@ import type { FunctionReference } from "convex/server";
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
     public: {
+      checkConfiguration: FunctionReference<"query", "internal", {}, null, Name>;
       getUserIdByAccount: FunctionReference<
         "query",
         "internal",

@@ -17,6 +17,7 @@ import {
 } from "../../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
+import { validateAuthKeys } from "../../lib/authKeys.ts";
 import { CreateUserFn, OnSignInFn } from "../../lib/types.ts";
 
 // --- Configuration ---------------------------------------------------------
@@ -101,9 +102,10 @@ async function mintAccessToken(
   issuer: string,
   ttlSeconds: number,
 ) {
-  const privateKeyPkcs8 = atob(env.AUTH_PRIVATE_KEY);
-  const { keys } = JSON.parse(env.AUTH_JWKS) as { keys: { kid: string }[] };
-  const kid = keys[0].kid;
+  const { privateKeyPkcs8, kid } = await validateAuthKeys({
+    authPrivateKey: env.AUTH_PRIVATE_KEY,
+    authJwks: env.AUTH_JWKS,
+  });
   return await signJwt({
     privateKeyPkcs8,
     kid,
@@ -184,6 +186,10 @@ async function createAccount(
   claims: AuthClaims,
   createUser: CreateUserFunctionHandle,
 ): Promise<{ accountId: Id<"accounts">; userId: string }> {
+  await validateAuthKeys({
+    authPrivateKey: env.AUTH_PRIVATE_KEY,
+    authJwks: env.AUTH_JWKS,
+  });
   // `USE_USER_ID_AS_ACCOUNT_ID` means the account is keyed by the app user id,
   // which does not exist until the callback below mints it. Such claims can
   // never match an existing account (accounts are never stored with an empty
@@ -493,6 +499,19 @@ export const signOut = mutation({
       await sha256Hex(args.refreshToken),
     );
     if (session) await ctx.db.delete("sessions", session._id);
+    return null;
+  },
+});
+
+/** Provider preflight: reject deployment errors before a ceremony or signup starts. */
+export const checkConfiguration = query({
+  args: {},
+  returns: v.null(),
+  handler: async () => {
+    await validateAuthKeys({
+      authPrivateKey: env.AUTH_PRIVATE_KEY,
+      authJwks: env.AUTH_JWKS,
+    });
     return null;
   },
 });

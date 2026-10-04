@@ -14,6 +14,7 @@
  */
 "use client";
 
+import { ConvexError } from "convex/values";
 import { useConvex } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -101,6 +102,8 @@ export type PasskeyApi = {
  *   calm "sign-in was cancelled" message.
  * - `WEBAUTHN_UNSUPPORTED`: the browser has no WebAuthn support, or the
  *   page is not a secure context.
+ * - `AUTH_CONFIGURATION_ERROR`: deployment signing keys are invalid; sign-in
+ *   is unavailable until the administrator fixes the configuration.
  * - `OTHER_ERROR`: everything else thrown (a network blip, a bug, an
  *   unexpected server error). The thrown value is preserved on `cause` for
  *   callers that want to inspect or log it.
@@ -110,6 +113,7 @@ type ClientFailure = {
   userError:
     | { error: "CEREMONY_ABORTED" }
     | { error: "WEBAUTHN_UNSUPPORTED" }
+    | { error: "AUTH_CONFIGURATION_ERROR"; cause: unknown }
     | { error: "OTHER_ERROR"; cause: unknown };
 };
 
@@ -197,6 +201,14 @@ function isCeremonyAborted(cause: unknown): boolean {
  * callers handle every failure through the one `userError` switch.
  */
 function foldClientError(cause: unknown): ClientFailure["userError"] {
+  if (
+    cause instanceof ConvexError &&
+    cause.data !== null &&
+    typeof cause.data === "object" &&
+    cause.data.code === "AUTH_CONFIGURATION_ERROR"
+  ) {
+    return { error: "AUTH_CONFIGURATION_ERROR", cause };
+  }
   if (isCeremonyAborted(cause)) {
     return { error: "CEREMONY_ABORTED" };
   }

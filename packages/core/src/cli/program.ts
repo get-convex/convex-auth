@@ -21,8 +21,7 @@
 // so that users don’t need to rely on this.
 
 import { Command } from "commander";
-import { generateKeyPair, exportPKCS8, exportJWK } from "jose";
-import { randomUUID } from "node:crypto";
+import { generateAuthKeys, type AuthKeys } from "../lib/authKeys.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -40,8 +39,6 @@ import {
   symbols,
   type Spinner,
 } from "./output.ts";
-
-const ALG = "RS256";
 
 /** The package the generated `convex.config.ts` / `auth.ts` import from. */
 const AUTH_PACKAGE = "@convex-dev/auth";
@@ -110,11 +107,6 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 /** The install command for a given package manager. */
 type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
-type AuthKeys = {
-  authPrivateKey: string;
-  authJwks: string;
-};
-
 type PackageJson = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -172,23 +164,6 @@ export function detectPackageManager(
     return "bun";
   if (existsSync(join(dir, "yarn.lock"))) return "yarn";
   return "npm";
-}
-
-/** Generate a fresh RS256 key pair as base64 PKCS8 + a JWKS JSON string. */
-async function generateAuthKeys() {
-  const { publicKey, privateKey } = await generateKeyPair(ALG, {
-    extractable: true,
-  });
-  const privatePem = await exportPKCS8(privateKey);
-  const pubJwk = await exportJWK(publicKey);
-  const kid = randomUUID();
-
-  return {
-    authPrivateKey: Buffer.from(privatePem).toString("base64"),
-    authJwks: JSON.stringify({
-      keys: [{ ...pubJwk, kid, alg: ALG, use: "sig" }],
-    }),
-  };
 }
 
 /** Read an env var off the current directory's Convex deployment. */

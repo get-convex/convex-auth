@@ -364,10 +364,16 @@ export function setupCore<UsersTable extends string = "users">(options: {
         args: fn.args as PropertyValidators,
         returns: fn.returns,
         handler: (ctx, args) =>
-          fn.handler(
-            { ...ctx, convexAuth: makeHelpers(ctx) },
-            args as Parameters<typeof fn.handler>[1],
-          ),
+          // The preflight makes the wrapper async; Convex awaits handlers and
+          // validates their resolved result against the original validator.
+          ctx
+            .runQuery(component.public.checkConfiguration, {})
+            .then(() =>
+              fn.handler(
+                { ...ctx, convexAuth: makeHelpers(ctx) },
+                args as Parameters<typeof fn.handler>[1],
+              ),
+            ) as ReturnType<typeof fn.handler>,
       });
 
     const authAction: AuthActionBuilder<Profile> = (fn) =>
@@ -375,10 +381,16 @@ export function setupCore<UsersTable extends string = "users">(options: {
         args: fn.args as PropertyValidators,
         returns: fn.returns,
         handler: (ctx, args) =>
-          fn.handler(
-            { ...ctx, convexAuth: makeHelpers(ctx) },
-            args as Parameters<typeof fn.handler>[1],
-          ),
+          // The preflight makes the wrapper async; Convex awaits handlers and
+          // validates their resolved result against the original validator.
+          ctx
+            .runQuery(component.public.checkConfiguration, {})
+            .then(() =>
+              fn.handler(
+                { ...ctx, convexAuth: makeHelpers(ctx) },
+                args as Parameters<typeof fn.handler>[1],
+              ),
+            ) as ReturnType<typeof fn.handler>,
       });
 
     return { authMutation, authAction };

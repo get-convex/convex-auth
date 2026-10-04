@@ -99,6 +99,9 @@ function errorMessage(
       return "Sign-in was cancelled.";
     case "WEBAUTHN_UNSUPPORTED":
       return "This browser does not support passkeys.";
+    case "AUTH_CONFIGURATION_ERROR":
+      console.error("Auth configuration failed:", userError.cause);
+      return "Sign-in is unavailable because of a server configuration error. Please contact the site administrator.";
     case "OTHER_ERROR":
       // The mutation threw unexpectedly; the original error is available
       // on `cause` if you want to log or inspect it.

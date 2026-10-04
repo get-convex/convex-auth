@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { ConvexError } from "convex/values";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, type ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
@@ -236,6 +237,27 @@ describe("usePasskey signIn", () => {
     });
 
     expect(returned).toEqual(failure);
+    expect(credentialsCreate).not.toHaveBeenCalled();
+    expect(credentialsGet).not.toHaveBeenCalled();
+    expect(result.current.auth.isAuthenticated).toBe(false);
+  });
+
+  test("server configuration errors do not suggest another passkey ceremony", async () => {
+    const cause = new ConvexError({
+      code: "AUTH_CONFIGURATION_ERROR",
+      message: "AUTH_PRIVATE_KEY must contain base64-encoded PEM",
+    });
+    mutations.startSignIn.mockRejectedValue(cause);
+    const { result } = renderPasskey();
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    let returned!: PasskeySignInResult;
+    await act(async () => {
+      returned = await result.current.passkey.signIn({ username: "alice" });
+    });
+    expect(returned).toEqual({
+      success: false,
+      userError: { error: "AUTH_CONFIGURATION_ERROR", cause },
+    });
     expect(credentialsCreate).not.toHaveBeenCalled();
     expect(credentialsGet).not.toHaveBeenCalled();
     expect(result.current.auth.isAuthenticated).toBe(false);
