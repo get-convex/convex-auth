@@ -21,12 +21,16 @@
 // so that users don’t need to rely on this.
 
 import { Command } from "commander";
-import { generateKeyPair, exportPKCS8, exportJWK } from "jose";
-import { randomUUID } from "node:crypto";
+import { ConvexError } from "convex/values";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import chalk from "chalk";
+import {
+  generateAuthKeys,
+  validateAuthKeys,
+  type AuthKeys,
+} from "../lib/authKeys.ts";
 import {
   codeBlock,
   command as commandLine,
@@ -40,8 +44,6 @@ import {
   symbols,
   type Spinner,
 } from "./output.ts";
-
-const ALG = "RS256";
 
 /** The package the generated `convex.config.ts` / `auth.ts` import from. */
 const AUTH_PACKAGE = "@convex-dev/auth";
@@ -110,11 +112,6 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 /** The install command for a given package manager. */
 type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
-type AuthKeys = {
-  authPrivateKey: string;
-  authJwks: string;
-};
-
 type PackageJson = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -172,23 +169,6 @@ export function detectPackageManager(
     return "bun";
   if (existsSync(join(dir, "yarn.lock"))) return "yarn";
   return "npm";
-}
-
-/** Generate a fresh RS256 key pair as base64 PKCS8 + a JWKS JSON string. */
-async function generateAuthKeys() {
-  const { publicKey, privateKey } = await generateKeyPair(ALG, {
-    extractable: true,
-  });
-  const privatePem = await exportPKCS8(privateKey);
-  const pubJwk = await exportJWK(publicKey);
-  const kid = randomUUID();
-
-  return {
-    authPrivateKey: Buffer.from(privatePem).toString("base64"),
-    authJwks: JSON.stringify({
-      keys: [{ ...pubJwk, kid, alg: ALG, use: "sig" }],
-    }),
-  };
 }
 
 /** Read an env var off the current directory's Convex deployment. */
@@ -287,18 +267,30 @@ async function ensureAuthKeys(
   force: boolean,
 ): Promise<KeyOutcome> {
   const reading = deps.spinner("Reading the deployment environment…");
-  const isSet = deps.getEnv("AUTH_PRIVATE_KEY") && deps.getEnv("AUTH_JWKS");
+  const authPrivateKey = deps.getEnv("AUTH_PRIVATE_KEY");
+  const authJwks = deps.getEnv("AUTH_JWKS");
   reading.stop();
-  if (!force && isSet) return "kept";
+  if (!force && (authPrivateKey !== null || authJwks !== null)) {
+    // Never silently replace an incomplete or invalid existing key pair.
+    if (authPrivateKey === null || authJwks === null) {
+      throw new ConvexError({
+        code: "AUTH_CONFIGURATION_ERROR",
+        message: "AUTH_PRIVATE_KEY and AUTH_JWKS must both be set",
+      });
+    }
+    await validateAuthKeys({ authPrivateKey, authJwks });
+    return "kept";
+  }
 
   const generating = deps.spinner("Generating an RS256 key pair…");
-  const { authPrivateKey, authJwks } = await deps.generateKeys();
+  const keys = await deps.generateKeys();
   generating.stop();
+  await validateAuthKeys(keys);
 
   const setting = deps.spinner("Setting the keys on the Convex deployment…");
   try {
-    deps.setEnv("AUTH_PRIVATE_KEY", authPrivateKey);
-    deps.setEnv("AUTH_JWKS", authJwks);
+    deps.setEnv("AUTH_PRIVATE_KEY", keys.authPrivateKey);
+    deps.setEnv("AUTH_JWKS", keys.authJwks);
   } finally {
     setting.stop();
   }
@@ -429,7 +421,22 @@ async function runInit(
 
   deps.log(`${chalk.bold("Convex Auth")} ${chalk.dim(`setup in ${dir}`)}`);
 
-  const keyOutcome = await ensureAuthKeys(deps, options.force ?? false);
+  let keyOutcome: KeyOutcome;
+  try {
+    keyOutcome = await ensureAuthKeys(deps, options.force ?? false);
+  } catch (error) {
+    if (
+      error instanceof ConvexError &&
+      error.data !== null &&
+      typeof error.data === "object" &&
+      error.data.code === "AUTH_CONFIGURATION_ERROR" &&
+      typeof error.data.message === "string"
+    ) {
+      command.error(error.data.message);
+      return;
+    }
+    throw error;
+  }
   reportKeys(deps, keyOutcome);
 
   reportFiles(deps, writeAuthFiles(deps, dir));

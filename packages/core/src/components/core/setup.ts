@@ -88,6 +88,12 @@ export type AuthCore<UsersTable extends string = string> = {
    */
   usersTable: UsersTable;
   /**
+   * Validate signing keys before starting a provider ceremony.
+   */
+  checkConfiguration(
+    ctx: Pick<GenericMutationCtx<GenericDataModel>, "runQuery">,
+  ): Promise<void>;
+  /**
    * Signs out of the current session.
    *
    * After this the refresh token is no longer valid.
@@ -384,5 +390,18 @@ export function setupCore<UsersTable extends string = "users">(options: {
     return { authMutation, authAction };
   };
 
-  return { usersTable, signOut, refreshSession, isAuthenticated, bindProvider };
+  const checkConfiguration = async (
+    ctx: Pick<GenericMutationCtx<GenericDataModel>, "runQuery">,
+  ): Promise<void> => {
+    await ctx.runQuery(component.public.checkConfiguration, {});
+  };
+
+  return {
+    usersTable,
+    signOut,
+    refreshSession,
+    isAuthenticated,
+    bindProvider,
+    checkConfiguration,
+  };
 }

@@ -96,3 +96,45 @@ Pick a login method and follow its guide to wire it up:
 </Step>
 
 </Steps>
+
+## Signing keys and configuration checks
+
+`AUTH_PRIVATE_KEY` must contain **base64-encoded PKCS8 PEM**, rather than raw PEM.
+`AUTH_JWKS` must contain the matching public key, with a `kid`, as JWKS JSON.
+The first JWKS key is used for signing; additional public keys can remain for rotation.
+The setup CLI validates existing keys before reporting success and validates
+new keys before writing them. An invalid or incomplete existing pair is left
+untouched; correct it or explicitly use `--force` to rotate the keys.
+The core validates signing keys before signup callbacks run. Providers can call
+`core.checkConfiguration(ctx)` before starting a ceremony. Configuration failures carry the `AUTH_CONFIGURATION_ERROR`
+code and a deployment-oriented diagnostic without including key material.
+
+For custom setup scripts, use the same helper as the CLI:
+
+```ts
+import { generateAuthKeys } from "@convex-dev/auth/server";
+
+const { authPrivateKey, authJwks } = await generateAuthKeys();
+// Set AUTH_PRIVATE_KEY to authPrivateKey and AUTH_JWKS to authJwks
+// in the Convex deployment's environment. Keep authPrivateKey secret.
+```
+
+After setting the environment variables and deploying the JWKS route, run a
+configuration check from a trusted server script or Convex action:
+
+```ts
+import { checkAuthConfiguration } from "@convex-dev/auth/server";
+
+await checkAuthConfiguration({
+  authPrivateKey: process.env.AUTH_PRIVATE_KEY!,
+  authJwks: process.env.AUTH_JWKS!,
+  issuer: process.env.CONVEX_SITE_URL!,
+  jwksUrl: `${process.env.CONVEX_SITE_URL}/auth/.well-known/jwks.json`,
+});
+```
+
+Use the JWKS URL configured in `auth.config.ts` (adjust `/auth` for your mount
+prefix). The check signs a short-lived test JWT and verifies its signature,
+issuer, and audience against the fetched JWKS. It creates no user or session.
+It detects stale or mismatched served keys and unreachable routes; it does not
+check Convex's `auth.config.ts` registration. Run it after deployment or key rotation.
