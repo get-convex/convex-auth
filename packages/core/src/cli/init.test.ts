@@ -233,6 +233,12 @@ describe("convex-auth init CLI", () => {
     });
     const { error } = await runCli(deps);
     expect(error).toHaveProperty("data.code", "AUTH_CONFIGURATION_ERROR");
+    if (kind === "missing private key" || kind === "missing JWKS") {
+      expect(error).toHaveProperty(
+        "data.message",
+        "AUTH_PRIVATE_KEY and AUTH_JWKS must both be set",
+      );
+    }
     expect(generateKeys).not.toHaveBeenCalled();
     expect(setEnvCalls).toEqual([]);
     expect(fs.files.has("/project/convex/auth.ts")).toBe(false);

@@ -21,6 +21,7 @@
 // so that users don’t need to rely on this.
 
 import { Command } from "commander";
+import { ConvexError } from "convex/values";
 import {
   generateAuthKeys,
   validateAuthKeys,
@@ -271,10 +272,13 @@ async function ensureAuthKeys(
   reading.stop();
   if (!force && (authPrivateKey !== null || authJwks !== null)) {
     // Never silently replace an incomplete or invalid existing key pair.
-    await validateAuthKeys({
-      authPrivateKey: authPrivateKey ?? "",
-      authJwks: authJwks ?? "",
-    });
+    if (authPrivateKey === null || authJwks === null) {
+      throw new ConvexError({
+        code: "AUTH_CONFIGURATION_ERROR",
+        message: "AUTH_PRIVATE_KEY and AUTH_JWKS must both be set",
+      });
+    }
+    await validateAuthKeys({ authPrivateKey, authJwks });
     return "kept";
   }
 
