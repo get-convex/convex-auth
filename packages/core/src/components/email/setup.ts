@@ -693,7 +693,8 @@ export function setupEmailPassword<UsersTable extends string>(
                 "The email address of your account was changed to " +
                   `${complete.email}.\n\n` +
                   "If you did this, you can ignore this email. If you did " +
-                  "not do this, reset your password immediately.",
+                  "not do this, reset your password immediately or contact " +
+                  "support.",
               );
             }
             return { success: true };
