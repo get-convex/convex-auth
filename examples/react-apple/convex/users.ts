@@ -1,3 +1,4 @@
+import { getAuthUserId } from "@convex-dev/auth/core";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
 import { vAppleProfile } from "@convex-dev/auth/providers/oauth/apple";
@@ -60,11 +61,7 @@ export const onSignIn = internalMutation({
 export const getCurrentUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (identity === null) {
-      return null;
-    }
-    const userId = ctx.db.normalizeId("users", identity.subject);
+    const userId = await getAuthUserId(ctx);
     if (userId === null) {
       return null;
     }
