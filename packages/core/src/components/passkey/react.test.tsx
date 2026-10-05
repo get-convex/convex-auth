@@ -967,6 +967,95 @@ describe("usePasskeyAutofill", () => {
     await act(async () => {});
   });
 
+  test("a challenge that aged while no timer ran is refreshed when the user comes back", async () => {
+    // Stand in for a computer that sleeps: the wall clock moves on, while
+    // no page timer fires.
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    conditionalGet.mockImplementation(pendingForever);
+    const start = vi.fn(async () => requestOptions);
+    const onAssertion = vi.fn(async () => ({ success: true as const }));
+    const { result, unmount } = renderHook(() =>
+      usePasskeyAutofill({ start, onAssertion }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("waiting"));
+    expect(start).toHaveBeenCalledTimes(1);
+
+    now += 9 * 60 * 1000;
+    // The user focuses the username field to open its autocompletion
+    // list. The pending challenge is too old to redeem, so the request
+    // starts over with a fresh one before the user can pick a passkey.
+    act(() => {
+      document.dispatchEvent(new Event("focusin"));
+    });
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(conditionalGet).toHaveBeenCalledTimes(2));
+    expect(result.current.status).toBe("waiting");
+    expect(result.current.lastError).toBe(null);
+
+    unmount();
+    await act(async () => {});
+  });
+
+  test("the periodic check refreshes a challenge that aged past the refresh point", async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    conditionalGet.mockImplementation(pendingForever);
+    const start = vi.fn(async () => requestOptions);
+    const onAssertion = vi.fn(async () => ({ success: true as const }));
+    const { result, unmount } = renderHook(() =>
+      usePasskeyAutofill({ start, onAssertion }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("waiting"));
+
+    // The hook's staleness check is the interval it sets with its own
+    // period; run it by hand rather than waiting for it.
+    const check = setIntervalSpy.mock.calls.find(
+      ([, ms]) => ms === 10 * 1000,
+    )?.[0] as () => void;
+    expect(check).toBeTypeOf("function");
+
+    // A fresh challenge stays pending.
+    now += 60 * 1000;
+    act(() => check());
+    await act(async () => {});
+    expect(start).toHaveBeenCalledTimes(1);
+
+    // An old one starts over.
+    now += 8 * 60 * 1000;
+    act(() => check());
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+
+    unmount();
+    await act(async () => {});
+  });
+
+  test("coming back to the page keeps a challenge that is still fresh", async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    conditionalGet.mockImplementation(pendingForever);
+    const start = vi.fn(async () => requestOptions);
+    const onAssertion = vi.fn(async () => ({ success: true as const }));
+    const { result, unmount } = renderHook(() =>
+      usePasskeyAutofill({ start, onAssertion }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("waiting"));
+
+    now += 5 * 60 * 1000;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("focusin"));
+    });
+    await act(async () => {});
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(conditionalGet).toHaveBeenCalledTimes(1);
+
+    unmount();
+    await act(async () => {});
+  });
+
   test("disabling the hook stops the pending request for good", async () => {
     conditionalGet.mockImplementation(pendingForever);
     const start = vi.fn(async () => requestOptions);
