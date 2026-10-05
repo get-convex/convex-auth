@@ -17,6 +17,7 @@ Working material for the agents that implement the client simplification series 
 
 ## Status on 5 October 2026
 
-- Commit `219675d` "Build the auth client outside React" is on the branch. It was made from an earlier single task card that covered the whole series, and it contains the work of `CARD-1.md` and `CARD-2.md` together, with one gap. The Next.js proxy sign-in API has no `retryOnNetworkError` wrap. `CARD-3.md` contains that step. The commit has no report file. Its commit message is its report.
-- The docs site under `packages/docs` and the `react-email-password` example are checked. Neither names the ambient sign-in system or the OAuth hooks, so card 3 does not touch them.
-- Card in progress: `CARD-3.md`, corrected against the branch by the planner on 5 October 2026.
+- Commit `219675d` "Build the auth client outside React" is on the branch. It was made from an earlier single task card that covered the whole series, and it contains the work of `CARD-1.md` and `CARD-2.md` together. The commit has no report file. Its commit message is its report.
+- Commit `a27f23a` "Replace the ambient sign-in registry with OAuth flow functions" is on the branch, with `report-3.md`. The Next.js proxy sign-in API applies `retryOnNetworkError`.
+- The docs site under `packages/docs` names none of the email secret keys, the passkey flow context, or the provider hooks that card 4 changes, so card 4 does not touch it. The `react-email-password` example calls the email hooks with signatures that card 4 keeps, so card 4 does not touch it either.
+- The card in progress is `CARD-4.md`, corrected against the branch by the planner on 5 October 2026.
