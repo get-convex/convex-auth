@@ -1,8 +1,8 @@
 # Card 1 of 5. Build the auth client outside React (single-page app half)
 
-This is one commit in a five-commit series on branch `oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only the first commit. Do not start the later commits. Later cards cover the Next.js factory, the OAuth rewrite, the provider component cleanup, and `expectAuth` support.
+This is one commit in a five-commit series on branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only the first commit. Do not start the later commits. Later cards cover the Next.js factory, the OAuth rewrite, the provider component cleanup, and `expectAuth` support.
 
-Branch setup. `git fetch origin reboot`. If `oauth-client-simplify` exists on the remote, check it out and continue from its head. Otherwise `git checkout -B oauth-client-simplify origin/reboot`. Never push to `reboot`. Do not open a PR.
+Branch setup. `git fetch origin reboot`. If `erquhart/oauth-client-simplify` exists on the remote, check it out and continue from its head. Otherwise `git checkout -B erquhart/oauth-client-simplify origin/reboot`. Never push to `reboot`. Do not open a PR.
 
 Read `AGENTS.md` at the repo root first. Relative imports in `packages/core/src` carry the on-disk extension (`./client.tsx`). Paths below are relative to `packages/core/src` unless they start with `examples/`.
 
@@ -115,7 +115,7 @@ pnpm build
 pnpm test
 ```
 
-All four must pass. Commit once with the title `Build the auth client outside React` and a short body that lists the new API and says behavior does not change. Push with `git push -u origin oauth-client-simplify`.
+All four must pass. Commit once with the title `Build the auth client outside React` and a short body that lists the new API and says behavior does not change. Push with `git push -u origin erquhart/oauth-client-simplify`.
 
 ## Final message
 
@@ -123,4 +123,4 @@ List the files you changed, the tests you added, anything you did differently fr
 
 Write the same report to `plans/oauth-client-simplify/report-1.md` and include it in your commit, so the next planner session can read it from the branch.
 
-After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.
+After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.

@@ -1,8 +1,8 @@
 # Card 4 of 5. Read the auth client from useAuthClient in provider hooks
 
-One commit in a five-commit series on branch `oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only commit 4. Cards 1 to 3 are on the branch. Do not start the last commit (`expectAuth` support).
+One commit in a five-commit series on branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only commit 4. Cards 1 to 3 are on the branch. Do not start the last commit (`expectAuth` support).
 
-Branch setup. `git fetch origin oauth-client-simplify && git checkout oauth-client-simplify && git pull --ff-only origin oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
+Branch setup. `git fetch origin erquhart/oauth-client-simplify && git checkout erquhart/oauth-client-simplify && git pull --ff-only origin erquhart/oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
 
 Read `AGENTS.md` at the repo root first. Relative imports in `packages/core/src` carry the on-disk extension (`./client.tsx`). Paths below are relative to `packages/core/src`.
 
@@ -87,7 +87,7 @@ pnpm build
 pnpm test
 ```
 
-All must pass. Commit once with the title `Read the auth client from useAuthClient in provider hooks` and a body that lists the email fixes (app storage, no signed-out render before a link completes, `signUp` over the ordinary client, no effect re-runs from fresh references), the passkey context change, the email secret key change, and the `setSession` during `init()` fix. Push with `git push -u origin oauth-client-simplify`.
+All must pass. Commit once with the title `Read the auth client from useAuthClient in provider hooks` and a body that lists the email fixes (app storage, no signed-out render before a link completes, `signUp` over the ordinary client, no effect re-runs from fresh references), the passkey context change, the email secret key change, and the `setSession` during `init()` fix. Push with `git push -u origin erquhart/oauth-client-simplify`.
 
 ## Final message
 
@@ -95,4 +95,4 @@ List the files you changed, the tests you added, anything you did differently fr
 
 Write the same report to `plans/oauth-client-simplify/report-4.md` and include it in your commit, so the next planner session can read it from the branch.
 
-After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.
+After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.

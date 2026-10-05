@@ -1,8 +1,8 @@
 # Card 3 of 5. Replace the ambient sign-in registry with OAuth flow functions
 
-One commit in a five-commit series on branch `oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only commit 3. Cards 1 and 2 are on the branch. Do not start the later commits (provider component cleanup, `expectAuth` support).
+One commit in a five-commit series on branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only commit 3. Cards 1 and 2 are on the branch. Do not start the later commits (provider component cleanup, `expectAuth` support).
 
-Branch setup. `git fetch origin oauth-client-simplify && git checkout oauth-client-simplify && git pull --ff-only origin oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
+Branch setup. `git fetch origin erquhart/oauth-client-simplify && git checkout erquhart/oauth-client-simplify && git pull --ff-only origin erquhart/oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
 
 Read `AGENTS.md` at the repo root first. Relative imports in `packages/core/src` carry the on-disk extension (`./client.tsx`). Paths below are relative to `packages/core/src` unless they start with `examples/`.
 
@@ -119,7 +119,7 @@ pnpm build
 pnpm test
 ```
 
-All must pass. Commit once with the title `Replace the ambient sign-in registry with OAuth flow functions` and a body that lists the deleted modules and the new functions. Push with `git push -u origin oauth-client-simplify`.
+All must pass. Commit once with the title `Replace the ambient sign-in registry with OAuth flow functions` and a body that lists the deleted modules and the new functions. Push with `git push -u origin erquhart/oauth-client-simplify`.
 
 ## Final message
 
@@ -127,4 +127,4 @@ List the files you changed and deleted, the tests you added, anything you did di
 
 Write the same report to `plans/oauth-client-simplify/report-3.md` and include it in your commit, so the next planner session can read it from the branch.
 
-After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.
+After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.

@@ -1,6 +1,6 @@
 # Simplify the Convex Auth v2 client: factory, setter, no plugin registry
 
-Repo `get-convex/convex-auth`, base branch `reboot` (HEAD `78bc044` when this plan was written). Work on branch `oauth-client-simplify`. Create it from `origin/reboot` if it does not exist. Never push to `reboot`. Do not open a PR unless asked.
+Repo `get-convex/convex-auth`, base branch `reboot` (HEAD `78bc044` when this plan was written). Work on branch `erquhart/oauth-client-simplify`. Create it from `origin/reboot` if it does not exist. Never push to `reboot`. Do not open a PR unless asked.
 
 Read `AGENTS.md` at the repo root first. It has the import rules (relative imports in `packages/core/src` carry the on-disk extension, `./client.tsx`), the build layout, and the commands.
 
@@ -244,7 +244,7 @@ Also typecheck the examples (`pnpm typecheck` covers them, use the filter above 
 - The seven-point target API above exists and is exported. `useAuthSignInApi`, `useAmbientSignInValue`, `KeyedStore`, `AmbientSignInClient`, `oauth()`, `OAUTH_ACTIONS_KEY`, `OAUTH_FLOW_ERROR_KEY`, `ambientSignInValues`, the `ambientSignIns` prop, and `ConvexAuthNextjsServerProvider` do not exist in the source.
 - All tests listed above exist and pass. Lint, typecheck, and build pass.
 - Every example compiles against the new API.
-- Commits are on `oauth-client-simplify`, pushed with `git push -u origin oauth-client-simplify`. Four commits (or three if commit 4 is dropped), titled roughly: `Build the auth client outside React`, `Replace the ambient sign-in registry with OAuth flow functions`, `Read the auth client from useAuthClient in provider hooks`, `Resume an expectAuth websocket for sign-in`.
+- Commits are on `erquhart/oauth-client-simplify`, pushed with `git push -u origin erquhart/oauth-client-simplify`. Four commits (or three if commit 4 is dropped), titled roughly: `Build the auth client outside React`, `Replace the ambient sign-in registry with OAuth flow functions`, `Read the auth client from useAuthClient in provider hooks`, `Resume an expectAuth websocket for sign-in`.
 - Report in the final message which spike checks passed (pending flag before init resolves under StrictMode, render-time setter under StrictMode and client identity change, composed callback through the SSR proxy stub, plain JavaScript smoke test, type inference of `auth.signIn.mutation`), and anything you left out.
 
 ## Decisions already made, do not reopen

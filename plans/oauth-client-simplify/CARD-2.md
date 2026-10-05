@@ -1,8 +1,8 @@
 # Card 2 of 5. Add createNextjsAuthClient and pass both clients to the Next.js provider
 
-One commit in a five-commit series on branch `oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only commit 2. Card 1 is on the branch. Do not start the later commits (OAuth rewrite, provider component cleanup, `expectAuth` support).
+One commit in a five-commit series on branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`. The series moves auth client construction out of React, gives provider hooks one `useAuthClient()` hook, deletes the ambient sign-in plugin registry, and rebuilds OAuth as plain functions plus thin hooks. This card covers only commit 2. Card 1 is on the branch. Do not start the later commits (OAuth rewrite, provider component cleanup, `expectAuth` support).
 
-Branch setup. `git fetch origin oauth-client-simplify && git checkout oauth-client-simplify && git pull --ff-only origin oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
+Branch setup. `git fetch origin erquhart/oauth-client-simplify && git checkout erquhart/oauth-client-simplify && git pull --ff-only origin erquhart/oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
 
 Read `AGENTS.md` at the repo root first. Relative imports in `packages/core/src` carry the on-disk extension (`./client.tsx`). Paths below are relative to `packages/core/src` unless they start with `examples/`.
 
@@ -128,7 +128,7 @@ pnpm build
 pnpm test
 ```
 
-All must pass, including the `examples/nextjs` typecheck. Commit once with the title `Add createNextjsAuthClient and pass the clients to the Next.js provider` and a body that names the removed `ConvexAuthNextjsServerProvider` and the `ConvexClientProvider` pattern. Push with `git push -u origin oauth-client-simplify`.
+All must pass, including the `examples/nextjs` typecheck. Commit once with the title `Add createNextjsAuthClient and pass the clients to the Next.js provider` and a body that names the removed `ConvexAuthNextjsServerProvider` and the `ConvexClientProvider` pattern. Push with `git push -u origin erquhart/oauth-client-simplify`.
 
 ## Final message
 
@@ -136,4 +136,4 @@ List the files you changed, the tests you added, anything you did differently fr
 
 Write the same report to `plans/oauth-client-simplify/report-2.md` and include it in your commit, so the next planner session can read it from the branch.
 
-After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.
+After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.

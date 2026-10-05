@@ -2,15 +2,15 @@
 
 The checkpoint session between two commits of the series. It takes no parameters and needs nothing pasted. Every worker card ends by spawning it with this fixed message:
 
-> Check out the branch `oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it.
+> Check out the branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it.
 
 The text below the line is what that session follows.
 
 ---
 
-You are the planning checkpoint in a five-commit series on the branch `oauth-client-simplify` in `get-convex/convex-auth`. You implement nothing in this session. Your output is one corrected worker task card, spawned as a task card.
+You are the planning checkpoint in a five-commit series on the branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`. You implement nothing in this session. Your output is one corrected worker task card, spawned as a task card.
 
-Setup: `git fetch origin oauth-client-simplify reboot && git checkout oauth-client-simplify && git pull --ff-only origin oauth-client-simplify`.
+Setup: `git fetch origin erquhart/oauth-client-simplify reboot && git checkout erquhart/oauth-client-simplify && git pull --ff-only origin erquhart/oauth-client-simplify`.
 
 ## Find N, the next card
 
@@ -35,7 +35,7 @@ Setup: `git fetch origin oauth-client-simplify reboot && git checkout oauth-clie
 ## Finish
 
 - Update the Status section of `README.md`. Name card N as the one in progress and give today's date.
-- Commit the corrected card and the README with the title `Update card N` and push with `git push -u origin oauth-client-simplify`.
+- Commit the corrected card and the README with the title `Update card N` and push with `git push -u origin erquhart/oauth-client-simplify`.
 - Spawn the corrected card text as a task card with your task card tool. The card title is `Card N: ` followed by the card's commit title. If your session has no such tool, print the full corrected card as your final message so a person can start the worker from it.
 - Report, in a few lines, what you changed in the card and why.
 

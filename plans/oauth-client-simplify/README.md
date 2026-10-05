@@ -1,6 +1,6 @@
 # Client simplification plan
 
-Working material for the agents that implement the client simplification series on the branch `oauth-client-simplify`. The last card deletes this folder. Everything a human needs is in the commit messages and the code.
+Working material for the agents that implement the client simplification series on the branch `erquhart/oauth-client-simplify`. The last card deletes this folder. Everything a human needs is in the commit messages and the code.
 
 ## Files
 

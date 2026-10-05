@@ -1,8 +1,8 @@
 # Card 5 of 5. Resume an expectAuth websocket for sign-in (gated on a test)
 
-One commit in a five-commit series on branch `oauth-client-simplify` in `get-convex/convex-auth`. Cards 1 to 4 are on the branch. This card is the last one and may end with no code change if its test shows the approach does not work.
+One commit in a five-commit series on branch `erquhart/oauth-client-simplify` in `get-convex/convex-auth`. Cards 1 to 4 are on the branch. This card is the last one and may end with no code change if its test shows the approach does not work.
 
-Branch setup. `git fetch origin oauth-client-simplify && git checkout oauth-client-simplify && git pull --ff-only origin oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
+Branch setup. `git fetch origin erquhart/oauth-client-simplify && git checkout erquhart/oauth-client-simplify && git pull --ff-only origin erquhart/oauth-client-simplify`. Never push to `reboot`. Do not open a PR.
 
 Read `AGENTS.md` at the repo root first. Relative imports in `packages/core/src` carry the on-disk extension (`./client.tsx`). Paths below are relative to `packages/core/src`.
 
@@ -69,7 +69,7 @@ pnpm build
 pnpm test
 ```
 
-All must pass. Push with `git push -u origin oauth-client-simplify`.
+All must pass. Push with `git push -u origin erquhart/oauth-client-simplify`.
 
 ## Final message
 
