@@ -20,4 +20,6 @@ Working material for the agents that implement the client simplification series 
 - Commit `219675d` "Build the auth client outside React" is on the branch. It was made from an earlier single task card that covered the whole series, and it contains the work of `CARD-1.md` and `CARD-2.md` together. The commit has no report file. Its commit message is its report.
 - Commit `a27f23a` "Replace the ambient sign-in registry with OAuth flow functions" is on the branch, with `report-3.md`. The Next.js proxy sign-in API applies `retryOnNetworkError`.
 - The docs site under `packages/docs` names none of the email secret keys, the passkey flow context, or the provider hooks that card 4 changes, so card 4 does not touch it. The `react-email-password` example calls the email hooks with signatures that card 4 keeps, so card 4 does not touch it either.
-- The card in progress is `CARD-4.md`, corrected against the branch by the planner on 5 October 2026.
+- Commit `1f5e153` "Read the auth client from useAuthClient in provider hooks" is on the branch, with `report-4.md`.
+- The installed `convex` package is 1.46.0. Its `WebSocketManager` constructs the WebSocket in its own constructor and `expectAuth` only marks it paused, so card 5 observes sent messages and not socket construction.
+- The card in progress is `CARD-5.md`, corrected against the branch by the planner on 5 October 2026.
