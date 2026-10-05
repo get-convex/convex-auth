@@ -11,12 +11,12 @@ Working material for the agents that implement the client simplification series 
 
 ## How the series runs
 
-1. A planner session starts from `PLANNER-PROMPT.md` with N filled in. It corrects `CARD-N.md` against the branch, commits the corrected card, and spawns it as a task card.
-2. A worker session completes `CARD-N.md`, commits, writes `report-N.md`, and pushes.
-3. Repeat with N + 1.
+1. A planner session starts from the fixed message in `PLANNER-PROMPT.md`. It finds the next card from this README and the branch, corrects it against the branch, commits the corrected card, and spawns it as a task card.
+2. A worker session completes the card, commits, writes `report-N.md`, pushes, and spawns the next planner session as a task card.
+3. Nobody pastes or edits anything by hand. The branch carries every input.
 
 ## Status on 5 October 2026
 
 - Commit `219675d` "Build the auth client outside React" is on the branch. It was made from an earlier single task card that covered the whole series, and it contains the work of `CARD-1.md` and `CARD-2.md` together. It has no report file. Its commit message is its report.
 - `reboot` gained eleven commits between the plan and that commit, among them the docs site under `packages/docs` and the `react-email-password` example. The cards do not mention either. The planner for the next card has to check both.
-- The next step is the planner for `CARD-3.md`. It should first confirm that nothing from `CARD-1.md` or `CARD-2.md` is missing on the branch and fold any gap into `CARD-3.md`.
+- Next card: `CARD-3.md`. The planner for it has not run yet. It should first confirm that nothing from `CARD-1.md` or `CARD-2.md` is missing on the branch and fold any gap into `CARD-3.md`.

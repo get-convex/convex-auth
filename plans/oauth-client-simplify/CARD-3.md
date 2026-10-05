@@ -126,3 +126,5 @@ All must pass. Commit once with the title `Replace the ambient sign-in registry 
 List the files you changed and deleted, the tests you added, anything you did differently from this card and why, and anything the next card has to know. Do not write the next card yourself.
 
 Write the same report to `plans/oauth-client-simplify/report-3.md` and include it in your commit, so the next planner session can read it from the branch.
+
+After the push, spawn the next planner session as a task card with exactly this prompt and the title `Planner: next card`. "Check out the branch `oauth-client-simplify` in `get-convex/convex-auth`, read `plans/oauth-client-simplify/PLANNER-PROMPT.md`, and follow it." If your session has no task card tool, end your final message with that sentence so a person can start the planner from it.
