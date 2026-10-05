@@ -6,9 +6,36 @@
  * (per-provider sign-in, plus refresh/sign-out) are framework-agnostic
  * `(Request) => Response` functions mounted directly as route handlers (see
  * `@convex-dev/auth/server` and each provider's `/server` entry). What remains
- * Next-specific is the proxy (up-front refresh + redirects), reading the
- * access token in Server Components, and the server-side provider that hydrates
- * the client.
+ * Next-specific is the proxy (up-front refresh + redirects) and reading the
+ * access token in Server Components.
+ *
+ * A Server Component cannot pass the auth client to a Client Component, so the
+ * app renders its own client provider file (see `@convex-dev/auth/nextjs`) and
+ * passes it the token from `convexAuthNextjsAccessToken()`.
+ *
+ * ```tsx
+ * // app/layout.tsx
+ * import type { ReactNode } from "react";
+ * import { ConvexClientProvider } from "@/src/lib/ConvexClientProvider";
+ * import { convexAuthNextjsAccessToken } from "@/src/lib/convexAuth";
+ *
+ * export default async function RootLayout({
+ *   children,
+ * }: {
+ *   children: ReactNode;
+ * }) {
+ *   const token = await convexAuthNextjsAccessToken();
+ *   return (
+ *     <html lang="en">
+ *       <body>
+ *         <ConvexClientProvider initialToken={token}>
+ *           {children}
+ *         </ConvexClientProvider>
+ *       </body>
+ *     </html>
+ *   );
+ * }
+ * ```
  *
  * @module
  */
@@ -16,7 +43,6 @@
 import { ConvexHttpClient } from "convex/browser";
 import { cookies as nextCookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
-import { ReactNode } from "react";
 import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types.ts";
 import {
   AUTH_JWT_COOKIE,
@@ -120,7 +146,6 @@ class ProxyCookieStore implements CookieStore {
  *   nextjsProxyRedirect,
  *   convexAuthNextjsAccessToken,
  *   isAuthenticatedNextjs,
- *   ConvexAuthNextjsServerProvider,
  * } = setupConvexAuthNextjs({
  *   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
  *   refreshSession: api.auth.refreshSession,
@@ -203,32 +228,10 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
     return checkAuthenticated(await convexAuthNextjsAccessToken());
   }
 
-  /** Server Component that reads the cookie token and renders the client
-   * provider, so the client hydrates ready to authenticate. */
-  async function ConvexAuthNextjsServerProvider({
-    children,
-  }: {
-    children: ReactNode;
-  }) {
-    const initialToken = await convexAuthNextjsAccessToken();
-    // Lazily import the client component so other consumers of this module
-    // don't have to take on those dependencies.
-    const { ConvexAuthNextjsProvider } = await import("./index.tsx");
-    return (
-      <ConvexAuthNextjsProvider
-        convexUrl={config.convexUrl}
-        initialToken={initialToken}
-      >
-        {children}
-      </ConvexAuthNextjsProvider>
-    );
-  }
-
   return {
     convexAuthNextjsProxy,
     nextjsProxyRedirect,
     convexAuthNextjsAccessToken,
     isAuthenticatedNextjs,
-    ConvexAuthNextjsServerProvider,
   };
 }

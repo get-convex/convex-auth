@@ -127,12 +127,13 @@ rows, in `convex/auth.ts`:
 
 ### Set up the provider on the client
 
-Wrap your app in `ConvexAuthProvider`, passing it the `refreshSession` and
-`signOut` mutations in `src/main.tsx`:
+In `src/main.tsx`, build the auth client with `createAuthClient`, passing it the
+`refreshSession` and `signOut` mutations, and wrap your app in
+`ConvexAuthProvider`:
 
 <include
   lang="tsx"
-  meta='title="src/main.tsx" highlight="import { ConvexAuthProvider }" highlight="<ConvexAuthProvider...>" highlight="</ConvexAuthProvider>"'
+  meta='title="src/main.tsx" highlight="import { ConvexAuthProvider, createAuthClient }" highlight="const auth = createAuthClient({...});" highlight="<ConvexAuthProvider" highlight="</ConvexAuthProvider>"'
 >
   ../../../../../examples/react-passkey-basic/src/main.tsx
 </include>

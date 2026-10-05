@@ -20,7 +20,7 @@
 
 import { useConvex } from "convex/react";
 import { useCallback, useMemo, useRef } from "react";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
+import { useAuthActions, useAuthClient } from "../../react/index.tsx";
 import {
   runSignInOrSignUpFlow,
   type UsernamePasskeyApi,
@@ -123,8 +123,9 @@ export function useUsernamePasskeySignIn(
 ) {
   const { setSession } = useAuthActions();
 
-  // Using useAuthSignInApi for mutations that return a session to support SSR
-  const signInApi = useAuthSignInApi();
+  // The mutations that return a session run through the sign-in API, which
+  // supports SSR.
+  const signInApi = useAuthClient().signIn;
   const convex = useConvex();
 
   // Store the flow context in a ref: Convex function references are not

@@ -14,6 +14,7 @@ import {
   JWT_STORAGE_KEY,
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
+  type SignInStorage,
   TokenStorage,
 } from "./storage.ts";
 
@@ -51,18 +52,11 @@ interface AuthClientConfigBase {
   /** Namespace for storage keys; typically the deployment URL. */
   storageNamespace: string;
   /**
-   * An access token to store on {@link AuthClient.init}, typically provided by
-   * an SSR host.
+   * Ambient sign-ins to set up while the client is constructed. Each setup
+   * receives {@link AuthClient.signIn} as its sign-in API. See
+   * {@link AmbientSignInClient}.
    */
-  initialAccessToken?: string | null;
-  /**
-   * Ambient sign-ins to set up while the client is constructed, along with
-   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
-   */
-  ambientSignIns?: {
-    signIns: ReadonlyArray<AmbientSignInClient>;
-    signInApi: AuthSignInApi;
-  };
+  ambientSignIns?: ReadonlyArray<AmbientSignInClient>;
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
 }
@@ -152,6 +146,15 @@ function domEventTarget(): Pick<
   return window;
 }
 
+/** Throws unless `id` is a valid sign-in id, which is alphanumeric. */
+function checkSignInId(id: string): void {
+  if (!/^[a-zA-Z0-9]+$/.test(id)) {
+    throw new Error(
+      `[convex-auth] Sign-in id "${id}" is invalid. Ids must be alphanumeric.`,
+    );
+  }
+}
+
 /**
  * Framework-agnostic owner of the auth session on the client.
  *
@@ -171,7 +174,6 @@ export class AuthClient {
   readonly #storage: NamespacedStorage;
   readonly #verbose: boolean;
   readonly #lockKey: string;
-  readonly #initialAccessToken: string | null;
   /**
    * Which side owns the refresh token: this client (SPA) or an httpOnly cookie
    * (SSR). Enforced in {@link AuthClient.#storeFullTokenResult}, and decides in
@@ -201,7 +203,6 @@ export class AuthClient {
     );
     this.#verbose = config.verbose ?? false;
     this.#lockKey = this.#storage.key(REFRESH_TOKEN_STORAGE_KEY);
-    this.#initialAccessToken = config.initialAccessToken ?? null;
     this.#mode = config.mode;
 
     // Bind the mode-specific refresh/sign-out behavior.
@@ -268,6 +269,52 @@ export class AuthClient {
     return this.#accessToken;
   }
 
+  // --- Sign-in API -----------------------------------------------------------
+
+  /** The API that runs sign-in functions, set by {@link setSignInApi}. */
+  #signInApi: AuthSignInApi | null = null;
+
+  /**
+   * Set the API that runs sign-in functions. `ConvexAuthProvider` calls this
+   * with a wrapper over its Convex client. A plain JavaScript app passes its
+   * Convex client. Calling it again replaces the API.
+   */
+  setSignInApi(api: AuthSignInApi): void {
+    this.#signInApi = api;
+  }
+
+  /**
+   * Runs a provider's sign-in function through the API set by
+   * {@link setSignInApi}. The call rejects when no API is set.
+   */
+  readonly signIn: AuthSignInApi = {
+    mutation: async (fn, args) =>
+      await this.#requireSignInApi().mutation(fn, args),
+    action: async (fn, args) => await this.#requireSignInApi().action(fn, args),
+  };
+
+  #requireSignInApi(): AuthSignInApi {
+    if (this.#signInApi === null) {
+      throw new Error(
+        "[convex-auth] No sign-in API is set on this AuthClient. Render it " +
+          "with ConvexAuthProvider or ConvexAuthNextjsProvider, or call " +
+          "setSignInApi(convexClient) first.",
+      );
+    }
+    return this.#signInApi;
+  }
+
+  /**
+   * Persistent storage for one sign-in method, such as `"oauth"` or
+   * `"email"`. It uses this client's storage and namespace, and its keys
+   * never collide with the session keys or another method's keys. Throws
+   * when `id` is not alphanumeric.
+   */
+  signInStorage(id: string): SignInStorage {
+    checkSignInId(id);
+    return this.#storage.forSignIn(id);
+  }
+
   // --- Ambient sign-in surface ----------------------------------------------
 
   /**
@@ -299,12 +346,8 @@ export class AuthClient {
   ): void {
     if (ambientSignIns === undefined) return;
     const seen = new Set<string>();
-    for (const { id, setup } of ambientSignIns.signIns) {
-      if (!/^[a-zA-Z0-9]+$/.test(id)) {
-        throw new Error(
-          `Ambient sign-in id "${id}" is invalid; ids must be alphanumeric`,
-        );
-      }
+    for (const { id, setup } of ambientSignIns) {
+      checkSignInId(id);
       if (seen.has(id)) {
         throw new Error(
           `Ambient sign-in id "${id}" is registered twice; each auth ` +
@@ -316,7 +359,7 @@ export class AuthClient {
         client: this,
         values: this.#ambientValues.forSignIn(id),
         storage: this.#storage.forSignIn(id),
-        signInApi: ambientSignIns.signInApi,
+        signInApi: this.signIn,
       });
       if (registration?.onInit !== undefined) {
         this.#initCallbacks.push({ id, callback: registration.onInit });
@@ -335,7 +378,13 @@ export class AuthClient {
    * load happen once, but the cross-tab listener is (re)attached on every
    * call, so an `init` after a `dispose` fully restores the client.
    */
-  async init(): Promise<void> {
+  async init(options?: {
+    /**
+     * An access token to store before the session loads, typically from an
+     * SSR host. It is used only on the first call.
+     */
+    initialAccessToken?: string | null;
+  }): Promise<void> {
     // Attach before the one-time guard so a dispose()/init() cycle re-attaches
     // the listener rather than skipping it. Idempotent, so repeat calls are
     // harmless.
@@ -360,8 +409,9 @@ export class AuthClient {
     // An initially provided token is considered to be the freshest value, so
     // persist it before the load below reads it back (and so other tabs see
     // it).
-    if (this.#initialAccessToken !== null) {
-      await this.#storage.set(JWT_STORAGE_KEY, this.#initialAccessToken);
+    const initialAccessToken = options?.initialAccessToken ?? null;
+    if (initialAccessToken !== null) {
+      await this.#storage.set(JWT_STORAGE_KEY, initialAccessToken);
     }
     const [accessToken, refreshToken] = await Promise.all([
       this.#storage.get(JWT_STORAGE_KEY),

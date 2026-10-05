@@ -1,17 +1,25 @@
 import type { ReactNode } from "react";
-import { ConvexAuthNextjsServerProvider } from "@/src/lib/convexAuth";
+import { ConvexClientProvider } from "@/src/lib/ConvexClientProvider";
+import { convexAuthNextjsAccessToken } from "@/src/lib/convexAuth";
 
 export const metadata = {
   title: "Convex Auth — Next.js SSR",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  // The client starts with the token from the cookie, so it can authenticate
+  // to Convex without a refresh.
+  const token = await convexAuthNextjsAccessToken();
   return (
     <html lang="en">
       <body style={{ fontFamily: "system-ui, sans-serif", margin: 0 }}>
-        <ConvexAuthNextjsServerProvider>
+        <ConvexClientProvider initialToken={token}>
           {children}
-        </ConvexAuthNextjsServerProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

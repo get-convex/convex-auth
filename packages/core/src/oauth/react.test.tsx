@@ -85,12 +85,10 @@ function renderOAuth<T>(
     onMutation?: (mutation: ReturnType<typeof vi.fn>) => void;
   } = {},
 ) {
-  const { client, signInApi, mutation } = oauthClient(storage);
+  const { client, mutation } = oauthClient(storage);
   onMutation?.(mutation);
   const tree = (children: ReactNode) => (
-    <AuthProvider authClient={client} signInApi={signInApi}>
-      {children}
-    </AuthProvider>
+    <AuthProvider authClient={client}>{children}</AuthProvider>
   );
   const wrapper = ({ children }: { children: ReactNode }) =>
     strictMode ? <StrictMode>{tree(children)}</StrictMode> : tree(children);
@@ -115,10 +113,9 @@ describe("OAuth React client", () => {
       storage: new InMemoryStorage(),
       storageNamespace: NAMESPACE,
     });
+    client.setSignInApi(stubSignInApi().signInApi);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
-        {children}
-      </AuthProvider>
+      <AuthProvider authClient={client}>{children}</AuthProvider>
     );
     expect(() =>
       renderHook(() => useSignInWithGoogle(googleApi), { wrapper }),

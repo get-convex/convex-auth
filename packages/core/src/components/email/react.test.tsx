@@ -95,14 +95,13 @@ function renderWithProviders<T>(useHook: () => T) {
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
+  authClient.setSignInApi(signInApi);
   // StrictMode runs effects twice in development. The landing page hooks
   // must present a one-shot link once regardless.
   const wrapper = ({ children }: { children: ReactNode }) => (
     <StrictMode>
       <ConvexProvider client={convexClient}>
-        <AuthProvider authClient={authClient} signInApi={signInApi}>
-          {children}
-        </AuthProvider>
+        <AuthProvider authClient={authClient}>{children}</AuthProvider>
       </ConvexProvider>
     </StrictMode>
   );

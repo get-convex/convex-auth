@@ -18,7 +18,7 @@ import {
 } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { AuthClientContext, useAuth } from "../../react/client.tsx";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
+import { useAuthActions, useAuthClient } from "../../react/index.tsx";
 import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
 import type {
   SignUpResult as SignUpMutationResult,
@@ -424,7 +424,7 @@ function useLinkFlow<UserError>(
  */
 export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
   const { setSession } = useAuthActions();
-  const signInApi = useAuthSignInApi();
+  const signInApi = useAuthClient().signIn;
   const { pending, track } = usePending();
 
   const signIn = useCallback(
@@ -519,7 +519,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  * @param signUpMutation The app's `signUp` mutation reference.
  */
 export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
-  const signInApi = useAuthSignInApi();
+  const signInApi = useAuthClient().signIn;
   const storage = useSecretStorage();
   const { pending, track } = usePending();
 
@@ -568,7 +568,7 @@ export function useCompleteSignUp(
   { emailCode }: { emailCode: string },
 ): CompleteSignUpState {
   const { setSession } = useAuthActions();
-  const signInApi = useAuthSignInApi();
+  const signInApi = useAuthClient().signIn;
   const withSignInPending = useWithSignInPending();
 
   // Keep `isLoading` true while the server validates the link and the client
@@ -719,7 +719,7 @@ export function useCompletePasswordRecovery(
     recoveryApi;
   const { isLoading } = useAuth();
   const { setSession } = useAuthActions();
-  const signInApi = useAuthSignInApi();
+  const signInApi = useAuthClient().signIn;
   const storage = useSecretStorage();
   const { pending, track } = usePending();
   // The secret from storage: not read yet, missing, or found.

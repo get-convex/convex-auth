@@ -9,8 +9,7 @@ import {
   REFRESH_TOKEN_STORAGE_KEY,
 } from "../browser/storage.ts";
 import type { TokenBundle } from "../lib/types.ts";
-import { AuthProvider, useAuth } from "./client.tsx";
-import { stubSignInApi } from "./testSignInApi.ts";
+import { AuthProvider, useAuth, useAuthClient } from "./client.tsx";
 import { useAuthActions, useAuthToken } from "./index.tsx";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
@@ -45,9 +44,12 @@ function makeClient(
 }
 
 /** Render the provider around a hook and expose every auth hook's value. */
-function renderAuth(client: AuthClient) {
+function renderAuth(
+  client: AuthClient,
+  { initialAccessToken }: { initialAccessToken?: string | null } = {},
+) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
+    <AuthProvider authClient={client} initialAccessToken={initialAccessToken}>
       {children}
     </AuthProvider>
   );
@@ -56,6 +58,7 @@ function renderAuth(client: AuthClient) {
       auth: useAuth(),
       token: useAuthToken(),
       actions: useAuthActions(),
+      authClient: useAuthClient(),
     }),
     { wrapper },
   );
@@ -78,6 +81,18 @@ describe("React bindings", () => {
     );
   });
 
+  test("useAuthClient throws when used outside a provider", () => {
+    expect(() => renderHook(() => useAuthClient())).toThrow(
+      /useAuthClient must be used within a <ConvexAuthProvider> \(or, under Next\.js, a <ConvexAuthNextjsProvider>\)/,
+    );
+  });
+
+  test("useAuthClient returns the provider's client", () => {
+    const { client } = makeClient();
+    const { result } = renderAuth(client);
+    expect(result.current.authClient).toBe(client);
+  });
+
   test("useAuthToken returns null when used outside a provider", () => {
     // The token context has a null default rather than throwing.
     const { result } = renderHook(() => useAuthToken());
@@ -90,9 +105,7 @@ describe("React bindings", () => {
     const dispose = vi.spyOn(client, "dispose");
 
     const { unmount } = render(
-      <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
-        hi
-      </AuthProvider>,
+      <AuthProvider authClient={client}>hi</AuthProvider>,
     );
     expect(init).toHaveBeenCalledTimes(1);
     expect(dispose).not.toHaveBeenCalled();
@@ -123,6 +136,20 @@ describe("React bindings", () => {
     await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
     expect(result.current.auth.isLoading).toBe(false);
     expect(result.current.token).toBe("access-1");
+  });
+
+  test("passes initialAccessToken to init and stores it", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "stale-access");
+    const { client } = makeClient({}, storage);
+    const init = vi.spyOn(client, "init");
+
+    const { result } = renderAuth(client, { initialAccessToken: "access-ssr" });
+
+    expect(init).toHaveBeenCalledWith({ initialAccessToken: "access-ssr" });
+    await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
+    expect(result.current.token).toBe("access-ssr");
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-ssr");
   });
 
   test("setSession authenticates and re-renders consumers", async () => {
@@ -181,11 +208,7 @@ describe("React bindings", () => {
     // dev, or an ordinary route change — disposes then re-inits it. Cross-tab
     // sign-out must still work afterward, which only holds if the re-init
     // re-attaches the window storage listener the dispose removed.
-    render(
-      <AuthProvider authClient={client} signInApi={stubSignInApi().signInApi}>
-        hi
-      </AuthProvider>,
-    ).unmount();
+    render(<AuthProvider authClient={client}>hi</AuthProvider>).unmount();
 
     const { result } = renderAuth(client);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));

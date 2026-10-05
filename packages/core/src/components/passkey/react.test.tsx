@@ -303,8 +303,9 @@ function makeWrapper() {
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
+  client.setSignInApi(signInApi);
   return ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client} signInApi={signInApi}>
+    <AuthProvider authClient={client}>
       <ConvexProvider client={convexClient}>{children}</ConvexProvider>
     </AuthProvider>
   );

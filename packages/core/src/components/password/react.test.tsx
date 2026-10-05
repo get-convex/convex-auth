@@ -67,10 +67,9 @@ function renderFlow(useFlow: () => Flow) {
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
+  client.setSignInApi(signInApi);
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={client} signInApi={signInApi}>
-      {children}
-    </AuthProvider>
+    <AuthProvider authClient={client}>{children}</AuthProvider>
   );
   return renderHook(
     () => ({ auth: useAuth(), token: useAuthToken(), flow: useFlow() }),

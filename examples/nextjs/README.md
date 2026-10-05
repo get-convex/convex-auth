@@ -23,9 +23,13 @@ client JS**. The browser holds only the access token.
   there is no per-method route and no per-method client code.
 - **`src/lib/convexAuth.tsx`** wires the Next-specific helpers via
   `setupConvexAuthNextjs`: the proxy (up-front refresh + redirects, mounted in
-  `proxy.ts`), the Server-Component token accessor
-  `convexAuthNextjsAccessToken`, and `ConvexAuthNextjsServerProvider`
-  (hydrates the client from the cookie).
+  `proxy.ts`) and the Server-Component token accessor
+  `convexAuthNextjsAccessToken`.
+- **`src/lib/ConvexClientProvider.tsx`** is a Client Component that builds the
+  `ConvexReactClient` and the auth client from `createNextjsAuthClient` at
+  module scope and renders `ConvexAuthNextjsProvider`. `app/layout.tsx` reads
+  the access token from the cookie with `convexAuthNextjsAccessToken` and
+  passes it as `initialToken`, so the client starts ready to authenticate.
 - **`app/signin/page.tsx` / `app/signup/page.tsx`** use the password provider's
   own `useSignInWithPassword` / `useSignUpWithPassword` from
   `@convex-dev/auth/providers/password/react`, the same hooks a SPA uses. The

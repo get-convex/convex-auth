@@ -113,8 +113,9 @@ export function oauthClient(storage: TokenStorage): {
     },
     storage,
     storageNamespace: NAMESPACE,
-    ambientSignIns: { signIns: [oauth()], signInApi },
+    ambientSignIns: [oauth()],
   });
+  client.setSignInApi(signInApi);
   return { client, signInApi, mutation };
 }
 

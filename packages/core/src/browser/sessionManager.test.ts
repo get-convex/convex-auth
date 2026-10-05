@@ -93,7 +93,6 @@ function makeClient(
 function makeSsrClient(
   authApi: Partial<SsrAuthApi> = {},
   storage = new InMemoryStorage(),
-  extra: { initialAccessToken?: string | null } = {},
 ) {
   const client = new AuthClient({
     mode: "ssr",
@@ -104,7 +103,6 @@ function makeSsrClient(
     },
     storage,
     storageNamespace: NAMESPACE,
-    ...extra,
   });
   return { client, storage };
 }
@@ -413,6 +411,99 @@ describe("AuthClient", () => {
   });
 });
 
+describe("AuthClient sign-in API", () => {
+  test("signIn.mutation and signIn.action forward to the set API", async () => {
+    const { client } = makeClient();
+    const mutation = vi.fn().mockResolvedValue("mutation-result");
+    const action = vi.fn().mockResolvedValue("action-result");
+    client.setSignInApi({ mutation, action } as unknown as AuthSignInApi);
+    const signInAction = makeFunctionReference<"action">("auth:probeAction");
+
+    await expect(client.signIn.mutation(SIGN_IN_REF, { a: 1 })).resolves.toBe(
+      "mutation-result",
+    );
+    await expect(client.signIn.action(signInAction, { b: 2 })).resolves.toBe(
+      "action-result",
+    );
+    expect(mutation).toHaveBeenCalledExactlyOnceWith(SIGN_IN_REF, { a: 1 });
+    expect(action).toHaveBeenCalledExactlyOnceWith(signInAction, { b: 2 });
+  });
+
+  test("signIn rejects with a clear error when no API is set", async () => {
+    const { client } = makeClient();
+    const signInAction = makeFunctionReference<"action">("auth:probeAction");
+    await expect(client.signIn.mutation(SIGN_IN_REF, {})).rejects.toThrow(
+      /No sign-in API is set on this AuthClient/,
+    );
+    await expect(client.signIn.action(signInAction, {})).rejects.toThrow(
+      /setSignInApi\(convexClient\)/,
+    );
+  });
+
+  test("setSignInApi replaces the previous API", async () => {
+    const { client } = makeClient();
+    const first = vi.fn().mockResolvedValue("first");
+    const second = vi.fn().mockResolvedValue("second");
+    client.setSignInApi({ mutation: first } as unknown as AuthSignInApi);
+    client.setSignInApi({ mutation: second } as unknown as AuthSignInApi);
+
+    await expect(client.signIn.mutation(SIGN_IN_REF, {})).resolves.toBe(
+      "second",
+    );
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  test("signIn keeps its identity when the API changes", () => {
+    const { client } = makeClient();
+    const before = client.signIn;
+    client.setSignInApi(SIGN_IN_API);
+    expect(client.signIn).toBe(before);
+  });
+});
+
+describe("AuthClient sign-in storage", () => {
+  test("throws when the id is not alphanumeric", () => {
+    const { client } = makeClient();
+    expect(() => client.signInStorage("pass-key")).toThrow(
+      /Sign-in id "pass-key" is invalid/,
+    );
+    expect(() => client.signInStorage("")).toThrow(/is invalid/);
+  });
+
+  test("keys are scoped by id and by the client's namespace", async () => {
+    const storage = new InMemoryStorage();
+    const { client } = makeClient({}, storage);
+    const oauthStorage = client.signInStorage("oauth");
+    const emailStorage = client.signInStorage("email");
+
+    await oauthStorage.set("flow", "v1");
+    await emailStorage.set("flow", "v2");
+
+    const namespaced = new NamespacedStorage(storage, NAMESPACE);
+    expect(
+      storage.getItem(namespaced.key("__convexAuthProvider_oauth_flow")),
+    ).toBe("v1");
+    expect(
+      storage.getItem(namespaced.key("__convexAuthProvider_email_flow")),
+    ).toBe("v2");
+    expect(await oauthStorage.get("flow")).toBe("v1");
+
+    await oauthStorage.remove("flow");
+    expect(await oauthStorage.get("flow")).toBeNull();
+    expect(await emailStorage.get("flow")).toBe("v2");
+  });
+
+  test("keys never collide with the session keys", async () => {
+    const storage = new InMemoryStorage();
+    const { client } = makeClient({}, storage);
+    await client.init();
+    await client.setSession(bundle(1));
+    await client.signInStorage("oauth").set(JWT_STORAGE_KEY, "other");
+
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
+  });
+});
+
 /** The mutation stub behind {@link SIGN_IN_API}. */
 const SIGN_IN_MUTATION = vi.fn();
 
@@ -438,8 +529,9 @@ function makeClientWithSignIns(
     },
     storage,
     storageNamespace: NAMESPACE,
-    ambientSignIns: { signIns, signInApi: SIGN_IN_API },
+    ambientSignIns: signIns,
   });
+  client.setSignInApi(SIGN_IN_API);
   return { client, storage };
 }
 
@@ -500,7 +592,7 @@ describe("AuthClient ambient sign-ins", () => {
     ).toBe("v1");
   });
 
-  test("every setup receives the same sign-in api and client", () => {
+  test("every setup receives the client's sign-in API and the client", () => {
     const received: Array<{ signInApi: AuthSignInApi; client: AuthClient }> =
       [];
     const { client } = makeClientWithSignIns([
@@ -517,8 +609,8 @@ describe("AuthClient ambient sign-ins", () => {
         },
       },
     ]);
-    expect(received[0].signInApi).toBe(SIGN_IN_API);
-    expect(received[1].signInApi).toBe(SIGN_IN_API);
+    expect(received[0].signInApi).toBe(client.signIn);
+    expect(received[1].signInApi).toBe(client.signIn);
     expect(received[0].client).toBe(client);
     expect(received[1].client).toBe(client);
   });
@@ -725,19 +817,37 @@ describe("AuthClient (SSR)", () => {
 
   test("initialAccessToken wins over a persisted token and is stored", async () => {
     // The SSR host may have refreshed on the client's behalf, so its token is
-    // fresher than anything already in storage — it should win and persist.
+    // fresher than anything already in storage. It wins and is stored.
     const storage = new InMemoryStorage();
     storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "stale-access");
-    const { client } = makeSsrClient({}, storage, {
-      initialAccessToken: "access-ssr",
-    });
-    await client.init();
+    const { client } = makeSsrClient({}, storage);
+    await client.init({ initialAccessToken: "access-ssr" });
 
     expect(client.getSnapshot()).toMatchObject({
       isAuthenticated: true,
       token: "access-ssr",
     });
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-ssr");
+  });
+
+  test("init uses initialAccessToken only on its first call", async () => {
+    const storage = new InMemoryStorage();
+    const { client } = makeSsrClient({}, storage);
+    await client.init({ initialAccessToken: "access-ssr" });
+    client.dispose();
+    await client.init({ initialAccessToken: "access-later" });
+
+    expect(client.getSnapshot().token).toBe("access-ssr");
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-ssr");
+  });
+
+  test("a null initialAccessToken leaves the persisted token alone", async () => {
+    const storage = new InMemoryStorage();
+    storage.setItem(`${JWT_STORAGE_KEY}_${SUFFIX}`, "access-1");
+    const { client } = makeSsrClient({}, storage);
+    await client.init({ initialAccessToken: null });
+
+    expect(client.getSnapshot().token).toBe("access-1");
   });
 
   test("clears refresh token if present", async () => {

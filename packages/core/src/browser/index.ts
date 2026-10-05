@@ -23,6 +23,10 @@ export type {
   AuthSignInApi,
 } from "./ambientSignInClient.ts";
 export {
+  createAuthClient,
+  type CreateAuthClientOptions,
+} from "./createAuthClient.ts";
+export {
   AuthClient,
   type SpaAuthApi,
   type SsrAuthApi,

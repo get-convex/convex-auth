@@ -72,11 +72,12 @@ const core = setupCore({ component: components.auth, usersTable: "members" });
 
 ### Set up the provider on the client
 
-Wrap your app in `ConvexAuthProvider`, passing it the `auth.api` in `src/main.tsx`:
+In `src/main.tsx`, build the auth client with `createAuthClient`, passing it
+`api.auth`, and wrap your app in `ConvexAuthProvider`:
 
 <include
   lang="tsx"
-  meta='title="src/main.tsx" highlight="import { ConvexAuthProvider }" highlight="<ConvexAuthProvider" highlight="</ConvexAuthProvider>"'
+  meta='title="src/main.tsx" highlight="import { ConvexAuthProvider, createAuthClient }" highlight="const auth = createAuthClient({...});" highlight="<ConvexAuthProvider" highlight="</ConvexAuthProvider>"'
 >
   ../../../../../examples/react-google/src/main.tsx
 </include>
