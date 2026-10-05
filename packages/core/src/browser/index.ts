@@ -16,12 +16,7 @@ export {
   REFRESH_TOKEN_STORAGE_KEY,
 } from "./storage.ts";
 export { runWithMutex } from "./mutex.ts";
-export type { SignInValues, SignInValuesReader } from "./keyedStore.ts";
-export type {
-  AmbientSignInClient,
-  AmbientSignInContext,
-  AuthSignInApi,
-} from "./ambientSignInClient.ts";
+export type { AuthSignInApi } from "./signInApi.ts";
 export {
   createAuthClient,
   type CreateAuthClientOptions,

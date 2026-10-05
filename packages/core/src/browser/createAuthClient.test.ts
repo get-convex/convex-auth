@@ -2,7 +2,7 @@
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { ConvexAuthApi, TokenBundle } from "../lib/types.ts";
-import type { AuthSignInApi } from "./ambientSignInClient.ts";
+import type { AuthSignInApi } from "./signInApi.ts";
 import { createAuthClient } from "./createAuthClient.ts";
 import {
   InMemoryStorage,

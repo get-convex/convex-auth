@@ -5,12 +5,8 @@
  */
 import { ConvexHttpClient } from "convex/browser";
 import type { ConvexAuthApi } from "../lib/types.ts";
-import { oauth } from "../oauth/client.ts";
-import type {
-  AmbientSignInClient,
-  AuthSignInApi,
-} from "./ambientSignInClient.ts";
 import { AuthClient } from "./sessionManager.ts";
+import type { AuthSignInApi } from "./signInApi.ts";
 import { defaultStorage, type TokenStorage } from "./storage.ts";
 
 /** The `logger` option of a `ConvexHttpClient`. */
@@ -56,12 +52,6 @@ export type CreateAuthClientOptions = {
    * Pass it in plain JavaScript. `ConvexAuthProvider` sets it itself.
    */
   signInApi?: AuthSignInApi;
-  /**
-   * Ambient sign-ins to set up. Defaults to `[oauth()]`.
-   *
-   * @internal
-   */
-  ambientSignIns?: ReadonlyArray<AmbientSignInClient>;
 };
 
 /**
@@ -105,7 +95,6 @@ export function createAuthClient(options: CreateAuthClientOptions): AuthClient {
     storage: options.storage ?? defaultStorage(),
     storageNamespace: options.storageNamespace ?? url,
     verbose: options.verbose,
-    ambientSignIns: options.ambientSignIns ?? [oauth()],
   });
   if (options.signInApi !== undefined) {
     auth.setSignInApi(options.signInApi);

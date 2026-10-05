@@ -3,6 +3,7 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import {
   useOauth,
+  useOauthCallback,
   useSignInWithApple,
   type OauthFlowErrorCode,
 } from "@convex-dev/auth/providers/oauth/react";
@@ -65,6 +66,9 @@ function SignedIn(): ReactNode {
 }
 
 export default function App(): ReactNode {
+  // The sign-in form renders only after loading finishes, so the app root
+  // completes the OAuth callback on its first render.
+  useOauthCallback();
   const { isLoading, isAuthenticated } = useConvexAuth();
   return (
     <main>

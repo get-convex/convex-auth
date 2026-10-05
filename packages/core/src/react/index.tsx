@@ -36,8 +36,8 @@
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useContext, useMemo } from "react";
-import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
 import type { AuthClient } from "../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import {
   AuthProvider,
   ConvexAuthActionsContext,
@@ -47,7 +47,6 @@ import {
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
-export type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 export {
   createAuthClient,
   type CreateAuthClientOptions,

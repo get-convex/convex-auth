@@ -9,11 +9,11 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
-import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
 import {
   INITIAL_AUTH_STATE,
   type AuthClient,
 } from "../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import type { SlimTokenBundle, TokenBundle } from "../lib/types.ts";
 
 export type { AuthSignInApi };

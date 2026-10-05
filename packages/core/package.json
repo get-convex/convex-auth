@@ -232,10 +232,6 @@
       "types": "./dist/react/index.d.ts",
       "default": "./dist/react/index.js"
     },
-    "./react/providers": {
-      "types": "./dist/react/providers.d.ts",
-      "default": "./dist/react/providers.js"
-    },
     "./nextjs": {
       "types": "./dist/nextjs/index.d.ts",
       "default": "./dist/nextjs/index.js"

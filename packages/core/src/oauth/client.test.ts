@@ -1,20 +1,24 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { ConvexError } from "convex/values";
-import { AuthClient, type AuthState } from "../browser/sessionManager.ts";
+import type { AuthState } from "../browser/sessionManager.ts";
 import { InMemoryStorage, type TokenStorage } from "../browser/storage.ts";
-import { oauth } from "./client.ts";
+import {
+  completeOauthSignIn,
+  handleOauthCallback,
+  readOauthCallback,
+  startOauthSignIn,
+} from "./client.ts";
 import {
   acmeRefs,
-  NAMESPACE,
   calledPath,
   completed,
   flowStorage,
   invalidCode,
+  oauthContext,
   readFlow,
   restoreNavigatorProduct,
   seedPendingFlow,
-  setupOAuth,
   stubReactNative,
 } from "./testFlow.ts";
 
@@ -25,138 +29,124 @@ describe("OAuth client", () => {
     restoreNavigatorProduct();
   });
 
-  test("registers actions and a null flow error at setup", () => {
-    const { actions, flowError } = setupOAuth();
-    expect(actions.signIn).toBeTypeOf("function");
-    expect(flowError()).toBeNull();
+  test("readOauthCallback returns the code once and removes it", () => {
+    window.history.replaceState(null, "", "/page?convexAuthCode=code-1&x=1");
+
+    expect(readOauthCallback()).toEqual({ code: "code-1" });
+    expect(window.location.pathname).toBe("/page");
+    expect(window.location.search).toBe("?x=1");
+    expect(readOauthCallback()).toBeNull();
   });
 
-  test("registering oauth() twice on one provider throws", () => {
-    expect(
-      () =>
-        new AuthClient({
-          mode: "spa",
-          authApi: {
-            refreshSession: async () => ({ kind: "noSession" as const }),
-            signOut: async () => {},
-          },
-          storage: new InMemoryStorage(),
-          storageNamespace: NAMESPACE,
-          ambientSignIns: [oauth(), oauth()],
-        }),
-    ).toThrow(/registered twice/);
-  });
-
-  test("init redeems a callback code and adopts the session", async () => {
+  test("handleOauthCallback redeems a callback code and adopts the session", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(completed);
+    const { auth, convex, completeMutation, startMutation, flowError } =
+      oauthContext({ storage });
+    completeMutation.mockResolvedValueOnce(completed);
 
-    await client.init();
+    expect(handleOauthCallback({ auth, convex })).toBe(true);
+    await auth.init();
 
     await vi.waitFor(() =>
-      expect(client.getSnapshot().isAuthenticated).toBe(true),
+      expect(auth.getSnapshot().isAuthenticated).toBe(true),
     );
-    expect(mutation).toHaveBeenCalledOnce();
-    // The reference is rebuilt from the persisted function path.
-    expect(calledPath(mutation)).toBe("auth:completeSignInAcme");
-    expect(mutation.mock.calls[0]![1]).toEqual({
+    expect(completeMutation).toHaveBeenCalledOnce();
+    // The reference is rebuilt from the stored function path.
+    expect(calledPath(completeMutation)).toBe("auth:completeSignInAcme");
+    expect(completeMutation.mock.calls[0]![1]).toEqual({
       code: "code-1",
       state: "state-1",
     });
-    expect(client.getSnapshot().token).toBe("access-1");
+    expect(startMutation).not.toHaveBeenCalled();
+    expect(auth.getSnapshot().token).toBe("access-1");
     expect(flowError()).toBeNull();
-    // The one-time code is stripped from the URL.
+    // The one-time code is removed from the URL.
     expect(window.location.search).toBe("");
   });
 
-  test("stripping the callback params keeps the history state", async () => {
-    // Routers (React Router) keep their own entry state in `history.state`.
+  test("removing the callback params keeps the history state", async () => {
+    // Routers (React Router) store their own entry state in `history.state`.
     window.history.replaceState({ idx: 3 }, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(completed);
+    const { auth, convex, completeMutation } = oauthContext({ storage });
+    completeMutation.mockResolvedValueOnce(completed);
 
-    await client.init();
+    handleOauthCallback({ auth, convex });
 
-    await vi.waitFor(() =>
-      expect(client.getSnapshot().isAuthenticated).toBe(true),
-    );
     expect(window.location.search).toBe("");
     expect(window.history.state).toEqual({ idx: 3 });
+    await vi.waitFor(() =>
+      expect(auth.getSnapshot().isAuthenticated).toBe(true),
+    );
   });
 
   test("never reports signed out while a code is redeemed", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation } = setupOAuth({ storage });
+    const { auth, convex, completeMutation } = oauthContext({ storage });
     const { promise, resolve } = Promise.withResolvers<typeof completed>();
-    mutation.mockReturnValueOnce(promise);
+    completeMutation.mockReturnValueOnce(promise);
 
     // The session load finishes long before the redemption does. Any snapshot
-    // in between that is done loading and not authenticated would bounce the
+    // in between that is done loading and not authenticated would send the
     // user to a sign-in screen.
     const signedOut: AuthState[] = [];
-    const unsubscribe = client.subscribe(() => {
-      const state = client.getSnapshot();
+    const unsubscribe = auth.subscribe(() => {
+      const state = auth.getSnapshot();
       if (!state.isLoading && !state.isAuthenticated) {
         signedOut.push(state);
       }
     });
 
-    await client.init();
-    expect(client.getSnapshot().isLoading).toBe(true);
+    handleOauthCallback({ auth, convex });
+    await auth.init();
+    expect(auth.getSnapshot().isLoading).toBe(true);
 
     resolve(completed);
     await vi.waitFor(() =>
-      expect(client.getSnapshot().isAuthenticated).toBe(true),
+      expect(auth.getSnapshot().isAuthenticated).toBe(true),
     );
-    expect(client.getSnapshot().isLoading).toBe(false);
+    expect(auth.getSnapshot().isLoading).toBe(false);
     expect(signedOut).toEqual([]);
     unsubscribe();
   });
 
-  test("a second client on the same URL finds it clean and no-ops", async () => {
+  test("a second client on the same URL finds it clean and does nothing", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client: first, mutation: firstMutation } = setupOAuth({ storage });
-    firstMutation.mockResolvedValueOnce(completed);
+    const first = oauthContext({ storage });
+    first.completeMutation.mockResolvedValueOnce(completed);
 
-    await first.init();
+    expect(handleOauthCallback(first)).toBe(true);
     await vi.waitFor(() =>
-      expect(first.getSnapshot().isAuthenticated).toBe(true),
+      expect(first.auth.getSnapshot().isAuthenticated).toBe(true),
     );
-    expect(window.location.search).toBe("");
 
-    // The code is one-time, so a second client over the same page must not try
-    // to redeem it again. Each harness makes its own mutation spy, so a second
-    // redemption would show up on the second client's spy.
-    const {
-      client: second,
-      mutation: secondMutation,
-      flowError: secondFlowError,
-    } = setupOAuth({ storage });
-    await second.init();
+    // The code is one-time, so a second client over the same page must not
+    // try to redeem it again. Each harness has its own mocks, so a second
+    // redemption would show up on the second client's mock.
+    const second = oauthContext({ storage });
 
-    expect(secondMutation).not.toHaveBeenCalled();
-    // A code still in the URL with the flow already consumed would land here
-    // as invalid_flow.
-    expect(secondFlowError()).toBeNull();
+    expect(handleOauthCallback(second)).toBe(false);
+    expect(second.completeMutation).not.toHaveBeenCalled();
+    // A code left in the URL with the flow already consumed would set
+    // invalid_flow here.
+    expect(second.flowError()).toBeNull();
   });
 
-  test("a callback error param sets the flow error and strips the URL", async () => {
+  test("a callback error param sets the flow error and removes the URL params", () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
-    const { client, mutation, flowError } = setupOAuth();
+    const { auth, convex, completeMutation, flowError } = oauthContext();
 
-    await client.init();
+    expect(handleOauthCallback({ auth, convex })).toBe(true);
 
     expect(flowError()).toEqual({ code: "access_denied" });
-    expect(mutation).not.toHaveBeenCalled();
+    expect(completeMutation).not.toHaveBeenCalled();
     expect(window.location.search).toBe("");
   });
 
@@ -164,111 +154,124 @@ describe("OAuth client", () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, flowError } = setupOAuth({ storage });
+    const { auth, convex, flowError } = oauthContext({ storage });
 
-    await client.init();
+    handleOauthCallback({ auth, convex });
 
     expect(flowError()?.code).toBe("access_denied");
     // The flow ended in an error, so the stored state can never complete.
     await vi.waitFor(() => expect(readFlow(storage)).toBeNull());
   });
 
-  test("an unknown error param normalizes to oauth_error", async () => {
+  test("an unknown error param normalizes to oauth_error", () => {
     window.history.replaceState(null, "", "/?convexAuthError=server_exploded");
-    const { client, flowError } = setupOAuth();
+    const { auth, convex, flowError } = oauthContext();
 
-    await client.init();
+    handleOauthCallback({ auth, convex });
 
     expect(flowError()?.code).toBe("oauth_error");
   });
 
   test("a code without a pending flow sets invalid_flow", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
-    const { client, mutation, flowError } = setupOAuth();
+    const { auth, convex, completeMutation, flowError } = oauthContext();
 
-    await client.init();
+    handleOauthCallback({ auth, convex });
+    await auth.init();
 
     await vi.waitFor(() => expect(flowError()?.code).toBe("invalid_flow"));
-    expect(mutation).not.toHaveBeenCalled();
-    expect(client.getSnapshot().isLoading).toBe(false);
-    expect(client.getSnapshot().isAuthenticated).toBe(false);
+    expect(completeMutation).not.toHaveBeenCalled();
+    expect(auth.getSnapshot().isLoading).toBe(false);
+    expect(auth.getSnapshot().isAuthenticated).toBe(false);
   });
 
   test("a pending flow without a completeSignIn path is invalid", async () => {
-    // A record saved by an older client, or tampered with, that has no
-    // function path. It must not crash or half-redeem.
-    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+    // A record saved by an older client, or edited by hand, that has no
+    // function path. It must not crash or partly redeem.
     const storage = new InMemoryStorage();
     void flowStorage(storage).set(
       "flow",
       JSON.stringify({ providerName: "acme", state: "state-1" }),
     );
-    const { client, mutation, flowError } = setupOAuth({ storage });
+    const { auth, convex, completeMutation, flowError } = oauthContext({
+      storage,
+    });
 
-    await client.init();
+    await expect(completeOauthSignIn({ auth, convex }, "code-1")).resolves.toBe(
+      false,
+    );
 
-    await vi.waitFor(() => expect(flowError()?.code).toBe("invalid_flow"));
-    expect(mutation).not.toHaveBeenCalled();
+    expect(flowError()?.code).toBe("invalid_flow");
+    expect(completeMutation).not.toHaveBeenCalled();
   });
 
   test("an INVALID_CODE error sets expired", async () => {
-    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(invalidCode);
+    const { auth, convex, completeMutation, flowError } = oauthContext({
+      storage,
+    });
+    completeMutation.mockResolvedValueOnce(invalidCode);
 
-    await client.init();
+    await expect(completeOauthSignIn({ auth, convex }, "code-1")).resolves.toBe(
+      false,
+    );
 
-    await vi.waitFor(() => expect(flowError()?.code).toBe("expired"));
-    expect(client.getSnapshot().isAuthenticated).toBe(false);
+    expect(flowError()?.code).toBe("expired");
+    expect(auth.getSnapshot().isAuthenticated).toBe(false);
   });
 
-  test("a failed redemption sets oauth_error", async () => {
-    // Also the dangling-path case: a persisted function path whose export was
-    // renamed mid-flight fails the call the same way.
-    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+  test("a thrown redemption sets oauth_error", async () => {
+    // Also the case of a stored function path whose export was renamed during
+    // the sign-in. The call fails the same way.
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockRejectedValueOnce(new Error("boom"));
+    const { auth, convex, completeMutation, flowError } = oauthContext({
+      storage,
+    });
+    completeMutation.mockRejectedValueOnce(new Error("boom"));
+    await auth.init();
 
-    await client.init();
+    await expect(completeOauthSignIn({ auth, convex }, "code-1")).resolves.toBe(
+      false,
+    );
 
-    await vi.waitFor(() => expect(flowError()?.code).toBe("oauth_error"));
-    expect(client.getSnapshot().isLoading).toBe(false);
+    expect(flowError()?.code).toBe("oauth_error");
+    expect(auth.getSnapshot().isLoading).toBe(false);
   });
 
   test("an app rejection sets rejected with the ConvexError message", async () => {
-    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockRejectedValueOnce(
+    const { auth, convex, completeMutation, flowError } = oauthContext({
+      storage,
+    });
+    completeMutation.mockRejectedValueOnce(
       new ConvexError("A verified email is required to sign in"),
     );
 
-    await client.init();
+    await completeOauthSignIn({ auth, convex }, "code-1");
 
-    await vi.waitFor(() =>
-      expect(flowError()).toEqual({
-        code: "rejected",
-        message: "A verified email is required to sign in",
-      }),
-    );
-    expect(client.getSnapshot().isAuthenticated).toBe(false);
+    expect(flowError()).toEqual({
+      code: "rejected",
+      message: "A verified email is required to sign in",
+    });
+    expect(auth.getSnapshot().isAuthenticated).toBe(false);
   });
 
   test("an app rejection with non-string data has no message", async () => {
-    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation, flowError } = setupOAuth({ storage });
-    mutation.mockRejectedValueOnce(new ConvexError({ reason: "policy" }));
+    const { auth, convex, completeMutation, flowError } = oauthContext({
+      storage,
+    });
+    completeMutation.mockRejectedValueOnce(
+      new ConvexError({ reason: "policy" }),
+    );
 
-    await client.init();
+    await completeOauthSignIn({ auth, convex }, "code-1");
 
-    await vi.waitFor(() => expect(flowError()?.code).toBe("rejected"));
+    expect(flowError()?.code).toBe("rejected");
     // Only a string is text the app meant for the user, so there is nothing
     // to show here.
     expect(flowError()?.message).toBeUndefined();
@@ -276,8 +279,8 @@ describe("OAuth client", () => {
 
   test("a rejected storage read during redemption sets oauth_error", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
-    // Fail reads of the saved flow key, the way an async storage might. Reads
-    // of the session tokens still work.
+    // Fail reads of the pending flow key, the way an async storage might.
+    // Reads of the session tokens work.
     const storage: TokenStorage = {
       getItem: (key) =>
         key.startsWith("__convexAuthProvider_oauth_flow")
@@ -286,13 +289,16 @@ describe("OAuth client", () => {
       setItem: () => {},
       removeItem: () => {},
     };
-    const { client, mutation, flowError } = setupOAuth({ storage });
+    const { auth, convex, completeMutation, flowError } = oauthContext({
+      storage,
+    });
 
-    await client.init();
+    handleOauthCallback({ auth, convex });
+    await auth.init();
 
     await vi.waitFor(() => expect(flowError()?.code).toBe("oauth_error"));
-    expect(mutation).not.toHaveBeenCalled();
-    expect(client.getSnapshot().isLoading).toBe(false);
+    expect(completeMutation).not.toHaveBeenCalled();
+    expect(auth.getSnapshot().isLoading).toBe(false);
   });
 
   test("a rejected storage removal during error cleanup keeps the flow error", async () => {
@@ -302,9 +308,9 @@ describe("OAuth client", () => {
       setItem: () => {},
       removeItem: () => Promise.reject(new Error("storage broken")),
     };
-    const { client, flowError } = setupOAuth({ storage });
+    const { auth, convex, flowError } = oauthContext({ storage });
 
-    await client.init();
+    handleOauthCallback({ auth, convex });
 
     expect(flowError()?.code).toBe("access_denied");
     // The cleanup is not awaited, so let the event loop run once for it to
@@ -313,26 +319,31 @@ describe("OAuth client", () => {
     expect(flowError()?.code).toBe("access_denied");
   });
 
-  test("signIn starts a flow, persists it, and returns the redirect", async () => {
+  test("startOauthSignIn starts a flow through the Convex client, stores it, and returns the redirect", async () => {
     stubReactNative();
-    const { mutation, actions, storage } = setupOAuth();
-    mutation.mockResolvedValueOnce({
+    const { auth, convex, startMutation, completeMutation, storage } =
+      oauthContext();
+    startMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth?client_id=x",
       state: "state-1",
     });
 
-    const outcome = await actions.signIn(acmeRefs, {
+    const outcome = await startOauthSignIn({ auth, convex }, acmeRefs, {
       redirectTo: "http://localhost/app",
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeRefs.startSignIn, {
-      redirectTo: "http://localhost/app",
-    });
+    expect(startMutation).toHaveBeenCalledExactlyOnceWith(
+      acmeRefs.startSignIn,
+      {
+        redirectTo: "http://localhost/app",
+      },
+    );
+    expect(completeMutation).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       redirect: new URL("https://provider.example/auth?client_id=x"),
     });
-    // The persisted flow has the completeSignIn function path, so
-    // completion can run on a page that never held the references.
+    // The stored flow has the completeSignIn function path, so completion can
+    // run on a page that never had the references.
     expect(readFlow(storage)).toEqual({
       providerName: "acme",
       state: "state-1",
@@ -340,75 +351,89 @@ describe("OAuth client", () => {
     });
   });
 
-  test("signIn with a code completes the pending flow", async () => {
+  test("startOauthSignIn with a code completes the pending flow through the auth client", async () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage);
-    const { client, mutation, actions } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce(completed);
+    const { auth, convex, completeMutation, startMutation } = oauthContext({
+      storage,
+    });
+    completeMutation.mockResolvedValueOnce(completed);
 
-    const outcome = await actions.signIn(acmeRefs, { code: "code-1" });
+    const outcome = await startOauthSignIn({ auth, convex }, acmeRefs, {
+      code: "code-1",
+    });
 
     expect(outcome).toEqual({ signedIn: true });
-    expect(mutation).toHaveBeenCalledOnce();
-    expect(calledPath(mutation)).toBe("auth:completeSignInAcme");
-    expect(mutation.mock.calls[0]![1]).toEqual({
+    expect(completeMutation).toHaveBeenCalledOnce();
+    expect(calledPath(completeMutation)).toBe("auth:completeSignInAcme");
+    expect(completeMutation.mock.calls[0]![1]).toEqual({
       code: "code-1",
       state: "state-1",
     });
-    expect(client.getSnapshot().isAuthenticated).toBe(true);
+    expect(startMutation).not.toHaveBeenCalled();
+    expect(auth.getSnapshot().isAuthenticated).toBe(true);
   });
 
-  test("signIn clears a previous flow error", async () => {
+  test("startOauthSignIn clears a previous flow error", async () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
     stubReactNative();
-    const { client, mutation, actions, flowError } = setupOAuth();
-    await client.init();
+    const { auth, convex, startMutation, flowError } = oauthContext();
+    handleOauthCallback({ auth, convex });
     expect(flowError()?.code).toBe("access_denied");
 
-    mutation.mockResolvedValueOnce({
+    startMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-2",
     });
-    // React Native has no page URL to default to, so `redirectTo` is required.
-    await actions.signIn(acmeRefs, { redirectTo: "http://localhost/app" });
+    await startOauthSignIn({ auth, convex }, acmeRefs, {
+      redirectTo: "http://localhost/app",
+    });
 
     expect(flowError()).toBeNull();
   });
 
   test("a failed start sets the flow error and rejects", async () => {
-    const { mutation, actions, flowError, storage } = setupOAuth();
-    mutation.mockRejectedValueOnce(new Error("boom"));
+    const { auth, convex, startMutation, flowError, storage } = oauthContext();
+    startMutation.mockRejectedValueOnce(new Error("boom"));
 
-    await expect(actions.signIn(acmeRefs)).rejects.toThrow("boom");
+    await expect(startOauthSignIn({ auth, convex }, acmeRefs)).rejects.toThrow(
+      "boom",
+    );
 
-    // The flow error is still published even when the caller ignores the
-    // rejection, like a click handler that does not await.
+    // The flow error is set even when the caller ignores the rejection, like a
+    // click handler that does not await.
     expect(flowError()?.code).toBe("oauth_error");
     expect(flowStorage(storage).get("flow")).toBeNull();
   });
 
-  test("a start that can't save the flow sets the flow error and rejects", async () => {
+  test("a start that can't store the flow sets the flow error and rejects", async () => {
     const storage: TokenStorage = {
       getItem: () => null,
       setItem: () => Promise.reject(new Error("storage broken")),
       removeItem: () => {},
     };
-    const { mutation, actions, flowError } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce({
+    const { auth, convex, startMutation, flowError } = oauthContext({
+      storage,
+    });
+    startMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-1",
     });
 
-    await expect(actions.signIn(acmeRefs)).rejects.toThrow("storage broken");
+    await expect(startOauthSignIn({ auth, convex }, acmeRefs)).rejects.toThrow(
+      "storage broken",
+    );
 
     expect(flowError()?.code).toBe("oauth_error");
   });
 
   test("a rejected start sets the app's message and rejects", async () => {
-    const { mutation, actions, flowError } = setupOAuth();
-    mutation.mockRejectedValueOnce(new ConvexError("Sign-ups are closed"));
+    const { auth, convex, startMutation, flowError } = oauthContext();
+    startMutation.mockRejectedValueOnce(new ConvexError("Sign-ups are closed"));
 
-    await expect(actions.signIn(acmeRefs)).rejects.toThrow();
+    await expect(
+      startOauthSignIn({ auth, convex }, acmeRefs),
+    ).rejects.toThrow();
 
     expect(flowError()).toEqual({
       code: "rejected",
@@ -416,14 +441,15 @@ describe("OAuth client", () => {
     });
   });
 
-  test("a foreign code/error param is ignored and left in the URL", async () => {
+  test("foreign code and error params are ignored and left in the URL", () => {
     window.history.replaceState(null, "", "/?code=foreign&error=foreign");
-    const { client, mutation, flowError } = setupOAuth();
+    const { auth, convex, completeMutation, flowError } = oauthContext();
 
-    await client.init();
+    expect(handleOauthCallback({ auth, convex })).toBe(false);
 
-    // Only namespaced params are ours. A plain code or error is the app's.
-    expect(mutation).not.toHaveBeenCalled();
+    // Only namespaced params belong to this module. A plain code or error is
+    // the app's.
+    expect(completeMutation).not.toHaveBeenCalled();
     expect(flowError()).toBeNull();
     expect(window.location.search).toBe("?code=foreign&error=foreign");
   });

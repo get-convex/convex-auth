@@ -3,7 +3,12 @@
 // jsdom always has a `window.location`, so the client's no-page-URL cases need
 // their own file with a node environment.
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { acmeRefs, readFlow, setupOAuth } from "./testFlow.ts";
+import {
+  handleOauthCallback,
+  readOauthCallback,
+  startOauthSignIn,
+} from "./client.ts";
+import { acmeRefs, oauthContext, readFlow } from "./testFlow.ts";
 
 describe("OAuth client with no page URL", () => {
   afterEach(() => {
@@ -11,62 +16,63 @@ describe("OAuth client with no page URL", () => {
     vi.restoreAllMocks();
   });
 
-  test("init does nothing when there is no window", async () => {
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { client, mutation } = setupOAuth();
+  test("the callback functions do nothing when there is no window", () => {
+    const { auth, convex, completeMutation, startMutation } = oauthContext();
 
-    await client.init();
+    expect(readOauthCallback()).toBeNull();
+    expect(handleOauthCallback({ auth, convex })).toBe(false);
 
-    expect(logged).not.toHaveBeenCalled();
-    expect(mutation).not.toHaveBeenCalled();
+    expect(completeMutation).not.toHaveBeenCalled();
+    expect(startMutation).not.toHaveBeenCalled();
   });
 
-  test("init does nothing when the window has no location", async () => {
-    // The React Native shape. Reading `window.location.href` here would throw,
-    // and the thrown error would be logged as a failed init callback.
+  test("the callback functions do nothing when the window has no location", () => {
+    // The React Native shape. Reading `window.location.href` here would throw.
     vi.stubGlobal("window", {});
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { client, mutation } = setupOAuth();
+    const { auth, convex, completeMutation, startMutation } = oauthContext();
 
-    await client.init();
+    expect(readOauthCallback()).toBeNull();
+    expect(handleOauthCallback({ auth, convex })).toBe(false);
 
-    expect(logged).not.toHaveBeenCalled();
-    expect(mutation).not.toHaveBeenCalled();
+    expect(completeMutation).not.toHaveBeenCalled();
+    expect(startMutation).not.toHaveBeenCalled();
   });
 
-  test("signIn without redirectTo says redirectTo is required", async () => {
+  test("startOauthSignIn without redirectTo says redirectTo is required", async () => {
     vi.stubGlobal("window", {});
-    const { actions, mutation } = setupOAuth();
+    const { auth, convex, startMutation } = oauthContext();
 
-    await expect(actions.signIn(acmeRefs)).rejects.toThrow(
+    await expect(startOauthSignIn({ auth, convex }, acmeRefs)).rejects.toThrow(
       /`redirectTo` is required/,
     );
-    expect(mutation).not.toHaveBeenCalled();
+    expect(startMutation).not.toHaveBeenCalled();
   });
 
-  test("a signIn that throws leaves the previous flow error alone", async () => {
+  test("a start that throws leaves the previous flow error alone", async () => {
     vi.stubGlobal("window", {});
-    const { actions, flowError } = setupOAuth();
-    // A code with no stored flow is the cheapest way to put an error in place.
-    await actions.signIn(acmeRefs, { code: "code-1" });
+    const { auth, convex, flowError } = oauthContext();
+    // A code with no stored flow is the cheapest way to set an error.
+    await startOauthSignIn({ auth, convex }, acmeRefs, { code: "code-1" });
     expect(flowError()?.code).toBe("invalid_flow");
 
-    await expect(actions.signIn(acmeRefs)).rejects.toThrow();
+    await expect(
+      startOauthSignIn({ auth, convex }, acmeRefs),
+    ).rejects.toThrow();
 
     expect(flowError()?.code).toBe("invalid_flow");
   });
 
-  test("signIn with redirectTo starts a flow without navigating", async () => {
+  test("startOauthSignIn with redirectTo starts a flow without navigating", async () => {
     // Assigning `window.location.href` would throw here, so a flow that starts
     // must not try. React Native opens the returned url itself.
     vi.stubGlobal("window", {});
-    const { actions, mutation, storage } = setupOAuth();
-    mutation.mockResolvedValueOnce({
+    const { auth, convex, startMutation, storage } = oauthContext();
+    startMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-1",
     });
 
-    const outcome = await actions.signIn(acmeRefs, {
+    const outcome = await startOauthSignIn({ auth, convex }, acmeRefs, {
       redirectTo: "https://app.example/done",
     });
 

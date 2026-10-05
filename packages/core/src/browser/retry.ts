@@ -1,8 +1,10 @@
 /**
- * Retry policy for the client's auth calls (session refresh, OAuth code
- * redemption). These calls commonly fail transiently on mobile when the app
- * is backgrounded mid-request and succeed once it returns to the foreground,
- * so a network error is worth a couple of retries before giving up.
+ * Retry policy for the client's HTTP auth calls. `AuthClient.fetchAccessToken`
+ * uses it for the session refresh in both session modes, and the Next.js
+ * client uses it for each call to the sign-in proxy. These calls commonly
+ * fail on mobile when the app goes to the background during a request, and
+ * succeed once it returns to the foreground. So a network error is worth a
+ * couple of retries before the call fails.
  */
 
 /** Retry after this much time (ms), based on the retry number. */

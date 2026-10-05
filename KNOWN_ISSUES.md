@@ -25,10 +25,10 @@ No action item, just here for awareness.
 
 ## One pending OAuth flow per storage
 
-The client keeps a single pending-flow key (`flow` in the oauth setup's
-scoped storage, `packages/core/src/oauth/client.ts`). Two sign-ins running concurrently in
-different tabs overwrite each other, and both fail recoverably (`expired` /
-`invalid_flow`); retrying works.
+The client keeps a single pending-flow key (`flow` in
+`auth.signInStorage("oauth")`, `packages/core/src/oauth/client.ts`). Two
+sign-ins running concurrently in different tabs overwrite each other, and both
+fail recoverably (`expired` / `invalid_flow`); retrying works.
 
 Fix direction: keyed pending flows selected by a non-secret flow id carried
 in the redirect URL. The state itself must still never be read from the URL,
@@ -42,19 +42,11 @@ rejected at setup (`packages/core/src/oauth/shared/redemption.ts`), so React
 Native apps must return via https universal links / app links.
 
 React Native also has no page URL for the client to work from: it defines
-`window` but no `window.location`. So the startup handler that finishes a flow
-from callback params does nothing there, and `signIn` requires an explicit
-`redirectTo` (`packages/core/src/oauth/client.ts`). Supporting React Native
+`window` but no `window.location`. So `handleOauthCallback` does nothing
+there, and `startOauthSignIn` requires an explicit `redirectTo`
+(`packages/core/src/oauth/client.ts`). Supporting React Native
 properly means deciding what `redirectTo` looks like when it can't be a page
 URL.
-
-## OAuth isn't wired into the Next.js client
-
-`ConvexAuthNextjsProvider` builds its `AuthClient` with no ambient sign-ins and
-takes no prop for them (`packages/core/src/nextjs/index.tsx`), so `oauth()` is
-never registered and the OAuth hooks throw wherever they're used under SSR. The
-sign-in api pointed at the auth proxy is already there, so what's missing is the
-registration.
 
 ## Refresh-token reuse detection has a bounded horizon
 

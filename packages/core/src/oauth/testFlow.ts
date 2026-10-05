@@ -5,8 +5,8 @@
  */
 import { getFunctionName, makeFunctionReference } from "convex/server";
 import { vi } from "vitest";
-import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import {
   InMemoryStorage,
   NamespacedStorage,
@@ -14,15 +14,12 @@ import {
 } from "../browser/storage.ts";
 import type { TokenBundle } from "../lib/types.ts";
 import {
-  OAUTH_ACTIONS_KEY,
-  OAUTH_FLOW_ERROR_KEY,
-  OAUTH_SETUP_ID,
-  oauth,
-  type OauthActions,
-  type OauthFlowError,
+  OAUTH_STORAGE_ID,
+  type OauthClientContext,
   type OauthProviderRefs,
   type PendingFlow,
 } from "./client.ts";
+import { getOauthFlowError } from "./flowState.ts";
 
 /** The deployment url the tests namespace their storage under. */
 export const NAMESPACE = "https://happy-animal-123.convex.cloud";
@@ -50,9 +47,9 @@ export const invalidCode = {
 
 /**
  * A stand-in provider, for tests that don't care which provider ran. The refs
- * have paths that look like an app's because `signIn` saves the completeSignIn
- * path and completion rebuilds the reference from it, so assertions compare
- * paths, not references.
+ * have paths that look like an app's because `startOauthSignIn` stores the
+ * completeSignIn path and completion rebuilds the reference from it, so
+ * assertions compare paths, not references.
  */
 export const acmeRefs: OauthProviderRefs = {
   providerName: "acme",
@@ -60,9 +57,9 @@ export const acmeRefs: OauthProviderRefs = {
   completeSignIn: makeFunctionReference<"mutation">("auth:completeSignInAcme"),
 };
 
-/** The oauth setup's scoped storage view over `storage`. */
+/** The `auth.signInStorage("oauth")` view over `storage`. */
 export function flowStorage(storage: TokenStorage) {
-  return new NamespacedStorage(storage, NAMESPACE).forSignIn(OAUTH_SETUP_ID);
+  return new NamespacedStorage(storage, NAMESPACE).forSignIn(OAUTH_STORAGE_ID);
 }
 
 /**
@@ -77,7 +74,7 @@ export function readFlow(storage: TokenStorage): PendingFlow | null {
   return JSON.parse(raw) as PendingFlow;
 }
 
-/** Store a pending flow the way `signIn` would before navigating away. */
+/** Store a pending flow the way `startOauthSignIn` does before it navigates. */
 export function seedPendingFlow(
   storage: TokenStorage,
   refs: OauthProviderRefs = acmeRefs,
@@ -94,18 +91,17 @@ export function seedPendingFlow(
 }
 
 /**
- * An AuthClient with the real oauth setup registered, plus the `mutation` mock
- * standing in for the Convex call. The mock records the function reference it
- * was called with, so tests can assert which function ran.
+ * An SPA auth client and a Convex client stand-in for the OAuth functions.
+ * `completeMutation` is the auth client's sign-in API and `startMutation` is
+ * the Convex client's `mutation`. Each mock records the function reference
+ * that it was called with, so tests can assert which function ran.
  */
-export function oauthClient(storage: TokenStorage): {
-  client: AuthClient;
-  signInApi: AuthSignInApi;
-  mutation: ReturnType<typeof vi.fn>;
-} {
-  const mutation = vi.fn();
-  const signInApi = { mutation, action: vi.fn() } as unknown as AuthSignInApi;
-  const client = new AuthClient({
+export function oauthContext({
+  storage = new InMemoryStorage() as TokenStorage,
+} = {}) {
+  const completeMutation = vi.fn();
+  const startMutation = vi.fn();
+  const auth = new AuthClient({
     mode: "spa",
     authApi: {
       refreshSession: async () => ({ kind: "noSession" as const }),
@@ -113,22 +109,16 @@ export function oauthClient(storage: TokenStorage): {
     },
     storage,
     storageNamespace: NAMESPACE,
-    ambientSignIns: [oauth()],
   });
-  client.setSignInApi(signInApi);
-  return { client, signInApi, mutation };
-}
-
-/** {@link oauthClient} plus the values the oauth setup published. */
-export function setupOAuth({
-  storage = new InMemoryStorage() as TokenStorage,
-} = {}) {
-  const { client, mutation } = oauthClient(storage);
-  const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
-  const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
-  const flowError = () =>
-    oauthValues.get<OauthFlowError | null>(OAUTH_FLOW_ERROR_KEY);
-  return { client, mutation, actions, flowError, storage };
+  auth.setSignInApi({
+    mutation: completeMutation,
+    action: vi.fn(),
+  } as unknown as AuthSignInApi);
+  const convex = {
+    mutation: startMutation,
+  } as unknown as OauthClientContext["convex"];
+  const flowError = () => getOauthFlowError(auth);
+  return { auth, convex, completeMutation, startMutation, flowError, storage };
 }
 
 /** The function path the `mutation` mock was called with. */

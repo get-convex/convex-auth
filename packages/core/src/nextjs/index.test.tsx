@@ -57,6 +57,7 @@ function makeAuth(
 describe("createNextjsAuthClient", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -105,6 +106,20 @@ describe("createNextjsAuthClient", () => {
     });
     // Signed out, so no token is sent.
     expect(request.headers.Authorization).toBeUndefined();
+  });
+
+  test("a sign-in call retries after a network error", async () => {
+    vi.useFakeTimers();
+    const { fetchMock } = stubFetch({ proxyValue: "result" });
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const { auth } = makeAuth();
+
+    const result = auth.signIn.mutation(SIGN_IN, {});
+    // The first retry waits 500ms plus up to 100ms of jitter.
+    await vi.advanceTimersByTimeAsync(600);
+
+    await expect(result).resolves.toBe("result");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   test("each sign-in call sends the current access token", async () => {

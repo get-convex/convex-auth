@@ -60,6 +60,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 import type { HttpClientLogger } from "../browser/createAuthClient.ts";
+import { retryOnNetworkError } from "../browser/retry.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
@@ -165,9 +166,13 @@ export function createNextjsAuthClient(
     else proxy.clearAuth();
     return proxy;
   };
+  // The proxy HTTP client does not re-send a request after a network error,
+  // so each sign-in call retries.
   auth.setSignInApi({
-    mutation: (fn, args) => withAuth().mutation(fn, args),
-    action: (fn, args) => withAuth().action(fn, args),
+    mutation: (fn, args) =>
+      retryOnNetworkError(() => withAuth().mutation(fn, args)),
+    action: (fn, args) =>
+      retryOnNetworkError(() => withAuth().action(fn, args)),
   });
   return auth;
 }

@@ -1,21 +1,15 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { StrictMode, useEffect } from "react";
 import { describe, expect, test, vi } from "vitest";
-import type {
-  AmbientSignInClient,
-  AuthSignInApi,
-} from "../browser/ambientSignInClient.ts";
 import { InMemoryStorage } from "../browser/storage.ts";
-import { useOauth } from "../oauth/react.ts";
 import {
   ConvexAuthProvider,
   createAuthClient,
   useAuthClient,
 } from "./index.tsx";
-import { useAmbientSignInValue } from "./providers.ts";
 
 const URL = "https://happy-animal-123.convex.cloud";
 
@@ -34,28 +28,13 @@ function makeConvexClient() {
   return new ConvexReactClient(URL);
 }
 
-/** An auth client with in-memory storage and the given ambient sign-ins. */
-function makeAuthClient(ambientSignIns?: AmbientSignInClient[]) {
+/** An auth client with in-memory storage. */
+function makeAuthClient() {
   return createAuthClient({
     url: URL,
     api: API,
     storage: new InMemoryStorage(),
-    ambientSignIns,
   });
-}
-
-/** Renders the value a probe setup publishes under its scoped `status` key. */
-function ProbeStatus() {
-  const status = useAmbientSignInValue<string>("probe", "status");
-  return <div>{status ?? "missing"}</div>;
-}
-
-/**
- * Renders the flow error from the default oauth setup. The hook throws when
- * oauth() was never registered, so rendering this at all is the assertion.
- */
-function OauthFlowError() {
-  return <div>{String(useOauth().flowError)}</div>;
 }
 
 describe("ConvexAuthProvider", () => {
@@ -179,71 +158,5 @@ describe("ConvexAuthProvider", () => {
     await waitFor(() => expect(auth.getSnapshot().isLoading).toBe(false));
     await expect(auth.signIn.mutation(SIGN_IN, {})).resolves.toBe("result");
     expect(mutation).toHaveBeenCalledOnce();
-  });
-});
-
-describe("ConvexAuthProvider ambient sign-ins", () => {
-  test("published setup values are readable on the first render", () => {
-    const probe: AmbientSignInClient = {
-      id: "probe",
-      setup: (ctx) => {
-        ctx.values.set("status", "registered");
-      },
-    };
-    render(
-      <ConvexAuthProvider
-        client={makeConvexClient()}
-        auth={makeAuthClient([probe])}
-      >
-        <ProbeStatus />
-      </ConvexAuthProvider>,
-    );
-    expect(screen.getByText("registered")).toBeDefined();
-  });
-
-  test("onInit runs once per client under StrictMode", () => {
-    const onInit = vi.fn();
-    const auth = makeAuthClient([{ id: "probe", setup: () => ({ onInit }) }]);
-    render(
-      <StrictMode>
-        <ConvexAuthProvider client={makeConvexClient()} auth={auth}>
-          <div />
-        </ConvexAuthProvider>
-      </StrictMode>,
-    );
-    expect(onInit).toHaveBeenCalledTimes(1);
-  });
-
-  test("setups receive the auth client's sign-in API", () => {
-    const fromSetup: AuthSignInApi[] = [];
-    const fromHook: AuthSignInApi[] = [];
-    function Capture() {
-      fromHook.push(useAuthClient().signIn);
-      return null;
-    }
-    const auth = makeAuthClient([
-      {
-        id: "probe",
-        setup: (ctx) => {
-          fromSetup.push(ctx.signInApi);
-        },
-      },
-    ]);
-    render(
-      <ConvexAuthProvider client={makeConvexClient()} auth={auth}>
-        <Capture />
-      </ConvexAuthProvider>,
-    );
-    expect(fromSetup[0]).toBe(auth.signIn);
-    expect(fromHook[0]).toBe(auth.signIn);
-  });
-
-  test("createAuthClient registers oauth() by default", () => {
-    render(
-      <ConvexAuthProvider client={makeConvexClient()} auth={makeAuthClient()}>
-        <OauthFlowError />
-      </ConvexAuthProvider>,
-    );
-    expect(screen.getByText("null")).toBeDefined();
   });
 });
