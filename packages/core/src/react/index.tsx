@@ -35,7 +35,7 @@
 "use client";
 
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { ReactNode, useContext, useMemo } from "react";
+import { ReactNode, useContext, useEffect, useMemo } from "react";
 import type { AuthClient } from "../browser/sessionManager.ts";
 import type { AuthSignInApi } from "../browser/signInApi.ts";
 import {
@@ -82,6 +82,24 @@ export function ConvexAuthProvider({
   // Set during render, because the mount effects of child components call
   // auth.signIn before the effects of this component run.
   auth.setSignInApi(signInApi);
+
+  // Under expectAuth the Convex client pauses its websocket until setAuth
+  // runs, and a signed-out user sends the sign-in mutation over that socket.
+  useEffect(() => {
+    let settled = false;
+    const listener = () => {
+      const { isLoading, isAuthenticated } = auth.getSnapshot();
+      if (settled || isLoading) return;
+      settled = true;
+      unsubscribe();
+      if (!isAuthenticated) {
+        client.setAuth(auth.fetchAccessToken, () => {});
+      }
+    };
+    const unsubscribe = auth.subscribe(listener);
+    listener();
+    return unsubscribe;
+  }, [auth, client]);
 
   return (
     <AuthProvider authClient={auth}>

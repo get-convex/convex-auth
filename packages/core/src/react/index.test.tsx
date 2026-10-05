@@ -3,8 +3,13 @@ import { render, waitFor } from "@testing-library/react";
 import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { StrictMode, useEffect } from "react";
-import { describe, expect, test, vi } from "vitest";
-import { InMemoryStorage } from "../browser/storage.ts";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import {
+  InMemoryStorage,
+  JWT_STORAGE_KEY,
+  NamespacedStorage,
+  REFRESH_TOKEN_STORAGE_KEY,
+} from "../browser/storage.ts";
 import {
   ConvexAuthProvider,
   createAuthClient,
@@ -20,14 +25,6 @@ const API = {
 
 const SIGN_IN = makeFunctionReference<"mutation">("auth:signInProbe");
 
-/**
- * A real Convex client against a fake deployment URL. Nothing here
- * authenticates or subscribes, so it never opens a connection.
- */
-function makeConvexClient() {
-  return new ConvexReactClient(URL);
-}
-
 /** An auth client with in-memory storage. */
 function makeAuthClient() {
   return createAuthClient({
@@ -35,6 +32,42 @@ function makeAuthClient() {
     api: API,
     storage: new InMemoryStorage(),
   });
+}
+
+/** A WebSocket stand-in that records sent messages and opens on request. */
+class FakeWebSocket {
+  static instances: FakeWebSocket[] = [];
+  sent: string[] = [];
+  onopen: ((event: Event) => void) | null = null;
+  onclose: ((event: CloseEvent) => void) | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+  constructor(public url: string) {
+    FakeWebSocket.instances.push(this);
+  }
+  send(data: string) {
+    this.sent.push(data);
+  }
+  close() {
+    this.onclose?.(new CloseEvent("close", { code: 1000 }));
+  }
+}
+
+const webSocketConstructor = FakeWebSocket as unknown as typeof WebSocket;
+
+/** A real Convex client against a fake deployment URL and a fake socket. */
+function makeConvexClient() {
+  return new ConvexReactClient(URL, { webSocketConstructor });
+}
+
+/** Fires the open event once on a fake socket. */
+function open(socket: FakeWebSocket) {
+  socket.onopen?.(new Event("open"));
+}
+
+/** The message types a fake socket sent, in order. */
+function sentTypes(socket: FakeWebSocket): unknown[] {
+  return socket.sent.map((m) => (JSON.parse(m) as { type: unknown }).type);
 }
 
 describe("ConvexAuthProvider", () => {
@@ -158,5 +191,81 @@ describe("ConvexAuthProvider", () => {
     await waitFor(() => expect(auth.getSnapshot().isLoading).toBe(false));
     await expect(auth.signIn.mutation(SIGN_IN, {})).resolves.toBe("result");
     expect(mutation).toHaveBeenCalledOnce();
+  });
+  describe("over a websocket", () => {
+    beforeEach(() => {
+      FakeWebSocket.instances = [];
+    });
+
+    test("a signed-out sign-in mutation is sent under expectAuth", async () => {
+      const client = new ConvexReactClient(URL, {
+        expectAuth: true,
+        webSocketConstructor,
+      });
+      const auth = makeAuthClient();
+      const setAuth = vi.spyOn(client, "setAuth");
+      render(
+        <ConvexAuthProvider client={client} auth={auth}>
+          <div />
+        </ConvexAuthProvider>,
+      );
+      await waitFor(() => expect(auth.getSnapshot().isLoading).toBe(false));
+      void auth.signIn.mutation(SIGN_IN, {});
+      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+      const socket = FakeWebSocket.instances[0]!;
+      open(socket);
+      await waitFor(() => expect(sentTypes(socket)).toContain("Mutation"));
+      expect(setAuth).toHaveBeenCalledOnce();
+      expect(setAuth.mock.calls[0]![0]).toBe(auth.fetchAccessToken);
+      void client.close();
+    });
+
+    test("a signed-in session sets auth once through the Convex provider", async () => {
+      const storage = new InMemoryStorage();
+      const sessionStorage = new NamespacedStorage(storage, URL);
+      sessionStorage.set(JWT_STORAGE_KEY, "access-0");
+      sessionStorage.set(REFRESH_TOKEN_STORAGE_KEY, "refresh-0");
+      const auth = createAuthClient({ url: URL, api: API, storage });
+      const client = new ConvexReactClient(URL, {
+        expectAuth: true,
+        webSocketConstructor,
+      });
+      const setAuth = vi.spyOn(client, "setAuth");
+      render(
+        <ConvexAuthProvider client={client} auth={auth}>
+          <div />
+        </ConvexAuthProvider>,
+      );
+      await waitFor(() =>
+        expect(auth.getSnapshot()).toMatchObject({
+          isLoading: false,
+          isAuthenticated: true,
+        }),
+      );
+      await waitFor(() => expect(setAuth).toHaveBeenCalled());
+      // The Convex provider passes three arguments and this provider passes two.
+      expect(setAuth).toHaveBeenCalledOnce();
+      expect(setAuth.mock.calls[0]).toHaveLength(3);
+      void client.close();
+    });
+
+    test("a signed-out sign-in mutation is sent without expectAuth", async () => {
+      const client = new ConvexReactClient(URL, { webSocketConstructor });
+      const auth = makeAuthClient();
+      const setAuth = vi.spyOn(client, "setAuth");
+      render(
+        <ConvexAuthProvider client={client} auth={auth}>
+          <div />
+        </ConvexAuthProvider>,
+      );
+      await waitFor(() => expect(auth.getSnapshot().isLoading).toBe(false));
+      void auth.signIn.mutation(SIGN_IN, {});
+      await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+      const socket = FakeWebSocket.instances[0]!;
+      open(socket);
+      await waitFor(() => expect(sentTypes(socket)).toContain("Mutation"));
+      expect(setAuth.mock.calls.length).toBeLessThanOrEqual(1);
+      void client.close();
+    });
   });
 });
