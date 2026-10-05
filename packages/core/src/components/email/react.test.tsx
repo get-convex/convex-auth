@@ -3,9 +3,15 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
-import { InMemoryStorage, NamespacedStorage } from "../../browser/storage.ts";
+import {
+  InMemoryStorage,
+  JWT_STORAGE_KEY,
+  NamespacedStorage,
+  REFRESH_TOKEN_STORAGE_KEY,
+  type SignInStorage,
+} from "../../browser/storage.ts";
 import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
@@ -26,19 +32,31 @@ const { signInApi, run: runSignInMutation } = stubSignInApi();
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
 
-// The hooks read the deployment URL from the surrounding ConvexProvider to
-// namespace their secret storage, and the hooks that do not mint a session
-// run their mutation through this client. The client never connects: the
-// tests stub its `mutation` method and no test subscribes to a query.
+// The hooks whose result has no sign-in envelope run their mutation through
+// this client. The client never connects. The tests stub its `mutation`
+// method and no test subscribes to a query.
 const convexClient = new ConvexReactClient(NAMESPACE);
 const stubConvexMutation = () => vi.spyOn(convexClient, "mutation");
 
-// The hooks keep flow secrets in `localStorage` (jsdom supplies one),
-// namespaced like the hooks namespace it.
-const secretStorage = new NamespacedStorage(window.localStorage, NAMESPACE);
-const SIGN_UP_SECRET_KEY = "__convexAuthEmailPasswordSignUpSecret";
-const CHANGE_EMAIL_SECRET_KEY = "__convexAuthEmailPasswordChangeEmailSecret";
-const RECOVERY_SECRET_KEY = "__convexAuthEmailPasswordRecoverySecret";
+// The hooks keep flow secrets in the auth client's `"email"` sign-in storage.
+// Each test gets a new store, which the auth client and `secretStorage` share.
+let authStorage: InMemoryStorage;
+let secretStorage: SignInStorage;
+beforeEach(() => {
+  authStorage = new InMemoryStorage();
+  secretStorage = new NamespacedStorage(authStorage, NAMESPACE).forSignIn(
+    "email",
+  );
+});
+/** Stores a session that the auth client loads on `init`. */
+function seedSession() {
+  const sessionStorage = new NamespacedStorage(authStorage, NAMESPACE);
+  sessionStorage.set(JWT_STORAGE_KEY, "access-0");
+  sessionStorage.set(REFRESH_TOKEN_STORAGE_KEY, "refresh-0");
+}
+const SIGN_UP_SECRET_KEY = "signUpSecret";
+const CHANGE_EMAIL_SECRET_KEY = "changeEmailSecret";
+const RECOVERY_SECRET_KEY = "passwordRecoverySecret";
 
 const bundle: TokenBundle = {
   accessToken: "access-1",
@@ -48,8 +66,11 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
-// The stub signInApi ignores the reference, so any value will do.
-const signInMutation = {} as never;
+// The stub signInApi ignores the reference. `useCompleteSignUp` reads its
+// function name, so it is a real reference.
+const signInMutation = makeFunctionReference<"mutation">(
+  "auth:signIn",
+) as never;
 
 // `useMutation` reads the function name of its reference, so the hooks that
 // go through the Convex client need a real one. The stubbed client ignores it.
@@ -92,7 +113,7 @@ function renderWithProviders<T>(useHook: () => T) {
       refreshSession: async () => ({ kind: "noSession" as const }),
       signOut: async () => {},
     },
-    storage: new InMemoryStorage(),
+    storage: authStorage,
     storageNamespace: NAMESPACE,
   });
   authClient.setSignInApi(signInApi);
@@ -105,7 +126,10 @@ function renderWithProviders<T>(useHook: () => T) {
       </ConvexProvider>
     </StrictMode>
   );
-  return renderHook(() => ({ auth: useAuth(), hook: useHook() }), { wrapper });
+  return {
+    ...renderHook(() => ({ auth: useAuth(), hook: useHook() }), { wrapper }),
+    authClient,
+  };
 }
 
 // Vitest runs without `globals`, so Testing Library does not register its
@@ -114,7 +138,6 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   runSignInMutation.mockReset();
-  window.localStorage.clear();
 });
 
 describe("useSignInWithEmailPassword", () => {
@@ -223,12 +246,12 @@ describe("useSignUpWithEmailPassword", () => {
   };
 
   test("success stores the secret and does not sign in", async () => {
-    runSignInMutation.mockResolvedValue({
+    stubConvexMutation().mockResolvedValue({
       success: true,
       browserSecret: "secret-1",
     });
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(signInMutation),
+      useSignUpWithEmailPassword(convexMutation),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -245,9 +268,9 @@ describe("useSignUpWithEmailPassword", () => {
 
   test("a user error stores nothing", async () => {
     const failure = { success: false, userError: { error: "EMAIL_TAKEN" } };
-    runSignInMutation.mockResolvedValue(failure);
+    stubConvexMutation().mockResolvedValue(failure);
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(signInMutation),
+      useSignUpWithEmailPassword(convexMutation),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -262,9 +285,9 @@ describe("useSignUpWithEmailPassword", () => {
 
   test("a thrown mutation folds into OTHER_ERROR preserving cause", async () => {
     const cause = new Error("network blip");
-    runSignInMutation.mockRejectedValue(cause);
+    stubConvexMutation().mockRejectedValue(cause);
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(signInMutation),
+      useSignUpWithEmailPassword(convexMutation),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -278,6 +301,25 @@ describe("useSignUpWithEmailPassword", () => {
       userError: { error: "OTHER_ERROR", cause },
     });
     expect(result.current.hook.pending).toBe(false);
+  });
+
+  test("runs signUp on the Convex client and not through the sign-in API", async () => {
+    const mutation = stubConvexMutation().mockResolvedValue({
+      success: true,
+      browserSecret: "secret-1",
+    });
+    const { result } = renderWithProviders(() =>
+      useSignUpWithEmailPassword(convexMutation),
+    );
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.hook.signUp(credentials);
+    });
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(mutation).toHaveBeenCalledWith(convexMutation, credentials);
+    expect(runSignInMutation).not.toHaveBeenCalled();
   });
 });
 
@@ -365,6 +407,62 @@ describe("useCompleteSignUp", () => {
       isLoading: false,
       isAuthenticated: true,
     });
+  });
+
+  test("never reports signed out before the session is stored", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    runSignInMutation.mockResolvedValue({ status: "complete", tokens: bundle });
+    const rendered: { isLoading: boolean; isAuthenticated: boolean }[] = [];
+    const { result } = renderWithProviders(() => {
+      const { isLoading, isAuthenticated } = useAuth();
+      rendered.push({ isLoading, isAuthenticated });
+      return useCompleteSignUp(signInMutation, { emailCode: "code-1" });
+    });
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({ status: "complete" }),
+    );
+
+    expect(rendered).not.toContainEqual({
+      isLoading: false,
+      isAuthenticated: false,
+    });
+    expect(result.current.auth).toMatchObject({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+  });
+
+  test("reads the secret once across renders with a new reference object", async () => {
+    secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
+    let resolveMutation!: (value: unknown) => void;
+    runSignInMutation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMutation = resolve;
+      }),
+    );
+    const getItem = vi.spyOn(authStorage, "getItem");
+    // Each render passes a new reference object with the same path, like a
+    // generated `api` object does.
+    const { result, rerender } = renderWithProviders(() =>
+      useCompleteSignUp(
+        makeFunctionReference<"mutation">("auth:completeSignUp") as never,
+        { emailCode: "code-1" },
+      ),
+    );
+    await waitFor(() => expect(runSignInMutation).toHaveBeenCalledTimes(1));
+    rerender();
+    rerender();
+    await act(async () => {
+      resolveMutation({ status: "complete", tokens: bundle });
+    });
+    await waitFor(() =>
+      expect(result.current.hook).toEqual({ status: "complete" }),
+    );
+
+    const secretReads = getItem.mock.calls.filter(([key]) =>
+      key.includes(SIGN_UP_SECRET_KEY),
+    );
+    expect(secretReads).toHaveLength(1);
   });
 
   test("is MISSING_SECRET when this browser did not start the flow", async () => {
@@ -750,6 +848,45 @@ describe("useStartChangeEmail", () => {
 });
 
 describe("useCompleteChangeEmail", () => {
+  test("does not report isLoading while the link is validated", async () => {
+    seedSession();
+    secretStorage.set(CHANGE_EMAIL_SECRET_KEY, "secret-5");
+    const mutation = stubConvexMutation().mockReturnValue(
+      new Promise(() => {}),
+    );
+    const { result } = renderWithProviders(() =>
+      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+    );
+    await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1));
+
+    expect(result.current.hook).toEqual({ status: "loading" });
+    expect(result.current.auth).toMatchObject({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+  });
+
+  test("runs the mutation after the auth client loads the session", async () => {
+    // The Convex client sends the user's token only after the session loads,
+    // and `completeChangeEmail` needs the user.
+    seedSession();
+    secretStorage.set(CHANGE_EMAIL_SECRET_KEY, "secret-5");
+    const loadingAtCall: boolean[] = [];
+    const mutation = stubConvexMutation().mockImplementation(async () => {
+      loadingAtCall.push(rendered.authClient.getSnapshot().isLoading);
+      return { success: true };
+    });
+    const rendered = renderWithProviders(() =>
+      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+    );
+    await waitFor(() =>
+      expect(rendered.result.current.hook).toEqual({ status: "complete" }),
+    );
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(loadingAtCall).toEqual([false]);
+  });
+
   test("presents the link once as the page opens and clears the secret", async () => {
     secretStorage.set(CHANGE_EMAIL_SECRET_KEY, "secret-5");
     const mutation = stubConvexMutation().mockResolvedValue({ success: true });

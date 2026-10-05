@@ -7,13 +7,8 @@
 
 import type { ConvexReactClient } from "convex/react";
 import type { FunctionReference } from "convex/server";
-import type { AuthSignInApi } from "../../browser/signInApi.ts";
-import type {
-  ClientView,
-  SignInError,
-  SlimTokenBundle,
-  TokenBundle,
-} from "../../lib/types.ts";
+import type { AuthClient } from "../../browser/sessionManager.ts";
+import type { ClientView, SignInError } from "../../lib/types.ts";
 import {
   authenticate,
   register,
@@ -70,18 +65,12 @@ export type UsernamePasskeyApi = {
 
 /** What the sign-in flows need from the surrounding React tree. */
 export type SignInFlowContext = {
-  /** The Convex client of the surrounding provider. */
+  /** The auth client runs the finishing mutations and stores the session. */
+  auth: AuthClient;
+  /** The Convex client runs the start mutation. */
   convex: ConvexReactClient;
   /** The mutation references the app re-exported from its `setupCore`. */
   api: UsernamePasskeyApi;
-  /**
-   * Runs a mutation that mints a session. The finishing mutations go
-   * through this, and not through `convex`, because they must work under
-   * both session models (SPA and SSR).
-   */
-  signInApi: AuthSignInApi;
-  /** Stores a minted session. */
-  setSession: (session: TokenBundle | SlimTokenBundle) => Promise<void>;
 };
 
 /**
@@ -125,7 +114,7 @@ export async function runSignInOrSignUpFlow(
   ctx: SignInFlowContext,
   { username }: { username: string },
 ): Promise<SignInFlowResult> {
-  const { convex, api, signInApi, setSession } = ctx;
+  const { auth, convex, api } = ctx;
 
   if (!supportsWebAuthn()) {
     return { status: "error", userError: { error: "WEBAUTHN_UNSUPPORTED" } };
@@ -144,14 +133,14 @@ export async function runSignInOrSignUpFlow(
     if (!ceremony.success) {
       return { status: "error", userError: ceremony.userError };
     }
-    const result = await signInApi.mutation(api.finishSignUp, {
+    const result = await auth.signIn.mutation(api.finishSignUp, {
       username,
       response: ceremony.response,
     });
     if (result.status !== "complete") {
       return result;
     }
-    await setSession(result.tokens);
+    await auth.setSession(result.tokens);
     return { ...result, flow: "signUp" };
   }
 
@@ -159,12 +148,12 @@ export async function runSignInOrSignUpFlow(
   if (!ceremony.success) {
     return { status: "error", userError: ceremony.userError };
   }
-  const result = await signInApi.mutation(api.finishSignIn, {
+  const result = await auth.signIn.mutation(api.finishSignIn, {
     response: ceremony.response,
   });
   if (result.status !== "complete") {
     return result;
   }
-  await setSession(result.tokens);
+  await auth.setSession(result.tokens);
   return { ...result, flow: "signIn" };
 }

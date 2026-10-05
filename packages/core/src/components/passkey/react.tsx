@@ -20,7 +20,7 @@
 
 import { useConvex } from "convex/react";
 import { useCallback, useMemo, useRef } from "react";
-import { useAuthActions, useAuthClient } from "../../react/index.tsx";
+import { useAuthClient } from "../../react/index.tsx";
 import {
   runSignInOrSignUpFlow,
   type UsernamePasskeyApi,
@@ -121,34 +121,28 @@ export type UsernamePasskeySignInResult =
 export function useUsernamePasskeySignIn(
   usernamePasskeyApi: UsernamePasskeyApi,
 ) {
-  const { setSession } = useAuthActions();
-
-  // The mutations that return a session run through the sign-in API, which
-  // supports SSR.
-  const signInApi = useAuthClient().signIn;
+  // The mutations that return a session run through `auth.signIn`, which
+  // supports SSR. The start mutations run on the Convex client.
+  const auth = useAuthClient();
   const convex = useConvex();
 
-  // Store the flow context in a ref: Convex function references are not
-  // referentially stable across renders. We only need to access them in
-  // event callbacks, so using a ref ensures we always use the latest
-  // function reference from the callback.
-  const ctxRef = useRef({
-    convex,
-    api: usernamePasskeyApi,
-    signInApi,
-    setSession,
-  });
-  ctxRef.current = { convex, api: usernamePasskeyApi, signInApi, setSession };
+  // Generated function references are a new object on each property access,
+  // so the callbacks read the latest ones from a ref.
+  const apiRef = useRef(usernamePasskeyApi);
+  apiRef.current = usernamePasskeyApi;
 
   const autofill = usePasskeyAutofill<UsernamePasskeyAutofillError>({
     start: async () => {
-      const { convex, api } = ctxRef.current;
-      const { options } = await convex.mutation(api.startAutofillSignIn, {});
+      const { options } = await convex.mutation(
+        apiRef.current.startAutofillSignIn,
+        {},
+      );
       return options;
     },
     onAssertion: async (response) => {
-      const { api, signInApi, setSession } = ctxRef.current;
-      const result = await signInApi.mutation(api.finishSignIn, { response });
+      const result = await auth.signIn.mutation(apiRef.current.finishSignIn, {
+        response,
+      });
       if (result.status !== "complete") {
         // The autofill loop takes its own `success` boolean, not the
         // envelope: it retries on a failed assertion rather than handing
@@ -161,7 +155,7 @@ export function useUsernamePasskeySignIn(
       // and the modal ceremony also completes, `setSession` runs twice and
       // the last write wins. Both sessions are valid, so this is harmless.
 
-      await setSession(result.tokens);
+      await auth.setSession(result.tokens);
       return { success: true };
     },
   });
@@ -175,7 +169,10 @@ export function useUsernamePasskeySignIn(
       username: string;
     }): Promise<UsernamePasskeySignInResult> => {
       const signInResult = await run(() =>
-        runSignInOrSignUpFlow(ctxRef.current, { username }),
+        runSignInOrSignUpFlow(
+          { auth, convex, api: apiRef.current },
+          { username },
+        ),
       );
       if ("status" in signInResult) {
         // This is the result of `runSignInOrSignUpFlow`. It can be directly
@@ -188,7 +185,7 @@ export function useUsernamePasskeySignIn(
       signInResult satisfies PasskeyClientFailure | AlreadyPendingFailure;
       return { status: "error", userError: signInResult.userError };
     },
-    [run],
+    [run, auth, convex],
   );
 
   return useMemo(

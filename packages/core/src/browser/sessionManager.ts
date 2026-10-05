@@ -181,6 +181,12 @@ export class AuthClient {
   #isLoading = true;
   #pendingSignIns = 0;
   #initialized = false;
+  /**
+   * Resolves when the first {@link init} call has assigned the tokens it read
+   * from storage. {@link setSession} waits for it, because that read may
+   * predate the new session.
+   */
+  #loaded: Promise<void> | null = null;
 
   #snapshot: AuthState = INITIAL_AUTH_STATE;
   readonly #listeners = new Set<Listener>();
@@ -326,22 +332,31 @@ export class AuthClient {
     this.#attachStorageListener();
     if (this.#initialized) return;
     this.#initialized = true;
-    // An initially provided token is considered to be the freshest value, so
-    // persist it before the load below reads it back (and so other tabs see
-    // it).
-    const initialAccessToken = options?.initialAccessToken ?? null;
-    if (initialAccessToken !== null) {
-      await this.#storage.set(JWT_STORAGE_KEY, initialAccessToken);
+    let markLoaded!: () => void;
+    this.#loaded = new Promise((resolve) => {
+      markLoaded = resolve;
+    });
+    try {
+      // An initially provided token is considered to be the freshest value,
+      // so persist it before the load below reads it back (and so other tabs
+      // see it).
+      const initialAccessToken = options?.initialAccessToken ?? null;
+      if (initialAccessToken !== null) {
+        await this.#storage.set(JWT_STORAGE_KEY, initialAccessToken);
+      }
+      const [accessToken, refreshToken] = await Promise.all([
+        this.#storage.get(JWT_STORAGE_KEY),
+        this.#storage.get(REFRESH_TOKEN_STORAGE_KEY),
+      ]);
+      this.#accessToken = accessToken ?? null;
+      this.#refreshToken = refreshToken ?? null;
+      this.#log(`init: token is null: ${this.#accessToken === null}`);
+      this.#isLoading = false;
+      this.#notify();
+    } finally {
+      // A failed load also resolves it, so a later `setSession` runs.
+      markLoaded();
     }
-    const [accessToken, refreshToken] = await Promise.all([
-      this.#storage.get(JWT_STORAGE_KEY),
-      this.#storage.get(REFRESH_TOKEN_STORAGE_KEY),
-    ]);
-    this.#accessToken = accessToken ?? null;
-    this.#refreshToken = refreshToken ?? null;
-    this.#log(`init: token is null: ${this.#accessToken === null}`);
-    this.#isLoading = false;
-    this.#notify();
   }
 
   /**
@@ -370,6 +385,9 @@ export class AuthClient {
   setSession = async (
     session: TokenBundle | SlimTokenBundle,
   ): Promise<void> => {
+    if (this.#loaded !== null) {
+      await this.#loaded;
+    }
     await this.#storeFullTokenResult(session);
   };
 

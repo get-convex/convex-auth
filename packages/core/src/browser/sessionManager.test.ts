@@ -762,3 +762,50 @@ describe("AuthClient (async storage)", () => {
     expect(storage.entries.size).toBe(0);
   });
 });
+
+describe("AuthClient setSession during init", () => {
+  afterEach(restoreWindow);
+
+  test("a session set while init reads storage is not lost", async () => {
+    // The reads resolve only when the test calls `resolveReads`, so the
+    // session is set after init starts its read and before the read returns.
+    let resolveReads!: (value: null) => void;
+    const reads = new Promise<null>((resolve) => {
+      resolveReads = resolve;
+    });
+    const entries = new Map<string, string>();
+    const storage: TokenStorage = {
+      getItem: () => reads,
+      setItem: (key, value) => {
+        entries.set(key, value);
+      },
+      removeItem: (key) => {
+        entries.delete(key);
+      },
+    };
+
+    const { client } = makeClient({}, storage);
+    const initialized = client.init();
+    const set = client.setSession(bundle(1));
+    resolveReads(null);
+    await Promise.all([initialized, set]);
+
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+    expect(entries.get(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
+  });
+
+  test("setSession before any init call stores the session", async () => {
+    const { client } = makeClient();
+    await client.setSession(bundle(1));
+
+    expect(client.getSnapshot()).toEqual({
+      isLoading: false,
+      isAuthenticated: true,
+      token: "access-1",
+    });
+  });
+});

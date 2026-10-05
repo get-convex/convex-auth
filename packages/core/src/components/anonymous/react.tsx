@@ -3,8 +3,8 @@
  * `@convex-dev/auth/providers/anonymous/react`.
  *
  * A provider's job on the client is to run its own sign-in flow and hand the
- * resulting {@link TokenBundle} to the core client's `setSession` (see
- * {@link useAuthActions}). This anonymous provider is the simplest case. It
+ * resulting {@link TokenBundle} to the auth client's `setSession` (see
+ * {@link useAuthClient}). This anonymous provider is the simplest case. It
  * has a single mutation that directly returns the `TokenBundle`.
  *
  * It's useful as an example of the bare minimum a provider needs on the
@@ -17,7 +17,7 @@
 import { FunctionReference } from "convex/server";
 import { useCallback } from "react";
 import type { ClientView, SignInComplete } from "../../lib/types.ts";
-import { useAuthActions, useAuthClient } from "../../react/index.tsx";
+import { useAuthClient } from "../../react/index.tsx";
 
 /**
  * The `signInAnonymous` mutation the anonymous provider adds to the app's API.
@@ -50,23 +50,22 @@ export type SignInAnonymousMutation = FunctionReference<
  *   return <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
  * }
  * ```
- * When the `TokenBundle` is passed to `setSession`, that kicks off the
+ * When the `TokenBundle` is passed to `setSession`, it starts the
  * internal Convex auth machinery that authenticates the client with the
  * configured backend and re-renders components in an authenticated state.
  * Content within `<Authenticated>` helper components will render as will other
  * components that build on the authenticated state returned by
- * `useConvexAuthActions`.
+ * `useConvexAuth`.
  *
  * @param signInMutation The app's `signInAnonymous` mutation reference.
  */
 export function useAnonymousAuth(signInMutation: SignInAnonymousMutation) {
-  const { setSession } = useAuthActions();
-  // Running through the signInApi rather than `useMutation` is what lets this one
-  // hook serve both session models. See {@link AuthSignInApi}.
-  const signInApi = useAuthClient().signIn;
+  // Running through `auth.signIn` rather than `useMutation` is what lets this
+  // one hook serve both session models. See {@link AuthSignInApi}.
+  const auth = useAuthClient();
   const signInAnonymous = useCallback(async () => {
-    const result = await signInApi.mutation(signInMutation, {});
-    await setSession(result.tokens);
-  }, [signInApi, signInMutation, setSession]);
+    const result = await auth.signIn.mutation(signInMutation, {});
+    await auth.setSession(result.tokens);
+  }, [auth, signInMutation]);
   return { signInAnonymous };
 }

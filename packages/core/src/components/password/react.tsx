@@ -3,8 +3,8 @@
  * `@convex-dev/auth/providers/password/react`.
  *
  * A provider's job on the client is to run its own sign-in flow and hand the
- * resulting {@link TokenBundle} to the core client's `setSession` (see {@link
- * useAuthActions}).
+ * resulting {@link TokenBundle} to the auth client's `setSession` (see {@link
+ * useAuthClient}).
  *
  * The password provider has two flows and provides a hook for each:
  *  1. signing in to an existing account ({@link useSignInWithPassword})
@@ -20,7 +20,7 @@
 import { FunctionReference } from "convex/server";
 import { useCallback, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
-import { useAuthActions, useAuthClient } from "../../react/index.tsx";
+import { useAuthClient } from "../../react/index.tsx";
 import type { SignInResult, SignUpResult } from "./setup.ts";
 
 /** The `(username, password)` pair both flows accept. */
@@ -186,19 +186,18 @@ export function useSignUpWithPassword(
 function usePasswordFlow<
   Result extends ClientView<SignInResult> | ClientView<SignUpResult>,
 >(mutation: FunctionReference<"mutation", "public", Credentials, Result>) {
-  const { setSession } = useAuthActions();
   // The auth client's sign-in API runs the mutation, which lets these hooks
   // serve both session models. See {@link AuthClient.signIn}.
-  const signInApi = useAuthClient().signIn;
+  const auth = useAuthClient();
   const [pending, setPending] = useState(false);
 
   const run = useCallback(
     async (credentials: Credentials): Promise<Result | UnexpectedFailure> => {
       setPending(true);
       try {
-        const result = await signInApi.mutation(mutation, credentials);
+        const result = await auth.signIn.mutation(mutation, credentials);
         if (result.status === "complete") {
-          await setSession(result.tokens);
+          await auth.setSession(result.tokens);
         }
         return result;
       } catch (cause) {
@@ -212,7 +211,7 @@ function usePasswordFlow<
         setPending(false);
       }
     },
-    [signInApi, mutation, setSession],
+    [auth, mutation],
   );
 
   return { run, pending };

@@ -6,20 +6,13 @@
  */
 "use client";
 
-import { FunctionReference } from "convex/server";
+import { FunctionReference, getFunctionName } from "convex/server";
 import { useConvex, useMutation, useQuery } from "convex/react";
-import {
-  useCallback,
-  useRef,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
-import { AuthClientContext, useAuth } from "../../react/client.tsx";
-import { useAuthActions, useAuthClient } from "../../react/index.tsx";
-import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
+import { useAuth } from "../../react/client.tsx";
+import { useAuthClient } from "../../react/index.tsx";
+import type { SignInStorage } from "../../browser/storage.ts";
 import type {
   SignUpResult as SignUpMutationResult,
   CompleteSignUpResult,
@@ -37,13 +30,13 @@ import type {
  */
 type EmailLinkFlow = "signUp" | "changeEmail" | "passwordRecovery";
 
-// One storage key per type of flow, so flows of different types can run at
-// the same time. Two flows of the same type share one key: the second flow
+// Each flow type has one key in the `"email"` sign-in storage, so flows of
+// different types can run at the same time. A second flow of one type
 // replaces the secret of the first.
 const SECRET_STORAGE_KEYS: Record<EmailLinkFlow, string> = {
-  signUp: "__convexAuthEmailPasswordSignUpSecret",
-  changeEmail: "__convexAuthEmailPasswordChangeEmailSecret",
-  passwordRecovery: "__convexAuthEmailPasswordRecoverySecret",
+  signUp: "signUpSecret",
+  changeEmail: "changeEmailSecret",
+  passwordRecovery: "passwordRecoverySecret",
 };
 
 //------------------------------------------------------------------------------
@@ -251,28 +244,21 @@ export type CompletePasswordRecoveryState =
 //------------------------------------------------------------------------------
 
 /**
- * The storage that holds the flow secrets, namespaced by deployment URL so
- * two deployments sharing one origin (dev vs prod on localhost) do not read
- * each other's secrets.
+ * The storage that holds the flow secrets. It is the auth client's `"email"`
+ * sign-in storage, so it uses the app's storage and namespace.
  */
-function useSecretStorage(): NamespacedStorage {
-  const convex = useConvex();
-  return useMemo(
-    () => new NamespacedStorage(defaultStorage(), convex.url),
-    [convex],
-  );
+function useSecretStorage(): SignInStorage {
+  const auth = useAuthClient();
+  // `signInStorage` returns a new object per call, and effects depend on it.
+  return useMemo(() => auth.signInStorage("email"), [auth]);
 }
 
 /**
- * The auth client's `withSignInPending`: while its call runs, the auth state
+ * The auth client's `withSignInPending`. While its call runs, the auth state
  * reports `isLoading` instead of signed out.
  */
 function useWithSignInPending() {
-  const authClient = useContext(AuthClientContext);
-  if (authClient === undefined) {
-    throw new Error("Must be used within a <ConvexAuthProvider>.");
-  }
-  return authClient.withSignInPending;
+  return useAuthClient().withSignInPending;
 }
 
 /**
@@ -310,36 +296,44 @@ const foldSignInError = (cause: unknown): SignInUnexpectedFailure => ({
 });
 
 /**
- * Present a link once, as soon as the page opens: wait for the auth client to
- * load, read the flow's secret, run `complete` with it, and clear the secret
- * when the flow is done. A failed completion keeps the secret: the user may
- * have opened an older link, and the newest one must still work.
+ * Present a link once, as soon as the page opens. It reads the flow's secret,
+ * runs `complete` with it, and removes the secret when the flow is done. A
+ * failed completion leaves the secret in storage, because the user may have
+ * opened an older link and the newest one must work.
  *
- * Runs on initial mount. We want for this to run on page load. This is
- * acceptable: since we use browser secrets, we don’t need an additional
- * user confirmation.
+ * It runs on mount without a user action, which is safe because the browser
+ * secret proves that this browser started the flow.
+ *
+ * With `signsIn: true`, the mount effect runs the flow in
+ * `withSignInPending` before the auth client loads, so the auth state reports
+ * `isLoading` until the new session is stored. With `signsIn: false`, the
+ * flow waits until the auth client loads, so the Convex client sends the
+ * user's token before the mutation.
  */
 function useLinkFlow<UserError>(
   flow: EmailLinkFlow,
   complete: (
     browserSecret: string,
   ) => Promise<{ done: true } | { done: false; userError: UserError }>,
+  { signsIn }: { signsIn: boolean },
 ): LinkFlowState<UserError | MissingSecretError | OtherError> {
   const { isLoading } = useAuth();
+  const withSignInPending = useWithSignInPending();
   const storage = useSecretStorage();
   const [state, setState] = useState<
     LinkFlowState<UserError | MissingSecretError | OtherError>
   >({ status: "loading" });
 
-  // Make sure it’s the first useEffect run to avoid issues in React strict mode
+  // StrictMode runs the mount effect twice, and the flow must run once.
   const started = useRef(false);
+  const waitsForAuth = !signsIn && isLoading;
 
   useEffect(() => {
-    if (isLoading || started.current) {
+    if (waitsForAuth || started.current) {
       return;
     }
     started.current = true;
-    void (async () => {
+    const run = async () => {
       try {
         const browserSecret = await storage.get(SECRET_STORAGE_KEYS[flow]);
         if (browserSecret === null || browserSecret === undefined) {
@@ -359,8 +353,11 @@ function useLinkFlow<UserError>(
           userError: { error: "OTHER_ERROR", cause },
         });
       }
-    })();
-  }, [isLoading, storage, flow, complete]);
+    };
+    // The pending count goes up here, before any await, so the auth state
+    // never reports signed out before the session is stored.
+    void (signsIn ? withSignInPending(run) : run());
+  }, [waitsForAuth, storage, flow, complete, signsIn, withSignInPending]);
 
   return state;
 }
@@ -423,8 +420,7 @@ function useLinkFlow<UserError>(
  * @param signInMutation The app's `signIn` mutation reference.
  */
 export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
-  const { setSession } = useAuthActions();
-  const signInApi = useAuthClient().signIn;
+  const auth = useAuthClient();
   const { pending, track } = usePending();
 
   const signIn = useCallback(
@@ -434,16 +430,19 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
     }): Promise<SignInResult> =>
       track(async () => {
         try {
-          const result = await signInApi.mutation(signInMutation, credentials);
+          const result = await auth.signIn.mutation(
+            signInMutation,
+            credentials,
+          );
           if (result.status === "complete") {
-            await setSession(result.tokens);
+            await auth.setSession(result.tokens);
           }
           return result;
         } catch (cause) {
           return foldSignInError(cause);
         }
       }),
-    [signInApi, signInMutation, setSession, track],
+    [auth, signInMutation, track],
   );
 
   return { signIn, pending };
@@ -519,7 +518,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  * @param signUpMutation The app's `signUp` mutation reference.
  */
 export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
-  const signInApi = useAuthClient().signIn;
+  const convex = useConvex();
   const storage = useSecretStorage();
   const { pending, track } = usePending();
 
@@ -530,7 +529,8 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
     }): Promise<SignUpResult> =>
       track(async () => {
         try {
-          const result = await signInApi.mutation(signUpMutation, credentials);
+          // The result has no sign-in envelope, so it runs on the Convex client.
+          const result = await convex.mutation(signUpMutation, credentials);
           if (result.success) {
             await storage.set(SECRET_STORAGE_KEYS.signUp, result.browserSecret);
             return { success: true };
@@ -540,7 +540,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
           return foldError(cause);
         }
       }),
-    [signInApi, signUpMutation, storage, track],
+    [convex, signUpMutation, storage, track],
   );
 
   return { signUp, pending };
@@ -567,38 +567,33 @@ export function useCompleteSignUp(
   completeSignUpMutation: CompleteSignUpMutation,
   { emailCode }: { emailCode: string },
 ): CompleteSignUpState {
-  const { setSession } = useAuthActions();
-  const signInApi = useAuthClient().signIn;
-  const withSignInPending = useWithSignInPending();
+  const auth = useAuthClient();
+  // Generated function references are a new object on each render, so
+  // `complete` depends on the function path and reads the reference from a
+  // ref.
+  const mutationRef = useRef(completeSignUpMutation);
+  mutationRef.current = completeSignUpMutation;
+  const mutationPath = getFunctionName(completeSignUpMutation);
 
-  // Keep `isLoading` true while the server validates the link and the client
-  // stores the new session, so the app does not see a signed-out user and
-  // go to the sign-in page during this time.
   const complete = useCallback(
-    (browserSecret: string) =>
-      withSignInPending(async () => {
-        const result = await signInApi.mutation(completeSignUpMutation, {
-          emailCode,
-          browserSecret,
-        });
-        if (result.status === "complete") {
-          await setSession(result.tokens);
-          return { done: true } as const;
-        }
-        return { done: false, userError: result.userError } as const;
-      }),
-    [
-      signInApi,
-      completeSignUpMutation,
-      emailCode,
-      setSession,
-      withSignInPending,
-    ],
+    async (browserSecret: string) => {
+      const result = await auth.signIn.mutation(mutationRef.current, {
+        emailCode,
+        browserSecret,
+      });
+      if (result.status === "complete") {
+        await auth.setSession(result.tokens);
+        return { done: true } as const;
+      }
+      return { done: false, userError: result.userError } as const;
+    },
+    [auth, mutationPath, emailCode],
   );
 
   return useLinkFlow<SignInError<ClientView<CompleteSignUpResult>>>(
     "signUp",
     complete,
+    { signsIn: true },
   );
 }
 
@@ -718,8 +713,7 @@ export function useCompletePasswordRecovery(
   const { checkPasswordRecovery, completePasswordRecovery: completeMutation } =
     recoveryApi;
   const { isLoading } = useAuth();
-  const { setSession } = useAuthActions();
-  const signInApi = useAuthClient().signIn;
+  const auth = useAuthClient();
   const storage = useSecretStorage();
   const { pending, track } = usePending();
   // The secret from storage: not read yet, missing, or found.
@@ -762,13 +756,13 @@ export function useCompletePasswordRecovery(
           );
         }
         try {
-          const result = await signInApi.mutation(completeMutation, {
+          const result = await auth.signIn.mutation(completeMutation, {
             emailCode,
             browserSecret,
             newPassword,
           });
           if (result.status === "complete") {
-            await setSession(result.tokens);
+            await auth.setSession(result.tokens);
             await storage.remove(SECRET_STORAGE_KEYS.passwordRecovery);
             setOutcome({ status: "complete" });
           } else if (isPasswordRecoveryLinkError(result.userError)) {
@@ -779,15 +773,7 @@ export function useCompletePasswordRecovery(
           return foldSignInError(cause);
         }
       }),
-    [
-      signInApi,
-      completeMutation,
-      emailCode,
-      browserSecret,
-      storage,
-      setSession,
-      track,
-    ],
+    [auth, completeMutation, emailCode, browserSecret, storage, track],
   );
 
   if (outcome !== undefined) {
@@ -877,8 +863,11 @@ export function useCompleteChangeEmail(
     [runCompleteChangeEmail, emailCode],
   );
 
+  // The user has a session, and a loading report would restart the Convex
+  // client's auth handshake, so this flow does not report `isLoading`.
   return useLinkFlow<ExtractError<CompleteChangeEmailResult>>(
     "changeEmail",
     complete,
+    { signsIn: false },
   );
 }

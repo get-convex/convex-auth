@@ -23,24 +23,36 @@ const noopAutofill = {
   resumeAutofillFlow: () => {},
 };
 
-// The hook calls several different mutations, so both call paths dispatch on
-// the reference (a string sentinel here) to one mock per mutation.
-const mutations = {
+// Each call path dispatches on the reference (a string sentinel here) to its
+// own mock per mutation. A mutation on the wrong path throws.
+function dispatcher(mocks: Record<string, (args: unknown) => unknown>) {
+  return (fn: unknown, args: unknown) => {
+    const mock = mocks[fn as string];
+    if (mock === undefined) {
+      throw new Error(`${String(fn)} does not run on this path`);
+    }
+    return mock(args);
+  };
+}
+
+// The two challenge mutations run on the Convex client from `useConvex()`.
+const convexMutations = {
   startSignIn: vi.fn(),
-  finishSignIn: vi.fn(),
-  finishSignUp: vi.fn(),
   startAutofillSignIn: vi.fn(),
 };
-const runMutation = (fn: unknown, args: unknown) =>
-  mutations[fn as keyof typeof mutations](args);
+const convexClient = {
+  mutation: dispatcher(convexMutations),
+} as unknown as ConvexReactClient;
 
 // The two session-minting mutations run through the injected `AuthSignInApi`,
 // which the tests substitute rather than mocking a transport.
-const signInApi = { mutation: runMutation } as unknown as AuthSignInApi;
-
-// The two challenge mutations run on the Convex client from `useConvex()`,
-// which the tests stand in for with the same dispatcher.
-const convexClient = { mutation: runMutation } as unknown as ConvexReactClient;
+const signInMutations = {
+  finishSignIn: vi.fn(),
+  finishSignUp: vi.fn(),
+};
+const signInApi = {
+  mutation: dispatcher(signInMutations),
+} as unknown as AuthSignInApi;
 
 const passkeyApi = {
   startSignIn: "startSignIn",
@@ -284,7 +296,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  for (const mock of Object.values(mutations)) {
+  for (const mock of [
+    ...Object.values(convexMutations),
+    ...Object.values(signInMutations),
+  ]) {
     mock.mockReset();
   }
   ceremonyCreate.mockReset();
@@ -326,9 +341,9 @@ function renderPasskey() {
 
 describe("useUsernamePasskeySignIn signIn", () => {
   test("sign-up success runs the registration ceremony and adopts the session", async () => {
-    mutations.startSignIn.mockResolvedValue(registerStart);
+    convexMutations.startSignIn.mockResolvedValue(registerStart);
     ceremonyCreate.mockResolvedValue(registrationResponse);
-    mutations.finishSignUp.mockResolvedValue({
+    signInMutations.finishSignUp.mockResolvedValue({
       status: "complete",
       tokens: bundle,
     });
@@ -340,13 +355,15 @@ describe("useUsernamePasskeySignIn signIn", () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
 
-    expect(mutations.startSignIn).toHaveBeenCalledWith({ username: "alice" });
+    expect(convexMutations.startSignIn).toHaveBeenCalledWith({
+      username: "alice",
+    });
     // The server-built options go to the browser untouched.
     expect(ceremonyCreate).toHaveBeenCalledWith({
       optionsJSON: creationOptions,
     });
     // The response reaches the finish mutation pruned to the wire shape.
-    expect(mutations.finishSignUp).toHaveBeenCalledWith({
+    expect(signInMutations.finishSignUp).toHaveBeenCalledWith({
       username: "alice",
       response: wireRegistrationResponse,
     });
@@ -360,9 +377,9 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("sign-in success runs the authentication ceremony and adopts the session", async () => {
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
+    convexMutations.startSignIn.mockResolvedValue(authenticateStart);
     ceremonyGet.mockResolvedValue(authenticationResponse);
-    mutations.finishSignIn.mockResolvedValue({
+    signInMutations.finishSignIn.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -378,7 +395,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(ceremonyGet).toHaveBeenCalledWith({
       optionsJSON: requestOptions,
     });
-    expect(mutations.finishSignIn).toHaveBeenCalledWith({
+    expect(signInMutations.finishSignIn).toHaveBeenCalledWith({
       response: wireAuthenticationResponse,
     });
     expect(returned).toEqual({
@@ -391,7 +408,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("a startSignIn userError becomes an error arm without a ceremony", async () => {
-    mutations.startSignIn.mockResolvedValue({
+    convexMutations.startSignIn.mockResolvedValue({
       success: false,
       userError: { error: "USERNAME_INVALID" },
     });
@@ -415,7 +432,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("NotAllowedError folds into CEREMONY_ABORTED", async () => {
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
+    convexMutations.startSignIn.mockResolvedValue(authenticateStart);
     ceremonyGet.mockRejectedValue(
       new DOMException("The operation was cancelled.", "NotAllowedError"),
     );
@@ -436,14 +453,14 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("a second signIn while one runs fails fast and the first completes", async () => {
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
+    convexMutations.startSignIn.mockResolvedValue(authenticateStart);
     let resolveCeremony!: (value: unknown) => void;
     ceremonyGet.mockReturnValue(
       new Promise((resolve) => {
         resolveCeremony = resolve;
       }),
     );
-    mutations.finishSignIn.mockResolvedValue({
+    signInMutations.finishSignIn.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -467,7 +484,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       status: "error",
       userError: { error: "ALREADY_PENDING" },
     });
-    expect(mutations.startSignIn).toHaveBeenCalledTimes(1);
+    expect(convexMutations.startSignIn).toHaveBeenCalledTimes(1);
 
     // The first call still completes normally.
     let firstResult!: UsernamePasskeySignInResult;
@@ -494,7 +511,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("signIn keeps one identity while the autofill status changes", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    convexMutations.startAutofillSignIn.mockResolvedValue({
       options: requestOptions,
     });
     conditionalGet.mockImplementation(pendingForever);
@@ -523,7 +540,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
       expect(result.current.passkey.autofill.status).toBe("stopped"),
     );
     expect(result.current.passkey.autofill.available).toBe(false);
-    expect(mutations.startAutofillSignIn).not.toHaveBeenCalled();
+    expect(convexMutations.startAutofillSignIn).not.toHaveBeenCalled();
     spy.mockRestore();
 
     unmount();
@@ -531,11 +548,11 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("a picked passkey signs the user in: waiting → signedIn", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    convexMutations.startAutofillSignIn.mockResolvedValue({
       options: requestOptions,
     });
     conditionalGet.mockResolvedValue(conditionalCredential);
-    mutations.finishSignIn.mockResolvedValue({
+    signInMutations.finishSignIn.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -551,7 +568,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     expect(call.mediation).toBe("conditional");
     expect(call.signal).toBeInstanceOf(AbortSignal);
     expect(call.publicKey.rpId).toBe(requestOptions.rpId);
-    expect(mutations.finishSignIn).toHaveBeenCalledWith({
+    expect(signInMutations.finishSignIn).toHaveBeenCalledWith({
       response: wireAuthenticationResponse,
     });
     expect(result.current.auth.isAuthenticated).toBe(true);
@@ -562,13 +579,13 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("a success after a failed assertion clears lastError", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    convexMutations.startAutofillSignIn.mockResolvedValue({
       options: requestOptions,
     });
     conditionalGet.mockResolvedValue(conditionalCredential);
     // The first assertion fails on the server; the loop retries with a
     // fresh challenge and the second one succeeds.
-    mutations.finishSignIn
+    signInMutations.finishSignIn
       .mockResolvedValueOnce({
         status: "error",
         userError: { error: "CHALLENGE_EXPIRED" },
@@ -593,7 +610,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("signIn pauses the pending autofill request and resumes it after", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    convexMutations.startAutofillSignIn.mockResolvedValue({
       options: requestOptions,
     });
     // The conditional (autofill) request stays pending until aborted; the
@@ -612,8 +629,8 @@ describe("useUsernamePasskeySignIn autofill", () => {
       expect(conditionalSignal?.aborted).toBe(true);
       return Promise.resolve(authenticationResponse);
     });
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
-    mutations.finishSignIn.mockResolvedValue({
+    convexMutations.startSignIn.mockResolvedValue(authenticateStart);
+    signInMutations.finishSignIn.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -622,7 +639,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     await waitFor(() =>
       expect(result.current.passkey.autofill.status).toBe("waiting"),
     );
-    expect(mutations.startAutofillSignIn).toHaveBeenCalledTimes(1);
+    expect(convexMutations.startAutofillSignIn).toHaveBeenCalledTimes(1);
 
     let returned!: UsernamePasskeySignInResult;
     await act(async () => {
@@ -638,7 +655,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     // The modal flow resumed the loop afterwards: it asks for a fresh
     // challenge and a new conditional request starts.
     await waitFor(() =>
-      expect(mutations.startAutofillSignIn).toHaveBeenCalledTimes(2),
+      expect(convexMutations.startAutofillSignIn).toHaveBeenCalledTimes(2),
     );
     await waitFor(() =>
       expect(result.current.passkey.autofill.status).toBe("waiting"),
