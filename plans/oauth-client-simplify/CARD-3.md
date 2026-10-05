@@ -26,9 +26,10 @@ Read `AGENTS.md` at the repo root first. Relative imports in `packages/core/src`
 - `browser/sessionManager.ts`: `AuthClient` has `setSignInApi`, `signIn`, `signInStorage(id)`, `init(options?)`, `withSignInPending(fn)` (increments a pending counter synchronously before awaiting `fn`, and the snapshot reports `isLoading` while the counter is above zero), `setSession`, `subscribe`, `getSnapshot`. It also has the ambient system. `ambientSignIns?: ReadonlyArray<AmbientSignInClient>` config, `#ambientValues: KeyedStore`, `ambientSignInValues(id)`, `#initCallbacks`, `#registerAmbientSignIns`, and a loop in `init()` that runs `onInit` callbacks before the session load.
 - `browser/ambientSignInClient.ts`: types `AuthSignInApi`, `AmbientSignInClient`, `AmbientSignInContext`. `browser/keyedStore.ts`: `KeyedStore`, `SignInValues`, `SignInValuesReader`. `react/providers.ts`: `useAmbientSignInValue(id, key)`. `browser/index.ts` and `react/index.tsx` export the ambient types.
 - `browser/createAuthClient.ts`: has an `ambientSignIns` option defaulting to `[oauth()]` and imports `oauth` from `../oauth/client.ts`.
+- `nextjs/index.tsx`: `createNextjsAuthClient(options)` builds the ssr-mode `AuthClient`, the proxy `ConvexHttpClient`, and a `withAuth()` helper, and sets the sign-in API at construction as `{ mutation: (fn, args) => withAuth().mutation(fn, args), action: (fn, args) => withAuth().action(fn, args) }`, with no retry wrap. `browser/retry.ts` exports `retryOnNetworkError(fn, log?)` and its module tsdoc names session refresh and OAuth code redemption. `nextjs/index.test.tsx` stubs `globalThis.fetch` and has no retry test. Card 2 names the retry wrap and the commit on the branch omits it, so this card contains that step.
 - `oauth/client.ts`: exports `OauthProviderApi`, `OauthProviderRefs`, `OauthFlowErrorCode`, `OauthFlowError`, `SignInOptions`, `SignInOutcome`, `OauthActions`, `OAUTH_SETUP_ID = "oauth"`, `OAUTH_ACTIONS_KEY`, `OAUTH_FLOW_ERROR_KEY`, `PendingFlow`, and `oauth(): AmbientSignInClient`. Inside `oauth()` are `setFlowError`, `setThrownFlowError`, `completeFlow(code)` (wrapped in `client.withSignInPending`, reads the pending flow with `takePendingFlow`, rebuilds the `completeSignIn` reference from the stored path with `makeFunctionReference`, calls `signInApi.mutation` through `retryOnNetworkError`, then `client.setSession`), `handleCallback()` (reads `OAUTH_CODE_PARAM` and `OAUTH_ERROR_PARAM` from `lib/oauthParams.ts`, removes them before the first await, passes `window.history.state` back through `replaceState`), and `signIn(refs, options)` (starts a flow through `signInApi.mutation(refs.startSignIn, { redirectTo })`, stores the pending flow under `OAUTH_FLOW_STORAGE_KEY = "flow"`, navigates unless `navigator.product === "ReactNative"`, or completes with `options.code`). Module level helpers `currentHref`, `takePendingFlow`, `dropPendingFlow`, `SERVER_ERRORS`.
 - `oauth/react.ts`: `useOauth()`, `useOauthSignIn(refs)`, `useSignInWithGoogle/Apple/Github(api)`, all reading the keyed store through `useAmbientSignInValue`, plus `NOT_REGISTERED_ERROR` and a re-export of `oauth`.
-- `oauth/testFlow.ts`: `oauthClient(storage)`, `setupOAuth()`, `seedPendingFlow`, `readFlow`, `flowStorage`, `acmeRefs`, `bundle`, `completed`, `invalidCode`, `calledPath`, `stubReactNative`, `restoreNavigatorProduct`. Tests: `oauth/client.test.ts`, `oauth/clientEnvironment.test.ts` (node environment, no `window` cases), `oauth/react.test.tsx`, `react/index.test.tsx` (ambient tests), `react/providers.test.tsx`, `browser/keyedStore.test.ts`, `browser/sessionManager.test.ts` (describe "AuthClient ambient sign-ins").
+- `oauth/testFlow.ts`: `oauthClient(storage)`, `setupOAuth()`, `seedPendingFlow`, `readFlow`, `flowStorage`, `acmeRefs`, `bundle`, `completed`, `invalidCode`, `calledPath`, `stubReactNative`, `restoreNavigatorProduct`, `NAMESPACE`. Tests: `oauth/client.test.ts`, `oauth/clientEnvironment.test.ts` (node environment, no `window` cases), `oauth/react.test.tsx`, `react/index.test.tsx` (describe "ConvexAuthProvider ambient sign-ins" and a `makeAuthClient(ambientSignIns?)` helper), `react/providers.test.tsx`, `browser/keyedStore.test.ts`, `browser/sessionManager.test.ts` (describe "AuthClient ambient sign-ins"). `oauth/react.test.tsx` renders `<AuthProvider authClient={client}>` with no Convex provider in the tree.
 - `server/signInProxy.ts` `classifyResult` returns 500 for any result that is not `{ status: "complete", tokens }` or `{ status: "error", userError }`.
 - `KNOWN_ISSUES.md` has an entry "OAuth isn't wired into the Next.js client".
 - Examples `examples/react-github|google|apple/src/App.tsx` use `useOauth()` and a per-provider hook. Their `main.tsx` uses `createAuthClient` with no `ambientSignIns` option.
@@ -58,16 +59,16 @@ The plugin registry, the keyed store, and the generic read hook are deleted.
 2. Callback params are read and removed from the URL synchronously, before the first `await`, and `window.history.state` is passed back through `replaceState`. A second run sees a clean URL and does nothing. Params the app uses for its own purposes (`?code=`, `?error=`) are left alone.
 3. `withSignInPending` is entered synchronously from the mount effect. React runs child effects before parent effects, so a hook rendered inside the provider enters it before `AuthProvider`'s `init()` effect. The app never observes `isLoading: false, isAuthenticated: false` while a completion is in progress.
 4. `OAUTH_STORAGE_ID` stays the string `"oauth"` so a flow saved before this commit is found.
-5. `retryOnNetworkError` is not applied in `oauth/client.ts`. The Next.js factory applies it to the proxy sign-in API, and the SPA websocket client re-sends an unfinished mutation itself.
+5. `retryOnNetworkError` is not applied in `oauth/client.ts`. This commit removes it from the OAuth redemption and adds it to the proxy sign-in API in `createNextjsAuthClient`. The SPA websocket client re-sends an unfinished mutation itself, and the proxy HTTP client does not.
 
 ## Steps
 
 Delete
 
 - `browser/ambientSignInClient.ts`, `browser/keyedStore.ts`, `browser/keyedStore.test.ts`, `react/providers.ts`, `react/providers.test.tsx`.
-- Move the `AuthSignInApi` type to a new `browser/signInApi.ts`, keep its tsdoc minus the sentence about callers retrying, and update every import (`sessionManager.ts`, `createAuthClient.ts`, `react/client.tsx`, `react/index.tsx`, `nextjs/index.tsx`, `components/passkey/flows.ts`, `oauth/testFlow.ts`, `react/testSignInApi.ts`, and any other grep hit).
+- Move the `AuthSignInApi` type to a new `browser/signInApi.ts`. Keep its tsdoc minus the sentence about callers retrying, and reword its first paragraph, which names the deleted `AmbientSignInContext`. Update the imports in `browser/sessionManager.ts`, `browser/createAuthClient.ts`, `browser/createAuthClient.test.ts`, `browser/sessionManager.test.ts`, `browser/index.ts`, `react/client.tsx`, `react/index.tsx`, `oauth/testFlow.ts`, and `components/passkey/flows.ts`. `react/testSignInApi.ts` and `components/passkey/react.test.tsx` import the type from `react/client.tsx`, which re-exports it, so they need no change. Grep for `AuthSignInApi` and `ambientSignInClient` after the move.
 - In `sessionManager.ts`: remove the `ambientSignIns` config, `#ambientValues`, `ambientSignInValues()`, `#initCallbacks`, `#registerAmbientSignIns`, the `onInit` loop in `init()`, and the `KeyedStore` import. Keep the id regex check inside `signInStorage`.
-- In `createAuthClient.ts`: remove the `ambientSignIns` option and the `oauth` import. In `browser/index.ts` and `react/index.tsx`: remove the ambient type exports.
+- In `createAuthClient.ts`: remove the `ambientSignIns` option and the `oauth` import. In `browser/index.ts`: remove the `SignInValues`, `SignInValuesReader`, `AmbientSignInClient`, and `AmbientSignInContext` exports, and export `AuthSignInApi` from `./signInApi.ts`. In `react/index.tsx`: remove the `AmbientSignInClient` export. The `AuthSignInApi` export through `react/client.tsx` stays.
 
 `oauth/flowState.ts` (new)
 
@@ -91,13 +92,18 @@ Delete
 - `useOauthSignIn(refs)`: calls `useOauthCallback()`. `signIn` is memoized on `[auth, convex, providerName, startPath, completePath]` using the existing `getFunctionName` pattern, and calls `startOauthSignIn({ auth, convex }, refs, options)`. Returns `{ signIn }`.
 - Per-provider hooks keep their shape. Remove `NOT_REGISTERED_ERROR` and the `oauth` re-export. Rewrite the module tsdoc. Say that `useOauthSignIn` completes a callback on mount, that `useOauthCallback` is for a custom `redirectTo` page, and that under `ConvexAuthNextjsProvider` the provider's `completeSignIn*` function has to be in the proxy `signIn` allowlist while `startSignIn*` runs over the ordinary Convex client.
 
+`nextjs/index.tsx` and `browser/retry.ts`
+
+- In `createNextjsAuthClient`, set the sign-in API with `auth.setSignInApi({ mutation: (fn, args) => retryOnNetworkError(() => withAuth().mutation(fn, args)), action: (fn, args) => retryOnNetworkError(() => withAuth().action(fn, args)) })` and import `retryOnNetworkError` from `../browser/retry.ts`.
+- Update the `browser/retry.ts` module tsdoc. It serves `fetchAccessToken` in both modes and the Next.js proxy sign-in API. Do not change the code.
+
 `KNOWN_ISSUES.md`
 
-- Remove "OAuth isn't wired into the Next.js client". Check that the other OAuth entries name files that exist.
+- Remove "OAuth isn't wired into the Next.js client". In "One pending OAuth flow per storage", replace "the oauth setup's scoped storage" with wording that names `auth.signInStorage("oauth")`. In "Support for custom url schemes", replace "the startup handler that finishes a flow from callback params" with `handleOauthCallback`. Check that the entries name files that exist.
 
 Examples
 
-- `examples/react-github|google|apple/src/App.tsx` keep working with no change. Check their imports compile.
+- `examples/react-github|google|apple/src/App.tsx` compile with no change. Check their imports.
 
 ## Tests
 
@@ -106,8 +112,9 @@ Examples
 - `oauth/clientEnvironment.test.ts`: `readOauthCallback()` returns null and `handleOauthCallback` calls neither mutation with no `window` and with `window` that has no `location`.
 - `oauth/react.test.tsx`: the hooks throw outside a provider. A StrictMode double mount redeems a callback code once. A callback error param reaches `useOauth()` in a sibling component. `useOauthSignIn`'s `signIn` starts a flow through the `ConvexProvider` client's `mutation`, not through `auth.signIn`. `signInGithub` starts a flow with the GitHub references. `useOauthSignIn` runs a provider that ships no hook of its own. `signInGoogle` keeps a stable identity across rerenders. The hook params accept the api module structurally. New, rule 3: with `?convexAuthCode=` in the URL under StrictMode, no snapshot reports `isLoading: false, isAuthenticated: false` before `setSession`. New: an ssr-mode `AuthClient` whose sign-in API is a stub completes through that stub while `startSignIn` goes through the `ConvexProvider` client.
 - `browser/sessionManager.test.ts`: delete the ambient describe. Add a test that `withSignInPending` entered before `init()` resolves keeps `isLoading` true past the session load.
-- `react/index.test.tsx`: remove the ambient tests and any `ambientSignIns` option use.
-- Harness for the React tests: `<AuthProvider authClient={auth}>` inside `<ConvexProvider client={...}>` with a client stub `{ mutation: startMutation, setAuth: vi.fn(), clearAuth: vi.fn() }` or a real `ConvexReactClient` against a fake URL, whichever the existing OAuth React tests use.
+- `react/index.test.tsx`: remove the describe "ConvexAuthProvider ambient sign-ins", the `ambientSignIns` parameter of `makeAuthClient`, the probe components, and the ambient imports.
+- `nextjs/index.test.tsx`: add a retry test. A sign-in mutation whose first `fetch` rejects with `new TypeError("Failed to fetch")` and whose second call succeeds resolves to the success. The backoff in `retry.ts` is 500ms plus jitter, so use fake timers or accept the delay.
+- Harness for `oauth/react.test.tsx`: the rewritten hooks call `useConvex()` from `convex/react`, so render `<ConvexProvider client={convexClient}><AuthProvider authClient={auth}>`. Build `convexClient = new ConvexReactClient(fakeUrl)` and spy on start calls with `vi.spyOn(convexClient, "mutation")`, the pattern `react/index.test.tsx` uses. A real client against a fake URL never opens a connection. Completions assert on the `completeMutation` stub set through `auth.setSignInApi`.
 
 ## Verification, then commit and push
 
@@ -119,7 +126,7 @@ pnpm build
 pnpm test
 ```
 
-All must pass. Commit once with the title `Replace the ambient sign-in registry with OAuth flow functions` and a body that lists the deleted modules and the new functions. Push with `git push -u origin erquhart/oauth-client-simplify`.
+All must pass. Commit once with the title `Replace the ambient sign-in registry with OAuth flow functions` and a body that lists the deleted modules and the new functions and says the Next.js proxy sign-in API applies `retryOnNetworkError`. Push with `git push -u origin erquhart/oauth-client-simplify`.
 
 ## Final message
 
