@@ -55,7 +55,10 @@ export const getPrimaryEmail = query({
  * in, for example at sign-in or at the start of a password recovery. Each
  * call takes a token from a per-IP limit before the lookup, so that a client
  * cannot probe many addresses to find which ones have an account. The
- * function returns `RATE_LIMITED` when the client IP has no token.
+ * function returns `RATE_LIMITED` when the client IP has no token. The
+ * `start` of the kinds that record an address (`addEmail`, `changeEmail`,
+ * `signUp`) uses the same limit, because its `EMAIL_TAKEN` error gives the
+ * same information.
  *
  * The lookup ignores the case and the Unicode normalization form of the
  * `email` argument. The `storedEmail` field of the result is the address as

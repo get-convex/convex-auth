@@ -43,9 +43,12 @@ export const CUSTOM_TTL_MAX_MS = 24 * 60 * 60 * 1000; // 24 hours
 // - per destination address, so an attacker cannot flood one mailbox;
 // - per client IP, so one machine cannot spray many addresses.
 //
-// A separate limit throttles `lookupEmail`, so that one machine cannot probe
-// many addresses to find which ones have an account. Each sign-in uses a
-// lookup, thus this limit is higher than the limits for the challenges.
+// A separate limit throttles each call that tells the caller whether an
+// address has an account, so that one machine cannot probe many addresses to
+// find which ones have an account. `lookupEmail` and the `start` of the kinds
+// that record an address (`addEmail`, `changeEmail`, `signUp`) share it. Each
+// sign-in uses a lookup, thus this limit is higher than the limits for the
+// challenges.
 // TODO: review these values.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
   startChallengePerEmail: { kind: "token bucket", rate: 5, period: HOUR },

@@ -1,4 +1,5 @@
-// The behavior that every challenge kind shares: the `start` preconditions,
+// The behavior that every challenge kind shares: the `start` preconditions
+// (and the extra ones of the kinds that record an address),
 // the one-shot claim, the claim failures, the case of the address, and the
 // cleanup when a user is deleted. `custom` is the vehicle unless a test needs
 // another kind.
@@ -6,8 +7,8 @@
 import { describe, expect, test } from "vitest";
 import { api } from "../_generated/api.ts";
 import { rateLimiter } from "../helpers.ts";
-import { seedChallenge, setup } from "../../emailTestSetup.ts";
-import { startPreconditions } from "./common.ts";
+import { seedChallenge, seedEmail, setup } from "../../emailTestSetup.ts";
+import { startFreeAddressPreconditions, startPreconditions } from "./common.ts";
 
 const PURPOSE = "myApp/flow";
 const CLAIM = { purpose: PURPOSE, currentUserId: null };
@@ -327,5 +328,133 @@ describe("startPreconditions", () => {
     await expect(run(t, "alice@example.com", "check", null)).rejects.toThrow(
       /client IP/,
     );
+  });
+});
+
+function runFree(
+  t: ReturnType<typeof setup>,
+  email: string,
+  mode: "check" | "consume",
+) {
+  return t
+    .withRequestMetadata({ ip: IP })
+    .run((ctx) => startFreeAddressPreconditions(ctx, email, mode));
+}
+
+/** The whole tokens left in a limit (the bucket refills a little each ms). */
+async function tokens(
+  t: ReturnType<typeof setup>,
+  name: "lookupEmailPerIp" | "startChallengePerIp" | "startChallengePerEmail",
+  key: string,
+): Promise<number> {
+  const { value } = await t.run((ctx) =>
+    rateLimiter.getValue(ctx, name, { key }),
+  );
+  return Math.floor(value);
+}
+
+describe("startFreeAddressPreconditions", () => {
+  test("check takes a lookup token for EMAIL_TAKEN", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "taken@example.com", true);
+
+    expect(await runFree(t, "Taken@Example.com", "check")).toEqual({
+      error: "EMAIL_TAKEN",
+    });
+    expect(await tokens(t, "lookupEmailPerIp", IP)).toBe(59);
+  });
+
+  test("check takes no token for a free address", async () => {
+    const t = setup();
+    for (let i = 0; i < 10; i++) {
+      expect(await runFree(t, "alice@example.com", "check")).toBeNull();
+    }
+    expect(await tokens(t, "lookupEmailPerIp", IP)).toBe(60);
+  });
+
+  test("consume takes a lookup token for a free address", async () => {
+    const t = setup();
+    expect(await runFree(t, "alice@example.com", "consume")).toBeNull();
+    expect(await tokens(t, "lookupEmailPerIp", IP)).toBe(59);
+    expect(await tokens(t, "startChallengePerIp", IP)).toBe(19);
+  });
+
+  test("check then consume in one transaction takes one lookup token", async () => {
+    const t = setup();
+    await t.withRequestMetadata({ ip: IP }).run(async (ctx) => {
+      expect(
+        await startFreeAddressPreconditions(ctx, "alice@example.com", "check"),
+      ).toBeNull();
+      expect(
+        await startFreeAddressPreconditions(
+          ctx,
+          "alice@example.com",
+          "consume",
+        ),
+      ).toBeNull();
+    });
+    expect(await tokens(t, "lookupEmailPerIp", IP)).toBe(59);
+  });
+
+  test("consume takes only a lookup token for EMAIL_TAKEN", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "taken@example.com", true);
+
+    expect(await runFree(t, "taken@example.com", "consume")).toEqual({
+      error: "EMAIL_TAKEN",
+    });
+    expect(await tokens(t, "lookupEmailPerIp", IP)).toBe(59);
+    // No email goes out, thus the limits of the start keep their tokens.
+    expect(await tokens(t, "startChallengePerIp", IP)).toBe(20);
+    expect(await tokens(t, "startChallengePerEmail", "taken@example.com")).toBe(
+      5,
+    );
+  });
+
+  test("lookupEmail and EMAIL_TAKEN use the same limit", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "taken@example.com", true);
+    await t.run(async (ctx) => {
+      await rateLimiter.limit(ctx, "lookupEmailPerIp", { key: IP, count: 59 });
+    });
+
+    expect(await runFree(t, "taken@example.com", "check")).toEqual({
+      error: "EMAIL_TAKEN",
+    });
+    expect(
+      await t
+        .withRequestMetadata({ ip: IP })
+        .mutation(api.verifiedEmails.lookupEmail, {
+          email: "taken@example.com",
+        }),
+    ).toMatchObject({ success: false, userError: { error: "RATE_LIMITED" } });
+  });
+
+  test("with no lookup token, free and taken addresses both get RATE_LIMITED", async () => {
+    const t = setup();
+    await seedEmail(t, "user2", "taken@example.com", true);
+    await t.run(async (ctx) => {
+      await rateLimiter.limit(ctx, "lookupEmailPerIp", { key: IP, count: 60 });
+    });
+
+    for (const mode of ["check", "consume"] as const) {
+      for (const email of ["taken@example.com", "alice@example.com"]) {
+        expect(await runFree(t, email, mode)).toMatchObject({
+          error: "RATE_LIMITED",
+        });
+      }
+    }
+    // The denied start takes no token from the limits of the start.
+    expect(await tokens(t, "startChallengePerIp", IP)).toBe(20);
+  });
+
+  test("rejects an invalid address before it reads the limits", async () => {
+    const t = setup();
+    // No IP: reading the limits would throw.
+    expect(
+      await t.run((ctx) =>
+        startFreeAddressPreconditions(ctx, "not an address", "consume"),
+      ),
+    ).toEqual({ error: "INVALID_EMAIL" });
   });
 });

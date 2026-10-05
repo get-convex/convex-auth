@@ -233,6 +233,31 @@ describe("signUp", () => {
     });
   });
 
+  test("EMAIL_TAKEN uses the lookup limit that signIn also uses", async () => {
+    const t = await setup();
+    await seedSignedUpUser(t);
+    const signUp = () =>
+      t
+        .withRequestMetadata({ ip: IP })
+        .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+    // The lookup limit has 60 tokens per IP.
+    for (let i = 0; i < 60; i++) {
+      expect(await signUp()).toEqual({
+        success: false,
+        userError: { error: "EMAIL_TAKEN" },
+      });
+    }
+    expect(await signUp()).toMatchObject({
+      success: false,
+      userError: { error: "RATE_LIMITED" },
+    });
+    expect(
+      await t
+        .withRequestMetadata({ ip: IP })
+        .mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
+    ).toMatchObject({ status: "error", userError: { error: "RATE_LIMITED" } });
+  });
+
   test("creates the user without a session and sends the link", async () => {
     const t = await setup();
     const result = await t

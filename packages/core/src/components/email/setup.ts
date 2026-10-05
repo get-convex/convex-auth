@@ -397,6 +397,8 @@ export function setupEmailPassword<UsersTable extends string>(
             // `start` below (format, rate limits, address not taken) without
             // consuming the limits: a mutation can only roll back by
             // throwing, and these are expected outcomes, not exceptions.
+            // (`EMAIL_TAKEN` takes a lookup token, so that sign-up is not a
+            // free way to find which addresses have an account.)
             const emailError = await ctx.runMutation(
               component.challenge.signUp.check,
               { email },
