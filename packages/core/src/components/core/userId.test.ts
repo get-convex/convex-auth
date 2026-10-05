@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import type { Auth, UserIdentity } from "convex/server";
+import type { GenericId } from "convex/values";
 import { getAuthUserId } from "./userId.ts";
 
 /** A ctx whose `auth` reports the given identity, as Convex's would. */
@@ -23,5 +24,17 @@ describe("getAuthUserId", () => {
 
   test("returns null when the caller has no identity", async () => {
     expect(await getAuthUserId(ctxWithIdentity(null))).toBe(null);
+  });
+
+  test("types the id as one in the users table", () => {
+    expectTypeOf(
+      getAuthUserId(ctxWithIdentity(null)),
+    ).resolves.toEqualTypeOf<GenericId<"users"> | null>();
+  });
+
+  test("types the id as one in the table the caller names", () => {
+    expectTypeOf(
+      getAuthUserId<"members">,
+    ).returns.resolves.toEqualTypeOf<GenericId<"members"> | null>();
   });
 });
