@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @convex-dev/auth build",
+    "check:declarations": "tsx scripts/checkDeclarations.ts",
     "codegen": "tsx scripts/codegen.ts",
     "clean": "pnpm --filter @convex-dev/auth clean",
     "lint": "eslint .",
