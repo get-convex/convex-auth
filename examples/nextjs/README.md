@@ -1,8 +1,8 @@
 # Convex Auth — Next.js (App Router) SSR example
 
-Server-side sign-in with Convex Auth — username/password or anonymous: the
-refresh token is minted straight into an httpOnly cookie and **never reaches
-client JS**. The browser holds only the access token.
+Server-side sign-in with Convex Auth — username/password, GitHub, or
+anonymous: the refresh token is minted straight into an httpOnly cookie and
+**never reaches client JS**. The browser holds only the access token.
 
 ## How it works
 
@@ -33,6 +33,14 @@ client JS**. The browser holds only the access token.
   failure the action's `userError` (e.g. `INVALID_CREDENTIALS`,
   `USERNAME_TAKEN`) comes back fully typed, so the form can show a specific
   message. The sign-in page also offers one-click anonymous sign-in.
+- **GitHub sign-in** uses `useSignInWithGithub` from
+  `@convex-dev/auth/providers/oauth/react`, the same hook a SPA uses. Starting
+  the flow runs `startSignInGithub` on the Convex client, because it returns a
+  redirect URL rather than a session. GitHub sends the user back to `/signin`,
+  where the hook redeems the code by calling `completeSignInGithub` through the
+  sign-in route, so only `completeSignInGithub` is in the `signIn` allowlist.
+  The flow has to return to a page `proxy.ts` lets a signed-out user reach,
+  which is why it starts and ends on `/signin`.
 
 ## Run it
 
@@ -41,6 +49,15 @@ cd examples/nextjs
 npx convex dev --once   # provisions a deployment, generates convex/_generated
 npx @convex-dev/auth    # sets AUTH_PRIVATE_KEY + AUTH_JWKS on the deployment
 npm run dev             # runs Convex and next dev together
+```
+
+For GitHub sign-in, register a GitHub OAuth app whose callback URL is your
+deployment's site URL plus `/oauth/github/callback` (get the site URL with
+`npx convex env get CONVEX_SITE_URL`), then set its credentials:
+
+```sh
+npx convex env set AUTH_GITHUB_CLIENT_ID YOUR_GITHUB_OAUTH_CLIENT_ID
+npx convex env set AUTH_GITHUB_CLIENT_SECRET YOUR_GITHUB_OAUTH_CLIENT_SECRET
 ```
 
 Then open <http://localhost:3000> — you'll be redirected to `/signin`; create an

@@ -15,6 +15,9 @@ export const auth = setupConvexAuthServer({
     api.auth.signInAnonymous,
     api.auth.signInWithPassword,
     api.auth.signUpWithPassword,
+    // Only the completing half of the OAuth flow. `startSignInGithub` returns
+    // a redirect URL rather than a session, so it runs on the Convex client.
+    api.auth.completeSignInGithub,
   ],
   cookieOptions: { secure: process.env.NODE_ENV === "production" },
 });
