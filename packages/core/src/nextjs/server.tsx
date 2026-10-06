@@ -205,6 +205,9 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
 
   /** Server Component that reads the cookie token and renders the client
    * provider, so the client hydrates ready to authenticate. */
+  // TODO: Accept `signInRoute`, `refreshRoute`, and `signOutRoute` and pass
+  // them through to `ConvexAuthNextjsProvider`, so the auth route handlers can
+  // be mounted somewhere other than the default `/auth/*` paths.
   async function ConvexAuthNextjsServerProvider({
     children,
   }: {
