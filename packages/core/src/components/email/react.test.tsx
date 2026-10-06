@@ -224,12 +224,12 @@ describe("useSignUpWithEmailPassword", () => {
   };
 
   test("success stores the secret and does not sign in", async () => {
-    runSignInMutation.mockResolvedValue({
+    const mutation = stubConvexMutation().mockResolvedValue({
       success: true,
       browserSecret: "secret-1",
     });
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(signInMutation),
+      useSignUpWithEmailPassword(convexMutation),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -238,6 +238,10 @@ describe("useSignUpWithEmailPassword", () => {
       returned = await result.current.hook.signUp(credentials);
     });
 
+    // Sign-up mints no session, so it goes straight to Convex: under SSR the
+    // signInApi is the auth proxy, which refuses a non-envelope result.
+    expect(mutation.mock.calls[0]?.[1]).toEqual(credentials);
+    expect(runSignInMutation).not.toHaveBeenCalled();
     expect(returned).toEqual({ success: true });
     // The secret is kept for the completion step; no session was adopted.
     expect(secretStorage.get(SIGN_UP_SECRET_KEY)).toBe("secret-1");
@@ -246,9 +250,9 @@ describe("useSignUpWithEmailPassword", () => {
 
   test("a user error stores nothing", async () => {
     const failure = { success: false, userError: { error: "EMAIL_TAKEN" } };
-    runSignInMutation.mockResolvedValue(failure);
+    stubConvexMutation().mockResolvedValue(failure);
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(signInMutation),
+      useSignUpWithEmailPassword(convexMutation),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -263,9 +267,9 @@ describe("useSignUpWithEmailPassword", () => {
 
   test("a thrown mutation folds into OTHER_ERROR preserving cause", async () => {
     const cause = new Error("network blip");
-    runSignInMutation.mockRejectedValue(cause);
+    stubConvexMutation().mockRejectedValue(cause);
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(signInMutation),
+      useSignUpWithEmailPassword(convexMutation),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
