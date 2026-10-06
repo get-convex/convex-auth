@@ -12,7 +12,12 @@
     "outDir": "dist",
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    // Leaves out the declarations tagged `@internal`. The `build` script
+    // emits a second set of declarations with them, under
+    // `dist/internal-types/`. A consumer selects that set with the
+    // `convex-auth-internal-types` condition (see the `exports` map).
+    "stripInternal": true
     // `types` is inherited from tsconfig.json: `node` for `process.env` and
     // `vite/client` for the `import.meta.glob` in `components/testing/*`.
     // Neither leaks into the emitted declarations.

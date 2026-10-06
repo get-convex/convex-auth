@@ -40,6 +40,9 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      - name: Check the published declarations
+        run: pnpm check:declarations
+
       - name: Lint
         run: pnpm lint
 
