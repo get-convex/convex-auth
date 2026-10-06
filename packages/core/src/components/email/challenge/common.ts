@@ -230,11 +230,42 @@ export async function startPreconditions(
     return formatError;
   }
 
-  // Read both limits before either one takes a token. Otherwise a start that
-  // the IP limit denies would still take a token from the address, and a
-  // blocked client could lock any address out at no cost.
-  const emailKey = normalizeEmail(email);
-  const ipKey = await getClientIp(ctx);
+  const keys = await getStartLimitKeys(ctx, email);
+  const limitError = await checkStartLimits(ctx, keys);
+  if (limitError !== null) {
+    return limitError;
+  }
+
+  if (mode === "consume") {
+    await consumeStartLimits(ctx, keys);
+  }
+
+  return null;
+}
+
+type StartLimitKeys = { emailKey: string; ipKey: string };
+type RateLimitedUserError = Extract<
+  StartChallengeUserError,
+  { error: "RATE_LIMITED" }
+>;
+
+async function getStartLimitKeys(
+  ctx: MutationCtx,
+  email: string,
+): Promise<StartLimitKeys> {
+  return { emailKey: normalizeEmail(email), ipKey: await getClientIp(ctx) };
+}
+
+/**
+ * Read the two limits of a `start` without taking a token. The callers read
+ * all of the limits before any one takes a token. Otherwise a start that the
+ * IP limit denies would still take a token from the address, and a blocked
+ * client could lock any address out at no cost.
+ */
+async function checkStartLimits(
+  ctx: MutationCtx,
+  { emailKey, ipKey }: StartLimitKeys,
+): Promise<RateLimitedUserError | null> {
   const perEmail = await rateLimiter.check(ctx, "startChallengePerEmail", {
     key: emailKey,
   });
@@ -247,19 +278,22 @@ export async function startPreconditions(
   if (!perIp.ok) {
     return { error: "RATE_LIMITED", retryAfterMs: perIp.retryAfter };
   }
-
-  if (mode === "consume") {
-    await rateLimiter.limit(ctx, "startChallengePerEmail", {
-      key: emailKey,
-      throws: true,
-    });
-    await rateLimiter.limit(ctx, "startChallengePerIp", {
-      key: ipKey,
-      throws: true,
-    });
-  }
-
   return null;
+}
+
+/** Take one token from each of the two limits of a `start`. */
+async function consumeStartLimits(
+  ctx: MutationCtx,
+  { emailKey, ipKey }: StartLimitKeys,
+): Promise<void> {
+  await rateLimiter.limit(ctx, "startChallengePerEmail", {
+    key: emailKey,
+    throws: true,
+  });
+  await rateLimiter.limit(ctx, "startChallengePerIp", {
+    key: ipKey,
+    throws: true,
+  });
 }
 
 /**
@@ -267,9 +301,9 @@ export async function startPreconditions(
  * `null` when the address is free. The kinds that record an address call
  * this at start and again at completion.
  *
- * The `start` callers check this after the rate limits consume a token, on
- * purpose: a free `EMAIL_TAKEN` answer would make this an unlimited
- * enumeration oracle.
+ * At start, `startFreeAddressPreconditions` calls this only after it reads
+ * the `lookupEmailPerIp` limit, and takes a token from that limit for each
+ * answer. Otherwise the start would be an unlimited enumeration oracle.
  *
  * TODO: let the caller disable this check at start. It tells the caller if
  * an address has an account, which an app that must prevent user
@@ -287,17 +321,60 @@ export async function addressTakenError(
  * The `start` preconditions of the kinds that record the address for a user
  * (`addEmail`, `changeEmail`, `signUp`): the shared preconditions, then the
  * address must not be verified by any user.
+ *
+ * The result tells the caller whether the address has an account, thus it
+ * also uses the `lookupEmailPerIp` limit of `lookupEmail`. Each attempt takes
+ * one token from it:
+ *
+ * - `EMAIL_TAKEN` takes the token in both modes, because no `start` comes
+ *   after it.
+ * - A free address takes the token in `"consume"` mode only. When `check`
+ *   passes, the `start` that comes after it takes the token.
+ *
+ * Each call reads the limit, even for a free address. Thus, when the limit
+ * has no token, all of the addresses get `RATE_LIMITED`, and the answer does
+ * not tell which addresses have an account.
+ *
+ * An `EMAIL_TAKEN` start takes no token from the two limits of the start,
+ * because it sends no email.
  */
 export async function startFreeAddressPreconditions(
   ctx: MutationCtx,
   email: string,
   mode: "check" | "consume",
 ): Promise<StartFreeAddressUserError | null> {
-  const error = await startPreconditions(ctx, email, mode);
-  if (error !== null) {
-    return error;
+  const formatError = validateEmailFormat(email);
+  if (formatError !== null) {
+    return formatError;
   }
-  return addressTakenError(ctx, normalizeEmail(email));
+
+  const keys = await getStartLimitKeys(ctx, email);
+  const limitError = await checkStartLimits(ctx, keys);
+  if (limitError !== null) {
+    return limitError;
+  }
+  const lookup = await rateLimiter.check(ctx, "lookupEmailPerIp", {
+    key: keys.ipKey,
+  });
+  if (!lookup.ok) {
+    return { error: "RATE_LIMITED", retryAfterMs: lookup.retryAfter };
+  }
+
+  const takenError = await addressTakenError(ctx, keys.emailKey);
+  if (takenError !== null || mode === "consume") {
+    await rateLimiter.limit(ctx, "lookupEmailPerIp", {
+      key: keys.ipKey,
+      throws: true,
+    });
+  }
+  if (takenError !== null) {
+    return takenError;
+  }
+
+  if (mode === "consume") {
+    await consumeStartLimits(ctx, keys);
+  }
+  return null;
 }
 
 /**

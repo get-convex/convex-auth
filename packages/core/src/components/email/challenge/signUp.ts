@@ -25,7 +25,11 @@ import {
 
 /**
  * Tell whether `start` would fail with a `userError` for this address,
- * without consuming the rate limits. See `custom.check`.
+ * typically without consuming the rate limits. See `custom.check`.
+ *
+ * One exception: `EMAIL_TAKEN` takes a token from the `lookupEmailPerIp`
+ * limit, because it tells the caller that the address has an account. See
+ * `startFreeAddressPreconditions`.
  */
 export const check = mutation({
   args: { email: v.string() },
