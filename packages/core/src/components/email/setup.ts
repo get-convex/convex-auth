@@ -394,8 +394,8 @@ export function setupEmailPassword<UsersTable extends string>(
           handler: async (ctx, { email, password }): Promise<SignUpResult> => {
             // Validate both inputs before creating anything, so invalid input
             // never creates a user. `check` runs every precondition of the
-            // `start` below (format, rate limits, address not taken) without
-            // consuming the limits: a mutation can only roll back by
+            // `start` below (format, rate limits, address not taken), typically
+            // without consuming the limits: a mutation can only roll back by
             // throwing, and these are expected outcomes, not exceptions.
             // (`EMAIL_TAKEN` takes a lookup token, so that sign-up is not a
             // free way to find which addresses have an account.)

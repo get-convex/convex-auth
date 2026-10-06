@@ -230,7 +230,7 @@ export async function startPreconditions(
     return formatError;
   }
 
-  const keys = await startLimitKeys(ctx, email);
+  const keys = await getStartLimitKeys(ctx, email);
   const limitError = await checkStartLimits(ctx, keys);
   if (limitError !== null) {
     return limitError;
@@ -249,7 +249,7 @@ type RateLimitedUserError = Extract<
   { error: "RATE_LIMITED" }
 >;
 
-async function startLimitKeys(
+async function getStartLimitKeys(
   ctx: MutationCtx,
   email: string,
 ): Promise<StartLimitKeys> {
@@ -348,7 +348,7 @@ export async function startFreeAddressPreconditions(
     return formatError;
   }
 
-  const keys = await startLimitKeys(ctx, email);
+  const keys = await getStartLimitKeys(ctx, email);
   const limitError = await checkStartLimits(ctx, keys);
   if (limitError !== null) {
     return limitError;
