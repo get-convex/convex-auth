@@ -8,10 +8,10 @@ import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 
 export default function SignIn() {
-  // The provider's own hook, with no SSR-specific variant. The surrounding
-  // ConvexAuthNextjsProvider routes this call through the sign-in route, which
-  // moves the minted refresh token into an httpOnly cookie so it never reaches
-  // JS. Both functions are listed in `signIn` in src/lib/serverAuth.ts.
+  // The provider's own hook, with no SSR-specific variant. The auth client
+  // from createNextjsAuthClient routes this call through the sign-in route,
+  // which moves the minted refresh token into an httpOnly cookie so it never
+  // reaches JS. Both functions are listed in `signIn` in src/lib/serverAuth.ts.
   const { signIn, pending } = useSignInWithPassword(
     api.auth.signInWithPassword,
   );

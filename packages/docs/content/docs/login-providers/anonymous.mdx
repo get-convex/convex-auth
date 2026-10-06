@@ -104,8 +104,8 @@ rows, in `convex/auth.ts`:
 
 ### Set up the provider on the client
 
-Wrap your app in `ConvexAuthProvider`, passing it the `refreshSession` and
-`signOut` actions in `src/main.tsx`:
+In `src/main.tsx`, build the auth client with `createAuthClient`, passing it
+your Convex client and `api.auth`, and wrap your app in `ConvexAuthProvider`:
 
 <include
   lang="tsx"

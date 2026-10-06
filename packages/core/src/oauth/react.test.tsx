@@ -115,8 +115,11 @@ function renderOAuth<T>(
     strictMode = false,
   }: { storage?: InMemoryStorage; strictMode?: boolean } = {},
 ) {
-  const { auth, completeMutation } = oauthContext({ storage });
   const { convexClient, startMutation } = makeConvexClient();
+  const { auth, completeMutation } = oauthContext({
+    storage,
+    convex: convexClient,
+  });
   const rendered = renderHook(hook, {
     wrapper: makeWrapper(convexClient, auth, strictMode),
   });
@@ -146,8 +149,11 @@ describe("OAuth React client", () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage, googleRefs);
-    const { auth, completeMutation } = oauthContext({ storage });
     const { convexClient, startMutation } = makeConvexClient();
+    const { auth, completeMutation } = oauthContext({
+      storage,
+      convex: convexClient,
+    });
     completeMutation.mockResolvedValueOnce(completed);
 
     const { result } = renderHook(useGoogleFlow, {
@@ -172,8 +178,11 @@ describe("OAuth React client", () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     const storage = new InMemoryStorage();
     seedPendingFlow(storage, googleRefs);
-    const { auth, completeMutation } = oauthContext({ storage });
     const { convexClient } = makeConvexClient();
+    const { auth, completeMutation } = oauthContext({
+      storage,
+      convex: convexClient,
+    });
     const redemption = Promise.withResolvers<typeof completed>();
     completeMutation.mockReturnValueOnce(redemption.promise);
     const init = vi.spyOn(auth, "init");
@@ -212,8 +221,8 @@ describe("OAuth React client", () => {
 
   test("a callback error param reaches useOauth in a sibling component", async () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
-    const { auth, completeMutation } = oauthContext();
     const { convexClient } = makeConvexClient();
+    const { auth, completeMutation } = oauthContext({ convex: convexClient });
     function ErrorBanner() {
       const { flowError } = useOauth();
       return <div>{flowError?.code ?? "no error"}</div>;
@@ -338,12 +347,6 @@ describe("OAuth React client", () => {
     stubReactNative();
     const storage = new InMemoryStorage();
     seedPendingFlow(storage, googleRefs);
-    const auth = new AuthClient({
-      mode: "ssr",
-      authApi: { refreshSession: async () => null, signOut: async () => {} },
-      storage,
-      storageNamespace: NAMESPACE,
-    });
     // The stand-in for the Next.js auth proxy, which returns an access-only
     // session.
     const slim: SlimTokenBundle = {
@@ -354,11 +357,19 @@ describe("OAuth React client", () => {
     const proxyMutation = vi
       .fn()
       .mockResolvedValueOnce({ status: "complete", tokens: slim });
-    auth.setSignInApi({
-      mutation: proxyMutation,
-      action: vi.fn(),
-    } as unknown as AuthSignInApi);
     const { convexClient, startMutation } = makeConvexClient();
+    const auth = new AuthClient({
+      mode: "ssr",
+      convex: convexClient,
+      url: NAMESPACE,
+      signInApi: {
+        mutation: proxyMutation,
+        action: vi.fn(),
+      } as unknown as AuthSignInApi,
+      authApi: { refreshSession: async () => null, signOut: async () => {} },
+      storage,
+      storageNamespace: NAMESPACE,
+    });
 
     const { result } = renderHook(useGoogleFlow, {
       wrapper: makeWrapper(convexClient, auth, false),

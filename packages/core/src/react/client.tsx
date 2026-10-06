@@ -63,6 +63,17 @@ export function useAuthClient(): AuthClient {
   return authClient;
 }
 
+/** Returns `auth.convex` and re-renders when `setConvex` replaces it. */
+export function useAuthConvexClient<C extends AuthSignInApi>(
+  auth: AuthClient<C>,
+): C {
+  return useSyncExternalStore(
+    auth.subscribe,
+    () => auth.convex,
+    () => auth.convex,
+  );
+}
+
 /** The current access token (a JWT), or null when signed out. */
 export const ConvexAuthTokenContext = createContext<string | null>(null);
 

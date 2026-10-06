@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { render, waitFor } from "@testing-library/react";
-import { ConvexReactClient } from "convex/react";
+import { act, render, waitFor } from "@testing-library/react";
+import { ConvexClient } from "convex/browser";
+import { ConvexReactClient, useConvex } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { StrictMode, useEffect } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -10,6 +11,7 @@ import {
   NamespacedStorage,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "../browser/storage.ts";
+import type { TokenBundle } from "../lib/types.ts";
 import {
   ConvexAuthProvider,
   createAuthClient,
@@ -25,13 +27,23 @@ const API = {
 
 const SIGN_IN = makeFunctionReference<"mutation">("auth:signInProbe");
 
-/** An auth client with in-memory storage. */
-function makeAuthClient() {
+/** An auth client with in-memory storage, built with `convex`. */
+function makeAuthClient(convex = makeConvexClient()) {
   return createAuthClient({
-    url: URL,
+    convex,
     api: API,
     storage: new InMemoryStorage(),
   });
+}
+
+function bundle(n: number): TokenBundle {
+  return {
+    accessToken: `access-${n}`,
+    accessTokenExpiresAt: 0,
+    refreshToken: `refresh-${n}`,
+    refreshTokenExpiresAt: 0,
+    userId: "user-1",
+  };
 }
 
 /** A WebSocket stand-in that records sent messages and opens on request. */
@@ -79,7 +91,7 @@ describe("ConvexAuthProvider", () => {
       return null;
     }
     render(
-      <ConvexAuthProvider client={makeConvexClient()} auth={auth}>
+      <ConvexAuthProvider auth={auth}>
         <Capture />
       </ConvexAuthProvider>,
     );
@@ -91,9 +103,9 @@ describe("ConvexAuthProvider", () => {
     const mutation = vi
       .spyOn(client, "mutation")
       .mockResolvedValue("result" as never);
-    const auth = makeAuthClient();
+    const auth = makeAuthClient(client);
     render(
-      <ConvexAuthProvider client={client} auth={auth}>
+      <ConvexAuthProvider auth={auth}>
         <div />
       </ConvexAuthProvider>,
     );
@@ -106,10 +118,10 @@ describe("ConvexAuthProvider", () => {
     const action = vi
       .spyOn(client, "action")
       .mockResolvedValue("result" as never);
-    const auth = makeAuthClient();
+    const auth = makeAuthClient(client);
     const signInAction = makeFunctionReference<"action">("auth:signInAction");
     render(
-      <ConvexAuthProvider client={client} auth={auth}>
+      <ConvexAuthProvider auth={auth}>
         <div />
       </ConvexAuthProvider>,
     );
@@ -122,19 +134,18 @@ describe("ConvexAuthProvider", () => {
     const mutation = vi
       .spyOn(client, "mutation")
       .mockResolvedValue("result" as never);
-    const auth = makeAuthClient();
+    const auth = makeAuthClient(client);
     const results: Promise<unknown>[] = [];
     function SignInOnMount() {
       const authClient = useAuthClient();
       useEffect(() => {
-        // Child effects run before the provider's effects, so the API must be
-        // set during the provider's render.
+        // Child effects run before the provider's effects.
         results.push(authClient.signIn.mutation(SIGN_IN, {}));
       }, [authClient]);
       return null;
     }
     render(
-      <ConvexAuthProvider client={client} auth={auth}>
+      <ConvexAuthProvider auth={auth}>
         <SignInOnMount />
       </ConvexAuthProvider>,
     );
@@ -143,7 +154,7 @@ describe("ConvexAuthProvider", () => {
     expect(mutation).toHaveBeenCalledWith(SIGN_IN, {});
   });
 
-  test("a new client prop sets the sign-in API again", async () => {
+  test("setConvex re-renders the provider with the new client", async () => {
     const first = makeConvexClient();
     const second = makeConvexClient();
     const firstMutation = vi
@@ -152,46 +163,97 @@ describe("ConvexAuthProvider", () => {
     const secondMutation = vi
       .spyOn(second, "mutation")
       .mockResolvedValue("second" as never);
-    const auth = makeAuthClient();
-    const { rerender } = render(
-      <ConvexAuthProvider client={first} auth={auth}>
-        <div />
+    const auth = makeAuthClient(first);
+    const seen: unknown[] = [];
+    function Capture() {
+      seen.push(useConvex());
+      return null;
+    }
+    render(
+      <ConvexAuthProvider auth={auth}>
+        <Capture />
       </ConvexAuthProvider>,
     );
-    await expect(auth.signIn.mutation(SIGN_IN, {})).resolves.toBe("first");
+    expect(seen.at(-1)).toBe(first);
 
-    rerender(
-      <ConvexAuthProvider client={second} auth={auth}>
-        <div />
-      </ConvexAuthProvider>,
-    );
+    act(() => auth.setConvex(second));
 
+    expect(seen.at(-1)).toBe(second);
     await expect(auth.signIn.mutation(SIGN_IN, {})).resolves.toBe("second");
-    expect(firstMutation).toHaveBeenCalledTimes(1);
-    expect(secondMutation).toHaveBeenCalledTimes(1);
+    expect(secondMutation).toHaveBeenCalledOnce();
+    expect(firstMutation).not.toHaveBeenCalled();
   });
 
-  test("a StrictMode double render sets one working sign-in API", async () => {
+  test("setConvex moves Convex auth to the new client", async () => {
+    const first = makeConvexClient();
+    const second = makeConvexClient();
+    const auth = makeAuthClient(first);
+    render(
+      <ConvexAuthProvider auth={auth}>
+        <div />
+      </ConvexAuthProvider>,
+    );
+    await waitFor(() => expect(auth.getSnapshot().isLoading).toBe(false));
+    await act(async () => {
+      await auth.setSession(bundle(1));
+    });
+    expect(auth.getSnapshot().isAuthenticated).toBe(true);
+    const firstSetAuth = vi.spyOn(first, "setAuth");
+    const firstClearAuth = vi.spyOn(first, "clearAuth");
+    const secondSetAuth = vi.spyOn(second, "setAuth");
+    const secondClearAuth = vi.spyOn(second, "clearAuth");
+
+    act(() => auth.setConvex(second));
+
+    expect(firstClearAuth).toHaveBeenCalled();
+    expect(secondSetAuth).toHaveBeenCalled();
+    expect(firstSetAuth).not.toHaveBeenCalled();
+    expect(secondClearAuth).not.toHaveBeenCalled();
+  });
+
+  test("under StrictMode, sign-in and useConvex use auth.convex", async () => {
     const client = makeConvexClient();
     const mutation = vi
       .spyOn(client, "mutation")
       .mockResolvedValue("result" as never);
-    const auth = makeAuthClient();
-    const setSignInApi = vi.spyOn(auth, "setSignInApi");
+    const auth = makeAuthClient(client);
+    const seen: unknown[] = [];
+    function Capture() {
+      seen.push(useConvex());
+      return null;
+    }
     render(
       <StrictMode>
-        <ConvexAuthProvider client={client} auth={auth}>
-          <div />
+        <ConvexAuthProvider auth={auth}>
+          <Capture />
         </ConvexAuthProvider>
       </StrictMode>,
     );
-    // StrictMode renders twice. Both renders set the same memoized wrapper.
-    expect(setSignInApi).toHaveBeenCalledTimes(2);
-    expect(setSignInApi.mock.calls[0]![0]).toBe(setSignInApi.mock.calls[1]![0]);
     await waitFor(() => expect(auth.getSnapshot().isLoading).toBe(false));
+    expect(seen.length).toBeGreaterThan(0);
+    for (const convex of seen) expect(convex).toBe(auth.convex);
     await expect(auth.signIn.mutation(SIGN_IN, {})).resolves.toBe("result");
     expect(mutation).toHaveBeenCalledOnce();
   });
+
+  test("the auth prop rejects an auth client built with a ConvexClient", () => {
+    const convex = new ConvexClient(URL, { disabled: true });
+    const auth = createAuthClient({
+      convex,
+      url: URL,
+      api: API,
+      storage: new InMemoryStorage(),
+    });
+    const element = (
+      // @ts-expect-error ConvexAuthProvider needs a ConvexReactClient.
+      <ConvexAuthProvider auth={auth}>
+        <div />
+      </ConvexAuthProvider>
+    );
+    expect(element.props.auth).toBe(auth);
+    void convex.close();
+  });
+
   describe("over a websocket", () => {
     beforeEach(() => {
       FakeWebSocket.instances = [];
@@ -202,10 +264,10 @@ describe("ConvexAuthProvider", () => {
         expectAuth: true,
         webSocketConstructor,
       });
-      const auth = makeAuthClient();
+      const auth = makeAuthClient(client);
       const setAuth = vi.spyOn(client, "setAuth");
       render(
-        <ConvexAuthProvider client={client} auth={auth}>
+        <ConvexAuthProvider auth={auth}>
           <div />
         </ConvexAuthProvider>,
       );
@@ -225,14 +287,14 @@ describe("ConvexAuthProvider", () => {
       const sessionStorage = new NamespacedStorage(storage, URL);
       sessionStorage.set(JWT_STORAGE_KEY, "access-0");
       sessionStorage.set(REFRESH_TOKEN_STORAGE_KEY, "refresh-0");
-      const auth = createAuthClient({ url: URL, api: API, storage });
       const client = new ConvexReactClient(URL, {
         expectAuth: true,
         webSocketConstructor,
       });
+      const auth = createAuthClient({ convex: client, api: API, storage });
       const setAuth = vi.spyOn(client, "setAuth");
       render(
-        <ConvexAuthProvider client={client} auth={auth}>
+        <ConvexAuthProvider auth={auth}>
           <div />
         </ConvexAuthProvider>,
       );
@@ -251,10 +313,10 @@ describe("ConvexAuthProvider", () => {
 
     test("a signed-out sign-in mutation is sent without expectAuth", async () => {
       const client = new ConvexReactClient(URL, { webSocketConstructor });
-      const auth = makeAuthClient();
+      const auth = makeAuthClient(client);
       const setAuth = vi.spyOn(client, "setAuth");
       render(
-        <ConvexAuthProvider client={client} auth={auth}>
+        <ConvexAuthProvider auth={auth}>
           <div />
         </ConvexAuthProvider>,
       );

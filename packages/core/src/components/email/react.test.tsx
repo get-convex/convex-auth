@@ -109,6 +109,9 @@ function stubConvexQuery() {
 function renderWithProviders<T>(useHook: () => T) {
   const authClient = new AuthClient({
     mode: "spa",
+    convex: convexClient,
+    url: NAMESPACE,
+    signInApi,
     authApi: {
       refreshSession: async () => ({ kind: "noSession" as const }),
       signOut: async () => {},
@@ -116,7 +119,6 @@ function renderWithProviders<T>(useHook: () => T) {
     storage: authStorage,
     storageNamespace: NAMESPACE,
   });
-  authClient.setSignInApi(signInApi);
   // StrictMode runs effects twice in development. The landing page hooks
   // must present a one-shot link once regardless.
   const wrapper = ({ children }: { children: ReactNode }) => (

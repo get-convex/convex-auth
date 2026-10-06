@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../../browser/signInApi.ts";
 import { InMemoryStorage } from "../../browser/storage.ts";
 import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
@@ -31,6 +32,9 @@ const signInAnonymous = {} as SignInAnonymousMutation;
 function renderAnonymousAuth() {
   const client = new AuthClient({
     mode: "spa",
+    convex: { mutation: vi.fn(), action: vi.fn() } as unknown as AuthSignInApi,
+    url: NAMESPACE,
+    signInApi,
     authApi: {
       refreshSession: async () => ({ kind: "noSession" as const }),
       signOut: async () => {},
@@ -38,7 +42,6 @@ function renderAnonymousAuth() {
     storage: new InMemoryStorage(),
     storageNamespace: NAMESPACE,
   });
-  client.setSignInApi(signInApi);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <AuthProvider authClient={client}>{children}</AuthProvider>
   );

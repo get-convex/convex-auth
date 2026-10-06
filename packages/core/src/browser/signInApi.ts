@@ -3,6 +3,7 @@ import type {
   FunctionReference,
   FunctionReturnType,
 } from "convex/server";
+import type { HttpClientLogger } from "./createAuthClient.ts";
 
 /**
  * The API that runs a provider's sign-in functions. Provider code calls it
@@ -28,4 +29,31 @@ export interface AuthSignInApi {
     fn: F,
     args: FunctionArgs<F>,
   ): Promise<FunctionReturnType<F>>;
+}
+
+/** The deployment URL of a Convex client, or undefined when it has none. */
+export function deploymentUrlOf(convex: object): string | undefined {
+  return "url" in convex && typeof convex.url === "string"
+    ? convex.url
+    : undefined;
+}
+
+/** The logger of a Convex client, or undefined when it has none. */
+export function loggerOf(convex: object): HttpClientLogger {
+  if (
+    "logger" in convex &&
+    typeof convex.logger === "object" &&
+    convex.logger !== null &&
+    "log" in convex.logger &&
+    typeof convex.logger.log === "function"
+  ) {
+    // A Convex client's logger has the other methods that the check skips.
+    return convex.logger as HttpClientLogger;
+  }
+  return undefined;
+}
+
+/** Whether two deployment URLs match, ignoring trailing slashes. */
+export function sameDeployment(a: string, b: string): boolean {
+  return a.replace(/\/+$/, "") === b.replace(/\/+$/, "");
 }

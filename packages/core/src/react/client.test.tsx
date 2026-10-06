@@ -3,13 +3,19 @@ import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { SpaAuthApi, AuthClient } from "../browser/sessionManager.ts";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import {
   InMemoryStorage,
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "../browser/storage.ts";
 import type { TokenBundle } from "../lib/types.ts";
-import { AuthProvider, useAuth, useAuthClient } from "./client.tsx";
+import {
+  AuthProvider,
+  useAuth,
+  useAuthClient,
+  useAuthConvexClient,
+} from "./client.tsx";
 import { useAuthActions, useAuthToken } from "./index.tsx";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";
@@ -26,12 +32,19 @@ function bundle(n: number): TokenBundle {
   };
 }
 
+/** A stub Convex client with mock `mutation` and `action` functions. */
+function stubConvex(): AuthSignInApi {
+  return { mutation: vi.fn(), action: vi.fn() } as unknown as AuthSignInApi;
+}
+
 function makeClient(
   authApi: Partial<SpaAuthApi> = {},
   storage = new InMemoryStorage(),
 ) {
   const client = new AuthClient({
     mode: "spa",
+    convex: stubConvex(),
+    url: NAMESPACE,
     authApi: {
       refreshSession: async () => ({ kind: "noSession" as const }),
       signOut: async () => {},
@@ -91,6 +104,18 @@ describe("React bindings", () => {
     const { client } = makeClient();
     const { result } = renderAuth(client);
     expect(result.current.authClient).toBe(client);
+  });
+
+  test("useAuthConvexClient returns auth.convex and re-renders after setConvex", () => {
+    const { client } = makeClient();
+    const first = client.convex;
+    const { result } = renderHook(() => useAuthConvexClient(client));
+    expect(result.current).toBe(first);
+
+    const second = stubConvex();
+    act(() => client.setConvex(second));
+
+    expect(result.current).toBe(second);
   });
 
   test("useAuthToken returns null when used outside a provider", () => {

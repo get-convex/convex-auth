@@ -26,10 +26,11 @@ client JS**. The browser holds only the access token.
   `proxy.ts`) and the Server-Component token accessor
   `convexAuthNextjsAccessToken`.
 - **`src/lib/ConvexClientProvider.tsx`** is a Client Component that builds the
-  `ConvexReactClient` and the auth client from `createNextjsAuthClient` at
-  module scope and renders `ConvexAuthNextjsProvider`. `app/layout.tsx` reads
-  the access token from the cookie with `convexAuthNextjsAccessToken` and
-  passes it as `initialToken`, so the client starts ready to authenticate.
+  `ConvexReactClient` at module scope, builds the auth client from it with
+  `createNextjsAuthClient`, and renders `ConvexAuthNextjsProvider`. The
+  provider takes only `auth` and `initialToken`. `app/layout.tsx` reads the
+  access token from the cookie with `convexAuthNextjsAccessToken` and passes
+  it as `initialToken`, so the client starts ready to authenticate.
 - **`app/signin/page.tsx` / `app/signup/page.tsx`** use the password provider's
   own `useSignInWithPassword` / `useSignUpWithPassword` from
   `@convex-dev/auth/providers/password/react`, the same hooks a SPA uses. The

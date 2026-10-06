@@ -94,15 +94,28 @@ export function seedPendingFlow(
  * An SPA auth client and a Convex client stand-in for the OAuth functions.
  * `completeMutation` is the auth client's sign-in API and `startMutation` is
  * the Convex client's `mutation`. Each mock records the function reference
- * that it was called with, so tests can assert which function ran.
+ * that it was called with, so tests can assert which function ran. A test
+ * that passes `convex` uses that client and leaves `startMutation` unused.
  */
 export function oauthContext({
   storage = new InMemoryStorage() as TokenStorage,
-} = {}) {
+  convex,
+}: { storage?: TokenStorage; convex?: AuthSignInApi } = {}) {
   const completeMutation = vi.fn();
   const startMutation = vi.fn();
   const auth = new AuthClient({
     mode: "spa",
+    convex:
+      convex ??
+      ({
+        mutation: startMutation,
+        action: vi.fn(),
+      } as unknown as AuthSignInApi),
+    url: NAMESPACE,
+    signInApi: {
+      mutation: completeMutation,
+      action: vi.fn(),
+    } as unknown as AuthSignInApi,
     authApi: {
       refreshSession: async () => ({ kind: "noSession" as const }),
       signOut: async () => {},
@@ -110,15 +123,15 @@ export function oauthContext({
     storage,
     storageNamespace: NAMESPACE,
   });
-  auth.setSignInApi({
-    mutation: completeMutation,
-    action: vi.fn(),
-  } as unknown as AuthSignInApi);
-  const convex = {
-    mutation: startMutation,
-  } as unknown as OauthClientContext["convex"];
   const flowError = () => getOauthFlowError(auth);
-  return { auth, convex, completeMutation, startMutation, flowError, storage };
+  return {
+    auth,
+    convex: auth.convex as OauthClientContext["convex"],
+    completeMutation,
+    startMutation,
+    flowError,
+    storage,
+  };
 }
 
 /** The function path the `mutation` mock was called with. */

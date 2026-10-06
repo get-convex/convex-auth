@@ -68,6 +68,11 @@ function reused(n: number): RefreshResult {
   };
 }
 
+/** A stub Convex client with mock `mutation` and `action` functions. */
+function stubConvex(): AuthSignInApi {
+  return { mutation: vi.fn(), action: vi.fn() } as unknown as AuthSignInApi;
+}
+
 // `storage` is typed as the interface rather than the concrete default so the
 // async-store tests below can pass their own implementation.
 function makeClient(
@@ -76,6 +81,8 @@ function makeClient(
 ) {
   const client = new AuthClient({
     mode: "spa",
+    convex: stubConvex(),
+    url: NAMESPACE,
     authApi: {
       refreshSession: async () => ({ kind: "noSession" }),
       signOut: async () => {},
@@ -93,6 +100,9 @@ function makeSsrClient(
 ) {
   const client = new AuthClient({
     mode: "ssr",
+    convex: stubConvex(),
+    url: NAMESPACE,
+    signInApi: stubConvex(),
     authApi: {
       refreshSession: async () => null,
       signOut: async () => {},
@@ -435,62 +445,204 @@ describe("AuthClient", () => {
   });
 });
 
-/** A stub sign-in API. */
-const SIGN_IN_API = {
-  mutation: vi.fn(),
-  action: vi.fn(),
-} as unknown as AuthSignInApi;
-
-/** A reference to pass the stub. Its path is never resolved. */
+/** A reference to pass the stubs. Its path is never resolved. */
 const SIGN_IN_REF = makeFunctionReference<"mutation">("auth:probeSignIn");
+const SIGN_IN_ACTION = makeFunctionReference<"action">("auth:probeAction");
 
-describe("AuthClient sign-in API", () => {
-  test("signIn.mutation and signIn.action forward to the set API", async () => {
-    const { client } = makeClient();
-    const mutation = vi.fn().mockResolvedValue("mutation-result");
-    const action = vi.fn().mockResolvedValue("action-result");
-    client.setSignInApi({ mutation, action } as unknown as AuthSignInApi);
-    const signInAction = makeFunctionReference<"action">("auth:probeAction");
+/** A Convex client stub whose functions resolve to `label`. */
+function labeledConvex(label: string, extra: object = {}) {
+  const mutation = vi.fn().mockResolvedValue(`${label}-mutation`);
+  const action = vi.fn().mockResolvedValue(`${label}-action`);
+  const convex = { mutation, action, ...extra } as unknown as AuthSignInApi;
+  return { convex, mutation, action };
+}
+
+/** An SPA client built with `convex` and an optional sign-in API. */
+function makeSpaClient(convex: AuthSignInApi, signInApi?: AuthSignInApi) {
+  return new AuthClient({
+    mode: "spa",
+    convex,
+    url: NAMESPACE,
+    signInApi,
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" }),
+      signOut: async () => {},
+    },
+    storage: new InMemoryStorage(),
+    storageNamespace: NAMESPACE,
+  });
+}
+
+/** An SSR client built with `convex` and `signInApi`. */
+function makeSsrClientWith(convex: AuthSignInApi, signInApi: AuthSignInApi) {
+  return new AuthClient({
+    mode: "ssr",
+    convex,
+    url: NAMESPACE,
+    signInApi,
+    authApi: {
+      refreshSession: async () => null,
+      signOut: async () => {},
+    },
+    storage: new InMemoryStorage(),
+    storageNamespace: NAMESPACE,
+  });
+}
+
+describe("AuthClient Convex client and sign-in API", () => {
+  test("SPA sign-in without a signInApi forwards to convex", async () => {
+    const { convex, mutation, action } = labeledConvex("convex");
+    const client = makeSpaClient(convex);
 
     await expect(client.signIn.mutation(SIGN_IN_REF, { a: 1 })).resolves.toBe(
-      "mutation-result",
+      "convex-mutation",
     );
-    await expect(client.signIn.action(signInAction, { b: 2 })).resolves.toBe(
-      "action-result",
+    await expect(client.signIn.action(SIGN_IN_ACTION, { b: 2 })).resolves.toBe(
+      "convex-action",
     );
     expect(mutation).toHaveBeenCalledExactlyOnceWith(SIGN_IN_REF, { a: 1 });
-    expect(action).toHaveBeenCalledExactlyOnceWith(signInAction, { b: 2 });
+    expect(action).toHaveBeenCalledExactlyOnceWith(SIGN_IN_ACTION, { b: 2 });
   });
 
-  test("signIn rejects with a clear error when no API is set", async () => {
-    const { client } = makeClient();
-    const signInAction = makeFunctionReference<"action">("auth:probeAction");
-    await expect(client.signIn.mutation(SIGN_IN_REF, {})).rejects.toThrow(
-      /No sign-in API is set on this AuthClient/,
-    );
-    await expect(client.signIn.action(signInAction, {})).rejects.toThrow(
-      /setSignInApi\(convexClient\)/,
-    );
-  });
-
-  test("setSignInApi replaces the previous API", async () => {
-    const { client } = makeClient();
-    const first = vi.fn().mockResolvedValue("first");
-    const second = vi.fn().mockResolvedValue("second");
-    client.setSignInApi({ mutation: first } as unknown as AuthSignInApi);
-    client.setSignInApi({ mutation: second } as unknown as AuthSignInApi);
+  test("SPA sign-in uses the signInApi when one is set", async () => {
+    const convex = labeledConvex("convex");
+    const signInApi = labeledConvex("signIn");
+    const client = makeSpaClient(convex.convex, signInApi.convex);
 
     await expect(client.signIn.mutation(SIGN_IN_REF, {})).resolves.toBe(
-      "second",
+      "signIn-mutation",
     );
-    expect(first).not.toHaveBeenCalled();
+    await expect(client.signIn.action(SIGN_IN_ACTION, {})).resolves.toBe(
+      "signIn-action",
+    );
+    expect(convex.mutation).not.toHaveBeenCalled();
+    expect(convex.action).not.toHaveBeenCalled();
   });
 
-  test("signIn keeps its identity when the API changes", () => {
-    const { client } = makeClient();
+  test("SSR sign-in uses the signInApi", async () => {
+    const convex = labeledConvex("convex");
+    const signInApi = labeledConvex("signIn");
+    const client = makeSsrClientWith(convex.convex, signInApi.convex);
+
+    await expect(client.signIn.mutation(SIGN_IN_REF, {})).resolves.toBe(
+      "signIn-mutation",
+    );
+    expect(signInApi.mutation).toHaveBeenCalledExactlyOnceWith(SIGN_IN_REF, {});
+    expect(convex.mutation).not.toHaveBeenCalled();
+  });
+
+  test("convex returns the configured client", () => {
+    const { convex } = labeledConvex("convex");
+    expect(makeSpaClient(convex).convex).toBe(convex);
+  });
+
+  test("setConvex replaces the client for SPA sign-in and the getter", async () => {
+    const first = labeledConvex("first");
+    const second = labeledConvex("second");
+    const client = makeSpaClient(first.convex);
+
+    client.setConvex(second.convex);
+
+    expect(client.convex).toBe(second.convex);
+    await expect(client.signIn.mutation(SIGN_IN_REF, {})).resolves.toBe(
+      "second-mutation",
+    );
+    await expect(client.signIn.action(SIGN_IN_ACTION, {})).resolves.toBe(
+      "second-action",
+    );
+    expect(first.mutation).not.toHaveBeenCalled();
+    expect(first.action).not.toHaveBeenCalled();
+  });
+
+  test("setConvex does not change where SSR sign-in goes", async () => {
+    const signInApi = labeledConvex("signIn");
+    const second = labeledConvex("second");
+    const client = makeSsrClientWith(
+      labeledConvex("first").convex,
+      signInApi.convex,
+    );
+
+    client.setConvex(second.convex);
+
+    await expect(client.signIn.mutation(SIGN_IN_REF, {})).resolves.toBe(
+      "signIn-mutation",
+    );
+    expect(second.mutation).not.toHaveBeenCalled();
+  });
+
+  test("setConvex calls subscribers and returns the same snapshot", async () => {
+    const client = makeSpaClient(labeledConvex("first").convex);
+    await client.init();
+    const listener = vi.fn();
+    client.subscribe(listener);
+    const before = client.getSnapshot();
+
+    client.setConvex(labeledConvex("second").convex);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(client.getSnapshot()).toBe(before);
+  });
+
+  test("signIn has the same identity after setConvex", () => {
+    const client = makeSpaClient(labeledConvex("first").convex);
     const before = client.signIn;
-    client.setSignInApi(SIGN_IN_API);
+    client.setConvex(labeledConvex("second").convex);
     expect(client.signIn).toBe(before);
+  });
+
+  test("the constructor throws when convex.url is for another deployment", () => {
+    const { convex } = labeledConvex("other", {
+      url: "https://other-animal-456.convex.cloud",
+    });
+    expect(() => makeSpaClient(convex)).toThrow(
+      "[convex-auth] The Convex client is for " +
+        "https://other-animal-456.convex.cloud, but this auth client is for " +
+        `${NAMESPACE}. Build a new auth client for a different deployment.`,
+    );
+  });
+
+  test("setConvex throws on another deployment and leaves the client unchanged", () => {
+    const first = labeledConvex("first", { url: NAMESPACE });
+    const client = makeSpaClient(first.convex);
+    const other = labeledConvex("other", {
+      url: "https://other-animal-456.convex.cloud",
+    });
+
+    expect(() => client.setConvex(other.convex)).toThrow(
+      /The Convex client is for https:\/\/other-animal-456\.convex\.cloud/,
+    );
+    expect(client.convex).toBe(first.convex);
+  });
+
+  test("a trailing slash on either URL is not a mismatch", () => {
+    const withSlash = labeledConvex("slash", { url: `${NAMESPACE}/` });
+    const client = makeSpaClient(withSlash.convex);
+    expect(client.convex).toBe(withSlash.convex);
+
+    const slashUrl = new AuthClient({
+      mode: "spa",
+      convex: labeledConvex("plain", { url: NAMESPACE }).convex,
+      url: `${NAMESPACE}/`,
+      authApi: {
+        refreshSession: async () => ({ kind: "noSession" }),
+        signOut: async () => {},
+      },
+      storage: new InMemoryStorage(),
+      storageNamespace: NAMESPACE,
+    });
+    const next = labeledConvex("next", { url: NAMESPACE });
+    slashUrl.setConvex(next.convex);
+    expect(slashUrl.convex).toBe(next.convex);
+  });
+
+  test("a client with no url is accepted by the constructor and setConvex", () => {
+    const first = labeledConvex("first");
+    const client = makeSpaClient(first.convex);
+    expect(client.convex).toBe(first.convex);
+
+    const second = labeledConvex("second");
+    client.setConvex(second.convex);
+    expect(client.convex).toBe(second.convex);
   });
 });
 

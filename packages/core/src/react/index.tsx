@@ -1,8 +1,9 @@
 /**
  * React bindings for Convex Auth.
  *
- * Build the auth client once with {@link createAuthClient}, outside React, and
- * wrap your app in {@link ConvexAuthProvider} in place of `ConvexProvider`.
+ * Build the auth client once with {@link createAuthClient}, outside React,
+ * from your `ConvexReactClient`. Then wrap your app in
+ * {@link ConvexAuthProvider} in place of `ConvexProvider`.
  * The auth client stores the session, refreshes the access token, and signs
  * out. The provider passes its state to Convex's `ConvexProviderWithAuth`.
  *
@@ -11,18 +12,14 @@
  * import { ConvexReactClient } from "convex/react";
  * import { api } from "../convex/_generated/api";
  *
- * const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
+ * const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
  * const auth = createAuthClient({
- *   url: import.meta.env.VITE_CONVEX_URL,
+ *   convex,
  *   api: api.auth,
  * });
  *
  * function Root({ children }: { children: React.ReactNode }) {
- *   return (
- *     <ConvexAuthProvider client={convex} auth={auth}>
- *       {children}
- *     </ConvexAuthProvider>
- *   );
+ *   return <ConvexAuthProvider auth={auth}>{children}</ConvexAuthProvider>;
  * }
  * ```
  *
@@ -34,15 +31,15 @@
  */
 "use client";
 
-import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
-import { ReactNode, useContext, useEffect, useMemo } from "react";
+import { ConvexProviderWithAuth, type ConvexReactClient } from "convex/react";
+import { ReactNode, useContext, useEffect } from "react";
 import type { AuthClient } from "../browser/sessionManager.ts";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
 import {
   AuthProvider,
   ConvexAuthActionsContext,
   ConvexAuthTokenContext,
   useAuth,
+  useAuthConvexClient,
 } from "./client.tsx";
 
 export { useConvexAuth } from "convex/react";
@@ -62,26 +59,17 @@ export { useAuthClient, type AuthSignInApi } from "./client.tsx";
  * module docs for an example.
  */
 export function ConvexAuthProvider({
-  client,
   auth,
   children,
 }: {
-  /** Your [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient). */
-  client: ConvexReactClient;
-  /** The auth client from {@link createAuthClient}. */
-  auth: AuthClient;
+  /**
+   * The auth client from {@link createAuthClient}, built with a
+   * [`ConvexReactClient`](https://docs.convex.dev/api/classes/react.ConvexReactClient).
+   */
+  auth: AuthClient<ConvexReactClient>;
   children: ReactNode;
 }) {
-  const signInApi = useMemo<AuthSignInApi>(
-    () => ({
-      mutation: (fn, args) => client.mutation(fn, args),
-      action: (fn, args) => client.action(fn, args),
-    }),
-    [client],
-  );
-  // Set during render, because the mount effects of child components call
-  // auth.signIn before the effects of this component run.
-  auth.setSignInApi(signInApi);
+  const convex = useAuthConvexClient(auth);
 
   // Under expectAuth the Convex client pauses its websocket until setAuth
   // runs, and a signed-out user sends the sign-in mutation over that socket.
@@ -93,17 +81,17 @@ export function ConvexAuthProvider({
       settled = true;
       unsubscribe();
       if (!isAuthenticated) {
-        client.setAuth(auth.fetchAccessToken, () => {});
+        convex.setAuth(auth.fetchAccessToken, () => {});
       }
     };
     const unsubscribe = auth.subscribe(listener);
     listener();
     return unsubscribe;
-  }, [auth, client]);
+  }, [auth, convex]);
 
   return (
     <AuthProvider authClient={auth}>
-      <ConvexProviderWithAuth client={client} useAuth={useAuth}>
+      <ConvexProviderWithAuth client={convex} useAuth={useAuth}>
         {children}
       </ConvexProviderWithAuth>
     </AuthProvider>

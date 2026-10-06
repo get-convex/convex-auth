@@ -5,7 +5,11 @@ import type {
 } from "../lib/types.ts";
 import { runWithMutex } from "./mutex.ts";
 import { retryOnNetworkError } from "./retry.ts";
-import type { AuthSignInApi } from "./signInApi.ts";
+import {
+  type AuthSignInApi,
+  deploymentUrlOf,
+  sameDeployment,
+} from "./signInApi.ts";
 import {
   JWT_STORAGE_KEY,
   NamespacedStorage,
@@ -42,7 +46,11 @@ export interface SsrAuthApi {
 }
 
 /** Config common to both session models. */
-interface AuthClientConfigBase {
+interface AuthClientConfigBase<C extends AuthSignInApi> {
+  /** The app's Convex client. Ordinary calls in the sign-in flows use it. */
+  convex: C;
+  /** The Convex deployment URL. */
+  url: string;
   /** Where tokens are persisted. */
   storage: TokenStorage;
   /** Namespace for storage keys; typically the deployment URL. */
@@ -61,9 +69,25 @@ interface AuthClientConfigBase {
  *  - `"ssr"`: the refresh token is in an httpOnly cookie; a {@link SsrAuthApi}
  *    is called without one and reads the cookie server-side.
  */
-export type AuthClientConfig =
-  | (AuthClientConfigBase & { mode: "spa"; authApi: SpaAuthApi })
-  | (AuthClientConfigBase & { mode: "ssr"; authApi: SsrAuthApi });
+export type AuthClientConfig<C extends AuthSignInApi = AuthSignInApi> =
+  | (AuthClientConfigBase<C> & {
+      mode: "spa";
+      authApi: SpaAuthApi;
+      /**
+       * The API that runs sign-in functions. When it is omitted, sign-in
+       * functions run on `convex`.
+       */
+      signInApi?: AuthSignInApi;
+    })
+  | (AuthClientConfigBase<C> & {
+      mode: "ssr";
+      authApi: SsrAuthApi;
+      /**
+       * The API that runs sign-in functions. SSR sign-in must go through the
+       * auth proxy, so it is required.
+       */
+      signInApi: AuthSignInApi;
+    });
 
 /** Auth state that can be subscribed to via {@link AuthClient.subscribe} */
 export interface AuthState {
@@ -155,8 +179,12 @@ function checkSignInId(id: string): void {
  * establishes sessions from provider authentication results. Providers
  * authenticate and sign-in users and call {@link AuthClient.setSession} with
  * a token bundle.
+ *
+ * It is built with the app's Convex client, which the sign-in flows read from
+ * {@link AuthClient.convex}. Sign-in functions run through
+ * {@link AuthClient.signIn}.
  */
-export class AuthClient {
+export class AuthClient<C extends AuthSignInApi = AuthSignInApi> {
   /** Refresh the session, resolving to one of the {@link RefreshOutcome} arms. */
   readonly #refresh: () => Promise<RefreshOutcome>;
   /** Revoke the session on the server. */
@@ -171,6 +199,12 @@ export class AuthClient {
    * to keep when only an access token comes back.
    */
   readonly #mode: "spa" | "ssr";
+  /** The app's Convex client, replaced by {@link setConvex}. */
+  #convex: C;
+  /** The deployment URL from the config. */
+  readonly #url: string;
+  /** The sign-in API from the config, or null to use the Convex client. */
+  readonly #signInApi: AuthSignInApi | null;
 
   #accessToken: string | null = null;
   /**
@@ -192,7 +226,11 @@ export class AuthClient {
   readonly #listeners = new Set<Listener>();
   #storageListener: ((event: StorageEvent) => void) | null = null;
 
-  constructor(config: AuthClientConfig) {
+  constructor(config: AuthClientConfig<C>) {
+    this.#url = config.url;
+    this.#checkDeployment(config.convex);
+    this.#convex = config.convex;
+    this.#signInApi = config.signInApi ?? null;
     this.#storage = new NamespacedStorage(
       config.storage,
       config.storageNamespace,
@@ -243,7 +281,8 @@ export class AuthClient {
   // useSyncExternalStore, others via their own reactivity).
 
   /**
-   * Subscribe to be notified when the {@link AuthState} changes.
+   * Subscribe to be notified when the {@link AuthState} or the Convex client
+   * changes.
    *
    * Subscribers should call {@link getSnapshot} when notified of a change.
    */
@@ -262,39 +301,55 @@ export class AuthClient {
     return this.#accessToken;
   }
 
-  // --- Sign-in API -----------------------------------------------------------
-
-  /** The API that runs sign-in functions, set by {@link setSignInApi}. */
-  #signInApi: AuthSignInApi | null = null;
+  // --- Convex client and sign-in API -----------------------------------------
 
   /**
-   * Set the API that runs sign-in functions. `ConvexAuthProvider` calls this
-   * with a wrapper over its Convex client. A plain JavaScript app passes its
-   * Convex client. Calling it again replaces the API.
+   * The app's Convex client. The sign-in flows read it at call time, so they
+   * use the client from the latest {@link setConvex}.
    */
-  setSignInApi(api: AuthSignInApi): void {
-    this.#signInApi = api;
+  get convex(): C {
+    return this.#convex;
   }
 
   /**
-   * Runs a provider's sign-in function through the API set by
-   * {@link setSignInApi}. The call rejects when no API is set.
+   * Replace the Convex client and notify subscribers. The call throws, and
+   * changes nothing, when `next` is for a different deployment. A different
+   * deployment needs a new auth client, because refresh, sign-out, and the
+   * storage namespace use the URL given at construction.
+   *
+   * The React providers move Convex auth to the new client. Plain JavaScript
+   * calls `next.setAuth(...)` itself. Pass the same kind of client the auth
+   * client was built with. The type parameter checks this, but
+   * `useAuthClient()` returns the plain `AuthClient` type, so its `setConvex`
+   * accepts any client.
+   */
+  setConvex(next: C): void {
+    this.#checkDeployment(next);
+    this.#convex = next;
+    this.#emit();
+  }
+
+  /**
+   * Runs a provider's sign-in function. It uses the `signInApi` from the
+   * config when one is set, and the Convex client otherwise.
    */
   readonly signIn: AuthSignInApi = {
     mutation: async (fn, args) =>
-      await this.#requireSignInApi().mutation(fn, args),
-    action: async (fn, args) => await this.#requireSignInApi().action(fn, args),
+      await (this.#signInApi ?? this.#convex).mutation(fn, args),
+    action: async (fn, args) =>
+      await (this.#signInApi ?? this.#convex).action(fn, args),
   };
 
-  #requireSignInApi(): AuthSignInApi {
-    if (this.#signInApi === null) {
+  /** Throws unless `convex` is for this client's deployment. */
+  #checkDeployment(convex: C): void {
+    const clientUrl = deploymentUrlOf(convex);
+    if (clientUrl !== undefined && !sameDeployment(clientUrl, this.#url)) {
       throw new Error(
-        "[convex-auth] No sign-in API is set on this AuthClient. Render it " +
-          "with ConvexAuthProvider or ConvexAuthNextjsProvider, or call " +
-          "setSignInApi(convexClient) first.",
+        `[convex-auth] The Convex client is for ${clientUrl}, but this auth ` +
+          `client is for ${this.#url}. Build a new auth client for a ` +
+          "different deployment.",
       );
     }
-    return this.#signInApi;
   }
 
   /**
@@ -603,6 +658,11 @@ export class AuthClient {
       isAuthenticated: this.#accessToken !== null,
       token: this.#accessToken,
     };
+    this.#emit();
+  }
+
+  /** Calls the subscribers. The snapshot is unchanged. */
+  #emit(): void {
     for (const listener of this.#listeners) listener();
   }
 

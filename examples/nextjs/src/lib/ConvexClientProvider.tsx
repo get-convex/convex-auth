@@ -10,9 +10,7 @@ import type { ReactNode } from "react";
 // Both clients are built once, at module scope. A Server Component cannot pass
 // them to this Client Component, so they live in this file.
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-const auth = createNextjsAuthClient({
-  url: process.env.NEXT_PUBLIC_CONVEX_URL!,
-});
+const auth = createNextjsAuthClient({ convex });
 
 export function ConvexClientProvider({
   initialToken,
@@ -23,11 +21,7 @@ export function ConvexClientProvider({
   children: ReactNode;
 }) {
   return (
-    <ConvexAuthNextjsProvider
-      client={convex}
-      auth={auth}
-      initialToken={initialToken}
-    >
+    <ConvexAuthNextjsProvider auth={auth} initialToken={initialToken}>
       {children}
     </ConvexAuthNextjsProvider>
   );

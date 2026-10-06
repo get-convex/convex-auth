@@ -3,9 +3,14 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import type { AuthSignInApi } from "../browser/signInApi.ts";
 import { InMemoryStorage, JWT_STORAGE_KEY } from "../browser/storage.ts";
 import type { SlimTokenBundle } from "../lib/types.ts";
-import { ConvexAuthNextjsProvider, createNextjsAuthClient } from "./index.tsx";
+import {
+  ConvexAuthNextjsProvider,
+  createNextjsAuthClient,
+  type CreateNextjsAuthClientOptions,
+} from "./index.tsx";
 
 const URL = "https://happy-animal-123.convex.cloud";
 // Matches NamespacedStorage's `replace(/[^a-zA-Z0-9]/g, "")`.
@@ -46,12 +51,25 @@ function stubFetch({
   return { fetchMock, requests };
 }
 
+/** A stub Convex client for `URL`, with mock functions. */
+function stubConvex() {
+  const mutation = vi.fn();
+  const action = vi.fn();
+  const convex = { url: URL, mutation, action } as unknown as AuthSignInApi & {
+    readonly url: string;
+  };
+  return { convex, mutation, action };
+}
+
+type StubConvex = ReturnType<typeof stubConvex>["convex"];
+
 function makeAuth(
-  options: Partial<Parameters<typeof createNextjsAuthClient>[0]> = {},
+  options: Partial<CreateNextjsAuthClientOptions<StubConvex>> = {},
 ) {
   const storage = new InMemoryStorage();
-  const auth = createNextjsAuthClient({ url: URL, storage, ...options });
-  return { auth, storage };
+  const { convex, mutation } = stubConvex();
+  const auth = createNextjsAuthClient({ convex, storage, ...options });
+  return { auth, storage, convexMutation: mutation };
 }
 
 describe("createNextjsAuthClient", () => {
@@ -92,11 +110,12 @@ describe("createNextjsAuthClient", () => {
 
   test("the sign-in API posts to the sign-in route's proxy path", async () => {
     const { requests } = stubFetch({ proxyValue: "result" });
-    const { auth } = makeAuth();
+    const { auth, convexMutation } = makeAuth();
 
     await expect(
       auth.signIn.mutation(SIGN_IN, { username: "alice" }),
     ).resolves.toBe("result");
+    expect(convexMutation).not.toHaveBeenCalled();
 
     const [request] = requests();
     expect(request.url).toBe("/auth/signin?path=/api/mutation");
@@ -165,11 +184,51 @@ describe("createNextjsAuthClient", () => {
 
   test("storageNamespace defaults to the url", async () => {
     stubFetch();
+    const storage = new InMemoryStorage();
+    const auth = createNextjsAuthClient({
+      convex: {
+        mutation: vi.fn(),
+        action: vi.fn(),
+      } as unknown as AuthSignInApi,
+      url: URL,
+      storage,
+    });
+    await auth.init();
+    await auth.setSession(slim(1));
+
+    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
+  });
+
+  test("url defaults to convex.url for storageNamespace", async () => {
+    stubFetch();
     const { auth, storage } = makeAuth();
     await auth.init();
     await auth.setSession(slim(1));
 
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-1");
+  });
+
+  test("throws without a url option or a convex.url", () => {
+    expect(() =>
+      createNextjsAuthClient({
+        convex: { mutation: vi.fn(), action: vi.fn() },
+      } as unknown as CreateNextjsAuthClientOptions),
+    ).toThrow(
+      "[convex-auth] createNextjsAuthClient needs a url option, because " +
+        "this Convex client has no url.",
+    );
+  });
+
+  test("sign-in goes to the proxy after setConvex", async () => {
+    const { requests } = stubFetch({ proxyValue: "result" });
+    const { auth } = makeAuth();
+    const next = stubConvex();
+
+    auth.setConvex(next.convex);
+
+    await expect(auth.signIn.mutation(SIGN_IN, {})).resolves.toBe("result");
+    expect(next.mutation).not.toHaveBeenCalled();
+    expect(requests()[0].url).toBe("/auth/signin?path=/api/mutation");
   });
 });
 
@@ -180,29 +239,26 @@ describe("ConvexAuthNextjsProvider", () => {
     vi.restoreAllMocks();
   });
 
-  test("stores initialToken and keeps the proxy sign-in API", async () => {
+  test("stores initialToken and sends sign-in to the proxy", async () => {
     const { requests } = stubFetch({ proxyValue: "result" });
-    const { auth, storage } = makeAuth();
-    const setSignInApi = vi.spyOn(auth, "setSignInApi");
     // A real client that never connects: nothing here subscribes, and auth
     // is set only once the token is known.
     const client = new ConvexReactClient(URL);
     vi.spyOn(client, "setAuth").mockImplementation(() => {});
+    const mutation = vi.spyOn(client, "mutation");
+    const storage = new InMemoryStorage();
+    const auth = createNextjsAuthClient({ convex: client, storage });
 
     render(
-      <ConvexAuthNextjsProvider
-        client={client}
-        auth={auth}
-        initialToken="access-ssr"
-      >
+      <ConvexAuthNextjsProvider auth={auth} initialToken="access-ssr">
         <div />
       </ConvexAuthNextjsProvider>,
     );
 
     await waitFor(() => expect(auth.getSnapshot().token).toBe("access-ssr"));
     expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-ssr");
-    expect(setSignInApi).not.toHaveBeenCalled();
     await auth.signIn.mutation(SIGN_IN, {});
     expect(requests()[0].url).toBe("/auth/signin?path=/api/mutation");
+    expect(mutation).not.toHaveBeenCalled();
   });
 });
