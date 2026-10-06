@@ -519,7 +519,10 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  * @param signUpMutation The app's `signUp` mutation reference.
  */
 export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
-  const signInApi = useAuthSignInApi();
+  // Sign-up mints no session, so it calls Convex directly rather than going
+  // through the `AuthSignInApi`. Under SSR, that API is the auth proxy, which
+  // only serves functions returning the sign-in envelope.
+  const runSignUp = useMutation(signUpMutation);
   const storage = useSecretStorage();
   const { pending, track } = usePending();
 
@@ -530,7 +533,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
     }): Promise<SignUpResult> =>
       track(async () => {
         try {
-          const result = await signInApi.mutation(signUpMutation, credentials);
+          const result = await runSignUp(credentials);
           if (result.success) {
             await storage.set(SECRET_STORAGE_KEYS.signUp, result.browserSecret);
             return { success: true };
@@ -540,7 +543,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
           return foldError(cause);
         }
       }),
-    [signInApi, signUpMutation, storage, track],
+    [runSignUp, storage, track],
   );
 
   return { signUp, pending };
