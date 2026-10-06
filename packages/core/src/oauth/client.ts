@@ -7,6 +7,10 @@
  * sends it back with the code from the callback URL. That pairing is what
  * proves this browser started the sign-in.
  *
+ * Starting a flow returns a redirect URL rather than a session, so it runs on
+ * the plain Convex client. Only the redemption, which returns the shared
+ * sign-in envelope, runs on the sign-in api, which is the auth proxy under SSR.
+ *
  * @module
  */
 import {
@@ -226,6 +230,7 @@ export function oauth(): AmbientSignInClient {
     values,
     storage,
     signInApi,
+    convex,
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
     const setFlowError = (
@@ -355,7 +360,7 @@ export function oauth(): AmbientSignInClient {
       // leaves any error the app is showing alone.
       setFlowError(null);
       try {
-        const { redirect, state } = await signInApi.mutation(refs.startSignIn, {
+        const { redirect, state } = await convex.mutation(refs.startSignIn, {
           redirectTo,
         });
         await storage.set(

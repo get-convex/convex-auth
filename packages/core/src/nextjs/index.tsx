@@ -31,6 +31,7 @@ import { ReactNode, useMemo } from "react";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
+import { oauth } from "../oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
 
 export { useConvexAuth } from "convex/react";
@@ -101,22 +102,6 @@ export function ConvexAuthNextjsProvider({
     const convex =
       client ??
       new ConvexReactClient(convexUrl ?? process.env.NEXT_PUBLIC_CONVEX_URL!);
-    const authClient = new AuthClient({
-      mode: "ssr",
-      authApi: {
-        // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
-        refreshSession: async () => (await postAuth(refreshRoute)).tokens,
-        signOut: async () => {
-          await postAuth(signOutRoute);
-        },
-      },
-      storage: storage ?? defaultStorage(),
-      storageNamespace: convex.url,
-      // The SSR host may have refreshed on our behalf, so this is the freshest
-      // access token; the client adopts it on init.
-      initialAccessToken: initialToken,
-    });
-
     // Provider sign-in goes to the auth proxy so the minted refresh token can be
     // moved into an httpOnly cookie server-side. The proxy speaks the
     // `ConvexHttpClient` wire format, so this is a real Convex client pointed at
@@ -142,6 +127,31 @@ export function ConvexAuthNextjsProvider({
       mutation: (fn, args) => withAuth().mutation(fn, args),
       action: (fn, args) => withAuth().action(fn, args),
     };
+    const authClient = new AuthClient({
+      mode: "ssr",
+      authApi: {
+        // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
+        refreshSession: async () => (await postAuth(refreshRoute)).tokens,
+        signOut: async () => {
+          await postAuth(signOutRoute);
+        },
+      },
+      storage: storage ?? defaultStorage(),
+      storageNamespace: convex.url,
+      // The SSR host may have refreshed on our behalf, so this is the freshest
+      // access token; the client adopts it on init.
+      initialAccessToken: initialToken,
+      ambientSignIns: {
+        signIns: [oauth()],
+        signInApi,
+        // Calls that don't return a sign-in envelope, like starting an OAuth
+        // flow, go to the deployment because the proxy refuses them.
+        convex: {
+          mutation: (fn, args) => convex.mutation(fn, args),
+          action: (fn, args) => convex.action(fn, args),
+        },
+      },
+    });
 
     return { authClient, convex, signInApi };
     // `client`/`convexUrl` identity is what matters; other props are read once.

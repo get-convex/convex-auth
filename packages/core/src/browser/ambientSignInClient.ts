@@ -82,8 +82,18 @@ export type AmbientSignInContext = {
   values: SignInValues;
   /** Persistent storage for this sign-in. Survives a reload. */
   storage: SignInStorage;
-  /** Runs the provider's sign-in functions by reference. */
+  /**
+   * Runs the provider's sign-in functions by reference. Only for functions
+   * that return the shared sign-in envelope, because under SSR this is the
+   * auth proxy, which refuses any other result.
+   */
   signInApi: AuthSignInApi;
+  /**
+   * Runs any other public function against the deployment directly, like the
+   * call that starts an OAuth flow and returns a redirect URL. Under SPA this
+   * is the same client as `signInApi`.
+   */
+  convex: AuthSignInApi;
 };
 
 /**

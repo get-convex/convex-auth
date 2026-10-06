@@ -57,11 +57,17 @@ interface AuthClientConfigBase {
   initialAccessToken?: string | null;
   /**
    * Ambient sign-ins to set up while the client is constructed, along with
-   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
+   * the clients handed to each setup. See {@link AmbientSignInClient}.
    */
   ambientSignIns?: {
     signIns: ReadonlyArray<AmbientSignInClient>;
     signInApi: AuthSignInApi;
+    /**
+     * Runs calls that don't return a sign-in envelope. Defaults to
+     * `signInApi`, which is right when sign-in talks to the deployment
+     * directly (SPA). Under SSR, pass the app's Convex client.
+     */
+    convex?: AuthSignInApi;
   };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
@@ -317,6 +323,7 @@ export class AuthClient {
         values: this.#ambientValues.forSignIn(id),
         storage: this.#storage.forSignIn(id),
         signInApi: ambientSignIns.signInApi,
+        convex: ambientSignIns.convex ?? ambientSignIns.signInApi,
       });
       if (registration?.onInit !== undefined) {
         this.#initCallbacks.push({ id, callback: registration.onInit });

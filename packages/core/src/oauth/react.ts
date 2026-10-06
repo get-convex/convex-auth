@@ -2,10 +2,15 @@
  * React client for the OAuth providers, exported at
  * `@convex-dev/auth/providers/oauth/react`.
  *
- * OAuth is registered by default in `ConvexAuthProvider`. Each supported
- * provider ships a hook that reads its sign-in functions from the module you
- * pass in, usually the generated `api.auth`. {@link useOauth} returns the
- * state that isn't tied to one provider.
+ * OAuth is registered by default in `ConvexAuthProvider` and
+ * `ConvexAuthNextjsProvider`. Each supported provider ships a hook that reads
+ * its sign-in functions from the module you pass in, usually the generated
+ * `api.auth`. {@link useOauth} returns the state that isn't tied to one
+ * provider.
+ *
+ * Under Next.js, add each provider's `completeSignIn*` function to the auth
+ * proxy's `signIn` allowlist. Its `startSignIn*` function runs on the Convex
+ * client and is not listed.
  *
  * ```tsx
  * const { signInGoogle } = useSignInWithGoogle(api.auth);
@@ -48,10 +53,10 @@ export type {
 
 /** What every hook here throws when the OAuth setup published nothing. */
 const NOT_REGISTERED_ERROR =
-  "No OAuth setup is registered. ConvexAuthProvider registers oauth() from " +
+  "No OAuth setup is registered. ConvexAuthProvider and " +
+  "ConvexAuthNextjsProvider register oauth() from " +
   "@convex-dev/auth/providers/oauth/react by default, so include it yourself " +
-  "if you set the `ambientSignIns` prop. OAuth isn't supported under " +
-  "ConvexAuthNextjsProvider yet.";
+  "if you set the `ambientSignIns` prop.";
 
 /** What {@link useOauth} returns. */
 export type UseOauthReturn = {

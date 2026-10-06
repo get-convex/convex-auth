@@ -48,14 +48,6 @@ from callback params does nothing there, and `signIn` requires an explicit
 properly means deciding what `redirectTo` looks like when it can't be a page
 URL.
 
-## OAuth isn't wired into the Next.js client
-
-`ConvexAuthNextjsProvider` builds its `AuthClient` with no ambient sign-ins and
-takes no prop for them (`packages/core/src/nextjs/index.tsx`), so `oauth()` is
-never registered and the OAuth hooks throw wherever they're used under SSR. The
-sign-in api pointed at the auth proxy is already there, so what's missing is the
-registration.
-
 ## Refresh-token reuse detection has a bounded horizon
 
 A spent hash is remembered for `SPENT_TOKEN_HORIZON_MS` (1 hour) and pruned by
