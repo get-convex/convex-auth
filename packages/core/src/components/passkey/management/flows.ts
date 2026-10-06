@@ -4,8 +4,8 @@
  * @module
  */
 
-import type { ConvexReactClient } from "convex/react";
 import type { FunctionReference } from "convex/server";
+import type { AuthClient } from "../../../browser/sessionManager.ts";
 import {
   authenticate,
   register,
@@ -73,7 +73,8 @@ export type RemovePasskeyApi = {
 };
 
 export type ManagementFlowContext<Api> = {
-  convex: ConvexReactClient;
+  /** The auth client, whose Convex client runs the mutations. */
+  auth: AuthClient;
   api: Api;
 };
 
@@ -97,13 +98,13 @@ export type RemovePasskeyFlowResult =
 export async function runAddPasskeyFlow(
   ctx: ManagementFlowContext<AddPasskeyApi>,
 ): Promise<AddPasskeyFlowResult> {
-  const { convex, api } = ctx;
+  const { auth, api } = ctx;
 
   if (!supportsWebAuthn()) {
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
 
-  const start = await convex.mutation(api.startAddPasskey, {});
+  const start = await auth.convex.mutation(api.startAddPasskey, {});
   if (!start.success) {
     return start;
   }
@@ -111,7 +112,7 @@ export async function runAddPasskeyFlow(
   if (!assertion.success) {
     return assertion;
   }
-  const verified = await convex.mutation(api.verifyAddPasskey, {
+  const verified = await auth.convex.mutation(api.verifyAddPasskey, {
     response: assertion.response,
   });
   if (!verified.success) {
@@ -121,7 +122,7 @@ export async function runAddPasskeyFlow(
   if (!registration.success) {
     return registration;
   }
-  return await convex.mutation(api.finishAddPasskey, {
+  return await auth.convex.mutation(api.finishAddPasskey, {
     response: registration.response,
   });
 }
@@ -135,13 +136,15 @@ export async function runRemovePasskeyFlow(
   ctx: ManagementFlowContext<RemovePasskeyApi>,
   { passkeyId }: { passkeyId: string },
 ): Promise<RemovePasskeyFlowResult> {
-  const { convex, api } = ctx;
+  const { auth, api } = ctx;
 
   if (!supportsWebAuthn()) {
     return { success: false, userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
 
-  const start = await convex.mutation(api.startRemovePasskey, { passkeyId });
+  const start = await auth.convex.mutation(api.startRemovePasskey, {
+    passkeyId,
+  });
   if (!start.success) {
     return start;
   }
@@ -149,7 +152,7 @@ export async function runRemovePasskeyFlow(
   if (!assertion.success) {
     return assertion;
   }
-  return await convex.mutation(api.finishRemovePasskey, {
+  return await auth.convex.mutation(api.finishRemovePasskey, {
     passkeyId,
     response: assertion.response,
   });

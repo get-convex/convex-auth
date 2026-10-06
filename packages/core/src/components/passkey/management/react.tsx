@@ -13,8 +13,8 @@
  */
 "use client";
 
-import { useConvex } from "convex/react";
 import { useCallback, useRef } from "react";
+import { useAuthClient } from "../../../react/index.tsx";
 import {
   usePasskeyCeremonySlot,
   type AlreadyPendingFailure,
@@ -69,7 +69,7 @@ export type RemovePasskeyResult =
  */
 // TODO(nicolas) Change the return value to allow showing a different UI before creating the new passkey
 export function useAddPasskey(managementApi: AddPasskeyApi) {
-  const convex = useConvex();
+  const auth = useAuthClient();
 
   const { run, pending } = usePasskeyCeremonySlot({
     // Not a log in page, so there is no autofill here
@@ -78,8 +78,8 @@ export function useAddPasskey(managementApi: AddPasskeyApi) {
 
   // Store these in a ref because we only need them in an event handler
   // (this allows the callback to stay stable).
-  const ctxRef = useRef({ convex, api: managementApi });
-  ctxRef.current = { convex, api: managementApi };
+  const ctxRef = useRef({ auth, api: managementApi });
+  ctxRef.current = { auth, api: managementApi };
 
   const addPasskey = useCallback(
     (): Promise<AddPasskeyResult> =>
@@ -132,13 +132,13 @@ export function useAddPasskey(managementApi: AddPasskeyApi) {
  *   passkey-management functions of the provider, for example `api.auth`.
  */
 export function useRemovePasskey(managementApi: RemovePasskeyApi) {
-  const convex = useConvex();
+  const auth = useAuthClient();
   const { run, pending } = usePasskeyCeremonySlot({ autofill: null });
 
   // Store these in a ref because we only need them in an event handler
   // (this allows the callback to stay stable).
-  const ctxRef = useRef({ convex, api: managementApi });
-  ctxRef.current = { convex, api: managementApi };
+  const ctxRef = useRef({ auth, api: managementApi });
+  ctxRef.current = { auth, api: managementApi };
 
   const removePasskey = useCallback(
     (passkeyId: string): Promise<RemovePasskeyResult> =>

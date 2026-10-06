@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { ConvexProvider, type ConvexReactClient } from "convex/react";
+import type { ConvexReactClient } from "convex/react";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { AuthClient } from "../../../browser/sessionManager.ts";
+import { InMemoryStorage } from "../../../browser/storage.ts";
+import { AuthProvider } from "../../../react/client.tsx";
 import {
   type AddPasskeyResult,
   type AddPasskeyApi,
@@ -132,8 +135,25 @@ afterEach(() => {
   callOrder.length = 0;
 });
 
-function wrapper({ children }: { children: ReactNode }) {
-  return <ConvexProvider client={convexClient}>{children}</ConvexProvider>;
+const NAMESPACE = "https://happy-animal-123.convex.cloud";
+
+/** The provider tree, with an auth client built with `convexClient`. */
+function makeWrapper() {
+  // The hooks run their mutations on the auth client's Convex client.
+  const auth = new AuthClient({
+    mode: "spa",
+    convex: convexClient,
+    url: NAMESPACE,
+    authApi: {
+      refreshSession: async () => ({ kind: "noSession" as const }),
+      signOut: async () => {},
+    },
+    storage: new InMemoryStorage(),
+    storageNamespace: NAMESPACE,
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <AuthProvider authClient={auth}>{children}</AuthProvider>
+  );
 }
 
 function renderManagement() {
@@ -144,7 +164,7 @@ function renderManagement() {
       add: useAddPasskey({ ...managementApi }),
       remove: useRemovePasskey({ ...managementApi }),
     }),
-    { wrapper },
+    { wrapper: makeWrapper() },
   );
 }
 
@@ -416,7 +436,7 @@ describe("useRemovePasskey", () => {
         row1: useRemovePasskey({ ...managementApi }),
         row2: useRemovePasskey({ ...managementApi }),
       }),
-      { wrapper },
+      { wrapper: makeWrapper() },
     );
 
     let flow!: Promise<RemovePasskeyResult>;

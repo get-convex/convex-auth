@@ -5,7 +5,6 @@
  * @module
  */
 
-import type { ConvexReactClient } from "convex/react";
 import type { FunctionReference } from "convex/server";
 import type { AuthClient } from "../../browser/sessionManager.ts";
 import type { ClientView, SignInError } from "../../lib/types.ts";
@@ -65,10 +64,11 @@ export type UsernamePasskeyApi = {
 
 /** What the sign-in flows need from the surrounding React tree. */
 export type SignInFlowContext = {
-  /** The auth client runs the finishing mutations and stores the session. */
+  /**
+   * The auth client runs the start mutation on its Convex client, runs the
+   * finishing mutations, and stores the session.
+   */
   auth: AuthClient;
-  /** The Convex client runs the start mutation. */
-  convex: ConvexReactClient;
   /** The mutation references the app re-exported from its `setupCore`. */
   api: UsernamePasskeyApi;
 };
@@ -114,13 +114,13 @@ export async function runSignInOrSignUpFlow(
   ctx: SignInFlowContext,
   { username }: { username: string },
 ): Promise<SignInFlowResult> {
-  const { auth, convex, api } = ctx;
+  const { auth, api } = ctx;
 
   if (!supportsWebAuthn()) {
     return { status: "error", userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
 
-  const start = await convex.mutation(api.startSignIn, { username });
+  const start = await auth.convex.mutation(api.startSignIn, { username });
   if (!start.success) {
     return { status: "error", userError: start.userError };
   }

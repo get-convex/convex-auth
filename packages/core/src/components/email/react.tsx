@@ -7,7 +7,7 @@
 "use client";
 
 import { FunctionReference, getFunctionName } from "convex/server";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { useAuth } from "../../react/client.tsx";
@@ -518,7 +518,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  * @param signUpMutation The app's `signUp` mutation reference.
  */
 export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
-  const convex = useConvex();
+  const auth = useAuthClient();
   const storage = useSecretStorage();
   const { pending, track } = usePending();
 
@@ -530,7 +530,10 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
       track(async () => {
         try {
           // The result has no sign-in envelope, so it runs on the Convex client.
-          const result = await convex.mutation(signUpMutation, credentials);
+          const result = await auth.convex.mutation(
+            signUpMutation,
+            credentials,
+          );
           if (result.success) {
             await storage.set(SECRET_STORAGE_KEYS.signUp, result.browserSecret);
             return { success: true };
@@ -540,7 +543,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
           return foldError(cause);
         }
       }),
-    [convex, signUpMutation, storage, track],
+    [auth, signUpMutation, storage, track],
   );
 
   return { signUp, pending };

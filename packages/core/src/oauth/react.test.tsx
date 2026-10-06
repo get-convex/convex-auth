@@ -245,7 +245,7 @@ describe("OAuth React client", () => {
     expect(window.location.search).toBe("");
   });
 
-  test("signInGoogle starts a flow through the ConvexProvider client", async () => {
+  test("signInGoogle starts a flow through the auth client's Convex client", async () => {
     stubReactNative();
     const { result, completeMutation, startMutation, storage } =
       renderOAuth(useGoogleFlow);
@@ -342,7 +342,7 @@ describe("OAuth React client", () => {
     });
   });
 
-  test("an ssr-mode client completes through its sign-in API and starts through the ConvexProvider client", async () => {
+  test("an ssr-mode client completes through its sign-in API and starts through the auth client's Convex client", async () => {
     window.history.replaceState(null, "", "/?convexAuthCode=code-1");
     stubReactNative();
     const storage = new InMemoryStorage();

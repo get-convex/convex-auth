@@ -35,7 +35,7 @@ function dispatcher(mocks: Record<string, (args: unknown) => unknown>) {
   };
 }
 
-// The two challenge mutations run on the Convex client from `useConvex()`.
+// The two challenge mutations run on the auth client's Convex client.
 const convexMutations = {
   startSignIn: vi.fn(),
   startAutofillSignIn: vi.fn(),

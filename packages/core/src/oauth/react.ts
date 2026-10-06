@@ -24,13 +24,12 @@
  *
  * Under `ConvexAuthNextjsProvider` the provider's `completeSignIn*` function
  * has to be in the proxy `signIn` allowlist. Its `startSignIn*` function runs
- * over the ordinary Convex client.
+ * on the auth client's Convex client.
  *
  * @module
  */
 "use client";
 
-import { useConvex } from "convex/react";
 import { getFunctionName } from "convex/server";
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useAuthClient } from "../react/client.tsx";
@@ -91,10 +90,9 @@ export function useOauth(): UseOauthReturn {
  */
 export function useOauthCallback(): UseOauthReturn {
   const auth = useAuthClient();
-  const convex = useConvex();
   useEffect(() => {
-    handleOauthCallback({ auth, convex });
-  }, [auth, convex]);
+    handleOauthCallback(auth);
+  }, [auth]);
   return useOauth();
 }
 
@@ -122,7 +120,6 @@ export type UseOauthSignInReturn = {
  */
 export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
   const auth = useAuthClient();
-  const convex = useConvex();
   useOauthCallback();
   // Generated api objects create a fresh reference object on every property
   // access, so the memo depends on the function paths. The `refs` that the
@@ -134,8 +131,8 @@ export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
   const signIn = useMemo(
     () =>
       (options?: SignInOptions): Promise<SignInOutcome> =>
-        startOauthSignIn({ auth, convex }, refs, options),
-    [auth, convex, providerName, startPath, completePath],
+        startOauthSignIn(auth, refs, options),
+    [auth, providerName, startPath, completePath],
   );
   return { signIn };
 }

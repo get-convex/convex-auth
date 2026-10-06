@@ -10,7 +10,7 @@
  * finish it.
  *
  * Only a function that returns the shared sign-in result runs through
- * `auth.signIn`. {@link OauthClientContext} says which client runs each
+ * `auth.signIn`. {@link startOauthSignIn} says which client runs each
  * mutation.
  *
  * {@link readOauthCallback} reads the callback params and removes them from
@@ -28,7 +28,6 @@ import {
 } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { AuthClient } from "../browser/sessionManager.ts";
-import type { AuthSignInApi } from "../browser/signInApi.ts";
 import type { SignInStorage } from "../browser/storage.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../lib/oauthParams.ts";
 import type { ClientView } from "../lib/types.ts";
@@ -111,22 +110,6 @@ export type SignInOptions = {
  * whether the user is signed in.
  */
 export type SignInOutcome = { redirect: URL } | { signedIn: boolean };
-
-/**
- * The clients that the OAuth functions run mutations through. Only a
- * function that returns the shared sign-in result runs through
- * `auth.signIn`. The provider's `startSignIn` returns a redirect URL and a
- * `state`, so it runs through `convex.mutation`. The provider's
- * `completeSignIn` returns the sign-in result, so it runs through
- * `auth.signIn.mutation`. Under Next.js `auth.signIn` calls the auth proxy,
- * which rejects any other result.
- */
-export type OauthClientContext = {
-  /** The auth client, which also stores the session and the pending flow. */
-  auth: AuthClient;
-  /** The app's Convex client. */
-  convex: Pick<AuthSignInApi, "mutation">;
-};
 
 /**
  * The `auth.signInStorage` id for OAuth. A different value would make a
@@ -257,17 +240,21 @@ function setThrownFlowError(auth: AuthClient, error: unknown): void {
  * open. With `options.code` it completes the pending flow with that code
  * through {@link completeOauthSignIn}.
  *
+ * The provider's `startSignIn` runs on `auth.convex`, because it returns a
+ * redirect. Its `completeSignIn` runs on `auth.signIn`, because it returns
+ * the sign-in result, which the Next.js proxy requires.
+ *
  * A failed start sets the flow error and rejects, so UI that reads the flow
  * error shows the failure when the caller ignores the rejection.
  */
 export async function startOauthSignIn(
-  ctx: OauthClientContext,
+  auth: AuthClient,
   refs: OauthProviderRefs,
   options?: SignInOptions,
 ): Promise<SignInOutcome> {
   if (options?.code !== undefined) {
-    setFlowError(ctx.auth, null);
-    return { signedIn: await completeOauthSignIn(ctx, options.code) };
+    setFlowError(auth, null);
+    return { signedIn: await completeOauthSignIn(auth, options.code) };
   }
   const href = currentHref();
   const redirectTo = options?.redirectTo ?? href;
@@ -279,12 +266,12 @@ export async function startOauthSignIn(
   }
   // Cleared after the check above, so a call that throws there leaves the
   // error that the app shows.
-  setFlowError(ctx.auth, null);
+  setFlowError(auth, null);
   try {
-    const { redirect, state } = await ctx.convex.mutation(refs.startSignIn, {
+    const { redirect, state } = await auth.convex.mutation(refs.startSignIn, {
       redirectTo,
     });
-    await ctx.auth.signInStorage(OAUTH_STORAGE_ID).set(
+    await auth.signInStorage(OAUTH_STORAGE_ID).set(
       OAUTH_FLOW_STORAGE_KEY,
       JSON.stringify({
         providerName: refs.providerName,
@@ -294,13 +281,13 @@ export async function startOauthSignIn(
     );
     const url = new URL(redirect);
     // React Native has no page URL to leave. It opens the returned url in an
-    // in-app browser and completes with `startOauthSignIn(ctx, refs, { code })`.
+    // in-app browser and completes with `startOauthSignIn(auth, refs, { code })`.
     if (href !== null && navigator.product !== "ReactNative") {
       window.location.href = url.toString();
     }
     return { redirect: url };
   } catch (error) {
-    setThrownFlowError(ctx.auth, error);
+    setThrownFlowError(auth, error);
     throw error;
   }
 }
@@ -313,18 +300,18 @@ export async function startOauthSignIn(
  * rejects. Every failure sets the flow error.
  */
 export async function completeOauthSignIn(
-  ctx: OauthClientContext,
+  auth: AuthClient,
   code: string,
 ): Promise<boolean> {
-  return await ctx.auth.withSignInPending(async () => {
+  return await auth.withSignInPending(async () => {
     // The storage read is inside the try so that a failed read sets the flow
     // error like any other failure here.
     try {
       const pending = await takePendingFlow(
-        ctx.auth.signInStorage(OAUTH_STORAGE_ID),
+        auth.signInStorage(OAUTH_STORAGE_ID),
       );
       if (pending === null) {
-        setFlowError(ctx.auth, "invalid_flow");
+        setFlowError(auth, "invalid_flow");
         return false;
       }
       // TODO(erquhart) Look at getting this reference without storing its
@@ -332,20 +319,20 @@ export async function completeOauthSignIn(
       const completeSignIn = makeFunctionReference<"mutation">(
         pending.completeSignIn,
       ) as OauthProviderApi["completeSignIn"];
-      const result = await ctx.auth.signIn.mutation(completeSignIn, {
+      const result = await auth.signIn.mutation(completeSignIn, {
         code,
         state: pending.state,
       });
       if (result.status === "error") {
         // The server returns this one error for an unknown, already
         // redeemed, or expired code and for a mismatched state.
-        setFlowError(ctx.auth, "expired");
+        setFlowError(auth, "expired");
         return false;
       }
-      await ctx.auth.setSession(result.tokens);
+      await auth.setSession(result.tokens);
       return true;
     } catch (error) {
-      setThrownFlowError(ctx.auth, error);
+      setThrownFlowError(auth, error);
       return false;
     }
   });
@@ -391,7 +378,7 @@ export function readOauthCallback():
  * runs before `auth.init()` resolves, the auth state never reports signed out
  * during the redemption. Returns whether the URL had a callback param.
  */
-export function handleOauthCallback(ctx: OauthClientContext): boolean {
+export function handleOauthCallback(auth: AuthClient): boolean {
   const callback = readOauthCallback();
   if (callback === null) {
     return false;
@@ -400,10 +387,10 @@ export function handleOauthCallback(ctx: OauthClientContext): boolean {
     // The server ended the flow with an error, so the stored state can never
     // be used. Removing it makes a stray code that arrives later report
     // `invalid_flow`.
-    void dropPendingFlow(ctx.auth.signInStorage(OAUTH_STORAGE_ID));
-    setFlowError(ctx.auth, callback.error);
+    void dropPendingFlow(auth.signInStorage(OAUTH_STORAGE_ID));
+    setFlowError(auth, callback.error);
     return true;
   }
-  void completeOauthSignIn(ctx, callback.code);
+  void completeOauthSignIn(auth, callback.code);
   return true;
 }

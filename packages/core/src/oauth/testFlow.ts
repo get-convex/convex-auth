@@ -15,7 +15,6 @@ import {
 import type { TokenBundle } from "../lib/types.ts";
 import {
   OAUTH_STORAGE_ID,
-  type OauthClientContext,
   type OauthProviderRefs,
   type PendingFlow,
 } from "./client.ts";
@@ -124,14 +123,7 @@ export function oauthContext({
     storageNamespace: NAMESPACE,
   });
   const flowError = () => getOauthFlowError(auth);
-  return {
-    auth,
-    convex: auth.convex as OauthClientContext["convex"],
-    completeMutation,
-    startMutation,
-    flowError,
-    storage,
-  };
+  return { auth, completeMutation, startMutation, flowError, storage };
 }
 
 /** The function path the `mutation` mock was called with. */

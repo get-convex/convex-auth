@@ -18,7 +18,6 @@
  */
 "use client";
 
-import { useConvex } from "convex/react";
 import { useCallback, useMemo, useRef } from "react";
 import { useAuthClient } from "../../react/index.tsx";
 import {
@@ -122,9 +121,8 @@ export function useUsernamePasskeySignIn(
   usernamePasskeyApi: UsernamePasskeyApi,
 ) {
   // The mutations that return a session run through `auth.signIn`, which
-  // supports SSR. The start mutations run on the Convex client.
+  // supports SSR. The start mutations run on the auth client's Convex client.
   const auth = useAuthClient();
-  const convex = useConvex();
 
   // Generated function references are a new object on each property access,
   // so the callbacks read the latest ones from a ref.
@@ -133,7 +131,7 @@ export function useUsernamePasskeySignIn(
 
   const autofill = usePasskeyAutofill<UsernamePasskeyAutofillError>({
     start: async () => {
-      const { options } = await convex.mutation(
+      const { options } = await auth.convex.mutation(
         apiRef.current.startAutofillSignIn,
         {},
       );
@@ -169,10 +167,7 @@ export function useUsernamePasskeySignIn(
       username: string;
     }): Promise<UsernamePasskeySignInResult> => {
       const signInResult = await run(() =>
-        runSignInOrSignUpFlow(
-          { auth, convex, api: apiRef.current },
-          { username },
-        ),
+        runSignInOrSignUpFlow({ auth, api: apiRef.current }, { username }),
       );
       if ("status" in signInResult) {
         // This is the result of `runSignInOrSignUpFlow`. It can be directly
@@ -185,7 +180,7 @@ export function useUsernamePasskeySignIn(
       signInResult satisfies PasskeyClientFailure | AlreadyPendingFailure;
       return { status: "error", userError: signInResult.userError };
     },
-    [run, auth, convex],
+    [run, auth],
   );
 
   return useMemo(
