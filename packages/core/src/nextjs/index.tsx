@@ -116,7 +116,12 @@ export function ConvexAuthNextjsProvider({
     });
     // Attach the current access token per call: a sign-in typically runs
     // unauthenticated, but a function may want the existing identity (e.g. to
-    // link an account to the signed-in user).
+    // link an account to the signed-in user). `authClient` is assigned below,
+    // after `signInApi`, because the two reference each other: the api reads
+    // the client's token, and the client hands the api to its ambient setups.
+    // Those setups run inside the constructor, so the read must stay lazy.
+    // eslint-disable-next-line prefer-const -- read by `withAuth` before it is assigned
+    let authClient: AuthClient;
     const withAuth = () => {
       const token = authClient.getAccessToken();
       if (token !== null) proxy.setAuth(token);
@@ -127,7 +132,7 @@ export function ConvexAuthNextjsProvider({
       mutation: (fn, args) => withAuth().mutation(fn, args),
       action: (fn, args) => withAuth().action(fn, args),
     };
-    const authClient = new AuthClient({
+    authClient = new AuthClient({
       mode: "ssr",
       authApi: {
         // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
