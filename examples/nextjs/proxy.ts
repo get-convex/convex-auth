@@ -9,8 +9,6 @@ import {
 // checking to see if the browser request is currently authenticated and thus which
 // page should be rendered based on that state and the requested page.
 export default convexAuthNextjsProxy(async (request, { isAuthenticated }) => {
-  // A signed-out user must be able to reach /signin. The GitHub flow returns
-  // there with the callback code in the URL, and a redirect would drop it.
   const isAuthPage = ["/signin", "/signup"].includes(request.nextUrl.pathname);
   const authed = await isAuthenticated();
   if (!isAuthPage && !authed) {
