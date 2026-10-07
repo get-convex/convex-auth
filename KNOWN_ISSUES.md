@@ -48,6 +48,20 @@ from callback params does nothing there, and `signIn` requires an explicit
 properly means deciding what `redirectTo` looks like when it can't be a page
 URL.
 
+## Sign-in doesn't work with `expectAuth: true`
+
+A `ConvexReactClient` created with `expectAuth: true` keeps its websocket
+paused until it holds a token, so a function call made through it while the
+user is signed out never settles. Under `ConvexAuthProvider` every sign-in
+runs over that client, so none of them can complete. Under
+`ConvexAuthNextjsProvider` sign-in goes through the auth proxy and is fine, but
+starting an OAuth flow is a call on the client (it returns a redirect URL, not
+a session), so it never settles either. Both providers throw a clear error
+instead of hanging when they can tell (`packages/core/src/react/expectAuth.ts`,
+reading a private field of the client, so best-effort). Supporting
+`expectAuth` means running those calls over a separate HTTP client, the way
+refresh and sign-out already avoid the paused socket.
+
 ## Refresh-token reuse detection has a bounded horizon
 
 A spent hash is remembered for `SPENT_TOKEN_HORIZON_MS` (1 hour) and pruned by

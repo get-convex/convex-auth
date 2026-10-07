@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, waitFor } from "@testing-library/react";
-import { ConvexReactClient } from "convex/react";
+import { ConvexReactClient, type ConvexReactClientOptions } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { InMemoryStorage } from "../browser/storage.ts";
@@ -44,8 +44,8 @@ function stubProxy(value: unknown) {
 }
 
 /** A real Convex client whose calls are mocks, so no socket opens. */
-function makeConvexClient() {
-  const client = new ConvexReactClient(NAMESPACE);
+function makeConvexClient(options?: ConvexReactClientOptions) {
+  const client = new ConvexReactClient(NAMESPACE, options);
   const mutation = vi.spyOn(client, "mutation");
   vi.spyOn(client, "setAuth").mockImplementation(() => {});
   vi.spyOn(client, "clearAuth").mockImplementation(() => {});
@@ -86,6 +86,33 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
       redirectTo: "http://localhost/signin",
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("startSignIn rejects instead of hanging when the client expects auth", async () => {
+    stubReactNative();
+    stubProxy(null);
+    const { client, mutation } = makeConvexClient({ expectAuth: true });
+    let signInGithub!: ReturnType<typeof useSignInWithGithub>["signInGithub"];
+    let flowError: unknown;
+    function Probe() {
+      ({ signInGithub } = useSignInWithGithub(githubApi));
+      flowError = useOauth().flowError;
+      return null;
+    }
+    render(
+      <ConvexAuthNextjsProvider client={client} storage={new InMemoryStorage()}>
+        <Probe />
+      </ConvexAuthNextjsProvider>,
+    );
+
+    await expect(
+      signInGithub({ redirectTo: "http://localhost/signin" }),
+    ).rejects.toThrow(/expectAuth/);
+
+    expect(mutation).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(flowError).toMatchObject({ code: "oauth_error" }),
+    );
   });
 
   test("a callback code redeems through the proxy and signs in", async () => {

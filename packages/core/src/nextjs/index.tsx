@@ -34,6 +34,7 @@ import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
 import { oauth } from "../oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
+import { makeGetConvex } from "../react/expectAuth.ts";
 
 export { useConvexAuth } from "convex/react";
 export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
@@ -146,6 +147,13 @@ export function ConvexAuthNextjsProvider({
       mutation: (fn, args) => withAuth().mutation(fn, args),
       action: (fn, args) => withAuth().action(fn, args),
     };
+    // Deployment calls reject instead of hanging when the client was built
+    // with `expectAuth: true`, which pauses the socket while signed out.
+    const getConvex = makeGetConvex(
+      convex,
+      () => authClient.getAccessToken(),
+      "ConvexAuthNextjsProvider",
+    );
     authClient = new AuthClient({
       mode: "ssr",
       authApi: {
@@ -166,8 +174,8 @@ export function ConvexAuthNextjsProvider({
         // Calls that don't return a sign-in envelope, like starting an OAuth
         // flow, go to the deployment because the proxy refuses them.
         convex: {
-          mutation: (fn, args) => convex.mutation(fn, args),
-          action: (fn, args) => convex.action(fn, args),
+          mutation: async (fn, args) => getConvex().mutation(fn, args),
+          action: async (fn, args) => getConvex().action(fn, args),
         },
       },
     });

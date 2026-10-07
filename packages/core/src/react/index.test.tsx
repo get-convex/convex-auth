@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { ConvexReactClient } from "convex/react";
+import { ConvexReactClient, type ConvexReactClientOptions } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { StrictMode } from "react";
 import { describe, expect, test, vi } from "vitest";
@@ -21,8 +21,11 @@ const API = {
  * A real Convex client against a fake deployment URL. Nothing here
  * authenticates or subscribes, so it never opens a connection.
  */
-function makeConvexClient() {
-  return new ConvexReactClient("https://happy-animal-123.convex.cloud");
+function makeConvexClient(options?: ConvexReactClientOptions) {
+  return new ConvexReactClient(
+    "https://happy-animal-123.convex.cloud",
+    options,
+  );
 }
 
 /** Renders the value a probe setup publishes under its scoped `status` key. */
@@ -54,6 +57,33 @@ describe("ConvexAuthProvider ambient sign-ins", () => {
       </ConvexAuthProvider>,
     );
     expect(screen.getByText("registered")).toBeDefined();
+  });
+
+  test("sign-in calls reject instead of hanging when the client expects auth", async () => {
+    const client = makeConvexClient({ expectAuth: true });
+    const mutation = vi.spyOn(client, "mutation");
+    let signInApi!: AuthSignInApi;
+    render(
+      <ConvexAuthProvider
+        client={client}
+        api={API}
+        ambientSignIns={[
+          {
+            id: "probe",
+            setup: (ctx) => {
+              signInApi = ctx.signInApi;
+            },
+          },
+        ]}
+      >
+        <div />
+      </ConvexAuthProvider>,
+    );
+
+    await expect(signInApi.mutation(API.signOut, {})).rejects.toThrow(
+      /expectAuth/,
+    );
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   test("onInit runs once per client under StrictMode", () => {

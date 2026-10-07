@@ -26,6 +26,7 @@ import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import { oauth } from "../oauth/client.ts";
 import type { ConvexAuthApi } from "../lib/types.ts";
+import { makeGetConvex } from "./expectAuth.ts";
 import {
   AuthProvider,
   ConvexAuthActionsContext,
@@ -127,15 +128,26 @@ export function ConvexAuthProvider({
       logger: client.logger,
     });
     // Sign-in functions run against the deployment over the same websocket
-    // client as the rest of the app (it isn't paused pre-auth, unlike the
-    // refresh path below), so the response carries the full token bundle for
-    // `setSession` to persist. The same object serves provider setups here
-    // and, via AuthProvider below, provider hooks.
+    // client as the rest of the app, so the response carries the full token
+    // bundle for `setSession` to persist. The same object serves provider
+    // setups here and, via AuthProvider below, provider hooks. `getConvex`
+    // rejects the call instead of letting it hang when the client was built
+    // with `expectAuth: true`, which pauses the socket while signed out.
+    // `authClient` is assigned below because the two reference each other:
+    // the guard reads the client's token, and the client hands the api to its
+    // ambient setups, which run inside the constructor. The read is lazy.
+    // eslint-disable-next-line prefer-const -- read by `getConvex` before it is assigned
+    let authClient: AuthClient;
+    const getConvex = makeGetConvex(
+      client,
+      () => authClient.getAccessToken(),
+      "ConvexAuthProvider",
+    );
     const signInApi: AuthSignInApi = {
-      mutation: (fn, args) => client.mutation(fn, args),
-      action: (fn, args) => client.action(fn, args),
+      mutation: async (fn, args) => getConvex().mutation(fn, args),
+      action: async (fn, args) => getConvex().action(fn, args),
     };
-    const authClient = new AuthClient({
+    authClient = new AuthClient({
       mode: "spa",
       authApi: {
         refreshSession: (refreshToken) =>
