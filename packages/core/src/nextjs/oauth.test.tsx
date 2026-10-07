@@ -4,20 +4,20 @@ import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { InMemoryStorage } from "../browser/storage.ts";
-import type { SlimTokenBundle } from "../lib/types.ts";
+import { makeSlimBundle } from "../lib/types.ts";
 import {
   useOauth,
   useSignInWithGithub,
   type OauthProviderApi,
 } from "../oauth/react.ts";
 import {
+  NAMESPACE,
+  bundle,
   restoreNavigatorProduct,
   seedPendingFlow,
   stubReactNative,
 } from "../oauth/testFlow.ts";
 import { ConvexAuthNextjsProvider, useAuthToken } from "./index.tsx";
-
-const URL = "https://happy-animal-123.convex.cloud";
 
 const githubApi = {
   startSignInGithub: makeFunctionReference<"mutation">(
@@ -28,11 +28,7 @@ const githubApi = {
   ) as OauthProviderApi["completeSignIn"],
 };
 
-const slim: SlimTokenBundle = {
-  accessToken: "access-1",
-  accessTokenExpiresAt: 0,
-  userId: "user-1",
-};
+const slim = makeSlimBundle(bundle);
 
 /** Stub `fetch` so the sign-in proxy answers in the Convex HTTP format. */
 function stubProxy(value: unknown) {
@@ -49,7 +45,7 @@ function stubProxy(value: unknown) {
 
 /** A real Convex client whose calls are mocks, so no socket opens. */
 function makeConvexClient() {
-  const client = new ConvexReactClient(URL);
+  const client = new ConvexReactClient(NAMESPACE);
   const mutation = vi.spyOn(client, "mutation");
   vi.spyOn(client, "setAuth").mockImplementation(() => {});
   vi.spyOn(client, "clearAuth").mockImplementation(() => {});
@@ -115,7 +111,7 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
       </ConvexAuthNextjsProvider>,
     );
 
-    await waitFor(() => expect(token).toBe("access-1"));
+    await waitFor(() => expect(token).toBe(bundle.accessToken));
     expect(flowError).toBeNull();
     expect(mutation).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledOnce();

@@ -28,6 +28,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useMemo } from "react";
+import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
@@ -76,6 +77,7 @@ export function ConvexAuthNextjsProvider({
   signOutRoute = "/auth/signout",
   signInRoute = "/auth/signin",
   storage,
+  ambientSignIns,
   children,
 }: {
   /** An existing `ConvexReactClient`. If omitted, one is created from
@@ -96,6 +98,18 @@ export function ConvexAuthNextjsProvider({
   /** A custom {@link TokenStorage}. Defaults to `localStorage` in the browser.
    * Under SSR, it only stores the access token. */
   storage?: TokenStorage;
+  /**
+   * Advanced. Ambient sign-ins run initialization for auth providers that can
+   * take action outside of a user activated sign in flow, such as reading an
+   * oauth code from a url query param.
+   *
+   * Setting this replaces the default (`[oauth()]`) entirely rather than adding
+   * to it. Pass `[]` to register nothing, or include `oauth()` (from
+   * `@convex-dev/auth/providers/oauth/react`) yourself to keep it alongside
+   * other sign-ins. Read once when the client is created and not expected to
+   * change.
+   */
+  ambientSignIns?: AmbientSignInClient[];
   children: ReactNode;
 }) {
   const { authClient, convex, signInApi } = useMemo(() => {
@@ -147,7 +161,7 @@ export function ConvexAuthNextjsProvider({
       // access token; the client adopts it on init.
       initialAccessToken: initialToken,
       ambientSignIns: {
-        signIns: [oauth()],
+        signIns: ambientSignIns ?? [oauth()],
         signInApi,
         // Calls that don't return a sign-in envelope, like starting an OAuth
         // flow, go to the deployment because the proxy refuses them.

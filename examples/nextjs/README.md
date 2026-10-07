@@ -38,7 +38,8 @@ anonymous: the refresh token is minted straight into an httpOnly cookie and
   the flow runs `startSignInGithub` on the Convex client, because it returns a
   redirect URL rather than a session. GitHub sends the user back to `/signin`,
   where the hook redeems the code by calling `completeSignInGithub` through the
-  sign-in route, so only `completeSignInGithub` is in the `signIn` allowlist.
+  sign-in route, so of the OAuth pair only `completeSignInGithub` is in the
+  `signIn` allowlist.
   The flow has to return to a page `proxy.ts` lets a signed-out user reach,
   which is why it starts and ends on `/signin`.
 
