@@ -12,10 +12,19 @@
  * proxy's `signIn` allowlist. Its `startSignIn*` function runs on the Convex
  * client and is not listed.
  *
+ * Errors come back as typed results for the app to switch on, as with the
+ * password hooks. Starting a flow resolves to its result, and a failure after
+ * the redirect back shows up in {@link useOauth}'s `flowError`.
+ *
  * ```tsx
  * const { signInGoogle } = useSignInWithGoogle(api.auth);
  * const { flowError } = useOauth();
- * await signInGoogle();
+ * const result = await signInGoogle();
+ * if (result.status === "error") {
+ *   switch (result.userError.error) {
+ *     case "OTHER_ERROR": // ...
+ *   }
+ * }
  * ```
  *
  * Apps that re-exported the functions under other names pass them explicitly.
@@ -33,22 +42,23 @@ import {
   OAUTH_FLOW_ERROR_KEY,
   OAUTH_SETUP_ID,
   type OauthActions,
+  type OauthCompleteResult,
   type OauthFlowError,
   type OauthProviderApi,
   type OauthProviderRefs,
+  type OauthStartResult,
   type SignInOptions,
-  type SignInOutcome,
 } from "./client.ts";
 
 export { oauth } from "./client.ts";
 export type {
   OauthActions,
+  OauthCompleteResult,
   OauthFlowError,
-  OauthFlowErrorCode,
   OauthProviderApi,
   OauthProviderRefs,
+  OauthStartResult,
   SignInOptions,
-  SignInOutcome,
 } from "./client.ts";
 
 /** What every hook here throws when the OAuth setup published nothing. */
@@ -61,9 +71,8 @@ const NOT_REGISTERED_ERROR =
 /** What {@link useOauth} returns. */
 export type UseOauthReturn = {
   /**
-   * Why the last sign-in attempt failed, or `null`. Cleared on the next
-   * sign-in. Your app supplies the message text for each `code`. A
-   * `rejected` error has a `message` from your own backend.
+   * Why the last flow failed after the redirect back, or `null`. Cleared on
+   * the next sign-in. Switch on its `error` and supply the text for each code.
    */
   flowError: OauthFlowError | null;
 };
@@ -96,7 +105,10 @@ export type UseOauthSignInReturn = {
    * in an in-app browser, but `options.redirectTo` is required there and can
    * only be an http or https URL (see {@link SignInOptions}).
    */
-  signIn: (options?: SignInOptions) => Promise<SignInOutcome>;
+  signIn: {
+    (options?: Omit<SignInOptions, "code">): Promise<OauthStartResult>;
+    (options: SignInOptions & { code: string }): Promise<OauthCompleteResult>;
+  };
 };
 
 /**
@@ -104,9 +116,9 @@ export type UseOauthSignInReturn = {
  * per-provider hooks like {@link useSignInWithGoogle} call this with their
  * own references.
  *
- * A failure while starting the flow rejects the returned promise. Failures
- * after the redirect back have no caller left to catch them, so every failure
- * is also reported through {@link useOauth}'s `flowError`.
+ * A failure while starting the flow comes back in the result. Failures after
+ * the redirect back have no caller left to return to, so they are reported
+ * through {@link useOauth}'s `flowError`.
  */
 export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
   const actions = useAmbientSignInValue<OauthActions>(
@@ -124,8 +136,10 @@ export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
     if (actions === undefined) {
       throw new Error(NOT_REGISTERED_ERROR);
     }
-    return (options?: SignInOptions): Promise<SignInOutcome> =>
-      actions.signIn(refs, options);
+    // One function serves both call shapes. The action picks the path from
+    // whether `code` is set, and the result matches the shape called.
+    return ((options?: SignInOptions) =>
+      actions.signIn(refs, options)) as UseOauthSignInReturn["signIn"];
   }, [actions, providerName, startPath, completePath]);
   return { signIn };
 }

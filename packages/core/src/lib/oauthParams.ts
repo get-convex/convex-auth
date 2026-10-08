@@ -9,7 +9,7 @@
  * it on every page load), so bare names would let it consume
  * `?code=`/`?error=` params from an unrelated flow the app runs. A
  * `convexAuth`-prefixed param signals the redirect came from this component,
- * which is also what keeps the client's `invalid_flow` detection meaningful.
+ * which is also what keeps the client's `INVALID_FLOW` detection meaningful.
  *
  * Shared by the component (which writes them) and the browser client (which
  * reads them) so the two ends can never drift.
@@ -20,5 +20,7 @@
 /** Carries the one-time code the client redeems for a session. */
 export const OAUTH_CODE_PARAM = "convexAuthCode";
 
-/** Carries a normalized {@link OauthFlowError} code when the flow failed. */
+/**
+ * Carries why the flow failed: `access_denied`, `expired`, or `oauth_error`.
+ */
 export const OAUTH_ERROR_PARAM = "convexAuthError";

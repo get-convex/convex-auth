@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { anyApi, makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { InMemoryStorage } from "../browser/storage.ts";
 import { useAuthToken } from "../react/index.tsx";
@@ -13,8 +13,10 @@ import {
   useOauthSignIn,
   useSignInWithGithub,
   useSignInWithGoogle,
+  type OauthCompleteResult,
   type OauthProviderApi,
   type OauthProviderRefs,
+  type OauthStartResult,
 } from "./react.ts";
 import {
   acmeRefs,
@@ -158,7 +160,7 @@ describe("OAuth React client", () => {
     const { result, mutation } = renderOAuth(useGoogleFlow);
 
     await waitFor(() =>
-      expect(result.current.flowError?.code).toBe("access_denied"),
+      expect(result.current.flowError?.error).toBe("ACCESS_DENIED"),
     );
     expect(mutation).not.toHaveBeenCalled();
   });
@@ -181,7 +183,9 @@ describe("OAuth React client", () => {
     expect(mutation).toHaveBeenCalledExactlyOnceWith(googleStart, {
       redirectTo: "http://localhost/app",
     });
+    expectTypeOf(outcome).toEqualTypeOf<OauthStartResult>();
     expect(outcome).toEqual({
+      status: "redirect",
       redirect: new URL("https://provider.example/auth?client_id=x"),
     });
     // The persisted flow carries the completeSignIn function path, so
@@ -191,6 +195,22 @@ describe("OAuth React client", () => {
       state: "state-1",
       completeSignIn: "auth:completeSignInGoogle",
     });
+  });
+
+  test("signIn with a code from the hook resolves to the completion result", async () => {
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage, googleRefs);
+    const { result, mutation } = renderOAuth(useGoogleFlow, { storage });
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    mutation.mockResolvedValueOnce(completed);
+
+    const outcome = await act(async () => {
+      return await result.current.oauth.signInGoogle({ code: "code-1" });
+    });
+
+    expectTypeOf(outcome).toEqualTypeOf<OauthCompleteResult>();
+    expect(outcome).toEqual({ status: "complete" });
+    await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
   });
 
   test("signInGithub starts a flow with the GitHub references", async () => {
@@ -244,6 +264,7 @@ describe("OAuth React client", () => {
       redirectTo: "http://localhost/app",
     });
     expect(outcome).toEqual({
+      status: "redirect",
       redirect: new URL("https://acme.example/auth"),
     });
     expect(readFlow(storage)).toEqual({

@@ -54,33 +54,48 @@ export type OauthProviderRefs = {
 } & OauthProviderApi;
 
 /**
- * Why the last sign-in attempt failed. Apps map each code to their own
- * user-facing copy.
+ * Why a flow failed after the identity provider sent the user back. The
+ * callback lands on a page load with no caller waiting on it, so the hooks
+ * report it as `flowError`. Apps switch on `error` and supply their own text
+ * for each code.
  *
- * - `"access_denied"`: the user cancelled at the identity provider.
- * - `"expired"`: the flow took too long, or the code was already redeemed.
- * - `"rejected"`: the app's own backend turned the sign-in down by throwing
- *   a `ConvexError`, and `message` has its text.
- * - `"oauth_error"`: something else went wrong during the provider handshake,
- *   including failing to start it.
- * - `"invalid_flow"`: the callback arrived but this client has no saved flow,
+ * - `"ACCESS_DENIED"`: the user cancelled at the identity provider.
+ * - `"EXPIRED"`: the flow took too long, or the code was already redeemed.
+ * - `"INVALID_FLOW"`: the callback arrived but this client has no saved flow,
  *   so it never started this sign-in or already finished it.
+ * - `"REJECTED"`: the app's own backend turned the sign-in down by throwing a
+ *   `ConvexError`. `data` is that error's `data`.
+ * - `"OTHER_ERROR"`: anything else, like the identity provider failing the
+ *   handshake or the redemption throwing. `cause` is the thrown value, or the
+ *   error the callback URL carried.
  */
-export type OauthFlowErrorCode =
-  "access_denied" | "expired" | "rejected" | "oauth_error" | "invalid_flow";
+export type OauthFlowError =
+  | { error: "ACCESS_DENIED" }
+  | { error: "EXPIRED" }
+  | { error: "INVALID_FLOW" }
+  | { error: "REJECTED"; data: unknown }
+  | { error: "OTHER_ERROR"; cause: unknown };
 
-/** Why a sign-in failed. */
-export type OauthFlowError = {
-  /** Why the sign-in failed. */
-  code: OauthFlowErrorCode;
-  /**
-   * Text to show the user. Only set when the app's backend threw a
-   * `ConvexError` whose `data` is a string. That string is this text.
-   *
-   * @TODO(erquhart) Look into localization support.
-   */
-  message?: string;
-};
+/**
+ * What starting a flow resolves to. A failure comes back as `OTHER_ERROR`
+ * with the thrown value on `cause`, as with the password hooks, so the caller
+ * handles every outcome in one switch with no `try`/`catch`. It only rejects
+ * when `redirectTo` is missing where there is no page URL, which is a bug in
+ * the calling code.
+ *
+ * On the web the client navigates to `redirect` itself. React Native has no
+ * page to leave, so it opens `redirect` in an in-app browser.
+ */
+export type OauthStartResult =
+  | { status: "redirect"; redirect: URL }
+  | { status: "error"; userError: { error: "OTHER_ERROR"; cause: unknown } };
+
+/**
+ * What finishing a saved flow with a callback `code` resolves to. It never
+ * rejects. The failures are those of {@link OauthFlowError}.
+ */
+export type OauthCompleteResult =
+  { status: "complete" } | { status: "error"; userError: OauthFlowError };
 
 /** Options accepted by {@link OauthActions.signIn}. */
 export type SignInOptions = {
@@ -95,24 +110,18 @@ export type SignInOptions = {
   code?: string;
 };
 
-/**
- * What a sign-in call resolves to. Starting a flow gives back the identity
- * provider URL, which React Native has to open itself because this client
- * only navigates on the web. Finishing a flow with a `code` gives back
- * whether the user is now signed in.
- */
-export type SignInOutcome = { redirect: URL } | { signedIn: boolean };
-
 /** The sign-in actions {@link oauth} publishes for its hooks to read. */
 export type OauthActions = {
   /**
    * Start the given provider's OAuth flow, or finish a saved one when
    * `options.code` is set. Starting navigates away to the identity provider.
+   * Resolves to an {@link OauthStartResult} or, with a `code`, an
+   * {@link OauthCompleteResult}.
    */
   signIn: (
     refs: OauthProviderRefs,
     options?: SignInOptions,
-  ) => Promise<SignInOutcome>;
+  ) => Promise<OauthStartResult | OauthCompleteResult>;
 };
 
 /** The id {@link oauth} registers under. */
@@ -128,12 +137,32 @@ export const OAUTH_ACTIONS_KEY = "actions";
  */
 export const OAUTH_FLOW_ERROR_KEY = "flowError";
 
-/** The `error` values the server callback can put in the URL. */
-const SERVER_ERRORS: ReadonlySet<string> = new Set([
-  "access_denied",
-  "expired",
-  "oauth_error",
-]);
+/**
+ * The flow error for an `error` the server callback put in the URL. The
+ * server sends `access_denied`, `expired`, or `oauth_error`. Anything else is
+ * treated like `oauth_error`.
+ */
+function callbackFlowError(param: string): OauthFlowError {
+  switch (param) {
+    case "access_denied":
+      return { error: "ACCESS_DENIED" };
+    case "expired":
+      return { error: "EXPIRED" };
+    default:
+      return { error: "OTHER_ERROR", cause: param };
+  }
+}
+
+/**
+ * The flow error for a redemption that threw. A `ConvexError` means the
+ * app's backend rejected the sign-in. Anything else is unexpected.
+ */
+function thrownFlowError(error: unknown): OauthFlowError {
+  if (error instanceof ConvexError) {
+    return { error: "REJECTED", data: error.data };
+  }
+  return { error: "OTHER_ERROR", cause: error };
+}
 
 /** Storage key for the saved sign-in flow. */
 const OAUTH_FLOW_STORAGE_KEY = "flow";
@@ -153,7 +182,7 @@ export type PendingFlow = {
    * one that never held the mutation reference, so the path is saved here and
    * the reference is rebuilt from it. If the app renamed that export and
    * redeployed mid-flight the path no longer resolves and the sign-in fails
-   * as `oauth_error`.
+   * as `OTHER_ERROR`.
    */
   completeSignIn: string;
 };
@@ -233,31 +262,8 @@ export function oauth(): AmbientSignInClient {
     convex,
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
-    const setFlowError = (
-      code: OauthFlowErrorCode | null,
-      message?: string,
-    ): void => {
-      if (code === null) {
-        values.set(OAUTH_FLOW_ERROR_KEY, null);
-        return;
-      }
-      values.set(OAUTH_FLOW_ERROR_KEY, { code, message });
-    };
-
-    /**
-     * Turn a thrown sign-in failure into a flow error. A `ConvexError` means
-     * the app's backend rejected the sign-in. Anything else is a generic
-     * failure.
-     */
-    const setThrownFlowError = (error: unknown): void => {
-      if (error instanceof ConvexError) {
-        setFlowError(
-          "rejected",
-          typeof error.data === "string" ? error.data : undefined,
-        );
-        return;
-      }
-      setFlowError("oauth_error");
+    const setFlowError = (flowError: OauthFlowError | null): void => {
+      values.set(OAUTH_FLOW_ERROR_KEY, flowError);
     };
 
     /**
@@ -265,18 +271,17 @@ export function oauth(): AmbientSignInClient {
      * The whole thing runs inside `withSignInPending`, including
      * `setSession`, so the auth state stays on loading until the client is
      * signed in rather than flickering through signed out. It never rejects.
-     * Every failure becomes a flow error instead, so callers that don't await
-     * it are safe.
+     * Every failure comes back in the result instead, so callers that don't
+     * await it are safe.
      */
-    const completeFlow = async (code: string): Promise<boolean> =>
-      await client.withSignInPending(async () => {
-        // The storage read is inside the try so that a failed read becomes a
-        // flow error like any other failure here.
+    const completeFlow = async (code: string): Promise<OauthCompleteResult> =>
+      await client.withSignInPending(async (): Promise<OauthCompleteResult> => {
+        // The storage read is inside the try so that a failed read is reported
+        // like any other failure here.
         try {
           const pending = await takePendingFlow(storage);
           if (pending === null) {
-            setFlowError("invalid_flow");
-            return false;
+            return { status: "error", userError: { error: "INVALID_FLOW" } };
           }
           // TODO(erquhart) Look at getting this reference without storing
           // its path.
@@ -289,14 +294,12 @@ export function oauth(): AmbientSignInClient {
           if (result.status === "error") {
             // The server can't tell unknown, already redeemed, expired, and
             // mismatched state apart, so they all land here.
-            setFlowError("expired");
-            return false;
+            return { status: "error", userError: { error: "EXPIRED" } };
           }
           await client.setSession(result.tokens);
-          return true;
+          return { status: "complete" };
         } catch (error) {
-          setThrownFlowError(error);
-          return false;
+          return { status: "error", userError: thrownFlowError(error) };
         }
       });
 
@@ -327,26 +330,28 @@ export function oauth(): AmbientSignInClient {
       if (errorParam !== null) {
         // The server ended the flow with an error, so the saved state can
         // never be used. Drop it now so a stray code arriving later still
-        // reports `invalid_flow`.
+        // reports `INVALID_FLOW`.
         void dropPendingFlow(storage);
-        setFlowError(
-          SERVER_ERRORS.has(errorParam)
-            ? (errorParam as OauthFlowErrorCode)
-            : "oauth_error",
-        );
+        setFlowError(callbackFlowError(errorParam));
         return;
       }
       if (code === null) {
         return;
       }
-      void completeFlow(code);
+      // Nothing waits on this page load, so a failure is published for the
+      // hooks to report as `flowError`.
+      void completeFlow(code).then((result) => {
+        if (result.status === "error") {
+          setFlowError(result.userError);
+        }
+      });
     };
 
     /** Start a provider's flow, or finish a saved one when `code` is given. */
     const signIn: OauthActions["signIn"] = async (refs, options) => {
       if (options?.code !== undefined) {
         setFlowError(null);
-        return { signedIn: await completeFlow(options.code) };
+        return await completeFlow(options.code);
       }
       const href = currentHref();
       const redirectTo = options?.redirectTo ?? href;
@@ -378,12 +383,11 @@ export function oauth(): AmbientSignInClient {
         if (href !== null && navigator.product !== "ReactNative") {
           window.location.href = url.toString();
         }
-        return { redirect: url };
-      } catch (error) {
-        // Record the failure before rethrowing, so UI reading the flow error
-        // still shows something when the caller ignores the rejection.
-        setThrownFlowError(error);
-        throw error;
+        return { status: "redirect", redirect: url };
+      } catch (cause) {
+        // The caller is waiting on this, so the failure goes back to it, as
+        // with the password hooks, rather than into the flow error.
+        return { status: "error", userError: { error: "OTHER_ERROR", cause } };
       }
     };
 

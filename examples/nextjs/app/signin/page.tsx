@@ -5,22 +5,12 @@ import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import {
   useOauth,
   useSignInWithGithub,
-  type OauthFlowErrorCode,
 } from "@convex-dev/auth/providers/oauth/react";
 import { useSignInWithPassword } from "@convex-dev/auth/providers/password/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
-
-// Map potential oauth error codes to messages.
-const FLOW_ERROR_COPY: Record<OauthFlowErrorCode, string> = {
-  access_denied: "Sign-in was cancelled.",
-  expired: "That sign-in took too long. Please try again.",
-  rejected: "Sign-in was declined.",
-  oauth_error: "Something went wrong during sign-in. Please try again.",
-  invalid_flow: "This sign-in can't be completed here. Please try again.",
-};
 
 export default function SignIn() {
   // The provider's own hook, with no SSR-specific variant. The surrounding
@@ -32,8 +22,9 @@ export default function SignIn() {
   );
   const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymous);
   // GitHub sends the user back to this page, where the hook redeems the
-  // callback code through the sign-in route. Every failure, before or after
-  // the redirect, shows up in `flowError`.
+  // callback code through the sign-in route. A failure to start comes back
+  // from `signInGithub`, and a failure after the redirect shows up in
+  // `flowError`.
   const { signInGithub } = useSignInWithGithub(api.auth);
   const { flowError } = useOauth();
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -46,6 +37,7 @@ export default function SignIn() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [githubError, setGithubError] = useState<string | null>(null);
 
   return (
     <main style={{ padding: 24, maxWidth: 640 }}>
@@ -129,19 +121,62 @@ export default function SignIn() {
       {flowError !== null && (
         <p role="alert">
           <strong>
-            {/**
-             * flowError.message is populated from the backend if the flow is
-             * rejected with a ConvexError.
-             **/}
-            {flowError.message ?? FLOW_ERROR_COPY[flowError.code]}
+            {(() => {
+              switch (flowError.error) {
+                case "ACCESS_DENIED":
+                  return "Sign-in was cancelled.";
+                case "EXPIRED":
+                  return "That sign-in took too long. Please try again.";
+                case "INVALID_FLOW":
+                  return "This sign-in can't be completed here. Please try again.";
+                case "REJECTED":
+                  // Your backend rejected the sign-in with a ConvexError,
+                  // and `data` is its data. Show it when it's text for the
+                  // user.
+                  return typeof flowError.data === "string"
+                    ? flowError.data
+                    : "Sign-in was declined.";
+                case "OTHER_ERROR":
+                  // The details are on `cause` if you want to log them.
+                  return "Something went wrong during sign-in. Please try again.";
+                default:
+                  flowError satisfies never;
+                  return `Unknown error: ` + flowError;
+              }
+            })()}
           </strong>
+        </p>
+      )}
+      {githubError !== null && (
+        <p role="alert">
+          <strong>{githubError}</strong>
         </p>
       )}
       <p>
         <button
           type="button"
           disabled={pending || isLoading}
-          onClick={() => void signInGithub().catch(() => {})}
+          onClick={async () => {
+            setGithubError(null);
+            const result = await signInGithub();
+            if (result.status === "redirect") return;
+            setGithubError(() => {
+              switch (result.userError.error) {
+                case "OTHER_ERROR":
+                  // The flow couldn't start, e.g. the deployment was
+                  // unreachable. The original error is on `cause` if you
+                  // want to log or inspect it.
+                  console.error(
+                    "GitHub sign-in failed to start:",
+                    result.userError.cause,
+                  );
+                  return "Couldn't start GitHub sign-in. Please try again.";
+                default:
+                  result.userError.error satisfies never;
+                  return `Unknown error: ` + result.userError.error;
+              }
+            });
+          }}
         >
           Continue with GitHub
         </button>
