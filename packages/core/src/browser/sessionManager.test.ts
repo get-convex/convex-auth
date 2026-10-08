@@ -55,22 +55,6 @@ function rotated(n: number): RefreshResult {
   return { kind: "rotated", tokens: bundle(n) };
 }
 
-/**
- * A `reused` outcome: a concurrent caller had already rotated the token we
- * presented, so only an access token comes back.
- */
-function reused(n: number): RefreshResult {
-  const { accessToken, accessTokenExpiresAt, refreshTokenExpiresAt, userId } =
-    bundle(n);
-  return {
-    kind: "reused",
-    accessToken,
-    accessTokenExpiresAt,
-    refreshTokenExpiresAt,
-    userId,
-  };
-}
-
 // `storage` is typed as the interface rather than the concrete default so the
 // async-store tests below can pass their own implementation.
 function makeClient(
@@ -180,46 +164,30 @@ describe("AuthClient", () => {
     );
   });
 
-  test("a reused refresh takes the access token and keeps the stored refresh token", async () => {
-    const refreshSession = vi.fn(async () => reused(2));
+  test("a refresh that fails keeps the stored refresh token for the next try", async () => {
+    // The server leaves the presented token valid until its successor is used,
+    // so a refresh whose response never arrives is retried with the same token.
+    const refreshSession = vi
+      .fn<(rt: string) => Promise<RefreshResult>>()
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce(rotated(2));
     const { client, storage } = makeClient({ refreshSession });
     await client.init();
     await client.setSession(bundle(1));
 
-    const token = await client.fetchAccessToken({ forceRefreshToken: true });
-
-    // A concurrent caller already rotated `refresh-1` and persisted the
-    // replacement. Clearing ours here would leave this client with no way to
-    // rotate, and it would expire silently at the next access-token expiry.
-    expect(token).toBe("access-2");
-    expect(storage.getItem(`${JWT_STORAGE_KEY}_${SUFFIX}`)).toBe("access-2");
+    await expect(
+      client.fetchAccessToken({ forceRefreshToken: true }),
+    ).rejects.toThrow("response lost");
     expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
       "refresh-1",
     );
-    expect(client.getSnapshot()).toMatchObject({
-      isAuthenticated: true,
-      token: "access-2",
-    });
-  });
 
-  test("a reused refresh is not a sign-out", async () => {
-    // The next forced fetch must still reach the server with the stored token,
-    // rather than short-circuiting as if there were no session.
-    const refreshSession = vi
-      .fn<(rt: string) => Promise<RefreshResult>>()
-      .mockResolvedValueOnce(reused(2))
-      .mockResolvedValueOnce(rotated(3));
-    const { client, storage } = makeClient({ refreshSession });
-    await client.init();
-    await client.setSession(bundle(1));
-
-    await client.fetchAccessToken({ forceRefreshToken: true });
     expect(await client.fetchAccessToken({ forceRefreshToken: true })).toBe(
-      "access-3",
+      "access-2",
     );
     expect(refreshSession).toHaveBeenNthCalledWith(2, "refresh-1");
     expect(storage.getItem(`${REFRESH_TOKEN_STORAGE_KEY}_${SUFFIX}`)).toBe(
-      "refresh-3",
+      "refresh-2",
     );
   });
 

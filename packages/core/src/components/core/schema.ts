@@ -12,35 +12,48 @@ export default defineSchema({
     .index("by_provider_account", ["provider", "providerAccountId"])
     .index("by_user", ["userId"]),
 
-  // One row per active session, holding only the *current* refresh token's
-  // SHA-256 hash. The raw refresh token is never stored.
+  // One row per active session. Its refresh tokens live in `refreshTokens`.
   sessions: defineTable({
     userId: v.string(),
     accountId: v.id("accounts"),
-    refreshTokenHash: v.string(),
-    refreshTokenExpiresAt: v.number(),
     lastRefreshedAt: v.number(),
-  })
-    .index("by_refresh_hash", ["refreshTokenHash"])
-    .index("by_user", ["userId"]),
+  }).index("by_user", ["userId"]),
 
-  // The hashes of refresh tokens that rotation has replaced.
+  // Every refresh token a session has handed out and still remembers, by its
+  // SHA-256 hash. The raw refresh token is never stored.
   //
-  // This allows tracing a previously rotated token back to its session. A
-  // presented token that matches a document here is one of two things,
-  // depending on the age of the document (tracked by the system-added
-  // `_creationTime` field):
+  // A token's `state` is one of:
   //
-  //  - Rotated away moments ago: two near-simultaneous refreshes presenting
-  //    the same token (parallel SSR loaders, or two browser tabs sharing one
-  //    cookie). The first rotated; the second still resolves here instead of
-  //    being rejected and logging the user out.
-  //  - Rotated away longer ago: a token that should be in nobody's hands, so
-  //    it is treated as stolen and its session is revoked.
-  spentRefreshTokens: defineTable({
+  //  - `issued`: handed to a client, but not yet redeemed. Sign-in issues the
+  //    session's first token, and each refresh issues another.
+  //  - `redeemed`: presented once, so its holder evidently received it.
+  //    Presenting it again issues another token and leaves it redeemed, which
+  //    is what lets a client whose refresh response was lost (a device
+  //    sleeping mid-request) retry with the token it still holds.
+  //  - `spent`: a redeemed token, replaced when a later issued token was
+  //    redeemed. Its holder has moved on.
+  //  - `dropped`: an issued token discarded when a sibling was redeemed.
+  //    Whoever holds it forked from the holder of the redeemed one.
+  //
+  // Presenting an issued token redeems it, spends the session's previous
+  // redeemed token, and drops the other issued ones, so a session has at most
+  // one redeemed token (none before its first refresh), and every issued token
+  // descends from it. Presenting a spent or dropped token means the session's
+  // holders have diverged, which revokes the session. Spent and dropped rows
+  // are kept for `SPENT_TOKEN_HORIZON_MS` after `retiredAt`, then pruned.
+  refreshTokens: defineTable({
     hash: v.string(),
     sessionId: v.id("sessions"),
+    state: v.union(
+      v.literal("issued"),
+      v.literal("redeemed"),
+      v.literal("spent"),
+      v.literal("dropped"),
+    ),
+    expiresAt: v.number(),
+    // When the token became spent or dropped.
+    retiredAt: v.optional(v.number()),
   })
     .index("by_hash", ["hash"])
-    .index("by_session", ["sessionId"]),
+    .index("by_session_state", ["sessionId", "state", "retiredAt"]),
 });

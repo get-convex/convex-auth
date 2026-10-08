@@ -99,14 +99,12 @@ export type AuthCore<UsersTable extends string = string> = {
     Promise<null>
   >;
   /**
-   * Refreshes a session using the given token, rotating the refresh token when
-   * the presented one is current.
+   * Refreshes a session using the given token, rotating the refresh token.
    *
    * Resolves to one of the {@link RefreshResult} outcomes. `rotated` carries a
-   * new token bundle to persist. `reused` means a concurrent caller had already
-   * rotated this token within its grace window: take the access token and keep
-   * the refresh token already in storage, since the winner's response carries
-   * the replacement. A `noSession` result should be treated as signed-out.
+   * new token bundle to persist; the presented token keeps working until the
+   * new refresh token is first used, so a lost response can be retried. A
+   * `noSession` result should be treated as signed-out.
    */
   refreshSession: RegisteredMutation<
     "public",
