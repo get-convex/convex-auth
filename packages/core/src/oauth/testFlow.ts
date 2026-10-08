@@ -5,10 +5,7 @@
  */
 import { getFunctionName, makeFunctionReference } from "convex/server";
 import { vi } from "vitest";
-import type {
-  AuthSignInApi,
-  ConvexMutationApi,
-} from "../browser/ambientSignInClient.ts";
+import type { AuthSignInApi } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import {
   InMemoryStorage,
@@ -123,7 +120,7 @@ export function oauthClient(storage: TokenStorage): {
     ambientSignIns: {
       signIns: [oauth()],
       signInApi,
-      convex: { mutation: convexMutation } as unknown as ConvexMutationApi,
+      convex: { mutation: convexMutation },
     },
   });
   return { client, signInApi, mutation, convexMutation };
