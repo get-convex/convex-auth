@@ -43,10 +43,15 @@ function stubProxy(value: unknown) {
   return fetchMock;
 }
 
-/** A real Convex client whose calls are mocks, so no socket opens. */
+/**
+ * A real Convex client with mocked calls, so it never opens a socket. Calls
+ * reject unless the test sets a result.
+ */
 function makeConvexClient() {
   const client = new ConvexReactClient(NAMESPACE);
-  const mutation = vi.spyOn(client, "mutation");
+  const unexpected = new Error("unexpected Convex client call");
+  const mutation = vi.spyOn(client, "mutation").mockRejectedValue(unexpected);
+  vi.spyOn(client, "action").mockRejectedValue(unexpected);
   vi.spyOn(client, "setAuth").mockImplementation(() => {});
   vi.spyOn(client, "clearAuth").mockImplementation(() => {});
   return { client, mutation };
