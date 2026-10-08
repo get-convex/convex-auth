@@ -8,15 +8,13 @@ export const auth = setupConvexAuthServer({
   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
   refreshSession: api.auth.refreshSession,
   signOut: api.auth.signOut,
-  // The sign-in functions reachable through the sign-in route. This allowlist is
-  // that route's whole API surface, and adding a function to it is all the
-  // wiring an auth method needs.
+  // Every function that signs a user in, meaning it creates a session and
+  // returns its tokens, must be listed here. The sign-in route refuses
+  // anything else.
   signIn: [
     api.auth.signInAnonymous,
     api.auth.signInWithPassword,
     api.auth.signUpWithPassword,
-    // Only the completing half of the OAuth flow. `startSignInGithub` returns
-    // a redirect URL rather than a session, so it runs on the Convex client.
     api.auth.completeSignInGithub,
   ],
   cookieOptions: { secure: process.env.NODE_ENV === "production" },

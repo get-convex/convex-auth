@@ -34,10 +34,6 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
   onSignIn: internal.users.onSignIn,
 });
 
-// `startSignInGithub` runs on the Convex client, because it returns a redirect
-// URL rather than a session. `completeSignInGithub` mints the session, so it is
-// proxied like the other sign-in functions. The flow returns to the page that
-// started it, so the origin of the Next.js app must be allowed here.
 export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
   component: components.oauthGithub,
   allowedRedirectOrigins: ["http://localhost:3000"],

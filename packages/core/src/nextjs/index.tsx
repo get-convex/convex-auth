@@ -134,6 +134,8 @@ export function ConvexAuthNextjsProvider({
     // after `signInApi`, because the two reference each other: the api reads
     // the client's token, and the client hands the api to its ambient setups.
     // Those setups run inside the constructor, so the read must stay lazy.
+    // TODO(erquhart) Untangle `authClient` and `signInApi` with OAuth
+    // simplification.
     // eslint-disable-next-line prefer-const -- read by `withAuth` before it is assigned
     let authClient: AuthClient;
     const withAuth = () => {

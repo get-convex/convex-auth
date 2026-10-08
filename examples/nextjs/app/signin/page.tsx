@@ -111,7 +111,7 @@ export default function SignIn() {
             <strong>{error}</strong>
           </p>
         ) : null}
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={pending || isLoading}>
           {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
@@ -185,7 +185,7 @@ export default function SignIn() {
       <p>
         Or skip the account:{" "}
         <button
-          disabled={pending}
+          disabled={pending || isLoading}
           onClick={async () => {
             await signInAnonymous();
             router.push("/");
