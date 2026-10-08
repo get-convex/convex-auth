@@ -226,6 +226,7 @@ export function oauth(): AmbientSignInClient {
     values,
     storage,
     signInApi,
+    convex,
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
     const setFlowError = (
@@ -355,7 +356,9 @@ export function oauth(): AmbientSignInClient {
       // leaves any error the app is showing alone.
       setFlowError(null);
       try {
-        const { redirect, state } = await signInApi.mutation(refs.startSignIn, {
+        // Starting a flow mints no session, so it calls Convex directly rather
+        // than going through the `AuthSignInApi`.
+        const { redirect, state } = await convex.mutation(refs.startSignIn, {
           redirectTo,
         });
         await storage.set(

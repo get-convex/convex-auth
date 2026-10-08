@@ -146,7 +146,12 @@ export function ConvexAuthProvider({
       },
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
-      ambientSignIns: { signIns: ambientSignIns ?? [oauth()], signInApi },
+      ambientSignIns: {
+        signIns: ambientSignIns ?? [oauth()],
+        signInApi,
+        // Mutations that mint no session use the same websocket client.
+        convex: { mutation: (fn, args) => client.mutation(fn, args) },
+      },
     });
     return { authClient, signInApi };
     // `client` identity is what matters. The other props are read once at

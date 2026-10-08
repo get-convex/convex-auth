@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import { ReactNode } from "react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { SignInValues } from "../browser/keyedStore.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { InMemoryStorage } from "../browser/storage.ts";
@@ -47,6 +47,7 @@ function makeProbeClient() {
         },
       ],
       signInApi: stubSignInApi().signInApi,
+      convex: { mutation: vi.fn() },
     },
   });
   if (probe.values === undefined) {

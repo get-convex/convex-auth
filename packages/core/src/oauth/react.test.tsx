@@ -85,7 +85,7 @@ function renderOAuth<T>(
     onMutation?: (mutation: ReturnType<typeof vi.fn>) => void;
   } = {},
 ) {
-  const { client, signInApi, mutation } = oauthClient(storage);
+  const { client, signInApi, mutation, convexMutation } = oauthClient(storage);
   onMutation?.(mutation);
   const tree = (children: ReactNode) => (
     <AuthProvider authClient={client} signInApi={signInApi}>
@@ -95,7 +95,7 @@ function renderOAuth<T>(
   const wrapper = ({ children }: { children: ReactNode }) =>
     strictMode ? <StrictMode>{tree(children)}</StrictMode> : tree(children);
   const rendered = renderHook(hook, { wrapper });
-  return { ...rendered, client, mutation, storage };
+  return { ...rendered, client, mutation, convexMutation, storage };
 }
 
 describe("OAuth React client", () => {
@@ -165,9 +165,9 @@ describe("OAuth React client", () => {
 
   test("signIn from the hook starts a flow with the picked references", async () => {
     stubReactNative();
-    const { result, mutation, storage } = renderOAuth(useGoogleFlow);
+    const { result, convexMutation, storage } = renderOAuth(useGoogleFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth?client_id=x",
       state: "state-1",
     });
@@ -178,7 +178,7 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(googleStart, {
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(googleStart, {
       redirectTo: "http://localhost/app",
     });
     expect(outcome).toEqual({
@@ -195,12 +195,12 @@ describe("OAuth React client", () => {
 
   test("signInGithub starts a flow with the GitHub references", async () => {
     stubReactNative();
-    const { result, mutation, storage } = renderOAuth(() => ({
+    const { result, convexMutation, storage } = renderOAuth(() => ({
       auth: useAuth(),
       oauth: useSignInWithGithub(githubApi),
     }));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://github.example/auth",
       state: "state-2",
     });
@@ -211,7 +211,7 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(
       githubApi.startSignInGithub,
       { redirectTo: "http://localhost/app" },
     );
@@ -224,12 +224,12 @@ describe("OAuth React client", () => {
 
   test("useOauthSignIn runs a provider that ships no hook of its own", async () => {
     stubReactNative();
-    const { result, mutation, storage } = renderOAuth(() => ({
+    const { result, convexMutation, storage } = renderOAuth(() => ({
       auth: useAuth(),
       oauth: useOauthSignIn(acmeRefs),
     }));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://acme.example/auth",
       state: "state-3",
     });
@@ -240,9 +240,12 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeRefs.startSignIn, {
-      redirectTo: "http://localhost/app",
-    });
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(
+      acmeRefs.startSignIn,
+      {
+        redirectTo: "http://localhost/app",
+      },
+    );
     expect(outcome).toEqual({
       redirect: new URL("https://acme.example/auth"),
     });

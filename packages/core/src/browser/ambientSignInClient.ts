@@ -71,6 +71,18 @@ export interface AuthSignInApi {
   ): Promise<FunctionReturnType<F>>;
 }
 
+/**
+ * How an ambient sign-in calls its public mutations that mint no session, like
+ * starting an OAuth flow. These go straight to the deployment on either session
+ * model, since there is no refresh token for the auth proxy to keep.
+ */
+export interface ConvexMutationApi {
+  mutation<F extends FunctionReference<"mutation", "public">>(
+    fn: F,
+    args: FunctionArgs<F>,
+  ): Promise<FunctionReturnType<F>>;
+}
+
 /** What an ambient sign-in's setup receives. */
 export type AmbientSignInContext = {
   /** The core auth client the setup registers into. */
@@ -84,6 +96,8 @@ export type AmbientSignInContext = {
   storage: SignInStorage;
   /** Runs the provider's sign-in functions by reference. */
   signInApi: AuthSignInApi;
+  /** Runs the provider's other public mutations by reference. */
+  convex: ConvexMutationApi;
 };
 
 /**

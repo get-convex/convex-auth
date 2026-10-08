@@ -438,7 +438,11 @@ function makeClientWithSignIns(
     },
     storage,
     storageNamespace: NAMESPACE,
-    ambientSignIns: { signIns, signInApi: SIGN_IN_API },
+    ambientSignIns: {
+      signIns,
+      signInApi: SIGN_IN_API,
+      convex: { mutation: vi.fn() },
+    },
   });
   return { client, storage };
 }

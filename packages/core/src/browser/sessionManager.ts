@@ -8,6 +8,7 @@ import { runWithMutex } from "./mutex.ts";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
+  ConvexMutationApi,
 } from "./ambientSignInClient.ts";
 import { retryOnNetworkError } from "./retry.ts";
 import {
@@ -57,11 +58,13 @@ interface AuthClientConfigBase {
   initialAccessToken?: string | null;
   /**
    * Ambient sign-ins to set up while the client is constructed, along with
-   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
+   * the sign-in api and Convex caller handed to each setup. See
+   * {@link AmbientSignInClient}.
    */
   ambientSignIns?: {
     signIns: ReadonlyArray<AmbientSignInClient>;
     signInApi: AuthSignInApi;
+    convex: ConvexMutationApi;
   };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
@@ -317,6 +320,7 @@ export class AuthClient {
         values: this.#ambientValues.forSignIn(id),
         storage: this.#storage.forSignIn(id),
         signInApi: ambientSignIns.signInApi,
+        convex: ambientSignIns.convex,
       });
       if (registration?.onInit !== undefined) {
         this.#initCallbacks.push({ id, callback: registration.onInit });
