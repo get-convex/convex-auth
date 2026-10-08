@@ -36,32 +36,36 @@ describe("OAuth client with no page URL", () => {
 
   test("signIn without redirectTo says redirectTo is required", async () => {
     vi.stubGlobal("window", {});
-    const { actions, mutation } = setupOAuth();
+    const { actions, convexMutation } = setupOAuth();
 
     await expect(actions.signIn(acmeRefs)).rejects.toThrow(
       /`redirectTo` is required/,
     );
-    expect(mutation).not.toHaveBeenCalled();
+    expect(convexMutation).not.toHaveBeenCalled();
   });
 
   test("a signIn that throws leaves the previous flow error alone", async () => {
-    vi.stubGlobal("window", {});
-    const { actions, flowError } = setupOAuth();
-    // A code with no stored flow is the cheapest way to put an error in place.
-    await actions.signIn(acmeRefs, { code: "code-1" });
-    expect(flowError()?.code).toBe("invalid_flow");
+    // Put an error in place through a callback, on a page that has a URL.
+    vi.stubGlobal("window", {
+      location: { href: "https://app.example/?convexAuthError=access_denied" },
+      history: { state: null, replaceState: () => {} },
+    });
+    const { client, actions, flowError } = setupOAuth();
+    await client.init();
+    expect(flowError()?.error).toBe("ACCESS_DENIED");
 
+    vi.stubGlobal("window", {});
     await expect(actions.signIn(acmeRefs)).rejects.toThrow();
 
-    expect(flowError()?.code).toBe("invalid_flow");
+    expect(flowError()?.error).toBe("ACCESS_DENIED");
   });
 
   test("signIn with redirectTo starts a flow without navigating", async () => {
     // Assigning `window.location.href` would throw here, so a flow that starts
     // must not try. React Native opens the returned url itself.
     vi.stubGlobal("window", {});
-    const { actions, mutation, storage } = setupOAuth();
-    mutation.mockResolvedValueOnce({
+    const { actions, convexMutation, storage } = setupOAuth();
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-1",
     });
@@ -71,6 +75,7 @@ describe("OAuth client with no page URL", () => {
     });
 
     expect(outcome).toEqual({
+      status: "redirect",
       redirect: new URL("https://provider.example/auth"),
     });
     expect(readFlow(storage)).toEqual({

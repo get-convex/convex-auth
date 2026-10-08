@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { anyApi, makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, test, vi } from "vitest";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { InMemoryStorage } from "../browser/storage.ts";
 import { useAuthToken } from "../react/index.tsx";
@@ -13,8 +13,12 @@ import {
   useOauthSignIn,
   useSignInWithGithub,
   useSignInWithGoogle,
+  type OauthCompleteResult,
   type OauthProviderApi,
   type OauthProviderRefs,
+  type OauthStartResult,
+  type SignInOptions,
+  type UseOauthSignInReturn,
 } from "./react.ts";
 import {
   acmeRefs,
@@ -85,7 +89,7 @@ function renderOAuth<T>(
     onMutation?: (mutation: ReturnType<typeof vi.fn>) => void;
   } = {},
 ) {
-  const { client, signInApi, mutation } = oauthClient(storage);
+  const { client, signInApi, mutation, convexMutation } = oauthClient(storage);
   onMutation?.(mutation);
   const tree = (children: ReactNode) => (
     <AuthProvider authClient={client} signInApi={signInApi}>
@@ -95,7 +99,7 @@ function renderOAuth<T>(
   const wrapper = ({ children }: { children: ReactNode }) =>
     strictMode ? <StrictMode>{tree(children)}</StrictMode> : tree(children);
   const rendered = renderHook(hook, { wrapper });
-  return { ...rendered, client, mutation, storage };
+  return { ...rendered, client, mutation, convexMutation, storage };
 }
 
 describe("OAuth React client", () => {
@@ -158,16 +162,16 @@ describe("OAuth React client", () => {
     const { result, mutation } = renderOAuth(useGoogleFlow);
 
     await waitFor(() =>
-      expect(result.current.flowError?.code).toBe("access_denied"),
+      expect(result.current.flowError?.error).toBe("ACCESS_DENIED"),
     );
     expect(mutation).not.toHaveBeenCalled();
   });
 
   test("signIn from the hook starts a flow with the picked references", async () => {
     stubReactNative();
-    const { result, mutation, storage } = renderOAuth(useGoogleFlow);
+    const { result, convexMutation, storage } = renderOAuth(useGoogleFlow);
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth?client_id=x",
       state: "state-1",
     });
@@ -178,10 +182,12 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(googleStart, {
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(googleStart, {
       redirectTo: "http://localhost/app",
     });
+    expectTypeOf(outcome).toEqualTypeOf<OauthStartResult>();
     expect(outcome).toEqual({
+      status: "redirect",
       redirect: new URL("https://provider.example/auth?client_id=x"),
     });
     // The persisted flow carries the completeSignIn function path, so
@@ -193,14 +199,30 @@ describe("OAuth React client", () => {
     });
   });
 
+  test("signIn with a code from the hook resolves to the completion result", async () => {
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage, googleRefs);
+    const { result, mutation } = renderOAuth(useGoogleFlow, { storage });
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    mutation.mockResolvedValueOnce(completed);
+
+    const outcome = await act(async () => {
+      return await result.current.oauth.signInGoogle({ code: "code-1" });
+    });
+
+    expectTypeOf(outcome).toEqualTypeOf<OauthCompleteResult>();
+    expect(outcome).toEqual({ status: "complete" });
+    await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
+  });
+
   test("signInGithub starts a flow with the GitHub references", async () => {
     stubReactNative();
-    const { result, mutation, storage } = renderOAuth(() => ({
+    const { result, convexMutation, storage } = renderOAuth(() => ({
       auth: useAuth(),
       oauth: useSignInWithGithub(githubApi),
     }));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://github.example/auth",
       state: "state-2",
     });
@@ -211,7 +233,7 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(
       githubApi.startSignInGithub,
       { redirectTo: "http://localhost/app" },
     );
@@ -224,12 +246,12 @@ describe("OAuth React client", () => {
 
   test("useOauthSignIn runs a provider that ships no hook of its own", async () => {
     stubReactNative();
-    const { result, mutation, storage } = renderOAuth(() => ({
+    const { result, convexMutation, storage } = renderOAuth(() => ({
       auth: useAuth(),
       oauth: useOauthSignIn(acmeRefs),
     }));
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://acme.example/auth",
       state: "state-3",
     });
@@ -240,10 +262,14 @@ describe("OAuth React client", () => {
       });
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeRefs.startSignIn, {
-      redirectTo: "http://localhost/app",
-    });
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(
+      acmeRefs.startSignIn,
+      {
+        redirectTo: "http://localhost/app",
+      },
+    );
     expect(outcome).toEqual({
+      status: "redirect",
       redirect: new URL("https://acme.example/auth"),
     });
     expect(readFlow(storage)).toEqual({
@@ -280,5 +306,23 @@ describe("OAuth React client", () => {
     // @ts-expect-error - missing completeSignInGoogle must not typecheck.
     const missing: GoogleParam = { startSignInGoogle: googleStart };
     void missing;
+  });
+
+  test("signIn is typed by the shape it is called with", () => {
+    type SignIn = UseOauthSignInReturn["signIn"];
+    // Starting is declared last, so `ReturnType` gives its result.
+    expectTypeOf<ReturnType<SignIn>>().toEqualTypeOf<
+      Promise<OauthStartResult>
+    >();
+    // Never called. The typechecker checks the calls inside.
+    const calls = (signIn: SignIn, options: SignInOptions) => {
+      expectTypeOf(signIn()).toEqualTypeOf<Promise<OauthStartResult>>();
+      expectTypeOf(signIn({ code: "code-1" })).toEqualTypeOf<
+        Promise<OauthCompleteResult>
+      >();
+      // @ts-expect-error - options that might hold a code match neither shape.
+      void signIn(options);
+    };
+    void calls;
   });
 });

@@ -94,17 +94,21 @@ export function seedPendingFlow(
 }
 
 /**
- * An AuthClient with the real oauth setup registered, plus the `mutation` mock
- * standing in for the Convex call. The mock records the function reference it
- * was called with, so tests can assert which function ran.
+ * An AuthClient with the real oauth setup registered, plus mocks standing in
+ * for the Convex calls: `mutation` behind the sign-in api (completing a flow)
+ * and `convexMutation` behind the plain Convex caller (starting one). Each
+ * records the function reference it was called with, so tests can assert which
+ * function ran.
  */
 export function oauthClient(storage: TokenStorage): {
   client: AuthClient;
   signInApi: AuthSignInApi;
   mutation: ReturnType<typeof vi.fn>;
+  convexMutation: ReturnType<typeof vi.fn>;
 } {
   const mutation = vi.fn();
   const signInApi = { mutation, action: vi.fn() } as unknown as AuthSignInApi;
+  const convexMutation = vi.fn();
   const client = new AuthClient({
     mode: "spa",
     authApi: {
@@ -113,21 +117,25 @@ export function oauthClient(storage: TokenStorage): {
     },
     storage,
     storageNamespace: NAMESPACE,
-    ambientSignIns: { signIns: [oauth()], signInApi },
+    ambientSignIns: {
+      signIns: [oauth()],
+      signInApi,
+      convex: { mutation: convexMutation },
+    },
   });
-  return { client, signInApi, mutation };
+  return { client, signInApi, mutation, convexMutation };
 }
 
 /** {@link oauthClient} plus the values the oauth setup published. */
 export function setupOAuth({
   storage = new InMemoryStorage() as TokenStorage,
 } = {}) {
-  const { client, mutation } = oauthClient(storage);
+  const { client, mutation, convexMutation } = oauthClient(storage);
   const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
   const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
   const flowError = () =>
     oauthValues.get<OauthFlowError | null>(OAUTH_FLOW_ERROR_KEY);
-  return { client, mutation, actions, flowError, storage };
+  return { client, mutation, convexMutation, actions, flowError, storage };
 }
 
 /** The function path the `mutation` mock was called with. */

@@ -53,4 +53,5 @@ export declare const components: {
   authAnonymous: import("@convex-dev/auth/providers/anonymous/_generated/component.js").ComponentApi<"authAnonymous">;
   authPasswordProvider: import("@convex-dev/auth/providers/password/_generated/component.js").ComponentApi<"authPasswordProvider">;
   authUsername: import("@convex-dev/auth/username/_generated/component.js").ComponentApi<"authUsername">;
+  oauthGithub: import("@convex-dev/auth/providers/oauth/github/_generated/component.js").ComponentApi<"oauthGithub">;
 };

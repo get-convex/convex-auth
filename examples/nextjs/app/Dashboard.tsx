@@ -21,7 +21,9 @@ export function Dashboard({
       <p>
         Signed in as{" "}
         <strong>
-          {user ? (user.username ?? "an anonymous user") : "(loading)"}
+          {user
+            ? (user.username ?? user.githubLogin ?? "an anonymous user")
+            : "(loading)"}
         </strong>{" "}
         (user <code>{user?.id ?? "…"}</code>).
       </p>

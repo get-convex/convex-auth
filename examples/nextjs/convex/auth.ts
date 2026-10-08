@@ -1,6 +1,7 @@
 import { components, internal } from "./_generated/api";
 import { setupCore } from "@convex-dev/auth/core/setup";
 import { setupAnonymous } from "@convex-dev/auth/providers/anonymous/setup";
+import { setupGithub } from "@convex-dev/auth/providers/oauth/github";
 import { setupUsernamePassword } from "@convex-dev/auth/providers/password/setup";
 
 // The core owns sessions, accounts, and JWT minting. Each provider is wired to
@@ -29,6 +30,14 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
     usernameComponent: components.authUsername,
   },
 ).attachUserCallbacks({
+  createUser: internal.users.createUser,
+  onSignIn: internal.users.onSignIn,
+});
+
+export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
+  component: components.oauthGithub,
+  allowedRedirectOrigins: ["http://localhost:3000"],
+}).attachUserCallbacks({
   createUser: internal.users.createUser,
   onSignIn: internal.users.onSignIn,
 });

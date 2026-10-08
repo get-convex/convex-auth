@@ -8,6 +8,7 @@ import { runWithMutex } from "./mutex.ts";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
+  ConvexMutationApi,
 } from "./ambientSignInClient.ts";
 import { retryOnNetworkError } from "./retry.ts";
 import {
@@ -57,11 +58,17 @@ interface AuthClientConfigBase {
   initialAccessToken?: string | null;
   /**
    * Ambient sign-ins to set up while the client is constructed, along with
-   * the sign-in api handed to each setup. See {@link AmbientSignInClient}.
+   * the clients handed to each setup. See {@link AmbientSignInClient}.
    */
   ambientSignIns?: {
     signIns: ReadonlyArray<AmbientSignInClient>;
     signInApi: AuthSignInApi;
+    convex: ConvexMutationApi;
+    /**
+     * Replaces the page URL without navigating. Defaults to
+     * `history.replaceState` with the current history state.
+     */
+    replaceUrl?: (url: string) => void;
   };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
@@ -150,6 +157,14 @@ function domEventTarget(): Pick<
     return null;
   }
   return window;
+}
+
+/**
+ * Replaces the page URL and keeps the current history state, because routers
+ * like React Router store their own state there.
+ */
+function replaceUrlKeepingState(url: string): void {
+  window.history.replaceState(window.history.state, "", url);
 }
 
 /**
@@ -317,6 +332,8 @@ export class AuthClient {
         values: this.#ambientValues.forSignIn(id),
         storage: this.#storage.forSignIn(id),
         signInApi: ambientSignIns.signInApi,
+        convex: ambientSignIns.convex,
+        replaceUrl: ambientSignIns.replaceUrl ?? replaceUrlKeepingState,
       });
       if (registration?.onInit !== undefined) {
         this.#initCallbacks.push({ id, callback: registration.onInit });

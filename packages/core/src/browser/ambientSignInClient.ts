@@ -71,6 +71,18 @@ export interface AuthSignInApi {
   ): Promise<FunctionReturnType<F>>;
 }
 
+/**
+ * How an ambient sign-in calls its public mutations that mint no session, like
+ * starting an OAuth flow. These go straight to the deployment on either session
+ * model, since there is no refresh token for the auth proxy to keep.
+ */
+export interface ConvexMutationApi {
+  mutation<F extends FunctionReference<"mutation", "public">>(
+    fn: F,
+    args: FunctionArgs<F>,
+  ): Promise<FunctionReturnType<F>>;
+}
+
 /** What an ambient sign-in's setup receives. */
 export type AmbientSignInContext = {
   /** The core auth client the setup registers into. */
@@ -82,8 +94,19 @@ export type AmbientSignInContext = {
   values: SignInValues;
   /** Persistent storage for this sign-in. Survives a reload. */
   storage: SignInStorage;
-  /** Runs the provider's sign-in functions by reference. */
+  /**
+   * Runs the provider's sign-in functions by reference. Only for functions
+   * that return the shared sign-in envelope, because under SSR this is the
+   * auth proxy, which refuses any other result.
+   */
   signInApi: AuthSignInApi;
+  /** Runs the provider's other public mutations by reference. */
+  convex: ConvexMutationApi;
+  /**
+   * Replaces the page URL without navigating. Use this instead of
+   * `history.replaceState` so a binding can keep its router in sync.
+   */
+  replaceUrl: (url: string) => void;
 };
 
 /**

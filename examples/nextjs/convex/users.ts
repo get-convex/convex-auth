@@ -5,12 +5,15 @@
  * app's user row and returns its id, and then calls the optional `onSignIn` on every
  * sign-in, that first one included.
  *
- * Both providers in this example share one pair of callbacks. Both supply an
- * empty profile. `lastSignedInAt` is maintained by the `onSignIn` hook.
+ * All providers in this example share one pair of callbacks. GitHub supplies
+ * the user's GitHub profile, and `createUser` stores the login from it. The
+ * others supply an empty profile. `lastSignedInAt` is maintained by the
+ * `onSignIn` hook.
  *
  * @module
  */
 import { getAuthUserId } from "@convex-dev/auth/core";
+import { vGithubProfile } from "@convex-dev/auth/providers/oauth/github";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
 import { internalMutation, query } from "./_generated/server";
@@ -27,13 +30,23 @@ const vProvider = v.union(
     accountId: v.string(),
     profile: v.object({}),
   }),
+  v.object({
+    name: v.literal("github"),
+    accountId: v.string(),
+    profile: vGithubProfile,
+  }),
 );
 
 export const createUser = internalMutation({
   args: { provider: vProvider },
   returns: v.id("users"),
-  handler: async (ctx) => {
-    return await ctx.db.insert("users", {});
+  handler: async (ctx, args) => {
+    return await ctx.db.insert(
+      "users",
+      args.provider.name === "github"
+        ? { githubLogin: args.provider.profile.login }
+        : {},
+    );
   },
 });
 
@@ -66,6 +79,6 @@ export const loggedInUser = query({
       components.authUsername.public.getUsername,
       { userId },
     );
-    return { id: user._id, username };
+    return { id: user._id, username, githubLogin: user.githubLogin ?? null };
   },
 });

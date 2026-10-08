@@ -28,9 +28,11 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useMemo } from "react";
+import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
+import { oauth } from "../oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
 
 export { useConvexAuth } from "convex/react";
@@ -75,6 +77,7 @@ export function ConvexAuthNextjsProvider({
   signOutRoute = "/auth/signout",
   signInRoute = "/auth/signin",
   storage,
+  ambientSignIns,
   children,
 }: {
   /** An existing `ConvexReactClient`. If omitted, one is created from
@@ -95,28 +98,24 @@ export function ConvexAuthNextjsProvider({
   /** A custom {@link TokenStorage}. Defaults to `localStorage` in the browser.
    * Under SSR, it only stores the access token. */
   storage?: TokenStorage;
+  /**
+   * Advanced. Ambient sign-ins run initialization for auth providers that can
+   * take action outside of a user activated sign in flow, such as reading an
+   * oauth code from a url query param.
+   *
+   * Setting this replaces the default (`[oauth()]`) entirely rather than adding
+   * to it. Pass `[]` to register nothing, or include `oauth()` (from
+   * `@convex-dev/auth/providers/oauth/react`) yourself to keep it alongside
+   * other sign-ins. Read once when the client is created and not expected to
+   * change.
+   */
+  ambientSignIns?: AmbientSignInClient[];
   children: ReactNode;
 }) {
   const { authClient, convex, signInApi } = useMemo(() => {
     const convex =
       client ??
       new ConvexReactClient(convexUrl ?? process.env.NEXT_PUBLIC_CONVEX_URL!);
-    const authClient = new AuthClient({
-      mode: "ssr",
-      authApi: {
-        // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
-        refreshSession: async () => (await postAuth(refreshRoute)).tokens,
-        signOut: async () => {
-          await postAuth(signOutRoute);
-        },
-      },
-      storage: storage ?? defaultStorage(),
-      storageNamespace: convex.url,
-      // The SSR host may have refreshed on our behalf, so this is the freshest
-      // access token; the client adopts it on init.
-      initialAccessToken: initialToken,
-    });
-
     // Provider sign-in goes to the auth proxy so the minted refresh token can be
     // moved into an httpOnly cookie server-side. The proxy speaks the
     // `ConvexHttpClient` wire format, so this is a real Convex client pointed at
@@ -131,7 +130,14 @@ export function ConvexAuthNextjsProvider({
     });
     // Attach the current access token per call: a sign-in typically runs
     // unauthenticated, but a function may want the existing identity (e.g. to
-    // link an account to the signed-in user).
+    // link an account to the signed-in user). `authClient` is assigned below,
+    // after `signInApi`, because the two reference each other: the api reads
+    // the client's token, and the client hands the api to its ambient setups.
+    // Those setups run inside the constructor, so the read must stay lazy.
+    // TODO(erquhart) Untangle `authClient` and `signInApi` with OAuth
+    // simplification.
+    // eslint-disable-next-line prefer-const -- read by `withAuth` before it is assigned
+    let authClient: AuthClient;
     const withAuth = () => {
       const token = authClient.getAccessToken();
       if (token !== null) proxy.setAuth(token);
@@ -142,6 +148,40 @@ export function ConvexAuthNextjsProvider({
       mutation: (fn, args) => withAuth().mutation(fn, args),
       action: (fn, args) => withAuth().action(fn, args),
     };
+    authClient = new AuthClient({
+      mode: "ssr",
+      authApi: {
+        // The refresh token is read from the httpOnly cookie when it reaches the SSR host.
+        refreshSession: async () => (await postAuth(refreshRoute)).tokens,
+        signOut: async () => {
+          await postAuth(signOutRoute);
+        },
+      },
+      storage: storage ?? defaultStorage(),
+      storageNamespace: convex.url,
+      // The SSR host may have refreshed on our behalf, so this is the freshest
+      // access token; the client adopts it on init.
+      initialAccessToken: initialToken,
+      ambientSignIns: {
+        signIns: ambientSignIns ?? [oauth()],
+        signInApi,
+        // Calls that don't return a sign-in envelope, like starting an OAuth
+        // flow, go to the deployment because the proxy refuses them.
+        convex: { mutation: (fn, args) => convex.mutation(fn, args) },
+        // Next's router keeps its own copy of the URL and writes it back on
+        // its next update. Next patches replaceState to update the router,
+        // but the patch skips calls that carry Next's history state. On first
+        // mount, Next also installs the patch after this code runs. So we
+        // strip the URL now, then call replaceState again with null state on
+        // the next tick.
+        replaceUrl: (url) => {
+          window.history.replaceState(window.history.state, "", url);
+          setTimeout(() => {
+            window.history.replaceState(null, "", window.location.href);
+          });
+        },
+      },
+    });
 
     return { authClient, convex, signInApi };
     // `client`/`convexUrl` identity is what matters; other props are read once.
