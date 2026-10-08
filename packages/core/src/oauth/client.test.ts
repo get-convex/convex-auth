@@ -47,7 +47,11 @@ describe("OAuth client", () => {
           },
           storage: new InMemoryStorage(),
           storageNamespace: NAMESPACE,
-          ambientSignIns: { signIns: [oauth(), oauth()], signInApi },
+          ambientSignIns: {
+            signIns: [oauth(), oauth()],
+            signInApi,
+            convex: { mutation: vi.fn() },
+          },
         }),
     ).toThrow(/registered twice/);
   });
@@ -370,8 +374,8 @@ describe("OAuth client", () => {
 
   test("signIn starts a flow, persists it, and returns the redirect", async () => {
     stubReactNative();
-    const { mutation, actions, storage } = setupOAuth();
-    mutation.mockResolvedValueOnce({
+    const { mutation, convexMutation, actions, storage } = setupOAuth();
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth?client_id=x",
       state: "state-1",
     });
@@ -380,9 +384,13 @@ describe("OAuth client", () => {
       redirectTo: "http://localhost/app",
     });
 
-    expect(mutation).toHaveBeenCalledExactlyOnceWith(acmeRefs.startSignIn, {
-      redirectTo: "http://localhost/app",
-    });
+    expect(convexMutation).toHaveBeenCalledExactlyOnceWith(
+      acmeRefs.startSignIn,
+      { redirectTo: "http://localhost/app" },
+    );
+    // Starting a flow mints no session, so it bypasses the sign-in api, which
+    // under SSR is the auth proxy and refuses a non-envelope result.
+    expect(mutation).not.toHaveBeenCalled();
     expect(outcome).toEqual({
       status: "redirect",
       redirect: new URL("https://provider.example/auth?client_id=x"),
@@ -430,11 +438,11 @@ describe("OAuth client", () => {
   test("signIn clears a previous flow error", async () => {
     window.history.replaceState(null, "", "/?convexAuthError=access_denied");
     stubReactNative();
-    const { client, mutation, actions, flowError } = setupOAuth();
+    const { client, convexMutation, actions, flowError } = setupOAuth();
     await client.init();
     expect(flowError()?.error).toBe("ACCESS_DENIED");
 
-    mutation.mockResolvedValueOnce({
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-2",
     });
@@ -445,9 +453,9 @@ describe("OAuth client", () => {
   });
 
   test("a failed start resolves to OTHER_ERROR with the thrown error", async () => {
-    const { mutation, actions, flowError, storage } = setupOAuth();
+    const { convexMutation, actions, flowError, storage } = setupOAuth();
     const boom = new Error("boom");
-    mutation.mockRejectedValueOnce(boom);
+    convexMutation.mockRejectedValueOnce(boom);
 
     const outcome = await actions.signIn(acmeRefs);
 
@@ -466,8 +474,8 @@ describe("OAuth client", () => {
       setItem: () => Promise.reject(new Error("storage broken")),
       removeItem: () => {},
     };
-    const { mutation, actions, flowError } = setupOAuth({ storage });
-    mutation.mockResolvedValueOnce({
+    const { convexMutation, actions, flowError } = setupOAuth({ storage });
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-1",
     });
@@ -483,9 +491,9 @@ describe("OAuth client", () => {
 
   test("a ConvexError from the start is OTHER_ERROR too", async () => {
     // Starting runs no app code, so nothing there rejects a sign-in.
-    const { mutation, actions } = setupOAuth();
+    const { convexMutation, actions } = setupOAuth();
     const rejected = new ConvexError("Sign-ups are closed");
-    mutation.mockRejectedValueOnce(rejected);
+    convexMutation.mockRejectedValueOnce(rejected);
 
     const outcome = await actions.signIn(acmeRefs);
 

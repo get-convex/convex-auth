@@ -21,6 +21,7 @@ export type {
   AmbientSignInClient,
   AmbientSignInContext,
   AuthSignInApi,
+  ConvexMutationApi,
 } from "./ambientSignInClient.ts";
 export {
   AuthClient,

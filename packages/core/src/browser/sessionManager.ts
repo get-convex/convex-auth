@@ -8,6 +8,7 @@ import { runWithMutex } from "./mutex.ts";
 import type {
   AmbientSignInClient,
   AuthSignInApi,
+  ConvexMutationApi,
 } from "./ambientSignInClient.ts";
 import { retryOnNetworkError } from "./retry.ts";
 import {
@@ -62,12 +63,7 @@ interface AuthClientConfigBase {
   ambientSignIns?: {
     signIns: ReadonlyArray<AmbientSignInClient>;
     signInApi: AuthSignInApi;
-    /**
-     * Runs calls that don't return a sign-in envelope. Defaults to
-     * `signInApi`, which is right when sign-in talks to the deployment
-     * directly (SPA). Under SSR, pass the app's Convex client.
-     */
-    convex?: AuthSignInApi;
+    convex: ConvexMutationApi;
     /**
      * Replaces the page URL without navigating. Defaults to
      * `history.replaceState` with the current history state.
@@ -336,7 +332,7 @@ export class AuthClient {
         values: this.#ambientValues.forSignIn(id),
         storage: this.#storage.forSignIn(id),
         signInApi: ambientSignIns.signInApi,
-        convex: ambientSignIns.convex ?? ambientSignIns.signInApi,
+        convex: ambientSignIns.convex,
         replaceUrl: ambientSignIns.replaceUrl ?? replaceUrlKeepingState,
       });
       if (registration?.onInit !== undefined) {

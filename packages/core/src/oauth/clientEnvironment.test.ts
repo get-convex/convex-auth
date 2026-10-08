@@ -36,12 +36,12 @@ describe("OAuth client with no page URL", () => {
 
   test("signIn without redirectTo says redirectTo is required", async () => {
     vi.stubGlobal("window", {});
-    const { actions, mutation } = setupOAuth();
+    const { actions, convexMutation } = setupOAuth();
 
     await expect(actions.signIn(acmeRefs)).rejects.toThrow(
       /`redirectTo` is required/,
     );
-    expect(mutation).not.toHaveBeenCalled();
+    expect(convexMutation).not.toHaveBeenCalled();
   });
 
   test("a signIn that throws leaves the previous flow error alone", async () => {
@@ -64,8 +64,8 @@ describe("OAuth client with no page URL", () => {
     // Assigning `window.location.href` would throw here, so a flow that starts
     // must not try. React Native opens the returned url itself.
     vi.stubGlobal("window", {});
-    const { actions, mutation, storage } = setupOAuth();
-    mutation.mockResolvedValueOnce({
+    const { actions, convexMutation, storage } = setupOAuth();
+    convexMutation.mockResolvedValueOnce({
       redirect: "https://provider.example/auth",
       state: "state-1",
     });

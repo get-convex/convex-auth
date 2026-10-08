@@ -167,10 +167,7 @@ export function ConvexAuthNextjsProvider({
         signInApi,
         // Calls that don't return a sign-in envelope, like starting an OAuth
         // flow, go to the deployment because the proxy refuses them.
-        convex: {
-          mutation: (fn, args) => convex.mutation(fn, args),
-          action: (fn, args) => convex.action(fn, args),
-        },
+        convex: { mutation: (fn, args) => convex.mutation(fn, args) },
         // Next's router keeps its own copy of the URL and writes it back on
         // its next update. Next patches replaceState to update the router,
         // but the patch skips calls that carry Next's history state. On first
