@@ -68,6 +68,11 @@ interface AuthClientConfigBase {
      * directly (SPA). Under SSR, pass the app's Convex client.
      */
     convex?: AuthSignInApi;
+    /**
+     * Replaces the page URL without navigating. Defaults to
+     * `history.replaceState` with the current history state.
+     */
+    replaceUrl?: (url: string) => void;
   };
   /** Log refresh/lifecycle steps to the console. */
   verbose?: boolean;
@@ -156,6 +161,14 @@ function domEventTarget(): Pick<
     return null;
   }
   return window;
+}
+
+/**
+ * Replaces the page URL and keeps the current history state, because routers
+ * like React Router store their own state there.
+ */
+function replaceUrlKeepingState(url: string): void {
+  window.history.replaceState(window.history.state, "", url);
 }
 
 /**
@@ -324,6 +337,7 @@ export class AuthClient {
         storage: this.#storage.forSignIn(id),
         signInApi: ambientSignIns.signInApi,
         convex: ambientSignIns.convex ?? ambientSignIns.signInApi,
+        replaceUrl: ambientSignIns.replaceUrl ?? replaceUrlKeepingState,
       });
       if (registration?.onInit !== undefined) {
         this.#initCallbacks.push({ id, callback: registration.onInit });

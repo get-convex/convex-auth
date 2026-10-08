@@ -171,6 +171,18 @@ export function ConvexAuthNextjsProvider({
           mutation: (fn, args) => convex.mutation(fn, args),
           action: (fn, args) => convex.action(fn, args),
         },
+        // Next's router keeps its own copy of the URL and writes it back on
+        // its next update. Next patches replaceState to update the router,
+        // but the patch skips calls that carry Next's history state. On first
+        // mount, Next also installs the patch after this code runs. So we
+        // strip the URL now, then call replaceState again with null state on
+        // the next tick.
+        replaceUrl: (url) => {
+          window.history.replaceState(window.history.state, "", url);
+          setTimeout(() => {
+            window.history.replaceState(null, "", window.location.href);
+          });
+        },
       },
     });
 

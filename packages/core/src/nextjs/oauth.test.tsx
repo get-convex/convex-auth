@@ -128,4 +128,37 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
     });
     expect(window.location.search).toBe("");
   });
+
+  test("stripping the callback params also updates Next's router", async () => {
+    // Next stores `__NA` in the history state of entries its router owns.
+    window.history.replaceState(
+      { __NA: true },
+      "",
+      "/signin?convexAuthCode=code-1",
+    );
+    const stripped = new URL("/signin", window.location.href).href;
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage, {
+      providerName: "github",
+      startSignIn: githubApi.startSignInGithub,
+      completeSignIn: githubApi.completeSignInGithub,
+    });
+    stubProxy({ status: "complete", tokens: slim });
+    const { client } = makeConvexClient();
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    render(
+      <ConvexAuthNextjsProvider client={client} storage={storage}>
+        {null}
+      </ConvexAuthNextjsProvider>,
+    );
+
+    // The first call strips the params and keeps Next's history state.
+    expect(replaceState).toHaveBeenCalledOnce();
+    expect(replaceState).toHaveBeenLastCalledWith({ __NA: true }, "", stripped);
+    // The second call passes null state, so Next's patched replaceState
+    // updates the router.
+    await vi.waitFor(() =>
+      expect(replaceState).toHaveBeenLastCalledWith(null, "", stripped),
+    );
+  });
 });

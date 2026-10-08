@@ -94,6 +94,11 @@ export type AmbientSignInContext = {
    * is the same client as `signInApi`.
    */
   convex: AuthSignInApi;
+  /**
+   * Replaces the page URL without navigating. Use this instead of
+   * `history.replaceState` so a binding can keep its router in sync.
+   */
+  replaceUrl: (url: string) => void;
 };
 
 /**

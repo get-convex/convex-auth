@@ -260,6 +260,7 @@ export function oauth(): AmbientSignInClient {
     storage,
     signInApi,
     convex,
+    replaceUrl,
   }) => {
     /** Set or clear the flow error apps read for sign-in feedback. */
     const setFlowError = (flowError: OauthFlowError | null): void => {
@@ -322,10 +323,7 @@ export function oauth(): AmbientSignInClient {
       }
       url.searchParams.delete(OAUTH_CODE_PARAM);
       url.searchParams.delete(OAUTH_ERROR_PARAM);
-      // Pass the current history state back through. Routers like React
-      // Router keep their own entry state there and stripping our params must
-      // not drop it.
-      window.history.replaceState(window.history.state, "", url.toString());
+      replaceUrl(url.toString());
       if (errorParam !== null) {
         // The server ended the flow with an error, so the saved state can
         // never be used. Drop it now so a stray code arriving later still
