@@ -104,10 +104,16 @@ export type UseOauthSignInReturn = {
    * React Native isn't supported yet. It gets the `redirect` URL back to open
    * in an in-app browser, but `options.redirectTo` is required there and can
    * only be an http or https URL (see {@link SignInOptions}).
+   *
+   * Starting is declared last so `ReturnType` gives its result. Its `code` is
+   * `undefined` so options that might hold a code match neither shape,
+   * rather than being typed as a start that could finish a flow.
    */
   signIn: {
-    (options?: Omit<SignInOptions, "code">): Promise<OauthStartResult>;
     (options: SignInOptions & { code: string }): Promise<OauthCompleteResult>;
+    (
+      options?: Omit<SignInOptions, "code"> & { code?: undefined },
+    ): Promise<OauthStartResult>;
   };
 };
 

@@ -268,40 +268,39 @@ export function oauth(): AmbientSignInClient {
 
     /**
      * Redeem a callback `code` against the saved flow and adopt the session.
-     * The whole thing runs inside `withSignInPending`, including
-     * `setSession`, so the auth state stays on loading until the client is
-     * signed in rather than flickering through signed out. It never rejects.
-     * Every failure comes back in the result instead, so callers that don't
-     * await it are safe.
+     * It never rejects. Every failure comes back in the result instead, so
+     * callers that don't await it are safe. Callers run it inside
+     * `withSignInPending`, together with whatever they do with the result, so
+     * the auth state stays on loading until the client is signed in or the
+     * failure is recorded, rather than flickering through signed out.
      */
-    const completeFlow = async (code: string): Promise<OauthCompleteResult> =>
-      await client.withSignInPending(async (): Promise<OauthCompleteResult> => {
-        // The storage read is inside the try so that a failed read is reported
-        // like any other failure here.
-        try {
-          const pending = await takePendingFlow(storage);
-          if (pending === null) {
-            return { status: "error", userError: { error: "INVALID_FLOW" } };
-          }
-          // TODO(erquhart) Look at getting this reference without storing
-          // its path.
-          const completeSignIn = makeFunctionReference<"mutation">(
-            pending.completeSignIn,
-          ) as OauthProviderApi["completeSignIn"];
-          const result = await retryOnNetworkError(() =>
-            signInApi.mutation(completeSignIn, { code, state: pending.state }),
-          );
-          if (result.status === "error") {
-            // The server can't tell unknown, already redeemed, expired, and
-            // mismatched state apart, so they all land here.
-            return { status: "error", userError: { error: "EXPIRED" } };
-          }
-          await client.setSession(result.tokens);
-          return { status: "complete" };
-        } catch (error) {
-          return { status: "error", userError: thrownFlowError(error) };
+    const redeem = async (code: string): Promise<OauthCompleteResult> => {
+      // The storage read is inside the try so that a failed read is reported
+      // like any other failure here.
+      try {
+        const pending = await takePendingFlow(storage);
+        if (pending === null) {
+          return { status: "error", userError: { error: "INVALID_FLOW" } };
         }
-      });
+        // TODO(erquhart) Look at getting this reference without storing its
+        // path.
+        const completeSignIn = makeFunctionReference<"mutation">(
+          pending.completeSignIn,
+        ) as OauthProviderApi["completeSignIn"];
+        const result = await retryOnNetworkError(() =>
+          signInApi.mutation(completeSignIn, { code, state: pending.state }),
+        );
+        if (result.status === "error") {
+          // The server can't tell unknown, already redeemed, expired, and
+          // mismatched state apart, so they all land here.
+          return { status: "error", userError: { error: "EXPIRED" } };
+        }
+        await client.setSession(result.tokens);
+        return { status: "complete" };
+      } catch (error) {
+        return { status: "error", userError: thrownFlowError(error) };
+      }
+    };
 
     /**
      * Finish a flow the callback redirected back to. The params are read and
@@ -339,8 +338,11 @@ export function oauth(): AmbientSignInClient {
         return;
       }
       // Nothing waits on this page load, so a failure is published for the
-      // hooks to report as `flowError`.
-      void completeFlow(code).then((result) => {
+      // hooks to report as `flowError`. It is published before the pending
+      // sign-in ends, so the auth state never reports signed out and done
+      // loading without the error that explains it.
+      void client.withSignInPending(async () => {
+        const result = await redeem(code);
         if (result.status === "error") {
           setFlowError(result.userError);
         }
@@ -349,9 +351,10 @@ export function oauth(): AmbientSignInClient {
 
     /** Start a provider's flow, or finish a saved one when `code` is given. */
     const signIn: OauthActions["signIn"] = async (refs, options) => {
-      if (options?.code !== undefined) {
+      const code = options?.code;
+      if (code !== undefined) {
         setFlowError(null);
-        return await completeFlow(options.code);
+        return await client.withSignInPending(() => redeem(code));
       }
       const href = currentHref();
       const redirectTo = options?.redirectTo ?? href;

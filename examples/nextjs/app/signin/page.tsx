@@ -141,7 +141,7 @@ export default function SignIn() {
                   return "Something went wrong during sign-in. Please try again.";
                 default:
                   flowError satisfies never;
-                  return `Unknown error: ` + flowError;
+                  return `Unknown error: ${JSON.stringify(flowError)}`;
               }
             })()}
           </strong>
@@ -160,22 +160,23 @@ export default function SignIn() {
             setGithubError(null);
             const result = await signInGithub();
             if (result.status === "redirect") return;
-            setGithubError(() => {
-              switch (result.userError.error) {
-                case "OTHER_ERROR":
-                  // The flow couldn't start, e.g. the deployment was
-                  // unreachable. The original error is on `cause` if you
-                  // want to log or inspect it.
-                  console.error(
-                    "GitHub sign-in failed to start:",
-                    result.userError.cause,
-                  );
-                  return "Couldn't start GitHub sign-in. Please try again.";
-                default:
-                  result.userError.error satisfies never;
-                  return `Unknown error: ` + result.userError.error;
-              }
-            });
+            switch (result.userError.error) {
+              case "OTHER_ERROR":
+                // The flow couldn't start, e.g. the deployment was
+                // unreachable. The original error is on `cause` if you want
+                // to log or inspect it.
+                console.error(
+                  "GitHub sign-in failed to start:",
+                  result.userError.cause,
+                );
+                setGithubError(
+                  "Couldn't start GitHub sign-in. Please try again.",
+                );
+                return;
+              default:
+                result.userError.error satisfies never;
+                setGithubError(`Unknown error: ` + result.userError.error);
+            }
           }}
         >
           Continue with GitHub

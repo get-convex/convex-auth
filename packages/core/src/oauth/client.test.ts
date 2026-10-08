@@ -250,6 +250,29 @@ describe("OAuth client", () => {
     expect(client.getSnapshot().isAuthenticated).toBe(false);
   });
 
+  test("a failed redemption sets the flow error before loading ends", async () => {
+    window.history.replaceState(null, "", "/?convexAuthCode=code-1");
+    const storage = new InMemoryStorage();
+    seedPendingFlow(storage);
+    const { client, mutation, flowError } = setupOAuth({ storage });
+    mutation.mockResolvedValueOnce(invalidCode);
+    // The flow error at each change that leaves the client done loading. A
+    // page reading both must never see signed out with no error to explain
+    // it.
+    const errorsOnceLoaded: unknown[] = [];
+    client.subscribe(() => {
+      if (!client.getSnapshot().isLoading) {
+        errorsOnceLoaded.push(flowError());
+      }
+    });
+
+    await client.init();
+
+    await vi.waitFor(() => expect(flowError()?.error).toBe("EXPIRED"));
+    expect(errorsOnceLoaded).not.toHaveLength(0);
+    expect(errorsOnceLoaded).not.toContain(null);
+  });
+
   test("a failed redemption sets OTHER_ERROR with the thrown error", async () => {
     // Also the dangling-path case: a persisted function path whose export was
     // renamed mid-flight fails the call the same way.

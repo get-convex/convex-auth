@@ -17,6 +17,8 @@ import {
   type OauthProviderApi,
   type OauthProviderRefs,
   type OauthStartResult,
+  type SignInOptions,
+  type UseOauthSignInReturn,
 } from "./react.ts";
 import {
   acmeRefs,
@@ -301,5 +303,23 @@ describe("OAuth React client", () => {
     // @ts-expect-error - missing completeSignInGoogle must not typecheck.
     const missing: GoogleParam = { startSignInGoogle: googleStart };
     void missing;
+  });
+
+  test("signIn is typed by the shape it is called with", () => {
+    type SignIn = UseOauthSignInReturn["signIn"];
+    // Starting is declared last, so `ReturnType` gives its result.
+    expectTypeOf<ReturnType<SignIn>>().toEqualTypeOf<
+      Promise<OauthStartResult>
+    >();
+    // Never called. The typechecker checks the calls inside.
+    const calls = (signIn: SignIn, options: SignInOptions) => {
+      expectTypeOf(signIn()).toEqualTypeOf<Promise<OauthStartResult>>();
+      expectTypeOf(signIn({ code: "code-1" })).toEqualTypeOf<
+        Promise<OauthCompleteResult>
+      >();
+      // @ts-expect-error - options that might hold a code match neither shape.
+      void signIn(options);
+    };
+    void calls;
   });
 });
