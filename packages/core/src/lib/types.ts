@@ -98,12 +98,9 @@ export type SlimTokenBundle = {
 
 /**
  * Strip down a {@link TokenBundle} down to a {@link SlimTokenBundle},
- * dropping the refresh token so it is never sent to the browser. Also accepts a
- * {@link ReusedSession}, which has no refresh token to drop.
+ * dropping the refresh token so it is never sent to the browser.
  */
-export function makeSlimBundle(
-  bundle: TokenBundle | ReusedSession,
-): SlimTokenBundle {
+export function makeSlimBundle(bundle: TokenBundle): SlimTokenBundle {
   return {
     accessToken: bundle.accessToken,
     accessTokenExpiresAt: bundle.accessTokenExpiresAt,
@@ -143,35 +140,18 @@ export type ClientView<T> = T extends { tokens: TokenBundle }
   : T;
 
 /**
- * A session whose refresh token a concurrent caller had already rotated:
- * everything a {@link TokenBundle} carries except the refresh token.
- *
- * There cannot be a refresh token here, since the current one is persisted only
- * as a hash. `refreshTokenExpiresAt` is not secret and is carried so a caller
- * storing the access token in a cookie can give it a rotation's lifetime.
- */
-export type ReusedSession = Omit<TokenBundle, "refreshToken">;
-
-/**
  * The result of refreshing a session. The `kind` will be one of:
  *
- *  * `rotated`: the presented token was current and has been exchanged for the
- *    bundle in `tokens`. Persist both tokens.
- *  * `reused`: a concurrent caller had already rotated the presented token,
- *    which is still inside its grace window. Take the access token and treat a
- *    previously stored refresh token as current.
- *  * `noSession`: the token is unknown, or was rotated too long ago to honor.
- *    Clear any stored session, treat it as signed out.
+ *  * `rotated`: the presented token was valid and `tokens` carries a fresh
+ *    access token and its successor refresh token. Persist both. The token
+ *    presented stays valid until the successor is first used, so a caller that
+ *    never receives this result can retry with the token it already has.
+ *  * `noSession`: the token is unknown, expired, or one that should be in
+ *    nobody's hands any more (which also revokes its session). Clear any
+ *    stored session, treat it as signed out.
  */
 export const vRefreshResult = v.union(
   v.object({ kind: v.literal("rotated"), tokens: vTokenBundle }),
-  v.object({
-    kind: v.literal("reused"),
-    accessToken: v.string(),
-    accessTokenExpiresAt: v.number(),
-    refreshTokenExpiresAt: v.number(),
-    userId: v.string(),
-  }),
   v.object({ kind: v.literal("noSession") }),
 );
 

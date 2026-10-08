@@ -28,7 +28,6 @@ import {
   AuthCookieOptions,
   CookieStore,
   clearAuthCookies,
-  writeAccessCookie,
   writeAuthCookies,
 } from "./cookies.ts";
 import { isTokenExpiring } from "./jwt.ts";
@@ -82,16 +81,8 @@ export class ServerAuthSession {
     if (token !== null && !isTokenExpiring(token, this.#refreshSkewSeconds)) {
       return token;
     }
-    // Both `rotated` and `reused` carry a usable access token.
     const result = await this.refresh();
-    switch (result.kind) {
-      case "rotated":
-        return result.tokens.accessToken;
-      case "reused":
-        return result.accessToken;
-      case "noSession":
-        return null;
-    }
+    return result.kind === "rotated" ? result.tokens.accessToken : null;
   }
 
   /**
@@ -99,9 +90,6 @@ export class ServerAuthSession {
    * the outcome:
    *
    *  * `rotated`: rewrite both cookies with the new bundle.
-   *  * `reused`: rewrite only the access-token cookie. A previous concurrent
-   *     caller already received a new refresh token which will be used for future
-   *     refreshes.
    *  * `noSession`: clear both.
    */
   async refresh(): Promise<RefreshResult> {
@@ -113,9 +101,6 @@ export class ServerAuthSession {
     switch (result.kind) {
       case "rotated":
         await this.setTokens(result.tokens);
-        break;
-      case "reused":
-        await writeAccessCookie(this.#cookies, result, this.#cookieOptions);
         break;
       case "noSession":
         await this.#clear();

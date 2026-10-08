@@ -58,11 +58,6 @@ export interface RefreshHandlerConfig {
  * replying with an {@link AuthSessionResponse} carrying the fresh access token.
  * When there is no session left (missing or unrecognized refresh cookie) it
  * replies 401 with `tokens: null`.
- *
- * A rotation and a grace-window reuse produce the same reply, since the browser
- * never sees a refresh token under SSR and so has nothing to do differently.
- * The two differ only in which cookies {@link ServerAuthSession.refresh} wrote:
- * both cookies for a rotation, the access-token cookie alone for a reuse.
  */
 export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
@@ -84,9 +79,7 @@ export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
             status: 401,
           })
         : Response.json({
-            tokens: makeSlimBundle(
-              result.kind === "rotated" ? result.tokens : result,
-            ),
+            tokens: makeSlimBundle(result.tokens),
           } satisfies AuthSessionResponse);
     cookies.applyTo(res.headers);
     return res;

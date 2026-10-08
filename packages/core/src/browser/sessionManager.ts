@@ -23,9 +23,7 @@ import {
  * refresh token directly.
  *
  * Refreshing resolves to a {@link RefreshResult}: `rotated` carries the next
- * refresh token to persist, `reused` means a concurrent caller had already
- * rotated this one and only an access token comes back, and `noSession` means
- * the session is gone.
+ * refresh token to persist, and `noSession` means the session is gone.
  */
 export interface SpaAuthApi {
   refreshSession: (refreshToken: string) => Promise<RefreshResult>;
@@ -128,15 +126,10 @@ function hasRefreshToken(
  *  - `rotated`: a session to store whole. A full {@link TokenBundle} under SPA or
  *    an access-only {@link SlimTokenBundle} under SSR where the host moved the
  *    refresh token into the cookie.
- *  - `reused`: a concurrent caller had already rotated the token we presented,
- *    inside its grace window. Take the access token and leave the existing
- *    stored refresh token alone. Only SPA sees this arm; under SSR the host
- *    resolves a reuse itself and the browser gets an ordinary access-only reply.
  *  - `noSession`: the session is gone; clear it.
  */
 type RefreshOutcome =
   | { kind: "rotated"; session: TokenBundle | SlimTokenBundle }
-  | { kind: "reused"; accessToken: string }
   | { kind: "noSession" };
 
 /**
@@ -189,9 +182,7 @@ export class AuthClient {
   readonly #initialAccessToken: string | null;
   /**
    * Which side owns the refresh token: this client (SPA) or an httpOnly cookie
-   * (SSR). Enforced in {@link AuthClient.#storeFullTokenResult}, and decides in
-   * {@link AuthClient.#storeAccessOnly} whether a stored refresh token is ours
-   * to keep when only an access token comes back.
+   * (SSR). Enforced in {@link AuthClient.#storeFullTokenResult}.
    */
   readonly #mode: "spa" | "ssr";
 
@@ -230,8 +221,6 @@ export class AuthClient {
         switch (result.kind) {
           case "rotated":
             return { kind: "rotated", session: result.tokens };
-          case "reused":
-            return { kind: "reused", accessToken: result.accessToken };
           case "noSession":
             return { kind: "noSession" };
         }
@@ -243,9 +232,8 @@ export class AuthClient {
     } else {
       const { authApi } = config;
       // The refresh token is in an httpOnly cookie that the API reads
-      // server-side, so it isn't passed directly. The host collapses a rotation
-      // and a grace-window reuse into the same access-only reply, having already
-      // written whichever cookies each case calls for.
+      // server-side, so it isn't passed directly. The host has already written
+      // the rotated refresh token into that cookie.
       this.#refresh = async () => {
         const session = await authApi.refreshSession();
         return session === null
@@ -506,10 +494,6 @@ export class AuthClient {
       case "rotated":
         await this.#storeFullTokenResult(result.session);
         return;
-      case "reused":
-        this.#log("refresh reused a concurrently rotated token");
-        await this.#storeAccessOnly(result);
-        return;
     }
   }
 
@@ -575,20 +559,15 @@ export class AuthClient {
   }
 
   /**
-   * Stores just the access token and notifies subscribers.
-   *
-   * Any stored refresh token is left in place when this client owns one (SPA),
-   * since the only way to get here in that mode is a grace-window reuse, where
-   * the stored token is the live replacement a concurrent caller persisted.
+   * Stores just the access token and notifies subscribers. Only SSR gets here:
+   * the refresh token lives in the host's httpOnly cookie.
    */
   async #storeAccessOnly(session: { accessToken: string }): Promise<void> {
-    if (this.#mode === "ssr") {
-      // Null out/remove any existing refresh token. It shouldn't be set unless
-      // this was somehow a client instance configured for SPA use being
-      // "upgraded" to SSR use.
-      this.#refreshToken = null;
-      await this.#storage.remove(REFRESH_TOKEN_STORAGE_KEY);
-    }
+    // Null out/remove any existing refresh token. It shouldn't be set unless
+    // this was somehow a client instance configured for SPA use being
+    // "upgraded" to SSR use.
+    this.#refreshToken = null;
+    await this.#storage.remove(REFRESH_TOKEN_STORAGE_KEY);
 
     this.#accessToken = session.accessToken;
     await this.#storage.set(JWT_STORAGE_KEY, session.accessToken);
