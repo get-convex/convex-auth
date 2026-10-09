@@ -18,11 +18,11 @@ const modules = import.meta.glob("../components/apple/**/*.ts");
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The mount name of this component instance, as registered in
- *   convex.config.ts. Defaults to `"oauthApple"`.
+ *   convex.config.ts. Defaults to `"authApple"`.
  */
 export function registerAppleOauth(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name = "oauthApple",
+  name = "authApple",
 ) {
   t.registerComponent(name, schema, modules);
 }

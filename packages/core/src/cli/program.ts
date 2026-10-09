@@ -100,7 +100,7 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 // TODO Set up a login provider. For example:
 // export const { signUpWithPassword, signInWithPassword } =
 //   setupUsernamePassword(core, {
-//     component: components.authPasswordProvider,
+//     component: components.authPassword,
 //     usernameComponent: components.authUsername,
 //   }).attachUserCallbacks({ createUser: internal.users.createUser });
 `,

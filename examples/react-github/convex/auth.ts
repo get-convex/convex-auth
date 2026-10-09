@@ -6,6 +6,6 @@ const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
-  component: components.oauthGithub,
+  component: components.authGithub,
   allowedRedirectOrigins: ["http://localhost:5173"],
 }).attachUserCallbacks({ createUser: internal.users.createUser });

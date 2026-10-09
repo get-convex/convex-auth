@@ -96,7 +96,7 @@ export type OauthCatalog<
  */
 export type OauthProviderOptions = {
   /**
-   * This provider's oauth component instance, e.g. `components.oauthAcme`.
+   * This provider's oauth component instance, e.g. `components.authAcme`.
    * The component is installed once per provider.
    */
   component: ComponentApi;

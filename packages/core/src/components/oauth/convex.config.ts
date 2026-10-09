@@ -11,7 +11,7 @@ import { v } from "convex/values";
  *
  * ```ts
  * app.use(oauth, {
- *   name: "oauthAcme",
+ *   name: "authAcme",
  *   httpPrefix: "/oauth/acme",
  *   env: {
  *     CLIENT_ID: app.env.AUTH_ACME_CLIENT_ID,
@@ -23,7 +23,7 @@ import { v } from "convex/values";
  * The provider has to authenticate with a static client secret. A provider
  * that wants a signed short-lived secret needs a component of its own.
  */
-const component = defineComponent("oauth", {
+const component = defineComponent("authOauth", {
   env: {
     CLIENT_ID: v.string(),
     CLIENT_SECRET: v.string(),

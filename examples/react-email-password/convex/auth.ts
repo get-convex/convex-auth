@@ -22,7 +22,7 @@ export const {
   completePasswordRecovery,
 } = setupEmailPassword(core, {
   component: components.authEmail,
-  passwordComponent: components.authPasswordProvider,
+  passwordComponent: components.authPassword,
   emailSender: {
     kind: "resend",
     sendEmail: components.resend.lib.sendEmail,

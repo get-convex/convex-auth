@@ -6,7 +6,7 @@ const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const { startSignInApple, completeSignInApple } = setupApple(core, {
-  component: components.oauthApple,
+  component: components.authApple,
   allowedRedirectOrigins: ["http://localhost:5173"],
 }).attachUserCallbacks({
   createUser: internal.users.createUser,
