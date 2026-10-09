@@ -9,7 +9,8 @@ import type {
   AuthSignInApi,
 } from "../browser/ambientSignInClient.ts";
 import { useOauth } from "../methods/oauth/react.ts";
-import { ConvexAuthProvider, useAuthSignInApi } from "./index.tsx";
+import { useAuthSignInApi } from "./client.tsx";
+import { ConvexAuthProvider } from "./index.tsx";
 import { useAmbientSignInValue } from "./providers.ts";
 
 const API = {

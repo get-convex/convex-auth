@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuthActions, useAuthToken } from "@convex-dev/auth/nextjs";
+import { useAuthActions, useAuthToken } from "@convex-dev/auth/react";
 import { Preloaded, usePreloadedQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";

@@ -20,7 +20,8 @@
 
 import { useConvex } from "convex/react";
 import { useCallback, useMemo, useRef } from "react";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
+import { useAuthActions } from "../../react/index.tsx";
+import { useAuthSignInApi } from "../../react/client.tsx";
 import {
   runSignInOrSignUpFlow,
   type UsernamePasskeyApi,
