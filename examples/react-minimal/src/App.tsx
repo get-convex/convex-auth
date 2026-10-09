@@ -1,11 +1,11 @@
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import {
+  useQuery,
   Authenticated,
   AuthLoading,
   Unauthenticated,
-  useAuthActions,
-} from "@convex-dev/auth/react";
-import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
-import { useQuery } from "convex/react";
+} from "convex/react";
 import { api } from "../convex/_generated/api";
 import "./index.css";
 

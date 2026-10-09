@@ -32,6 +32,8 @@ import {
  * component's functions). `returns` keeps convex's exact optional-validator
  * scheme: with a validator, the handler's return is constrained to (a promise
  * of) its type; without one, it falls back to whatever the handler declares.
+ *
+ * @internal Not public until the API for custom schemes is stable.
  */
 export type AuthMutationBuilder<Profile> = <
   ArgsValidator extends PropertyValidators,
@@ -48,7 +50,11 @@ export type AuthMutationBuilder<Profile> = <
   ) => ReturnValue;
 }) => RegisteredMutation<"public", ObjectType<ArgsValidator>, ReturnValue>;
 
-/** The action flavor of {@link AuthMutationBuilder}. */
+/**
+ * The action flavor of {@link AuthMutationBuilder}.
+ *
+ * @internal Not public until the API for custom schemes is stable.
+ */
 export type AuthActionBuilder<Profile> = <
   ArgsValidator extends PropertyValidators,
   ReturnsValidator extends
@@ -69,6 +75,8 @@ export type AuthActionBuilder<Profile> = <
  *
  * Each builds a public Convex function whose handler receives the
  * provider-bound helpers on `ctx.convexAuth` alongside the standard ctx.
+ *
+ * @internal Not public until the API for custom schemes is stable.
  */
 export type ProviderBuilders<Profile> = {
   authMutation: AuthMutationBuilder<Profile>;
@@ -77,7 +85,7 @@ export type ProviderBuilders<Profile> = {
 
 /**
  * The core auth API returned by {@link setupCore}: the session handlers the
- * app re-exports, plus {@link AuthCore.bindProvider} for wiring up providers.
+ * app re-exports. The sign-in schemes also use it to bind to the core.
  */
 export type AuthCore<UsersTable extends string = string> = {
   /**
@@ -143,6 +151,8 @@ export type AuthCore<UsersTable extends string = string> = {
    * once the app has supplied the callbacks, so the builders can close over
    * them and a provider with no way to create users cannot exist. It is not
    * meant to be called by application code directly.
+   *
+   * @internal Not public until the API for custom schemes is stable.
    */
   bindProvider<Provider extends string, Profile>(
     options: {
