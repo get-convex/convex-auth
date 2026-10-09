@@ -39,9 +39,20 @@ import type {
   FunctionReference,
   FunctionReturnType,
 } from "convex/server";
+import type { ClientView, SignInEnvelope } from "../lib/types.ts";
 import type { SignInValues } from "./keyedStore.ts";
 import type { AuthClient } from "./sessionManager.ts";
 import type { SignInStorage } from "./storage.ts";
+
+/**
+ * A public function returning the shared `SignInEnvelope`, as the client sees
+ * it. The requirement is on `_returnType` alone, leaving the args as Convex
+ * declares them so its clients still infer optional args.
+ */
+export type SignInFunction<Type extends "mutation" | "action"> =
+  FunctionReference<Type, "public"> & {
+    _returnType: ClientView<SignInEnvelope>;
+  };
 
 /**
  * How a provider's sign-in functions get executed. Provider code takes this
@@ -56,16 +67,20 @@ import type { SignInStorage } from "./storage.ts";
  *
  * A provider never sees which model it is running under.
  *
+ * Only functions returning the shared `SignInEnvelope` are accepted, because
+ * under SSR the auth proxy refuses any other result. A function that mints no
+ * session goes through {@link ConvexMutationApi} instead.
+ *
  * Sign-in functions are safe to run before authentication on any transport.
  * Callers retry them on network errors, so a sign-in function must tolerate
  * re-executing after an attempt that already committed server-side.
  */
 export interface AuthSignInApi {
-  mutation<F extends FunctionReference<"mutation", "public">>(
+  mutation<F extends SignInFunction<"mutation">>(
     fn: F,
     args: FunctionArgs<F>,
   ): Promise<FunctionReturnType<F>>;
-  action<F extends FunctionReference<"action", "public">>(
+  action<F extends SignInFunction<"action">>(
     fn: F,
     args: FunctionArgs<F>,
   ): Promise<FunctionReturnType<F>>;
