@@ -68,12 +68,57 @@ export default defineConfig([
       "**/convex/**/*.{js,ts}",
       "packages/*/src/components/**/*.ts",
       "packages/*/src/component/**/*.ts",
-      "packages/*/src/oauth/**/*.ts",
+      "packages/*/src/schemes/**/*.ts",
+      "packages/*/src/server/**/*.ts",
+      "packages/*/src/lib/oauth/**/*.ts",
     ],
     ignores: ["**/*.test.ts"],
     plugins: {
       "@convex-dev": convexPlugin,
     },
     rules: convexRecommended,
+  },
+  {
+    // The Convex CLI deploys every module of a component directory. A
+    // component module must thus not import client code or app-side code:
+    // the bundle of the component would include it.
+    files: [
+      "packages/core/src/component/**/*.{ts,tsx}",
+      "packages/core/src/components/**/*.{ts,tsx}",
+    ],
+    ignores: [
+      "**/*.test.{ts,tsx}",
+      "**/*.fixture.ts",
+      "packages/core/src/components/*TestSetup.ts",
+      "packages/core/src/components/password/scripts/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["react", "react-dom", "convex/react", "next"].map((name) => ({
+            name,
+            message: "A component module must not import client code.",
+          })),
+          patterns: [
+            {
+              group: [
+                "react/*",
+                "react-dom/*",
+                "next/*",
+                "@simplewebauthn/browser",
+              ],
+              message: "A component module must not import client code.",
+            },
+            {
+              regex:
+                "^\\.{1,2}/(?:.*/)?(?:schemes|server|ssr|browser|react|nextjs|testing)/",
+              message:
+                "A component module must not import app-side code or client code. Put the shared code in the component or in src/lib/.",
+            },
+          ],
+        },
+      ],
+    },
   },
 ]);

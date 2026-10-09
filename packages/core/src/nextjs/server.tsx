@@ -24,10 +24,10 @@ import {
   CookieDeleteOptions,
   CookieOptions,
   CookieStore,
-} from "../server/cookies.ts";
-import { createServerAuthChecker } from "../server/isAuthenticated.ts";
-import { isTokenExpiring } from "../server/jwt.ts";
-import { ServerAuthSession } from "../server/session.ts";
+} from "../ssr/cookies.ts";
+import { createServerAuthChecker } from "../ssr/isAuthenticated.ts";
+import { isTokenExpiring } from "../ssr/jwt.ts";
+import { ServerAuthSession } from "../ssr/session.ts";
 
 /** Configuration for {@link setupConvexAuthNextjs}. */
 export interface ConvexAuthNextjsConfig {

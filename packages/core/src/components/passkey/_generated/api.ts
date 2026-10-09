@@ -8,26 +8,11 @@
  * @module
  */
 
-import type * as aaguids from "../aaguids.js";
 import type * as authentication from "../authentication.js";
-import type * as base64url from "../base64url.js";
 import type * as cleanup from "../cleanup.js";
-import type * as client from "../client.js";
 import type * as constants from "../constants.js";
-import type * as flows from "../flows.js";
 import type * as helpers from "../helpers.js";
-import type * as management_add from "../management/add.js";
-import type * as management_flows from "../management/flows.js";
-import type * as management_list from "../management/list.js";
-import type * as management_react from "../management/react.js";
-import type * as management_remove from "../management/remove.js";
-import type * as management_rename from "../management/rename.js";
-import type * as options from "../options.js";
-import type * as purposes from "../purposes.js";
-import type * as react from "../react.js";
-import type * as react_impl from "../react_impl.js";
 import type * as registration from "../registration.js";
-import type * as setup from "../setup.js";
 import type * as validation from "../validation.js";
 
 import type {
@@ -38,26 +23,11 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  aaguids: typeof aaguids;
   authentication: typeof authentication;
-  base64url: typeof base64url;
   cleanup: typeof cleanup;
-  client: typeof client;
   constants: typeof constants;
-  flows: typeof flows;
   helpers: typeof helpers;
-  "management/add": typeof management_add;
-  "management/flows": typeof management_flows;
-  "management/list": typeof management_list;
-  "management/react": typeof management_react;
-  "management/remove": typeof management_remove;
-  "management/rename": typeof management_rename;
-  options: typeof options;
-  purposes: typeof purposes;
-  react: typeof react;
-  react_impl: typeof react_impl;
   registration: typeof registration;
-  setup: typeof setup;
   validation: typeof validation;
 }> = anyApi as any;
 

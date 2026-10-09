@@ -19,7 +19,7 @@
     // `convex-auth-internal-types` condition (see the `exports` map).
     "stripInternal": true
     // `types` is inherited from tsconfig.json: `node` for `process.env` and
-    // `vite/client` for the `import.meta.glob` in `components/testing/*`.
+    // `vite/client` for the `import.meta.glob` in `testing/*`.
     // Neither leaks into the emitted declarations.
   },
   "include": ["src/**/*"],
@@ -32,11 +32,11 @@
     "src/**/*.fixture.ts",
     "src/components/password/scripts/**",
     // Ships as source (see the `./providers/testing/<name>` exports).
-    "src/components/testing/**",
+    "src/testing/**",
     "src/components/passkeyTestSetup.ts",
     "src/components/emailTestSetup.ts",
     "src/components/totpTestSetup.ts",
-    "src/oauth/testFlow.ts",
+    "src/schemes/oauth/testFlow.ts",
     "src/react/testSignInApi.ts"
   ]
 }

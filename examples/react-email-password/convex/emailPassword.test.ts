@@ -15,7 +15,7 @@ const PASSWORD = "correct horse battery staple"; // 28 chars, valid
 const EMAIL = "alice@example.com";
 
 async function setup() {
-  // The core signs JWTs from these env vars (see core/public.ts). Mint a real
+  // The core signs JWTs from these env vars (see the core component, `src/component/public.ts`). Mint a real
   // RS256 key pair for each test and stub the env so Vitest can reset it.
   const { publicKey, privateKey } = await generateKeyPair("RS256", {
     extractable: true,

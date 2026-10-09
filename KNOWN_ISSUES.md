@@ -9,13 +9,13 @@ Probably all public routes need rate limiting of some sort.
 ## OAuth component documents are never cleaned up, and `startSignIn` is unauthenticated
 
 Expired authorization requests and tickets are only deleted when their
-secret is later presented (`packages/core/src/oauth/shared/dbHelpers.ts`),
+secret is later presented (`packages/core/src/lib/oauth/dbHelpers.ts`),
 so abandoned flows accumulate forever.
 
 ## OAuth sign-in requires a backend with system env vars in components
 
 An oauth component builds its callback URL from `CONVEX_SITE_URL` with its
-`httpPrefix` applied (`packages/core/src/oauth/shared/dbHelpers.ts`), which
+`httpPrefix` applied (`packages/core/src/lib/oauth/dbHelpers.ts`), which
 components only see on backends with get-convex/convex-backend@64c163a
 (self-hosted minimum release `precompiled-2026-07-28-f0d0b8b`, July 28,
 2026). Cloud always has it; an older self-hosted backend fails the first
@@ -26,7 +26,7 @@ No action item, just here for awareness.
 ## One pending OAuth flow per storage
 
 The client keeps a single pending-flow key (`flow` in the oauth setup's
-scoped storage, `packages/core/src/oauth/client.ts`). Two sign-ins running concurrently in
+scoped storage, `packages/core/src/schemes/oauth/client.ts`). Two sign-ins running concurrently in
 different tabs overwrite each other, and both fail recoverably (`expired` /
 `invalid_flow`); retrying works.
 
@@ -38,13 +38,13 @@ preserving the login-CSRF property.
 
 `allowedRedirectOrigins` entries must be http(s) origins - custom schemes
 (`myapp://`, `exp://`) have a `"null"` origin under the URL standard and are
-rejected at setup (`packages/core/src/oauth/shared/redemption.ts`), so React
+rejected at setup (`packages/core/src/lib/oauth/redemption.ts`), so React
 Native apps must return via https universal links / app links.
 
 React Native also has no page URL for the client to work from: it defines
 `window` but no `window.location`. So the startup handler that finishes a flow
 from callback params does nothing there, and `signIn` requires an explicit
-`redirectTo` (`packages/core/src/oauth/client.ts`). Supporting React Native
+`redirectTo` (`packages/core/src/schemes/oauth/client.ts`). Supporting React Native
 properly means deciding what `redirectTo` looks like when it can't be a page
 URL.
 

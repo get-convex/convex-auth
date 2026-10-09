@@ -3,7 +3,7 @@ import {
   registerResendStub,
   stubEmailSender,
   sentEmails,
-} from "../../testing/resend.ts";
+} from "../../../testing/resend.ts";
 import {
   CUSTOM_TTL_DEFAULT_MS,
   CUSTOM_TTL_MAX_MS,
