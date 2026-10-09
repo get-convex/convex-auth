@@ -1,12 +1,12 @@
 "use client";
 
 import { useConvexAuth } from "convex/react";
-import { useAnonymousAuth } from "@convex-dev/auth/methods/anonymous/react";
+import { useSignInAnonymously } from "@convex-dev/auth/methods/anonymous/react";
 import {
   useOauth,
   useSignInWithGithub,
 } from "@convex-dev/auth/methods/github/react";
-import { useSignInWithPassword } from "@convex-dev/auth/methods/username-password/react";
+import { useSignInWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -17,10 +17,10 @@ export default function SignIn() {
   // ConvexAuthNextjsProvider routes this call through the sign-in route, which
   // moves the minted refresh token into an httpOnly cookie so it never reaches
   // JS. Both functions are listed in `signIn` in src/lib/serverAuth.ts.
-  const { signIn, pending } = useSignInWithPassword(
+  const { signIn, pending } = useSignInWithUsernamePassword(
     api.auth.signInWithUsernamePassword,
   );
-  const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymously);
+  const { signInAnonymous } = useSignInAnonymously(api.auth.signInAnonymously);
   // GitHub sends the user back to this page, where the hook redeems the
   // callback code through the sign-in route. A failure to start comes back
   // from `signInGithub`, and a failure after the redirect shows up in

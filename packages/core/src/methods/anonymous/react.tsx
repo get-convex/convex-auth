@@ -21,12 +21,12 @@ import { useAuthActions } from "../../react/index.tsx";
 import { useAuthSignInApi } from "../../react/client.tsx";
 
 /**
- * The `signInAnonymous` mutation the anonymous provider adds to the app's API.
+ * The `signInAnonymously` mutation the anonymous provider adds to the app's API.
  *
  * Its bundle is the access-only {@link ClientView}, which is what both session
  * models have in common. Hand it to `setSession`, the only supported consumer.
  */
-export type SignInAnonymousMutation = FunctionReference<
+export type SignInAnonymouslyMutation = FunctionReference<
   "mutation",
   "public",
   Record<string, never>,
@@ -43,11 +43,11 @@ export type SignInAnonymousMutation = FunctionReference<
  * pattern that every auth provider should follow.
  *
  * ```tsx
- * import { useAnonymousAuth } from "@convex-dev/auth/methods/anonymous/react";
+ * import { useSignInAnonymously } from "@convex-dev/auth/methods/anonymous/react";
  * import { api } from "../convex/_generated/api";
  *
  * function SignIn() {
- *   const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymously);
+ *   const { signInAnonymous } = useSignInAnonymously(api.auth.signInAnonymously);
  *   return <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
  * }
  * ```
@@ -58,9 +58,11 @@ export type SignInAnonymousMutation = FunctionReference<
  * components that build on the authenticated state returned by
  * `useConvexAuthActions`.
  *
- * @param signInMutation The app's `signInAnonymous` mutation reference.
+ * @param signInMutation The app's `signInAnonymously` mutation reference.
  */
-export function useAnonymousAuth(signInMutation: SignInAnonymousMutation) {
+export function useSignInAnonymously(
+  signInMutation: SignInAnonymouslyMutation,
+) {
   const { setSession } = useAuthActions();
   // Running through the signInApi rather than `useMutation` is what lets this one
   // hook serve both session models. See {@link AuthSignInApi}.

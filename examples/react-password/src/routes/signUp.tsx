@@ -1,10 +1,10 @@
-import { useSignUpWithPassword } from "@convex-dev/auth/methods/username-password/react";
+import { useSignUpWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
 import { DEFAULT_MIN_PASSWORD_LENGTH } from "@convex-dev/auth/methods/username-password";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
 export function SignUp() {
-  const { signUp, pending } = useSignUpWithPassword(
+  const { signUp, pending } = useSignUpWithUsernamePassword(
     api.auth.signUpWithUsernamePassword,
   );
   const [username, setUsername] = useState("");

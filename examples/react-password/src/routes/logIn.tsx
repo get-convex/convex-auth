@@ -1,9 +1,9 @@
-import { useSignInWithPassword } from "@convex-dev/auth/methods/username-password/react";
+import { useSignInWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
 export function LogIn() {
-  const { signIn, pending } = useSignInWithPassword(
+  const { signIn, pending } = useSignInWithUsernamePassword(
     api.auth.signInWithUsernamePassword,
   );
   const [username, setUsername] = useState("");

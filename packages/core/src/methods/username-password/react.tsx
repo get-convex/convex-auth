@@ -7,8 +7,8 @@
  * useAuthActions}).
  *
  * The password provider has two flows and provides a hook for each:
- *  1. signing in to an existing account ({@link useSignInWithPassword})
- *  2. signing up a new one ({@link useSignUpWithPassword})
+ *  1. signing in to an existing account ({@link useSignInWithUsernamePassword})
+ *  2. signing up a new one ({@link useSignUpWithUsernamePassword})
  *
  * Each hook returns a function for sending up the credentials and a `pending`
  * value that is flipped to `true` while the credentials are being validated.
@@ -34,7 +34,7 @@ export type Credentials = { username: string; password: string };
  * session models have in common. Hand it to `setSession`, the only supported
  * consumer.
  */
-type SignInWithPasswordMutation = FunctionReference<
+type SignInWithUsernamePasswordMutation = FunctionReference<
   "mutation",
   "public",
   Credentials,
@@ -44,7 +44,7 @@ type SignInWithPasswordMutation = FunctionReference<
 /**
  * The `signUpWithUsernamePassword` mutation the app re-exports from its `setupUsernamePassword`.
  */
-type SignUpWithPasswordMutation = FunctionReference<
+type SignUpWithUsernamePasswordMutation = FunctionReference<
   "mutation",
   "public",
   Credentials,
@@ -64,12 +64,12 @@ type UnexpectedFailure = {
   userError: { error: "OTHER_ERROR"; cause: unknown };
 };
 
-/** The result of the `signIn` callback from {@link useSignInWithPassword}. */
-export type SignInWithPasswordResult =
+/** The result of the `signIn` callback from {@link useSignInWithUsernamePassword}. */
+export type SignInWithUsernamePasswordResult =
   ClientView<SignInResult> | UnexpectedFailure;
 
-/** The result of the `signUp` callback from {@link useSignUpWithPassword}. */
-export type SignUpWithPasswordResult =
+/** The result of the `signUp` callback from {@link useSignUpWithUsernamePassword}. */
+export type SignUpWithUsernamePasswordResult =
   ClientView<SignUpResult> | UnexpectedFailure;
 
 /**
@@ -86,11 +86,11 @@ export type SignUpWithPasswordResult =
  * whether the sign-in was successful or if you need to handle an error.
  *
  * ```tsx
- * import { useSignInWithPassword } from "@convex-dev/auth/methods/username-password/react";
+ * import { useSignInWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
- *   const { signIn, pending } = useSignInWithPassword(api.auth.signInWithUsernamePassword);
+ *   const { signIn, pending } = useSignInWithUsernamePassword(api.auth.signInWithUsernamePassword);
  *   return (
  *     <form
  *       onSubmit={async (e) => {
@@ -109,8 +109,8 @@ export type SignUpWithPasswordResult =
  *
  * @param signInMutation The app's `signInWithUsernamePassword` mutation reference.
  */
-export function useSignInWithPassword(
-  signInMutation: SignInWithPasswordMutation,
+export function useSignInWithUsernamePassword(
+  signInMutation: SignInWithUsernamePasswordMutation,
 ) {
   const { run, pending } = usePasswordFlow(signInMutation);
   return {
@@ -145,19 +145,19 @@ export function useSignInWithPassword(
  * whether the sign-up was successful or if you need to handle an error.
  *
  * ```tsx
- * import { useSignUpWithPassword } from "@convex-dev/auth/methods/username-password/react";
+ * import { useSignUpWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
  * import { api } from "../convex/_generated/api";
  *
  * function SignUp() {
- *   const { signUp, pending } = useSignUpWithPassword(api.auth.signUpWithUsernamePassword);
- *   // ...same shape as useSignInWithPassword
+ *   const { signUp, pending } = useSignUpWithUsernamePassword(api.auth.signUpWithUsernamePassword);
+ *   // ...same shape as useSignInWithUsernamePassword
  * }
  * ```
  *
  * @param signUpMutation The backend's `signUpWithUsernamePassword` mutation reference.
  */
-export function useSignUpWithPassword(
-  signUpMutation: SignUpWithPasswordMutation,
+export function useSignUpWithUsernamePassword(
+  signUpMutation: SignUpWithUsernamePasswordMutation,
 ) {
   const { run, pending } = usePasswordFlow(signUpMutation);
   return {
