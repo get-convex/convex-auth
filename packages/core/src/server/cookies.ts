@@ -16,7 +16,7 @@ import {
   JWT_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "../browser/storage.ts";
-import type { ReusedSession, TokenBundle } from "../lib/types.ts";
+import type { TokenBundle } from "../lib/types.ts";
 
 /** The cookie holding the current access token (a JWT). */
 export const AUTH_JWT_COOKIE = JWT_STORAGE_KEY;
@@ -145,28 +145,6 @@ export async function writeAuthCookies(
   const attributes = authCookieOptions(bundle.refreshTokenExpiresAt, options);
   await cookies.set(AUTH_JWT_COOKIE, bundle.accessToken, attributes);
   await cookies.set(AUTH_REFRESH_COOKIE, bundle.refreshToken, attributes);
-}
-
-/**
- * Write only the access-token cookie, leaving {@link AUTH_REFRESH_COOKIE} as it
- * was.
- *
- * For the `reused` outcome of a refresh, where a prior concurrent caller's
- * response carries the replacement refresh token: writing one here would race
- * it, and could leave the browser holding a token about to fall out of its
- * grace window. The access token is still written, since for an SSR host the
- * cookie is the only channel from a request-level refresh to the render.
- */
-export async function writeAccessCookie(
-  cookies: CookieStore,
-  session: ReusedSession,
-  options: AuthCookieOptions,
-): Promise<void> {
-  await cookies.set(
-    AUTH_JWT_COOKIE,
-    session.accessToken,
-    authCookieOptions(session.refreshTokenExpiresAt, options),
-  );
 }
 
 /**

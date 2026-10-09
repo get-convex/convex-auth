@@ -50,13 +50,6 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
               userId: string;
             };
           }
-        | {
-            accessToken: string;
-            accessTokenExpiresAt: number;
-            kind: "reused";
-            refreshTokenExpiresAt: number;
-            userId: string;
-          }
         | { kind: "noSession" },
         Name
       >;

@@ -7,8 +7,8 @@
  * When the browser exposes the Web Locks API (`navigator.locks`) it is a true
  * cross-tab lock. Otherwise we fall back to an in-process queue, which still
  * serializes callers within a single JS realm (enough for tests and runtimes
- * without Web Locks). It composes with the server's short refresh-token grace
- * window, which forgives the residual cross-tab race the fallback can't cover.
+ * without Web Locks). It doesn't serialize across tabs, and racing tabs can
+ * revoke the session; accepted since every major browser has Web Locks.
  */
 
 /**

@@ -61,17 +61,6 @@ function rotated(bundle: TokenBundle): RefreshResult {
   return { kind: "rotated", tokens: bundle };
 }
 
-/** A `reused` outcome: a concurrent caller already rotated the presented token. */
-function reused(bundle: TokenBundle): RefreshResult {
-  return {
-    kind: "reused",
-    accessToken: bundle.accessToken,
-    accessTokenExpiresAt: bundle.accessTokenExpiresAt,
-    refreshTokenExpiresAt: bundle.refreshTokenExpiresAt,
-    userId: bundle.userId,
-  };
-}
-
 function newSession(
   refreshSession: RefreshSession = async () => ({ kind: "noSession" }),
   cookies = new FakeCookies(),
@@ -116,25 +105,6 @@ describe("ServerAuthSession", () => {
     expect(cookies.get(AUTH_JWT_COOKIE)).toBe(next.accessToken);
     expect(cookies.get(AUTH_REFRESH_COOKIE)).toBe("refresh-2");
     expect(cookies.options.get(AUTH_REFRESH_COOKIE)?.httpOnly).toBe(true);
-    vi.restoreAllMocks();
-  });
-
-  test("a reused refresh writes only the JWT cookie, leaving the refresh cookie", async () => {
-    vi.spyOn(Date, "now").mockReturnValue(nowMs);
-    const next = newTokenBundle(2);
-    const refreshSession = vi.fn(async () => reused(next));
-    const cookies = new FakeCookies();
-    cookies.set(AUTH_JWT_COOKIE, jwt(NOW + 5)); // within the 10s skew
-    cookies.set(AUTH_REFRESH_COOKIE, "refresh-1");
-    const { session } = newSession(refreshSession, cookies);
-
-    expect(await session.getToken()).toBe(next.accessToken);
-    expect(cookies.get(AUTH_JWT_COOKIE)).toBe(next.accessToken);
-    // The concurrent caller that won the rotation carries the replacement in
-    // its own response. Writing one here would race that, and the loser holds a
-    // token that is signed out once it leaves the grace window.
-    expect(cookies.get(AUTH_REFRESH_COOKIE)).toBe("refresh-1");
-    expect(cookies.options.get(AUTH_JWT_COOKIE)?.httpOnly).toBe(true);
     vi.restoreAllMocks();
   });
 
