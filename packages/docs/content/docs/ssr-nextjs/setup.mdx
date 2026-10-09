@@ -197,10 +197,9 @@ To decide on the server whether the user is signed in, use
 
 ### Use Convex Auth in Client Components
 
-Import the client hooks from `@convex-dev/auth/nextjs`, not from
-`@convex-dev/auth/react`. `useAuthActions`, `useAuthToken`, `useConvexAuth`,
-and the `Authenticated`, `Unauthenticated`, and `AuthLoading` components are all
-available there. After you call `signOut`, navigate away from the page so the
+Import `useAuthActions` and `useAuthToken` from `@convex-dev/auth/nextjs`, not
+from `@convex-dev/auth/react`. Import `useConvexAuth` and the `Authenticated`,
+`Unauthenticated`, and `AuthLoading` components from `convex/react`. After you call `signOut`, navigate away from the page so the
 proxy can apply your redirects:
 
 <include

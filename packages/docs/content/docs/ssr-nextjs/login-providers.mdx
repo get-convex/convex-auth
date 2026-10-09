@@ -61,8 +61,8 @@ in a Next.js app:
   the form. (The example below marks the whole page for brevity.)
 - Put the pages in `app/` (for example, `app/signin/page.tsx`), and navigate with
   `useRouter` from `next/navigation` and `Link` from `next/link`.
-- Import `useAuthActions`, `useConvexAuth`, `Authenticated`, and
-  `Unauthenticated` from `@convex-dev/auth/nextjs`.
+- Import `useAuthActions` from `@convex-dev/auth/nextjs`. Import
+  `useConvexAuth`, `Authenticated`, and `Unauthenticated` from `convex/react`.
 
 For example, this sign-in page from the Next.js example uses the password and
 anonymous hooks unchanged:

@@ -35,8 +35,6 @@ import type { AuthSessionResponse } from "../lib/types.ts";
 import { oauth } from "../schemes/oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
 
-export { useConvexAuth } from "convex/react";
-export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 export { useAuthActions, useAuthToken } from "../react/index.tsx";
 
 /**

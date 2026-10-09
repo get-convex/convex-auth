@@ -129,6 +129,8 @@ export type CompleteSignInResult = Infer<typeof completeSignInResult>;
  * anywhere (including the app rejecting the sign-in from `createUser` /
  * `onSignIn`) rolls back the ticket claim. Only a successful redemption
  * consumes the ticket.
+ *
+ * @internal Not public until the API for custom schemes is stable.
  */
 export function buildCompleteSignIn<
   Profile extends { id: string },
