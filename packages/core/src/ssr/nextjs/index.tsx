@@ -1,11 +1,11 @@
 /**
  * Server bindings for Convex Auth on Next.js (App Router), exported at
- * `@convex-dev/auth/nextjs/server`.
+ * `@convex-dev/auth/ssr/nextjs`.
  *
  * This is the thin, genuinely Next-specific layer. The auth *handlers*
  * (per-provider sign-in, plus refresh/sign-out) are framework-agnostic
  * `(Request) => Response` functions mounted directly as route handlers (see
- * `@convex-dev/auth/server` and each provider's `/server` entry). What remains
+ * `@convex-dev/auth/ssr`). What remains
  * Next-specific is the proxy (up-front refresh + redirects), reading the
  * access token in Server Components, and the server-side provider that hydrates
  * the client.
@@ -17,17 +17,17 @@ import { ConvexHttpClient } from "convex/browser";
 import { cookies as nextCookies } from "next/headers.js";
 import { NextRequest, NextResponse } from "next/server.js";
 import { ReactNode } from "react";
-import type { IsAuthenticatedFn, RefreshSessionFn } from "../lib/types.ts";
+import type { IsAuthenticatedFn, RefreshSessionFn } from "../../lib/types.ts";
 import {
   AUTH_JWT_COOKIE,
   AuthCookieOptions,
   CookieDeleteOptions,
   CookieOptions,
   CookieStore,
-} from "../ssr/cookies.ts";
-import { createServerAuthChecker } from "../ssr/isAuthenticated.ts";
-import { isTokenExpiring } from "../ssr/jwt.ts";
-import { ServerAuthSession } from "../ssr/session.ts";
+} from "../cookies.ts";
+import { createServerAuthChecker } from "../isAuthenticated.ts";
+import { isTokenExpiring } from "../jwt.ts";
+import { ServerAuthSession } from "../session.ts";
 
 /** Configuration for {@link setupConvexAuthNextjs}. */
 export interface ConvexAuthNextjsConfig {
@@ -216,7 +216,7 @@ export function setupConvexAuthNextjs(config: ConvexAuthNextjsConfig) {
     const initialToken = await convexAuthNextjsAccessToken();
     // Lazily import the client component so other consumers of this module
     // don't have to take on those dependencies.
-    const { ConvexAuthNextjsProvider } = await import("./index.tsx");
+    const { ConvexAuthNextjsProvider } = await import("./client.tsx");
     return (
       <ConvexAuthNextjsProvider
         convexUrl={config.convexUrl}

@@ -1,6 +1,6 @@
 /**
  * The framework-agnostic auth server factory, exported at
- * `@convex-dev/auth/server`.
+ * `@convex-dev/auth/ssr`.
  *
  * {@link setupConvexAuthServer} takes the shared config once (deployment URL,
  * the session mutations, the exposed sign-in functions, and the cookie

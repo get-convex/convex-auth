@@ -1,12 +1,12 @@
 "use client";
 
 import { useConvexAuth } from "convex/react";
-import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
+import { useAnonymousAuth } from "@convex-dev/auth/methods/anonymous/react";
 import {
   useOauth,
   useSignInWithGithub,
-} from "@convex-dev/auth/providers/oauth/react";
-import { useSignInWithPassword } from "@convex-dev/auth/providers/password/react";
+} from "@convex-dev/auth/methods/github/react";
+import { useSignInWithPassword } from "@convex-dev/auth/methods/username-password/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

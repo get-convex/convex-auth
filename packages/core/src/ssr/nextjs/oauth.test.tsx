@@ -3,22 +3,19 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import { ConvexReactClient } from "convex/react";
 import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { InMemoryStorage } from "../browser/storage.ts";
-import { makeSlimBundle } from "../lib/types.ts";
-import {
-  useOauth,
-  useSignInWithGithub,
-  type OauthProviderApi,
-} from "../methods/oauth/react.ts";
+import { InMemoryStorage } from "../../browser/storage.ts";
+import { makeSlimBundle } from "../../lib/types.ts";
+import { useSignInWithGithub } from "../../methods/github/react.ts";
+import { useOauth, type OauthProviderApi } from "../../methods/oauth/react.ts";
 import {
   NAMESPACE,
   bundle,
   restoreNavigatorProduct,
   seedPendingFlow,
   stubReactNative,
-} from "../methods/oauth/testFlow.ts";
-import { useAuthToken } from "../react/index.tsx";
-import { ConvexAuthNextjsProvider } from "./index.tsx";
+} from "../../methods/oauth/testFlow.ts";
+import { useAuthToken } from "../../react/index.tsx";
+import { ConvexAuthNextjsProvider } from "./client.tsx";
 
 const githubApi = {
   startSignInGithub: makeFunctionReference<"mutation">(

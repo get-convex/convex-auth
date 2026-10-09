@@ -65,8 +65,8 @@ export const ConvexAuthActionsContext = createContext<
 >(undefined);
 
 /**
- * The bound {@link AuthClient}. Consumed by the provider-author surface
- * (`useAmbientSignInValue` in `react/providers.ts`), not by apps.
+ * The bound {@link AuthClient}. The sign-in methods read it through
+ * `useAmbientSignInValue` in `react/methods.ts`. Apps do not use it.
  */
 export const AuthClientContext = createContext<AuthClient | undefined>(
   undefined,

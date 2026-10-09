@@ -41,7 +41,7 @@ When you read the signed-in user, pass the table name to `getAuthUserId` too,
 so that it returns an id in that table:
 
 ```ts title="convex/currentUser.ts"
-import { getAuthUserId } from "@convex-dev/auth/core";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const loggedInUser = query({
   args: {},

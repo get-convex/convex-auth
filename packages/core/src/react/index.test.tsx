@@ -11,7 +11,7 @@ import type {
 import { useOauth } from "../methods/oauth/react.ts";
 import { useAuthSignInApi } from "./client.tsx";
 import { ConvexAuthProvider } from "./index.tsx";
-import { useAmbientSignInValue } from "./providers.ts";
+import { useAmbientSignInValue } from "./methods.ts";
 
 const API = {
   refreshSession: makeFunctionReference<"mutation">("auth:refreshSession"),

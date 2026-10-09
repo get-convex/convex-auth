@@ -1,8 +1,8 @@
 import { defineApp } from "convex/server";
 import { v } from "convex/values";
-import core from "@convex-dev/auth/core/convex.config.js";
-import passkey from "@convex-dev/auth/providers/passkey/convex.config.js";
-import username from "@convex-dev/auth/username/convex.config.js";
+import core from "@convex-dev/auth/convex.config.js";
+import passkey from "@convex-dev/auth/components/passkey/convex.config.js";
+import username from "@convex-dev/auth/components/username/convex.config.js";
 
 const app = defineApp({
   env: {

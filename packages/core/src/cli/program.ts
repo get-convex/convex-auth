@@ -71,7 +71,7 @@ export default {
 `,
   "convex.config.ts": `import { defineApp } from "convex/server";
 import { v } from "convex/values";
-import auth from "@convex-dev/auth/core/convex.config.js";
+import auth from "@convex-dev/auth/convex.config.js";
 
 const app = defineApp({
   env: {
@@ -92,7 +92,7 @@ app.use(auth, {
 export default app;
 `,
   "auth.ts": `import { components } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup";
+import { setupCore } from "@convex-dev/auth/server";
 
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
