@@ -17,7 +17,7 @@ import {
   OAUTH_ACTIONS_KEY,
   OAUTH_FLOW_ERROR_KEY,
   OAUTH_SETUP_ID,
-  oauth,
+  oauthClient,
   type OauthActions,
   type OauthFlowError,
   type OauthProviderRefs,
@@ -100,7 +100,7 @@ export function seedPendingFlow(
  * records the function reference it was called with, so tests can assert which
  * function ran.
  */
-export function oauthClient(storage: TokenStorage): {
+export function oauthTestClient(storage: TokenStorage): {
   client: AuthClient;
   signInApi: AuthSignInApi;
   mutation: ReturnType<typeof vi.fn>;
@@ -118,7 +118,7 @@ export function oauthClient(storage: TokenStorage): {
     storage,
     storageNamespace: NAMESPACE,
     ambientSignIns: {
-      signIns: [oauth()],
+      signIns: [oauthClient()],
       signInApi,
       convex: { mutation: convexMutation },
     },
@@ -126,11 +126,11 @@ export function oauthClient(storage: TokenStorage): {
   return { client, signInApi, mutation, convexMutation };
 }
 
-/** {@link oauthClient} plus the values the oauth setup published. */
+/** {@link oauthTestClient} plus the values the oauth setup published. */
 export function setupOAuth({
   storage = new InMemoryStorage() as TokenStorage,
 } = {}) {
-  const { client, mutation, convexMutation } = oauthClient(storage);
+  const { client, mutation, convexMutation } = oauthTestClient(storage);
   const oauthValues = client.ambientSignInValues(OAUTH_SETUP_ID);
   const actions = oauthValues.get<OauthActions>(OAUTH_ACTIONS_KEY)!;
   const flowError = () =>

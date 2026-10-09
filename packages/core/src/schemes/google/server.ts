@@ -76,7 +76,7 @@ export type GoogleProviderOptions = {
  * Built-in Google OAuth provider. Wire it up with the Google oauth component:
  *
  * ```ts
- * export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
+ * export const { startSignInWithGoogle, completeSignInWithGoogle } = google(auth, {
  *   component: components.authGoogle,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserGoogle });
@@ -92,7 +92,7 @@ export type GoogleProviderOptions = {
  *
  * The `httpPrefix` alone determines the callback URL.
  */
-export function setupGoogle<UsersTable extends string>(
+export function google<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: GoogleProviderOptions,
 ) {
@@ -110,7 +110,7 @@ export function setupGoogle<UsersTable extends string>(
     attachUserCallbacks(
       callbacks: UserCallbacks<"google", GoogleProfile, UsersTable>,
     ) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindScheme({
         name: PROVIDER_NAME,
         createUser: callbacks.createUser,
         onSignIn: callbacks.onSignIn,
@@ -136,8 +136,8 @@ export function setupGoogle<UsersTable extends string>(
       });
 
       return {
-        startSignInGoogle: startSignIn,
-        completeSignInGoogle: completeSignIn,
+        startSignInWithGoogle: startSignIn,
+        completeSignInWithGoogle: completeSignIn,
       };
     },
   };

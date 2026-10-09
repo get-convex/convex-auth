@@ -4,7 +4,7 @@ import { makeFunctionReference } from "convex/server";
 import { api } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
-import { setupOauth, type OauthCatalog } from "../../schemes/oauth/server.ts";
+import { oauth, type OauthCatalog } from "../../schemes/oauth/server.ts";
 import {
   asComponentApi,
   fakeCallbacks,
@@ -15,7 +15,7 @@ import { sha256Hex } from "../../lib/crypto.ts";
 
 /**
  * Tests for the shared `buildStartSignIn`, run through the app-side
- * `startSignIn` mutation that `setupOauth` produces against the real
+ * `startSignIn` mutation that `oauth` produces against the real
  * component (real `createAuthorizationRequest`, real records). The built-in
  * providers build their authorization URL with the same function.
  */
@@ -70,21 +70,16 @@ const formPostCatalog = {
  * public mutations into the component's generated API.
  */
 const testApp = {
-  startSignInScoped: setupOauth(
+  startSignInScoped: oauth(
     fakeCore,
     "scoped",
     scopedCatalog,
     fakeCallbacks,
     options,
   ).startSignIn,
-  startSignInBare: setupOauth(
-    fakeCore,
-    "bare",
-    bareCatalog,
-    fakeCallbacks,
-    options,
-  ).startSignIn,
-  startSignInFormPost: setupOauth(
+  startSignInBare: oauth(fakeCore, "bare", bareCatalog, fakeCallbacks, options)
+    .startSignIn,
+  startSignInFormPost: oauth(
     fakeCore,
     "formPost",
     formPostCatalog,

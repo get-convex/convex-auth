@@ -31,7 +31,7 @@ import { sha256Hex } from "../lib/crypto.ts";
 // `aud` claim; must match `applicationID` in the app's auth.config.ts.
 const AUDIENCE = "convex";
 // Defaults for the configurable token lifetimes. The app overrides them per
-// deployment via `setupCore`, which threads the chosen values in as call args;
+// deployment via `convexAuth`, which threads the chosen values in as call args;
 // when it passes nothing, these apply.
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60; // 1 minute
 const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -388,7 +388,7 @@ async function notifySignIn(
  * The JWT accessToken in the return value is issued with `issuer` as its
  * `iss`. Token lifetimes default to 1m (access) and 30d (refresh) unless
  * `accessTokenTtlSeconds` / `refreshTokenTtlSeconds` are supplied (the app
- * sets these once via `setupCore`).
+ * sets these once via `convexAuth`).
  *
  * Throws when the identity already has an account. See {@link signIn} for the
  * return-visit path.
@@ -427,7 +427,7 @@ export const signUp = mutation({
  * The JWT accessToken in the return value is issued with `issuer` as its
  * `iss`. Token lifetimes default to 1m (access) and 30d (refresh) unless
  * `accessTokenTtlSeconds` / `refreshTokenTtlSeconds` are supplied (the app
- * sets these once via `setupCore`).
+ * sets these once via `convexAuth`).
  *
  * Throws when the identity has no account.
  */

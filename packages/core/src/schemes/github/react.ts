@@ -38,13 +38,13 @@ export type UseSignInWithGithubReturn = {
  * to renamed exports.
  */
 export function useSignInWithGithub(api: {
-  startSignInGithub: OauthProviderApi["startSignIn"];
-  completeSignInGithub: OauthProviderApi["completeSignIn"];
+  startSignInWithGithub: OauthProviderApi["startSignIn"];
+  completeSignInWithGithub: OauthProviderApi["completeSignIn"];
 }): UseSignInWithGithubReturn {
   const { signIn } = useOauthSignIn({
     providerName: "github",
-    startSignIn: api.startSignInGithub,
-    completeSignIn: api.completeSignInGithub,
+    startSignIn: api.startSignInWithGithub,
+    completeSignIn: api.completeSignInWithGithub,
   });
   return { signInGithub: signIn };
 }

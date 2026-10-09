@@ -95,10 +95,10 @@ export type UsernamePasskeySignInResult =
  *
  * function LogIn() {
  *   const { signIn, pending, autofill } = useUsernamePasskeySignIn({
- *     startSignIn: api.auth.startSignIn,
- *     startAutofillSignIn: api.auth.startAutofillSignIn,
- *     finishSignIn: api.auth.finishSignIn,
- *     finishSignUp: api.auth.finishSignUp,
+ *     startSignInWithUsernamePasskey: api.auth.startSignInWithUsernamePasskey,
+ *     startAutofillSignInWithUsernamePasskey: api.auth.startAutofillSignInWithUsernamePasskey,
+ *     finishSignInWithUsernamePasskey: api.auth.finishSignInWithUsernamePasskey,
+ *     finishSignUpWithUsernamePasskey: api.auth.finishSignUpWithUsernamePasskey,
  *   });
  *   return (
  *     <form
@@ -143,12 +143,18 @@ export function useUsernamePasskeySignIn(
   const autofill = usePasskeyAutofill<UsernamePasskeyAutofillError>({
     start: async () => {
       const { convex, api } = ctxRef.current;
-      const { options } = await convex.mutation(api.startAutofillSignIn, {});
+      const { options } = await convex.mutation(
+        api.startAutofillSignInWithUsernamePasskey,
+        {},
+      );
       return options;
     },
     onAssertion: async (response) => {
       const { api, signInApi, setSession } = ctxRef.current;
-      const result = await signInApi.mutation(api.finishSignIn, { response });
+      const result = await signInApi.mutation(
+        api.finishSignInWithUsernamePasskey,
+        { response },
+      );
       if (result.status !== "complete") {
         // The autofill loop takes its own `success` boolean, not the
         // envelope: it retries on a failed assertion rather than handing

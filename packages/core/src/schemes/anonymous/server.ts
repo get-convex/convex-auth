@@ -19,15 +19,15 @@ const PROVIDER_NAME = "anonymous";
  * anonymous account.
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
- * export const { signInAnonymous } = setupAnonymous(core, {
+ * export const { signInAnonymously } = anonymous(auth, {
  *   component: components.authAnonymous,
  * }).attachUserCallbacks({ createUser: internal.users.createUserAnonymous });
  * ```
  */
-export function setupAnonymous<UsersTable extends string>(
+export function anonymous<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: {
     /** The mounted anonymous component (`components.authAnonymous`). */
@@ -49,7 +49,7 @@ export function setupAnonymous<UsersTable extends string>(
       createUser,
       onSignIn,
     }: UserCallbacks<"anonymous", Record<string, never>, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindScheme({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,
@@ -62,7 +62,7 @@ export function setupAnonymous<UsersTable extends string>(
         // validates before moving the refresh token into its cookie), and it
         // leaves room for a `userError` arm later without another breaking
         // change.
-        signInAnonymous: authMutation({
+        signInAnonymously: authMutation({
           args: {},
           returns: vSignInComplete,
           handler: async (ctx): Promise<SignInComplete> => {

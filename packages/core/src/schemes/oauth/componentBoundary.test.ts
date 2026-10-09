@@ -21,13 +21,13 @@ import { registerGithubOauth } from "../../testing/github.ts";
 import { registerGoogleOauth } from "../../testing/google.ts";
 import { registerOauth } from "../../testing/oauth.ts";
 import type { ComponentApi as AppleComponentApi } from "../../components/apple/_generated/component.ts";
-import { setupApple } from "../apple/server.ts";
+import { apple } from "../apple/server.ts";
 import type { ComponentApi as OauthComponentApi } from "../../components/oauth/_generated/component.ts";
-import { setupOauth } from "./server.ts";
+import { oauth } from "./server.ts";
 import type { ComponentApi as GithubComponentApi } from "../../components/github/_generated/component.ts";
-import { setupGithub } from "../github/server.ts";
+import { github } from "../github/server.ts";
 import type { ComponentApi as GoogleComponentApi } from "../../components/google/_generated/component.ts";
-import { setupGoogle } from "../google/server.ts";
+import { google } from "../google/server.ts";
 import {
   ALLOWED_ORIGINS,
   fakeCallbacks,
@@ -47,7 +47,7 @@ const components = componentsGeneric() as unknown as {
   authGoogle: GoogleComponentApi<"authGoogle">;
 };
 
-const acme = setupOauth(
+const acme = oauth(
   fakeCore,
   "acme",
   {
@@ -61,17 +61,17 @@ const acme = setupOauth(
 );
 
 const testApp = {
-  startSignInAcme: acme.startSignIn,
-  completeSignInAcme: acme.completeSignIn,
-  ...setupApple(fakeCore, {
+  startSignInWithAcme: acme.startSignIn,
+  completeSignInWithAcme: acme.completeSignIn,
+  ...apple(fakeCore, {
     component: components.authApple,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
   }).attachUserCallbacks(fakeCallbacks),
-  ...setupGithub(fakeCore, {
+  ...github(fakeCore, {
     component: components.authGithub,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
   }).attachUserCallbacks(fakeCallbacks),
-  ...setupGoogle(fakeCore, {
+  ...google(fakeCore, {
     component: components.authGoogle,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
   }).attachUserCallbacks(fakeCallbacks),
@@ -117,12 +117,12 @@ describe.each([
     "mutation",
     { redirectTo: string },
     { redirect: string; state: string }
-  >(`testApp:startSignIn${provider}`);
+  >(`testApp:startSignInWith${provider}`);
   const completeSignIn = makeFunctionReference<
     "mutation",
     { code: string; state: string },
     unknown
-  >(`testApp:completeSignIn${provider}`);
+  >(`testApp:completeSignInWith${provider}`);
 
   test("startSignIn builds the redirect from what the component returns", async () => {
     const t = setup();

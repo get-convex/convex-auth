@@ -11,10 +11,11 @@ export function LogIn() {
   // the autocompletion list of the username field below (the field carries
   // autoComplete="username webauthn"). Picking one signs in directly.
   const { signIn, pending, autofill } = useUsernamePasskeySignIn({
-    startSignIn: api.auth.startSignIn,
-    startAutofillSignIn: api.auth.startAutofillSignIn,
-    finishSignIn: api.auth.finishSignIn,
-    finishSignUp: api.auth.finishSignUp,
+    startSignInWithUsernamePasskey: api.auth.startSignInWithUsernamePasskey,
+    startAutofillSignInWithUsernamePasskey:
+      api.auth.startAutofillSignInWithUsernamePasskey,
+    finishSignInWithUsernamePasskey: api.auth.finishSignInWithUsernamePasskey,
+    finishSignUpWithUsernamePasskey: api.auth.finishSignUpWithUsernamePasskey,
   });
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);

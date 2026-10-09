@@ -34,7 +34,7 @@ function ProbeStatus() {
 
 /**
  * Renders the flow error from the default oauth setup. The hook throws when
- * oauth() was never registered, so rendering this at all is the assertion.
+ * oauthClient() was never registered, so rendering this at all is the assertion.
  */
 function OauthFlowError() {
   return <div>{String(useOauth().flowError)}</div>;
@@ -121,7 +121,7 @@ describe("ConvexAuthProvider ambient sign-ins", () => {
     expect(mutationSpy).toHaveBeenCalledWith(signIn, {});
   });
 
-  test("oauth() is registered when no ambient sign-ins are given", () => {
+  test("oauthClient() is registered when no ambient sign-ins are given", () => {
     const client = makeConvexClient();
     render(
       <ConvexAuthProvider client={client} api={API}>

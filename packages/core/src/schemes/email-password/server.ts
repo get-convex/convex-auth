@@ -102,7 +102,7 @@ export type EmailPasswordUrls = {
 };
 
 /**
- * Options for {@link setupEmailPassword}.
+ * Options for {@link emailPassword}.
  */
 export type EmailPasswordOptions = {
   /**
@@ -135,7 +135,7 @@ const signUpResult = v.union(
 );
 
 /**
- * The result of `signUp`. On success, the secret the browser must keep for
+ * The result of `signUpWithEmailPassword`. On success, the secret the browser must keep for
  * `completeSignUp`; the session arrives only after the email is validated.
  */
 export type SignUpResult = Infer<typeof signUpResult>;
@@ -158,7 +158,7 @@ const signInResult = v.union(
   ),
 );
 
-/** The result of `signIn`: the minted session tokens, or an error. */
+/** The result of `signInWithEmailPassword`: the minted session tokens, or an error. */
 export type SignInResult = Infer<typeof signInResult>;
 
 const changePasswordResult = v.union(
@@ -268,20 +268,20 @@ export type EmailPasswordProfile = Record<string, never>;
  * ```ts
  * import { env } from "../../components/email/_generated/server";
  *
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const {
- *   signUp,
+ *   signUpWithEmailPassword,
  *   completeSignUp,
- *   signIn,
+ *   signInWithEmailPassword,
  *   changePassword,
  *   startPasswordRecovery,
  *   checkPasswordRecovery,
  *   completePasswordRecovery,
  *   startChangeEmail,
  *   completeChangeEmail,
- * } = setupEmailPassword(core, {
+ * } = emailPassword(auth, {
  *   component: components.authEmail,
  *   passwordComponent: components.authPassword,
  *   emailSender: {
@@ -308,7 +308,7 @@ export type EmailPasswordProfile = Record<string, never>;
  * Account resolution (email → app user id) is owned by the email component;
  * the password component stores only `{ userId, passwordHash }`.
  */
-export function setupEmailPassword<UsersTable extends string>(
+export function emailPassword<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: EmailPasswordOptions,
 ) {
@@ -371,7 +371,7 @@ export function setupEmailPassword<UsersTable extends string>(
       createUser,
       onSignIn,
     }: UserCallbacks<typeof PROVIDER_NAME, EmailPasswordProfile, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindScheme({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,
@@ -388,7 +388,7 @@ export function setupEmailPassword<UsersTable extends string>(
          * users; the first completed validation wins, and the others can never
          * sign in.
          */
-        signUp: authMutation({
+        signUpWithEmailPassword: authMutation({
           args: { email: v.string(), password: v.string() },
           returns: signUpResult,
           handler: async (ctx, { email, password }): Promise<SignUpResult> => {
@@ -496,7 +496,7 @@ export function setupEmailPassword<UsersTable extends string>(
          * per-IP limit, and returns `RATE_LIMITED` when the client has done
          * too many lookups.
          */
-        signIn: authMutation({
+        signInWithEmailPassword: authMutation({
           args: { email: v.string(), password: v.string() },
           returns: signInResult,
           handler: async (ctx, { email, password }): Promise<SignInResult> => {

@@ -8,7 +8,7 @@
  * startup code has to return right away unless it finds a sign-in of its own
  * to finish.
  *
- * A provider module exports a factory (e.g. `oauth(...)`) producing an
+ * A provider module exports a factory (e.g. `oauthClient(...)`) producing an
  * {@link AmbientSignInClient} the app passes to `ConvexAuthProvider`'s
  * `ambientSignIns` prop. Each registration carries a unique alphanumeric
  * `id` naming the auth method. The values and storage views the setup

@@ -3,7 +3,7 @@
  * drives them: a signed-in user lists, adds, and removes their passkeys.
  *
  * The test runs against this example app, thus it covers the wiring that a
- * real app copies — the `setupUsernamePasskey` call, the `createUser`
+ * real app copies — the `usernamePasskey` call, the `createUser`
  * callback, and the mount paths of `convex.config.ts`.
  */
 import { convexTest, type TestConvex } from "convex-test";
@@ -111,12 +111,14 @@ async function signUp(
   username: string,
   aaguid?: Uint8Array,
 ): Promise<{ userId: string; credential: TestCredential }> {
-  const start = await t.mutation(api.auth.startSignIn, { username });
+  const start = await t.mutation(api.auth.startSignInWithUsernamePasskey, {
+    username,
+  });
   if (!start.success || start.step !== "register") {
     throw new Error("The username is not free.");
   }
   const credential = await generateES256Credential();
-  const result = await t.mutation(api.auth.finishSignUp, {
+  const result = await t.mutation(api.auth.finishSignUpWithUsernamePasskey, {
     username,
     ...(await attest(start.options.challenge, credential, aaguid)),
   });
@@ -278,7 +280,9 @@ describe("adding a passkey", () => {
     const caller = as(t, alice.userId);
 
     // A sign-in challenge carries a different purpose.
-    const start = await t.mutation(api.auth.startSignIn, { username: "alice" });
+    const start = await t.mutation(api.auth.startSignInWithUsernamePasskey, {
+      username: "alice",
+    });
     if (!start.success || start.step !== "authenticate") {
       throw new Error("The username has an account.");
     }
@@ -337,7 +341,9 @@ describe("adding a passkey", () => {
     // the new-user flow. `finishAddPasskey` runs the existing-user flow, and
     // the flows never mix: the mismatch is a protocol violation, the message
     // goes to the backend logs, and the client gets `PROTOCOL_ERROR`.
-    const start = await t.mutation(api.auth.startSignIn, { username: "carol" });
+    const start = await t.mutation(api.auth.startSignInWithUsernamePasskey, {
+      username: "carol",
+    });
     if (!start.success || start.step !== "register") {
       throw new Error("The username is free.");
     }

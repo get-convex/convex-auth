@@ -26,10 +26,10 @@ const noopAutofill = {
 // The hook calls several different mutations, so both call paths dispatch on
 // the reference (a string sentinel here) to one mock per mutation.
 const mutations = {
-  startSignIn: vi.fn(),
-  finishSignIn: vi.fn(),
-  finishSignUp: vi.fn(),
-  startAutofillSignIn: vi.fn(),
+  startSignInWithUsernamePasskey: vi.fn(),
+  finishSignInWithUsernamePasskey: vi.fn(),
+  finishSignUpWithUsernamePasskey: vi.fn(),
+  startAutofillSignInWithUsernamePasskey: vi.fn(),
 };
 const runMutation = (fn: unknown, args: unknown) =>
   mutations[fn as keyof typeof mutations](args);
@@ -43,10 +43,11 @@ const signInApi = { mutation: runMutation } as unknown as AuthSignInApi;
 const convexClient = { mutation: runMutation } as unknown as ConvexReactClient;
 
 const passkeyApi = {
-  startSignIn: "startSignIn",
-  startAutofillSignIn: "startAutofillSignIn",
-  finishSignIn: "finishSignIn",
-  finishSignUp: "finishSignUp",
+  startSignInWithUsernamePasskey: "startSignInWithUsernamePasskey",
+  startAutofillSignInWithUsernamePasskey:
+    "startAutofillSignInWithUsernamePasskey",
+  finishSignInWithUsernamePasskey: "finishSignInWithUsernamePasskey",
+  finishSignUpWithUsernamePasskey: "finishSignUpWithUsernamePasskey",
 } as unknown as UsernamePasskeyApi;
 
 //------------------------------------------------------------------------------
@@ -325,9 +326,9 @@ function renderPasskey() {
 
 describe("useUsernamePasskeySignIn signIn", () => {
   test("sign-up success runs the registration ceremony and adopts the session", async () => {
-    mutations.startSignIn.mockResolvedValue(registerStart);
+    mutations.startSignInWithUsernamePasskey.mockResolvedValue(registerStart);
     ceremonyCreate.mockResolvedValue(registrationResponse);
-    mutations.finishSignUp.mockResolvedValue({
+    mutations.finishSignUpWithUsernamePasskey.mockResolvedValue({
       status: "complete",
       tokens: bundle,
     });
@@ -339,13 +340,15 @@ describe("useUsernamePasskeySignIn signIn", () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
 
-    expect(mutations.startSignIn).toHaveBeenCalledWith({ username: "alice" });
+    expect(mutations.startSignInWithUsernamePasskey).toHaveBeenCalledWith({
+      username: "alice",
+    });
     // The server-built options go to the browser untouched.
     expect(ceremonyCreate).toHaveBeenCalledWith({
       optionsJSON: creationOptions,
     });
     // The response reaches the finish mutation pruned to the wire shape.
-    expect(mutations.finishSignUp).toHaveBeenCalledWith({
+    expect(mutations.finishSignUpWithUsernamePasskey).toHaveBeenCalledWith({
       username: "alice",
       response: wireRegistrationResponse,
     });
@@ -359,9 +362,11 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("sign-in success runs the authentication ceremony and adopts the session", async () => {
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
+    mutations.startSignInWithUsernamePasskey.mockResolvedValue(
+      authenticateStart,
+    );
     ceremonyGet.mockResolvedValue(authenticationResponse);
-    mutations.finishSignIn.mockResolvedValue({
+    mutations.finishSignInWithUsernamePasskey.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -377,7 +382,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(ceremonyGet).toHaveBeenCalledWith({
       optionsJSON: requestOptions,
     });
-    expect(mutations.finishSignIn).toHaveBeenCalledWith({
+    expect(mutations.finishSignInWithUsernamePasskey).toHaveBeenCalledWith({
       response: wireAuthenticationResponse,
     });
     expect(returned).toEqual({
@@ -389,8 +394,8 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(result.current.auth.isAuthenticated).toBe(true);
   });
 
-  test("a startSignIn userError becomes an error arm without a ceremony", async () => {
-    mutations.startSignIn.mockResolvedValue({
+  test("a startSignInWithUsernamePasskey userError becomes an error arm without a ceremony", async () => {
+    mutations.startSignInWithUsernamePasskey.mockResolvedValue({
       success: false,
       userError: { error: "USERNAME_INVALID" },
     });
@@ -402,7 +407,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       returned = await result.current.passkey.signIn({ username: "no" });
     });
 
-    // `startSignIn` answers with its own `success` boolean; the flow re-wraps
+    // `startSignInWithUsernamePasskey` answers with its own `success` boolean; the flow re-wraps
     // the failure so callers see the envelope's one discriminant.
     expect(returned).toEqual({
       status: "error",
@@ -414,7 +419,9 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("NotAllowedError folds into CEREMONY_ABORTED", async () => {
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
+    mutations.startSignInWithUsernamePasskey.mockResolvedValue(
+      authenticateStart,
+    );
     ceremonyGet.mockRejectedValue(
       new DOMException("The operation was cancelled.", "NotAllowedError"),
     );
@@ -435,14 +442,16 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("a second signIn while one runs fails fast and the first completes", async () => {
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
+    mutations.startSignInWithUsernamePasskey.mockResolvedValue(
+      authenticateStart,
+    );
     let resolveCeremony!: (value: unknown) => void;
     ceremonyGet.mockReturnValue(
       new Promise((resolve) => {
         resolveCeremony = resolve;
       }),
     );
-    mutations.finishSignIn.mockResolvedValue({
+    mutations.finishSignInWithUsernamePasskey.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -466,7 +475,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
       status: "error",
       userError: { error: "ALREADY_PENDING" },
     });
-    expect(mutations.startSignIn).toHaveBeenCalledTimes(1);
+    expect(mutations.startSignInWithUsernamePasskey).toHaveBeenCalledTimes(1);
 
     // The first call still completes normally.
     let firstResult!: UsernamePasskeySignInResult;
@@ -493,7 +502,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 
   test("signIn keeps one identity while the autofill status changes", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    mutations.startAutofillSignInWithUsernamePasskey.mockResolvedValue({
       options: requestOptions,
     });
     conditionalGet.mockImplementation(pendingForever);
@@ -522,7 +531,9 @@ describe("useUsernamePasskeySignIn autofill", () => {
       expect(result.current.passkey.autofill.status).toBe("stopped"),
     );
     expect(result.current.passkey.autofill.available).toBe(false);
-    expect(mutations.startAutofillSignIn).not.toHaveBeenCalled();
+    expect(
+      mutations.startAutofillSignInWithUsernamePasskey,
+    ).not.toHaveBeenCalled();
     spy.mockRestore();
 
     unmount();
@@ -530,11 +541,11 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("a picked passkey signs the user in: waiting → signedIn", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    mutations.startAutofillSignInWithUsernamePasskey.mockResolvedValue({
       options: requestOptions,
     });
     conditionalGet.mockResolvedValue(conditionalCredential);
-    mutations.finishSignIn.mockResolvedValue({
+    mutations.finishSignInWithUsernamePasskey.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -550,7 +561,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
     expect(call.mediation).toBe("conditional");
     expect(call.signal).toBeInstanceOf(AbortSignal);
     expect(call.publicKey.rpId).toBe(requestOptions.rpId);
-    expect(mutations.finishSignIn).toHaveBeenCalledWith({
+    expect(mutations.finishSignInWithUsernamePasskey).toHaveBeenCalledWith({
       response: wireAuthenticationResponse,
     });
     expect(result.current.auth.isAuthenticated).toBe(true);
@@ -561,13 +572,13 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("a success after a failed assertion clears lastError", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    mutations.startAutofillSignInWithUsernamePasskey.mockResolvedValue({
       options: requestOptions,
     });
     conditionalGet.mockResolvedValue(conditionalCredential);
     // The first assertion fails on the server; the loop retries with a
     // fresh challenge and the second one succeeds.
-    mutations.finishSignIn
+    mutations.finishSignInWithUsernamePasskey
       .mockResolvedValueOnce({
         status: "error",
         userError: { error: "CHALLENGE_EXPIRED" },
@@ -592,7 +603,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
   });
 
   test("signIn pauses the pending autofill request and resumes it after", async () => {
-    mutations.startAutofillSignIn.mockResolvedValue({
+    mutations.startAutofillSignInWithUsernamePasskey.mockResolvedValue({
       options: requestOptions,
     });
     // The conditional (autofill) request stays pending until aborted; the
@@ -611,8 +622,10 @@ describe("useUsernamePasskeySignIn autofill", () => {
       expect(conditionalSignal?.aborted).toBe(true);
       return Promise.resolve(authenticationResponse);
     });
-    mutations.startSignIn.mockResolvedValue(authenticateStart);
-    mutations.finishSignIn.mockResolvedValue({
+    mutations.startSignInWithUsernamePasskey.mockResolvedValue(
+      authenticateStart,
+    );
+    mutations.finishSignInWithUsernamePasskey.mockResolvedValue({
       status: "complete",
       tokens: bundle,
       username: "alice",
@@ -621,7 +634,9 @@ describe("useUsernamePasskeySignIn autofill", () => {
     await waitFor(() =>
       expect(result.current.passkey.autofill.status).toBe("waiting"),
     );
-    expect(mutations.startAutofillSignIn).toHaveBeenCalledTimes(1);
+    expect(
+      mutations.startAutofillSignInWithUsernamePasskey,
+    ).toHaveBeenCalledTimes(1);
 
     let returned!: UsernamePasskeySignInResult;
     await act(async () => {
@@ -637,7 +652,9 @@ describe("useUsernamePasskeySignIn autofill", () => {
     // The modal flow resumed the loop afterwards: it asks for a fresh
     // challenge and a new conditional request starts.
     await waitFor(() =>
-      expect(mutations.startAutofillSignIn).toHaveBeenCalledTimes(2),
+      expect(
+        mutations.startAutofillSignInWithUsernamePasskey,
+      ).toHaveBeenCalledTimes(2),
     );
     await waitFor(() =>
       expect(result.current.passkey.autofill.status).toBe("waiting"),

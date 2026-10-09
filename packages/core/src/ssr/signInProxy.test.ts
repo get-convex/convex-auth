@@ -8,7 +8,7 @@ import { convexProxyHandler, type ExposedSignInFn } from "./signInProxy.ts";
 const CONVEX_URL = "https://happy-animal-123.convex.cloud";
 
 const signIn = makeFunctionReference<"action">(
-  "auth:signInWithPassword",
+  "auth:signInWithUsernamePassword",
 ) as ExposedSignInFn;
 
 function bundle(): TokenBundle {
@@ -52,7 +52,7 @@ function call(
 }
 
 const envelope = (args: unknown = {}) => ({
-  path: "auth:signInWithPassword",
+  path: "auth:signInWithUsernamePassword",
   format: "convex_encoded_json",
   args: [args],
 });
@@ -247,7 +247,7 @@ describe("forwarding", () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`${CONVEX_URL}/api/action`);
     expect(JSON.parse(init.body as string)).toEqual({
-      path: "auth:signInWithPassword",
+      path: "auth:signInWithUsernamePassword",
       format: "convex_encoded_json",
       args: [{ username: "alice", password: "hunter2" }],
     });
@@ -361,7 +361,7 @@ describe("ConvexHttpClient wire contract", () => {
 
     const result = await client.action(
       makeFunctionReference<"action", { username: string }, unknown>(
-        "auth:signInWithPassword",
+        "auth:signInWithUsernamePassword",
       ),
       { username: "alice" },
     );
@@ -410,7 +410,7 @@ describe("ConvexHttpClient wire contract", () => {
     await expect(
       client.action(
         makeFunctionReference<"action", Record<string, never>, unknown>(
-          "auth:signInWithPassword",
+          "auth:signInWithUsernamePassword",
         ),
         {},
       ),

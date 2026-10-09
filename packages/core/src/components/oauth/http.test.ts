@@ -26,7 +26,7 @@ type FlowRequest = Omit<
  * userinfo responses, both, or (as {@link baseRequest} alone) neither, which
  * is a misconfiguration two tests exercise.
  *
- * These carry every field the real app-side `setupOauth` would send, so a test
+ * These carry every field the real app-side `oauth` would send, so a test
  * declares its whole flow and {@link startFlow} adds no defaults of its own.
  */
 const baseRequest = {

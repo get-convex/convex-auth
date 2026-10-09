@@ -7,7 +7,7 @@
 import { api } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
-import { setupApple } from "../../schemes/apple/server.ts";
+import { apple } from "../../schemes/apple/server.ts";
 import {
   ALLOWED_ORIGINS,
   asComponentApi,
@@ -18,12 +18,12 @@ import {
 
 const modules = import.meta.glob("./**/*.ts");
 
-const { startSignInApple } = setupApple(fakeCore, {
+const { startSignInWithApple } = apple(fakeCore, {
   component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 }).attachUserCallbacks(fakeCallbacks);
 
-testAuthorizationUrl(schema, modules, startSignInApple, {
+testAuthorizationUrl(schema, modules, startSignInWithApple, {
   authorizationEndpoint: "https://appleid.apple.com/auth/authorize",
   scope: "name email",
   responseMode: "form_post",

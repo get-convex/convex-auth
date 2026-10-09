@@ -12,10 +12,10 @@ export const auth = setupConvexAuthServer({
   // returns its tokens, must be listed here. The sign-in route refuses
   // anything else.
   signIn: [
-    api.auth.signInAnonymous,
-    api.auth.signInWithPassword,
-    api.auth.signUpWithPassword,
-    api.auth.completeSignInGithub,
+    api.auth.signInAnonymously,
+    api.auth.signInWithUsernamePassword,
+    api.auth.signUpWithUsernamePassword,
+    api.auth.completeSignInWithGithub,
   ],
   cookieOptions: { secure: process.env.NODE_ENV === "production" },
 });

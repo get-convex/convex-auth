@@ -5,7 +5,7 @@ import type { PropertyValidators } from "convex/values";
 import { api, internal } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
-import { setupOauth, type OauthProfile } from "../../schemes/oauth/server.ts";
+import { oauth, type OauthProfile } from "../../schemes/oauth/server.ts";
 import {
   asComponentApi,
   fakeCallbacks,
@@ -28,7 +28,7 @@ import type {
 } from "../../server/setup.ts";
 
 /**
- * Tests for the app-side `completeSignIn` mutation that `setupOauth`
+ * Tests for the app-side `completeSignIn` mutation that `oauth`
  * produces, run against the real component (real `claimTicket`, real ticket
  * crypto). The core helpers it uses (`ctx.convexAuth.completeSignUp` /
  * `completeSignIn`, plus the `resolveUserId` it picks between them with) are
@@ -79,7 +79,7 @@ const invalidCode = { status: "error", userError: { error: "INVALID_CODE" } };
  * `signUpWithoutSession` is never reached by redemption.
  */
 const fakeCore = {
-  bindProvider: <Provider extends string, Profile>({
+  bindScheme: <Provider extends string, Profile>({
     name,
   }: {
     name: Provider;
@@ -190,28 +190,28 @@ const missingIdCatalog = {
  * public mutations into the component's generated API.
  */
 const testApp = {
-  completeSignInAcme: setupOauth(
+  completeSignInAcme: oauth(
     fakeCore,
     "acme",
     claimsCatalog,
     fakeCallbacks,
     options,
   ).completeSignIn,
-  completeSignInAcmeInfo: setupOauth(
+  completeSignInAcmeInfo: oauth(
     fakeCore,
     "acmeInfo",
     userInfoCatalog,
     fakeCallbacks,
     options,
   ).completeSignIn,
-  completeSignInEmptyId: setupOauth(
+  completeSignInEmptyId: oauth(
     fakeCore,
     "emptyId",
     emptyIdCatalog,
     fakeCallbacks,
     options,
   ).completeSignIn,
-  completeSignInMissingId: setupOauth(
+  completeSignInMissingId: oauth(
     fakeCore,
     "missingId",
     missingIdCatalog,

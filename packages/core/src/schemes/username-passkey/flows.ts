@@ -62,17 +62,17 @@ type FinishSignInMutation = FunctionReference<
 
 /** The mutation references the sign-in flows drive. */
 export type UsernamePasskeyApi = {
-  startSignIn: StartSignInMutation;
-  startAutofillSignIn: StartAutofillSignInMutation;
-  finishSignIn: FinishSignInMutation;
-  finishSignUp: FinishSignUpMutation;
+  startSignInWithUsernamePasskey: StartSignInMutation;
+  startAutofillSignInWithUsernamePasskey: StartAutofillSignInMutation;
+  finishSignInWithUsernamePasskey: FinishSignInMutation;
+  finishSignUpWithUsernamePasskey: FinishSignUpMutation;
 };
 
 /** What the sign-in flows need from the surrounding React tree. */
 export type SignInFlowContext = {
   /** The Convex client of the surrounding provider. */
   convex: ConvexReactClient;
-  /** The mutation references the app re-exported from its `setupCore`. */
+  /** The mutation references the app re-exported from its `convexAuth`. */
   api: UsernamePasskeyApi;
   /**
    * Runs a mutation that mints a session. The finishing mutations go
@@ -85,7 +85,7 @@ export type SignInFlowContext = {
 };
 
 /**
- * The user-facing failures the ceremony protocol reports. `startSignIn` and
+ * The user-facing failures the ceremony protocol reports. `startSignInWithUsernamePasskey` and
  * the browser ceremonies answer with their own `success` boolean rather than
  * the shared envelope, so this flow re-wraps their payloads as error arms and
  * callers only ever see the one discriminant.
@@ -131,7 +131,9 @@ export async function runSignInOrSignUpFlow(
     return { status: "error", userError: { error: "WEBAUTHN_UNSUPPORTED" } };
   }
 
-  const start = await convex.mutation(api.startSignIn, { username });
+  const start = await convex.mutation(api.startSignInWithUsernamePasskey, {
+    username,
+  });
   if (!start.success) {
     return { status: "error", userError: start.userError };
   }
@@ -144,10 +146,13 @@ export async function runSignInOrSignUpFlow(
     if (!ceremony.success) {
       return { status: "error", userError: ceremony.userError };
     }
-    const result = await signInApi.mutation(api.finishSignUp, {
-      username,
-      response: ceremony.response,
-    });
+    const result = await signInApi.mutation(
+      api.finishSignUpWithUsernamePasskey,
+      {
+        username,
+        response: ceremony.response,
+      },
+    );
     if (result.status !== "complete") {
       return result;
     }
@@ -159,7 +164,7 @@ export async function runSignInOrSignUpFlow(
   if (!ceremony.success) {
     return { status: "error", userError: ceremony.userError };
   }
-  const result = await signInApi.mutation(api.finishSignIn, {
+  const result = await signInApi.mutation(api.finishSignInWithUsernamePasskey, {
     response: ceremony.response,
   });
   if (result.status !== "complete") {
