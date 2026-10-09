@@ -2,9 +2,9 @@ import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { api, components } from "./_generated/api.js";
-import { registerCore } from "@convex-dev/auth/providers/testing/core";
-import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password";
-import { registerUsername } from "@convex-dev/auth/providers/testing/username";
+import { registerCore } from "@convex-dev/auth/test";
+import { registerPasswordProvider } from "@convex-dev/auth/components/password/test";
+import { registerUsername } from "@convex-dev/auth/components/username/test";
 import schema from "./schema.js";
 
 const modules = import.meta.glob("./**/*.ts");

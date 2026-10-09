@@ -107,7 +107,7 @@ export function ConvexAuthProvider({
    *
    * Setting this replaces the default (`[oauth()]`) entirely rather than adding
    * to it. Pass `[]` to register nothing, or include `oauth()` (from
-   * `@convex-dev/auth/providers/oauth/react`) yourself to keep it alongside
+   * `@convex-dev/auth/schemes/oauth/react`) yourself to keep it alongside
    * other sign-ins. Read once when the client is created and not expected to
    * change.
    */

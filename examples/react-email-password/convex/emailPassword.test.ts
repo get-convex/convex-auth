@@ -3,10 +3,12 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import type { AnyDataModel, GenericMutationCtx } from "convex/server";
 import { api, components } from "./_generated/api";
-import { registerCore } from "@convex-dev/auth/providers/testing/core";
-import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password";
-import { registerEmail } from "@convex-dev/auth/providers/testing/email";
-import { registerResendStub } from "@convex-dev/auth/providers/testing/resend";
+import { registerCore } from "@convex-dev/auth/test";
+import { registerPasswordProvider } from "@convex-dev/auth/components/password/test";
+import {
+  registerEmail,
+  registerResendStub,
+} from "@convex-dev/auth/components/email/test";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");

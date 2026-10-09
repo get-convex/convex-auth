@@ -5,6 +5,15 @@ import { register as registerRateLimiter } from "@convex-dev/rate-limiter/test";
 import schema from "../components/email/schema.ts";
 const modules = import.meta.glob("../components/email/**/*.ts");
 
+// The email scheme sends email through `@convex-dev/resend`. Its test stub
+// ships with the email component helpers.
+export {
+  registerResendStub,
+  sentEmails,
+  stubEmailSender,
+  type SentEmail,
+} from "./resend.ts";
+
 /**
  * Register the email component with a `convex-test` instance.
  *

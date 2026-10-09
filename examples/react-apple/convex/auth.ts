@@ -1,6 +1,6 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup";
-import { setupApple } from "@convex-dev/auth/providers/oauth/apple";
+import { setupCore } from "@convex-dev/auth/server";
+import { setupApple } from "@convex-dev/auth/schemes/apple/server";
 
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;

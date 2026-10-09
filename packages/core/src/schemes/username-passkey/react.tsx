@@ -1,6 +1,6 @@
 /**
  * React client for the passkey provider, exported at
- * `@convex-dev/auth/providers/passkey/react`.
+ * `@convex-dev/auth/schemes/username-passkey/react`.
  *
  * {@link useUsernamePasskeySignIn} is the batteries-included hook for the
  * username + passkey login form. It drives the browser-side WebAuthn
@@ -90,7 +90,7 @@ export type UsernamePasskeySignInResult =
  *   directly in the autocompletion list.
  *
  * ```tsx
- * import { useUsernamePasskeySignIn } from "@convex-dev/auth/providers/passkey/react";
+ * import { useUsernamePasskeySignIn } from "@convex-dev/auth/schemes/username-passkey/react";
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {

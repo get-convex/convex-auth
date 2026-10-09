@@ -1,6 +1,6 @@
 /**
  * React client for the password provider, exported at
- * `@convex-dev/auth/providers/password/react`.
+ * `@convex-dev/auth/schemes/username-password/react`.
  *
  * A provider's job on the client is to run its own sign-in flow and hand the
  * resulting {@link TokenBundle} to the core client's `setSession` (see {@link
@@ -86,7 +86,7 @@ export type SignUpWithPasswordResult =
  * whether the sign-in was successful or if you need to handle an error.
  *
  * ```tsx
- * import { useSignInWithPassword } from "@convex-dev/auth/providers/password/react";
+ * import { useSignInWithPassword } from "@convex-dev/auth/schemes/username-password/react";
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
@@ -145,7 +145,7 @@ export function useSignInWithPassword(
  * whether the sign-up was successful or if you need to handle an error.
  *
  * ```tsx
- * import { useSignUpWithPassword } from "@convex-dev/auth/providers/password/react";
+ * import { useSignUpWithPassword } from "@convex-dev/auth/schemes/username-password/react";
  * import { api } from "../convex/_generated/api";
  *
  * function SignUp() {

@@ -44,6 +44,10 @@ function collectEntryPoints() {
       continue;
     // `_generated` holds the component API, not a user import.
     if (key.includes("_generated")) continue;
+    // The root entry only holds types that `/ssr` also exports. TypeDoc
+    // writes the landing page of the reference to `index.md`, thus a root
+    // module would replace it.
+    if (key === ".") continue;
     const target = typeof value === "string" ? value : value.types;
     if (!target) continue;
     const srcPattern = target

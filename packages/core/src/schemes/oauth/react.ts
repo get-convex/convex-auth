@@ -1,12 +1,13 @@
 /**
- * React client for the OAuth providers, exported at
- * `@convex-dev/auth/providers/oauth/react`.
+ * React client for the generic OAuth scheme, exported at
+ * `@convex-dev/auth/schemes/oauth/react`.
  *
  * OAuth is registered by default in `ConvexAuthProvider` and
- * `ConvexAuthNextjsProvider`. Each supported provider ships a hook that reads
- * its sign-in functions from the module you pass in, usually the generated
- * `api.auth`. {@link useOauth} returns the state that isn't tied to one
- * provider.
+ * `ConvexAuthNextjsProvider`. {@link useOauthSignIn} runs the flow of an
+ * identity provider from its function references. The Google, Apple and
+ * GitHub schemes have their own hooks, at
+ * `@convex-dev/auth/schemes/<provider>/react`. {@link useOauth} returns the
+ * state that isn't tied to one provider.
  *
  * Under Next.js, add each provider's `completeSignIn*` function to the auth
  * proxy's `signIn` allowlist. Its `startSignIn*` function runs on the Convex
@@ -17,18 +18,19 @@
  * the redirect back shows up in {@link useOauth}'s `flowError`.
  *
  * ```tsx
- * const { signInGoogle } = useSignInWithGoogle(api.auth);
+ * const { signIn } = useOauthSignIn({
+ *   providerName: "acme",
+ *   startSignIn: api.auth.startSignInAcme,
+ *   completeSignIn: api.auth.completeSignInAcme,
+ * });
  * const { flowError } = useOauth();
- * const result = await signInGoogle();
+ * const result = await signIn();
  * if (result.status === "error") {
  *   switch (result.userError.error) {
  *     case "OTHER_ERROR": // ...
  *   }
  * }
  * ```
- *
- * Apps that re-exported the functions under other names pass them explicitly.
- * `useSignInWithGoogle({ startSignInGoogle: api.auth.begin, completeSignInGoogle: api.auth.finish })`
  *
  * @module
  */
@@ -44,7 +46,6 @@ import {
   type OauthActions,
   type OauthCompleteResult,
   type OauthFlowError,
-  type OauthProviderApi,
   type OauthProviderRefs,
   type OauthStartResult,
   type SignInOptions,
@@ -65,7 +66,7 @@ export type {
 const NOT_REGISTERED_ERROR =
   "No OAuth setup is registered. ConvexAuthProvider and " +
   "ConvexAuthNextjsProvider register oauth() from " +
-  "@convex-dev/auth/providers/oauth/react by default, so include it yourself " +
+  "@convex-dev/auth/schemes/oauth/react by default, so include it yourself " +
   "if you set the `ambientSignIns` prop.";
 
 /** What {@link useOauth} returns. */
@@ -119,7 +120,7 @@ export type UseOauthSignInReturn = {
 
 /**
  * Run one OAuth provider's sign-in flow from its function references. The
- * per-provider hooks like {@link useSignInWithGoogle} call this with their
+ * per-provider hooks like `useSignInWithGoogle` call this with their
  * own references.
  *
  * A failure while starting the flow comes back in the result. Failures after
@@ -148,73 +149,4 @@ export function useOauthSignIn(refs: OauthProviderRefs): UseOauthSignInReturn {
       actions.signIn(refs, options)) as UseOauthSignInReturn["signIn"];
   }, [actions, providerName, startPath, completePath]);
   return { signIn };
-}
-
-/** What {@link useSignInWithGoogle} returns. */
-export type UseSignInWithGoogleReturn = {
-  /** Start Google's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
-  signInGoogle: UseOauthSignInReturn["signIn"];
-};
-
-/**
- * Sign in with Google. Pass the module exporting the provider's functions
- * (usually the generated `api.auth`), or an object mapping the canonical keys
- * to renamed exports.
- */
-export function useSignInWithGoogle(api: {
-  startSignInGoogle: OauthProviderApi["startSignIn"];
-  completeSignInGoogle: OauthProviderApi["completeSignIn"];
-}): UseSignInWithGoogleReturn {
-  const { signIn } = useOauthSignIn({
-    providerName: "google",
-    startSignIn: api.startSignInGoogle,
-    completeSignIn: api.completeSignInGoogle,
-  });
-  return { signInGoogle: signIn };
-}
-
-/** What {@link useSignInWithApple} returns. */
-export type UseSignInWithAppleReturn = {
-  /** Start Apple's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
-  signInApple: UseOauthSignInReturn["signIn"];
-};
-
-/**
- * Sign in with Apple. Pass the module exporting the provider's functions
- * (usually the generated `api.auth`), or an object mapping the canonical keys
- * to renamed exports.
- */
-export function useSignInWithApple(api: {
-  startSignInApple: OauthProviderApi["startSignIn"];
-  completeSignInApple: OauthProviderApi["completeSignIn"];
-}): UseSignInWithAppleReturn {
-  const { signIn } = useOauthSignIn({
-    providerName: "apple",
-    startSignIn: api.startSignInApple,
-    completeSignIn: api.completeSignInApple,
-  });
-  return { signInApple: signIn };
-}
-
-/** What {@link useSignInWithGithub} returns. */
-export type UseSignInWithGithubReturn = {
-  /** Start GitHub's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
-  signInGithub: UseOauthSignInReturn["signIn"];
-};
-
-/**
- * Sign in with GitHub. Pass the module exporting the provider's functions
- * (usually the generated `api.auth`), or an object mapping the canonical keys
- * to renamed exports.
- */
-export function useSignInWithGithub(api: {
-  startSignInGithub: OauthProviderApi["startSignIn"];
-  completeSignInGithub: OauthProviderApi["completeSignIn"];
-}): UseSignInWithGithubReturn {
-  const { signIn } = useOauthSignIn({
-    providerName: "github",
-    startSignIn: api.startSignInGithub,
-    completeSignIn: api.completeSignInGithub,
-  });
-  return { signInGithub: signIn };
 }

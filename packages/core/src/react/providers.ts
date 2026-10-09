@@ -1,6 +1,6 @@
 /**
  * React building blocks for provider-client authors, exported at
- * `@convex-dev/auth/react/providers`. Apps don't need anything here. Provider
+ * `@convex-dev/auth/react`. Apps don't need anything here. Provider
  * modules (OAuth, and future auth methods) use these to expose their state as
  * hooks.
  *

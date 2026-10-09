@@ -1,6 +1,6 @@
 /**
  * React client for passkey management, re-exported from
- * `@convex-dev/auth/providers/passkey/react`.
+ * `@convex-dev/auth/schemes/username-passkey/react`.
  *
  * These hooks are used on a settings page for a logged in user,
  * so that they can register a new passkey ({@link useAddPasskey})
@@ -40,7 +40,7 @@ export type RemovePasskeyResult =
  * Hook for the "Add a passkey" button of a settings page.
  *
  * ```tsx
- * import { useAddPasskey } from "@convex-dev/auth/providers/passkey/react";
+ * import { useAddPasskey } from "@convex-dev/auth/schemes/username-passkey/react";
  * import { api } from "../convex/_generated/api";
  *
  * function AddPasskeyButton() {
@@ -104,7 +104,7 @@ export function useAddPasskey(managementApi: AddPasskeyApi) {
  * Hook for the "Remove" button of a passkey list.
  *
  * ```tsx
- * import { useRemovePasskey } from "@convex-dev/auth/providers/passkey/react";
+ * import { useRemovePasskey } from "@convex-dev/auth/schemes/username-passkey/react";
  * import { api } from "../convex/_generated/api";
  *
  * function RemovePasskeyButton({ passkeyId }: { passkeyId: string }) {

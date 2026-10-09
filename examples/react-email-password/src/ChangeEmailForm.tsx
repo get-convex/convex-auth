@@ -1,4 +1,4 @@
-import { useStartChangeEmail } from "@convex-dev/auth/providers/email-password/react";
+import { useStartChangeEmail } from "@convex-dev/auth/schemes/email-password/react";
 import { useState } from "react";
 import { api } from "../convex/_generated/api";
 

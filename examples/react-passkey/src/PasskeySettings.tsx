@@ -4,7 +4,7 @@ import {
   RenamePasskeyResult,
   useAddPasskey,
   useRemovePasskey,
-} from "@convex-dev/auth/providers/passkey/react";
+} from "@convex-dev/auth/schemes/username-passkey/react";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../convex/_generated/api";

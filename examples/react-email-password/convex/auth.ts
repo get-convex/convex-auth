@@ -1,7 +1,7 @@
 import { components, internal } from "./_generated/api";
 import { env } from "./_generated/server";
-import { setupCore } from "@convex-dev/auth/core/setup";
-import { setupEmailPassword } from "@convex-dev/auth/providers/email-password/setup";
+import { setupCore } from "@convex-dev/auth/server";
+import { setupEmailPassword } from "@convex-dev/auth/schemes/email-password/server";
 
 // The frontend origin the emailed links point at. Set SITE_URL on the
 // deployment when the frontend does not run on the Vite default.

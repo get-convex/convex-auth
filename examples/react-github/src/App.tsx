@@ -4,7 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import {
   useOauth,
   useSignInWithGithub,
-} from "@convex-dev/auth/providers/oauth/react";
+} from "@convex-dev/auth/schemes/github/react";
 import { api } from "../convex/_generated/api";
 
 /**

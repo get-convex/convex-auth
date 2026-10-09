@@ -1,6 +1,6 @@
 /**
  * React client for the anonymous provider, exported at
- * `@convex-dev/auth/providers/anonymous/react`.
+ * `@convex-dev/auth/schemes/anonymous/react`.
  *
  * A provider's job on the client is to run its own sign-in flow and hand the
  * resulting {@link TokenBundle} to the core client's `setSession` (see
@@ -43,7 +43,7 @@ export type SignInAnonymousMutation = FunctionReference<
  * pattern that every auth provider should follow.
  *
  * ```tsx
- * import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
+ * import { useAnonymousAuth } from "@convex-dev/auth/schemes/anonymous/react";
  * import { api } from "../convex/_generated/api";
  *
  * function SignIn() {

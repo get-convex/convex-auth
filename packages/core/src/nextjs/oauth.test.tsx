@@ -5,11 +5,8 @@ import { makeFunctionReference } from "convex/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { InMemoryStorage } from "../browser/storage.ts";
 import { makeSlimBundle } from "../lib/types.ts";
-import {
-  useOauth,
-  useSignInWithGithub,
-  type OauthProviderApi,
-} from "../schemes/oauth/react.ts";
+import { useSignInWithGithub } from "../schemes/github/react.ts";
+import { useOauth, type OauthProviderApi } from "../schemes/oauth/react.ts";
 import {
   NAMESPACE,
   bundle,

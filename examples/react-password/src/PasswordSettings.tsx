@@ -1,5 +1,5 @@
-import type { ChangePasswordResult } from "@convex-dev/auth/providers/password/setup";
-import { MIN_PASSWORD_LENGTH } from "@convex-dev/auth/providers/password/validation";
+import type { ChangePasswordResult } from "@convex-dev/auth/schemes/username-password/server";
+import { DEFAULT_MIN_PASSWORD_LENGTH } from "@convex-dev/auth/schemes/username-password";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../convex/_generated/api";
@@ -76,7 +76,7 @@ export function PasswordSettings() {
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           autoComplete="new-password"
-          minLength={MIN_PASSWORD_LENGTH}
+          minLength={DEFAULT_MIN_PASSWORD_LENGTH}
           required
           disabled={pending}
         />

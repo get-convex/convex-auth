@@ -1,4 +1,4 @@
-import { useSignInWithPassword } from "@convex-dev/auth/providers/password/react";
+import { useSignInWithPassword } from "@convex-dev/auth/schemes/username-password/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 

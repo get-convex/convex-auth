@@ -64,7 +64,7 @@ and `verbatimModuleSyntax` settings. Two rules follow from it:
   `_generated/` files of a component. `pnpm check:declarations` rejects a
   wildcard and an entry whose file does not exist.
 
-The one exception is the `./providers/testing/<name>` entries, which ship as TypeScript from
+The one exception is the `./test` and `./components/<name>/test` entries, which ship as TypeScript from
 `src/`. Those helpers call `import.meta.glob`, a Vite macro that has to be
 transformed by the consumer's bundler — and Vitest externalizes plain `.js`
 under `node_modules` (leaving the macro intact, so it throws at import) while it

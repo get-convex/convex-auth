@@ -12,8 +12,8 @@
  *
  * @module
  */
-import { getAuthUserId } from "@convex-dev/auth/core";
-import { vGithubProfile } from "@convex-dev/auth/providers/oauth/github";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { vGithubProfile } from "@convex-dev/auth/schemes/github/server";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
 import { internalMutation, query } from "./_generated/server";
