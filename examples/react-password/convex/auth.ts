@@ -7,6 +7,6 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const { signUpWithPassword, signInWithPassword, changePassword } =
   setupUsernamePassword(core, {
-    component: components.authPasswordProvider,
+    component: components.authPassword,
     usernameComponent: components.authUsername,
   }).attachUserCallbacks({ createUser: internal.users.createUser });

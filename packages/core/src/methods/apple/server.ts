@@ -90,7 +90,7 @@ export function normalizeAppleProfile(
 
 /** App-defined config for setting up the Apple provider. */
 export type AppleProviderOptions = {
-  /** The Apple oauth component instance, i.e. `components.oauthApple`. */
+  /** The Apple oauth component instance, i.e. `components.authApple`. */
   component: ComponentApi;
   /**
    * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`
@@ -105,7 +105,7 @@ export type AppleProviderOptions = {
  *
  * ```ts
  * export const { startSignInApple, completeSignInApple } = setupApple(core, {
- *   component: components.oauthApple,
+ *   component: components.authApple,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserApple });
  * ```

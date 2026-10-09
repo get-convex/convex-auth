@@ -18,11 +18,11 @@ const modules = import.meta.glob("../components/github/**/*.ts");
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The mount name of this component instance, as registered in
- *   convex.config.ts. Defaults to `"oauthGithub"`.
+ *   convex.config.ts. Defaults to `"authGithub"`.
  */
 export function registerGithubOauth(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name = "oauthGithub",
+  name = "authGithub",
 ) {
   t.registerComponent(name, schema, modules);
 }

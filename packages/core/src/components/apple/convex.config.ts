@@ -27,7 +27,7 @@ import { v } from "convex/values";
  * - `KEY_ID` is the 10-character id of the Sign in with Apple key.
  * - `PRIVATE_KEY` is the contents of that key's `AuthKey_<KEY_ID>.p8` file.
  */
-const component = defineComponent("oauthApple", {
+const component = defineComponent("authApple", {
   env: {
     CLIENT_ID: v.string(),
     TEAM_ID: v.string(),

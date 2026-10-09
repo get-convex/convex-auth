@@ -26,7 +26,7 @@ export const { signInAnonymous } = setupAnonymous(core, {
 export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
   core,
   {
-    component: components.authPasswordProvider,
+    component: components.authPassword,
     usernameComponent: components.authUsername,
   },
 ).attachUserCallbacks({
@@ -35,7 +35,7 @@ export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
 });
 
 export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
-  component: components.oauthGithub,
+  component: components.authGithub,
   allowedRedirectOrigins: ["http://localhost:3000"],
 }).attachUserCallbacks({
   createUser: internal.users.createUser,

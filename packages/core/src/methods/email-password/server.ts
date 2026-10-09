@@ -111,7 +111,7 @@ export type EmailPasswordOptions = {
    */
   component: ComponentApi;
   /**
-   * The mounted password component (`components.authPasswordProvider`). The
+   * The mounted password component (`components.authPassword`). The
    * provider drives its `setPassword` / `verifyPassword` mutations.
    */
   passwordComponent: PasswordComponentApi;
@@ -283,7 +283,7 @@ export type EmailPasswordProfile = Record<string, never>;
  *   completeChangeEmail,
  * } = setupEmailPassword(core, {
  *   component: components.authEmail,
- *   passwordComponent: components.authPasswordProvider,
+ *   passwordComponent: components.authPassword,
  *   emailSender: {
  *     kind: "resend",
  *     sendEmail: components.resend.lib.sendEmail,
