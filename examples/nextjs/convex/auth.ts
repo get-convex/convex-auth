@@ -1,8 +1,8 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup";
-import { setupAnonymous } from "@convex-dev/auth/providers/anonymous/setup";
-import { setupGithub } from "@convex-dev/auth/providers/oauth/github";
-import { setupUsernamePassword } from "@convex-dev/auth/providers/password/setup";
+import { setupCore } from "@convex-dev/auth/server";
+import { setupAnonymous } from "@convex-dev/auth/schemes/anonymous/server";
+import { setupGithub } from "@convex-dev/auth/schemes/github/server";
+import { setupUsernamePassword } from "@convex-dev/auth/schemes/username-password/server";
 
 // The core owns sessions, accounts, and JWT minting. Each provider is wired to
 // it with its own setup function, and only hands back its functions once the

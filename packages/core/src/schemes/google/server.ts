@@ -1,6 +1,6 @@
 /**
  * The Google OAuth provider, exported at
- * `@convex-dev/auth/providers/oauth/google`.
+ * `@convex-dev/auth/schemes/google/server`.
  *
  * @module
  */

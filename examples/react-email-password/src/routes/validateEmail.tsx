@@ -1,4 +1,4 @@
-import { useCompleteSignUp } from "@convex-dev/auth/providers/email-password/react";
+import { useCompleteSignUp } from "@convex-dev/auth/schemes/email-password/react";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";

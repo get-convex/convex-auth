@@ -45,451 +45,19 @@
   },
   "exports": {
     "./package.json": "./package.json",
-    "./core": {
+    ".": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/index.d.ts"
+      },
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
       "convex-auth-internal-types": {
         "types": "./dist/internal-types/server/index.d.ts"
       },
       "types": "./dist/server/index.d.ts",
       "default": "./dist/server/index.js"
-    },
-    "./core/setup": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/server/setup.d.ts"
-      },
-      "types": "./dist/server/setup.d.ts",
-      "default": "./dist/server/setup.js"
-    },
-    "./core/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/component/convex.config.d.ts"
-      },
-      "types": "./dist/component/convex.config.d.ts",
-      "default": "./dist/component/convex.config.js"
-    },
-    "./core/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/component/convex.config.d.ts"
-      },
-      "types": "./dist/component/convex.config.d.ts",
-      "default": "./dist/component/convex.config.js"
-    },
-    "./core/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/component/_generated/component.d.ts"
-      },
-      "types": "./dist/component/_generated/component.d.ts",
-      "default": "./dist/component/_generated/component.js"
-    },
-    "./core/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/component/_generated/component.d.ts"
-      },
-      "types": "./dist/component/_generated/component.d.ts",
-      "default": "./dist/component/_generated/component.js"
-    },
-    "./username/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/username/convex.config.d.ts"
-      },
-      "types": "./dist/components/username/convex.config.d.ts",
-      "default": "./dist/components/username/convex.config.js"
-    },
-    "./username/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/username/convex.config.d.ts"
-      },
-      "types": "./dist/components/username/convex.config.d.ts",
-      "default": "./dist/components/username/convex.config.js"
-    },
-    "./username/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/username/_generated/component.d.ts"
-      },
-      "types": "./dist/components/username/_generated/component.d.ts",
-      "default": "./dist/components/username/_generated/component.js"
-    },
-    "./username/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/username/_generated/component.d.ts"
-      },
-      "types": "./dist/components/username/_generated/component.d.ts",
-      "default": "./dist/components/username/_generated/component.js"
-    },
-    "./totp/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/totp/convex.config.d.ts"
-      },
-      "types": "./dist/components/totp/convex.config.d.ts",
-      "default": "./dist/components/totp/convex.config.js"
-    },
-    "./totp/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/totp/convex.config.d.ts"
-      },
-      "types": "./dist/components/totp/convex.config.d.ts",
-      "default": "./dist/components/totp/convex.config.js"
-    },
-    "./totp/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/totp/_generated/component.d.ts"
-      },
-      "types": "./dist/components/totp/_generated/component.d.ts",
-      "default": "./dist/components/totp/_generated/component.js"
-    },
-    "./totp/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/totp/_generated/component.d.ts"
-      },
-      "types": "./dist/components/totp/_generated/component.d.ts",
-      "default": "./dist/components/totp/_generated/component.js"
-    },
-    "./email/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/email/convex.config.d.ts"
-      },
-      "types": "./dist/components/email/convex.config.d.ts",
-      "default": "./dist/components/email/convex.config.js"
-    },
-    "./email/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/email/convex.config.d.ts"
-      },
-      "types": "./dist/components/email/convex.config.d.ts",
-      "default": "./dist/components/email/convex.config.js"
-    },
-    "./email/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/email/_generated/component.d.ts"
-      },
-      "types": "./dist/components/email/_generated/component.d.ts",
-      "default": "./dist/components/email/_generated/component.js"
-    },
-    "./email/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/email/_generated/component.d.ts"
-      },
-      "types": "./dist/components/email/_generated/component.d.ts",
-      "default": "./dist/components/email/_generated/component.js"
-    },
-    "./providers/anonymous/setup": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/anonymous/server.d.ts"
-      },
-      "types": "./dist/schemes/anonymous/server.d.ts",
-      "default": "./dist/schemes/anonymous/server.js"
-    },
-    "./providers/anonymous/react": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/anonymous/react.d.ts"
-      },
-      "types": "./dist/schemes/anonymous/react.d.ts",
-      "default": "./dist/schemes/anonymous/react.js"
-    },
-    "./providers/anonymous/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/anonymous/convex.config.d.ts"
-      },
-      "types": "./dist/components/anonymous/convex.config.d.ts",
-      "default": "./dist/components/anonymous/convex.config.js"
-    },
-    "./providers/anonymous/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/anonymous/convex.config.d.ts"
-      },
-      "types": "./dist/components/anonymous/convex.config.d.ts",
-      "default": "./dist/components/anonymous/convex.config.js"
-    },
-    "./providers/anonymous/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/anonymous/_generated/component.d.ts"
-      },
-      "types": "./dist/components/anonymous/_generated/component.d.ts",
-      "default": "./dist/components/anonymous/_generated/component.js"
-    },
-    "./providers/anonymous/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/anonymous/_generated/component.d.ts"
-      },
-      "types": "./dist/components/anonymous/_generated/component.d.ts",
-      "default": "./dist/components/anonymous/_generated/component.js"
-    },
-    "./providers/password/setup": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/username-password/server.d.ts"
-      },
-      "types": "./dist/schemes/username-password/server.d.ts",
-      "default": "./dist/schemes/username-password/server.js"
-    },
-    "./providers/password/react": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/username-password/react.d.ts"
-      },
-      "types": "./dist/schemes/username-password/react.d.ts",
-      "default": "./dist/schemes/username-password/react.js"
-    },
-    "./providers/password/validation": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/password/validation.d.ts"
-      },
-      "types": "./dist/components/password/validation.d.ts",
-      "default": "./dist/components/password/validation.js"
-    },
-    "./providers/password/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/password/convex.config.d.ts"
-      },
-      "types": "./dist/components/password/convex.config.d.ts",
-      "default": "./dist/components/password/convex.config.js"
-    },
-    "./providers/password/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/password/convex.config.d.ts"
-      },
-      "types": "./dist/components/password/convex.config.d.ts",
-      "default": "./dist/components/password/convex.config.js"
-    },
-    "./providers/password/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/password/_generated/component.d.ts"
-      },
-      "types": "./dist/components/password/_generated/component.d.ts",
-      "default": "./dist/components/password/_generated/component.js"
-    },
-    "./providers/password/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/password/_generated/component.d.ts"
-      },
-      "types": "./dist/components/password/_generated/component.d.ts",
-      "default": "./dist/components/password/_generated/component.js"
-    },
-    "./providers/passkey/setup": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/username-passkey/server.d.ts"
-      },
-      "types": "./dist/schemes/username-passkey/server.d.ts",
-      "default": "./dist/schemes/username-passkey/server.js"
-    },
-    "./providers/passkey/react": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/username-passkey/react.d.ts"
-      },
-      "types": "./dist/schemes/username-passkey/react.d.ts",
-      "default": "./dist/schemes/username-passkey/react.js"
-    },
-    "./providers/passkey/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/passkey/convex.config.d.ts"
-      },
-      "types": "./dist/components/passkey/convex.config.d.ts",
-      "default": "./dist/components/passkey/convex.config.js"
-    },
-    "./providers/passkey/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/passkey/convex.config.d.ts"
-      },
-      "types": "./dist/components/passkey/convex.config.d.ts",
-      "default": "./dist/components/passkey/convex.config.js"
-    },
-    "./providers/passkey/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/passkey/_generated/component.d.ts"
-      },
-      "types": "./dist/components/passkey/_generated/component.d.ts",
-      "default": "./dist/components/passkey/_generated/component.js"
-    },
-    "./providers/passkey/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/passkey/_generated/component.d.ts"
-      },
-      "types": "./dist/components/passkey/_generated/component.d.ts",
-      "default": "./dist/components/passkey/_generated/component.js"
-    },
-    "./providers/email-password/setup": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/email-password/server.d.ts"
-      },
-      "types": "./dist/schemes/email-password/server.d.ts",
-      "default": "./dist/schemes/email-password/server.js"
-    },
-    "./providers/email-password/react": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/email-password/react.d.ts"
-      },
-      "types": "./dist/schemes/email-password/react.d.ts",
-      "default": "./dist/schemes/email-password/react.js"
-    },
-    "./providers/oauth/setup": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/oauth/server.d.ts"
-      },
-      "types": "./dist/schemes/oauth/server.d.ts",
-      "default": "./dist/schemes/oauth/server.js"
-    },
-    "./providers/oauth/react": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/oauth/react.d.ts"
-      },
-      "types": "./dist/schemes/oauth/react.d.ts",
-      "default": "./dist/schemes/oauth/react.js"
-    },
-    "./providers/oauth/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/oauth/convex.config.d.ts"
-      },
-      "types": "./dist/components/oauth/convex.config.d.ts",
-      "default": "./dist/components/oauth/convex.config.js"
-    },
-    "./providers/oauth/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/oauth/convex.config.d.ts"
-      },
-      "types": "./dist/components/oauth/convex.config.d.ts",
-      "default": "./dist/components/oauth/convex.config.js"
-    },
-    "./providers/oauth/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/oauth/_generated/component.d.ts"
-      },
-      "types": "./dist/components/oauth/_generated/component.d.ts",
-      "default": "./dist/components/oauth/_generated/component.js"
-    },
-    "./providers/oauth/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/oauth/_generated/component.d.ts"
-      },
-      "types": "./dist/components/oauth/_generated/component.d.ts",
-      "default": "./dist/components/oauth/_generated/component.js"
-    },
-    "./providers/oauth/apple": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/apple/server.d.ts"
-      },
-      "types": "./dist/schemes/apple/server.d.ts",
-      "default": "./dist/schemes/apple/server.js"
-    },
-    "./providers/oauth/apple/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/apple/convex.config.d.ts"
-      },
-      "types": "./dist/components/apple/convex.config.d.ts",
-      "default": "./dist/components/apple/convex.config.js"
-    },
-    "./providers/oauth/apple/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/apple/convex.config.d.ts"
-      },
-      "types": "./dist/components/apple/convex.config.d.ts",
-      "default": "./dist/components/apple/convex.config.js"
-    },
-    "./providers/oauth/apple/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/apple/_generated/component.d.ts"
-      },
-      "types": "./dist/components/apple/_generated/component.d.ts",
-      "default": "./dist/components/apple/_generated/component.js"
-    },
-    "./providers/oauth/apple/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/apple/_generated/component.d.ts"
-      },
-      "types": "./dist/components/apple/_generated/component.d.ts",
-      "default": "./dist/components/apple/_generated/component.js"
-    },
-    "./providers/oauth/github": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/github/server.d.ts"
-      },
-      "types": "./dist/schemes/github/server.d.ts",
-      "default": "./dist/schemes/github/server.js"
-    },
-    "./providers/oauth/github/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/github/convex.config.d.ts"
-      },
-      "types": "./dist/components/github/convex.config.d.ts",
-      "default": "./dist/components/github/convex.config.js"
-    },
-    "./providers/oauth/github/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/github/convex.config.d.ts"
-      },
-      "types": "./dist/components/github/convex.config.d.ts",
-      "default": "./dist/components/github/convex.config.js"
-    },
-    "./providers/oauth/github/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/github/_generated/component.d.ts"
-      },
-      "types": "./dist/components/github/_generated/component.d.ts",
-      "default": "./dist/components/github/_generated/component.js"
-    },
-    "./providers/oauth/github/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/github/_generated/component.d.ts"
-      },
-      "types": "./dist/components/github/_generated/component.d.ts",
-      "default": "./dist/components/github/_generated/component.js"
-    },
-    "./providers/oauth/google": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/schemes/google/server.d.ts"
-      },
-      "types": "./dist/schemes/google/server.d.ts",
-      "default": "./dist/schemes/google/server.js"
-    },
-    "./providers/oauth/google/convex.config.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/google/convex.config.d.ts"
-      },
-      "types": "./dist/components/google/convex.config.d.ts",
-      "default": "./dist/components/google/convex.config.js"
-    },
-    "./providers/oauth/google/convex.config": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/google/convex.config.d.ts"
-      },
-      "types": "./dist/components/google/convex.config.d.ts",
-      "default": "./dist/components/google/convex.config.js"
-    },
-    "./providers/oauth/google/_generated/component.js": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/google/_generated/component.d.ts"
-      },
-      "types": "./dist/components/google/_generated/component.d.ts",
-      "default": "./dist/components/google/_generated/component.js"
-    },
-    "./providers/oauth/google/_generated/component": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/components/google/_generated/component.d.ts"
-      },
-      "types": "./dist/components/google/_generated/component.d.ts",
-      "default": "./dist/components/google/_generated/component.js"
-    },
-    "./providers/testing/anonymous": "./src/testing/anonymous.ts",
-    "./providers/testing/apple": "./src/testing/apple.ts",
-    "./providers/testing/core": "./src/testing/core.ts",
-    "./providers/testing/email": "./src/testing/email.ts",
-    "./providers/testing/github": "./src/testing/github.ts",
-    "./providers/testing/google": "./src/testing/google.ts",
-    "./providers/testing/oauth": "./src/testing/oauth.ts",
-    "./providers/testing/passkey": "./src/testing/passkey.ts",
-    "./providers/testing/password": "./src/testing/password.ts",
-    "./providers/testing/resend": "./src/testing/resend.ts",
-    "./providers/testing/totp": "./src/testing/totp.ts",
-    "./providers/testing/username": "./src/testing/username.ts",
-    "./browser": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/browser/index.d.ts"
-      },
-      "types": "./dist/browser/index.d.ts",
-      "default": "./dist/browser/index.js"
-    },
-    "./server": {
-      "convex-auth-internal-types": {
-        "types": "./dist/internal-types/ssr/index.d.ts"
-      },
-      "types": "./dist/ssr/index.d.ts",
-      "default": "./dist/ssr/index.js"
     },
     "./react": {
       "convex-auth-internal-types": {
@@ -498,6 +66,20 @@
       "types": "./dist/react/index.d.ts",
       "default": "./dist/react/index.js"
     },
+    "./browser": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/browser/index.d.ts"
+      },
+      "types": "./dist/browser/index.d.ts",
+      "default": "./dist/browser/index.js"
+    },
+    "./ssr": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/ssr/index.d.ts"
+      },
+      "types": "./dist/ssr/index.d.ts",
+      "default": "./dist/ssr/index.js"
+    },
     "./nextjs": {
       "convex-auth-internal-types": {
         "types": "./dist/internal-types/nextjs/index.d.ts"
@@ -505,13 +87,458 @@
       "types": "./dist/nextjs/index.d.ts",
       "default": "./dist/nextjs/index.js"
     },
-    "./nextjs/server": {
+    "./nextjs/ssr": {
       "convex-auth-internal-types": {
-        "types": "./dist/internal-types/nextjs/server.d.ts"
+        "types": "./dist/internal-types/nextjs/ssr.d.ts"
       },
-      "types": "./dist/nextjs/server.d.ts",
-      "default": "./dist/nextjs/server.js"
-    }
+      "types": "./dist/nextjs/ssr.d.ts",
+      "default": "./dist/nextjs/ssr.js"
+    },
+    "./convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/component/convex.config.d.ts"
+      },
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    },
+    "./convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/component/convex.config.d.ts"
+      },
+      "types": "./dist/component/convex.config.d.ts",
+      "default": "./dist/component/convex.config.js"
+    },
+    "./_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/component/_generated/component.d.ts"
+      },
+      "types": "./dist/component/_generated/component.d.ts",
+      "default": "./dist/component/_generated/component.js"
+    },
+    "./_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/component/_generated/component.d.ts"
+      },
+      "types": "./dist/component/_generated/component.d.ts",
+      "default": "./dist/component/_generated/component.js"
+    },
+    "./test": "./src/testing/core.ts",
+    "./schemes/anonymous/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/anonymous/server.d.ts"
+      },
+      "types": "./dist/schemes/anonymous/server.d.ts",
+      "default": "./dist/schemes/anonymous/server.js"
+    },
+    "./schemes/anonymous/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/anonymous/react.d.ts"
+      },
+      "types": "./dist/schemes/anonymous/react.d.ts",
+      "default": "./dist/schemes/anonymous/react.js"
+    },
+    "./schemes/username-password": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/username-password/index.d.ts"
+      },
+      "types": "./dist/schemes/username-password/index.d.ts",
+      "default": "./dist/schemes/username-password/index.js"
+    },
+    "./schemes/username-password/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/username-password/server.d.ts"
+      },
+      "types": "./dist/schemes/username-password/server.d.ts",
+      "default": "./dist/schemes/username-password/server.js"
+    },
+    "./schemes/username-password/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/username-password/react.d.ts"
+      },
+      "types": "./dist/schemes/username-password/react.d.ts",
+      "default": "./dist/schemes/username-password/react.js"
+    },
+    "./schemes/email-password": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/email-password/index.d.ts"
+      },
+      "types": "./dist/schemes/email-password/index.d.ts",
+      "default": "./dist/schemes/email-password/index.js"
+    },
+    "./schemes/email-password/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/email-password/server.d.ts"
+      },
+      "types": "./dist/schemes/email-password/server.d.ts",
+      "default": "./dist/schemes/email-password/server.js"
+    },
+    "./schemes/email-password/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/email-password/react.d.ts"
+      },
+      "types": "./dist/schemes/email-password/react.d.ts",
+      "default": "./dist/schemes/email-password/react.js"
+    },
+    "./schemes/username-passkey/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/username-passkey/server.d.ts"
+      },
+      "types": "./dist/schemes/username-passkey/server.d.ts",
+      "default": "./dist/schemes/username-passkey/server.js"
+    },
+    "./schemes/username-passkey/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/username-passkey/react.d.ts"
+      },
+      "types": "./dist/schemes/username-passkey/react.d.ts",
+      "default": "./dist/schemes/username-passkey/react.js"
+    },
+    "./schemes/oauth/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/oauth/server.d.ts"
+      },
+      "types": "./dist/schemes/oauth/server.d.ts",
+      "default": "./dist/schemes/oauth/server.js"
+    },
+    "./schemes/oauth/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/oauth/react.d.ts"
+      },
+      "types": "./dist/schemes/oauth/react.d.ts",
+      "default": "./dist/schemes/oauth/react.js"
+    },
+    "./schemes/google/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/google/server.d.ts"
+      },
+      "types": "./dist/schemes/google/server.d.ts",
+      "default": "./dist/schemes/google/server.js"
+    },
+    "./schemes/google/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/google/react.d.ts"
+      },
+      "types": "./dist/schemes/google/react.d.ts",
+      "default": "./dist/schemes/google/react.js"
+    },
+    "./schemes/apple/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/apple/server.d.ts"
+      },
+      "types": "./dist/schemes/apple/server.d.ts",
+      "default": "./dist/schemes/apple/server.js"
+    },
+    "./schemes/apple/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/apple/react.d.ts"
+      },
+      "types": "./dist/schemes/apple/react.d.ts",
+      "default": "./dist/schemes/apple/react.js"
+    },
+    "./schemes/github/server": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/github/server.d.ts"
+      },
+      "types": "./dist/schemes/github/server.d.ts",
+      "default": "./dist/schemes/github/server.js"
+    },
+    "./schemes/github/react": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/schemes/github/react.d.ts"
+      },
+      "types": "./dist/schemes/github/react.d.ts",
+      "default": "./dist/schemes/github/react.js"
+    },
+    "./components/username/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/username/convex.config.d.ts"
+      },
+      "types": "./dist/components/username/convex.config.d.ts",
+      "default": "./dist/components/username/convex.config.js"
+    },
+    "./components/username/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/username/convex.config.d.ts"
+      },
+      "types": "./dist/components/username/convex.config.d.ts",
+      "default": "./dist/components/username/convex.config.js"
+    },
+    "./components/username/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/username/_generated/component.d.ts"
+      },
+      "types": "./dist/components/username/_generated/component.d.ts",
+      "default": "./dist/components/username/_generated/component.js"
+    },
+    "./components/username/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/username/_generated/component.d.ts"
+      },
+      "types": "./dist/components/username/_generated/component.d.ts",
+      "default": "./dist/components/username/_generated/component.js"
+    },
+    "./components/username/test": "./src/testing/username.ts",
+    "./components/password/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/password/convex.config.d.ts"
+      },
+      "types": "./dist/components/password/convex.config.d.ts",
+      "default": "./dist/components/password/convex.config.js"
+    },
+    "./components/password/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/password/convex.config.d.ts"
+      },
+      "types": "./dist/components/password/convex.config.d.ts",
+      "default": "./dist/components/password/convex.config.js"
+    },
+    "./components/password/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/password/_generated/component.d.ts"
+      },
+      "types": "./dist/components/password/_generated/component.d.ts",
+      "default": "./dist/components/password/_generated/component.js"
+    },
+    "./components/password/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/password/_generated/component.d.ts"
+      },
+      "types": "./dist/components/password/_generated/component.d.ts",
+      "default": "./dist/components/password/_generated/component.js"
+    },
+    "./components/password/test": "./src/testing/password.ts",
+    "./components/email/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/email/convex.config.d.ts"
+      },
+      "types": "./dist/components/email/convex.config.d.ts",
+      "default": "./dist/components/email/convex.config.js"
+    },
+    "./components/email/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/email/convex.config.d.ts"
+      },
+      "types": "./dist/components/email/convex.config.d.ts",
+      "default": "./dist/components/email/convex.config.js"
+    },
+    "./components/email/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/email/_generated/component.d.ts"
+      },
+      "types": "./dist/components/email/_generated/component.d.ts",
+      "default": "./dist/components/email/_generated/component.js"
+    },
+    "./components/email/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/email/_generated/component.d.ts"
+      },
+      "types": "./dist/components/email/_generated/component.d.ts",
+      "default": "./dist/components/email/_generated/component.js"
+    },
+    "./components/email/test": "./src/testing/email.ts",
+    "./components/passkey/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/passkey/convex.config.d.ts"
+      },
+      "types": "./dist/components/passkey/convex.config.d.ts",
+      "default": "./dist/components/passkey/convex.config.js"
+    },
+    "./components/passkey/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/passkey/convex.config.d.ts"
+      },
+      "types": "./dist/components/passkey/convex.config.d.ts",
+      "default": "./dist/components/passkey/convex.config.js"
+    },
+    "./components/passkey/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/passkey/_generated/component.d.ts"
+      },
+      "types": "./dist/components/passkey/_generated/component.d.ts",
+      "default": "./dist/components/passkey/_generated/component.js"
+    },
+    "./components/passkey/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/passkey/_generated/component.d.ts"
+      },
+      "types": "./dist/components/passkey/_generated/component.d.ts",
+      "default": "./dist/components/passkey/_generated/component.js"
+    },
+    "./components/passkey/test": "./src/testing/passkey.ts",
+    "./components/totp/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/totp/convex.config.d.ts"
+      },
+      "types": "./dist/components/totp/convex.config.d.ts",
+      "default": "./dist/components/totp/convex.config.js"
+    },
+    "./components/totp/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/totp/convex.config.d.ts"
+      },
+      "types": "./dist/components/totp/convex.config.d.ts",
+      "default": "./dist/components/totp/convex.config.js"
+    },
+    "./components/totp/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/totp/_generated/component.d.ts"
+      },
+      "types": "./dist/components/totp/_generated/component.d.ts",
+      "default": "./dist/components/totp/_generated/component.js"
+    },
+    "./components/totp/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/totp/_generated/component.d.ts"
+      },
+      "types": "./dist/components/totp/_generated/component.d.ts",
+      "default": "./dist/components/totp/_generated/component.js"
+    },
+    "./components/totp/test": "./src/testing/totp.ts",
+    "./components/anonymous/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/anonymous/convex.config.d.ts"
+      },
+      "types": "./dist/components/anonymous/convex.config.d.ts",
+      "default": "./dist/components/anonymous/convex.config.js"
+    },
+    "./components/anonymous/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/anonymous/convex.config.d.ts"
+      },
+      "types": "./dist/components/anonymous/convex.config.d.ts",
+      "default": "./dist/components/anonymous/convex.config.js"
+    },
+    "./components/anonymous/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/anonymous/_generated/component.d.ts"
+      },
+      "types": "./dist/components/anonymous/_generated/component.d.ts",
+      "default": "./dist/components/anonymous/_generated/component.js"
+    },
+    "./components/anonymous/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/anonymous/_generated/component.d.ts"
+      },
+      "types": "./dist/components/anonymous/_generated/component.d.ts",
+      "default": "./dist/components/anonymous/_generated/component.js"
+    },
+    "./components/anonymous/test": "./src/testing/anonymous.ts",
+    "./components/oauth/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/oauth/convex.config.d.ts"
+      },
+      "types": "./dist/components/oauth/convex.config.d.ts",
+      "default": "./dist/components/oauth/convex.config.js"
+    },
+    "./components/oauth/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/oauth/convex.config.d.ts"
+      },
+      "types": "./dist/components/oauth/convex.config.d.ts",
+      "default": "./dist/components/oauth/convex.config.js"
+    },
+    "./components/oauth/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/oauth/_generated/component.d.ts"
+      },
+      "types": "./dist/components/oauth/_generated/component.d.ts",
+      "default": "./dist/components/oauth/_generated/component.js"
+    },
+    "./components/oauth/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/oauth/_generated/component.d.ts"
+      },
+      "types": "./dist/components/oauth/_generated/component.d.ts",
+      "default": "./dist/components/oauth/_generated/component.js"
+    },
+    "./components/oauth/test": "./src/testing/oauth.ts",
+    "./components/google/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/google/convex.config.d.ts"
+      },
+      "types": "./dist/components/google/convex.config.d.ts",
+      "default": "./dist/components/google/convex.config.js"
+    },
+    "./components/google/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/google/convex.config.d.ts"
+      },
+      "types": "./dist/components/google/convex.config.d.ts",
+      "default": "./dist/components/google/convex.config.js"
+    },
+    "./components/google/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/google/_generated/component.d.ts"
+      },
+      "types": "./dist/components/google/_generated/component.d.ts",
+      "default": "./dist/components/google/_generated/component.js"
+    },
+    "./components/google/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/google/_generated/component.d.ts"
+      },
+      "types": "./dist/components/google/_generated/component.d.ts",
+      "default": "./dist/components/google/_generated/component.js"
+    },
+    "./components/google/test": "./src/testing/google.ts",
+    "./components/apple/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/apple/convex.config.d.ts"
+      },
+      "types": "./dist/components/apple/convex.config.d.ts",
+      "default": "./dist/components/apple/convex.config.js"
+    },
+    "./components/apple/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/apple/convex.config.d.ts"
+      },
+      "types": "./dist/components/apple/convex.config.d.ts",
+      "default": "./dist/components/apple/convex.config.js"
+    },
+    "./components/apple/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/apple/_generated/component.d.ts"
+      },
+      "types": "./dist/components/apple/_generated/component.d.ts",
+      "default": "./dist/components/apple/_generated/component.js"
+    },
+    "./components/apple/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/apple/_generated/component.d.ts"
+      },
+      "types": "./dist/components/apple/_generated/component.d.ts",
+      "default": "./dist/components/apple/_generated/component.js"
+    },
+    "./components/apple/test": "./src/testing/apple.ts",
+    "./components/github/convex.config.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/github/convex.config.d.ts"
+      },
+      "types": "./dist/components/github/convex.config.d.ts",
+      "default": "./dist/components/github/convex.config.js"
+    },
+    "./components/github/convex.config": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/github/convex.config.d.ts"
+      },
+      "types": "./dist/components/github/convex.config.d.ts",
+      "default": "./dist/components/github/convex.config.js"
+    },
+    "./components/github/_generated/component.js": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/github/_generated/component.d.ts"
+      },
+      "types": "./dist/components/github/_generated/component.d.ts",
+      "default": "./dist/components/github/_generated/component.js"
+    },
+    "./components/github/_generated/component": {
+      "convex-auth-internal-types": {
+        "types": "./dist/internal-types/components/github/_generated/component.d.ts"
+      },
+      "types": "./dist/components/github/_generated/component.d.ts",
+      "default": "./dist/components/github/_generated/component.js"
+    },
+    "./components/github/test": "./src/testing/github.ts"
   },
   "dependencies": {
     "@babel/code-frame": "^7.29.7",

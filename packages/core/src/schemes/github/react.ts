@@ -1,0 +1,50 @@
+/**
+ * React client for the GitHub sign-in scheme, exported at
+ * `@convex-dev/auth/schemes/github/react`.
+ *
+ * {@link useSignInWithGithub} starts the sign-in. {@link useOauth} returns the
+ * state that is shared by all the OAuth schemes, for example the error of the
+ * last flow.
+ *
+ * ```tsx
+ * const { signInGithub } = useSignInWithGithub(api.auth);
+ * const { flowError } = useOauth();
+ * ```
+ *
+ * @module
+ */
+"use client";
+
+import type { OauthProviderApi } from "../oauth/client.ts";
+import { useOauthSignIn, type UseOauthSignInReturn } from "../oauth/react.ts";
+
+export { useOauth, type UseOauthReturn } from "../oauth/react.ts";
+export type {
+  OauthCompleteResult,
+  OauthFlowError,
+  OauthStartResult,
+  SignInOptions,
+} from "../oauth/client.ts";
+
+/** What {@link useSignInWithGithub} returns. */
+export type UseSignInWithGithubReturn = {
+  /** Start GitHub's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
+  signInGithub: UseOauthSignInReturn["signIn"];
+};
+
+/**
+ * Sign in with GitHub. Pass the module exporting the provider's functions
+ * (usually the generated `api.auth`), or an object mapping the canonical keys
+ * to renamed exports.
+ */
+export function useSignInWithGithub(api: {
+  startSignInGithub: OauthProviderApi["startSignIn"];
+  completeSignInGithub: OauthProviderApi["completeSignIn"];
+}): UseSignInWithGithubReturn {
+  const { signIn } = useOauthSignIn({
+    providerName: "github",
+    startSignIn: api.startSignInGithub,
+    completeSignIn: api.completeSignInGithub,
+  });
+  return { signInGithub: signIn };
+}

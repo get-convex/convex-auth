@@ -5,12 +5,18 @@ import { isCommonPassword } from "./commonPasswords.ts";
 // https://auth.pilcrowonpaper.com/passwords: 10–100 characters, any printable
 // Unicode, no leading/trailing whitespace.
 
-// TODO: Make the minimum length an option of each flow (for example
-// `setupUsernamePassword`). Each flow exports its default (10) as a constant,
-// and the examples import that constant. The component enforces only an
-// absolute minimum of 8 characters, which it does not export. Today the
-// component and all flows enforce 10.
+// TODO: Make the minimum length an option of each scheme (for example
+// `setupUsernamePassword`). The component then enforces only an absolute
+// minimum of 8 characters, which it does not export. Today the component and
+// all schemes enforce 10.
 export const MIN_PASSWORD_LENGTH = 10;
+
+/**
+ * The minimum password length of the password schemes. The schemes export it
+ * (`@convex-dev/auth/schemes/username-password`), so that a sign-up form can
+ * show the same limit as the backend.
+ */
+export const DEFAULT_MIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH;
 export const MAX_PASSWORD_LENGTH = 100;
 
 /**

@@ -1,7 +1,7 @@
-import { getAuthUserId } from "@convex-dev/auth/core";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
-import { vAppleProfile } from "@convex-dev/auth/providers/oauth/apple";
+import { vAppleProfile } from "@convex-dev/auth/schemes/apple/server";
 
 /**
  * Create the user row for a new Apple account and return its id.

@@ -1,0 +1,50 @@
+/**
+ * React client for the Google sign-in scheme, exported at
+ * `@convex-dev/auth/schemes/google/react`.
+ *
+ * {@link useSignInWithGoogle} starts the sign-in. {@link useOauth} returns the
+ * state that is shared by all the OAuth schemes, for example the error of the
+ * last flow.
+ *
+ * ```tsx
+ * const { signInGoogle } = useSignInWithGoogle(api.auth);
+ * const { flowError } = useOauth();
+ * ```
+ *
+ * @module
+ */
+"use client";
+
+import type { OauthProviderApi } from "../oauth/client.ts";
+import { useOauthSignIn, type UseOauthSignInReturn } from "../oauth/react.ts";
+
+export { useOauth, type UseOauthReturn } from "../oauth/react.ts";
+export type {
+  OauthCompleteResult,
+  OauthFlowError,
+  OauthStartResult,
+  SignInOptions,
+} from "../oauth/client.ts";
+
+/** What {@link useSignInWithGoogle} returns. */
+export type UseSignInWithGoogleReturn = {
+  /** Start Google's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
+  signInGoogle: UseOauthSignInReturn["signIn"];
+};
+
+/**
+ * Sign in with Google. Pass the module exporting the provider's functions
+ * (usually the generated `api.auth`), or an object mapping the canonical keys
+ * to renamed exports.
+ */
+export function useSignInWithGoogle(api: {
+  startSignInGoogle: OauthProviderApi["startSignIn"];
+  completeSignInGoogle: OauthProviderApi["completeSignIn"];
+}): UseSignInWithGoogleReturn {
+  const { signIn } = useOauthSignIn({
+    providerName: "google",
+    startSignIn: api.startSignInGoogle,
+    completeSignIn: api.completeSignInGoogle,
+  });
+  return { signInGoogle: signIn };
+}

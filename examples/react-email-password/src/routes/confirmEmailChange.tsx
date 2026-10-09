@@ -1,4 +1,4 @@
-import { useCompleteChangeEmail } from "@convex-dev/auth/providers/email-password/react";
+import { useCompleteChangeEmail } from "@convex-dev/auth/schemes/email-password/react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 

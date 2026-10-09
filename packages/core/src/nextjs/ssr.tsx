@@ -1,11 +1,11 @@
 /**
  * Server bindings for Convex Auth on Next.js (App Router), exported at
- * `@convex-dev/auth/nextjs/server`.
+ * `@convex-dev/auth/nextjs/ssr`.
  *
  * This is the thin, genuinely Next-specific layer. The auth *handlers*
  * (per-provider sign-in, plus refresh/sign-out) are framework-agnostic
  * `(Request) => Response` functions mounted directly as route handlers (see
- * `@convex-dev/auth/server` and each provider's `/server` entry). What remains
+ * `@convex-dev/auth/ssr`). What remains
  * Next-specific is the proxy (up-front refresh + redirects), reading the
  * access token in Server Components, and the server-side provider that hydrates
  * the client.

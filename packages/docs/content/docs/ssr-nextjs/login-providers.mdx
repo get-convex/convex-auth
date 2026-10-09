@@ -15,8 +15,8 @@ have already followed [Setting up Next.js](/ssr-nextjs/setup).
   [Set up the backend](/ssr-nextjs/setup#set-up-the-backend-for-your-login-providers)).
 - **The provider hooks.** Your sign-in and sign-up pages call the same hooks
   as in a single-page app, like `useSignInWithPassword` from
-  `@convex-dev/auth/providers/password/react` or `useAnonymousAuth` from
-  `@convex-dev/auth/providers/anonymous/react`. There are no Next.js versions of
+  `@convex-dev/auth/schemes/username-password/react` or `useAnonymousAuth` from
+  `@convex-dev/auth/schemes/anonymous/react`. There are no Next.js versions of
   these hooks. Inside `ConvexAuthNextjsProvider`, the hooks send their sign-in
   calls to your `/auth/signin` route. The route calls your deployment and moves
   the refresh token into the `httpOnly` cookie before it returns the result.

@@ -11,11 +11,9 @@ import { v } from "convex/values";
  *  - session lifetimes (`sessions`: refresh tokens, rotation, expiry)
  *
  * It does NOT know about any specific provider. Providers hand it identity
- * claims (see ../../lib/types) and the core turns that into a session + JWT.
+ * claims (see ../lib/types) and the core turns that into a session + JWT.
  *
- * TODO Consider removing `/core/` from the import paths: apps import this
- * component from `@convex-dev/auth/core/...`, which no longer matches the
- * component name (`auth`).
+ * Apps install it from `@convex-dev/auth/convex.config.js`.
  */
 const component = defineComponent("auth", {
   env: {

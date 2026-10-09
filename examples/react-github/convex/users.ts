@@ -1,7 +1,7 @@
-import { getAuthUserId } from "@convex-dev/auth/core";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
-import { vGithubProfile } from "@convex-dev/auth/providers/oauth/github";
+import { vGithubProfile } from "@convex-dev/auth/schemes/github/server";
 
 /**
  * Create the user row for a new GitHub account and return its id. This example

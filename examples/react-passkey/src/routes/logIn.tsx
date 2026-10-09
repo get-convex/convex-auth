@@ -2,7 +2,7 @@ import {
   UsernamePasskeyAutofillError,
   UsernamePasskeySignInResult,
   useUsernamePasskeySignIn,
-} from "@convex-dev/auth/providers/passkey/react";
+} from "@convex-dev/auth/schemes/username-passkey/react";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 

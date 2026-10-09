@@ -6,7 +6,7 @@ import type { GenericId } from "convex/values";
  * not signed in.
  *
  * ```ts
- * import { getAuthUserId } from "@convex-dev/auth/core";
+ * import { getAuthUserId } from "@convex-dev/auth/server";
  *
  * export const loggedInUser = query({
  *   args: {},

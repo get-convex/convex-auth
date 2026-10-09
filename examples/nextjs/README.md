@@ -17,7 +17,7 @@ anonymous: the refresh token is minted straight into an httpOnly cookie and
   on the way back to put it in the cookie. Because of that, a provider needs no
   SSR-specific client hook: `app/signin/page.tsx` imports the _same_
   `useAnonymousAuth` a SPA would, from
-  `@convex-dev/auth/providers/anonymous/react`.
+  `@convex-dev/auth/schemes/anonymous/react`.
 - **Adding an auth method** means adding its function to `signIn` in
   `src/lib/serverAuth.ts`. That allowlist is the route's entire API surface;
   there is no per-method route and no per-method client code.
@@ -28,13 +28,13 @@ anonymous: the refresh token is minted straight into an httpOnly cookie and
   (hydrates the client from the cookie).
 - **`app/signin/page.tsx` / `app/signup/page.tsx`** use the password provider's
   own `useSignInWithPassword` / `useSignUpWithPassword` from
-  `@convex-dev/auth/providers/password/react`, the same hooks a SPA uses. The
+  `@convex-dev/auth/schemes/username-password/react`, the same hooks a SPA uses. The
   proxy forwards the call and adopts the access-only session it returns. On
   failure the action's `userError` (e.g. `INVALID_CREDENTIALS`,
   `USERNAME_TAKEN`) comes back fully typed, so the form can show a specific
   message. The sign-in page also offers one-click anonymous sign-in.
 - **GitHub sign-in** uses `useSignInWithGithub` from
-  `@convex-dev/auth/providers/oauth/react`, the same hook a SPA uses. Starting
+  `@convex-dev/auth/schemes/github/react`, the same hook a SPA uses. Starting
   the flow runs `startSignInGithub` on the Convex client, because it returns a
   redirect URL rather than a session. GitHub sends the user back to `/signin`,
   where the hook redeems the code by calling `completeSignInGithub` through the

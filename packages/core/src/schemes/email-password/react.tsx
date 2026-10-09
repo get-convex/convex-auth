@@ -1,6 +1,6 @@
 /**
  * React client for the `EmailPassword` provider, exported at
- * `@convex-dev/auth/providers/email-password/react`.
+ * `@convex-dev/auth/schemes/email-password/react`.
  *
  * @module
  */

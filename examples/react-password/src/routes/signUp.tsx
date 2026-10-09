@@ -1,5 +1,5 @@
-import { useSignUpWithPassword } from "@convex-dev/auth/providers/password/react";
-import { MIN_PASSWORD_LENGTH } from "@convex-dev/auth/providers/password/validation";
+import { useSignUpWithPassword } from "@convex-dev/auth/schemes/username-password/react";
+import { DEFAULT_MIN_PASSWORD_LENGTH } from "@convex-dev/auth/schemes/username-password";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
@@ -76,7 +76,7 @@ export function SignUp() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
-            minLength={MIN_PASSWORD_LENGTH}
+            minLength={DEFAULT_MIN_PASSWORD_LENGTH}
             required
             disabled={pending}
           />

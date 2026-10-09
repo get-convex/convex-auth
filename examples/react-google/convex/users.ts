@@ -1,7 +1,7 @@
-import { getAuthUserId } from "@convex-dev/auth/core";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
-import { vGoogleProfile } from "@convex-dev/auth/providers/oauth/google";
+import { vGoogleProfile } from "@convex-dev/auth/schemes/google/server";
 
 /**
  * Create the user row for a new Google account and return its id. This example

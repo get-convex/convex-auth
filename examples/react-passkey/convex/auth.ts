@@ -1,6 +1,6 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/core/setup";
-import { setupUsernamePasskey } from "@convex-dev/auth/providers/passkey/setup";
+import { setupCore } from "@convex-dev/auth/server";
+import { setupUsernamePasskey } from "@convex-dev/auth/schemes/username-passkey/server";
 
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
