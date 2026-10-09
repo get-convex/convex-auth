@@ -7,9 +7,7 @@ export function ChangeEmailForm({
 }: {
   currentEmail: string | undefined;
 }) {
-  const { startChangeEmail, pending } = useStartChangeEmail(
-    api.auth.startChangeEmail,
-  );
+  const { startChangeEmail, pending } = useStartChangeEmail(api.auth);
   const [newEmailField, setNewEmailField] = useState("");
   const [currentPasswordField, setCurrentPasswordField] = useState("");
   const [message, setMessage] = useState<string | null>(null);

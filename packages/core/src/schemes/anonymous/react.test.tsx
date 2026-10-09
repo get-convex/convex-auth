@@ -8,7 +8,7 @@ import type { TokenBundle } from "../../lib/types.ts";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { useAuthToken } from "../../react/index.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
-import { SignInAnonymousMutation, useAnonymousAuth } from "./react.tsx";
+import { SignInAnonymouslyMutation, useSignInAnonymously } from "./react.tsx";
 
 // The hook runs its sign-in mutation through the injected `AuthSignInApi`, so the
 // test substitutes a signInApi rather than mocking `convex/react`.
@@ -26,7 +26,7 @@ const bundle: TokenBundle = {
 
 // A stand-in for the app's `api.auth.signInAnonymously` reference. The stub signInApi
 // ignores it, so any value typed as the reference will do.
-const signInAnonymous = {} as SignInAnonymousMutation;
+const signInAnonymous = {} as SignInAnonymouslyMutation;
 
 function renderAnonymousAuth() {
   const client = new AuthClient({
@@ -47,13 +47,13 @@ function renderAnonymousAuth() {
     () => ({
       auth: useAuth(),
       token: useAuthToken(),
-      anonymous: useAnonymousAuth(signInAnonymous),
+      anonymous: useSignInAnonymously({ signInAnonymously: signInAnonymous }),
     }),
     { wrapper },
   );
 }
 
-describe("useAnonymousAuth", () => {
+describe("useSignInAnonymously", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     runSignIn.mockReset();
@@ -66,7 +66,7 @@ describe("useAnonymousAuth", () => {
     expect(result.current.auth.isAuthenticated).toBe(false);
 
     await act(async () => {
-      await result.current.anonymous.signInAnonymous();
+      await result.current.anonymous.signIn();
     });
 
     expect(runSignIn).toHaveBeenCalledTimes(1);

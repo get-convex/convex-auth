@@ -7,7 +7,7 @@
  * last flow.
  *
  * ```tsx
- * const { signInGithub } = useSignInWithGithub(api.auth);
+ * const { signIn } = useSignInWithGithub(api.auth);
  * const { flowError } = useOauth();
  * ```
  *
@@ -29,7 +29,7 @@ export type {
 /** What {@link useSignInWithGithub} returns. */
 export type UseSignInWithGithubReturn = {
   /** Start GitHub's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
-  signInGithub: UseOauthSignInReturn["signIn"];
+  signIn: UseOauthSignInReturn["signIn"];
 };
 
 /**
@@ -46,5 +46,5 @@ export function useSignInWithGithub(api: {
     startSignIn: api.startSignInWithGithub,
     completeSignIn: api.completeSignInWithGithub,
   });
-  return { signInGithub: signIn };
+  return { signIn };
 }

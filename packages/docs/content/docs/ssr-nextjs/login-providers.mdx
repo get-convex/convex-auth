@@ -14,8 +14,8 @@ have already followed [Setting up Next.js](/ssr-nextjs/setup).
   the same. Also export `isAuthenticated` from the core (see
   [Set up the backend](/ssr-nextjs/setup#set-up-the-backend-for-your-login-providers)).
 - **The provider hooks.** Your sign-in and sign-up pages call the same hooks
-  as in a single-page app, like `useSignInWithPassword` from
-  `@convex-dev/auth/schemes/username-password/react` or `useAnonymousAuth` from
+  as in a single-page app, like `useSignInWithUsernamePassword` from
+  `@convex-dev/auth/schemes/username-password/react` or `useSignInAnonymously` from
   `@convex-dev/auth/schemes/anonymous/react`. There are no Next.js versions of
   these hooks. Inside `ConvexAuthNextjsProvider`, the hooks send their sign-in
   calls to your `/auth/signin` route. The route calls your deployment and moves

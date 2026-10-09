@@ -11,8 +11,8 @@ import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { useAuthToken } from "../../react/index.tsx";
 import {
   UsernamePasskeyApi,
-  UsernamePasskeySignInResult,
-  useUsernamePasskeySignIn,
+  SignInWithUsernamePasskeyResult,
+  useSignInWithUsernamePasskey,
 } from "./react.tsx";
 import { usePasskeyAutofill, usePasskeyCeremonySlot } from "./react_impl.tsx";
 
@@ -318,13 +318,13 @@ function renderPasskey() {
       token: useAuthToken(),
       // A new api object on every render, like Convex's generated `api`
       // proxy, whose property accesses never compare equal.
-      passkey: useUsernamePasskeySignIn({ ...passkeyApi }),
+      passkey: useSignInWithUsernamePasskey({ ...passkeyApi }),
     }),
     { wrapper: makeWrapper() },
   );
 }
 
-describe("useUsernamePasskeySignIn signIn", () => {
+describe("useSignInWithUsernamePasskey signIn", () => {
   test("sign-up success runs the registration ceremony and adopts the session", async () => {
     mutations.startSignInWithUsernamePasskey.mockResolvedValue(registerStart);
     ceremonyCreate.mockResolvedValue(registrationResponse);
@@ -335,7 +335,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned!: UsernamePasskeySignInResult;
+    let returned!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
@@ -374,7 +374,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned!: UsernamePasskeySignInResult;
+    let returned!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
@@ -402,7 +402,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned!: UsernamePasskeySignInResult;
+    let returned!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       returned = await result.current.passkey.signIn({ username: "no" });
     });
@@ -428,7 +428,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let returned!: UsernamePasskeySignInResult;
+    let returned!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });
@@ -459,7 +459,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     const { result } = renderPasskey();
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
-    let first!: Promise<UsernamePasskeySignInResult>;
+    let first!: Promise<SignInWithUsernamePasskeyResult>;
     act(() => {
       first = result.current.passkey.signIn({ username: "alice" });
     });
@@ -467,7 +467,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
 
     // The second call must not start another ceremony or deadlock; it
     // returns a folded failure immediately.
-    let second!: UsernamePasskeySignInResult;
+    let second!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       second = await result.current.passkey.signIn({ username: "alice" });
     });
@@ -478,7 +478,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
     expect(mutations.startSignInWithUsernamePasskey).toHaveBeenCalledTimes(1);
 
     // The first call still completes normally.
-    let firstResult!: UsernamePasskeySignInResult;
+    let firstResult!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       resolveCeremony(authenticationResponse);
       firstResult = await first;
@@ -521,7 +521,7 @@ describe("useUsernamePasskeySignIn signIn", () => {
   });
 });
 
-describe("useUsernamePasskeySignIn autofill", () => {
+describe("useSignInWithUsernamePasskey autofill", () => {
   test("a rejecting availability check reports available: false and status 'stopped'", async () => {
     const spy = vi
       .spyOn(FakePublicKeyCredential, "isConditionalMediationAvailable")
@@ -638,7 +638,7 @@ describe("useUsernamePasskeySignIn autofill", () => {
       mutations.startAutofillSignInWithUsernamePasskey,
     ).toHaveBeenCalledTimes(1);
 
-    let returned!: UsernamePasskeySignInResult;
+    let returned!: SignInWithUsernamePasskeyResult;
     await act(async () => {
       returned = await result.current.passkey.signIn({ username: "alice" });
     });

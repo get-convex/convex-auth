@@ -376,7 +376,7 @@ function useLinkFlow<UserError>(
  *
  * ```tsx
  * function LogIn() {
- *   const { signIn, pending } = useSignInWithEmailPassword(api.auth.signInWithEmailPassword);
+ *   const { signIn, pending } = useSignInWithEmailPassword(api.auth);
  *   const [email, setEmail] = useState("");
  *   const [password, setPassword] = useState("");
  *   const [error, setError] = useState<string | null>(null);
@@ -421,9 +421,12 @@ function useLinkFlow<UserError>(
  * }
  * ```
  *
- * @param signInMutation The app's `signInWithEmailPassword` mutation reference.
+ * @param api The functions of the scheme, usually `api.auth`.
  */
-export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
+export function useSignInWithEmailPassword(api: {
+  signInWithEmailPassword: SignInMutation;
+}) {
+  const signInMutation = api.signInWithEmailPassword;
   const { setSession } = useAuthActions();
   const signInApi = useAuthSignInApi();
   const { pending, track } = usePending();
@@ -463,7 +466,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  *
  * ```tsx
  * function SignUp() {
- *   const { signUp, pending } = useSignUpWithEmailPassword(api.auth.signUpWithEmailPassword);
+ *   const { signUp, pending } = useSignUpWithEmailPassword(api.auth);
  *   const [email, setEmail] = useState("");
  *   const [password, setPassword] = useState("");
  *   const [error, setError] = useState<string | null>(null);
@@ -517,9 +520,12 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  * }
  * ```
  *
- * @param signUpMutation The app's `signUpWithEmailPassword` mutation reference.
+ * @param api The functions of the scheme, usually `api.auth`.
  */
-export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
+export function useSignUpWithEmailPassword(api: {
+  signUpWithEmailPassword: SignUpMutation;
+}) {
+  const signUpMutation = api.signUpWithEmailPassword;
   // Sign-up mints no session, so it calls Convex directly rather than going
   // through the `AuthSignInApi`. Under SSR, that API is the auth proxy, which
   // only serves functions returning the sign-in envelope.
@@ -556,7 +562,7 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
  * {@link useSignUpWithEmailPassword}, and adopt the minted session.
  *
  * ```tsx
- * const state = useCompleteSignUp(api.auth.completeSignUp, { emailCode });
+ * const state = useCompleteSignUp(api.auth, { emailCode });
  * switch (state.status) {
  *   case "loading": // validating…
  *   case "complete": // signed in
@@ -564,13 +570,14 @@ export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
  * }
  * ```
  *
- * @param completeSignUpMutation The app's `completeSignUp` mutation reference.
+ * @param api The functions of the scheme, usually `api.auth`.
  * @param emailCode The `code` query parameter of the link.
  */
 export function useCompleteSignUp(
-  completeSignUpMutation: CompleteSignUpMutation,
+  api: { completeSignUp: CompleteSignUpMutation },
   { emailCode }: { emailCode: string },
 ): CompleteSignUpState {
+  const completeSignUpMutation = api.completeSignUp;
   const { setSession } = useAuthActions();
   const signInApi = useAuthSignInApi();
   const withSignInPending = useWithSignInPending();
@@ -617,11 +624,12 @@ export function useCompleteSignUp(
  * that received the link. Show this address to the user, not the typed one:
  * the two can differ in case or in Unicode form.
  *
- * @param startPasswordRecoveryMutation The app's `startPasswordRecovery` mutation reference.
+ * @param api The functions of the scheme, usually `api.auth`.
  */
-export function useStartPasswordRecovery(
-  startPasswordRecoveryMutation: StartPasswordRecoveryMutation,
-) {
+export function useStartPasswordRecovery(api: {
+  startPasswordRecovery: StartPasswordRecoveryMutation;
+}) {
+  const startPasswordRecoveryMutation = api.startPasswordRecovery;
   const runStartPasswordRecovery = useMutation(startPasswordRecoveryMutation);
   const storage = useSecretStorage();
   const { pending, track } = usePending();
@@ -820,11 +828,12 @@ export function useCompletePasswordRecovery(
  * Client for starting an email change: run the backend's `startChangeEmail`
  * mutation and keep the returned secret for {@link useCompleteChangeEmail}.
  *
- * @param startChangeEmailMutation The app's `startChangeEmail` mutation reference.
+ * @param api The functions of the scheme, usually `api.auth`.
  */
-export function useStartChangeEmail(
-  startChangeEmailMutation: StartChangeEmailMutation,
-) {
+export function useStartChangeEmail(api: {
+  startChangeEmail: StartChangeEmailMutation;
+}) {
+  const startChangeEmailMutation = api.startChangeEmail;
   const runStartChangeEmail = useMutation(startChangeEmailMutation);
   const storage = useSecretStorage();
   const { pending, track } = usePending();
@@ -861,13 +870,14 @@ export function useStartChangeEmail(
  * {@link useStartChangeEmail}. No session is adopted: the user already has
  * one, and the backend requires it.
  *
- * @param completeChangeEmailMutation The app's `completeChangeEmail` mutation reference.
+ * @param api The functions of the scheme, usually `api.auth`.
  * @param emailCode The `code` query parameter of the link.
  */
 export function useCompleteChangeEmail(
-  completeChangeEmailMutation: CompleteChangeEmailMutation,
+  api: { completeChangeEmail: CompleteChangeEmailMutation },
   { emailCode }: { emailCode: string },
 ): CompleteChangeEmailState {
+  const completeChangeEmailMutation = api.completeChangeEmail;
   const runCompleteChangeEmail = useMutation(completeChangeEmailMutation);
 
   const complete = useCallback(
