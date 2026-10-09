@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 
 export function SignUp() {
   const { signUp, pending } = useSignUpWithPassword(
-    api.auth.signUpWithPassword,
+    api.auth.signUpWithUsernamePassword,
   );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

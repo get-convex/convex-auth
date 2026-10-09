@@ -32,7 +32,7 @@ import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
-import { oauth } from "../schemes/oauth/client.ts";
+import { oauthClient } from "../schemes/oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
 
 export { useAuthActions, useAuthToken } from "../react/index.tsx";
@@ -101,8 +101,8 @@ export function ConvexAuthNextjsProvider({
    * take action outside of a user activated sign in flow, such as reading an
    * oauth code from a url query param.
    *
-   * Setting this replaces the default (`[oauth()]`) entirely rather than adding
-   * to it. Pass `[]` to register nothing, or include `oauth()` (from
+   * Setting this replaces the default (`[oauthClient()]`) entirely rather than adding
+   * to it. Pass `[]` to register nothing, or include `oauthClient()` (from
    * `@convex-dev/auth/schemes/oauth/react`) yourself to keep it alongside
    * other sign-ins. Read once when the client is created and not expected to
    * change.
@@ -161,7 +161,7 @@ export function ConvexAuthNextjsProvider({
       // access token; the client adopts it on init.
       initialAccessToken: initialToken,
       ambientSignIns: {
-        signIns: ambientSignIns ?? [oauth()],
+        signIns: ambientSignIns ?? [oauthClient()],
         signInApi,
         // Calls that don't return a sign-in envelope, like starting an OAuth
         // flow, go to the deployment because the proxy refuses them.

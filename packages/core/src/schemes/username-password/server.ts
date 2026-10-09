@@ -24,7 +24,7 @@ import {
 const PROVIDER_NAME = "password";
 
 /**
- * Options for {@link setupUsernamePassword}.
+ * Options for {@link usernamePassword}.
  */
 export type UsernamePasswordOptions = {
   /**
@@ -51,7 +51,7 @@ const signInResult = v.union(
 );
 
 /**
- * The result of `signInWithPassword`.
+ * The result of `signInWithUsernamePassword`.
  *
  * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
@@ -63,7 +63,7 @@ const signUpResult = v.union(
 );
 
 /**
- * The result of `signUpWithPassword`.
+ * The result of `signUpWithUsernamePassword`.
  *
  * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
@@ -95,17 +95,17 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * with no email or email verification. Wire it up in `convex/auth.ts`:
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
- * export const { signUpWithPassword, signInWithPassword, changePassword } =
- *   setupUsernamePassword(core, {
+ * export const { signUpWithUsernamePassword, signInWithUsernamePassword, changePassword } =
+ *   usernamePassword(auth, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```
  *
- * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
+ * The app re-exports the returned `signUpWithUsernamePassword` / `signInWithUsernamePassword`
  * / `changePassword` mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the username
@@ -113,7 +113,7 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * user id back from it at sign-in. The password component itself stores only
  * `{ userId, passwordHash }` and knows nothing about usernames.
  */
-export function setupUsernamePassword<UsersTable extends string>(
+export function usernamePassword<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: UsernamePasswordOptions,
 ) {
@@ -128,7 +128,7 @@ export function setupUsernamePassword<UsersTable extends string>(
       createUser,
       onSignIn,
     }: UserCallbacks<"password", Record<string, never>, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindScheme({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,
@@ -140,7 +140,7 @@ export function setupUsernamePassword<UsersTable extends string>(
          * otherwise create the user + session and store the username and the
          * password.
          */
-        signUpWithPassword: authMutation({
+        signUpWithUsernamePassword: authMutation({
           args: { username: v.string(), password: v.string() },
           returns: signUpResult,
           handler: async (
@@ -233,7 +233,7 @@ export function setupUsernamePassword<UsersTable extends string>(
          * the two apart. (Account existence is already observable via sign-up's
          * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
          */
-        signInWithPassword: authMutation({
+        signInWithUsernamePassword: authMutation({
           args: { username: v.string(), password: v.string() },
           returns: signInResult,
           handler: async (

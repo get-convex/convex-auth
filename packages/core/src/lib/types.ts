@@ -207,7 +207,7 @@ export type IsAuthenticatedFn = FunctionReference<
 >;
 
 /**
- * The auth mutations the app exports from `setupCore`.
+ * The auth mutations the app exports from `convexAuth`.
  * Passed as references (not names) because an app may re-export them under any
  * names. Consumed by both SPA and SSR implementations.
  */
@@ -260,7 +260,7 @@ export const USE_USER_ID_AS_ACCOUNT_ID = "";
  *
  * The application keeps ownership of its users table. The core treats the
  * returned id as an opaque string at runtime; at the type level the table is
- * named by `setupCore`'s `usersTable` option, which is what makes the return
+ * named by `convexAuth`'s `usersTable` option, which is what makes the return
  * type `Id<usersTable>` rather than a bare string.
  */
 export type CreateUserFn<

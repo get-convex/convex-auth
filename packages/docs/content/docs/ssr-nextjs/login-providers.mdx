@@ -38,17 +38,17 @@ The `/auth/signin` route only forwards the functions listed in `signIn` in
 route refuses the call with a `403` error. Add these functions for each
 provider:
 
-| Provider         | Functions to list in `signIn`                           |
-| ---------------- | ------------------------------------------------------- |
-| Password         | `signUpWithPassword`, `signInWithPassword`              |
-| Passkey          | `finishSignUp`, `finishSignIn`                          |
-| Anonymous        | `signInAnonymous`                                       |
-| Email + password | `signIn`, `completeSignUp`, `completePasswordRecovery`  |
-| OAuth            | `completeSignIn<Provider>`, like `completeSignInGithub` |
+| Provider         | Functions to list in `signIn`                                           |
+| ---------------- | ----------------------------------------------------------------------- |
+| Password         | `signUpWithUsernamePassword`, `signInWithUsernamePassword`              |
+| Passkey          | `finishSignUpWithUsernamePasskey`, `finishSignInWithUsernamePasskey`    |
+| Anonymous        | `signInAnonymously`                                                     |
+| Email + password | `signInWithEmailPassword`, `completeSignUp`, `completePasswordRecovery` |
+| OAuth            | `completeSignInWith<Provider>`, like `completeSignInWithGithub`         |
 
 Only list functions that create a session. The other functions a provider
-exports, like `changePassword`, passkey `startSignIn`, OAuth
-`startSignInGithub`, or `startChangeEmail`,
+exports, like `changePassword`, passkey `startSignInWithUsernamePasskey`, OAuth
+`startSignInWithGithub`, or `startChangeEmail`,
 are called through the Convex client as usual and don't need to be listed.
 
 ### Adapt the authentication UI to Next.js
@@ -86,7 +86,7 @@ Some providers need the URL of your frontend. The provider guides use the Vite
 dev server (`http://localhost:5173`). `next dev` serves on
 `http://localhost:3000` by default:
 
-- **Passkey:** set `origin` in `setupUsernamePasskey` to your Next.js origin
+- **Passkey:** set `origin` in `usernamePasskey` to your Next.js origin
   (`http://localhost:3000` in development). `rpId` stays `localhost`.
 - **Email + password:** set the `SITE_URL` environment variable on your
   deployment to your Next.js origin, so the emailed links open your Next.js
@@ -96,6 +96,6 @@ dev server (`http://localhost:5173`). `next dev` serves on
   npx convex env set SITE_URL http://localhost:3000
   ```
 
-- **OAuth:** set `allowedRedirectOrigins` in `setupApple`, `setupGoogle`, or
-  `setupGithub` to your Next.js origin (`http://localhost:3000` in
+- **OAuth:** set `allowedRedirectOrigins` in `apple`, `google`, or
+  `github` to your Next.js origin (`http://localhost:3000` in
   development).

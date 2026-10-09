@@ -7,7 +7,7 @@
 import { api } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
-import { setupGoogle } from "../../schemes/google/server.ts";
+import { google } from "../../schemes/google/server.ts";
 import {
   ALLOWED_ORIGINS,
   asComponentApi,
@@ -18,12 +18,12 @@ import {
 
 const modules = import.meta.glob("./**/*.ts");
 
-const { startSignInGoogle } = setupGoogle(fakeCore, {
+const { startSignInWithGoogle } = google(fakeCore, {
   component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 }).attachUserCallbacks(fakeCallbacks);
 
-testAuthorizationUrl(schema, modules, startSignInGoogle, {
+testAuthorizationUrl(schema, modules, startSignInWithGoogle, {
   authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
   scope: "openid email profile",
 });

@@ -21,7 +21,7 @@ import type { GenericId } from "convex/values";
  * ```
  *
  * The id is typed as one in the `"users"` table. If the app's users live in a
- * table with another name (see `setupCore`'s `usersTable` option), name it
+ * table with another name (see `convexAuth`'s `usersTable` option), name it
  * here too:
  *
  * ```ts

@@ -28,7 +28,7 @@ import type { SignInResult, SignUpResult } from "./server.ts";
 export type Credentials = { username: string; password: string };
 
 /**
- * The `signInWithPassword` mutation the app re-exports from its `setupCore`.
+ * The `signInWithUsernamePassword` mutation the app re-exports from its `convexAuth`.
  *
  * Its return value is the access-only {@link ClientView}, which is what both
  * session models have in common. Hand it to `setSession`, the only supported
@@ -42,7 +42,7 @@ type SignInWithPasswordMutation = FunctionReference<
 >;
 
 /**
- * The `signUpWithPassword` mutation the app re-exports from its `setupCore`.
+ * The `signUpWithUsernamePassword` mutation the app re-exports from its `convexAuth`.
  */
 type SignUpWithPasswordMutation = FunctionReference<
   "mutation",
@@ -74,7 +74,7 @@ export type SignUpWithPasswordResult =
 
 /**
  * Client for the password provider's sign-in flow: wire the backend's
- * `signInWithPassword` mutation to the core client.
+ * `signInWithUsernamePassword` mutation to the core client.
  *
  * The returned `signIn` runs the mutation with the given credentials and, on
  * success, establishes an authenticated session with your Convex backend.
@@ -90,7 +90,7 @@ export type SignUpWithPasswordResult =
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
- *   const { signIn, pending } = useSignInWithPassword(api.auth.signInWithPassword);
+ *   const { signIn, pending } = useSignInWithPassword(api.auth.signInWithUsernamePassword);
  *   return (
  *     <form
  *       onSubmit={async (e) => {
@@ -107,7 +107,7 @@ export type SignUpWithPasswordResult =
  * }
  * ```
  *
- * @param signInMutation The app's `signInWithPassword` mutation reference.
+ * @param signInMutation The app's `signInWithUsernamePassword` mutation reference.
  */
 export function useSignInWithPassword(
   signInMutation: SignInWithPasswordMutation,
@@ -133,7 +133,7 @@ export function useSignInWithPassword(
 
 /**
  * Client for the password provider's sign-up flow: wire the backend's
- * `signUpWithPassword` mutation to the core client.
+ * `signUpWithUsernamePassword` mutation to the core client.
  *
  * The returned `signUp` runs the mutation with the given credentials and, on
  * success, establishes an authenticated session with your Convex backend.
@@ -149,12 +149,12 @@ export function useSignInWithPassword(
  * import { api } from "../convex/_generated/api";
  *
  * function SignUp() {
- *   const { signUp, pending } = useSignUpWithPassword(api.auth.signUpWithPassword);
+ *   const { signUp, pending } = useSignUpWithPassword(api.auth.signUpWithUsernamePassword);
  *   // ...same shape as useSignInWithPassword
  * }
  * ```
  *
- * @param signUpMutation The backend's `signUpWithPassword` mutation reference.
+ * @param signUpMutation The backend's `signUpWithUsernamePassword` mutation reference.
  */
 export function useSignUpWithPassword(
   signUpMutation: SignUpWithPasswordMutation,

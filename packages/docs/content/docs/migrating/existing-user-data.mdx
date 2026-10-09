@@ -11,13 +11,13 @@ to use a different name, you can use that table instead.
 
 ## Using a table with a different name
 
-Pass the table name to `setupCore`:
+Pass the table name to `convexAuth`:
 
 ```ts title="convex/auth.ts"
-const core = setupCore({ component: components.auth, usersTable: "members" });
+const auth = convexAuth({ component: components.auth, usersTable: "members" });
 ```
 
-Every provider set up with this `core` then requires user callbacks that work
+Every scheme set up with this `auth` then requires user callbacks that work
 with ids from that table: `createUser` must return an `Id<"members">`, and
 `onSignIn` receives one.
 

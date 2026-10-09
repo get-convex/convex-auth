@@ -35,10 +35,10 @@ anonymous: the refresh token is minted straight into an httpOnly cookie and
   message. The sign-in page also offers one-click anonymous sign-in.
 - **GitHub sign-in** uses `useSignInWithGithub` from
   `@convex-dev/auth/schemes/github/react`, the same hook a SPA uses. Starting
-  the flow runs `startSignInGithub` on the Convex client, because it returns a
+  the flow runs `startSignInWithGithub` on the Convex client, because it returns a
   redirect URL rather than a session. GitHub sends the user back to `/signin`,
-  where the hook redeems the code by calling `completeSignInGithub` through the
-  sign-in route, so of the OAuth pair only `completeSignInGithub` is in the
+  where the hook redeems the code by calling `completeSignInWithGithub` through the
+  sign-in route, so of the OAuth pair only `completeSignInWithGithub` is in the
   `signIn` allowlist.
   The flow has to return to a page `proxy.ts` lets a signed-out user reach,
   which is why it starts and ends on `/signin`.

@@ -7,7 +7,7 @@
 import { api } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
-import { setupGithub } from "../../schemes/github/server.ts";
+import { github } from "../../schemes/github/server.ts";
 import {
   ALLOWED_ORIGINS,
   asComponentApi,
@@ -18,12 +18,12 @@ import {
 
 const modules = import.meta.glob("./**/*.ts");
 
-const { startSignInGithub } = setupGithub(fakeCore, {
+const { startSignInWithGithub } = github(fakeCore, {
   component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 }).attachUserCallbacks(fakeCallbacks);
 
-testAuthorizationUrl(schema, modules, startSignInGithub, {
+testAuthorizationUrl(schema, modules, startSignInWithGithub, {
   authorizationEndpoint: "https://github.com/login/oauth/authorize",
   scope: "read:user user:email",
 });

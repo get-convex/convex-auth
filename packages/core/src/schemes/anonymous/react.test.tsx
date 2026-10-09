@@ -24,7 +24,7 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
-// A stand-in for the app's `api.auth.signInAnonymous` reference. The stub signInApi
+// A stand-in for the app's `api.auth.signInAnonymously` reference. The stub signInApi
 // ignores it, so any value typed as the reference will do.
 const signInAnonymous = {} as SignInAnonymousMutation;
 

@@ -51,7 +51,7 @@ import {
   type SignInOptions,
 } from "./client.ts";
 
-export { oauth } from "./client.ts";
+export { oauthClient } from "./client.ts";
 export type {
   OauthActions,
   OauthCompleteResult,
@@ -65,7 +65,7 @@ export type {
 /** What every hook here throws when the OAuth setup published nothing. */
 const NOT_REGISTERED_ERROR =
   "No OAuth setup is registered. ConvexAuthProvider and " +
-  "ConvexAuthNextjsProvider register oauth() from " +
+  "ConvexAuthNextjsProvider register oauthClient() from " +
   "@convex-dev/auth/schemes/oauth/react by default, so include it yourself " +
   "if you set the `ambientSignIns` prop.";
 
@@ -89,7 +89,7 @@ export function useOauth(): UseOauthReturn {
     OAUTH_SETUP_ID,
     OAUTH_FLOW_ERROR_KEY,
   );
-  // The value is published at setup, so `undefined` means oauth() was never
+  // The value is published at setup, so `undefined` means oauthClient() was never
   // registered.
   if (flowError === undefined) {
     throw new Error(NOT_REGISTERED_ERROR);

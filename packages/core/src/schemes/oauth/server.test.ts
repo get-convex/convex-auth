@@ -5,7 +5,7 @@ import {
   fakeCore,
 } from "../../lib/oauth/componentContract.test.ts";
 import {
-  setupOauth,
+  oauth,
   type OauthCatalog,
   type OauthProviderOptions,
 } from "./server.ts";
@@ -30,14 +30,14 @@ function setup(
   options: Partial<OauthProviderOptions> = {},
   catalog: OauthCatalog = minimalCatalog,
 ) {
-  return setupOauth(fakeCore, "acme", catalog, fakeCallbacks, {
+  return oauth(fakeCore, "acme", catalog, fakeCallbacks, {
     component: {} as ComponentApi,
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
   });
 }
 
-describe("setupOauth validation", () => {
+describe("oauth validation", () => {
   test("http(s) redirect origins are accepted", () => {
     const api = setup({
       allowedRedirectOrigins: [

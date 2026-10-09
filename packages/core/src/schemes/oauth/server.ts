@@ -122,7 +122,7 @@ export type OauthProviderOptions = {
  *    callback redirect plus its original state, and gets back the session
  *    token bundle.
  */
-export function setupOauth<
+export function oauth<
   Provider extends string,
   Profile extends { id: string },
   UsersTable extends string,
@@ -178,7 +178,7 @@ export function setupOauth<
     }
   }
 
-  const { authMutation } = core.bindProvider({
+  const { authMutation } = core.bindScheme({
     name: providerName,
     createUser: callbacks.createUser,
     onSignIn: callbacks.onSignIn,

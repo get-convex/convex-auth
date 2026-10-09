@@ -6,7 +6,7 @@ import { isCommonPassword } from "./commonPasswords.ts";
 // Unicode, no leading/trailing whitespace.
 
 // TODO: Make the minimum length an option of each scheme (for example
-// `setupUsernamePassword`). The component then enforces only an absolute
+// `usernamePassword`). The component then enforces only an absolute
 // minimum of 8 characters, which it does not export. Today the component and
 // all schemes enforce 10.
 export const MIN_PASSWORD_LENGTH = 10;

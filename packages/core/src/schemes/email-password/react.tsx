@@ -376,7 +376,7 @@ function useLinkFlow<UserError>(
  *
  * ```tsx
  * function LogIn() {
- *   const { signIn, pending } = useSignInWithEmailPassword(api.auth.signIn);
+ *   const { signIn, pending } = useSignInWithEmailPassword(api.auth.signInWithEmailPassword);
  *   const [email, setEmail] = useState("");
  *   const [password, setPassword] = useState("");
  *   const [error, setError] = useState<string | null>(null);
@@ -421,7 +421,7 @@ function useLinkFlow<UserError>(
  * }
  * ```
  *
- * @param signInMutation The app's `signIn` mutation reference.
+ * @param signInMutation The app's `signInWithEmailPassword` mutation reference.
  */
 export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
   const { setSession } = useAuthActions();
@@ -463,7 +463,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  *
  * ```tsx
  * function SignUp() {
- *   const { signUp, pending } = useSignUpWithEmailPassword(api.auth.signUp);
+ *   const { signUp, pending } = useSignUpWithEmailPassword(api.auth.signUpWithEmailPassword);
  *   const [email, setEmail] = useState("");
  *   const [password, setPassword] = useState("");
  *   const [error, setError] = useState<string | null>(null);
@@ -517,7 +517,7 @@ export function useSignInWithEmailPassword(signInMutation: SignInMutation) {
  * }
  * ```
  *
- * @param signUpMutation The app's `signUp` mutation reference.
+ * @param signUpMutation The app's `signUpWithEmailPassword` mutation reference.
  */
 export function useSignUpWithEmailPassword(signUpMutation: SignUpMutation) {
   // Sign-up mints no session, so it calls Convex directly rather than going

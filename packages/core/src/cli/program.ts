@@ -92,14 +92,14 @@ app.use(auth, {
 export default app;
 `,
   "auth.ts": `import { components } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
 
-const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = convexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
 // TODO Set up a login provider. For example:
-// export const { signUpWithPassword, signInWithPassword } =
-//   setupUsernamePassword(core, {
+// export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
+//   usernamePassword(auth, {
 //     component: components.authPassword,
 //     usernameComponent: components.authUsername,
 //   }).attachUserCallbacks({ createUser: internal.users.createUser });

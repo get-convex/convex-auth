@@ -25,7 +25,7 @@ import {
   NAMESPACE,
   calledPath,
   completed,
-  oauthClient,
+  oauthTestClient,
   readFlow,
   restoreNavigatorProduct,
   seedPendingFlow,
@@ -36,25 +36,25 @@ import {
 // resolves them. The sign-in api is a mock, so these are addresses the
 // assertions compare.
 const googleStart = makeFunctionReference<"mutation">(
-  "auth:startSignInGoogle",
+  "auth:startSignInWithGoogle",
 ) as OauthProviderApi["startSignIn"];
 const googleComplete = makeFunctionReference<"mutation">(
-  "auth:completeSignInGoogle",
+  "auth:completeSignInWithGoogle",
 ) as OauthProviderApi["completeSignIn"];
 
 /** The part of a generated `api.auth` the Google hook reads. */
 const googleApi = {
-  startSignInGoogle: googleStart,
-  completeSignInGoogle: googleComplete,
+  startSignInWithGoogle: googleStart,
+  completeSignInWithGoogle: googleComplete,
 };
 
 /** The part of a generated `api.auth` the GitHub hook reads. */
 const githubApi = {
-  startSignInGithub: makeFunctionReference<"mutation">(
-    "auth:startSignInGithub",
+  startSignInWithGithub: makeFunctionReference<"mutation">(
+    "auth:startSignInWithGithub",
   ) as OauthProviderApi["startSignIn"],
-  completeSignInGithub: makeFunctionReference<"mutation">(
-    "auth:completeSignInGithub",
+  completeSignInWithGithub: makeFunctionReference<"mutation">(
+    "auth:completeSignInWithGithub",
   ) as OauthProviderApi["completeSignIn"],
 };
 
@@ -89,7 +89,8 @@ function renderOAuth<T>(
     onMutation?: (mutation: ReturnType<typeof vi.fn>) => void;
   } = {},
 ) {
-  const { client, signInApi, mutation, convexMutation } = oauthClient(storage);
+  const { client, signInApi, mutation, convexMutation } =
+    oauthTestClient(storage);
   onMutation?.(mutation);
   const tree = (children: ReactNode) => (
     <AuthProvider authClient={client} signInApi={signInApi}>
@@ -109,7 +110,7 @@ describe("OAuth React client", () => {
     restoreNavigatorProduct();
   });
 
-  test("the hooks throw when oauth() is not registered", () => {
+  test("the hooks throw when oauthClient() is not registered", () => {
     const client = new AuthClient({
       mode: "spa",
       authApi: {
@@ -146,7 +147,7 @@ describe("OAuth React client", () => {
     await waitFor(() => expect(result.current.auth.isAuthenticated).toBe(true));
     expect(mutation).toHaveBeenCalledOnce();
     // Completion rebuilt the reference from the persisted function path.
-    expect(calledPath(mutation)).toBe("auth:completeSignInGoogle");
+    expect(calledPath(mutation)).toBe("auth:completeSignInWithGoogle");
     expect(mutation.mock.calls[0]![1]).toEqual({
       code: "code-1",
       state: "state-1",
@@ -195,7 +196,7 @@ describe("OAuth React client", () => {
     expect(readFlow(storage)).toEqual({
       providerName: "google",
       state: "state-1",
-      completeSignIn: "auth:completeSignInGoogle",
+      completeSignIn: "auth:completeSignInWithGoogle",
     });
   });
 
@@ -234,13 +235,13 @@ describe("OAuth React client", () => {
     });
 
     expect(convexMutation).toHaveBeenCalledExactlyOnceWith(
-      githubApi.startSignInGithub,
+      githubApi.startSignInWithGithub,
       { redirectTo: "http://localhost/app" },
     );
     expect(readFlow(storage)).toEqual({
       providerName: "github",
       state: "state-2",
-      completeSignIn: "auth:completeSignInGithub",
+      completeSignIn: "auth:completeSignInWithGithub",
     });
   });
 
@@ -299,12 +300,12 @@ describe("OAuth React client", () => {
     const apiModule = {
       ...googleApi,
       signOut: undefined as unknown,
-      startSignInGithub: undefined as unknown,
+      startSignInWithGithub: undefined as unknown,
     };
     const full: GoogleParam = apiModule;
     void full;
-    // @ts-expect-error - missing completeSignInGoogle must not typecheck.
-    const missing: GoogleParam = { startSignInGoogle: googleStart };
+    // @ts-expect-error - missing completeSignInWithGoogle must not typecheck.
+    const missing: GoogleParam = { startSignInWithGoogle: googleStart };
     void missing;
   });
 

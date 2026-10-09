@@ -111,7 +111,7 @@ function tokenRoute(claims: Record<string, unknown> = {}) {
 }
 
 /**
- * Record an authorization request the way `startSignInApple` would,
+ * Record an authorization request the way `startSignInWithApple` would,
  * returning the raw `state` Apple echoes back to the callback.
  */
 async function startFlow(t: ReturnType<typeof setup>): Promise<string> {
@@ -150,7 +150,7 @@ function redirectParams(response: Response): URLSearchParams {
   return location.searchParams;
 }
 
-/** Redeem the minted ticket the way `completeSignInApple` would. */
+/** Redeem the minted ticket the way `completeSignInWithApple` would. */
 async function redeem(
   t: ReturnType<typeof setup>,
   code: string,
