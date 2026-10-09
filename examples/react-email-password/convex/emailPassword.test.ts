@@ -7,7 +7,6 @@ import { registerCore } from "@convex-dev/auth/providers/testing/core";
 import { registerPasswordProvider } from "@convex-dev/auth/providers/testing/password";
 import { registerEmail } from "@convex-dev/auth/providers/testing/email";
 import { registerResendStub } from "@convex-dev/auth/providers/testing/resend";
-import { sha256Hex } from "@convex-dev/auth/lib/crypto";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -120,6 +119,17 @@ const RECOVERY = {
   kind: "custom",
   purpose: "convexAuth/emailPassword/recovery",
 } as const;
+
+/** The SHA-256 hex digest that the email component stores for a secret. */
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
 
 /** Seed a pending challenge, hashing the code + secret like production. */
 async function seedChallenge(

@@ -18,11 +18,7 @@ import {
 } from "jose";
 import { api } from "./_generated/api.ts";
 import schema from "./schema.ts";
-import {
-  getCreateUserCalls,
-  getOnSignInCalls,
-  resetUserCallbackCalls,
-} from "./testApp.ts";
+import * as testApp from "./testApp.fixture.ts";
 import {
   type AuthClaims,
   type TokenBundle,
@@ -32,7 +28,16 @@ import {
 import { sha256Hex } from "../../lib/crypto.ts";
 import { REFRESH_GRACE_MS, SPENT_TOKEN_HORIZON_MS } from "./public.ts";
 
-const modules = import.meta.glob("./**/*.ts");
+/**
+ * The component's modules, and the test-only `testApp` module. The fixture file
+ * has two dots in its name, thus the Convex bundler and codegen skip it, and it
+ * is not deployed with the component. It is injected here as `testApp.ts`, so
+ * that its functions have the `testApp:<name>` handles.
+ */
+const modules = {
+  ...import.meta.glob(["./**/*.ts", "!./**/*.fixture.ts"]),
+  "./testApp.ts": async () => testApp,
+};
 
 // The core reads its signing material from `AUTH_PRIVATE_KEY` / `AUTH_JWKS`
 // (env vars in production). We mint a real RS256 key pair once and set those
@@ -165,11 +170,11 @@ describe("signUp", () => {
 
   test("invokes the app's createUser with the claims, then onSignIn", async () => {
     const t = setup();
-    resetUserCallbackCalls();
+    testApp.resetUserCallbackCalls();
 
     await signUp(t, claims({ profile: { name: "Alice" } }));
 
-    expect(getCreateUserCalls()).toEqual([
+    expect(testApp.getCreateUserCalls()).toEqual([
       {
         provider: {
           name: "password",
@@ -180,7 +185,7 @@ describe("signUp", () => {
     ]);
     // A first sign-in is still a sign-in, so onSignIn runs too, with the id
     // createUser just returned. Per-sign-in work has one home.
-    expect(getOnSignInCalls()).toEqual([
+    expect(testApp.getOnSignInCalls()).toEqual([
       {
         provider: {
           name: "password",
@@ -194,7 +199,7 @@ describe("signUp", () => {
 
   test("creates the user without an onSignIn attached", async () => {
     const t = setup();
-    resetUserCallbackCalls();
+    testApp.resetUserCallbackCalls();
 
     const bundle = await t.mutation(api.public.signUp, {
       claims: claims(),
@@ -203,8 +208,8 @@ describe("signUp", () => {
     });
 
     expect(bundle.userId).toBe("alice");
-    expect(getCreateUserCalls()).toHaveLength(1);
-    expect(getOnSignInCalls()).toHaveLength(0);
+    expect(testApp.getCreateUserCalls()).toHaveLength(1);
+    expect(testApp.getOnSignInCalls()).toHaveLength(0);
   });
 
   test("an onSignIn that throws rolls back the user it just created", async () => {
@@ -267,16 +272,16 @@ describe("signIn", () => {
 
   test("invokes the app's onSignIn with the resolved user id and latest claims", async () => {
     const t = setup();
-    resetUserCallbackCalls();
+    testApp.resetUserCallbackCalls();
 
     await signUp(t, claims({ profile: { name: "Alice" } }));
     await signIn(t, claims({ profile: { name: "Alice 2.0" } }));
 
     // The app gets the known id and the fresh profile to sync from. createUser
     // ran once, for the sign-up; onSignIn ran for both.
-    expect(getCreateUserCalls()).toHaveLength(1);
-    expect(getOnSignInCalls()).toHaveLength(2);
-    expect(getOnSignInCalls()[1]).toEqual({
+    expect(testApp.getCreateUserCalls()).toHaveLength(1);
+    expect(testApp.getOnSignInCalls()).toHaveLength(2);
+    expect(testApp.getOnSignInCalls()[1]).toEqual({
       provider: {
         name: "password",
         accountId: "alice",
@@ -289,7 +294,7 @@ describe("signIn", () => {
   test("mints the session without notifying an app that attached no onSignIn", async () => {
     const t = setup();
     await signUp(t, claims());
-    resetUserCallbackCalls();
+    testApp.resetUserCallbackCalls();
 
     // No `onSignInHandle` is what an app that left `onSignIn` out sends.
     const bundle = await t.mutation(api.public.signIn, {
@@ -298,7 +303,7 @@ describe("signIn", () => {
     });
 
     expect(bundle.userId).toBe("alice");
-    expect(getOnSignInCalls()).toHaveLength(0);
+    expect(testApp.getOnSignInCalls()).toHaveLength(0);
   });
 
   test("refuses to sign in an identity with no account", async () => {
@@ -320,7 +325,7 @@ describe("signIn", () => {
 describe("signUpWithoutSession", () => {
   test("creates the user and the account, but no session", async () => {
     const t = setup();
-    resetUserCallbackCalls();
+    testApp.resetUserCallbackCalls();
 
     const { userId } = await t.mutation(api.public.signUpWithoutSession, {
       claims: claims(),
@@ -329,9 +334,9 @@ describe("signUpWithoutSession", () => {
 
     // The app's createUser echoes the providerAccountId as the user id.
     expect(userId).toBe("alice");
-    expect(getCreateUserCalls()).toHaveLength(1);
+    expect(testApp.getCreateUserCalls()).toHaveLength(1);
     // No sign-in happened, so onSignIn does not run.
-    expect(getOnSignInCalls()).toHaveLength(0);
+    expect(testApp.getOnSignInCalls()).toHaveLength(0);
 
     // The account exists, but no session was minted.
     const counts = await t.run(async (ctx) => ({

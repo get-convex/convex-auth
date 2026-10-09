@@ -25,7 +25,8 @@
     "dist",
     "src",
     "!src/**/*.test.ts",
-    "!src/**/*.test.tsx"
+    "!src/**/*.test.tsx",
+    "!src/**/*.fixture.ts"
   ],
   "type": "module",
   "sideEffects": false,
