@@ -14,6 +14,30 @@ This is a pnpm monorepo:
     with the `EmailPassword` provider (sign-up with email validation, change
     password/email, password recovery; email through `@convex-dev/resend`).
 
+## Source layout of `packages/core/src`
+
+- `component/` — the core Convex component (`auth`): sessions, accounts, JWTs.
+- `components/<name>/` — the optional Convex components (`username`,
+  `password`, `email`, `passkey`, `totp`, `anonymous`, `oauth`, `google`,
+  `apple`, `github`).
+- `schemes/<scheme>/` — the sign-in schemes, which use one or more
+  components: `server.ts` (Convex functions of the app), `react.tsx` (hooks),
+  and the browser code.
+- `server/` — the app-side code of the core (`setupCore`, `getAuthUserId`).
+- `ssr/`, `nextjs/`, `react/`, `browser/` — the client and SSR code of the
+  core.
+- `lib/` — internal code that several layers share (`lib/oauth/` for the
+  OAuth components and schemes).
+- `testing/` — the `convex-test` helpers, which ship as source.
+
+The Convex CLI deploys every module in a component directory, and codegen
+lists each one in `_generated/api.ts`. Thus a component directory holds only
+the code of the component. Put app-side code and client code in
+`schemes/`, `server/`, or `lib/`. ESLint rejects a component module that
+imports client code or app-side code. The CLI skips a file name with two dots
+(`x.test.ts`, `x.fixture.ts`): use the `.fixture.ts` suffix for a test-only
+module in a component directory.
+
 ## Published output
 
 `@convex-dev/auth` ships **compiled** ESM plus declarations under `dist/`; its

@@ -24,7 +24,7 @@ import type {
 } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
-import { oauth } from "../oauth/client.ts";
+import { oauth } from "../schemes/oauth/client.ts";
 import type { ConvexAuthApi } from "../lib/types.ts";
 import {
   AuthProvider,

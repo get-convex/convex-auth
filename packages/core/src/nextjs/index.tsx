@@ -32,7 +32,7 @@ import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
-import { oauth } from "../oauth/client.ts";
+import { oauth } from "../schemes/oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
 
 export { useConvexAuth } from "convex/react";

@@ -8,7 +8,7 @@ import type {
   AmbientSignInClient,
   AuthSignInApi,
 } from "../browser/ambientSignInClient.ts";
-import { useOauth } from "../oauth/react.ts";
+import { useOauth } from "../schemes/oauth/react.ts";
 import { ConvexAuthProvider, useAuthSignInApi } from "./index.tsx";
 import { useAmbientSignInValue } from "./providers.ts";
 
