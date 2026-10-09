@@ -35,8 +35,12 @@ and `verbatimModuleSyntax` settings. Two rules follow from it:
 - Anything reached from a published entry point must compile. `dist/` is built
   by `tsconfig.build.json`, which excludes tests and other in-repo-only
   modules (see its `exclude` list).
+- Each `exports` entry names one file. Do not use a `*`: a wildcard publishes
+  every file of a directory, including the internal modules and the
+  `_generated/` files of a component. `pnpm check:declarations` rejects a
+  wildcard and an entry whose file does not exist.
 
-The one exception is `./providers/testing/*`, which ships as TypeScript from
+The one exception is the `./providers/testing/<name>` entries, which ship as TypeScript from
 `src/`. Those helpers call `import.meta.glob`, a Vite macro that has to be
 transformed by the consumer's bundler — and Vitest externalizes plain `.js`
 under `node_modules` (leaving the macro intact, so it throws at import) while it
