@@ -29,6 +29,7 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/**/*.script.ts",
+    "src/**/*.fixture.ts",
     "src/components/password/scripts/**",
     // Ships as source (see the `./providers/testing/*` export).
     "src/components/testing/**",

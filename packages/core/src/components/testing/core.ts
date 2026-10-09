@@ -11,7 +11,10 @@
 import type { TestConvex } from "convex-test";
 import type { GenericSchema, SchemaDefinition } from "convex/server";
 import schema from "../core/schema.ts";
-const modules = import.meta.glob("../core/**/*.ts");
+const modules = import.meta.glob([
+  "../core/**/*.ts",
+  "!../core/**/*.fixture.ts",
+]);
 
 /**
  * Register the component with the test convex instance.

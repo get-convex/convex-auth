@@ -13,7 +13,6 @@ import type * as http from "../http.js";
 import type * as index from "../index.js";
 import type * as public_ from "../public.js";
 import type * as setup from "../setup.js";
-import type * as testApp from "../testApp.js";
 import type * as userId from "../userId.js";
 
 import type {
@@ -29,7 +28,6 @@ const fullApi: ApiFromModules<{
   index: typeof index;
   public: typeof public_;
   setup: typeof setup;
-  testApp: typeof testApp;
   userId: typeof userId;
 }> = anyApi as any;
 
