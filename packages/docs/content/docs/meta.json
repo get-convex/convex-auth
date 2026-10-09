@@ -1,3 +1,10 @@
 {
-  "pages": ["index", "getting-started", "login-providers", "migrating", "api"]
+  "pages": [
+    "index",
+    "getting-started",
+    "login-providers",
+    "ssr-nextjs",
+    "migrating",
+    "api"
+  ]
 }

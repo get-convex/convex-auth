@@ -22,5 +22,5 @@ export default convexAuthNextjsProxy(async (request, { isAuthenticated }) => {
 export const config = {
   // Run on everything except the /auth handlers (they own their own cookies)
   // and Next internals.
-  matcher: ["/((?!auth|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!auth(?:/|$)|_next/static|_next/image|favicon.ico).*)"],
 };
