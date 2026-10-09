@@ -18,12 +18,12 @@ import {
 
 const modules = import.meta.glob("./**/*.ts");
 
-const { startSignInGoogle } = setupGoogle(fakeCore, {
+const { startSignInWithGoogle } = setupGoogle(fakeCore, {
   component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 }).attachUserCallbacks(fakeCallbacks);
 
-testAuthorizationUrl(schema, modules, startSignInGoogle, {
+testAuthorizationUrl(schema, modules, startSignInWithGoogle, {
   authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
   scope: "openid email profile",
 });

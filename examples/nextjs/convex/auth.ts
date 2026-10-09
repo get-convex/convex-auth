@@ -7,8 +7,8 @@ import { setupUsernamePassword } from "@convex-dev/auth/methods/username-passwor
 // The core owns sessions, accounts, and JWT minting. Each provider is wired to
 // it with its own setup function, and only hands back its functions once the
 // app attaches the callbacks that create its user rows. Each provider exposes
-// the functions its client hooks call: `signInAnonymous` for the anonymous
-// provider, `signUpWithPassword` / `signInWithPassword` for the password one.
+// the functions its client hooks call: `signInAnonymously` for the anonymous
+// provider, `signUpWithUsernamePassword` / `signInWithUsernamePassword` for the password one.
 // Under SSR those calls get proxied to Convex via the SSR host. The sign-in
 // functions exposed here are wired up to be proxied in src/lib/serverAuth.ts.
 const core = setupCore({ component: components.auth });
@@ -16,28 +16,29 @@ export const { signOut, refreshSession, isAuthenticated } = core;
 
 // `onSignIn` is optional, and runs on every sign-in including the first. This
 // app uses it to stamp the user's last sign-in.
-export const { signInAnonymous } = setupAnonymous(core, {
+export const { signInAnonymously } = setupAnonymous(core, {
   component: components.authAnonymous,
 }).attachUserCallbacks({
   createUser: internal.users.createUser,
   onSignIn: internal.users.onSignIn,
 });
 
-export const { signUpWithPassword, signInWithPassword } = setupUsernamePassword(
-  core,
-  {
+export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
+  setupUsernamePassword(core, {
     component: components.authPassword,
     usernameComponent: components.authUsername,
+  }).attachUserCallbacks({
+    createUser: internal.users.createUser,
+    onSignIn: internal.users.onSignIn,
+  });
+
+export const { startSignInWithGithub, completeSignInWithGithub } = setupGithub(
+  core,
+  {
+    component: components.authGithub,
+    allowedRedirectOrigins: ["http://localhost:3000"],
   },
 ).attachUserCallbacks({
-  createUser: internal.users.createUser,
-  onSignIn: internal.users.onSignIn,
-});
-
-export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
-  component: components.authGithub,
-  allowedRedirectOrigins: ["http://localhost:3000"],
-}).attachUserCallbacks({
   createUser: internal.users.createUser,
   onSignIn: internal.users.onSignIn,
 });

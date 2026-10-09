@@ -193,7 +193,7 @@ const SESSION_TOKENS = {
 describe("signUp", () => {
   test("rejects a malformed email before creating anything", async () => {
     const t = await setup();
-    const result = await t.mutation(api.auth.signUp, {
+    const result = await t.mutation(api.auth.signUpWithEmailPassword, {
       email: "not-an-email",
       password: PASSWORD,
     });
@@ -211,7 +211,10 @@ describe("signUp", () => {
     const t = await setup();
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signUp, { email: EMAIL, password: "short" });
+      .mutation(api.auth.signUpWithEmailPassword, {
+        email: EMAIL,
+        password: "short",
+      });
     expect(result).toEqual({
       success: false,
       userError: { error: "PASSWORD_TOO_SHORT", minimumLength: 10 },
@@ -222,7 +225,10 @@ describe("signUp", () => {
     const t = await setup();
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signUp, { email: EMAIL, password: "password123" });
+      .mutation(api.auth.signUpWithEmailPassword, {
+        email: EMAIL,
+        password: "password123",
+      });
     expect(result).toEqual({
       success: false,
       userError: { error: "PASSWORD_TOO_COMMON" },
@@ -238,7 +244,10 @@ describe("signUp", () => {
     await seedSignedUpUser(t);
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+      .mutation(api.auth.signUpWithEmailPassword, {
+        email: EMAIL,
+        password: PASSWORD,
+      });
     expect(result).toEqual({
       success: false,
       userError: { error: "EMAIL_TAKEN" },
@@ -251,7 +260,10 @@ describe("signUp", () => {
     const signUp = () =>
       t
         .withRequestMetadata({ ip: IP })
-        .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+        .mutation(api.auth.signUpWithEmailPassword, {
+          email: EMAIL,
+          password: PASSWORD,
+        });
     // The lookup limit has 60 tokens per IP.
     for (let i = 0; i < 60; i++) {
       expect(await signUp()).toEqual({
@@ -266,7 +278,10 @@ describe("signUp", () => {
     expect(
       await t
         .withRequestMetadata({ ip: IP })
-        .mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
+        .mutation(api.auth.signInWithEmailPassword, {
+          email: EMAIL,
+          password: PASSWORD,
+        }),
     ).toMatchObject({ status: "error", userError: { error: "RATE_LIMITED" } });
   });
 
@@ -274,7 +289,10 @@ describe("signUp", () => {
     const t = await setup();
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+      .mutation(api.auth.signUpWithEmailPassword, {
+        email: EMAIL,
+        password: PASSWORD,
+      });
     expect(result).toMatchObject({
       success: true,
       browserSecret: expect.any(String),
@@ -289,7 +307,10 @@ describe("signUp", () => {
     expect(
       await t
         .withRequestMetadata({ ip: IP })
-        .mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
+        .mutation(api.auth.signInWithEmailPassword, {
+          email: EMAIL,
+          password: PASSWORD,
+        }),
     ).toEqual({ status: "error", userError: { error: "USER_NOT_FOUND" } });
 
     const sent = await sentEmails(t);
@@ -314,7 +335,10 @@ describe("signUp", () => {
     const signUp = () =>
       t
         .withRequestMetadata({ ip: IP })
-        .mutation(api.auth.signUp, { email: EMAIL, password: PASSWORD });
+        .mutation(api.auth.signUpWithEmailPassword, {
+          email: EMAIL,
+          password: PASSWORD,
+        });
     for (let i = 0; i < 5; i++) {
       expect(await signUp()).toMatchObject({ success: true });
     }
@@ -369,7 +393,7 @@ describe("completeSignUp", () => {
     // The email is now verified, so sign-in works.
     const signIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: PASSWORD,
       });
@@ -442,7 +466,7 @@ describe("signIn", () => {
     const userId = await seedSignedUpUser(t);
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: PASSWORD,
       });
@@ -457,7 +481,7 @@ describe("signIn", () => {
     await seedSignedUpUser(t);
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: "ALICE@Example.COM",
         password: PASSWORD,
       });
@@ -469,7 +493,7 @@ describe("signIn", () => {
     await seedSignedUpUser(t);
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: "wrong horse battery staple",
       });
@@ -483,7 +507,7 @@ describe("signIn", () => {
     const t = await setup();
     const result = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: "nobody@example.com",
         password: PASSWORD,
       });
@@ -541,7 +565,7 @@ describe("changePassword", () => {
     // The old password still works.
     const signIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: PASSWORD,
       });
@@ -562,14 +586,14 @@ describe("changePassword", () => {
     // The old password no longer works; the new one does.
     const oldSignIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: PASSWORD,
       });
     expect(oldSignIn).toMatchObject({ status: "error" });
     const newSignIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: "brand new horse staple",
       });
@@ -657,14 +681,14 @@ describe("completeChangeEmail", () => {
     // Sign-in works with the new address, and no longer with the old one.
     const newSignIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: "new@example.com",
         password: PASSWORD,
       });
     expect(newSignIn).toEqual({ status: "complete", tokens: SESSION_TOKENS });
     const oldSignIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: PASSWORD,
       });
@@ -872,7 +896,7 @@ describe("completePasswordRecovery", () => {
 
     const newSignIn = await t
       .withRequestMetadata({ ip: IP })
-      .mutation(api.auth.signIn, {
+      .mutation(api.auth.signInWithEmailPassword, {
         email: EMAIL,
         password: "brand new horse staple",
       });
@@ -979,7 +1003,10 @@ describe("completePasswordRecovery", () => {
     expect(
       await t
         .withRequestMetadata({ ip: IP })
-        .mutation(api.auth.signIn, { email: EMAIL, password: PASSWORD }),
+        .mutation(api.auth.signInWithEmailPassword, {
+          email: EMAIL,
+          password: PASSWORD,
+        }),
     ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
   });
 
@@ -1011,10 +1038,12 @@ describe("completePasswordRecovery", () => {
     });
     expect(result).toEqual({ status: "complete", tokens: SESSION_TOKENS });
     expect(
-      await t.withRequestMetadata({ ip: IP }).mutation(api.auth.signIn, {
-        email: EMAIL,
-        password: "brand new horse staple",
-      }),
+      await t
+        .withRequestMetadata({ ip: IP })
+        .mutation(api.auth.signInWithEmailPassword, {
+          email: EMAIL,
+          password: "brand new horse staple",
+        }),
     ).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     // The security notification goes to the primary address, not to the

@@ -38,7 +38,7 @@ afterEach(() => {
 describe("anonymous sign in", () => {
   test("returns a token bundle in the shared sign-in envelope", async () => {
     const t = await setup();
-    const result = await t.mutation(api.auth.signInAnonymous, {});
+    const result = await t.mutation(api.auth.signInAnonymously, {});
     // Every provider returns the same `{ status, tokens }` envelope. Fixing
     // where the bundle sits is what lets the SSR auth proxy find the refresh
     // token and move it into an httpOnly cookie.
@@ -56,7 +56,7 @@ describe("anonymous sign in", () => {
 
   test("returned access token is valid JWT", async () => {
     const t = await setup();
-    const { tokens } = await t.mutation(api.auth.signInAnonymous, {});
+    const { tokens } = await t.mutation(api.auth.signInAnonymously, {});
     const jwt = decodeJwt(tokens.accessToken);
     expect(jwt.sub).toBe(tokens.userId);
   });

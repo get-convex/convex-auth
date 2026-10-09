@@ -44,13 +44,13 @@ const signUp = (
   t: Awaited<ReturnType<typeof setup>>,
   username: string,
   password: string,
-) => t.mutation(api.auth.signUpWithPassword, { username, password });
+) => t.mutation(api.auth.signUpWithUsernamePassword, { username, password });
 
 const signIn = (
   t: Awaited<ReturnType<typeof setup>>,
   username: string,
   password: string,
-) => t.mutation(api.auth.signInWithPassword, { username, password });
+) => t.mutation(api.auth.signInWithUsernamePassword, { username, password });
 
 const asUser = (t: Awaited<ReturnType<typeof setup>>, userId: string) =>
   t.withIdentity({ subject: userId });

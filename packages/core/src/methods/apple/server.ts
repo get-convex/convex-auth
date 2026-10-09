@@ -104,7 +104,7 @@ export type AppleProviderOptions = {
  * Apple oauth component:
  *
  * ```ts
- * export const { startSignInApple, completeSignInApple } = setupApple(core, {
+ * export const { startSignInWithApple, completeSignInWithApple } = setupApple(core, {
  *   component: components.authApple,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserApple });
@@ -183,8 +183,8 @@ export function setupApple<UsersTable extends string>(
       });
 
       return {
-        startSignInApple: startSignIn,
-        completeSignInApple: completeSignIn,
+        startSignInWithApple: startSignIn,
+        completeSignInWithApple: completeSignIn,
       };
     },
   };

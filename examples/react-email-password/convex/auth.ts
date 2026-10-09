@@ -11,9 +11,9 @@ const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const {
-  signUp,
+  signUpWithEmailPassword,
   completeSignUp,
-  signIn,
+  signInWithEmailPassword,
   changePassword,
   startChangeEmail,
   completeChangeEmail,

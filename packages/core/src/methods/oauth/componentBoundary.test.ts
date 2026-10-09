@@ -61,8 +61,8 @@ const acme = setupOauth(
 );
 
 const testApp = {
-  startSignInAcme: acme.startSignIn,
-  completeSignInAcme: acme.completeSignIn,
+  startSignInWithAcme: acme.startSignIn,
+  completeSignInWithAcme: acme.completeSignIn,
   ...setupApple(fakeCore, {
     component: components.authApple,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
@@ -117,12 +117,12 @@ describe.each([
     "mutation",
     { redirectTo: string },
     { redirect: string; state: string }
-  >(`testApp:startSignIn${provider}`);
+  >(`testApp:startSignInWith${provider}`);
   const completeSignIn = makeFunctionReference<
     "mutation",
     { code: string; state: string },
     unknown
-  >(`testApp:completeSignIn${provider}`);
+  >(`testApp:completeSignInWith${provider}`);
 
   test("startSignIn builds the redirect from what the component returns", async () => {
     const t = setup();

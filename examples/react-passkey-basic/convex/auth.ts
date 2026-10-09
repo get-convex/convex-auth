@@ -5,12 +5,16 @@ import { setupUsernamePasskey } from "@convex-dev/auth/methods/username-passkey/
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
-export const { startSignIn, startAutofillSignIn, finishSignUp, finishSignIn } =
-  setupUsernamePasskey(core, {
-    component: components.authPasskey,
-    usernameComponent: components.authUsername,
-    // The relying party ID and the origin of the Vite dev server. A deployed
-    // app uses its own domain here.
-    rpId: "localhost",
-    origin: "http://localhost:5173",
-  }).attachUserCallbacks({ createUser: internal.users.createUser });
+export const {
+  startSignInWithUsernamePasskey,
+  startAutofillSignInWithUsernamePasskey,
+  finishSignUpWithUsernamePasskey,
+  finishSignInWithUsernamePasskey,
+} = setupUsernamePasskey(core, {
+  component: components.authPasskey,
+  usernameComponent: components.authUsername,
+  // The relying party ID and the origin of the Vite dev server. A deployed
+  // app uses its own domain here.
+  rpId: "localhost",
+  origin: "http://localhost:5173",
+}).attachUserCallbacks({ createUser: internal.users.createUser });

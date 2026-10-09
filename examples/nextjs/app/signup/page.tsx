@@ -12,7 +12,7 @@ export default function SignUp() {
   // the auth proxy creates the account server-side and mints the session the
   // same way.
   const { signUp, pending } = useSignUpWithPassword(
-    api.auth.signUpWithPassword,
+    api.auth.signUpWithUsernamePassword,
   );
   const router = useRouter();
   const [username, setUsername] = useState("");
