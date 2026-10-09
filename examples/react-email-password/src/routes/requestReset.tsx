@@ -4,9 +4,7 @@ import { api } from "../../convex/_generated/api";
 
 /** The `/forgot-password` page: send a password-reset link. */
 export function RequestReset() {
-  const { startPasswordRecovery, pending } = useStartPasswordRecovery(
-    api.auth.startPasswordRecovery,
-  );
+  const { startPasswordRecovery, pending } = useStartPasswordRecovery(api.auth);
   const [emailField, setEmailField] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);

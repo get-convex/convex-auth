@@ -2,7 +2,7 @@
  * React client for the passkey provider, exported at
  * `@convex-dev/auth/schemes/username-passkey/react`.
  *
- * {@link useUsernamePasskeySignIn} is the batteries-included hook for the
+ * {@link useSignInWithUsernamePasskey} is the batteries-included hook for the
  * username + passkey login form. It drives the browser-side WebAuthn
  * ceremonies (through the internal client module built on
  * `@simplewebauthn/browser`) against the mutations of a passkey recipe,
@@ -70,14 +70,14 @@ export type {
 } from "./react_impl.tsx";
 
 /**
- * The result of the `signIn` callback from {@link useUsernamePasskeySignIn}.
+ * The result of the `signIn` callback from {@link useSignInWithUsernamePasskey}.
  *
  * A completed sign-in carries a `flow` discriminant: `"signUp"` when the
  * ceremony created a new account, `"signIn"` when it authenticated an existing
  * one. `ALREADY_PENDING` comes back when a `signIn` call runs while the
  * previous one still does.
  */
-export type UsernamePasskeySignInResult =
+export type SignInWithUsernamePasskeyResult =
   SignInFlowResult | SignInError<PasskeyClientError | AlreadyPendingError>;
 
 /**
@@ -90,16 +90,11 @@ export type UsernamePasskeySignInResult =
  *   directly in the autocompletion list.
  *
  * ```tsx
- * import { useUsernamePasskeySignIn } from "@convex-dev/auth/schemes/username-passkey/react";
+ * import { useSignInWithUsernamePasskey } from "@convex-dev/auth/schemes/username-passkey/react";
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
- *   const { signIn, pending, autofill } = useUsernamePasskeySignIn({
- *     startSignInWithUsernamePasskey: api.auth.startSignInWithUsernamePasskey,
- *     startAutofillSignInWithUsernamePasskey: api.auth.startAutofillSignInWithUsernamePasskey,
- *     finishSignInWithUsernamePasskey: api.auth.finishSignInWithUsernamePasskey,
- *     finishSignUpWithUsernamePasskey: api.auth.finishSignUpWithUsernamePasskey,
- *   });
+ *   const { signIn, pending, autofill } = useSignInWithUsernamePasskey(api.auth);
  *   return (
  *     <form
  *       onSubmit={async (e) => {
@@ -117,9 +112,9 @@ export type UsernamePasskeySignInResult =
  * }
  * ```
  *
- * @param usernamePasskeyApi The app's re-exported passkey mutation references.
+ * @param usernamePasskeyApi The functions of the scheme, usually `api.auth`.
  */
-export function useUsernamePasskeySignIn(
+export function useSignInWithUsernamePasskey(
   usernamePasskeyApi: UsernamePasskeyApi,
 ) {
   const { setSession } = useAuthActions();
@@ -179,7 +174,7 @@ export function useUsernamePasskeySignIn(
       username,
     }: {
       username: string;
-    }): Promise<UsernamePasskeySignInResult> => {
+    }): Promise<SignInWithUsernamePasskeyResult> => {
       const signInResult = await run(() =>
         runSignInOrSignUpFlow(ctxRef.current, { username }),
       );

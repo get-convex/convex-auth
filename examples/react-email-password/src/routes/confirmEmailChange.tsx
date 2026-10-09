@@ -18,7 +18,7 @@ export function ConfirmEmailChange() {
 }
 
 function ConfirmEmailChangeWithCode({ emailCode }: { emailCode: string }) {
-  const state = useCompleteChangeEmail(api.auth.completeChangeEmail, {
+  const state = useCompleteChangeEmail(api.auth, {
     emailCode,
   });
 

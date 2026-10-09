@@ -9,13 +9,14 @@ import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { useAuthToken } from "../../react/index.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
 import {
-  SignInWithPasswordResult,
-  SignUpWithPasswordResult,
-  useSignInWithPassword,
-  useSignUpWithPassword,
+  SignInWithUsernamePasswordResult,
+  SignUpWithUsernamePasswordResult,
+  useSignInWithUsernamePassword,
+  useSignUpWithUsernamePassword,
 } from "./react.tsx";
 
-type Result = SignInWithPasswordResult | SignUpWithPasswordResult;
+type Result =
+  SignInWithUsernamePasswordResult | SignUpWithUsernamePasswordResult;
 type Flow = {
   run: (c: typeof credentials) => Promise<Result>;
   pending: boolean;
@@ -42,16 +43,16 @@ const mutation = {} as never;
 
 const flows = [
   {
-    name: "useSignInWithPassword",
+    name: "useSignInWithUsernamePassword",
     useFlow: () => {
-      const { signIn, pending } = useSignInWithPassword(mutation);
+      const { signIn, pending } = useSignInWithUsernamePassword(mutation);
       return { run: signIn, pending };
     },
   },
   {
-    name: "useSignUpWithPassword",
+    name: "useSignUpWithUsernamePassword",
     useFlow: () => {
-      const { signUp, pending } = useSignUpWithPassword(mutation);
+      const { signUp, pending } = useSignUpWithUsernamePassword(mutation);
       return { run: signUp, pending };
     },
   },

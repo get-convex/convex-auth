@@ -127,7 +127,7 @@ describe("useSignInWithEmailPassword", () => {
   test("adopts the minted session", async () => {
     runSignInMutation.mockResolvedValue({ status: "complete", tokens: bundle });
     const { result } = renderWithProviders(() =>
-      useSignInWithEmailPassword(signInMutation),
+      useSignInWithEmailPassword({ signInWithEmailPassword: signInMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -148,7 +148,7 @@ describe("useSignInWithEmailPassword", () => {
     };
     runSignInMutation.mockResolvedValue(failure);
     const { result } = renderWithProviders(() =>
-      useSignInWithEmailPassword(signInMutation),
+      useSignInWithEmailPassword({ signInWithEmailPassword: signInMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -165,7 +165,7 @@ describe("useSignInWithEmailPassword", () => {
     const cause = new Error("network blip");
     runSignInMutation.mockRejectedValue(cause);
     const { result } = renderWithProviders(() =>
-      useSignInWithEmailPassword(signInMutation),
+      useSignInWithEmailPassword({ signInWithEmailPassword: signInMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -191,7 +191,7 @@ describe("useSignInWithEmailPassword", () => {
       () => new Promise((resolve) => resolvers.push(resolve)),
     );
     const { result } = renderWithProviders(() =>
-      useSignInWithEmailPassword(signInMutation),
+      useSignInWithEmailPassword({ signInWithEmailPassword: signInMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -229,7 +229,7 @@ describe("useSignUpWithEmailPassword", () => {
       browserSecret: "secret-1",
     });
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(convexMutation),
+      useSignUpWithEmailPassword({ signUpWithEmailPassword: convexMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -252,7 +252,7 @@ describe("useSignUpWithEmailPassword", () => {
     const failure = { success: false, userError: { error: "EMAIL_TAKEN" } };
     stubConvexMutation().mockResolvedValue(failure);
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(convexMutation),
+      useSignUpWithEmailPassword({ signUpWithEmailPassword: convexMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -269,7 +269,7 @@ describe("useSignUpWithEmailPassword", () => {
     const cause = new Error("network blip");
     stubConvexMutation().mockRejectedValue(cause);
     const { result } = renderWithProviders(() =>
-      useSignUpWithEmailPassword(convexMutation),
+      useSignUpWithEmailPassword({ signUpWithEmailPassword: convexMutation }),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
 
@@ -291,7 +291,10 @@ describe("useCompleteSignUp", () => {
     secretStorage.set(SIGN_UP_SECRET_KEY, "secret-1");
     runSignInMutation.mockResolvedValue({ status: "complete", tokens: bundle });
     const { result } = renderWithProviders(() =>
-      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+      useCompleteSignUp(
+        { completeSignUp: signInMutation },
+        { emailCode: "code-1" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({ status: "complete" }),
@@ -320,7 +323,7 @@ describe("useCompleteSignUp", () => {
     );
     let emailCode = "code-1";
     const { result, rerender } = renderWithProviders(() =>
-      useCompleteSignUp(signInMutation, { emailCode }),
+      useCompleteSignUp({ completeSignUp: signInMutation }, { emailCode }),
     );
     await waitFor(() => expect(runSignInMutation).toHaveBeenCalledTimes(1));
 
@@ -350,7 +353,10 @@ describe("useCompleteSignUp", () => {
       }),
     );
     const { result } = renderWithProviders(() =>
-      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+      useCompleteSignUp(
+        { completeSignUp: signInMutation },
+        { emailCode: "code-1" },
+      ),
     );
     await waitFor(() => expect(runSignInMutation).toHaveBeenCalledTimes(1));
 
@@ -374,7 +380,10 @@ describe("useCompleteSignUp", () => {
 
   test("is MISSING_SECRET when this browser did not start the flow", async () => {
     const { result } = renderWithProviders(() =>
-      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+      useCompleteSignUp(
+        { completeSignUp: signInMutation },
+        { emailCode: "code-1" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({
@@ -395,7 +404,10 @@ describe("useCompleteSignUp", () => {
       userError: { error: "INVALID_CHALLENGE" },
     });
     const { result } = renderWithProviders(() =>
-      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+      useCompleteSignUp(
+        { completeSignUp: signInMutation },
+        { emailCode: "code-1" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({
@@ -413,7 +425,10 @@ describe("useCompleteSignUp", () => {
     const cause = new Error("network blip");
     runSignInMutation.mockRejectedValue(cause);
     const { result } = renderWithProviders(() =>
-      useCompleteSignUp(signInMutation, { emailCode: "code-1" }),
+      useCompleteSignUp(
+        { completeSignUp: signInMutation },
+        { emailCode: "code-1" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({
@@ -432,7 +447,7 @@ describe("useStartPasswordRecovery", () => {
       sentTo: "Alice@example.com",
     });
     const { result } = renderWithProviders(() =>
-      useStartPasswordRecovery(convexMutation),
+      useStartPasswordRecovery({ startPasswordRecovery: convexMutation }),
     );
 
     let returned!: Awaited<
@@ -453,7 +468,7 @@ describe("useStartPasswordRecovery", () => {
     const cause = new Error("network blip");
     stubConvexMutation().mockRejectedValue(cause);
     const { result } = renderWithProviders(() =>
-      useStartPasswordRecovery(convexMutation),
+      useStartPasswordRecovery({ startPasswordRecovery: convexMutation }),
     );
 
     let returned!: Awaited<
@@ -710,7 +725,7 @@ describe("useStartChangeEmail", () => {
       browserSecret: "secret-5",
     });
     const { result } = renderWithProviders(() =>
-      useStartChangeEmail(convexMutation),
+      useStartChangeEmail({ startChangeEmail: convexMutation }),
     );
 
     const args = {
@@ -736,7 +751,7 @@ describe("useStartChangeEmail", () => {
     };
     stubConvexMutation().mockResolvedValue(failure);
     const { result } = renderWithProviders(() =>
-      useStartChangeEmail(convexMutation),
+      useStartChangeEmail({ startChangeEmail: convexMutation }),
     );
 
     let returned!: Awaited<
@@ -759,7 +774,10 @@ describe("useCompleteChangeEmail", () => {
     secretStorage.set(CHANGE_EMAIL_SECRET_KEY, "secret-5");
     const mutation = stubConvexMutation().mockResolvedValue({ success: true });
     const { result } = renderWithProviders(() =>
-      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+      useCompleteChangeEmail(
+        { completeChangeEmail: convexMutation },
+        { emailCode: "code-5" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({ status: "complete" }),
@@ -778,7 +796,10 @@ describe("useCompleteChangeEmail", () => {
   test("is MISSING_SECRET when this browser did not start the flow", async () => {
     const mutation = stubConvexMutation();
     const { result } = renderWithProviders(() =>
-      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+      useCompleteChangeEmail(
+        { completeChangeEmail: convexMutation },
+        { emailCode: "code-5" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({
@@ -796,7 +817,10 @@ describe("useCompleteChangeEmail", () => {
       userError: { error: "NOT_LOGGED_IN" },
     });
     const { result } = renderWithProviders(() =>
-      useCompleteChangeEmail(convexMutation, { emailCode: "code-5" }),
+      useCompleteChangeEmail(
+        { completeChangeEmail: convexMutation },
+        { emailCode: "code-5" },
+      ),
     );
     await waitFor(() =>
       expect(result.current.hook).toEqual({

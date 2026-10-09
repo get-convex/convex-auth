@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useAnonymousAuth } from "@convex-dev/auth/schemes/anonymous/react";
+import { useSignInAnonymously } from "@convex-dev/auth/schemes/anonymous/react";
 import {
   useQuery,
   Authenticated,
@@ -27,11 +27,11 @@ export function App() {
 }
 
 function SignIn() {
-  const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymously);
+  const { signIn } = useSignInAnonymously(api.auth);
   return (
     <>
       <p>You are signed out.</p>
-      <button onClick={() => signInAnonymous()}>Sign in anonymously</button>
+      <button onClick={() => signIn()}>Sign in anonymously</button>
     </>
   );
 }

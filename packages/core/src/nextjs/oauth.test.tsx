@@ -71,9 +71,9 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
       redirect: "https://github.com/login/oauth/authorize",
       state: "state-1",
     });
-    let signInGithub!: ReturnType<typeof useSignInWithGithub>["signInGithub"];
+    let signInGithub!: ReturnType<typeof useSignInWithGithub>["signIn"];
     function Probe() {
-      ({ signInGithub } = useSignInWithGithub(githubApi));
+      ({ signIn: signInGithub } = useSignInWithGithub(githubApi));
       return null;
     }
     render(

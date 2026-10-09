@@ -178,7 +178,7 @@ describe("OAuth React client", () => {
     });
 
     const outcome = await act(async () => {
-      return await result.current.oauth.signInGoogle({
+      return await result.current.oauth.signIn({
         redirectTo: "http://localhost/app",
       });
     });
@@ -208,7 +208,7 @@ describe("OAuth React client", () => {
     mutation.mockResolvedValueOnce(completed);
 
     const outcome = await act(async () => {
-      return await result.current.oauth.signInGoogle({ code: "code-1" });
+      return await result.current.oauth.signIn({ code: "code-1" });
     });
 
     expectTypeOf(outcome).toEqualTypeOf<OauthCompleteResult>();
@@ -229,7 +229,7 @@ describe("OAuth React client", () => {
     });
 
     await act(async () => {
-      await result.current.oauth.signInGithub({
+      await result.current.oauth.signIn({
         redirectTo: "http://localhost/app",
       });
     });
@@ -288,11 +288,11 @@ describe("OAuth React client", () => {
       useGoogleFlow(anyApi.auth as unknown as typeof googleApi),
     );
     await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
-    const first = result.current.oauth.signInGoogle;
+    const first = result.current.oauth.signIn;
 
     rerender();
 
-    expect(result.current.oauth.signInGoogle).toBe(first);
+    expect(result.current.oauth.signIn).toBe(first);
   });
 
   test("the hook params accept the api module structurally", () => {
