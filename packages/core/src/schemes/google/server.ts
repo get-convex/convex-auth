@@ -63,7 +63,7 @@ export function normalizeGoogleProfile(
 
 /** App-defined config for setting up the Google provider. */
 export type GoogleProviderOptions = {
-  /** The Google oauth component instance, i.e. `components.oauthGoogle`. */
+  /** The Google oauth component instance, i.e. `components.authGoogle`. */
   component: ComponentApi;
   /**
    * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`
@@ -77,7 +77,7 @@ export type GoogleProviderOptions = {
  *
  * ```ts
  * export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
- *   component: components.oauthGoogle,
+ *   component: components.authGoogle,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserGoogle });
  * ```

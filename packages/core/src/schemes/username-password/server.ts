@@ -28,7 +28,7 @@ const PROVIDER_NAME = "password";
  */
 export type UsernamePasswordOptions = {
   /**
-   * The mounted password component (`components.authPasswordProvider`). The
+   * The mounted password component (`components.authPassword`). The
    * recipe drives its `setPassword` / `verifyPassword` mutations.
    */
   component: ComponentApi;
@@ -100,7 +100,7 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  *
  * export const { signUpWithPassword, signInWithPassword, changePassword } =
  *   setupUsernamePassword(core, {
- *     component: components.authPasswordProvider,
+ *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```

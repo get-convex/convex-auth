@@ -15,7 +15,7 @@ import { v } from "convex/values";
  * });
  * ```
  */
-const component = defineComponent("oauthGoogle", {
+const component = defineComponent("authGoogle", {
   env: {
     CLIENT_ID: v.string(),
     CLIENT_SECRET: v.string(),

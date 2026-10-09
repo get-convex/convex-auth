@@ -18,11 +18,11 @@ const modules = import.meta.glob("../components/google/**/*.ts");
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The mount name of this component instance, as registered in
- *   convex.config.ts. Defaults to `"oauthGoogle"`.
+ *   convex.config.ts. Defaults to `"authGoogle"`.
  */
 export function registerGoogleOauth(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name = "oauthGoogle",
+  name = "authGoogle",
 ) {
   t.registerComponent(name, schema, modules);
 }

@@ -26,7 +26,7 @@ const modules = import.meta.glob("../components/password/**/*.ts");
  */
 export function registerPasswordProvider(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
-  name: string = "authPasswordProvider",
+  name: string = "authPassword",
 ) {
   t.registerComponent(name, schema, modules);
   registerRateLimiter(t, `${name}/rateLimiter`);

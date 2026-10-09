@@ -41,10 +41,10 @@ const CALLBACK_URL = `${SITE_URL}${CALLBACK_PATH}`;
 const REDIRECT_TO = `${ALLOWED_ORIGINS[0]}/after`;
 
 const components = componentsGeneric() as unknown as {
-  oauth: OauthComponentApi<"oauth">;
-  oauthApple: AppleComponentApi<"oauthApple">;
-  oauthGithub: GithubComponentApi<"oauthGithub">;
-  oauthGoogle: GoogleComponentApi<"oauthGoogle">;
+  authOauth: OauthComponentApi<"authOauth">;
+  authApple: AppleComponentApi<"authApple">;
+  authGithub: GithubComponentApi<"authGithub">;
+  authGoogle: GoogleComponentApi<"authGoogle">;
 };
 
 const acme = setupOauth(
@@ -57,22 +57,22 @@ const acme = setupOauth(
     profile: () => ({ id: "account-1" }),
   },
   fakeCallbacks,
-  { component: components.oauth, allowedRedirectOrigins: ALLOWED_ORIGINS },
+  { component: components.authOauth, allowedRedirectOrigins: ALLOWED_ORIGINS },
 );
 
 const testApp = {
   startSignInAcme: acme.startSignIn,
   completeSignInAcme: acme.completeSignIn,
   ...setupApple(fakeCore, {
-    component: components.oauthApple,
+    component: components.authApple,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
   }).attachUserCallbacks(fakeCallbacks),
   ...setupGithub(fakeCore, {
-    component: components.oauthGithub,
+    component: components.authGithub,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
   }).attachUserCallbacks(fakeCallbacks),
   ...setupGoogle(fakeCore, {
-    component: components.oauthGoogle,
+    component: components.authGoogle,
     allowedRedirectOrigins: ALLOWED_ORIGINS,
   }).attachUserCallbacks(fakeCallbacks),
 };
@@ -108,10 +108,10 @@ afterEach(() => {
 });
 
 describe.each([
-  { component: "oauth", provider: "Acme" },
-  { component: "oauthApple", provider: "Apple" },
-  { component: "oauthGithub", provider: "Github" },
-  { component: "oauthGoogle", provider: "Google" },
+  { component: "authOauth", provider: "Acme" },
+  { component: "authApple", provider: "Apple" },
+  { component: "authGithub", provider: "Github" },
+  { component: "authGoogle", provider: "Google" },
 ])("the $component component", ({ provider }) => {
   const startSignIn = makeFunctionReference<
     "mutation",
