@@ -1,6 +1,7 @@
 /**
  * TOTP enrollment: the functions of the component that a signed-in user
- * reaches from a settings page to set the second factor up.
+ * reaches from a settings page to set the second factor up. The verification
+ * of a code at sign-in is in `verification.ts`.
  *
  * A user may have up to {@link MAX_TOTPS_PER_USER} TOTPs in the "active"
  * status, one for each authenticator app, and at most one in the "pending"

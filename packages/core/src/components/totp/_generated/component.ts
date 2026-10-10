@@ -64,4 +64,19 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         Name
       >;
     };
+    verification: {
+      verifyCode: FunctionReference<
+        "mutation",
+        "internal",
+        { code: string; userId: string },
+        | { success: true }
+        | {
+            success: false;
+            userError:
+              | { error: "INVALID_CODE" }
+              | { error: "RATE_LIMITED"; retryAfterMs: number };
+          },
+        Name
+      >;
+    };
   };
