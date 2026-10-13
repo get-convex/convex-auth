@@ -96,7 +96,7 @@ async function seedSignedUpUser(
   });
   await t.run(async (ctx) => {
     const result = await ctx.runMutation(
-      components.authPasswordProvider.public.setPassword,
+      components.authPassword.public.setPassword,
       { userId, password },
     );
     if (!result.success) {
@@ -341,13 +341,10 @@ describe("completeSignUp", () => {
       });
     });
     await t.run(async (ctx) => {
-      await ctx.runMutation(
-        components.authPasswordProvider.public.setPassword,
-        {
-          userId,
-          password: PASSWORD,
-        },
-      );
+      await ctx.runMutation(components.authPassword.public.setPassword, {
+        userId,
+        password: PASSWORD,
+      });
     });
     await seedChallenge(t, {
       email: EMAIL,

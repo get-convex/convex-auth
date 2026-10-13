@@ -163,7 +163,7 @@ export type AuthCore<UsersTable extends string = string> = {
  *
  * export const { signUpWithPassword, signInWithPassword } =
  *   setupUsernamePassword(core, {
- *     component: components.authPasswordProvider,
+ *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```

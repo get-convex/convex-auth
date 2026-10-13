@@ -76,7 +76,7 @@ export function normalizeGithubProfile(
 
 /** App-defined config for setting up the GitHub provider. */
 export type GithubProviderOptions = {
-  /** The GitHub oauth component instance, i.e. `components.oauthGithub`. */
+  /** The GitHub oauth component instance, i.e. `components.authGithub`. */
   component: ComponentApi;
   /**
    * Origins `redirectTo` may point at, e.g. `["https://app.example.com"]`
@@ -90,7 +90,7 @@ export type GithubProviderOptions = {
  *
  * ```ts
  * export const { startSignInGithub, completeSignInGithub } = setupGithub(core, {
- *   component: components.oauthGithub,
+ *   component: components.authGithub,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserGithub });
  * ```
