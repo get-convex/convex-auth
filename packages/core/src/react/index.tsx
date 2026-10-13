@@ -33,13 +33,9 @@ import {
   useAuth,
 } from "./client.tsx";
 
-export { useConvexAuth } from "convex/react";
-export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
-export type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
 export type { TokenStorage } from "../browser/storage.ts";
 export type { ConvexAuthApi, TokenBundle } from "../lib/types.ts";
 export type { ConvexAuthActionsContextType } from "./client.tsx";
-export { useAuthSignInApi, type AuthSignInApi } from "./client.tsx";
 
 /**
  * Replace your `ConvexProvider` with this to enable authentication.

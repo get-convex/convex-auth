@@ -68,4 +68,4 @@ export type {
   SlimTokenBundle,
   TokenBundle,
 } from "../lib/types.ts";
-export { makeSlimBundle, vSignInComplete, vSignInError } from "../lib/types.ts";
+export { makeSlimBundle } from "../lib/types.ts";

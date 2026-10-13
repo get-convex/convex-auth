@@ -18,7 +18,8 @@ import {
 } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { AuthClientContext, useAuth } from "../../react/client.tsx";
-import { useAuthActions, useAuthSignInApi } from "../../react/index.tsx";
+import { useAuthActions } from "../../react/index.tsx";
+import { useAuthSignInApi } from "../../react/client.tsx";
 import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
 import type {
   SignUpResult as SignUpMutationResult,

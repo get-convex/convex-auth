@@ -17,7 +17,8 @@ import {
   seedPendingFlow,
   stubReactNative,
 } from "../methods/oauth/testFlow.ts";
-import { ConvexAuthNextjsProvider, useAuthToken } from "./index.tsx";
+import { useAuthToken } from "../react/index.tsx";
+import { ConvexAuthNextjsProvider } from "./index.tsx";
 
 const githubApi = {
   startSignInGithub: makeFunctionReference<"mutation">(

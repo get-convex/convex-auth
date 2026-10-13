@@ -1,6 +1,8 @@
 /**
- * Client bindings for Convex Auth on Next.js (App Router), exported at
- * `@convex-dev/auth/nextjs`.
+ * Client bindings for Convex Auth on Next.js (App Router). This module is not
+ * an entry point: the `ConvexAuthNextjsServerProvider` of
+ * `@convex-dev/auth/nextjs/server` renders its provider, and Client Components
+ * import the hooks from `@convex-dev/auth/react`.
  *
  * When running under SSR, authentication is performed for two parties:
  *
@@ -34,10 +36,6 @@ import { TokenStorage, defaultStorage } from "../browser/storage.ts";
 import type { AuthSessionResponse } from "../lib/types.ts";
 import { oauth } from "../methods/oauth/client.ts";
 import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
-
-export { useConvexAuth } from "convex/react";
-export { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
-export { useAuthActions, useAuthToken } from "../react/index.tsx";
 
 /**
  * POST to the refresh or sign-out route and read back the access-only bundle.

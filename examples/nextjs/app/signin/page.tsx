@@ -1,6 +1,6 @@
 "use client";
 
-import { useConvexAuth } from "@convex-dev/auth/nextjs";
+import { useConvexAuth } from "convex/react";
 import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
 import {
   useOauth,

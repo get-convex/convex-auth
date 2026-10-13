@@ -1,8 +1,4 @@
-import {
-  Authenticated,
-  AuthLoading,
-  Unauthenticated,
-} from "@convex-dev/auth/react";
+import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ConfirmEmailChange } from "./routes/confirmEmailChange";
