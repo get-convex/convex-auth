@@ -47,7 +47,7 @@ function renderAnonymousAuth() {
     () => ({
       auth: useAuth(),
       token: useAuthToken(),
-      anonymous: useSignInAnonymously(signInAnonymous),
+      anonymous: useSignInAnonymously({ signInAnonymously: signInAnonymous }),
     }),
     { wrapper },
   );

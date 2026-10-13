@@ -90,7 +90,7 @@ export type SignUpWithUsernamePasswordResult =
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
- *   const { signIn, pending } = useSignInWithUsernamePassword(api.auth.signInWithUsernamePassword);
+ *   const { signIn, pending } = useSignInWithUsernamePassword(api.auth);
  *   return (
  *     <form
  *       onSubmit={async (e) => {
@@ -107,11 +107,12 @@ export type SignUpWithUsernamePasswordResult =
  * }
  * ```
  *
- * @param signInMutation The app's `signInWithUsernamePassword` mutation reference.
+ * @param api The functions of the method, usually `api.auth`.
  */
-export function useSignInWithUsernamePassword(
-  signInMutation: SignInWithUsernamePasswordMutation,
-) {
+export function useSignInWithUsernamePassword(api: {
+  signInWithUsernamePassword: SignInWithUsernamePasswordMutation;
+}) {
+  const signInMutation = api.signInWithUsernamePassword;
   const { run, pending } = usePasswordFlow(signInMutation);
   return {
     /**
@@ -149,16 +150,17 @@ export function useSignInWithUsernamePassword(
  * import { api } from "../convex/_generated/api";
  *
  * function SignUp() {
- *   const { signUp, pending } = useSignUpWithUsernamePassword(api.auth.signUpWithUsernamePassword);
+ *   const { signUp, pending } = useSignUpWithUsernamePassword(api.auth);
  *   // ...same shape as useSignInWithUsernamePassword
  * }
  * ```
  *
- * @param signUpMutation The backend's `signUpWithUsernamePassword` mutation reference.
+ * @param api The functions of the method, usually `api.auth`.
  */
-export function useSignUpWithUsernamePassword(
-  signUpMutation: SignUpWithUsernamePasswordMutation,
-) {
+export function useSignUpWithUsernamePassword(api: {
+  signUpWithUsernamePassword: SignUpWithUsernamePasswordMutation;
+}) {
+  const signUpMutation = api.signUpWithUsernamePassword;
   const { run, pending } = usePasswordFlow(signUpMutation);
   return {
     /**

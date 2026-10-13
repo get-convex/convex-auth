@@ -18,7 +18,7 @@ export function ValidateEmail() {
 }
 
 function ValidateEmailWithCode({ emailCode }: { emailCode: string }) {
-  const state = useCompleteSignUp(api.auth.completeSignUp, { emailCode });
+  const state = useCompleteSignUp(api.auth, { emailCode });
 
   if (state.status === "loading") {
     return <p>Validating your email…</p>;
