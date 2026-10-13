@@ -22,6 +22,7 @@ import { useCallback, useState } from "react";
 import type { ClientView } from "../../lib/types.ts";
 import { useAuthActions } from "../../react/index.tsx";
 import { useAuthSignInApi } from "../../react/client.tsx";
+import { useStableFunctionReference } from "../../react/functionReference.ts";
 import type { SignInResult, SignUpResult } from "./server.ts";
 
 /** The `(username, password)` pair both flows accept. */
@@ -112,7 +113,9 @@ export type SignUpWithUsernamePasswordResult =
 export function useSignInWithUsernamePassword(api: {
   signInWithUsernamePassword: SignInWithUsernamePasswordMutation;
 }) {
-  const signInMutation = api.signInWithUsernamePassword;
+  const signInMutation = useStableFunctionReference(
+    api.signInWithUsernamePassword,
+  );
   const { run, pending } = usePasswordFlow(signInMutation);
   return {
     /**
@@ -160,7 +163,9 @@ export function useSignInWithUsernamePassword(api: {
 export function useSignUpWithUsernamePassword(api: {
   signUpWithUsernamePassword: SignUpWithUsernamePasswordMutation;
 }) {
-  const signUpMutation = api.signUpWithUsernamePassword;
+  const signUpMutation = useStableFunctionReference(
+    api.signUpWithUsernamePassword,
+  );
   const { run, pending } = usePasswordFlow(signUpMutation);
   return {
     /**

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { anyApi } from "convex/server";
 import { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
@@ -38,25 +39,23 @@ const bundle: TokenBundle = {
 
 const credentials = { username: "alice", password: "hunter2" };
 
-// The stub signInApi ignores the reference, so any value will do.
-const mutation = {} as never;
+// `anyApi` is what the generated `api` is. It returns a new reference object
+// on each property access, as `api.auth` does. The stub signInApi ignores the
+// references.
+const authApi = anyApi.auth as never;
 
 const flows = [
   {
     name: "useSignInWithUsernamePassword",
     useFlow: () => {
-      const { signIn, pending } = useSignInWithUsernamePassword({
-        signInWithUsernamePassword: mutation,
-      });
+      const { signIn, pending } = useSignInWithUsernamePassword(authApi);
       return { run: signIn, pending };
     },
   },
   {
     name: "useSignUpWithUsernamePassword",
     useFlow: () => {
-      const { signUp, pending } = useSignUpWithUsernamePassword({
-        signUpWithUsernamePassword: mutation,
-      });
+      const { signUp, pending } = useSignUpWithUsernamePassword(authApi);
       return { run: signUp, pending };
     },
   },
@@ -172,5 +171,15 @@ describe.each(flows)("$name", ({ useFlow }) => {
       await result.current.flow.run(credentials);
     });
     expect(result.current.flow.pending).toBe(false);
+  });
+
+  test("the callback keeps its identity across rerenders", async () => {
+    const { result, rerender } = renderFlow(useFlow);
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    const first = result.current.flow.run;
+
+    rerender();
+
+    expect(result.current.flow.run).toBe(first);
   });
 });
