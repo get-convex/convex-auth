@@ -3,7 +3,7 @@
 This demo shows:
 
 - The core component.
-- The OAuth component, configured for Google.
+- The Google component, with the `google` method.
 
 ## Generate code / run
 

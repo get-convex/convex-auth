@@ -3,7 +3,7 @@
 This demo shows:
 
 - The core component.
-- The OAuth component, configured for GitHub.
+- The GitHub component, with the `github` method.
 
 ## Generate code / run
 

@@ -4,7 +4,7 @@ import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import type { AnyDataModel, GenericMutationCtx } from "convex/server";
 import { api, components } from "./_generated/api";
 import { registerCore } from "@convex-dev/auth/test";
-import { registerPasswordProvider } from "@convex-dev/auth/components/password/test";
+import { registerPassword } from "@convex-dev/auth/components/password/test";
 import {
   registerEmail,
   registerResendStub,
@@ -40,7 +40,7 @@ async function setup() {
 
   const t = convexTest(schema, modules);
   registerCore(t);
-  registerPasswordProvider(t);
+  registerPassword(t);
   registerEmail(t);
   registerResendStub(t);
   return t;
@@ -323,7 +323,7 @@ describe("signUp", () => {
 
     // The link and the secret complete the sign-up and mint the session.
     expect(
-      await t.mutation(api.auth.completeSignUp, {
+      await t.mutation(api.auth.completeSignUpWithEmailPassword, {
         emailCode: emailCodeInLink(sent[0].text),
         browserSecret: result.browserSecret,
       }),
@@ -353,7 +353,7 @@ describe("signUp", () => {
   });
 });
 
-describe("completeSignUp", () => {
+describe("completeSignUpWithEmailPassword", () => {
   test("validates the email and signs the user in", async () => {
     const t = await setup();
     // The state signUp leaves behind: user + account + password, and a
@@ -381,7 +381,7 @@ describe("completeSignUp", () => {
 
     // The link is bound to the user from the sign-up; the browser does not
     // give the user back.
-    const result = await t.mutation(api.auth.completeSignUp, {
+    const result = await t.mutation(api.auth.completeSignUpWithEmailPassword, {
       emailCode: "code1",
       browserSecret: "secret1",
     });
@@ -402,7 +402,7 @@ describe("completeSignUp", () => {
 
   test("rejects an unknown secret with INVALID_CHALLENGE", async () => {
     const t = await setup();
-    const result = await t.mutation(api.auth.completeSignUp, {
+    const result = await t.mutation(api.auth.completeSignUpWithEmailPassword, {
       emailCode: "unknown",
       browserSecret: "whatever",
     });
@@ -442,14 +442,14 @@ describe("completeSignUp", () => {
       browserSecret: "secret2",
     });
 
-    const first = await t.mutation(api.auth.completeSignUp, {
+    const first = await t.mutation(api.auth.completeSignUpWithEmailPassword, {
       emailCode: "code2",
       browserSecret: "secret2",
     });
     expect(first).toEqual({ status: "complete", tokens: SESSION_TOKENS });
 
     // The other sign-up's link stays pending, but the address is taken now.
-    const second = await t.mutation(api.auth.completeSignUp, {
+    const second = await t.mutation(api.auth.completeSignUpWithEmailPassword, {
       emailCode: "code1",
       browserSecret: "secret1",
     });

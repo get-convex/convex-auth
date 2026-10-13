@@ -1,18 +1,43 @@
-This is Convex Auth, an authentication framework built on top of Convex. We’re currently bulding the v2 version of the system, where individual auth providers are implemented as Convex components.
+This is Convex Auth, an authentication framework built on top of Convex. We’re currently bulding the v2 version of the system, where each sign-in method uses one or more Convex components.
 
 ## Repository layout
 
 This is a pnpm monorepo:
 
-- `packages/core` — the auth package, published as `@convex-dev/auth`. Owns sessions, accounts, and JWT minting (the provider-agnostic core), plus the bundled providers: the anonymous provider and the password provider (which stores and verifies passwords keyed by an opaque user id). It also owns two non-provider components: the username component, which maps a username onto an opaque user id, and the TOTP component, which stores and verifies TOTP secrets and backup codes keyed by an opaque user id.
-- `packages/argon2id-wasm` — the `argon2id-wasm` package wrapping the argon2id WASM hasher used by the password provider. It publishes compiled JavaScript plus declarations from `dist/`, so consumers never typecheck its source. Its `prepack` script builds the Rust/WASM output and then compiles the TypeScript wrapper, which keeps the Rust toolchain a publish-time requirement — `pnpm install` and TypeScript-only work don't need it. `packages/core` depends on the published package, not the workspace one, for the same reason.
+- `packages/core` — the auth package, published as `@convex-dev/auth`. It
+  owns three parts:
+  - The core: sessions, accounts, and JWT minting. It knows no sign-in method.
+  - The optional components, which store the data of a sign-in method keyed
+    by an opaque user id: `username`, `password`, `email`, `passkey`, `totp`,
+    `anonymous`, `oauth`, `google`, `apple`, and `github`.
+  - The sign-in methods, which the app wires up: `anonymous`,
+    `username-password`, `email-password`, `username-passkey`, `oauth`,
+    `google`, `apple`, and `github`.
+- `packages/argon2id-wasm` — the `argon2id-wasm` package wrapping the argon2id WASM hasher used by the password component. It publishes compiled JavaScript plus declarations from `dist/`, so consumers never typecheck its source. Its `prepack` script builds the Rust/WASM output and then compiles the TypeScript wrapper, which keeps the Rust toolchain a publish-time requirement — `pnpm install` and TypeScript-only work don't need it. `packages/core` depends on the published package, not the workspace one, for the same reason.
+- `packages/docs` — the documentation site (private). The pages are in
+  `content/docs/`.
+- `packages/passkey-test-authenticator` — a software WebAuthn authenticator
+  for the passkey tests of this repository (private).
 - `examples/` — example apps, each an in-repo Convex backend run from its own
   directory:
-  - `react-minimal` wires up the core with the anonymous provider.
-  - `react-password` wires up the core with the password provider.
+  - `react-minimal` wires up the core with the `anonymous` method.
+  - `react-password` wires up the core, password, and username components
+    with the `usernamePassword` method.
   - `react-email-password` wires up the core, password, and email components
-    with the `EmailPassword` provider (sign-up with email validation, change
+    with the `emailPassword` method (sign-up with email validation, change
     password/email, password recovery; email through `@convex-dev/resend`).
+  - `react-passkey` wires up the core, passkey, and username components with
+    the `usernamePasskey` method, and adds passkey management.
+  - `react-passkey-basic` is `react-passkey` without passkey management. The
+    passkey tutorial uses it as its first step.
+  - `react-google` wires up the core and the google component with the
+    `google` method.
+  - `react-apple` wires up the core and the apple component with the `apple`
+    method.
+  - `react-github` wires up the core and the github component with the
+    `github` method.
+  - `nextjs` is a Next.js (App Router) app with SSR sign-in. It wires up the
+    `anonymous`, `usernamePassword`, and `github` methods.
 
 ## Source layout of `packages/core/src`
 
@@ -21,8 +46,10 @@ This is a pnpm monorepo:
   `password`, `email`, `passkey`, `totp`, `anonymous`, `oauth`, `google`,
   `apple`, `github`).
 - `methods/<method>/` — the sign-in methods, which use one or more
-  components: `server.ts` (Convex functions of the app), `react.tsx` (hooks),
-  and the browser code.
+  components: `server.ts` (Convex functions of the app), `react.tsx` or
+  `react.ts` (hooks), and the browser code. A method is published at
+  `@convex-dev/auth/methods/<method>/server` and
+  `@convex-dev/auth/methods/<method>/react`.
 - `server/` — the app-side code of the core (`setupCore`, `getAuthUserId`).
 - `ssr/`, `react/`, `browser/` — the client and SSR code of the core.
   `ssr/nextjs/` holds the Next.js bindings.

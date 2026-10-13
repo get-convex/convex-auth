@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { api } from "./_generated/api.js";
-import { registerAnonymousProvider } from "@convex-dev/auth/components/anonymous/test";
+import { registerAnonymous } from "@convex-dev/auth/components/anonymous/test";
 import { registerCore } from "@convex-dev/auth/test";
 import schema from "./schema.js";
 import { generateKeyPair, exportPKCS8, exportJWK, decodeJwt } from "jose";
@@ -27,7 +27,7 @@ async function setup() {
   vi.stubEnv("CONVEX_SITE_URL", "http://localhost:8080/");
   const t = convexTest(schema, modules);
   registerCore(t);
-  registerAnonymousProvider(t);
+  registerAnonymous(t);
   return t;
 }
 
@@ -39,7 +39,7 @@ describe("anonymous sign in", () => {
   test("returns a token bundle in the shared sign-in envelope", async () => {
     const t = await setup();
     const result = await t.mutation(api.auth.signInAnonymously, {});
-    // Every provider returns the same `{ status, tokens }` envelope. Fixing
+    // Every sign-in method returns the same `{ status, tokens }` envelope. Fixing
     // where the bundle sits is what lets the SSR auth proxy find the refresh
     // token and move it into an httpOnly cookie.
     expect(result.status).toBe("complete");

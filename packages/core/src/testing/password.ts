@@ -15,20 +15,20 @@ import schema from "../components/password/schema.ts";
 const modules = import.meta.glob("../components/password/**/*.ts");
 
 /**
- * Register the password provider component with a `convex-test` instance.
+ * Register the password component with a `convex-test` instance.
  *
  * The component throttles `verifyPassword` through a nested rate-limiter, so we
  * register that under `<name>/rateLimiter` too — mirroring how it's mounted when
- * the app `app.use`s the provider's `convex.config`.
+ * the app `app.use`s the `convex.config` of the component.
  *
  * @param t - The test convex instance, e.g. from calling `convexTest`.
  * @param name - The name of the component, as registered in convex.config.ts.
  */
-export function registerPasswordProvider(
+export function registerPassword(
   t: TestConvex<SchemaDefinition<GenericSchema, boolean>>,
   name: string = "authPassword",
 ) {
   t.registerComponent(name, schema, modules);
   registerRateLimiter(t, `${name}/rateLimiter`);
 }
-export default { registerPasswordProvider, schema, modules };
+export default { registerPassword, schema, modules };

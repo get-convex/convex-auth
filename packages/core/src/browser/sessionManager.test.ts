@@ -494,7 +494,7 @@ describe("AuthClient ambient sign-ins", () => {
       ],
       storage,
     );
-    // Provider prefix first, then the client's deployment namespacing.
+    // Sign-in prefix first, then the client's deployment namespacing.
     expect(
       storage.getItem(
         new NamespacedStorage(storage, NAMESPACE).key(
