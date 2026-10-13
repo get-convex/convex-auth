@@ -3,7 +3,7 @@ import {
   registerResendStub,
   stubEmailSender,
   sentEmails,
-} from "../../testing/resend.ts";
+} from "../../../testing/resend.ts";
 import { api } from "../_generated/api.ts";
 import {
   seedEmail,

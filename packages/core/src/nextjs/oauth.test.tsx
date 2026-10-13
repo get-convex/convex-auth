@@ -9,14 +9,14 @@ import {
   useOauth,
   useSignInWithGithub,
   type OauthProviderApi,
-} from "../oauth/react.ts";
+} from "../methods/oauth/react.ts";
 import {
   NAMESPACE,
   bundle,
   restoreNavigatorProduct,
   seedPendingFlow,
   stubReactNative,
-} from "../oauth/testFlow.ts";
+} from "../methods/oauth/testFlow.ts";
 import { ConvexAuthNextjsProvider, useAuthToken } from "./index.tsx";
 
 const githubApi = {
