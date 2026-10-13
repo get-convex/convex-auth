@@ -32,11 +32,14 @@ This is a pnpm monorepo:
 
 The Convex CLI deploys every module in a component directory, and codegen
 lists each one in `_generated/api.ts`. Thus a component directory holds only
-the code of the component. Put app-side code and client code in
-`methods/`, `server/`, or `lib/`. ESLint rejects a component module that
-imports client code or app-side code. The CLI skips a file name with two dots
-(`x.test.ts`, `x.fixture.ts`): use the `.fixture.ts` suffix for a test-only
-module in a component directory.
+the code of the component. Put the other code in the directory of its layer,
+as the list above shows: the code of a sign-in method in `methods/<method>/`,
+the app-side code of the core in `server/`, the client and SSR code of the
+core in `ssr/`, `nextjs/`, `react/`, or `browser/`, and shared code in
+`lib/`. ESLint rejects a component module that imports client code or
+app-side code. The CLI skips a file name with two dots (`x.test.ts`,
+`x.fixture.ts`): use the `.fixture.ts` suffix for a test-only module in a
+component directory.
 
 ## Published output
 
