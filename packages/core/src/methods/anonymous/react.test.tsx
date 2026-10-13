@@ -66,7 +66,7 @@ describe("useSignInAnonymously", () => {
     expect(result.current.auth.isAuthenticated).toBe(false);
 
     await act(async () => {
-      await result.current.anonymous.signInAnonymous();
+      await result.current.anonymous.signIn();
     });
 
     expect(runSignIn).toHaveBeenCalledTimes(1);

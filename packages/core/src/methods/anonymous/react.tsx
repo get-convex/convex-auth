@@ -47,8 +47,8 @@ export type SignInAnonymouslyMutation = FunctionReference<
  * import { api } from "../convex/_generated/api";
  *
  * function SignIn() {
- *   const { signInAnonymous } = useSignInAnonymously(api.auth);
- *   return <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
+ *   const { signIn } = useSignInAnonymously(api.auth);
+ *   return <button onClick={() => signIn()}>Sign in anonymously</button>;
  * }
  * ```
  * When the `TokenBundle` is passed to `setSession`, that kicks off the
@@ -68,9 +68,9 @@ export function useSignInAnonymously(api: {
   // Running through the signInApi rather than `useMutation` is what lets this one
   // hook serve both session models. See {@link AuthSignInApi}.
   const signInApi = useAuthSignInApi();
-  const signInAnonymous = useCallback(async () => {
+  const signIn = useCallback(async () => {
     const result = await signInApi.mutation(signInMutation, {});
     await setSession(result.tokens);
   }, [signInApi, signInMutation, setSession]);
-  return { signInAnonymous };
+  return { signIn };
 }

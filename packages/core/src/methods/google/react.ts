@@ -7,7 +7,7 @@
  * last flow.
  *
  * ```tsx
- * const { signInGoogle } = useSignInWithGoogle(api.auth);
+ * const { signIn } = useSignInWithGoogle(api.auth);
  * const { flowError } = useOauth();
  * ```
  *
@@ -29,7 +29,7 @@ export type {
 /** What {@link useSignInWithGoogle} returns. */
 export type UseSignInWithGoogleReturn = {
   /** Start Google's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
-  signInGoogle: UseOauthSignInReturn["signIn"];
+  signIn: UseOauthSignInReturn["signIn"];
 };
 
 /**
@@ -46,5 +46,5 @@ export function useSignInWithGoogle(api: {
     startSignIn: api.startSignInWithGoogle,
     completeSignIn: api.completeSignInWithGoogle,
   });
-  return { signInGoogle: signIn };
+  return { signIn };
 }
