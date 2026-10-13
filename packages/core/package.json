@@ -486,10 +486,10 @@
     },
     "./server": {
       "convex-auth-internal-types": {
-        "types": "./dist/internal-types/server/index.d.ts"
+        "types": "./dist/internal-types/ssr/index.d.ts"
       },
-      "types": "./dist/server/index.d.ts",
-      "default": "./dist/server/index.js"
+      "types": "./dist/ssr/index.d.ts",
+      "default": "./dist/ssr/index.js"
     },
     "./react": {
       "convex-auth-internal-types": {
