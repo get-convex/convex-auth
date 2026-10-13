@@ -1,7 +1,7 @@
 /**
  * Client bindings for Convex Auth on Next.js (App Router). This module is not
  * an entry point: the `ConvexAuthNextjsServerProvider` of
- * `@convex-dev/auth/nextjs/server` renders its provider, and Client Components
+ * `@convex-dev/auth/ssr/nextjs` renders its provider, and Client Components
  * import the hooks from `@convex-dev/auth/react`.
  *
  * When running under SSR, authentication is performed for two parties:
@@ -30,12 +30,16 @@
 import { ConvexHttpClient } from "convex/browser";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
 import { ReactNode, useMemo } from "react";
-import type { AmbientSignInClient } from "../browser/ambientSignInClient.ts";
-import { AuthClient } from "../browser/sessionManager.ts";
-import { TokenStorage, defaultStorage } from "../browser/storage.ts";
-import type { AuthSessionResponse } from "../lib/types.ts";
-import { oauth } from "../methods/oauth/client.ts";
-import { AuthProvider, useAuth, type AuthSignInApi } from "../react/client.tsx";
+import type { AmbientSignInClient } from "../../browser/ambientSignInClient.ts";
+import { AuthClient } from "../../browser/sessionManager.ts";
+import { TokenStorage, defaultStorage } from "../../browser/storage.ts";
+import type { AuthSessionResponse } from "../../lib/types.ts";
+import { oauth } from "../../methods/oauth/client.ts";
+import {
+  AuthProvider,
+  useAuth,
+  type AuthSignInApi,
+} from "../../react/client.tsx";
 
 /**
  * POST to the refresh or sign-out route and read back the access-only bundle.
@@ -103,7 +107,7 @@ export function ConvexAuthNextjsProvider({
    *
    * Setting this replaces the default (`[oauth()]`) entirely rather than adding
    * to it. Pass `[]` to register nothing, or include `oauth()` (from
-   * `@convex-dev/auth/providers/oauth/react`) yourself to keep it alongside
+   * `@convex-dev/auth/methods/oauth/react`) yourself to keep it alongside
    * other sign-ins. Read once when the client is created and not expected to
    * change.
    */

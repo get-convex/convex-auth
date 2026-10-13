@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useAnonymousAuth } from "@convex-dev/auth/providers/anonymous/react";
+import { useAnonymousAuth } from "@convex-dev/auth/methods/anonymous/react";
 import {
   useQuery,
   Authenticated,

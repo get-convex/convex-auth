@@ -1,4 +1,4 @@
-import { setupConvexAuthNextjs } from "@convex-dev/auth/nextjs/server";
+import { setupConvexAuthNextjs } from "@convex-dev/auth/ssr/nextjs";
 import { api } from "@/convex/_generated/api";
 
 // The Next-specific server helpers: proxy (up-front refresh + redirects),

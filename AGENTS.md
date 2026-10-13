@@ -24,8 +24,8 @@ This is a pnpm monorepo:
   components: `server.ts` (Convex functions of the app), `react.tsx` (hooks),
   and the browser code.
 - `server/` — the app-side code of the core (`setupCore`, `getAuthUserId`).
-- `ssr/`, `nextjs/`, `react/`, `browser/` — the client and SSR code of the
-  core.
+- `ssr/`, `react/`, `browser/` — the client and SSR code of the core.
+  `ssr/nextjs/` holds the Next.js bindings.
 - `lib/` — internal code that several layers share (`lib/oauth/` for the
   OAuth components and methods).
 - `testing/` — the `convex-test` helpers, which ship as source.
@@ -67,7 +67,7 @@ and `verbatimModuleSyntax` settings. Two rules follow from it:
   `_generated/` files of a component. `pnpm check:declarations` rejects a
   wildcard and an entry whose file does not exist.
 
-The one exception is the `./providers/testing/<name>` entries, which ship as TypeScript from
+The one exception is the `./test` and `./components/<name>/test` entries, which ship as TypeScript from
 `src/`. Those helpers call `import.meta.glob`, a Vite macro that has to be
 transformed by the consumer's bundler — and Vitest externalizes plain `.js`
 under `node_modules` (leaving the macro intact, so it throws at import) while it

@@ -31,7 +31,7 @@
     "src/**/*.script.ts",
     "src/**/*.fixture.ts",
     "src/components/password/scripts/**",
-    // Ships as source (see the `./providers/testing/<name>` exports).
+    // Ships as source (see the `./test` and `./components/<name>/test` exports).
     "src/testing/**",
     "src/components/passkeyTestSetup.ts",
     "src/components/emailTestSetup.ts",

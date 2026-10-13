@@ -1,6 +1,6 @@
 /**
  * The GitHub OAuth provider, exported at
- * `@convex-dev/auth/providers/oauth/github`.
+ * `@convex-dev/auth/methods/github/server`.
  *
  * @module
  */

@@ -6,7 +6,7 @@ import type { SignInValues } from "../browser/keyedStore.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { InMemoryStorage } from "../browser/storage.ts";
 import { AuthProvider } from "./client.tsx";
-import { useAmbientSignInValue } from "./providers.ts";
+import { useAmbientSignInValue } from "./methods.ts";
 import { stubSignInApi } from "./testSignInApi.ts";
 
 const NAMESPACE = "https://happy-animal-123.convex.cloud";

@@ -1,8 +1,11 @@
 /**
- * React building blocks for provider-client authors, exported at
- * `@convex-dev/auth/react/providers`. Apps don't need anything here. Provider
- * modules (OAuth, and future auth methods) use these to expose their state as
- * hooks.
+ * React building blocks that the sign-in methods use to expose their state as
+ * hooks. This module is internal: it is not a public entry point, and apps
+ * do not use it.
+ *
+ * TODO(nicolas) Publish this module at
+ * `@convex-dev/auth/methods/custom/react` (with a matching `/server` entry
+ * point) when the API for custom sign-in methods is stable.
  *
  * An ambient sign-in publishes its actions and status from its
  * {@link AmbientSignInClient} (passed to `ConvexAuthProvider`'s

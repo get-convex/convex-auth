@@ -8,11 +8,11 @@ import { InMemoryStorage } from "../../browser/storage.ts";
 import { useAuthToken } from "../../react/index.tsx";
 import { AuthProvider, useAuth } from "../../react/client.tsx";
 import { stubSignInApi } from "../../react/testSignInApi.ts";
+import { useSignInWithGithub } from "../github/react.ts";
+import { useSignInWithGoogle } from "../google/react.ts";
 import {
   useOauth,
   useOauthSignIn,
-  useSignInWithGithub,
-  useSignInWithGoogle,
   type OauthCompleteResult,
   type OauthProviderApi,
   type OauthProviderRefs,

@@ -4,7 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import {
   useOauth,
   useSignInWithApple,
-} from "@convex-dev/auth/providers/oauth/react";
+} from "@convex-dev/auth/methods/apple/react";
 import { api } from "../convex/_generated/api";
 
 /**

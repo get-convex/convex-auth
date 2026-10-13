@@ -1,6 +1,6 @@
 /**
  * The Apple OAuth provider, exported at
- * `@convex-dev/auth/providers/oauth/apple`.
+ * `@convex-dev/auth/methods/apple/server`.
  *
  * @module
  */
