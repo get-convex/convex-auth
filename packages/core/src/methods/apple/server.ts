@@ -104,7 +104,7 @@ export type AppleOptions = {
  * Apple oauth component:
  *
  * ```ts
- * export const { startSignInWithApple, completeSignInWithApple } = setupApple(core, {
+ * export const { startSignInWithApple, completeSignInWithApple } = apple(auth, {
  *   component: components.authApple,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserApple });
@@ -124,7 +124,7 @@ export type AppleOptions = {
  * reachable. The app the flow returns to is unaffected and can stay on
  * localhost.
  */
-export function setupApple<UsersTable extends string>(
+export function apple<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: AppleOptions,
 ) {
@@ -142,7 +142,7 @@ export function setupApple<UsersTable extends string>(
     attachUserCallbacks(
       callbacks: UserCallbacks<"apple", AppleProfile, UsersTable>,
     ) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindMethod({
         name: PROVIDER_NAME,
         createUser: callbacks.createUser,
         onSignIn: callbacks.onSignIn,

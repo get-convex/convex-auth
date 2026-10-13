@@ -4,7 +4,7 @@ import {
   fakeCallbacks,
   fakeCore,
 } from "../../lib/oauth/componentContract.test.ts";
-import { setupOauth, type OauthCatalog, type OauthOptions } from "./server.ts";
+import { oauth, type OauthCatalog, type OauthOptions } from "./server.ts";
 
 /**
  * A minimal plain-OAuth catalog: no issuer and no openid scope. Tests
@@ -26,14 +26,14 @@ function setup(
   options: Partial<OauthOptions> = {},
   catalog: OauthCatalog = minimalCatalog,
 ) {
-  return setupOauth(fakeCore, "acme", catalog, fakeCallbacks, {
+  return oauth(fakeCore, "acme", catalog, fakeCallbacks, {
     component: {} as ComponentApi,
     allowedRedirectOrigins: ["https://app.example.com"],
     ...options,
   });
 }
 
-describe("setupOauth validation", () => {
+describe("oauth validation", () => {
   test("http(s) redirect origins are accepted", () => {
     const api = setup({
       allowedRedirectOrigins: [

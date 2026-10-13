@@ -59,7 +59,7 @@ type PasswordResult =
   Awaited<ReturnType<typeof signUp>> | Awaited<ReturnType<typeof signIn>>;
 type PasswordSuccess = Extract<PasswordResult, { status: "complete" }>;
 
-describe("setupUsernamePassword", () => {
+describe("usernamePassword", () => {
   test("signs up a new user and returns a session", async () => {
     const t = await setup();
     const result = await signUp(t, "alice", PASSWORD);

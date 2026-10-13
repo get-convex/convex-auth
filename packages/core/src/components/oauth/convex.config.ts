@@ -4,7 +4,7 @@ import { v } from "convex/values";
 /**
  * The configurable generic oauth component, for identity providers without a
  * built-in component. It takes the endpoints, scopes, and profile mapping from
- * the app's `setupOauth` catalog.
+ * the app's `oauth` catalog.
  *
  * Install it once per identity provider, each with its own name and
  * `httpPrefix`. The callback is served at `<httpPrefix>/callback`.

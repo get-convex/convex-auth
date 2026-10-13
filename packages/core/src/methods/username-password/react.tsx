@@ -28,7 +28,7 @@ import type { SignInResult, SignUpResult } from "./server.ts";
 export type Credentials = { username: string; password: string };
 
 /**
- * The `signInWithUsernamePassword` mutation the app re-exports from its `setupUsernamePassword`.
+ * The `signInWithUsernamePassword` mutation the app re-exports from its `usernamePassword`.
  *
  * Its return value is the access-only {@link ClientView}, which is what both
  * session models have in common. Hand it to `setSession`, the only supported
@@ -42,7 +42,7 @@ type SignInWithUsernamePasswordMutation = FunctionReference<
 >;
 
 /**
- * The `signUpWithUsernamePassword` mutation the app re-exports from its `setupUsernamePassword`.
+ * The `signUpWithUsernamePassword` mutation the app re-exports from its `usernamePassword`.
  */
 type SignUpWithUsernamePasswordMutation = FunctionReference<
   "mutation",

@@ -71,7 +71,7 @@ export type AuthActionBuilder<Profile> = <
 }) => RegisteredAction<"public", ObjectType<ArgsValidator>, ReturnValue>;
 
 /**
- * The function builders a method gets from {@link AuthCore.bindProvider}.
+ * The function builders a method gets from {@link AuthCore.bindMethod}.
  *
  * Each builds a public Convex function whose handler receives the
  * method-bound helpers on `ctx.convexAuth` alongside the standard ctx.
@@ -84,12 +84,12 @@ export type MethodBuilders<Profile> = {
 };
 
 /**
- * The core auth API returned by {@link setupCore}: the session handlers the
+ * The core auth API returned by {@link convexAuth}: the session handlers the
  * app re-exports. The sign-in methods also use it to bind to the core.
  */
 export type AuthCore<UsersTable extends string = string> = {
   /**
-   * The name of the app's users table, as configured on {@link setupCore}.
+   * The name of the app's users table, as configured on {@link convexAuth}.
    *
    * Carried on the value (not just in the type) so method setup functions
    * can infer `UsersTable` from the `core` they are handed, and so the name is
@@ -154,7 +154,7 @@ export type AuthCore<UsersTable extends string = string> = {
    *
    * @internal Not public until the API for custom methods is stable.
    */
-  bindProvider<Provider extends string, Profile>(
+  bindMethod<Provider extends string, Profile>(
     options: {
       name: Provider;
     } & UserCallbacks<Provider, Profile, UsersTable>,
@@ -168,11 +168,11 @@ export type AuthCore<UsersTable extends string = string> = {
  * method:
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
- *   setupUsernamePassword(core, {
+ *   usernamePassword(auth, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
@@ -194,7 +194,7 @@ export type AuthCore<UsersTable extends string = string> = {
  * Changes to token TTLs impact newly minted tokens, not ones that have
  * already been issued.
  */
-export function setupCore<UsersTable extends string = "users">(options: {
+export function convexAuth<UsersTable extends string = "users">(options: {
   component: ComponentApi;
   /**
    * The name of the app's users table. Defaults to `"users"`.
@@ -209,7 +209,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
    * Set this if the app's users live in a table with a different name:
    *
    * ```ts
-   * const core = setupCore({ component: components.auth, usersTable: "members" });
+   * const auth = convexAuth({ component: components.auth, usersTable: "members" });
    * ```
    */
   usersTable?: UsersTable;
@@ -276,11 +276,11 @@ export function setupCore<UsersTable extends string = "users">(options: {
   });
 
   // Names of methods bound to this core, for duplicate detection. Scoped to
-  // this `setupCore` call (not module-global): the collision that matters is
+  // this `convexAuth` call (not module-global): the collision that matters is
   // two methods on the same core, whose accounts would silently share rows.
   const boundMethodNames = new Set<string>();
 
-  const bindProvider = <Provider extends string, Profile>({
+  const bindMethod = <Provider extends string, Profile>({
     name,
     createUser,
     onSignIn,
@@ -396,5 +396,5 @@ export function setupCore<UsersTable extends string = "users">(options: {
     return { authMutation, authAction };
   };
 
-  return { usersTable, signOut, refreshSession, isAuthenticated, bindProvider };
+  return { usersTable, signOut, refreshSession, isAuthenticated, bindMethod };
 }

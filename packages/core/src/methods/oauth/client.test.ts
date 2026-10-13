@@ -4,7 +4,7 @@ import { ConvexError } from "convex/values";
 import type { AuthSignInApi } from "../../browser/ambientSignInClient.ts";
 import { AuthClient, type AuthState } from "../../browser/sessionManager.ts";
 import { InMemoryStorage, type TokenStorage } from "../../browser/storage.ts";
-import { oauth } from "./client.ts";
+import { oauthClient } from "./client.ts";
 import {
   acmeRefs,
   NAMESPACE,
@@ -32,7 +32,7 @@ describe("OAuth client", () => {
     expect(flowError()).toBeNull();
   });
 
-  test("registering oauth() twice on one provider throws", () => {
+  test("registering oauthClient() twice on one provider throws", () => {
     const signInApi = {
       mutation: vi.fn(),
       action: vi.fn(),
@@ -48,7 +48,7 @@ describe("OAuth client", () => {
           storage: new InMemoryStorage(),
           storageNamespace: NAMESPACE,
           ambientSignIns: {
-            signIns: [oauth(), oauth()],
+            signIns: [oauthClient(), oauthClient()],
             signInApi,
             convex: { mutation: vi.fn() },
           },

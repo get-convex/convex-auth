@@ -50,7 +50,7 @@ This is a pnpm monorepo:
   `react.ts` (hooks), and the browser code. A method is published at
   `@convex-dev/auth/methods/<method>/server` and
   `@convex-dev/auth/methods/<method>/react`.
-- `server/` — the app-side code of the core (`setupCore`, `getAuthUserId`).
+- `server/` — the app-side code of the core (`convexAuth`, `getAuthUserId`).
 - `ssr/`, `react/`, `browser/` — the client and SSR code of the core.
   `ssr/nextjs/` holds the Next.js bindings.
 - `lib/` — internal code that several layers share (`lib/oauth/` for the

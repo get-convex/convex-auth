@@ -7,7 +7,7 @@
 import { api } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
 import schema from "./schema.ts";
-import { setupApple } from "../../methods/apple/server.ts";
+import { apple } from "../../methods/apple/server.ts";
 import {
   ALLOWED_ORIGINS,
   asComponentApi,
@@ -18,7 +18,7 @@ import {
 
 const modules = import.meta.glob("./**/*.ts");
 
-const { startSignInWithApple } = setupApple(fakeCore, {
+const { startSignInWithApple } = apple(fakeCore, {
   component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 }).attachUserCallbacks(fakeCallbacks);

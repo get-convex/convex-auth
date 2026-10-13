@@ -25,7 +25,7 @@ import {
   NAMESPACE,
   calledPath,
   completed,
-  oauthClient,
+  oauthTestClient,
   readFlow,
   restoreNavigatorProduct,
   seedPendingFlow,
@@ -89,7 +89,8 @@ function renderOAuth<T>(
     onMutation?: (mutation: ReturnType<typeof vi.fn>) => void;
   } = {},
 ) {
-  const { client, signInApi, mutation, convexMutation } = oauthClient(storage);
+  const { client, signInApi, mutation, convexMutation } =
+    oauthTestClient(storage);
   onMutation?.(mutation);
   const tree = (children: ReactNode) => (
     <AuthProvider authClient={client} signInApi={signInApi}>
@@ -109,7 +110,7 @@ describe("OAuth React client", () => {
     restoreNavigatorProduct();
   });
 
-  test("the hooks throw when oauth() is not registered", () => {
+  test("the hooks throw when oauthClient() is not registered", () => {
     const client = new AuthClient({
       mode: "spa",
       authApi: {

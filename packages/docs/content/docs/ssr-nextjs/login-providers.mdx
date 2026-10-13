@@ -86,7 +86,7 @@ Some sign-in methods need the URL of your frontend. The guides use the Vite
 dev server (`http://localhost:5173`). `next dev` serves on
 `http://localhost:3000` by default:
 
-- **Passkey:** set `origin` in `setupUsernamePasskey` to your Next.js origin
+- **Passkey:** set `origin` in `usernamePasskey` to your Next.js origin
   (`http://localhost:3000` in development). `rpId` stays `localhost`.
 - **Email + password:** set the `SITE_URL` environment variable on your
   deployment to your Next.js origin, so the emailed links open your Next.js
@@ -96,6 +96,6 @@ dev server (`http://localhost:5173`). `next dev` serves on
   npx convex env set SITE_URL http://localhost:3000
   ```
 
-- **OAuth:** set `allowedRedirectOrigins` in `setupApple`, `setupGoogle`, or
-  `setupGithub` to your Next.js origin (`http://localhost:3000` in
+- **OAuth:** set `allowedRedirectOrigins` in `apple`, `google`, or
+  `github` to your Next.js origin (`http://localhost:3000` in
   development).

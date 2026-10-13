@@ -86,7 +86,7 @@ export function useOauth(): UseOauthReturn {
     OAUTH_SETUP_ID,
     OAUTH_FLOW_ERROR_KEY,
   );
-  // The value is published at setup, so `undefined` means oauth() was never
+  // The value is published at setup, so `undefined` means oauthClient() was never
   // registered.
   if (flowError === undefined) {
     throw new Error(NOT_REGISTERED_ERROR);

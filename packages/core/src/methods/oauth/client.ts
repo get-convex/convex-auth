@@ -110,7 +110,7 @@ export type SignInOptions = {
   code?: string;
 };
 
-/** The sign-in actions {@link oauth} publishes for its hooks to read. */
+/** The sign-in actions {@link oauthClient} publishes for its hooks to read. */
 export type OauthActions = {
   /**
    * Start the given provider's OAuth flow, or finish a saved one when
@@ -124,16 +124,16 @@ export type OauthActions = {
   ) => Promise<OauthStartResult | OauthCompleteResult>;
 };
 
-/** The id {@link oauth} registers under. */
+/** The id {@link oauthClient} registers under. */
 export const OAUTH_SETUP_ID = "oauth";
 
-/** Key {@link oauth} publishes its {@link OauthActions} under. */
+/** Key {@link oauthClient} publishes its {@link OauthActions} under. */
 export const OAUTH_ACTIONS_KEY = "actions";
 
 /**
  * Key holding the current {@link OauthFlowError}, or `null` when the last
  * attempt was fine. It is set at registration, so `undefined` means
- * {@link oauth} was never registered.
+ * {@link oauthClient} was never registered.
  */
 export const OAUTH_FLOW_ERROR_KEY = "flowError";
 
@@ -253,7 +253,7 @@ async function dropPendingFlow(storage: SignInStorage): Promise<void> {
  * startup work that finishes a flow. Provider mutations arrive with each
  * {@link OauthActions.signIn} call, so the setup takes no configuration.
  */
-export function oauth(): AmbientSignInClient {
+export function oauthClient(): AmbientSignInClient {
   const setup: AmbientSignInClient["setup"] = ({
     client,
     values,

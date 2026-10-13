@@ -102,7 +102,7 @@ export type EmailPasswordUrls = {
 };
 
 /**
- * Options for {@link setupEmailPassword}.
+ * Options for {@link emailPassword}.
  */
 export type EmailPasswordOptions = {
   /**
@@ -268,8 +268,8 @@ export type EmailPasswordProfile = Record<string, never>;
  * ```ts
  * import { env } from "../../components/email/_generated/server";
  *
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const {
  *   signUpWithEmailPassword,
@@ -281,7 +281,7 @@ export type EmailPasswordProfile = Record<string, never>;
  *   completePasswordRecovery,
  *   startChangeEmail,
  *   completeChangeEmail,
- * } = setupEmailPassword(core, {
+ * } = emailPassword(auth, {
  *   component: components.authEmail,
  *   passwordComponent: components.authPassword,
  *   emailSender: {
@@ -308,7 +308,7 @@ export type EmailPasswordProfile = Record<string, never>;
  * Account resolution (email → app user id) is owned by the email component;
  * the password component stores only `{ userId, passwordHash }`.
  */
-export function setupEmailPassword<UsersTable extends string>(
+export function emailPassword<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: EmailPasswordOptions,
 ) {
@@ -371,7 +371,7 @@ export function setupEmailPassword<UsersTable extends string>(
       createUser,
       onSignIn,
     }: UserCallbacks<typeof PROVIDER_NAME, EmailPasswordProfile, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindMethod({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,

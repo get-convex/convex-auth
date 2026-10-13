@@ -1,12 +1,12 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
-import { setupGithub } from "@convex-dev/auth/methods/github/server";
+import { convexAuth } from "@convex-dev/auth/server";
+import { github } from "@convex-dev/auth/methods/github/server";
 
-const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = convexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
-export const { startSignInWithGithub, completeSignInWithGithub } = setupGithub(
-  core,
+export const { startSignInWithGithub, completeSignInWithGithub } = github(
+  auth,
   {
     component: components.authGithub,
     allowedRedirectOrigins: ["http://localhost:5173"],

@@ -24,7 +24,7 @@ import {
 const PROVIDER_NAME = "password";
 
 /**
- * Options for {@link setupUsernamePassword}.
+ * Options for {@link usernamePassword}.
  */
 export type UsernamePasswordOptions = {
   /**
@@ -95,11 +95,11 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * with no email or email verification. Wire it up in `convex/auth.ts`:
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const { signUpWithUsernamePassword, signInWithUsernamePassword, changePassword } =
- *   setupUsernamePassword(core, {
+ *   usernamePassword(auth, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
@@ -113,7 +113,7 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * user id back from it at sign-in. The password component itself stores only
  * `{ userId, passwordHash }` and knows nothing about usernames.
  */
-export function setupUsernamePassword<UsersTable extends string>(
+export function usernamePassword<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: UsernamePasswordOptions,
 ) {
@@ -128,7 +128,7 @@ export function setupUsernamePassword<UsersTable extends string>(
       createUser,
       onSignIn,
     }: UserCallbacks<"password", Record<string, never>, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindMethod({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,

@@ -3,7 +3,7 @@
  * drives them: a signed-in user lists, adds, and removes their passkeys.
  *
  * The test runs against this example app, thus it covers the wiring that a
- * real app copies — the `setupUsernamePasskey` call, the `createUser`
+ * real app copies — the `usernamePasskey` call, the `createUser`
  * callback, and the mount paths of `convex.config.ts`.
  */
 import { convexTest, type TestConvex } from "convex-test";

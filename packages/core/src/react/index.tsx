@@ -24,7 +24,7 @@ import type {
 } from "../browser/ambientSignInClient.ts";
 import { AuthClient } from "../browser/sessionManager.ts";
 import { TokenStorage, defaultStorage } from "../browser/storage.ts";
-import { oauth } from "../methods/oauth/client.ts";
+import { oauthClient } from "../methods/oauth/client.ts";
 import type { ConvexAuthApi } from "../lib/types.ts";
 import {
   AuthProvider,
@@ -98,8 +98,8 @@ export function ConvexAuthProvider(props: {
    * take action outside of a user activated sign in flow, such as reading an
    * oauth code from a url query param.
    *
-   * Setting this replaces the default (`[oauth()]`) entirely rather than adding
-   * to it. Pass `[]` to register nothing, or include `oauth()` (from
+   * Setting this replaces the default (`[oauthClient()]`) entirely rather than adding
+   * to it. Pass `[]` to register nothing, or include `oauthClient()` (from
    * `@convex-dev/auth/methods/oauth/react`) yourself to keep it alongside
    * other sign-ins. Read once when the client is created and not expected to
    * change.
@@ -144,7 +144,7 @@ export function ConvexAuthProvider(props: {
       storage: storage ?? defaultStorage(),
       storageNamespace: storageNamespace ?? client.url,
       ambientSignIns: {
-        signIns: ambientSignIns ?? [oauth()],
+        signIns: ambientSignIns ?? [oauthClient()],
         signInApi,
         // Mutations that mint no session use the same websocket client.
         convex: { mutation: (fn, args) => client.mutation(fn, args) },

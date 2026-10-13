@@ -40,7 +40,7 @@ import { SIGN_IN_PURPOSE } from "./purposes.ts";
 import { defaultPasskeyName } from "./aaguids.ts";
 
 /**
- * Options for {@link setupUsernamePasskey}.
+ * Options for {@link usernamePasskey}.
  */
 export type UsernamePasskeyOptions = {
   /**
@@ -158,8 +158,8 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  * Wire it up in `convex/auth.ts`:
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = convexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * const {
  *   startSignInWithUsernamePasskey,
@@ -176,7 +176,7 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  *
  *   startRemovePasskey,
  *   finishRemovePasskey,
- * } = setupUsernamePasskey(core, {
+ * } = usernamePasskey(auth, {
  *   component: components.authPasskey,
  *   usernameComponent: components.authUsername,
  *   rpId: "localhost",
@@ -184,7 +184,7 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  * }).attachUserCallbacks({ createUser: internal.users.createUserPasskey });
  * ```
  */
-export function setupUsernamePasskey<UsersTable extends string>(
+export function usernamePasskey<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: UsernamePasskeyOptions,
 ) {
@@ -201,7 +201,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
       createUser,
       onSignIn,
     }: UserCallbacks<"passkey", Record<string, never>, UsersTable>) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindMethod({
         name: PROVIDER_NAME,
         createUser,
         onSignIn,

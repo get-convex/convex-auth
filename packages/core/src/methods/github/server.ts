@@ -89,7 +89,7 @@ export type GithubOptions = {
  * Built-in sign-in method for GitHub. Wire it up with the GitHub oauth component:
  *
  * ```ts
- * export const { startSignInWithGithub, completeSignInWithGithub } = setupGithub(core, {
+ * export const { startSignInWithGithub, completeSignInWithGithub } = github(auth, {
  *   component: components.authGithub,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserGithub });
@@ -105,7 +105,7 @@ export type GithubOptions = {
  *
  * The `httpPrefix` alone determines the callback URL.
  */
-export function setupGithub<UsersTable extends string>(
+export function github<UsersTable extends string>(
   core: AuthCore<UsersTable>,
   options: GithubOptions,
 ) {
@@ -123,7 +123,7 @@ export function setupGithub<UsersTable extends string>(
     attachUserCallbacks(
       callbacks: UserCallbacks<"github", GithubProfile, UsersTable>,
     ) {
-      const { authMutation } = core.bindProvider({
+      const { authMutation } = core.bindMethod({
         name: PROVIDER_NAME,
         createUser: callbacks.createUser,
         onSignIn: callbacks.onSignIn,
