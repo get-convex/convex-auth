@@ -7,7 +7,7 @@
  * last flow.
  *
  * ```tsx
- * const { signInApple } = useSignInWithApple(api.auth);
+ * const { signIn } = useSignInWithApple(api.auth);
  * const { flowError } = useOauth();
  * ```
  *
@@ -29,7 +29,7 @@ export type {
 /** What {@link useSignInWithApple} returns. */
 export type UseSignInWithAppleReturn = {
   /** Start Apple's OAuth flow. See {@link UseOauthSignInReturn.signIn}. */
-  signInApple: UseOauthSignInReturn["signIn"];
+  signIn: UseOauthSignInReturn["signIn"];
 };
 
 /**
@@ -46,5 +46,5 @@ export function useSignInWithApple(api: {
     startSignIn: api.startSignInWithApple,
     completeSignIn: api.completeSignInWithApple,
   });
-  return { signInApple: signIn };
+  return { signIn };
 }

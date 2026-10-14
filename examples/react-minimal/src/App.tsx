@@ -27,11 +27,11 @@ export function App() {
 }
 
 function SignIn() {
-  const { signInAnonymous } = useSignInAnonymously(api.auth);
+  const { signIn } = useSignInAnonymously(api.auth);
   return (
     <>
       <p>You are signed out.</p>
-      <button onClick={() => signInAnonymous()}>Sign in anonymously</button>
+      <button onClick={() => signIn()}>Sign in anonymously</button>
     </>
   );
 }

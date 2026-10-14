@@ -18,12 +18,12 @@ export default function SignIn() {
   // moves the minted refresh token into an httpOnly cookie so it never reaches
   // JS. Both functions are listed in `signIn` in src/lib/serverAuth.ts.
   const { signIn, pending } = useSignInWithUsernamePassword(api.auth);
-  const { signInAnonymous } = useSignInAnonymously(api.auth);
+  const { signIn: signInAnonymously } = useSignInAnonymously(api.auth);
   // GitHub sends the user back to this page, where the hook redeems the
   // callback code through the sign-in route. A failure to start comes back
-  // from `signInGithub`, and a failure after the redirect shows up in
+  // from `signInWithGithub`, and a failure after the redirect shows up in
   // `flowError`.
-  const { signInGithub } = useSignInWithGithub(api.auth);
+  const { signIn: signInWithGithub } = useSignInWithGithub(api.auth);
   const { flowError } = useOauth();
   const { isLoading, isAuthenticated } = useConvexAuth();
   const router = useRouter();
@@ -156,7 +156,7 @@ export default function SignIn() {
           disabled={pending || isLoading}
           onClick={async () => {
             setGithubError(null);
-            const result = await signInGithub();
+            const result = await signInWithGithub();
             if (result.status === "redirect") return;
             switch (result.userError.error) {
               case "OTHER_ERROR":
@@ -185,7 +185,7 @@ export default function SignIn() {
         <button
           disabled={pending || isLoading}
           onClick={async () => {
-            await signInAnonymous();
+            await signInAnonymously();
             router.push("/");
           }}
         >

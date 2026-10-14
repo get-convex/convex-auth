@@ -13,7 +13,7 @@ import { api } from "../convex/_generated/api";
  * exhaustive switch on its code.
  */
 function SignedOut(): ReactNode {
-  const { signInGithub } = useSignInWithGithub(api.auth);
+  const { signIn } = useSignInWithGithub(api.auth);
   const { flowError } = useOauth();
   const [startError, setStartError] = useState<string | null>(null);
   return (
@@ -58,7 +58,7 @@ function SignedOut(): ReactNode {
         type="button"
         onClick={async () => {
           setStartError(null);
-          const result = await signInGithub();
+          const result = await signIn();
           if (result.status === "redirect") return;
           switch (result.userError.error) {
             case "OTHER_ERROR":
