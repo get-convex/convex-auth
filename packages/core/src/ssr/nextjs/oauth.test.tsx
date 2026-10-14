@@ -18,11 +18,11 @@ import { useAuthToken } from "../../react/index.tsx";
 import { ConvexAuthNextjsProvider } from "./client.tsx";
 
 const githubApi = {
-  startSignInGithub: makeFunctionReference<"mutation">(
-    "auth:startSignInGithub",
+  startSignInWithGithub: makeFunctionReference<"mutation">(
+    "auth:startSignInWithGithub",
   ) as OauthProviderApi["startSignIn"],
-  completeSignInGithub: makeFunctionReference<"mutation">(
-    "auth:completeSignInGithub",
+  completeSignInWithGithub: makeFunctionReference<"mutation">(
+    "auth:completeSignInWithGithub",
   ) as OauthProviderApi["completeSignIn"],
 };
 
@@ -85,7 +85,7 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
 
     await signInGithub({ redirectTo: "http://localhost/signin" });
 
-    expect(mutation).toHaveBeenCalledWith(githubApi.startSignInGithub, {
+    expect(mutation).toHaveBeenCalledWith(githubApi.startSignInWithGithub, {
       redirectTo: "http://localhost/signin",
     });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -96,8 +96,8 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage, {
       providerName: "github",
-      startSignIn: githubApi.startSignInGithub,
-      completeSignIn: githubApi.completeSignInGithub,
+      startSignIn: githubApi.startSignInWithGithub,
+      completeSignIn: githubApi.completeSignInWithGithub,
     });
     const fetchMock = stubProxy({ status: "complete", tokens: slim });
     const { client, mutation } = makeConvexClient();
@@ -121,7 +121,7 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/auth/signin?path=/api/mutation");
     expect(JSON.parse(init.body as string)).toMatchObject({
-      path: "auth:completeSignInGithub",
+      path: "auth:completeSignInWithGithub",
       args: [{ code: "code-1", state: "state-1" }],
     });
     expect(window.location.search).toBe("");
@@ -138,8 +138,8 @@ describe("OAuth under ConvexAuthNextjsProvider", () => {
     const storage = new InMemoryStorage();
     seedPendingFlow(storage, {
       providerName: "github",
-      startSignIn: githubApi.startSignInGithub,
-      completeSignIn: githubApi.completeSignInGithub,
+      startSignIn: githubApi.startSignInWithGithub,
+      completeSignIn: githubApi.completeSignInWithGithub,
     });
     stubProxy({ status: "complete", tokens: slim });
     const { client } = makeConvexClient();

@@ -171,7 +171,7 @@ export type AuthCore<UsersTable extends string = string> = {
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUpWithPassword, signInWithPassword } =
+ * export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
  *   setupUsernamePassword(core, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,

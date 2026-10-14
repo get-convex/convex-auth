@@ -18,9 +18,9 @@ export default function SignIn() {
   // moves the minted refresh token into an httpOnly cookie so it never reaches
   // JS. Both functions are listed in `signIn` in src/lib/serverAuth.ts.
   const { signIn, pending } = useSignInWithPassword(
-    api.auth.signInWithPassword,
+    api.auth.signInWithUsernamePassword,
   );
-  const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymous);
+  const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymously);
   // GitHub sends the user back to this page, where the hook redeems the
   // callback code through the sign-in route. A failure to start comes back
   // from `signInGithub`, and a failure after the redirect shows up in

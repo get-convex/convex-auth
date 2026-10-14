@@ -131,7 +131,7 @@ export function usePasskeyAutofill<E = never>(options: {
   /**
    * Mint fresh options (with a fresh challenge) for a
    * conditional-mediation request, usually through the start mutation of
-   * the flow (the `startAutofillSignIn` mutation of a passkey recipe).
+   * the flow (the `startAutofillSignInWithUsernamePasskey` mutation of a passkey recipe).
    */
   start: () => Promise<WireRequestOptions>;
   /**

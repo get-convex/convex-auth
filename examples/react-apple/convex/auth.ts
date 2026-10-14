@@ -5,10 +5,13 @@ import { setupApple } from "@convex-dev/auth/methods/apple/server";
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
-export const { startSignInApple, completeSignInApple } = setupApple(core, {
-  component: components.authApple,
-  allowedRedirectOrigins: ["http://localhost:5173"],
-}).attachUserCallbacks({
+export const { startSignInWithApple, completeSignInWithApple } = setupApple(
+  core,
+  {
+    component: components.authApple,
+    allowedRedirectOrigins: ["http://localhost:5173"],
+  },
+).attachUserCallbacks({
   createUser: internal.users.createUser,
   onSignIn: internal.users.onSignIn,
 });

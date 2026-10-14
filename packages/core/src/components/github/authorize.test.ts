@@ -18,12 +18,12 @@ import {
 
 const modules = import.meta.glob("./**/*.ts");
 
-const { startSignInGithub } = setupGithub(fakeCore, {
+const { startSignInWithGithub } = setupGithub(fakeCore, {
   component: asComponentApi<ComponentApi>(api),
   allowedRedirectOrigins: ALLOWED_ORIGINS,
 }).attachUserCallbacks(fakeCallbacks);
 
-testAuthorizationUrl(schema, modules, startSignInGithub, {
+testAuthorizationUrl(schema, modules, startSignInWithGithub, {
   authorizationEndpoint: "https://github.com/login/oauth/authorize",
   scope: "read:user user:email",
 });

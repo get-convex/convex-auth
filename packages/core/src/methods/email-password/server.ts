@@ -135,7 +135,7 @@ const signUpResult = v.union(
 );
 
 /**
- * The result of `signUp`. On success, the secret the browser must keep for
+ * The result of `signUpWithEmailPassword`. On success, the secret the browser must keep for
  * `completeSignUp`; the session arrives only after the email is validated.
  */
 export type SignUpResult = Infer<typeof signUpResult>;
@@ -158,7 +158,7 @@ const signInResult = v.union(
   ),
 );
 
-/** The result of `signIn`: the minted session tokens, or an error. */
+/** The result of `signInWithEmailPassword`: the minted session tokens, or an error. */
 export type SignInResult = Infer<typeof signInResult>;
 
 const changePasswordResult = v.union(
@@ -272,9 +272,9 @@ export type EmailPasswordProfile = Record<string, never>;
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
  * export const {
- *   signUp,
+ *   signUpWithEmailPassword,
  *   completeSignUp,
- *   signIn,
+ *   signInWithEmailPassword,
  *   changePassword,
  *   startPasswordRecovery,
  *   checkPasswordRecovery,
@@ -388,7 +388,7 @@ export function setupEmailPassword<UsersTable extends string>(
          * users; the first completed validation wins, and the others can never
          * sign in.
          */
-        signUp: authMutation({
+        signUpWithEmailPassword: authMutation({
           args: { email: v.string(), password: v.string() },
           returns: signUpResult,
           handler: async (ctx, { email, password }): Promise<SignUpResult> => {
@@ -496,7 +496,7 @@ export function setupEmailPassword<UsersTable extends string>(
          * per-IP limit, and returns `RATE_LIMITED` when the client has done
          * too many lookups.
          */
-        signIn: authMutation({
+        signInWithEmailPassword: authMutation({
           args: { email: v.string(), password: v.string() },
           returns: signInResult,
           handler: async (ctx, { email, password }): Promise<SignInResult> => {

@@ -51,7 +51,7 @@ const signInResult = v.union(
 );
 
 /**
- * The result of `signInWithPassword`.
+ * The result of `signInWithUsernamePassword`.
  *
  * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
@@ -63,7 +63,7 @@ const signUpResult = v.union(
 );
 
 /**
- * The result of `signUpWithPassword`.
+ * The result of `signUpWithUsernamePassword`.
  *
  * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
@@ -98,14 +98,14 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signUpWithPassword, signInWithPassword, changePassword } =
+ * export const { signUpWithUsernamePassword, signInWithUsernamePassword, changePassword } =
  *   setupUsernamePassword(core, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
  * ```
  *
- * The app re-exports the returned `signUpWithPassword` / `signInWithPassword`
+ * The app re-exports the returned `signUpWithUsernamePassword` / `signInWithUsernamePassword`
  * / `changePassword` mutations so its clients can call them.
  *
  * Account resolution (username → app user id) is owned by the username
@@ -140,7 +140,7 @@ export function setupUsernamePassword<UsersTable extends string>(
          * otherwise create the user + session and store the username and the
          * password.
          */
-        signUpWithPassword: authMutation({
+        signUpWithUsernamePassword: authMutation({
           args: { username: v.string(), password: v.string() },
           returns: signUpResult,
           handler: async (
@@ -233,7 +233,7 @@ export function setupUsernamePassword<UsersTable extends string>(
          * the two apart. (Account existence is already observable via sign-up's
          * `USERNAME_TAKEN`, so distinguishing them here leaks nothing new.)
          */
-        signInWithPassword: authMutation({
+        signInWithUsernamePassword: authMutation({
           args: { username: v.string(), password: v.string() },
           returns: signInResult,
           handler: async (

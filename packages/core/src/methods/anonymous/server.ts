@@ -22,7 +22,7 @@ const PROVIDER_NAME = "anonymous";
  * const core = setupCore({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
- * export const { signInAnonymous } = setupAnonymous(core, {
+ * export const { signInAnonymously } = setupAnonymous(core, {
  *   component: components.authAnonymous,
  * }).attachUserCallbacks({ createUser: internal.users.createUserAnonymous });
  * ```
@@ -62,7 +62,7 @@ export function setupAnonymous<UsersTable extends string>(
         // validates before moving the refresh token into its cookie), and it
         // leaves room for a `userError` arm later without another breaking
         // change.
-        signInAnonymous: authMutation({
+        signInAnonymously: authMutation({
           args: {},
           returns: vSignInComplete,
           handler: async (ctx): Promise<SignInComplete> => {

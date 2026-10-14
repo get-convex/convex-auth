@@ -38,13 +38,13 @@ export type UseSignInWithGoogleReturn = {
  * to renamed exports.
  */
 export function useSignInWithGoogle(api: {
-  startSignInGoogle: OauthProviderApi["startSignIn"];
-  completeSignInGoogle: OauthProviderApi["completeSignIn"];
+  startSignInWithGoogle: OauthProviderApi["startSignIn"];
+  completeSignInWithGoogle: OauthProviderApi["completeSignIn"];
 }): UseSignInWithGoogleReturn {
   const { signIn } = useOauthSignIn({
     providerName: "google",
-    startSignIn: api.startSignInGoogle,
-    completeSignIn: api.completeSignInGoogle,
+    startSignIn: api.startSignInWithGoogle,
+    completeSignIn: api.completeSignInWithGoogle,
   });
   return { signInGoogle: signIn };
 }

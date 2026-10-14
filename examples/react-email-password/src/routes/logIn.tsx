@@ -3,7 +3,9 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
 export function LogIn() {
-  const { signIn, pending } = useSignInWithEmailPassword(api.auth.signIn);
+  const { signIn, pending } = useSignInWithEmailPassword(
+    api.auth.signInWithEmailPassword,
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

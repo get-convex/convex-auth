@@ -38,13 +38,13 @@ export type UseSignInWithAppleReturn = {
  * to renamed exports.
  */
 export function useSignInWithApple(api: {
-  startSignInApple: OauthProviderApi["startSignIn"];
-  completeSignInApple: OauthProviderApi["completeSignIn"];
+  startSignInWithApple: OauthProviderApi["startSignIn"];
+  completeSignInWithApple: OauthProviderApi["completeSignIn"];
 }): UseSignInWithAppleReturn {
   const { signIn } = useOauthSignIn({
     providerName: "apple",
-    startSignIn: api.startSignInApple,
-    completeSignIn: api.completeSignInApple,
+    startSignIn: api.startSignInWithApple,
+    completeSignIn: api.completeSignInWithApple,
   });
   return { signInApple: signIn };
 }

@@ -47,7 +47,7 @@ export type SignInAnonymousMutation = FunctionReference<
  * import { api } from "../convex/_generated/api";
  *
  * function SignIn() {
- *   const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymous);
+ *   const { signInAnonymous } = useAnonymousAuth(api.auth.signInAnonymously);
  *   return <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
  * }
  * ```

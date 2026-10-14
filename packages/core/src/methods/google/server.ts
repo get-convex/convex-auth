@@ -76,7 +76,7 @@ export type GoogleProviderOptions = {
  * Built-in Google OAuth provider. Wire it up with the Google oauth component:
  *
  * ```ts
- * export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
+ * export const { startSignInWithGoogle, completeSignInWithGoogle } = setupGoogle(core, {
  *   component: components.authGoogle,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserGoogle });
@@ -136,8 +136,8 @@ export function setupGoogle<UsersTable extends string>(
       });
 
       return {
-        startSignInGoogle: startSignIn,
-        completeSignInGoogle: completeSignIn,
+        startSignInWithGoogle: startSignIn,
+        completeSignInWithGoogle: completeSignIn,
       };
     },
   };

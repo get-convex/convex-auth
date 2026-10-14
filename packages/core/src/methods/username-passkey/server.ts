@@ -102,7 +102,7 @@ const startSignInResult = v.union(
 );
 
 /**
- * The result of `startSignIn`: which ceremony the client must run, with
+ * The result of `startSignInWithUsernamePasskey`: which ceremony the client must run, with
  * the data for the WebAuthn call, or a user-facing `userError`.
  */
 export type StartSignInResult = Infer<typeof startSignInResult>;
@@ -112,7 +112,7 @@ const startAutofillSignInResult = v.object({
 });
 
 /**
- * The result of `startAutofillSignIn`: an unbound challenge for a
+ * The result of `startAutofillSignInWithUsernamePasskey`: an unbound challenge for a
  * conditional-mediation (passkey autofill) `navigator.credentials.get()` call.
  */
 export type StartAutofillSignInResult = Infer<typeof startAutofillSignInResult>;
@@ -123,7 +123,7 @@ const finishSignUpResult = v.union(
 );
 
 /**
- * The result of `finishSignUp`.
+ * The result of `finishSignUpWithUsernamePasskey`.
  *
  * When complete the minted session tokens, otherwise a user-facing `userError`.
  */
@@ -140,7 +140,7 @@ const finishSignInResult = v.union(
 );
 
 /**
- * The result of `finishSignIn`.
+ * The result of `finishSignInWithUsernamePasskey`.
  *
  * When complete the minted session tokens and the username of the account,
  * otherwise a user-facing `userError`.
@@ -162,10 +162,10 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
  * const {
- *   startSignIn,
- *   startAutofillSignIn,
- *   finishSignUp,
- *   finishSignIn,
+ *   startSignInWithUsernamePasskey,
+ *   startAutofillSignInWithUsernamePasskey,
+ *   finishSignUpWithUsernamePasskey,
+ *   finishSignInWithUsernamePasskey,
  *
  *   listPasskeys,
  *   renamePasskey,
@@ -216,13 +216,13 @@ export function setupUsernamePasskey<UsersTable extends string>(
          *   that is bound to that user (`step: "authenticate"`).
          * - The username is free: start a registration ceremony for a new
          *   account (`step: "register"`). The account is not created here;
-         *   `finishSignUp` creates everything in one transaction.
+         *   `finishSignUpWithUsernamePasskey` creates everything in one transaction.
          *
          * Note: this flow lets an attacker enumerate which usernames exist.
          * That is intrinsic to identifier-first passkey sign-in (and account
          * existence is also observable through sign-up), so it is accepted.
          */
-        startSignIn: mutationGeneric({
+        startSignInWithUsernamePasskey: mutationGeneric({
           args: { username: v.string() },
           returns: startSignInResult,
           handler: async (ctx, { username }): Promise<StartSignInResult> => {
@@ -286,7 +286,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
          * authentication challenge that is not bound to a user. The passkey
          * that the user selects identifies the account.
          */
-        startAutofillSignIn: mutationGeneric({
+        startAutofillSignInWithUsernamePasskey: mutationGeneric({
           args: {},
           returns: startAutofillSignInResult,
           handler: async (ctx): Promise<StartAutofillSignInResult> => {
@@ -321,7 +321,7 @@ export function setupUsernamePasskey<UsersTable extends string>(
          *    them can fail after step 1 inside the same transaction, so a
          *    failure throws and rolls everything back.
          */
-        finishSignUp: authMutation({
+        finishSignUpWithUsernamePasskey: authMutation({
           args: {
             username: v.string(),
             response: vRegistrationResponseJSON,
@@ -435,12 +435,12 @@ export function setupUsernamePasskey<UsersTable extends string>(
          * Verify a passkey assertion and, on success, mint a session.
          *
          * The function serves both ceremonies that produce an assertion: the
-         * username-first branch (`startSignIn` → `step: "authenticate"`, a
+         * username-first branch (`startSignInWithUsernamePasskey` → `step: "authenticate"`, a
          * challenge bound to the user) and passkey autofill
-         * (`startAutofillSignIn`, an unbound challenge where the credential
+         * (`startAutofillSignInWithUsernamePasskey`, an unbound challenge where the credential
          * identifies the user).
          */
-        finishSignIn: authMutation({
+        finishSignInWithUsernamePasskey: authMutation({
           args: {
             response: vAuthenticationResponseJSON,
           },

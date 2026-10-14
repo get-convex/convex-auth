@@ -6,10 +6,10 @@ const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const {
-  startSignIn,
-  startAutofillSignIn,
-  finishSignUp,
-  finishSignIn,
+  startSignInWithUsernamePasskey,
+  startAutofillSignInWithUsernamePasskey,
+  finishSignUpWithUsernamePasskey,
+  finishSignInWithUsernamePasskey,
 
   listPasskeys,
   renamePasskey,

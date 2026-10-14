@@ -5,7 +5,10 @@ import { setupGoogle } from "@convex-dev/auth/methods/google/server";
 const core = setupCore({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
-export const { startSignInGoogle, completeSignInGoogle } = setupGoogle(core, {
-  component: components.authGoogle,
-  allowedRedirectOrigins: ["http://localhost:5173"],
-}).attachUserCallbacks({ createUser: internal.users.createUser });
+export const { startSignInWithGoogle, completeSignInWithGoogle } = setupGoogle(
+  core,
+  {
+    component: components.authGoogle,
+    allowedRedirectOrigins: ["http://localhost:5173"],
+  },
+).attachUserCallbacks({ createUser: internal.users.createUser });

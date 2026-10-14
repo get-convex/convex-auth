@@ -38,17 +38,17 @@ The `/auth/signin` route only forwards the functions listed in `signIn` in
 route refuses the call with a `403` error. Add these functions for each
 provider:
 
-| Provider         | Functions to list in `signIn`                           |
-| ---------------- | ------------------------------------------------------- |
-| Password         | `signUpWithPassword`, `signInWithPassword`              |
-| Passkey          | `finishSignUp`, `finishSignIn`                          |
-| Anonymous        | `signInAnonymous`                                       |
-| Email + password | `signIn`, `completeSignUp`, `completePasswordRecovery`  |
-| OAuth            | `completeSignIn<Provider>`, like `completeSignInGithub` |
+| Provider         | Functions to list in `signIn`                                           |
+| ---------------- | ----------------------------------------------------------------------- |
+| Password         | `signUpWithUsernamePassword`, `signInWithUsernamePassword`              |
+| Passkey          | `finishSignUpWithUsernamePasskey`, `finishSignInWithUsernamePasskey`    |
+| Anonymous        | `signInAnonymously`                                                     |
+| Email + password | `signInWithEmailPassword`, `completeSignUp`, `completePasswordRecovery` |
+| OAuth            | `completeSignInWith<Provider>`, like `completeSignInWithGithub`         |
 
 Only list functions that create a session. The other functions a provider
-exports, like `changePassword`, passkey `startSignIn`, OAuth
-`startSignInGithub`, or `startChangeEmail`,
+exports, like `changePassword`, passkey `startSignInWithUsernamePasskey`, OAuth
+`startSignInWithGithub`, or `startChangeEmail`,
 are called through the Convex client as usual and don't need to be listed.
 
 ### Adapt the authentication UI to Next.js
