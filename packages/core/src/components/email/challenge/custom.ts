@@ -79,6 +79,11 @@ export const start = mutation({
     expectedUserId: v.union(v.string(), v.null()),
     subject: v.string(),
     intro: v.string(),
+    // The template that the `convex` sender uses instead of `subject` and
+    // `intro`, which it does not support. Required with the `convex` sender.
+    convexTemplate: v.optional(
+      v.union(v.literal("validateEmail"), v.literal("resetPassword")),
+    ),
     ttlMs: v.optional(v.number()),
   },
   returns: startChallengeResult,
@@ -108,7 +113,11 @@ export const start = mutation({
       ttlMs,
       url: args.url,
       emailSender: args.emailSender,
-      copy: { subject: args.subject, intro: args.intro },
+      copy: {
+        subject: args.subject,
+        intro: args.intro,
+        convexTemplate: args.convexTemplate,
+      },
     });
     return { success: true, ...created };
   },

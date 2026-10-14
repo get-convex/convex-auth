@@ -9,6 +9,7 @@ import type {
 import type { ComponentApi as ResendApi } from "@convex-dev/resend/_generated/component.js";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { EmailSenderConfig } from "./validation.ts";
+import { scheduleConvexEmail } from "./authEmailsService.ts";
 
 //------------------------------------------------------------------------------
 
@@ -115,12 +116,20 @@ export type ChallengeEmailCopy = {
   // The sentence before the link, for example "Open this link to validate
   // your email address:".
   intro: string;
+  // The template of the `convex` sender, which has its own copy for each
+  // template and ignores `subject` and `intro`. Without it, the `convex`
+  // sender cannot send the email.
+  convexTemplate?: ConvexChallengeTemplate;
 };
+
+/** The templates of the `convex` sender that carry a challenge link. */
+export type ConvexChallengeTemplate = "validateEmail" | "resetPassword";
 
 /** The copy of the emails that record an address. */
 export const VALIDATE_EMAIL_COPY: ChallengeEmailCopy = {
   subject: "Validate your email address",
   intro: "Open this link to validate your email address:",
+  convexTemplate: "validateEmail",
 };
 
 /** "10 minutes", "1 hour", "2 hours". */
@@ -194,8 +203,20 @@ export async function sendChallengeEmail(
   },
 ): Promise<void> {
   if (sender.kind === "convex") {
-    // TODO: send through the convex email service.
-    throw new Error("The convex email sender cannot send emails yet");
+    const kind = message.copy.convexTemplate;
+    if (kind === undefined) {
+      throw new Error(
+        "The convex email sender sends only its own templates, so it " +
+          "cannot send a challenge with a custom subject and intro. Pass " +
+          'a `convexTemplate`, or use the "resend" sender.',
+      );
+    }
+    await scheduleConvexEmail(ctx, sender, message.to, {
+      kind,
+      link: message.link,
+      ttlMs: message.ttlMs,
+    });
+    return;
   }
   await ctx.runMutation(sender.sendEmailHandle as SendEmailHandle, {
     options: {

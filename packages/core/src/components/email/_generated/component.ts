@@ -23,6 +23,23 @@ import type { FunctionReference } from "convex/server";
  */
 export type ComponentApi<Name extends string | undefined = string | undefined> =
   {
+    authEmailsService: {
+      sendNotification: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          emailSender: { appName?: string; kind: "convex"; url: string };
+          template:
+            | { kind: "validateEmail"; link: string; ttlMs: number }
+            | { kind: "resetPassword"; link: string; ttlMs: number }
+            | { kind: "passwordChanged" }
+            | { kind: "emailChanged"; newEmail: string };
+          to: string;
+        },
+        null,
+        Name
+      >;
+    };
     challenge: {
       addEmail: {
         check: FunctionReference<
@@ -191,6 +208,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
           "mutation",
           "internal",
           {
+            convexTemplate?: "validateEmail" | "resetPassword";
             email: string;
             emailSender:
               | {

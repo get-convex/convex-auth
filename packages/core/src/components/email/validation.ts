@@ -150,6 +150,16 @@ export const lookupEmailResult = v.union(
 );
 export type LookupEmailResult = Infer<typeof lookupEmailResult>;
 
+/** The `convex` variant of {@link vEmailSenderConfig}. */
+export const vConvexEmailSenderConfig = v.object({
+  kind: v.literal("convex"),
+  // The URL of the auth-emails deployment, e.g. `https://<name>.convex.cloud`.
+  url: v.string(),
+  // The app name that the email copy shows.
+  appName: v.optional(v.string()),
+});
+export type ConvexEmailSenderConfig = Infer<typeof vConvexEmailSenderConfig>;
+
 /**
  * How the `start` mutations send their email. The caller (the provider recipe)
  * resolves the function handle and the runtime options; the component only
@@ -175,13 +185,7 @@ export const vEmailSenderConfig = v.union(
     initialBackoffMs: v.number(),
     retryAttempts: v.number(),
   }),
-  v.object({
-    kind: v.literal("convex"),
-    // The URL of the auth-emails deployment, e.g. `https://<name>.convex.cloud`.
-    url: v.string(),
-    // The app name that the email copy shows.
-    appName: v.optional(v.string()),
-  }),
+  vConvexEmailSenderConfig,
 );
 export type EmailSenderConfig = Infer<typeof vEmailSenderConfig>;
 
