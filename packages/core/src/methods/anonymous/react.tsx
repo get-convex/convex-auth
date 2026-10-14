@@ -37,7 +37,7 @@ export type SignInAnonymouslyMutation = FunctionReference<
  * Client for the anonymous provider: wire its sign-in mutation to the core
  * client.
  *
- * The passed in `signInMutation` mints a session and returns a {@link
+ * The `signInAnonymously` mutation mints a session and returns a {@link
  * TokenBundle}; the hook feeds that bundle to `setSession` so the Convex
  * client authenticates. Passing a `TokenBundle` to `setSession` is the general
  * pattern that every auth provider should follow.
@@ -47,7 +47,7 @@ export type SignInAnonymouslyMutation = FunctionReference<
  * import { api } from "../convex/_generated/api";
  *
  * function SignIn() {
- *   const { signInAnonymous } = useSignInAnonymously(api.auth.signInAnonymously);
+ *   const { signInAnonymous } = useSignInAnonymously(api.auth);
  *   return <button onClick={() => signInAnonymous()}>Sign in anonymously</button>;
  * }
  * ```
@@ -58,11 +58,12 @@ export type SignInAnonymouslyMutation = FunctionReference<
  * components that build on the authenticated state returned by
  * `useConvexAuthActions`.
  *
- * @param signInMutation The app's `signInAnonymously` mutation reference.
+ * @param api The functions of the method, usually `api.auth`.
  */
-export function useSignInAnonymously(
-  signInMutation: SignInAnonymouslyMutation,
-) {
+export function useSignInAnonymously(api: {
+  signInAnonymously: SignInAnonymouslyMutation;
+}) {
+  const signInMutation = api.signInAnonymously;
   const { setSession } = useAuthActions();
   // Running through the signInApi rather than `useMutation` is what lets this one
   // hook serve both session models. See {@link AuthSignInApi}.

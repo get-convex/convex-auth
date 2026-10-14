@@ -94,12 +94,7 @@ export type SignInWithUsernamePasskeyResult =
  * import { api } from "../convex/_generated/api";
  *
  * function LogIn() {
- *   const { signIn, pending, autofill } = useSignInWithUsernamePasskey({
- *     startSignInWithUsernamePasskey: api.auth.startSignInWithUsernamePasskey,
- *     startAutofillSignInWithUsernamePasskey: api.auth.startAutofillSignInWithUsernamePasskey,
- *     finishSignInWithUsernamePasskey: api.auth.finishSignInWithUsernamePasskey,
- *     finishSignUpWithUsernamePasskey: api.auth.finishSignUpWithUsernamePasskey,
- *   });
+ *   const { signIn, pending, autofill } = useSignInWithUsernamePasskey(api.auth);
  *   return (
  *     <form
  *       onSubmit={async (e) => {
@@ -117,7 +112,7 @@ export type SignInWithUsernamePasskeyResult =
  * }
  * ```
  *
- * @param usernamePasskeyApi The app's re-exported passkey mutation references.
+ * @param usernamePasskeyApi The functions of the method, usually `api.auth`.
  */
 export function useSignInWithUsernamePasskey(
   usernamePasskeyApi: UsernamePasskeyApi,

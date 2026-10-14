@@ -27,7 +27,7 @@ export function App() {
 }
 
 function SignIn() {
-  const { signInAnonymous } = useSignInAnonymously(api.auth.signInAnonymously);
+  const { signInAnonymous } = useSignInAnonymously(api.auth);
   return (
     <>
       <p>You are signed out.</p>

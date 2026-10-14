@@ -10,13 +10,7 @@ export function LogIn() {
   // While this hook is mounted, the browser also offers stored passkeys in
   // the autocompletion list of the username field below (the field carries
   // autoComplete="username webauthn"). Picking one signs in directly.
-  const { signIn, pending, autofill } = useSignInWithUsernamePasskey({
-    startSignInWithUsernamePasskey: api.auth.startSignInWithUsernamePasskey,
-    startAutofillSignInWithUsernamePasskey:
-      api.auth.startAutofillSignInWithUsernamePasskey,
-    finishSignInWithUsernamePasskey: api.auth.finishSignInWithUsernamePasskey,
-    finishSignUpWithUsernamePasskey: api.auth.finishSignUpWithUsernamePasskey,
-  });
+  const { signIn, pending, autofill } = useSignInWithUsernamePasskey(api.auth);
   const [username, setUsername] = useState("");
   const [error, setError] = useState<string | null>(null);
 

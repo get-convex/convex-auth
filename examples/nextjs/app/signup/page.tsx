@@ -11,9 +11,7 @@ export default function SignUp() {
   // The sign-up counterpart of /signin, and likewise the provider's own hook:
   // the auth proxy creates the account server-side and mints the session the
   // same way.
-  const { signUp, pending } = useSignUpWithUsernamePassword(
-    api.auth.signUpWithUsernamePassword,
-  );
+  const { signUp, pending } = useSignUpWithUsernamePassword(api.auth);
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");

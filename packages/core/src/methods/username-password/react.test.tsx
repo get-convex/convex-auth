@@ -45,14 +45,18 @@ const flows = [
   {
     name: "useSignInWithUsernamePassword",
     useFlow: () => {
-      const { signIn, pending } = useSignInWithUsernamePassword(mutation);
+      const { signIn, pending } = useSignInWithUsernamePassword({
+        signInWithUsernamePassword: mutation,
+      });
       return { run: signIn, pending };
     },
   },
   {
     name: "useSignUpWithUsernamePassword",
     useFlow: () => {
-      const { signUp, pending } = useSignUpWithUsernamePassword(mutation);
+      const { signUp, pending } = useSignUpWithUsernamePassword({
+        signUpWithUsernamePassword: mutation,
+      });
       return { run: signUp, pending };
     },
   },
