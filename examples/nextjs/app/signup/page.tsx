@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignUpWithPassword } from "@convex-dev/auth/methods/username-password/react";
+import { useSignUpWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
 import { DEFAULT_MIN_PASSWORD_LENGTH } from "@convex-dev/auth/methods/username-password";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,7 +11,7 @@ export default function SignUp() {
   // The sign-up counterpart of /signin, and likewise the provider's own hook:
   // the auth proxy creates the account server-side and mints the session the
   // same way.
-  const { signUp, pending } = useSignUpWithPassword(
+  const { signUp, pending } = useSignUpWithUsernamePassword(
     api.auth.signUpWithUsernamePassword,
   );
   const router = useRouter();
