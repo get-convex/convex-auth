@@ -158,8 +158,8 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  * Wire it up in `convex/auth.ts`:
  *
  * ```ts
- * const core = setupConvexAuth({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = setupConvexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * const {
  *   startSignInWithUsernamePasskey,
@@ -176,7 +176,7 @@ export type FinishSignInResult = Infer<typeof finishSignInResult>;
  *
  *   startRemovePasskey,
  *   finishRemovePasskey,
- * } = setupUsernamePasskey(core, {
+ * } = setupUsernamePasskey(auth, {
  *   component: components.authPasskey,
  *   usernameComponent: components.authUsername,
  *   rpId: "localhost",

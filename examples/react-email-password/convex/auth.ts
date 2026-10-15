@@ -7,8 +7,8 @@ import { setupEmailPassword } from "@convex-dev/auth/methods/email-password/serv
 // deployment when the frontend does not run on the Vite default.
 const SITE_URL = env.SITE_URL ?? "http://localhost:5173";
 
-const core = setupConvexAuth({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = setupConvexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
 export const {
   signUpWithEmailPassword,
@@ -20,7 +20,7 @@ export const {
   startPasswordRecovery,
   checkPasswordRecovery,
   completePasswordRecovery,
-} = setupEmailPassword(core, {
+} = setupEmailPassword(auth, {
   component: components.authEmail,
   passwordComponent: components.authPassword,
   emailSender: {

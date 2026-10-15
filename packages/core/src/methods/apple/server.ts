@@ -104,7 +104,7 @@ export type AppleProviderOptions = {
  * Apple oauth component:
  *
  * ```ts
- * export const { startSignInWithApple, completeSignInWithApple } = setupApple(core, {
+ * export const { startSignInWithApple, completeSignInWithApple } = setupApple(auth, {
  *   component: components.authApple,
  *   allowedRedirectOrigins: ["https://app.example.com", "http://localhost:5173"],
  * }).attachUserCallbacks({ createUser: internal.users.createUserApple });

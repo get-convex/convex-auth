@@ -166,11 +166,11 @@ export type AuthCore<UsersTable extends string = string> = {
  * provider:
  *
  * ```ts
- * const core = setupConvexAuth({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = setupConvexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
- *   setupUsernamePassword(core, {
+ *   setupUsernamePassword(auth, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
@@ -207,7 +207,7 @@ export function setupConvexAuth<UsersTable extends string = "users">(options: {
    * Set this if the app's users live in a table with a different name:
    *
    * ```ts
-   * const core = setupConvexAuth({ component: components.auth, usersTable: "members" });
+   * const auth = setupConvexAuth({ component: components.auth, usersTable: "members" });
    * ```
    */
   usersTable?: UsersTable;

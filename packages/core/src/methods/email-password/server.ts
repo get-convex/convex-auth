@@ -268,8 +268,8 @@ export type EmailPasswordProfile = Record<string, never>;
  * ```ts
  * import { env } from "../../components/email/_generated/server";
  *
- * const core = setupConvexAuth({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = setupConvexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const {
  *   signUpWithEmailPassword,
@@ -281,7 +281,7 @@ export type EmailPasswordProfile = Record<string, never>;
  *   completePasswordRecovery,
  *   startChangeEmail,
  *   completeChangeEmail,
- * } = setupEmailPassword(core, {
+ * } = setupEmailPassword(auth, {
  *   component: components.authEmail,
  *   passwordComponent: components.authPassword,
  *   emailSender: {
