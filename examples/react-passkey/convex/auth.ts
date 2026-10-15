@@ -1,9 +1,9 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 import { setupUsernamePasskey } from "@convex-dev/auth/methods/username-passkey/server";
 
-const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = setupConvexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
 export const {
   startSignInWithUsernamePasskey,
@@ -20,7 +20,7 @@ export const {
 
   startRemovePasskey,
   finishRemovePasskey,
-} = setupUsernamePasskey(core, {
+} = setupUsernamePasskey(auth, {
   component: components.authPasskey,
   usernameComponent: components.authUsername,
   // The relying party ID and the origin of the Vite dev server. A deployed

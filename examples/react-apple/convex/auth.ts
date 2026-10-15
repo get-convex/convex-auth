@@ -1,12 +1,12 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 import { setupApple } from "@convex-dev/auth/methods/apple/server";
 
-const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = setupConvexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
 export const { startSignInWithApple, completeSignInWithApple } = setupApple(
-  core,
+  auth,
   {
     component: components.authApple,
     allowedRedirectOrigins: ["http://localhost:5173"],

@@ -1,5 +1,5 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 import { setupAnonymous } from "@convex-dev/auth/methods/anonymous/server";
 import { setupGithub } from "@convex-dev/auth/methods/github/server";
 import { setupUsernamePassword } from "@convex-dev/auth/methods/username-password/server";
@@ -11,12 +11,12 @@ import { setupUsernamePassword } from "@convex-dev/auth/methods/username-passwor
 // provider, `signUpWithUsernamePassword` / `signInWithUsernamePassword` for the password one.
 // Under SSR those calls get proxied to Convex via the SSR host. The sign-in
 // functions exposed here are wired up to be proxied in src/lib/serverAuth.ts.
-const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = setupConvexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
 // `onSignIn` is optional, and runs on every sign-in including the first. This
 // app uses it to stamp the user's last sign-in.
-export const { signInAnonymously } = setupAnonymous(core, {
+export const { signInAnonymously } = setupAnonymous(auth, {
   component: components.authAnonymous,
 }).attachUserCallbacks({
   createUser: internal.users.createUser,
@@ -24,7 +24,7 @@ export const { signInAnonymously } = setupAnonymous(core, {
 });
 
 export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
-  setupUsernamePassword(core, {
+  setupUsernamePassword(auth, {
     component: components.authPassword,
     usernameComponent: components.authUsername,
   }).attachUserCallbacks({
@@ -33,7 +33,7 @@ export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
   });
 
 export const { startSignInWithGithub, completeSignInWithGithub } = setupGithub(
-  core,
+  auth,
   {
     component: components.authGithub,
     allowedRedirectOrigins: ["http://localhost:3000"],

@@ -23,7 +23,7 @@ This is a pnpm monorepo:
 - `methods/<method>/` — the sign-in methods, which use one or more
   components: `server.ts` (Convex functions of the app), `react.tsx` (hooks),
   and the browser code.
-- `server/` — the app-side code of the core (`setupCore`, `getAuthUserId`).
+- `server/` — the app-side code of the core (`setupConvexAuth`, `getAuthUserId`).
 - `ssr/`, `react/`, `browser/` — the client and SSR code of the core.
   `ssr/nextjs/` holds the Next.js bindings.
 - `lib/` — internal code that several layers share (`lib/oauth/` for the

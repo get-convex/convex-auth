@@ -1,10 +1,10 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 import { setupAnonymous } from "@convex-dev/auth/methods/anonymous/server";
 
-const core = setupCore({ component: components.auth });
-export const { signOut, refreshSession, isAuthenticated } = core;
+const auth = setupConvexAuth({ component: components.auth });
+export const { signOut, refreshSession, isAuthenticated } = auth;
 
-export const { signInAnonymously } = setupAnonymous(core, {
+export const { signInAnonymously } = setupAnonymous(auth, {
   component: components.authAnonymous,
 }).attachUserCallbacks({ createUser: internal.users.createUser });

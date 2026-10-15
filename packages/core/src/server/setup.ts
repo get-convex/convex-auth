@@ -84,12 +84,12 @@ export type ProviderBuilders<Profile> = {
 };
 
 /**
- * The core auth API returned by {@link setupCore}: the session handlers the
+ * The core auth API returned by {@link setupConvexAuth}: the session handlers the
  * app re-exports. The sign-in methods also use it to bind to the core.
  */
 export type AuthCore<UsersTable extends string = string> = {
   /**
-   * The name of the app's users table, as configured on {@link setupCore}.
+   * The name of the app's users table, as configured on {@link setupConvexAuth}.
    *
    * Carried on the value (not just in the type) so provider setup functions
    * can infer `UsersTable` from the `core` they are handed, and so the name is
@@ -166,11 +166,11 @@ export type AuthCore<UsersTable extends string = string> = {
  * provider:
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
- * export const { signOut, refreshSession, isAuthenticated } = core;
+ * const auth = setupConvexAuth({ component: components.auth });
+ * export const { signOut, refreshSession, isAuthenticated } = auth;
  *
  * export const { signUpWithUsernamePassword, signInWithUsernamePassword } =
- *   setupUsernamePassword(core, {
+ *   setupUsernamePassword(auth, {
  *     component: components.authPassword,
  *     usernameComponent: components.authUsername,
  *   }).attachUserCallbacks({ createUser: internal.users.createUserPassword });
@@ -192,7 +192,7 @@ export type AuthCore<UsersTable extends string = string> = {
  * Changes to token TTLs impact newly minted tokens, not ones that have
  * already been issued.
  */
-export function setupCore<UsersTable extends string = "users">(options: {
+export function setupConvexAuth<UsersTable extends string = "users">(options: {
   component: ComponentApi;
   /**
    * The name of the app's users table. Defaults to `"users"`.
@@ -207,7 +207,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
    * Set this if the app's users live in a table with a different name:
    *
    * ```ts
-   * const core = setupCore({ component: components.auth, usersTable: "members" });
+   * const auth = setupConvexAuth({ component: components.auth, usersTable: "members" });
    * ```
    */
   usersTable?: UsersTable;
@@ -274,7 +274,7 @@ export function setupCore<UsersTable extends string = "users">(options: {
   });
 
   // Names of providers bound to this core, for duplicate detection. Scoped to
-  // this `setupCore` call (not module-global): the collision that matters is
+  // this `setupConvexAuth` call (not module-global): the collision that matters is
   // two providers on the same core, whose accounts would silently share rows.
   const boundProviderNames = new Set<string>();
 
