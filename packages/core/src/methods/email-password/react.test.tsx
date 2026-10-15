@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { makeFunctionReference } from "convex/server";
+import { anyApi, makeFunctionReference } from "convex/server";
 import { ReactNode, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
@@ -48,8 +48,11 @@ const bundle: TokenBundle = {
   userId: "user-1",
 };
 
-// The stub signInApi ignores the reference, so any value will do.
-const signInMutation = {} as never;
+// The hooks read the function name of the reference to keep their callbacks
+// stable, so they need a real one. The stub signInApi ignores it.
+const signInMutation = makeFunctionReference<"mutation">(
+  "auth:signIn",
+) as never;
 
 // `useMutation` reads the function name of its reference, so the hooks that
 // go through the Convex client need a real one. The stubbed client ignores it.
@@ -214,6 +217,20 @@ describe("useSignInWithEmailPassword", () => {
       await second;
     });
     expect(result.current.hook.pending).toBe(false);
+  });
+
+  test("signIn keeps its identity across rerenders", async () => {
+    // `anyApi` is what the generated `api` is. It returns a new reference
+    // object on each property access.
+    const { result, rerender } = renderWithProviders(() =>
+      useSignInWithEmailPassword(anyApi.auth as never),
+    );
+    await waitFor(() => expect(result.current.auth.isLoading).toBe(false));
+    const first = result.current.hook.signIn;
+
+    rerender();
+
+    expect(result.current.hook.signIn).toBe(first);
   });
 });
 

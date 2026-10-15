@@ -19,6 +19,7 @@ import { useCallback } from "react";
 import type { ClientView, SignInComplete } from "../../lib/types.ts";
 import { useAuthActions } from "../../react/index.tsx";
 import { useAuthSignInApi } from "../../react/client.tsx";
+import { useStableFunctionReference } from "../../react/functionReference.ts";
 
 /**
  * The `signInAnonymously` mutation the anonymous provider adds to the app's API.
@@ -63,7 +64,7 @@ export type SignInAnonymouslyMutation = FunctionReference<
 export function useSignInAnonymously(api: {
   signInAnonymously: SignInAnonymouslyMutation;
 }) {
-  const signInMutation = api.signInAnonymously;
+  const signInMutation = useStableFunctionReference(api.signInAnonymously);
   const { setSession } = useAuthActions();
   // Running through the signInApi rather than `useMutation` is what lets this one
   // hook serve both session models. See {@link AuthSignInApi}.

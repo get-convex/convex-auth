@@ -20,6 +20,7 @@ import type { ClientView } from "../../lib/types.ts";
 import { AuthClientContext, useAuth } from "../../react/client.tsx";
 import { useAuthActions } from "../../react/index.tsx";
 import { useAuthSignInApi } from "../../react/client.tsx";
+import { useStableFunctionReference } from "../../react/functionReference.ts";
 import { NamespacedStorage, defaultStorage } from "../../browser/storage.ts";
 import type {
   SignUpResult as SignUpMutationResult,
@@ -426,7 +427,9 @@ function useLinkFlow<UserError>(
 export function useSignInWithEmailPassword(api: {
   signInWithEmailPassword: SignInMutation;
 }) {
-  const signInMutation = api.signInWithEmailPassword;
+  const signInMutation = useStableFunctionReference(
+    api.signInWithEmailPassword,
+  );
   const { setSession } = useAuthActions();
   const signInApi = useAuthSignInApi();
   const { pending, track } = usePending();
@@ -577,7 +580,7 @@ export function useCompleteSignUp(
   api: { completeSignUp: CompleteSignUpMutation },
   { emailCode }: { emailCode: string },
 ): CompleteSignUpState {
-  const completeSignUpMutation = api.completeSignUp;
+  const completeSignUpMutation = useStableFunctionReference(api.completeSignUp);
   const { setSession } = useAuthActions();
   const signInApi = useAuthSignInApi();
   const withSignInPending = useWithSignInPending();
@@ -727,8 +730,10 @@ export function useCompletePasswordRecovery(
   recoveryApi: PasswordRecoveryApi,
   { emailCode }: { emailCode: string },
 ): CompletePasswordRecoveryState {
-  const { checkPasswordRecovery, completePasswordRecovery: completeMutation } =
-    recoveryApi;
+  const { checkPasswordRecovery } = recoveryApi;
+  const completeMutation = useStableFunctionReference(
+    recoveryApi.completePasswordRecovery,
+  );
   const { isLoading } = useAuth();
   const { setSession } = useAuthActions();
   const signInApi = useAuthSignInApi();
