@@ -103,6 +103,43 @@ test("redirectTo with oauth", async () => {
   );
 });
 
+test("oauth sign in with a verifier id from the wrong table", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { tokens } = await signInViaGitHub(t, "github", {
+    email: "tom@gmail.com",
+    name: "Tom",
+    id: "someGitHubId",
+  });
+  expect(tokens).not.toBeNull();
+
+  const session = await t.run(async (ctx) => {
+    return (await ctx.db.query("authSessions").collect())[0];
+  });
+
+  // A well-formed id from another table must not be treated as a verifier.
+  const response = await t.fetch(`/api/auth/signin/github?code=${session._id}`);
+  expect(response.status).toBe(500);
+
+  await t.run(async (ctx) => {
+    const sessionAfter = await ctx.db.get(session._id);
+    expect(sessionAfter).toEqual(session);
+    const verifiers = await ctx.db.query("authVerifiers").collect();
+    expect(verifiers).toHaveLength(0);
+  });
+});
+
+test("oauth sign in with a malformed verifier", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const response = await t.fetch("/api/auth/signin/github?code=notAnId");
+  expect(response.status).toBe(500);
+  await t.run(async (ctx) => {
+    const verifiers = await ctx.db.query("authVerifiers").collect();
+    expect(verifiers).toHaveLength(0);
+  });
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;

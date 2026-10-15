@@ -221,6 +221,62 @@ test("session expiration", async () => {
   vi.useRealTimers();
 });
 
+test("refresh token with ids from the wrong tables", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  const { tokens: initialTokens } = await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
+  });
+  const [refreshTokenId, sessionId] = initialTokens!.refreshToken.split("|");
+
+  // Swapping the ids yields ids that are well-formed but belong to the wrong
+  // tables, so they must be rejected rather than looked up.
+  const { tokens: swappedTokens } = await t.action(api.auth.signIn, {
+    refreshToken: `${sessionId}|${refreshTokenId}`,
+    params: {},
+  });
+  expect(swappedTokens).toBeNull();
+
+  const userId = await t.run(async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users[0]._id;
+  });
+  const { tokens: wrongSessionTokens } = await t.action(api.auth.signIn, {
+    refreshToken: `${refreshTokenId}|${userId}`,
+    params: {},
+  });
+  expect(wrongSessionTokens).toBeNull();
+
+  const { tokens: wrongRefreshTokenTokens } = await t.action(api.auth.signIn, {
+    refreshToken: `${userId}|${sessionId}`,
+    params: {},
+  });
+  expect(wrongRefreshTokenTokens).toBeNull();
+
+  // The original token is unaffected by the rejected attempts.
+  const { tokens } = await t.action(api.auth.signIn, {
+    refreshToken: initialTokens!.refreshToken,
+    params: {},
+  });
+  expect(tokens).not.toBeNull();
+});
+
+test("refresh token with malformed ids", async () => {
+  setupEnv();
+  const t = convexTest(schema);
+  await t.action(api.auth.signIn, {
+    provider: "password",
+    params: { email: "sarah@gmail.com", password: "44448888", flow: "signUp" },
+  });
+
+  const { tokens } = await t.action(api.auth.signIn, {
+    refreshToken: "notAnId|alsoNotAnId",
+    params: {},
+  });
+  expect(tokens).toBeNull();
+});
+
 function setupEnv() {
   process.env.SITE_URL = "http://localhost:5173";
   process.env.CONVEX_SITE_URL = CONVEX_SITE_URL;
