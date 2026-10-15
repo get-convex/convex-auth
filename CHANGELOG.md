@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.0.0-beta.0
+
+Some API and schema breaking changes - see below
+
+- added the email component and the EmailPassword method (sign-up with
+  email validation, sign-in, password change/recovery, email change), with
+  React hooks and the react-email-password example
+- gave Google and GitHub their own OAuth components; OAuth now works under
+  `ConvexAuthNextjsProvider`
+- reworked session refresh for more reliable behavior; requires clearing the
+  `auth/sessions` table due to a schema change
+- renamed the React hooks and the `auth.ts` functions, reorganized
+  import paths, replaced wildcard exports with explicit entries, prefixed
+  component names with `auth`
+
 ## 2.0.0-alpha.2
 
 - added passkey management support (add/remove/rename)
