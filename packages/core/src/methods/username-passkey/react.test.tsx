@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, type ConvexReactClient } from "convex/react";
+import { anyApi, getFunctionName, type FunctionReference } from "convex/server";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthClient } from "../../browser/sessionManager.ts";
@@ -24,15 +25,17 @@ const noopAutofill = {
 };
 
 // The hook calls several different mutations, so both call paths dispatch on
-// the reference (a string sentinel here) to one mock per mutation.
+// the name of the reference to one mock per mutation.
 const mutations = {
   startSignInWithUsernamePasskey: vi.fn(),
   finishSignInWithUsernamePasskey: vi.fn(),
   finishSignUpWithUsernamePasskey: vi.fn(),
   startAutofillSignInWithUsernamePasskey: vi.fn(),
 };
-const runMutation = (fn: unknown, args: unknown) =>
-  mutations[fn as keyof typeof mutations](args);
+const runMutation = (fn: FunctionReference<"mutation">, args: unknown) =>
+  // `anyApi.auth.startSignInWithUsernamePasskey` is named
+  // `auth:startSignInWithUsernamePasskey`.
+  mutations[getFunctionName(fn).split(":")[1] as keyof typeof mutations](args);
 
 // The two session-minting mutations run through the injected `AuthSignInApi`,
 // which the tests substitute rather than mocking a transport.
@@ -42,13 +45,9 @@ const signInApi = { mutation: runMutation } as unknown as AuthSignInApi;
 // which the tests stand in for with the same dispatcher.
 const convexClient = { mutation: runMutation } as unknown as ConvexReactClient;
 
-const passkeyApi = {
-  startSignInWithUsernamePasskey: "startSignInWithUsernamePasskey",
-  startAutofillSignInWithUsernamePasskey:
-    "startAutofillSignInWithUsernamePasskey",
-  finishSignInWithUsernamePasskey: "finishSignInWithUsernamePasskey",
-  finishSignUpWithUsernamePasskey: "finishSignUpWithUsernamePasskey",
-} as unknown as UsernamePasskeyApi;
+// `anyApi` is what the generated `api` is. It returns a new reference object
+// on each property access, as `api.auth` does.
+const passkeyApi = () => anyApi.auth as unknown as UsernamePasskeyApi;
 
 //------------------------------------------------------------------------------
 // The fake browser ceremonies
@@ -316,9 +315,7 @@ function renderPasskey() {
     () => ({
       auth: useAuth(),
       token: useAuthToken(),
-      // A new api object on every render, like Convex's generated `api`
-      // proxy, whose property accesses never compare equal.
-      passkey: useSignInWithUsernamePasskey({ ...passkeyApi }),
+      passkey: useSignInWithUsernamePasskey(passkeyApi()),
     }),
     { wrapper: makeWrapper() },
   );
