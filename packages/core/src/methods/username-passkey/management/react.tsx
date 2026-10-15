@@ -14,7 +14,8 @@
 "use client";
 
 import { useConvex } from "convex/react";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo } from "react";
+import { useStableFunctionReference } from "../../../react/functionReference.ts";
 import {
   usePasskeyCeremonySlot,
   type AlreadyPendingFailure,
@@ -76,15 +77,26 @@ export function useAddPasskey(managementApi: AddPasskeyApi) {
     autofill: null,
   });
 
-  // Store these in a ref because we only need them in an event handler
-  // (this allows the callback to stay stable).
-  const ctxRef = useRef({ convex, api: managementApi });
-  ctxRef.current = { convex, api: managementApi };
+  const startAddPasskey = useStableFunctionReference(
+    managementApi.startAddPasskey,
+  );
+  const verifyAddPasskey = useStableFunctionReference(
+    managementApi.verifyAddPasskey,
+  );
+  const finishAddPasskey = useStableFunctionReference(
+    managementApi.finishAddPasskey,
+  );
+  const ctx = useMemo(
+    () => ({
+      convex,
+      api: { startAddPasskey, verifyAddPasskey, finishAddPasskey },
+    }),
+    [convex, startAddPasskey, verifyAddPasskey, finishAddPasskey],
+  );
 
   const addPasskey = useCallback(
-    (): Promise<AddPasskeyResult> =>
-      run(() => runAddPasskeyFlow(ctxRef.current)),
-    [run],
+    (): Promise<AddPasskeyResult> => run(() => runAddPasskeyFlow(ctx)),
+    [run, ctx],
   );
 
   return {
@@ -135,15 +147,21 @@ export function useRemovePasskey(managementApi: RemovePasskeyApi) {
   const convex = useConvex();
   const { run, pending } = usePasskeyCeremonySlot({ autofill: null });
 
-  // Store these in a ref because we only need them in an event handler
-  // (this allows the callback to stay stable).
-  const ctxRef = useRef({ convex, api: managementApi });
-  ctxRef.current = { convex, api: managementApi };
+  const startRemovePasskey = useStableFunctionReference(
+    managementApi.startRemovePasskey,
+  );
+  const finishRemovePasskey = useStableFunctionReference(
+    managementApi.finishRemovePasskey,
+  );
+  const ctx = useMemo(
+    () => ({ convex, api: { startRemovePasskey, finishRemovePasskey } }),
+    [convex, startRemovePasskey, finishRemovePasskey],
+  );
 
   const removePasskey = useCallback(
     (passkeyId: string): Promise<RemovePasskeyResult> =>
-      run(() => runRemovePasskeyFlow(ctxRef.current, { passkeyId })),
-    [run],
+      run(() => runRemovePasskeyFlow(ctx, { passkeyId })),
+    [run, ctx],
   );
 
   return {
