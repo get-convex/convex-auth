@@ -1,5 +1,5 @@
 import { components, internal } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 import { setupAnonymous } from "@convex-dev/auth/methods/anonymous/server";
 import { setupGithub } from "@convex-dev/auth/methods/github/server";
 import { setupUsernamePassword } from "@convex-dev/auth/methods/username-password/server";
@@ -11,7 +11,7 @@ import { setupUsernamePassword } from "@convex-dev/auth/methods/username-passwor
 // provider, `signUpWithUsernamePassword` / `signInWithUsernamePassword` for the password one.
 // Under SSR those calls get proxied to Convex via the SSR host. The sign-in
 // functions exposed here are wired up to be proxied in src/lib/serverAuth.ts.
-const core = setupCore({ component: components.auth });
+const core = setupConvexAuth({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 // `onSignIn` is optional, and runs on every sign-in including the first. This

@@ -92,9 +92,9 @@ app.use(auth, {
 export default app;
 `,
   "auth.ts": `import { components } from "./_generated/api";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 
-const core = setupCore({ component: components.auth });
+const core = setupConvexAuth({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 // TODO Set up a login provider. For example:

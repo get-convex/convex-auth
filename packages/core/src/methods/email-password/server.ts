@@ -268,7 +268,7 @@ export type EmailPasswordProfile = Record<string, never>;
  * ```ts
  * import { env } from "../../components/email/_generated/server";
  *
- * const core = setupCore({ component: components.auth });
+ * const core = setupConvexAuth({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
  * export const {

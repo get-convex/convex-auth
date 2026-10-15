@@ -1,13 +1,13 @@
 import { components, internal } from "./_generated/api";
 import { env } from "./_generated/server";
-import { setupCore } from "@convex-dev/auth/server";
+import { setupConvexAuth } from "@convex-dev/auth/server";
 import { setupEmailPassword } from "@convex-dev/auth/methods/email-password/server";
 
 // The frontend origin the emailed links point at. Set SITE_URL on the
 // deployment when the frontend does not run on the Vite default.
 const SITE_URL = env.SITE_URL ?? "http://localhost:5173";
 
-const core = setupCore({ component: components.auth });
+const core = setupConvexAuth({ component: components.auth });
 export const { signOut, refreshSession, isAuthenticated } = core;
 
 export const {

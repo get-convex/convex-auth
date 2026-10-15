@@ -95,7 +95,7 @@ export type ChangePasswordResult = Infer<typeof changePasswordResult>;
  * with no email or email verification. Wire it up in `convex/auth.ts`:
  *
  * ```ts
- * const core = setupCore({ component: components.auth });
+ * const core = setupConvexAuth({ component: components.auth });
  * export const { signOut, refreshSession, isAuthenticated } = core;
  *
  * export const { signUpWithUsernamePassword, signInWithUsernamePassword, changePassword } =
