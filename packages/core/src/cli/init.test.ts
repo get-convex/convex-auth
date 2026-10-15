@@ -104,7 +104,7 @@ describe("convex-auth init CLI", () => {
 
     expect(error).toBeDefined();
     expect(error!.message).toContain("is not a dependency");
-    expect(error!.message).toContain("pnpm add @convex-dev/auth@alpha");
+    expect(error!.message).toContain("pnpm add @convex-dev/auth@beta");
     // It must not touch env vars or write any files on this path.
     expect(setEnvCalls).toEqual([]);
     expect(fs.files.has("/project/convex/auth.ts")).toBe(false);
@@ -257,7 +257,7 @@ describe("installCommand", () => {
     ["yarn", "yarn add"],
   ])("%s uses the right add command", (pm, prefix) => {
     expect(installCommand(pm)).toContain(prefix);
-    expect(installCommand(pm)).toContain("@convex-dev/auth@alpha");
+    expect(installCommand(pm)).toContain("@convex-dev/auth@beta");
   });
 
   test("unknown package managers fall back to npm", () => {

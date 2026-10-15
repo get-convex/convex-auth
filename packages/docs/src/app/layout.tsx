@@ -26,11 +26,11 @@ export default function Layout({ children }: LayoutProps<"/">) {
           <Banner className="bg-orange-100 dark:bg-orange-900 text-orange-900 dark:text-orange-200">
             <p>
               Convex Auth v2{" "}
-              <Link href={`${docsRoute}#alpha`} className="underline">
-                is in alpha
+              <Link href={`${docsRoute}#beta`} className="underline">
+                is in beta
               </Link>
-              . APIs might change at any time, so do not use it in production
-              projects yet.
+              . APIs might still change, so do not use it in production projects
+              yet.
             </p>
           </Banner>
           {children}

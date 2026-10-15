@@ -50,8 +50,8 @@ const AUTH_PACKAGE = "@convex-dev/auth";
 const DOCS_URL = "https://auth-v2.previews.convex.dev";
 // TODO(nicolas) Replace by the real URL after it’s released
 
-/** v2 ships under the `alpha` tag. `latest` is still v1. */
-const INSTALL_SPEC = `${AUTH_PACKAGE}@alpha`;
+/** v2 ships under the `beta` tag. `latest` is still v1. */
+const INSTALL_SPEC = `${AUTH_PACKAGE}@beta`;
 
 /** Files scaffolded into the project's `convex/` directory, in write order. */
 export const FILE_TEMPLATES = {
