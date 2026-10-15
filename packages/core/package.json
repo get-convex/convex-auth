@@ -32,6 +32,7 @@
   "sideEffects": false,
   "scripts": {
     "alpha": "pnpm version prerelease --preid alpha && pnpm publish --tag alpha --publish-branch reboot && git push --follow-tags",
+    "beta": "pnpm version prerelease --preid beta && pnpm publish --tag beta --publish-branch reboot && git push --follow-tags",
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.build.json --stripInternal false --emitDeclarationOnly --outDir dist/internal-types",
     "check:clean": "test -z \"$(git status --porcelain=v1 -uno)\" || (echo 'Git working directory not clean.' >&2; exit 1)",
     "clean": "rm -rf dist",

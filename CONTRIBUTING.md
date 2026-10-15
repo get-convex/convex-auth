@@ -86,6 +86,15 @@ For an alpha release:
 pnpm alpha
 ```
 
+For a beta release:
+
+```sh
+pnpm beta
+```
+
+Note that the prerelease identifiers order as `alpha` < `beta`, so moving from
+beta back to alpha means editing the version by hand.
+
 For a standard (latest tag) release:
 
 ```sh
