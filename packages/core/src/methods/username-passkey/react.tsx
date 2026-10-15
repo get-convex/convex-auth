@@ -19,9 +19,10 @@
 "use client";
 
 import { useConvex } from "convex/react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { useAuthActions } from "../../react/index.tsx";
 import { useAuthSignInApi } from "../../react/client.tsx";
+import { useStableFunctionReference } from "../../react/functionReference.ts";
 import {
   runSignInOrSignUpFlow,
   type UsernamePasskeyApi,
@@ -123,33 +124,48 @@ export function useSignInWithUsernamePasskey(
   const signInApi = useAuthSignInApi();
   const convex = useConvex();
 
-  // Store the flow context in a ref: Convex function references are not
-  // referentially stable across renders. We only need to access them in
-  // event callbacks, so using a ref ensures we always use the latest
-  // function reference from the callback.
-  const ctxRef = useRef({
-    convex,
-    api: usernamePasskeyApi,
-    signInApi,
-    setSession,
-  });
-  ctxRef.current = { convex, api: usernamePasskeyApi, signInApi, setSession };
+  const startSignIn = useStableFunctionReference(
+    usernamePasskeyApi.startSignInWithUsernamePasskey,
+  );
+  const startAutofillSignIn = useStableFunctionReference(
+    usernamePasskeyApi.startAutofillSignInWithUsernamePasskey,
+  );
+  const finishSignIn = useStableFunctionReference(
+    usernamePasskeyApi.finishSignInWithUsernamePasskey,
+  );
+  const finishSignUp = useStableFunctionReference(
+    usernamePasskeyApi.finishSignUpWithUsernamePasskey,
+  );
+  const ctx = useMemo(
+    () => ({
+      convex,
+      api: {
+        startSignInWithUsernamePasskey: startSignIn,
+        startAutofillSignInWithUsernamePasskey: startAutofillSignIn,
+        finishSignInWithUsernamePasskey: finishSignIn,
+        finishSignUpWithUsernamePasskey: finishSignUp,
+      },
+      signInApi,
+      setSession,
+    }),
+    [
+      convex,
+      startSignIn,
+      startAutofillSignIn,
+      finishSignIn,
+      finishSignUp,
+      signInApi,
+      setSession,
+    ],
+  );
 
   const autofill = usePasskeyAutofill<UsernamePasskeyAutofillError>({
     start: async () => {
-      const { convex, api } = ctxRef.current;
-      const { options } = await convex.mutation(
-        api.startAutofillSignInWithUsernamePasskey,
-        {},
-      );
+      const { options } = await convex.mutation(startAutofillSignIn, {});
       return options;
     },
     onAssertion: async (response) => {
-      const { api, signInApi, setSession } = ctxRef.current;
-      const result = await signInApi.mutation(
-        api.finishSignInWithUsernamePasskey,
-        { response },
-      );
+      const result = await signInApi.mutation(finishSignIn, { response });
       if (result.status !== "complete") {
         // The autofill loop takes its own `success` boolean, not the
         // envelope: it retries on a failed assertion rather than handing
@@ -176,7 +192,7 @@ export function useSignInWithUsernamePasskey(
       username: string;
     }): Promise<SignInWithUsernamePasskeyResult> => {
       const signInResult = await run(() =>
-        runSignInOrSignUpFlow(ctxRef.current, { username }),
+        runSignInOrSignUpFlow(ctx, { username }),
       );
       if ("status" in signInResult) {
         // This is the result of `runSignInOrSignUpFlow`. It can be directly
@@ -189,7 +205,7 @@ export function useSignInWithUsernamePasskey(
       signInResult satisfies PasskeyClientFailure | AlreadyPendingFailure;
       return { status: "error", userError: signInResult.userError };
     },
-    [run],
+    [run, ctx],
   );
 
   return useMemo(

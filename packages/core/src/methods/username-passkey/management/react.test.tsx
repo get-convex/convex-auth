@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { ConvexProvider, type ConvexReactClient } from "convex/react";
+import { anyApi, getFunctionName, type FunctionReference } from "convex/server";
 import { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
@@ -17,7 +18,7 @@ import {
 const callOrder: string[] = [];
 
 // The hooks call several different mutations, so the client dispatches on
-// the reference (a string sentinel here) to one mock per mutation.
+// the name of the reference to one mock per mutation.
 const mutations = {
   startAddPasskey: vi.fn(),
   verifyAddPasskey: vi.fn(),
@@ -25,20 +26,19 @@ const mutations = {
   startRemovePasskey: vi.fn(),
   finishRemovePasskey: vi.fn(),
 };
-const runMutation = (fn: unknown, args: unknown) => {
-  callOrder.push(fn as string);
-  return mutations[fn as keyof typeof mutations](args);
+const runMutation = (fn: FunctionReference<"mutation">, args: unknown) => {
+  // `anyApi.auth.startAddPasskey` is named `auth:startAddPasskey`.
+  const name = getFunctionName(fn).split(":")[1] as keyof typeof mutations;
+  callOrder.push(name);
+  return mutations[name](args);
 };
 
 const convexClient = { mutation: runMutation } as unknown as ConvexReactClient;
 
-const managementApi = {
-  startAddPasskey: "startAddPasskey",
-  verifyAddPasskey: "verifyAddPasskey",
-  finishAddPasskey: "finishAddPasskey",
-  startRemovePasskey: "startRemovePasskey",
-  finishRemovePasskey: "finishRemovePasskey",
-} as unknown as AddPasskeyApi & RemovePasskeyApi;
+// `anyApi` is what the generated `api` is. It returns a new reference object
+// on each property access, as `api.auth` does.
+const managementApi = () =>
+  anyApi.auth as unknown as AddPasskeyApi & RemovePasskeyApi;
 
 // The ceremonies run through `@simplewebauthn/browser`; the tests own what
 // a `create()`/`get()` call resolves with.
@@ -138,11 +138,9 @@ function wrapper({ children }: { children: ReactNode }) {
 
 function renderManagement() {
   return renderHook(
-    // A new api object on every render, like Convex's generated `api`
-    // proxy, whose property accesses never compare equal.
     () => ({
-      add: useAddPasskey({ ...managementApi }),
-      remove: useRemovePasskey({ ...managementApi }),
+      add: useAddPasskey(managementApi()),
+      remove: useRemovePasskey(managementApi()),
     }),
     { wrapper },
   );
@@ -413,8 +411,8 @@ describe("useRemovePasskey", () => {
     // Two rows of a passkey list, each with its own remove hook.
     const { result } = renderHook(
       () => ({
-        row1: useRemovePasskey({ ...managementApi }),
-        row2: useRemovePasskey({ ...managementApi }),
+        row1: useRemovePasskey(managementApi()),
+        row2: useRemovePasskey(managementApi()),
       }),
       { wrapper },
     );
