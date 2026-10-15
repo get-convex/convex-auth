@@ -143,12 +143,11 @@ export type ClientView<T> = T extends { tokens: TokenBundle }
  * The result of refreshing a session. The `kind` will be one of:
  *
  *  * `rotated`: the presented token was valid and `tokens` carries a fresh
- *    access token and its successor refresh token. Persist both. The token
- *    presented stays valid until the successor is first used, so a caller that
+ *    access token and its successor refresh token. The client should persist both. The token
+ *    presented stays valid until the successor is first used, so a client that
  *    never receives this result can retry with the token it already has.
  *  * `noSession`: the token is unknown, expired, or one that should be in
- *    nobody's hands any more (which also revokes its session). Clear any
- *    stored session, treat it as signed out.
+ *    nobody's hands any more (which also revokes its session). The client should clear any stored session, and treat the user as signed out.
  */
 export const vRefreshResult = v.union(
   v.object({ kind: v.literal("rotated"), tokens: vTokenBundle }),
