@@ -7,7 +7,7 @@ permissions: {}
 
 jobs:
   build:
-    if: github.repository == 'get-convex/convex-auth'
+    if: github.repository == 'convex/convex-auth'
     runs-on: ubuntu-latest
 
     steps:

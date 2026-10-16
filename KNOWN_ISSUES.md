@@ -16,7 +16,7 @@ so abandoned flows accumulate forever.
 
 An oauth component builds its callback URL from `CONVEX_SITE_URL` with its
 `httpPrefix` applied (`packages/core/src/lib/oauth/dbHelpers.ts`), which
-components only see on backends with get-convex/convex-backend@64c163a
+components only see on backends with convex-backend@64c163a
 (self-hosted minimum release `precompiled-2026-07-28-f0d0b8b`, July 28,
 2026). Cloud always has it; an older self-hosted backend fails the first
 sign-in with an explicit error naming this requirement.
