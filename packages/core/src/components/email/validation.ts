@@ -8,17 +8,25 @@
 import { Infer, v } from "convex/values";
 
 // The component applies only loose format rules: it rejects strings that can
-// not be a deliverable address, and nothing more. Real ownership of the
+// not be a deliverable address (or that the email sender rejects), and
+// nothing more. Real ownership of the
 // address is proven by the challenge, not by format checks.
 
 // The longest address SMTP can deliver to (RFC 5321: 256 octets for the path,
 // minus the angle brackets).
 export const MAX_EMAIL_LENGTH = 254;
 
-// One "@" with a non-empty local part, and a domain with at least one dot
-// and no whitespace. Intentionally permissive: stricter patterns reject
-// addresses that exist.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+// One "@" with a non-empty local part, and a domain with at least one dot.
+// Intentionally permissive: stricter patterns reject addresses that exist.
+//
+// The address must also be printable ASCII (thus without whitespace), and
+// the domain must be a name, not an IP literal like `[127.0.0.1]`. Resend
+// rejects the other addresses, and it sends the queued emails in batches:
+// one rejected address makes the whole batch fail, including the emails of
+// other users.
+// TODO: accept internationalized domains by encoding them to Punycode.
+const EMAIL_PATTERN = /^[^@]+@[^@[\]]+\.[^@]+$/;
+const PRINTABLE_ASCII = /^[\x21-\x7E]+$/;
 
 /**
  * The user-facing error for a malformed email address. An application can
@@ -38,7 +46,11 @@ export type EmailFormatUserError = Infer<typeof emailFormatUserError>;
 export function validateEmailFormat(
   email: string,
 ): EmailFormatUserError | null {
-  if (email.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(email)) {
+  if (
+    email.length > MAX_EMAIL_LENGTH ||
+    !PRINTABLE_ASCII.test(email) ||
+    !EMAIL_PATTERN.test(email)
+  ) {
     return { error: "INVALID_EMAIL" };
   }
   return null;
