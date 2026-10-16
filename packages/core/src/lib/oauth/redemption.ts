@@ -5,9 +5,14 @@
  *
  * @module
  */
-import { Infer, v } from "convex/values";
+import { Infer, v, type GenericId } from "convex/values";
 import type { GenericDataModel, GenericMutationCtx } from "convex/server";
-import { vSignInComplete, vSignInError } from "../types.ts";
+import {
+  vSignInComplete,
+  vSignInError,
+  type OnProviderTokensFn,
+  type ProviderTokens,
+} from "../types.ts";
 import type { AuthMutationBuilder } from "../../server/setup.ts";
 import { decryptTicketPayload } from "./crypto.ts";
 import { sha256Hex } from "../crypto.ts";
@@ -41,6 +46,9 @@ export type OidcClaims = {
  *   by the component that accepted it. It is browser-relayed and therefore
  *   user-controlled, unlike the other two.
  *
+ * - `providerTokens`: the provider's token response, only when the app
+ *   attached an `onProviderTokens` callback.
+ *
  * At least one of `claims` and `userInfoResponses` is always present: the
  * callback refuses a flow that produced neither.
  */
@@ -50,6 +58,7 @@ export type TicketPayload<
   claims?: OidcClaims;
   userInfoResponses?: UserInfo;
   callbackParams?: Record<string, unknown>;
+  providerTokens?: ProviderTokens;
 };
 
 /** `new URL` without the exception: returns null on unparseable input. */
@@ -147,6 +156,16 @@ export function buildCompleteSignIn<
   ) => Promise<{ encryptedPayload: string } | null>;
   /** Map what the provider attested to the account profile. */
   profile: (payload: Payload) => Profile;
+  /**
+   * The app's `onProviderTokens` callback, when it attached one. The matching
+   * `startSignIn` must be built with `includeProviderTokens` set, or no
+   * ticket carries tokens.
+   *
+   * Typed with `never` for the provider name and users table because the
+   * callback's args are contravariant: a callback declared for `"google"`
+   * and `Id<"users">` must be accepted here.
+   */
+  onProviderTokens?: OnProviderTokensFn<never, never>;
 }) {
   return options.authMutation({
     args: {
@@ -190,6 +209,27 @@ export function buildCompleteSignIn<
               providerAccountId: profile.id,
               profile,
             });
+
+      // In this transaction, after the user exists, so the app can key the
+      // tokens by user and account, and a throw rolls back the sign-in.
+      // They go to the app's own mutation, never into the result below: the
+      // `returns` validator holds the client response to the session bundle.
+      if (
+        options.onProviderTokens !== undefined &&
+        payload.providerTokens !== undefined
+      ) {
+        await ctx.runMutation(options.onProviderTokens, {
+          provider: {
+            // The provider's setup typed the callback for this very name.
+            name: options.providerName as never,
+            accountId: profile.id,
+          },
+          // The core minted the session for the user the app's createUser
+          // returned, from the table the setup was typed with.
+          userId: tokens.userId as GenericId<never>,
+          tokens: payload.providerTokens,
+        });
+      }
       return { status: "complete", tokens };
     },
   });

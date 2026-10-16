@@ -5,9 +5,12 @@
  * @module
  */
 import { Infer, v } from "convex/values";
-import type { UserCallbacks } from "../../lib/types.ts";
+import type { OauthUserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../server/setup.ts";
-import { buildStartSignIn } from "../../lib/oauth/authorize.ts";
+import {
+  buildStartSignIn,
+  type OauthAuthorizationOptions,
+} from "../../lib/oauth/authorize.ts";
 import {
   buildCompleteSignIn,
   validateAllowedRedirectOrigins,
@@ -23,6 +26,13 @@ import {
 import type { SanitizedAppleUser } from "../../components/apple/user.ts";
 
 export type { SanitizedAppleUser };
+
+export {
+  vProviderTokens,
+  type ProviderTokens,
+  type OnProviderTokensFn,
+} from "../../lib/types.ts";
+export type { OauthAuthorizationOptions };
 
 /**
  * The account profile the Apple provider produces. Apple is OIDC, so
@@ -89,7 +99,7 @@ export function normalizeAppleProfile(
 }
 
 /** App-defined config for setting up the Apple provider. */
-export type AppleProviderOptions = {
+export type AppleProviderOptions = OauthAuthorizationOptions & {
   /** The Apple oauth component instance, i.e. `components.authApple`. */
   component: ComponentApi;
   /**
@@ -136,11 +146,11 @@ export function setupApple<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * Supply the app's user callbacks (see {@link OauthUserCallbacks} for how their
      * args must be declared) and get this provider's functions to export.
      */
     attachUserCallbacks(
-      callbacks: UserCallbacks<"apple", AppleProfile, UsersTable>,
+      callbacks: OauthUserCallbacks<"apple", AppleProfile, UsersTable>,
     ) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
@@ -152,6 +162,8 @@ export function setupApple<UsersTable extends string>(
         allowedOrigins,
         authorizationEndpoint: AUTHORIZATION_ENDPOINT,
         scopes: SCOPES,
+        authorization: options,
+        includeProviderTokens: callbacks.onProviderTokens !== undefined,
         callbackMethod: CALLBACK_METHOD,
         createAuthorizationRequest:
           options.component.provider.createAuthorizationRequest,
@@ -169,6 +181,7 @@ export function setupApple<UsersTable extends string>(
         authMutation,
         claimTicket: (ctx, args) =>
           ctx.runMutation(options.component.provider.claimTicket, args),
+        onProviderTokens: callbacks.onProviderTokens,
         profile: (payload) => {
           if (payload.claims === undefined) {
             throw new Error(

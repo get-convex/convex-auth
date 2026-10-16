@@ -16,6 +16,7 @@ import {
 import { sha256Hex } from "../crypto.ts";
 import { OAUTH_CODE_PARAM, OAUTH_ERROR_PARAM } from "../oauthParams.ts";
 import type { OidcClaims, TicketPayload } from "./redemption.ts";
+import type { ProviderTokens } from "../types.ts";
 
 const FETCH_TIMEOUT_MS = 10 * 1000;
 
@@ -135,6 +136,11 @@ export async function exchangeCode(args: {
 }): Promise<{
   idToken: IssuerDeliveredJwt | undefined;
   accessToken: string | undefined;
+  /**
+   * The rest of the token response, for an app that asked for it. Present
+   * whenever `accessToken` is.
+   */
+  providerTokens: ProviderTokens | undefined;
 }> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -161,15 +167,55 @@ export async function exchangeCode(args: {
     );
   }
   const tokens = JSON.parse(response.bodyText) as Record<string, unknown>;
+  const accessToken =
+    typeof tokens.access_token === "string" ? tokens.access_token : undefined;
   return {
     // Straight off the issuer's TLS response, which is what the brand attests.
     idToken:
       typeof tokens.id_token === "string"
         ? (tokens.id_token as IssuerDeliveredJwt)
         : undefined,
-    accessToken:
-      typeof tokens.access_token === "string" ? tokens.access_token : undefined,
+    accessToken,
+    providerTokens:
+      accessToken === undefined
+        ? undefined
+        : parseProviderTokens(accessToken, tokens, Date.now()),
   };
+}
+
+/**
+ * Read the fields of a token response (RFC 6749 section 5.1) an app can use
+ * to call the provider's APIs. A field of the wrong type is left out rather
+ * than failing the sign-in: identity does not depend on it.
+ */
+export function parseProviderTokens(
+  accessToken: string,
+  response: Record<string, unknown>,
+  now: number,
+): ProviderTokens {
+  const providerTokens: ProviderTokens = {
+    accessToken,
+    // Required by RFC 6749, and every provider in use issues bearer tokens.
+    tokenType:
+      typeof response.token_type === "string" && response.token_type !== ""
+        ? response.token_type
+        : "Bearer",
+  };
+  if (
+    typeof response.refresh_token === "string" &&
+    response.refresh_token !== ""
+  ) {
+    providerTokens.refreshToken = response.refresh_token;
+  }
+  // Some providers send `expires_in` as a string.
+  const expiresIn = Number(response.expires_in);
+  if (response.expires_in !== undefined && Number.isFinite(expiresIn)) {
+    providerTokens.expiresAt = now + expiresIn * 1000;
+  }
+  if (typeof response.scope === "string") {
+    providerTokens.scope = response.scope;
+  }
+  return providerTokens;
 }
 
 /**
@@ -269,6 +315,8 @@ export type ClaimedRequest = {
   redirectTo: string;
   callbackUrl: string;
   codeVerifier: string;
+  /** Whether the app asked for the provider's tokens. */
+  includeProviderTokens?: boolean;
 };
 
 /** What claiming an authorization request can produce. */
@@ -396,7 +444,7 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
   }
 
   try {
-    const { idToken, accessToken } = await exchangeCode({
+    const { idToken, accessToken, providerTokens } = await exchangeCode({
       tokenEndpoint: config.tokenEndpoint,
       code: params.code,
       callbackUrl: authRequest.callbackUrl,
@@ -426,6 +474,17 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
       );
     }
 
+    // The app attached `onProviderTokens`, so a response without an access
+    // token would hand it nothing to store.
+    if (
+      authRequest.includeProviderTokens === true &&
+      providerTokens === undefined
+    ) {
+      throw new Error(
+        "Token exchange returned no access_token, and the app asked for the provider's tokens",
+      );
+    }
+
     const ticketCode = generateRandomToken();
     await options.mintTicket(authRequest, {
       ticketCodeHash: await sha256Hex(ticketCode),
@@ -435,6 +494,12 @@ export async function runCallback<Request extends ClaimedRequest>(options: {
           claims,
           userInfoResponses,
           callbackParams: options.callbackParams,
+          // Only for an app that asked. Otherwise the token response is
+          // discarded here, and nothing past this point ever sees it.
+          providerTokens:
+            authRequest.includeProviderTokens === true
+              ? providerTokens
+              : undefined,
         } satisfies TicketPayload),
       ),
     });

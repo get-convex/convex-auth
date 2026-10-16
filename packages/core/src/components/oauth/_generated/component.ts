@@ -36,6 +36,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         "internal",
         {
           codeVerifier: string;
+          includeProviderTokens?: boolean;
           issuers?: Array<string>;
           providerName: string;
           redirectTo: string;

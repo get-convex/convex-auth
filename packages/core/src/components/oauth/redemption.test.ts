@@ -1,6 +1,11 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { makeFunctionReference, mutationGeneric } from "convex/server";
+import {
+  internalMutationGeneric,
+  makeFunctionReference,
+  mutationGeneric,
+} from "convex/server";
+import { v } from "convex/values";
 import type { PropertyValidators } from "convex/values";
 import { api, internal } from "./_generated/api.ts";
 import type { ComponentApi } from "./_generated/component.ts";
@@ -15,10 +20,13 @@ import {
   generateRandomToken,
 } from "../../lib/oauth/crypto.ts";
 import { sha256Hex } from "../../lib/crypto.ts";
-import type {
-  AuthClaims,
-  BoundAuthHelpers,
-  TokenBundle,
+import {
+  vProviderTokens,
+  type AuthClaims,
+  type BoundAuthHelpers,
+  type OnProviderTokensFn,
+  type ProviderTokens,
+  type TokenBundle,
 } from "../../lib/types.ts";
 import type {
   AuthActionBuilder,
@@ -55,6 +63,52 @@ const resolvedUserId = { value: null as string | null };
  * the app rejecting the sign-in from its `createUser` / `onSignIn` callback.
  */
 const helperFailure = { error: undefined as Error | undefined };
+
+/** What the app's `onProviderTokens` callback received, in call order. */
+type TokensCall = {
+  provider: { name: string; accountId: string };
+  userId: string;
+  tokens: ProviderTokens;
+};
+const tokensCalls: TokensCall[] = [];
+
+/** When set, the app's `onProviderTokens` throws this. */
+const tokensFailure = { error: undefined as Error | undefined };
+
+/**
+ * The app's `onProviderTokens`, declared the way an app would: an internal
+ * mutation with strict validators.
+ */
+const saveTokens = internalMutationGeneric({
+  args: {
+    provider: v.object({ name: v.literal("acme"), accountId: v.string() }),
+    userId: v.string(),
+    tokens: vProviderTokens,
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    tokensCalls.push(args);
+    if (tokensFailure.error !== undefined) {
+      throw tokensFailure.error;
+    }
+    return null;
+  },
+});
+
+const tokenCallbacks = {
+  onProviderTokens: makeFunctionReference<"mutation">(
+    "testApp:saveTokens",
+  ) as unknown as OnProviderTokensFn<"acme">,
+} as never;
+
+/** A token response, as the callback puts it in the ticket. */
+const providerTokens: ProviderTokens = {
+  accessToken: "google-access-1",
+  refreshToken: "google-refresh-1",
+  expiresAt: 253402300800000,
+  scope: "openid https://www.googleapis.com/auth/calendar.events",
+  tokenType: "Bearer",
+};
 
 /** The bundle the fake helpers mint on success. */
 const bundle: TokenBundle = {
@@ -218,6 +272,14 @@ const testApp = {
     fakeCallbacks,
     options,
   ).completeSignIn,
+  completeSignInAcmeTokens: setupOauth(
+    fakeCore,
+    "acme",
+    claimsCatalog,
+    tokenCallbacks,
+    options,
+  ).completeSignIn,
+  saveTokens,
 };
 
 const modules = {
@@ -236,6 +298,9 @@ const completeSignInEmptyId = makeFunctionReference<"mutation">(
 );
 const completeSignInMissingId = makeFunctionReference<"mutation">(
   "testApp:completeSignInMissingId",
+);
+const completeSignInAcmeTokens = makeFunctionReference<"mutation">(
+  "testApp:completeSignInAcmeTokens",
 );
 
 function setup() {
@@ -280,6 +345,8 @@ afterEach(() => {
   helperCalls.length = 0;
   resolvedUserId.value = null;
   helperFailure.error = undefined;
+  tokensCalls.length = 0;
+  tokensFailure.error = undefined;
 });
 
 describe("completeSignIn", () => {
@@ -450,6 +517,95 @@ describe("completeSignIn", () => {
     // ticket is not burned by the failed attempt.
     helperFailure.error = undefined;
     const result = await t.mutation(completeSignInAcme, {
+      code,
+      state: "state-1",
+    });
+    expect(result).toEqual(completed);
+  });
+});
+
+describe("completeSignIn with onProviderTokens", () => {
+  test("hands the provider's tokens to the app's callback, after the user exists", async () => {
+    const t = setup();
+    const code = await mintTicket(t, {
+      payload: { claims: validClaims, providerTokens },
+    });
+
+    const result = await t.mutation(completeSignInAcmeTokens, {
+      code,
+      state: "state-1",
+    });
+
+    expect(helperCalls).toHaveLength(1);
+    expect(tokensCalls).toEqual([
+      {
+        provider: { name: "acme", accountId: "acme-sub-1" },
+        userId: "user-1",
+        tokens: providerTokens,
+      },
+    ]);
+    // The client gets the session bundle and nothing else.
+    expect(result).toEqual(completed);
+    expect(JSON.stringify(result)).not.toContain("google-access-1");
+    expect(JSON.stringify(result)).not.toContain("google-refresh-1");
+  });
+
+  test("runs on a return visit too, so the app can replace stale tokens", async () => {
+    const t = setup();
+    const code = await mintTicket(t, {
+      payload: { claims: validClaims, providerTokens },
+    });
+    resolvedUserId.value = "user-1";
+
+    await t.mutation(completeSignInAcmeTokens, { code, state: "state-1" });
+
+    expect(helperCalls.map((call) => call.kind)).toEqual(["signIn"]);
+    expect(tokensCalls).toHaveLength(1);
+  });
+
+  test("a provider without onProviderTokens never passes tokens on", async () => {
+    const t = setup();
+    // Even a ticket that somehow carries tokens goes nowhere by default.
+    const code = await mintTicket(t, {
+      payload: { claims: validClaims, providerTokens },
+    });
+
+    const result = await t.mutation(completeSignInAcme, {
+      code,
+      state: "state-1",
+    });
+
+    expect(result).toEqual(completed);
+    expect(tokensCalls).toEqual([]);
+    expect(JSON.stringify(result)).not.toContain("google-access-1");
+  });
+
+  test("a ticket without tokens skips the callback", async () => {
+    const t = setup();
+    const code = await mintTicket(t);
+
+    const result = await t.mutation(completeSignInAcmeTokens, {
+      code,
+      state: "state-1",
+    });
+
+    expect(result).toEqual(completed);
+    expect(tokensCalls).toEqual([]);
+  });
+
+  test("a throw from onProviderTokens rolls back the sign-in and the ticket claim", async () => {
+    const t = setup();
+    const code = await mintTicket(t, {
+      payload: { claims: validClaims, providerTokens },
+    });
+
+    tokensFailure.error = new Error("could not store the tokens");
+    await expect(
+      t.mutation(completeSignInAcmeTokens, { code, state: "state-1" }),
+    ).rejects.toThrow("could not store the tokens");
+
+    tokensFailure.error = undefined;
+    const result = await t.mutation(completeSignInAcmeTokens, {
       code,
       state: "state-1",
     });

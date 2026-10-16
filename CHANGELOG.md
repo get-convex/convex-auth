@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- OAuth methods can hand the provider's token response (access token, refresh
+  token, expiry, granted scopes) to a new optional `onProviderTokens` callback,
+  so an app can call the provider's APIs. Off unless the callback is attached;
+  the library never stores, logs, or returns the tokens
+- OAuth setups take `scopes`, `optionalScopes`, and `authorizationParams`
+  (e.g. Google's `access_type: "offline"`); `startSignIn` takes per-call
+  `scopes` from the `optionalScopes` allowlist and a `loginHint`
+
 ## 2.0.0-beta.0
 
 Some API and schema breaking changes - see below

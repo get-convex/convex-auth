@@ -121,6 +121,7 @@ export function buildProviderFunctions<
         redirectTo: claimed.doc.redirectTo,
         callbackUrl: claimed.doc.callbackUrl,
         codeVerifier: claimed.doc.codeVerifier,
+        includeProviderTokens: claimed.doc.includeProviderTokens,
       };
     },
   });
