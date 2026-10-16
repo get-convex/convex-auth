@@ -1,7 +1,6 @@
-> [!NOTE]
-> Looking for Convex Auth v2? This branch contains the current stable
+> [!NOTE] Looking for Convex Auth v2? This branch contains the current stable
 > release (v1). For the WIP v2 implementation, see the
-> [`reboot` branch](https://github.com/get-convex/convex-auth/tree/reboot).
+> [`reboot` branch](https://github.com/convex/convex-auth/tree/reboot).
 
 # Convex Auth
 

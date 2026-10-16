@@ -37,4 +37,4 @@ To learn more about developing your project with Convex, check out:
 Join thousands of developers building full-stack apps with Convex:
 
 - Join the [Convex Discord community](https://convex.dev/community) to get help in real-time.
-- Follow [Convex on GitHub](https://github.com/get-convex/), star and contribute to the open-source implementation of Convex.
+- Follow [Convex on GitHub](https://github.com/convex/), star and contribute to the open-source implementation of Convex.

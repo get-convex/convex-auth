@@ -2,9 +2,9 @@
 // If CONVEX_LOCAL_BACKEND_PATH is set, expect a convex local backend repo and use that.
 // Otherwise download the latest prebuild binary.
 //
-// Based on from https://github.com/get-convex/convex-chess/blob/main/backendHarness.js
+// Based on from https://github.com/convex/convex-chess/blob/main/backendHarness.js
 // and
-// https://github.com/get-convex/convex-js/blob/main/src/cli/lib/localDeployment/run.ts
+// https://github.com/convex/convex-js/blob/main/src/cli/lib/localDeployment/run.ts
 
 const http = require("http");
 const fsPromises = require("fs/promises");
@@ -118,7 +118,7 @@ function getDownloadPath() {
 
 async function downloadedBinaryProcess() {
   const latest = await fetch(
-    "https://github.com/get-convex/convex-backend/releases/latest",
+    "https://github.com/convex/convex-backend/releases/latest",
     { redirect: "manual" },
   );
   if (latest.status !== 302) {
@@ -129,7 +129,7 @@ async function downloadedBinaryProcess() {
   logToStderr(`Downloading latest backend binary, ${version}`);
   const downloadPath = getDownloadPath();
   const response = await fetch(
-    `https://github.com/get-convex/convex-backend/releases/download/${version}/${downloadPath}`,
+    `https://github.com/convex/convex-backend/releases/download/${version}/${downloadPath}`,
   );
 
   const zipLocation = "convex-backend.zip";
@@ -174,10 +174,14 @@ async function downloadedBinaryProcess() {
   const process_ = spawn(
     p,
     [
-      "--port", String(backendCloudPort),
-      "--site-proxy-port", String(backendSitePort),
-      "--instance-name", instanceName,
-      "--instance-secret", instanceSecret,
+      "--port",
+      String(backendCloudPort),
+      "--site-proxy-port",
+      String(backendSitePort),
+      "--instance-name",
+      instanceName,
+      "--instance-secret",
+      instanceSecret,
     ],
     { env: { CONVEX_TRACE_FILE: "1" } },
   );

@@ -10,9 +10,9 @@ This tests against the most recently published official binary.
 The following instructions require some pre-work, but once you've done the first couple steps once
 you can skip to running the test command at the end.
 
-1. Clone [convex-backend](https://github.com/get-convex/convex-backend)
+1. Clone [convex-backend](https://github.com/convex/convex-backend)
 
-1. Follow the instructions in its [README](https://github.com/get-convex/convex-backend/blob/main/README.md) to get it building
+1. Follow the instructions in its [README](https://github.com/convex/convex-backend/blob/main/README.md) to get it building
 
 1. From the `test-nextjs` directory, run:
 
