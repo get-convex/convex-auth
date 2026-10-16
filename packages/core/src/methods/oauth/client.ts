@@ -35,7 +35,7 @@ export type OauthProviderApi = {
   startSignIn: FunctionReference<
     "mutation",
     "public",
-    { redirectTo: string },
+    { redirectTo: string; scopes?: string[]; loginHint?: string },
     { redirect: string; state: string }
   >;
   /** The provider's `completeSignIn*` mutation. */
@@ -106,6 +106,17 @@ export type SignInOptions = {
    * supported yet.
    */
   redirectTo?: string;
+  /**
+   * Scopes to ask for on top of the provider's configured ones, for example
+   * calendar access when the user turns that feature on. Each must be in the
+   * provider setup's `optionalScopes`, or the start fails.
+   */
+  scopes?: string[];
+  /**
+   * The account to preselect at the identity provider (OIDC `login_hint`),
+   * such as the email of the account being reconnected.
+   */
+  loginHint?: string;
   /** A callback `code` to finish a saved flow instead of starting a new one. */
   code?: string;
 };
@@ -368,6 +379,10 @@ export function oauth(): AmbientSignInClient {
       try {
         const { redirect, state } = await convex.mutation(refs.startSignIn, {
           redirectTo,
+          ...(options?.scopes === undefined ? {} : { scopes: options.scopes }),
+          ...(options?.loginHint === undefined
+            ? {}
+            : { loginHint: options.loginHint }),
         });
         await storage.set(
           OAUTH_FLOW_STORAGE_KEY,

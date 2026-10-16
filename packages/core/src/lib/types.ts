@@ -307,6 +307,78 @@ export type UserCallbacks<
 };
 
 /**
+ * The upstream provider's token response, as an OAuth method hands it to the
+ * app's {@link OnProviderTokensFn}. This is the provider's own credential for
+ * calling its APIs (e.g. the Google Calendar API), not a Convex Auth session
+ * token.
+ *
+ * - `accessToken`: the provider's `access_token`.
+ * - `tokenType`: the provider's `token_type`, `"Bearer"` when it sent none.
+ * - `refreshToken`: the provider's `refresh_token`, when it issued one. Google
+ *   only issues one when the authorization asked for `access_type=offline`,
+ *   and only on the first consent unless it also asked for `prompt=consent`.
+ * - `expiresAt`: when `accessToken` expires, in milliseconds since the epoch,
+ *   computed from the provider's `expires_in` when the code was exchanged.
+ * - `scope`: the provider's `scope`, space separated, when it sent one. It is
+ *   what the user actually granted, which can be less than what was asked for.
+ */
+export const vProviderTokens = v.object({
+  accessToken: v.string(),
+  tokenType: v.string(),
+  refreshToken: v.optional(v.string()),
+  expiresAt: v.optional(v.number()),
+  scope: v.optional(v.string()),
+});
+
+export type ProviderTokens = Infer<typeof vProviderTokens>;
+
+/**
+ * The type of an app defined mutation that receives the upstream provider's
+ * tokens after a successful OAuth sign-in. Attaching one is what opts the
+ * provider in: without it the tokens are discarded at the code exchange, as
+ * they always were.
+ *
+ * It runs once per sign-in, after {@link CreateUserFn} and
+ * {@link OnSignInFn}, in the same transaction, so `userId` is the signed-in
+ * user and a throw rolls the whole sign-in back.
+ *
+ * The library never stores, logs, or returns the tokens. They exist only in
+ * the encrypted one-time ticket between the callback and redemption, and in
+ * this call's arguments. Storing them is the app's job: encrypt them at rest,
+ * keep them out of anything a client can query, and key them by
+ * `provider.accountId`, since one user can connect several accounts of the
+ * same provider.
+ */
+export type OnProviderTokensFn<
+  ProviderName extends string,
+  UsersTable extends string = string,
+> = FunctionReference_future<
+  "mutation",
+  "internal",
+  {
+    provider: {
+      name: ProviderName;
+      accountId: string;
+    };
+    userId: GenericId<UsersTable>;
+    tokens: ProviderTokens;
+  },
+  null
+>;
+
+/**
+ * The callbacks an OAuth method's `attachUserCallbacks` takes: the
+ * {@link UserCallbacks} plus the optional {@link OnProviderTokensFn}.
+ */
+export type OauthUserCallbacks<
+  Provider extends string,
+  Profile,
+  UsersTable extends string = string,
+> = UserCallbacks<Provider, Profile, UsersTable> & {
+  onProviderTokens?: OnProviderTokensFn<Provider, UsersTable>;
+};
+
+/**
  * The helpers that `authMutation`/`authAction` inject onto `ctx` for a
  * provider's handlers.
  *

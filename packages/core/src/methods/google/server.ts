@@ -5,9 +5,12 @@
  * @module
  */
 import { Infer, v } from "convex/values";
-import type { UserCallbacks } from "../../lib/types.ts";
+import type { OauthUserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../server/setup.ts";
-import { buildStartSignIn } from "../../lib/oauth/authorize.ts";
+import {
+  buildStartSignIn,
+  type OauthAuthorizationOptions,
+} from "../../lib/oauth/authorize.ts";
 import {
   buildCompleteSignIn,
   validateAllowedRedirectOrigins,
@@ -19,6 +22,13 @@ import {
   PROVIDER_NAME,
   SCOPES,
 } from "../../components/google/constants.ts";
+
+export {
+  vProviderTokens,
+  type ProviderTokens,
+  type OnProviderTokensFn,
+} from "../../lib/types.ts";
+export type { OauthAuthorizationOptions };
 
 /**
  * The account profile the Google provider produces. Google is OIDC, so
@@ -62,7 +72,7 @@ export function normalizeGoogleProfile(
 }
 
 /** App-defined config for setting up the Google provider. */
-export type GoogleProviderOptions = {
+export type GoogleProviderOptions = OauthAuthorizationOptions & {
   /** The Google oauth component instance, i.e. `components.authGoogle`. */
   component: ComponentApi;
   /**
@@ -104,11 +114,11 @@ export function setupGoogle<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * Supply the app's user callbacks (see {@link OauthUserCallbacks} for how their
      * args must be declared) and get this provider's functions to export.
      */
     attachUserCallbacks(
-      callbacks: UserCallbacks<"google", GoogleProfile, UsersTable>,
+      callbacks: OauthUserCallbacks<"google", GoogleProfile, UsersTable>,
     ) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
@@ -120,6 +130,8 @@ export function setupGoogle<UsersTable extends string>(
         allowedOrigins,
         authorizationEndpoint: AUTHORIZATION_ENDPOINT,
         scopes: SCOPES,
+        authorization: options,
+        includeProviderTokens: callbacks.onProviderTokens !== undefined,
         createAuthorizationRequest:
           options.component.provider.createAuthorizationRequest,
       });
@@ -132,6 +144,7 @@ export function setupGoogle<UsersTable extends string>(
         authMutation,
         claimTicket: (ctx, args) =>
           ctx.runMutation(options.component.provider.claimTicket, args),
+        onProviderTokens: callbacks.onProviderTokens,
         profile: (payload) => normalizeGoogleProfile(payload.claims),
       });
 

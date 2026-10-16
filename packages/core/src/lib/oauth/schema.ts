@@ -24,6 +24,12 @@ export const authorizationRequestFields = {
    * ignores the parameters.
    */
   codeVerifier: v.string(),
+  /**
+   * Whether the app attached an `onProviderTokens` callback, which is what
+   * makes the callback put the provider's token response into the encrypted
+   * ticket. Absent means the tokens are discarded at the exchange.
+   */
+  includeProviderTokens: v.optional(v.boolean()),
   /** The callback rejects requests older than this. */
   expiresAt: v.number(),
 };

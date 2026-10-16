@@ -1,7 +1,10 @@
-import type { UserCallbacks } from "../../lib/types.ts";
+import type { OauthUserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../server/setup.ts";
 import type { ComponentApi } from "../../components/oauth/_generated/component.ts";
-import { buildStartSignIn } from "../../lib/oauth/authorize.ts";
+import {
+  buildStartSignIn,
+  type OauthAuthorizationOptions,
+} from "../../lib/oauth/authorize.ts";
 import type { CallbackMethod } from "../../lib/oauth/http.ts";
 import {
   buildCompleteSignIn,
@@ -11,7 +14,13 @@ import {
   type TicketPayload,
 } from "../../lib/oauth/redemption.ts";
 
-export type { OidcClaims };
+export type { OidcClaims, OauthAuthorizationOptions };
+export {
+  vProviderTokens,
+  type ProviderTokens,
+  type OnProviderTokensFn,
+  type OauthUserCallbacks,
+} from "../../lib/types.ts";
 
 /**
  * Map what the provider attested about the user to the account identity used
@@ -81,6 +90,12 @@ export type OauthCatalog<
   /** Scopes to request. */
   scopes: string[];
   /**
+   * Extra query parameters the provider needs on its authorization URL. The
+   * app's `authorizationParams` option wins over these. A parameter the flow
+   * sets itself, like `state` or `scope`, is rejected at setup.
+   */
+  authorizationParams?: Record<string, string>;
+  /**
    * The method the provider delivers the callback with. `"GET"` (the default)
    * is a redirect with the parameters in the query string. `"POST"` asks the
    * provider for a form submission with the parameters as form fields, which
@@ -94,7 +109,7 @@ export type OauthCatalog<
 /**
  * App-defined config for setting up an OAuth provider and passing in options.
  */
-export type OauthProviderOptions = {
+export type OauthProviderOptions = OauthAuthorizationOptions & {
   /**
    * This provider's oauth component instance, e.g. `components.authAcme`.
    * The component is installed once per provider.
@@ -131,7 +146,7 @@ export function setupOauth<
   core: AuthCore<UsersTable>,
   providerName: Provider,
   catalog: OauthCatalog<Profile, UserInfo>,
-  callbacks: UserCallbacks<Provider, Profile, UsersTable>,
+  callbacks: OauthUserCallbacks<Provider, Profile, UsersTable>,
   options: OauthProviderOptions,
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy
@@ -188,6 +203,9 @@ export function setupOauth<
     allowedOrigins,
     authorizationEndpoint: catalog.authorizationEndpoint,
     scopes: catalog.scopes,
+    authorization: options,
+    providerAuthorizationParams: catalog.authorizationParams,
+    includeProviderTokens: callbacks.onProviderTokens !== undefined,
     callbackMethod: catalog.callbackMethod,
     createAuthorizationRequest: (ctx, args) =>
       ctx.runMutation(options.component.provider.createAuthorizationRequest, {
@@ -195,6 +213,9 @@ export function setupOauth<
         stateHash: args.stateHash,
         redirectTo: args.redirectTo,
         codeVerifier: args.codeVerifier,
+        ...(args.includeProviderTokens === true
+          ? { includeProviderTokens: true }
+          : {}),
         tokenEndpoint: catalog.tokenEndpoint,
         userInfoEndpoints: catalog.userInfoEndpoints,
         issuers,
@@ -215,6 +236,7 @@ export function setupOauth<
       }),
     profile: (payload) =>
       catalog.profile(payload.claims, payload.userInfoResponses),
+    onProviderTokens: callbacks.onProviderTokens,
   });
 
   return { startSignIn, completeSignIn };

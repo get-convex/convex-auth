@@ -90,7 +90,12 @@ function setup(schema: ComponentSchema, modules: ComponentModules) {
  */
 const createAuthorizationRequest = makeFunctionReference<
   "mutation",
-  { stateHash: string; redirectTo: string; codeVerifier: string },
+  {
+    stateHash: string;
+    redirectTo: string;
+    codeVerifier: string;
+    includeProviderTokens?: boolean;
+  },
   { clientId: string; callbackUrl: string }
 >("provider:createAuthorizationRequest");
 
@@ -105,6 +110,7 @@ const claimAuthorizationRequest = makeFunctionReference<
       redirectTo: string;
       callbackUrl: string;
       codeVerifier: string;
+      includeProviderTokens?: boolean;
     }
 >("provider:claimAuthorizationRequest");
 
@@ -167,6 +173,31 @@ export function testProviderFunctionsContract(
       expect(
         await t.mutation(claimTicket, { ticketCodeHash, stateHash }),
       ).toEqual({ encryptedPayload: ENCRYPTED_PAYLOAD });
+    });
+
+    test("a request that asks for the provider's tokens says so when claimed", async () => {
+      const t = setup(schema, modules);
+      const stateHash = await sha256Hex("state-raw-1");
+
+      await t.mutation(createAuthorizationRequest, {
+        stateHash,
+        redirectTo: REDIRECT_TO,
+        codeVerifier: CODE_VERIFIER,
+        includeProviderTokens: true,
+      });
+
+      // The callback reads this off the claimed request to decide whether
+      // the token response goes into the ticket.
+      expect(
+        await t.mutation(claimAuthorizationRequest, { stateHash }),
+      ).toEqual({
+        expired: false,
+        stateHash,
+        redirectTo: REDIRECT_TO,
+        callbackUrl: CALLBACK_URL,
+        codeVerifier: CODE_VERIFIER,
+        includeProviderTokens: true,
+      });
     });
 
     test("a ticket does not redeem against a different state", async () => {

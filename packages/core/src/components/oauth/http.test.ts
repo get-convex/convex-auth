@@ -370,6 +370,112 @@ describe("oauth callback", () => {
     expect(payload).toEqual({ claims });
   });
 
+  test("a flow that asked for the provider's tokens carries them in the ticket", async () => {
+    vi.useFakeTimers({ now: 1_000_000, toFake: ["Date"] });
+    const t = setup();
+    const claims = idTokenClaims();
+    stubFetch({
+      [idTokenRequest.tokenEndpoint]: () =>
+        jsonResponse({
+          id_token: unsignedJwt(claims),
+          access_token: "access-token-1",
+          refresh_token: "refresh-token-1",
+          expires_in: 3599,
+          scope: "openid https://www.googleapis.com/auth/calendar.events",
+          token_type: "Bearer",
+        }),
+    });
+    const logs = [
+      spyConsoleError(),
+      spyConsoleWarn(),
+      vi.spyOn(console, "log").mockImplementation(() => {}),
+      vi.spyOn(console, "info").mockImplementation(() => {}),
+    ];
+    const { state, stateHash } = await startFlow(t, {
+      ...idTokenRequest,
+      includeProviderTokens: true,
+    });
+
+    const response = await callback(t, { state, code: "auth-code-1" });
+
+    const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
+    // The redirect the browser sees carries only the one-time ticket code.
+    expect(response.headers.get("Location")).not.toContain("access-token-1");
+    expect(response.headers.get("Location")).not.toContain("refresh-token-1");
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: PROVIDER_NAME,
+      ticketCodeHash: await sha256Hex(ticketCode),
+      stateHash,
+    });
+    // At rest the ticket holds the tokens only encrypted.
+    expect(claimed!.encryptedPayload).not.toContain("access-token-1");
+    const payload = JSON.parse(
+      await decryptTicketPayload(ticketCode, claimed!.encryptedPayload),
+    );
+    expect(payload).toEqual({
+      claims,
+      providerTokens: {
+        accessToken: "access-token-1",
+        refreshToken: "refresh-token-1",
+        expiresAt: 1_000_000 + 3599 * 1000,
+        scope: "openid https://www.googleapis.com/auth/calendar.events",
+        tokenType: "Bearer",
+      },
+    });
+    // Nothing about the tokens was logged.
+    for (const spy of logs) {
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  test("a flow that did not ask for the provider's tokens drops them, refresh token included", async () => {
+    const t = setup();
+    const claims = idTokenClaims();
+    stubFetch({
+      [idTokenRequest.tokenEndpoint]: () =>
+        jsonResponse({
+          id_token: unsignedJwt(claims),
+          access_token: "access-token-1",
+          refresh_token: "refresh-token-1",
+          expires_in: 3599,
+          token_type: "Bearer",
+        }),
+    });
+    const { state, stateHash } = await startFlow(t, idTokenRequest);
+
+    const response = await callback(t, { state, code: "auth-code-1" });
+
+    const ticketCode = redirectParams(response).get(OAUTH_CODE_PARAM)!;
+    const claimed = await t.mutation(api.provider.claimTicket, {
+      providerName: PROVIDER_NAME,
+      ticketCodeHash: await sha256Hex(ticketCode),
+      stateHash,
+    });
+    const payload = JSON.parse(
+      await decryptTicketPayload(ticketCode, claimed!.encryptedPayload),
+    );
+    expect(payload).toEqual({ claims });
+  });
+
+  test("a flow that asked for the provider's tokens but got no access_token fails", async () => {
+    const t = setup();
+    const errors = spyConsoleError();
+    stubFetch({
+      [idTokenRequest.tokenEndpoint]: () =>
+        jsonResponse({ id_token: unsignedJwt(idTokenClaims()) }),
+    });
+    const { state } = await startFlow(t, {
+      ...idTokenRequest,
+      includeProviderTokens: true,
+    });
+
+    const response = await callback(t, { state, code: "auth-code-1" });
+
+    expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
+    expect(loggedText(errors)).toContain("asked for the provider's tokens");
+    expect(await t.run((ctx) => ctx.db.query("tickets").collect())).toEqual([]);
+  });
+
   test("a userinfo flow fetches each endpoint with the access token", async () => {
     // The asserted headers are provider-driven: http.ts documents why Accept
     // and User-Agent are sent at all (GitHub needs both).

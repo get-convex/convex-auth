@@ -5,9 +5,12 @@
  * @module
  */
 import { Infer, v } from "convex/values";
-import type { UserCallbacks } from "../../lib/types.ts";
+import type { OauthUserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../server/setup.ts";
-import { buildStartSignIn } from "../../lib/oauth/authorize.ts";
+import {
+  buildStartSignIn,
+  type OauthAuthorizationOptions,
+} from "../../lib/oauth/authorize.ts";
 import {
   buildCompleteSignIn,
   validateAllowedRedirectOrigins,
@@ -21,6 +24,13 @@ import {
 } from "../../components/github/constants.ts";
 
 export type { GithubUserInfo };
+
+export {
+  vProviderTokens,
+  type ProviderTokens,
+  type OnProviderTokensFn,
+} from "../../lib/types.ts";
+export type { OauthAuthorizationOptions };
 
 /**
  * The account profile the GitHub provider produces. GitHub is plain OAuth
@@ -75,7 +85,7 @@ export function normalizeGithubProfile(
 }
 
 /** App-defined config for setting up the GitHub provider. */
-export type GithubProviderOptions = {
+export type GithubProviderOptions = OauthAuthorizationOptions & {
   /** The GitHub oauth component instance, i.e. `components.authGithub`. */
   component: ComponentApi;
   /**
@@ -117,11 +127,11 @@ export function setupGithub<UsersTable extends string>(
 
   return {
     /**
-     * Supply the app's user callbacks (see {@link UserCallbacks} for how their
+     * Supply the app's user callbacks (see {@link OauthUserCallbacks} for how their
      * args must be declared) and get this provider's functions to export.
      */
     attachUserCallbacks(
-      callbacks: UserCallbacks<"github", GithubProfile, UsersTable>,
+      callbacks: OauthUserCallbacks<"github", GithubProfile, UsersTable>,
     ) {
       const { authMutation } = core.bindProvider({
         name: PROVIDER_NAME,
@@ -133,6 +143,8 @@ export function setupGithub<UsersTable extends string>(
         allowedOrigins,
         authorizationEndpoint: AUTHORIZATION_ENDPOINT,
         scopes: SCOPES,
+        authorization: options,
+        includeProviderTokens: callbacks.onProviderTokens !== undefined,
         createAuthorizationRequest:
           options.component.provider.createAuthorizationRequest,
       });
@@ -145,6 +157,7 @@ export function setupGithub<UsersTable extends string>(
         authMutation,
         claimTicket: (ctx, args) =>
           ctx.runMutation(options.component.provider.claimTicket, args),
+        onProviderTokens: callbacks.onProviderTokens,
         profile: (payload) => normalizeGithubProfile(payload.userInfoResponses),
       });
 

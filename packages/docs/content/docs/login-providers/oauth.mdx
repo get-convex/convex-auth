@@ -453,3 +453,84 @@ Include an `App.tsx` like the following in your application:
 </Tabs>
 
 {/* prettier-ignore-end */}
+
+## Calling the provider's APIs
+
+An app that needs more than sign-in from the provider, such as reading and
+writing the user's Google Calendar, can ask for that access in the same
+consent screen as sign-up, and receive the provider's tokens on the server.
+
+```ts title="convex/auth.ts"
+export const { startSignInWithGoogle, completeSignInWithGoogle } = setupGoogle(
+  auth,
+  {
+    component: components.authGoogle,
+    allowedRedirectOrigins: ["https://app.example.com"],
+    // Asked for on every sign-in, on top of `openid email profile`.
+    scopes: [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.readonly",
+    ],
+    authorizationParams: {
+      // Without this, Google issues no refresh token.
+      access_type: "offline",
+      // Google only issues a refresh token on the first consent, unless the
+      // user is asked again.
+      prompt: "consent",
+      include_granted_scopes: "true",
+    },
+  },
+).attachUserCallbacks({
+  createUser: internal.users.createUser,
+  onProviderTokens: internal.googleAccounts.saveTokens,
+});
+```
+
+```ts title="convex/googleAccounts.ts"
+import { v } from "convex/values";
+import { vProviderTokens } from "@convex-dev/auth/methods/google/server";
+import { internalMutation } from "./_generated/server";
+
+export const saveTokens = internalMutation({
+  args: {
+    provider: v.object({ name: v.literal("google"), accountId: v.string() }),
+    userId: v.id("users"),
+    tokens: vProviderTokens,
+  },
+  returns: v.null(),
+  handler: async (ctx, { provider, userId, tokens }) => {
+    // `encrypt` is your own helper, e.g. AES-GCM under a key kept in an
+    // environment variable. Never store the tokens in plain text.
+    // ...upsert a row keyed by provider.accountId...
+    return null;
+  },
+});
+```
+
+- `onProviderTokens` runs on every successful sign-in, after `createUser` and
+  `onSignIn`, in the same transaction. A throw rejects the sign-in.
+- `tokens` holds `accessToken`, `tokenType`, and, when the provider sent them,
+  `refreshToken`, `expiresAt` (milliseconds since the epoch), and `scope` (what
+  the user actually granted, space separated). A return visit can come back
+  without a refresh token, so keep the one you have.
+- Without `onProviderTokens` the tokens are discarded at the code exchange.
+  Convex Auth never stores, logs, or returns them: between the callback and the
+  sign-in they exist only in the one-time ticket, encrypted with a key that is
+  not in the database. Storing them, encrypted, and keeping them out of every
+  query a client can call is up to your app.
+
+`authorizationParams` cannot set a parameter the sign-in flow sets itself
+(`state`, `scope`, `redirect_uri`, `client_id`, `response_type`,
+`response_mode`, `code_challenge`, `code_challenge_method`). Setup throws if it
+does.
+
+To ask for a scope only when the user turns a feature on, list it in
+`optionalScopes` and pass it when starting the sign-in. A client can only ask
+for scopes in that list. `loginHint` preselects an account at the provider:
+
+```ts
+signIn({
+  scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
+  loginHint: "ada@example.com",
+});
+```
