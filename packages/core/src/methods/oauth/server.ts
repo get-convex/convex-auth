@@ -2,6 +2,7 @@ import type { UserCallbacks } from "../../lib/types.ts";
 import type { AuthCore } from "../../server/setup.ts";
 import type { ComponentApi } from "../../components/oauth/_generated/component.ts";
 import { buildStartSignIn } from "../../lib/oauth/authorize.ts";
+import { isSecureEndpoint } from "../../lib/oauth/callback.ts";
 import type { CallbackMethod } from "../../lib/oauth/http.ts";
 import {
   buildCompleteSignIn,
@@ -166,11 +167,7 @@ export function setupOauth<
   ];
   for (const [field, endpoint] of endpoints) {
     const url = parseUrl(endpoint);
-    const secure =
-      url?.protocol === "https:" ||
-      (url?.protocol === "http:" &&
-        (url.hostname === "localhost" || url.hostname === "127.0.0.1"));
-    if (!secure) {
+    if (url === null || !isSecureEndpoint(url)) {
       throw new Error(
         `Provider "${providerName}" catalog ${field} is not a valid https URL: ` +
           `"${endpoint}" (plain http is only allowed for localhost and 127.0.0.1)`,
