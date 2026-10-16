@@ -59,7 +59,7 @@ function ResetPasswordWithCode({ emailCode }: { emailCode: string }) {
           state.userError satisfies never;
           return (
             <ResetPasswordError>
-              Unknown error: {state.userError}
+              Unknown error: {JSON.stringify(state.userError)}
             </ResetPasswordError>
           );
       }
@@ -67,39 +67,43 @@ function ResetPasswordWithCode({ emailCode }: { emailCode: string }) {
       break;
   }
 
+  const handleSubmit = async () => {
+    setError(null);
+    const result = await state.completePasswordRecovery({
+      newPassword: newPasswordField,
+    });
+    if (result.status === "complete") {
+      return;
+    }
+    setError(() => {
+      switch (result.userError.error) {
+        case "INVALID_CHALLENGE":
+        case "INCORRECT_CODE":
+          // The hook moves to its error state; the page re-renders.
+          return null;
+        case "PASSWORD_TOO_SHORT":
+          return `Password must be at least ${result.userError.minimumLength} characters.`;
+        case "PASSWORD_TOO_LONG":
+          return `Password must be at most ${result.userError.maximumLength} characters.`;
+        case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+          return "Password can't start or end with whitespace.";
+        case "PASSWORD_TOO_COMMON":
+          return "This password is one of the most commonly used passwords. Please choose a different one.";
+        case "OTHER_ERROR":
+          console.error("Password reset failed:", result.userError.cause);
+          return "Something went wrong. Please try again.";
+        default:
+          result.userError satisfies never;
+          return `Unknown error: ${JSON.stringify(result.userError)}`;
+      }
+    });
+  };
+
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setError(null);
-        const result = await state.completePasswordRecovery({
-          newPassword: newPasswordField,
-        });
-        if (result.status === "complete") {
-          return;
-        }
-        setError(() => {
-          switch (result.userError.error) {
-            case "INVALID_CHALLENGE":
-            case "INCORRECT_CODE":
-              // The hook moves to its error state; the page re-renders.
-              return null;
-            case "PASSWORD_TOO_SHORT":
-              return `Password must be at least ${result.userError.minimumLength} characters.`;
-            case "PASSWORD_TOO_LONG":
-              return `Password must be at most ${result.userError.maximumLength} characters.`;
-            case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-              return "Password can't start or end with whitespace.";
-            case "PASSWORD_TOO_COMMON":
-              return "This password is one of the most commonly used passwords. Please choose a different one.";
-            case "OTHER_ERROR":
-              console.error("Password reset failed:", result.userError.cause);
-              return "Something went wrong. Please try again.";
-            default:
-              result.userError satisfies never;
-              return `Unknown error: ` + result.userError;
-          }
-        });
+        void handleSubmit();
       }}
     >
       <h1>Choose a new password</h1>

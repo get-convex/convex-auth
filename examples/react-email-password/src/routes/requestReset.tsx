@@ -25,33 +25,37 @@ export function RequestReset() {
     );
   }
 
+  const handleSubmit = async () => {
+    setError(null);
+    const result = await startPasswordRecovery({ email: emailField });
+    if (result.success) {
+      setSentTo(result.sentTo);
+      return;
+    }
+    setError(() => {
+      switch (result.userError.error) {
+        case "INVALID_EMAIL":
+          return "That email address doesn't look valid.";
+        case "EMAIL_NOT_FOUND":
+          return "No account exists with that email address.";
+        case "RATE_LIMITED":
+          return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+        case "OTHER_ERROR":
+          console.error("Reset request failed:", result.userError.cause);
+          return "Something went wrong. Please try again.";
+        default:
+          result.userError satisfies never;
+          return `Unknown error: ${JSON.stringify(result.userError)}`;
+      }
+    });
+  };
+
   return (
     <>
       <form
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault();
-          setError(null);
-          const result = await startPasswordRecovery({ email: emailField });
-          if (result.success) {
-            setSentTo(result.sentTo);
-            return;
-          }
-          setError(() => {
-            switch (result.userError.error) {
-              case "INVALID_EMAIL":
-                return "That email address doesn't look valid.";
-              case "EMAIL_NOT_FOUND":
-                return "No account exists with that email address.";
-              case "RATE_LIMITED":
-                return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
-              case "OTHER_ERROR":
-                console.error("Reset request failed:", result.userError.cause);
-                return "Something went wrong. Please try again.";
-              default:
-                result.userError satisfies never;
-                return `Unknown error: ` + result.userError;
-            }
-          });
+          void handleSubmit();
         }}
       >
         <h1>Reset your password</h1>

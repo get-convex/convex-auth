@@ -27,6 +27,14 @@ export function PasskeySettings() {
   // passkey must add a second one before they can remove either.
   const canRemove = passkeys.length > 1;
 
+  const handleAddPasskey = async () => {
+    setError(null);
+    const result = await addPasskey();
+    if (!result.success) {
+      setError(errorMessage(result.userError));
+    }
+  };
+
   return (
     <section>
       <h2>Your passkeys</h2>
@@ -45,16 +53,7 @@ export function PasskeySettings() {
           <strong>{error}</strong>
         </p>
       ) : null}
-      <button
-        disabled={adding}
-        onClick={async () => {
-          setError(null);
-          const result = await addPasskey();
-          if (!result.success) {
-            setError(errorMessage(result.userError));
-          }
-        }}
-      >
+      <button disabled={adding} onClick={() => void handleAddPasskey()}>
         Add a passkey
       </button>
     </section>
@@ -78,45 +77,46 @@ function PasskeyRow({
   // of this row.
   const { removePasskey, pending: removing } = useRemovePasskey(api.auth);
   const renamePasskey = useMutation(api.auth.renamePasskey);
+
+  const handleRename = async () => {
+    const name = window.prompt("New name for this passkey?");
+    if (name === null) {
+      return;
+    }
+    onError(null);
+    try {
+      const result = await renamePasskey({
+        passkeyId: passkey.passkeyId,
+        name,
+      });
+      if (!result.success) {
+        onError(errorMessage(result.userError));
+      }
+    } catch (cause) {
+      console.error("Passkey rename failed:", cause);
+      onError("Something went wrong. Please try again.");
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!window.confirm("Remove this passkey?")) {
+      return;
+    }
+    onError(null);
+    const result = await removePasskey(passkey.passkeyId);
+    if (!result.success) {
+      onError(errorMessage(result.userError));
+    }
+  };
+
   return (
     <li>
       <em>{passkey.name ?? "Unnamed passkey"}</em>, added{" "}
       {new Date(passkey.createdAt).toLocaleString()}{" "}
-      <button
-        onClick={async () => {
-          const name = window.prompt("New name for this passkey?");
-          if (name === null) {
-            return;
-          }
-          onError(null);
-          try {
-            const result = await renamePasskey({
-              passkeyId: passkey.passkeyId,
-              name,
-            });
-            if (!result.success) {
-              onError(errorMessage(result.userError));
-            }
-          } catch (cause) {
-            console.error("Passkey rename failed:", cause);
-            onError("Something went wrong. Please try again.");
-          }
-        }}
-      >
-        Rename
-      </button>{" "}
+      <button onClick={() => void handleRename()}>Rename</button>{" "}
       <button
         disabled={removing || !canRemove}
-        onClick={async () => {
-          if (!window.confirm("Remove this passkey?")) {
-            return;
-          }
-          onError(null);
-          const result = await removePasskey(passkey.passkeyId);
-          if (!result.success) {
-            onError(errorMessage(result.userError));
-          }
-        }}
+        onClick={() => void handleRemove()}
       >
         {removing ? "Waiting for your passkey…" : "Remove"}
       </button>

@@ -17,7 +17,7 @@ export function Dashboard() {
       <ChangePasswordForm currentEmail={user?.email ?? undefined} />
       <ChangeEmailForm currentEmail={user?.email ?? undefined} />
       <h2>Session</h2>
-      <button onClick={() => signOut()}>Sign out</button>
+      <button onClick={() => void signOut()}>Sign out</button>
     </>
   );
 }

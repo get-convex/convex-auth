@@ -16,6 +16,30 @@ function SignedOut(): ReactNode {
   const { signIn } = useSignInWithGithub(api.auth);
   const { flowError } = useOauth();
   const [startError, setStartError] = useState<string | null>(null);
+
+  const handleSignIn = async () => {
+    setStartError(null);
+    const result = await signIn();
+    if (result.status === "redirect") return;
+    switch (result.userError.error) {
+      case "OTHER_ERROR":
+        // The flow couldn't start, e.g. the deployment was
+        // unreachable. The original error is on `cause` if you want
+        // to log or inspect it.
+        console.error(
+          "GitHub sign-in failed to start:",
+          result.userError.cause,
+        );
+        setStartError("Couldn't start GitHub sign-in. Please try again.");
+        return;
+      default:
+        result.userError.error satisfies never;
+        setStartError(
+          `Unknown error: ${JSON.stringify(result.userError.error)}`,
+        );
+    }
+  };
+
   return (
     <>
       <h1>Sign in</h1>
@@ -54,29 +78,7 @@ function SignedOut(): ReactNode {
           <strong>{startError}</strong>
         </p>
       )}
-      <button
-        type="button"
-        onClick={async () => {
-          setStartError(null);
-          const result = await signIn();
-          if (result.status === "redirect") return;
-          switch (result.userError.error) {
-            case "OTHER_ERROR":
-              // The flow couldn't start, e.g. the deployment was
-              // unreachable. The original error is on `cause` if you want
-              // to log or inspect it.
-              console.error(
-                "GitHub sign-in failed to start:",
-                result.userError.cause,
-              );
-              setStartError("Couldn't start GitHub sign-in. Please try again.");
-              return;
-            default:
-              result.userError.error satisfies never;
-              setStartError(`Unknown error: ` + result.userError.error);
-          }
-        }}
-      >
+      <button type="button" onClick={() => void handleSignIn()}>
         Continue with GitHub
       </button>
     </>

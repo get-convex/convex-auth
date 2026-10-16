@@ -8,40 +8,44 @@ export function LogIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const handleSubmit = async () => {
+    setError(null);
+    const result = await signIn({ username, password });
+    if (result.status === "complete") {
+      return;
+    }
+    setError(() => {
+      switch (result.userError.error) {
+        case "USER_NOT_FOUND":
+          return "No account exists with that username.";
+        case "INVALID_CREDENTIALS":
+          return "Incorrect username or password.";
+        case "PASSWORD_TOO_SHORT":
+          return `Password must be at least ${result.userError.minimumLength} characters.`;
+        case "PASSWORD_TOO_LONG":
+          return `Password must be at most ${result.userError.maximumLength} characters.`;
+        case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+          return "Password can't start or end with whitespace.";
+        case "RATE_LIMITED":
+          return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+        case "OTHER_ERROR":
+          // The mutation threw unexpectedly; the original error is
+          // available on `cause` if you want to log or inspect it.
+          console.error("Sign-in failed:", result.userError.cause);
+          return "Something went wrong. Please try again.";
+        default:
+          result.userError satisfies never;
+          return `Unknown error: ${JSON.stringify(result.userError)}`;
+      }
+    });
+  };
+
   return (
     <>
       <form
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault();
-          setError(null);
-          const result = await signIn({ username, password });
-          if (result.status === "complete") {
-            return;
-          }
-          setError(() => {
-            switch (result.userError.error) {
-              case "USER_NOT_FOUND":
-                return "No account exists with that username.";
-              case "INVALID_CREDENTIALS":
-                return "Incorrect username or password.";
-              case "PASSWORD_TOO_SHORT":
-                return `Password must be at least ${result.userError.minimumLength} characters.`;
-              case "PASSWORD_TOO_LONG":
-                return `Password must be at most ${result.userError.maximumLength} characters.`;
-              case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-                return "Password can't start or end with whitespace.";
-              case "RATE_LIMITED":
-                return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
-              case "OTHER_ERROR":
-                // The mutation threw unexpectedly; the original error is
-                // available on `cause` if you want to log or inspect it.
-                console.error("Sign-in failed:", result.userError.cause);
-                return "Something went wrong. Please try again.";
-              default:
-                result.userError satisfies never;
-                return `Unknown error: ` + result.userError;
-            }
-          });
+          void handleSubmit();
         }}
       >
         <h1>Log in</h1>

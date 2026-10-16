@@ -9,7 +9,7 @@ import {
 import { api } from "../convex/_generated/api";
 import "./index.css";
 
-export function App() {
+export default function App() {
   return (
     <main>
       <h1>Convex Auth — minimal client</h1>
@@ -31,7 +31,7 @@ function SignIn() {
   return (
     <>
       <p>You are signed out.</p>
-      <button onClick={() => signIn()}>Sign in anonymously</button>
+      <button onClick={() => void signIn()}>Sign in anonymously</button>
     </>
   );
 }
@@ -44,7 +44,7 @@ function Dashboard() {
       <p>
         Signed in as <strong>{user ? user.id : "…"}</strong>
       </p>
-      <button onClick={() => signOut()}>Sign out</button>
+      <button onClick={() => void signOut()}>Sign out</button>
     </>
   );
 }

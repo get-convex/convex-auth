@@ -5,7 +5,7 @@ import { Dashboard } from "./routes/dashboard";
 import { LogIn } from "./routes/logIn";
 import "./index.css";
 
-export function App() {
+export default function App() {
   return (
     <main>
       <Routes>

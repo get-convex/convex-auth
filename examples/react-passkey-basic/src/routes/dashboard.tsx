@@ -12,7 +12,7 @@ export function Dashboard() {
           Signed in as <strong>{user.username}</strong> ({user.id})
         </p>
       )}
-      <button onClick={() => signOut()}>Sign out</button>
+      <button onClick={() => void signOut()}>Sign out</button>
     </>
   );
 }

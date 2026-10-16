@@ -10,7 +10,7 @@ import { SignUp } from "./routes/signUp";
 import { ValidateEmail } from "./routes/validateEmail";
 import "./index.css";
 
-export function App() {
+export default function App() {
   return (
     <main>
       <Routes>

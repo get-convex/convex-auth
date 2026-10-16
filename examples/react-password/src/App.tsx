@@ -6,7 +6,7 @@ import { LogIn } from "./routes/logIn";
 import { SignUp } from "./routes/signUp";
 import "./index.css";
 
-export function App() {
+export default function App() {
   return (
     <main>
       <Routes>
