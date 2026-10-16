@@ -41,6 +41,7 @@ function makeFs(initialFiles: Record<string, string> = {}) {
 type Overrides = {
   files?: Record<string, string>;
   getEnv?: (key: string) => string | null;
+  envNames?: string[];
   generateKeys?: () => Promise<{ authPrivateKey: string; authJwks: string }>;
   detectPackageManager?: (dir: string) => string;
 };
@@ -63,6 +64,7 @@ function makeDeps(overrides: Overrides = {}) {
     spinner: () => ({ stop: () => {} }),
     getEnv: overrides.getEnv ?? (() => null),
     setEnv: (k: string, v: string) => setEnvCalls.push([k, v]),
+    listEnvNames: () => overrides.envNames ?? [],
     generateKeys,
     detectPackageManager: overrides.detectPackageManager ?? (() => "npm"),
   };
@@ -246,6 +248,90 @@ describe("convex-auth init CLI", () => {
     expect(fs.files.get("/project/convex/convex.config.ts")).toBe(
       FILE_TEMPLATES["convex.config.ts"],
     );
+  });
+});
+
+describe("Convex Auth v1 detection", () => {
+  const v1Schema = `import { authTables } from "@convex-dev/auth/server";
+import { defineSchema } from "convex/server";
+
+export default defineSchema({ ...authTables });
+`;
+  const v1Http = `import { httpRouter } from "convex/server";
+import { auth } from "./auth";
+
+const http = httpRouter();
+auth.addHttpRoutes(http);
+export default http;
+`;
+  const v1Auth = `import { convexAuth } from "@convex-dev/auth/server";
+
+export const { auth, signIn, signOut, store } = convexAuth({ providers: [] });
+`;
+
+  test("warns about each sign of v1, and changes none of them", async () => {
+    const { deps, fs, warns } = makeDeps({
+      files: {
+        "/project/package.json": pkgWithAuth,
+        "/project/convex/schema.ts": v1Schema,
+        "/project/convex/http.ts": v1Http,
+        "/project/convex/auth.ts": v1Auth,
+      },
+      envNames: ["JWT_PRIVATE_KEY", "JWKS", "SITE_URL", "AUTH_GITHUB_ID"],
+    });
+
+    const { error } = await runCli(deps);
+
+    expect(error).toBeUndefined();
+    const warning = warns.join("\n");
+    expect(warning).toContain("This project still uses Convex Auth v1");
+    expect(warning).toContain("convex/schema.ts uses authTables");
+    expect(warning).toContain("convex/http.ts calls auth.addHttpRoutes");
+    expect(warning).toContain("convex/auth.ts calls convexAuth");
+    expect(warning).toContain(
+      "v1 environment variables: JWT_PRIVATE_KEY, JWKS, AUTH_GITHUB_ID",
+    );
+    // SITE_URL is also used by v2 apps, so it is not reported.
+    expect(warning).not.toContain("SITE_URL");
+    expect(warning).toContain("/migrating/from-convex-auth-v1");
+    // The v1 files are left as they were.
+    expect(fs.files.get("/project/convex/schema.ts")).toBe(v1Schema);
+    expect(fs.files.get("/project/convex/http.ts")).toBe(v1Http);
+    expect(fs.files.get("/project/convex/auth.ts")).toBe(v1Auth);
+  });
+
+  test("warns about v1 environment variables alone", async () => {
+    const { deps, warns } = makeDeps({
+      files: { "/project/package.json": pkgWithAuth },
+      envNames: ["JWKS"],
+    });
+
+    await runCli(deps);
+
+    const warning = warns.join("\n");
+    expect(warning).toContain("v1 environment variables: JWKS");
+    expect(warning).not.toContain("convex/schema.ts");
+  });
+
+  test("says nothing about v1 in a v2 project", async () => {
+    const { deps, warns } = makeDeps({
+      files: {
+        "/project/package.json": pkgWithAuth,
+        "/project/convex/schema.ts": `import { defineSchema, defineTable } from "convex/server";
+
+export default defineSchema({ users: defineTable({}) });
+`,
+        "/project/convex/http.ts": `import { httpRouter } from "convex/server";
+
+export default httpRouter();
+`,
+      },
+      envNames: ["AUTH_PRIVATE_KEY", "AUTH_JWKS", "SITE_URL"],
+    });
+
+    await runCli(deps);
+
+    expect(warns.join("\n")).not.toContain("v1");
   });
 });
 
