@@ -11,11 +11,11 @@
     "sign"
   ],
   "homepage": "https://auth-v2.previews.convex.dev",
-  "bugs": "https://github.com/get-convex/convex-auth/issues",
+  "bugs": "https://github.com/convex/convex-auth/issues",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/get-convex/convex-auth.git",
+    "url": "https://github.com/convex/convex-auth.git",
     "directory": "packages/core"
   },
   "bin": {

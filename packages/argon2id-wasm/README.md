@@ -1,7 +1,7 @@
 # argon2id-wasm
 
 > [!WARNING]
-> This package exists for [Convex Auth](https://github.com/get-convex/convex-auth).
+> This package exists for [Convex Auth](https://github.com/convex/convex-auth).
 > Use outside of Convex Auth is not supported at the moment: the API can change at
 > any time, and we can't help with other setups.
 
@@ -17,5 +17,5 @@ const ok = await verifyPassword("correct horse battery staple", phc);
 
 `hashPassword` returns a PHC string with the salt and parameters embedded.
 
-See [rust/README.md](https://github.com/get-convex/convex-auth/blob/reboot/packages/argon2id-wasm/rust/README.md)
+See [rust/README.md](https://github.com/convex/convex-auth/blob/reboot/packages/argon2id-wasm/rust/README.md)
 to build the WASM bindings.

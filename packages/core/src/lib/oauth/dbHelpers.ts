@@ -61,7 +61,7 @@ export async function insertAuthorizationRequest<
   fields: Omit<WithoutSystemFields<Doc>, "callbackUrl" | "expiresAt">,
 ): Promise<{ callbackUrl: string }> {
   // System env vars are only visible inside components on backends with
-  // get-convex/convex-backend@64c163a (July 2026); cloud always has it,
+  // convex/convex-backend@64c163a (July 2026); cloud always has it,
   // self-hosted may not.
   // TODO: remove this check when no longer needed.
   const siteUrl = process.env.CONVEX_SITE_URL;
@@ -69,7 +69,7 @@ export async function insertAuthorizationRequest<
     throw new Error(
       "CONVEX_SITE_URL is not visible inside the oauth component. " +
         "This requires a Convex backend with system env vars in component " +
-        "functions (get-convex/convex-backend@64c163a, July 2026).",
+        "functions.",
     );
   }
   const callbackUrl = `${siteUrl}${CALLBACK_PATH}`;
