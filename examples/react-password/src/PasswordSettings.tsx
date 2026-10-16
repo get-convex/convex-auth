@@ -17,27 +17,31 @@ export function PasswordSettings() {
     return null;
   }
 
+  const handleSubmit = async () => {
+    setStatus(null);
+    setPending(true);
+    try {
+      const result = await changePassword({ currentPassword, newPassword });
+      if (result.success) {
+        setCurrentPassword("");
+        setNewPassword("");
+        setStatus("Your password has been changed.");
+      } else {
+        setStatus(errorMessage(result.userError));
+      }
+    } catch (cause) {
+      console.error("Password change failed:", cause);
+      setStatus("Something went wrong. Please try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setStatus(null);
-        setPending(true);
-        try {
-          const result = await changePassword({ currentPassword, newPassword });
-          if (result.success) {
-            setCurrentPassword("");
-            setNewPassword("");
-            setStatus("Your password has been changed.");
-          } else {
-            setStatus(errorMessage(result.userError));
-          }
-        } catch (cause) {
-          console.error("Password change failed:", cause);
-          setStatus("Something went wrong. Please try again.");
-        } finally {
-          setPending(false);
-        }
+        void handleSubmit();
       }}
     >
       <h2>Change your password</h2>

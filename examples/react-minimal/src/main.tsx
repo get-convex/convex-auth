@@ -3,9 +3,9 @@ import { ConvexReactClient } from "convex/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "../convex/_generated/api";
-import { App } from "./App";
+import App from "./App";
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL!);
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

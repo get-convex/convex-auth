@@ -25,44 +25,48 @@ export function SignUp() {
     );
   }
 
+  const handleSubmit = async () => {
+    setError(null);
+    const result = await signUp({ email, password });
+    if (result.success) {
+      setSentTo(email);
+      return;
+    }
+    setError(() => {
+      switch (result.userError.error) {
+        case "INVALID_EMAIL":
+          return "That email address doesn't look valid.";
+        case "EMAIL_TAKEN":
+          return "An account already exists with that email address.";
+        case "RATE_LIMITED":
+          return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+        case "PASSWORD_TOO_SHORT":
+          return `Password must be at least ${result.userError.minimumLength} characters.`;
+        case "PASSWORD_TOO_LONG":
+          return `Password must be at most ${result.userError.maximumLength} characters.`;
+        case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+          return "Password can't start or end with whitespace.";
+        case "PASSWORD_TOO_COMMON":
+          return "This password is one of the most commonly used passwords. Please choose a different one.";
+        case "OTHER_ERROR":
+          // The mutation threw unexpectedly; the original error is
+          // available on `cause` if you want to log or inspect it.
+          console.error("Sign-up failed:", result.userError.cause);
+          return "Something went wrong. Please try again.";
+        default:
+          result.userError satisfies never;
+          console.error("Sign-up failed:", result.userError);
+          return "Something went wrong. Please try again.";
+      }
+    });
+  };
+
   return (
     <>
       <form
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault();
-          setError(null);
-          const result = await signUp({ email, password });
-          if (result.success) {
-            setSentTo(email);
-            return;
-          }
-          setError(() => {
-            switch (result.userError.error) {
-              case "INVALID_EMAIL":
-                return "That email address doesn't look valid.";
-              case "EMAIL_TAKEN":
-                return "An account already exists with that email address.";
-              case "RATE_LIMITED":
-                return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
-              case "PASSWORD_TOO_SHORT":
-                return `Password must be at least ${result.userError.minimumLength} characters.`;
-              case "PASSWORD_TOO_LONG":
-                return `Password must be at most ${result.userError.maximumLength} characters.`;
-              case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-                return "Password can't start or end with whitespace.";
-              case "PASSWORD_TOO_COMMON":
-                return "This password is one of the most commonly used passwords. Please choose a different one.";
-              case "OTHER_ERROR":
-                // The mutation threw unexpectedly; the original error is
-                // available on `cause` if you want to log or inspect it.
-                console.error("Sign-up failed:", result.userError.cause);
-                return "Something went wrong. Please try again.";
-              default:
-                result.userError satisfies never;
-                console.error("Sign-up failed:", result.userError);
-                return "Something went wrong. Please try again.";
-            }
-          });
+          void handleSubmit();
         }}
       >
         <h1>Sign up</h1>

@@ -3,7 +3,7 @@ import {
   SignInWithUsernamePasskeyResult,
   useSignInWithUsernamePasskey,
 } from "@convex-dev/auth/methods/username-passkey/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 
 export function LogIn() {
@@ -15,28 +15,36 @@ export function LogIn() {
   const [error, setError] = useState<string | null>(null);
 
   // Show autofill failures in the same error area as the modal flow. The
-  // most recent failure from either flow wins.
+  // most recent failure from either flow wins. The error is set during
+  // render, when `lastError` changes, rather than in an effect, as
+  // https://react.dev/learn/you-might-not-need-an-effect recommends.
   const { lastError } = autofill;
-  useEffect(() => {
+  const [shownLastError, setShownLastError] = useState(lastError);
+  if (lastError !== shownLastError) {
+    setShownLastError(lastError);
     if (lastError !== null) {
       setError(errorMessage(lastError));
     }
-  }, [lastError]);
+  }
 
   // Also lock the form while an autofill sign-in is being verified on the
   // server.
   const busy = pending || autofill.status === "signingIn";
 
+  const handleSubmit = async () => {
+    setError(null);
+    const result = await signIn({ username });
+    if (result.status === "complete") {
+      return;
+    }
+    setError(errorMessage(result.userError));
+  };
+
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setError(null);
-        const result = await signIn({ username });
-        if (result.status === "complete") {
-          return;
-        }
-        setError(errorMessage(result.userError));
+        void handleSubmit();
       }}
     >
       <h1>Log in</h1>

@@ -12,48 +12,52 @@ export function ChangeEmailForm({
   const [currentPasswordField, setCurrentPasswordField] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
+  const handleSubmit = async () => {
+    setMessage(null);
+    const result = await startChangeEmail({
+      newEmail: newEmailField,
+      currentPassword: currentPasswordField,
+    });
+    if (result.success) {
+      setMessage(
+        `We sent a link to ${newEmailField}. Open it in this browser to ` +
+          "confirm the change.",
+      );
+      return;
+    }
+    setMessage(() => {
+      switch (result.userError.error) {
+        case "NOT_LOGGED_IN":
+          return "You are not logged in.";
+        case "INVALID_CREDENTIALS":
+          return "The current password is incorrect.";
+        case "INVALID_EMAIL":
+          return "That email address doesn't look valid.";
+        case "EMAIL_TAKEN":
+          return "An account already exists with that email address.";
+        case "PASSWORD_TOO_SHORT":
+          return `Password must be at least ${result.userError.minimumLength} characters.`;
+        case "PASSWORD_TOO_LONG":
+          return `Password must be at most ${result.userError.maximumLength} characters.`;
+        case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+          return "Password can't start or end with whitespace.";
+        case "RATE_LIMITED":
+          return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+        case "OTHER_ERROR":
+          console.error("Change email failed:", result.userError.cause);
+          return "Something went wrong. Please try again.";
+        default:
+          result.userError satisfies never;
+          return `Unknown error: ${JSON.stringify(result.userError)}`;
+      }
+    });
+  };
+
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setMessage(null);
-        const result = await startChangeEmail({
-          newEmail: newEmailField,
-          currentPassword: currentPasswordField,
-        });
-        if (result.success) {
-          setMessage(
-            `We sent a link to ${newEmailField}. Open it in this browser to ` +
-              "confirm the change.",
-          );
-          return;
-        }
-        setMessage(() => {
-          switch (result.userError.error) {
-            case "NOT_LOGGED_IN":
-              return "You are not logged in.";
-            case "INVALID_CREDENTIALS":
-              return "The current password is incorrect.";
-            case "INVALID_EMAIL":
-              return "That email address doesn't look valid.";
-            case "EMAIL_TAKEN":
-              return "An account already exists with that email address.";
-            case "PASSWORD_TOO_SHORT":
-              return `Password must be at least ${result.userError.minimumLength} characters.`;
-            case "PASSWORD_TOO_LONG":
-              return `Password must be at most ${result.userError.maximumLength} characters.`;
-            case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-              return "Password can't start or end with whitespace.";
-            case "RATE_LIMITED":
-              return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
-            case "OTHER_ERROR":
-              console.error("Change email failed:", result.userError.cause);
-              return "Something went wrong. Please try again.";
-            default:
-              result.userError satisfies never;
-              return `Unknown error: ` + result.userError;
-          }
-        });
+        void handleSubmit();
       }}
     >
       <h2>Change email</h2>

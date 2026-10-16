@@ -76,7 +76,7 @@ function ConfirmEmailChangeWithCode({ emailCode }: { emailCode: string }) {
       state.userError satisfies never;
       return (
         <ConfirmEmailChangeError
-          message={"Unknown error: " + state.userError}
+          message={`Unknown error: ${JSON.stringify(state.userError)}`}
         />
       );
   }

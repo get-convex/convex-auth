@@ -16,7 +16,7 @@ export function Dashboard() {
           <PasswordSettings />
         </>
       )}
-      <button onClick={() => signOut()}>Sign out</button>
+      <button onClick={() => void signOut()}>Sign out</button>
     </>
   );
 }

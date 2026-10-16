@@ -13,50 +13,54 @@ export function ChangePasswordForm({
   const [newPasswordField, setNewPasswordField] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
+  const handleSubmit = async () => {
+    setMessage(null);
+    setPending(true);
+    try {
+      const result = await changePassword({
+        currentPassword: currentPasswordField,
+        newPassword: newPasswordField,
+      });
+      if (result.success) {
+        setCurrentPasswordField("");
+        setNewPasswordField("");
+        setMessage("Your password was changed.");
+        return;
+      }
+      setMessage(() => {
+        switch (result.userError.error) {
+          case "NOT_LOGGED_IN":
+            return "You are not logged in.";
+          case "INVALID_CREDENTIALS":
+            return "The current password is incorrect.";
+          case "PASSWORD_TOO_SHORT":
+            return `Password must be at least ${result.userError.minimumLength} characters.`;
+          case "PASSWORD_TOO_LONG":
+            return `Password must be at most ${result.userError.maximumLength} characters.`;
+          case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
+            return "Password can't start or end with whitespace.";
+          case "PASSWORD_TOO_COMMON":
+            return "This password is one of the most commonly used passwords. Please choose a different one.";
+          case "RATE_LIMITED":
+            return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
+          default:
+            result.userError satisfies never;
+            return `Unknown error: ${JSON.stringify(result.userError)}`;
+        }
+      });
+    } catch (error) {
+      console.error("Change password failed:", error);
+      setMessage("Something went wrong. Please try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setMessage(null);
-        setPending(true);
-        try {
-          const result = await changePassword({
-            currentPassword: currentPasswordField,
-            newPassword: newPasswordField,
-          });
-          if (result.success) {
-            setCurrentPasswordField("");
-            setNewPasswordField("");
-            setMessage("Your password was changed.");
-            return;
-          }
-          setMessage(() => {
-            switch (result.userError.error) {
-              case "NOT_LOGGED_IN":
-                return "You are not logged in.";
-              case "INVALID_CREDENTIALS":
-                return "The current password is incorrect.";
-              case "PASSWORD_TOO_SHORT":
-                return `Password must be at least ${result.userError.minimumLength} characters.`;
-              case "PASSWORD_TOO_LONG":
-                return `Password must be at most ${result.userError.maximumLength} characters.`;
-              case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-                return "Password can't start or end with whitespace.";
-              case "PASSWORD_TOO_COMMON":
-                return "This password is one of the most commonly used passwords. Please choose a different one.";
-              case "RATE_LIMITED":
-                return `Too many attempts. Try again in ${Math.ceil(result.userError.retryAfterMs / 1000)} seconds.`;
-              default:
-                result.userError satisfies never;
-                return `Unknown error: ` + result.userError;
-            }
-          });
-        } catch (error) {
-          console.error("Change password failed:", error);
-          setMessage("Something went wrong. Please try again.");
-        } finally {
-          setPending(false);
-        }
+        void handleSubmit();
       }}
     >
       <h2>Change password</h2>

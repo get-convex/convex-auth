@@ -15,7 +15,7 @@ export function Dashboard() {
       )}
       {/* TODO(nicolas) Update the structure of the demo to avoid concurrent ceremonies */}
       <PasskeySettings />
-      <button onClick={() => signOut()}>Sign out</button>
+      <button onClick={() => void signOut()}>Sign out</button>
     </>
   );
 }
