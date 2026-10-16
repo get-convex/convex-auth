@@ -23,7 +23,7 @@ import {
   type CreateUserFn,
   type OnSignInFn,
 } from "../lib/types.ts";
-import { signJwt, generateRefreshToken } from "./crypto.ts";
+import { generateRefreshToken, importSigningKey, signJwt } from "./crypto.ts";
 import { sha256Hex } from "../lib/crypto.ts";
 
 // --- Configuration ---------------------------------------------------------
@@ -217,11 +217,9 @@ async function mintAccessToken(
   issuer: string,
   ttlSeconds: number,
 ) {
-  const privateKeyPkcs8 = atob(env.AUTH_PRIVATE_KEY);
-  const { keys } = JSON.parse(env.AUTH_JWKS) as { keys: { kid: string }[] };
-  const kid = keys[0].kid;
+  const { key, kid } = await importSigningKey(env);
   return await signJwt({
-    privateKeyPkcs8,
+    key,
     kid,
     subject: userId,
     issuer,

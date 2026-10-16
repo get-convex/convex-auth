@@ -937,3 +937,41 @@ describe("getUserIdByAccount", () => {
     expect(other).toBeNull();
   });
 });
+
+describe("malformed signing keys", () => {
+  let saved: { privateKey?: string; jwks?: string };
+  beforeEach(() => {
+    saved = {
+      privateKey: process.env.AUTH_PRIVATE_KEY,
+      jwks: process.env.AUTH_JWKS,
+    };
+  });
+  afterEach(() => {
+    process.env.AUTH_PRIVATE_KEY = saved.privateKey;
+    process.env.AUTH_JWKS = saved.jwks;
+  });
+
+  test.each([
+    ["AUTH_JWKS", "garbage", /AUTH_JWKS is not valid JSON/],
+    ["AUTH_JWKS", '{"keys":[]}', /AUTH_JWKS is not a JWKS whose first key/],
+    [
+      "AUTH_PRIVATE_KEY",
+      "not base64!",
+      /AUTH_PRIVATE_KEY is not a base64-encoded PKCS#8 private key/,
+    ],
+    [
+      "AUTH_PRIVATE_KEY",
+      btoa("not a PEM"),
+      /AUTH_PRIVATE_KEY is not a base64-encoded PKCS#8 RSA private key/,
+    ],
+  ])("names %s when it is %j", async (name, value, message) => {
+    process.env[name] = value;
+    const t = setup();
+    const error = await signUp(t, claims()).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(String(error)).toMatch(message);
+    expect(String(error)).toContain("npx @convex-dev/auth --force");
+  });
+});
