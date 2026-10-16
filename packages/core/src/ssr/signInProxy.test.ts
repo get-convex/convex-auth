@@ -171,6 +171,11 @@ describe("token interception", () => {
 });
 
 describe("what the proxy refuses", () => {
+  // Every refusal is logged; keep the test output quiet.
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
   test("a function that is not allowlisted", async () => {
     const fetchSpy = upstream({ status: "success", value: null });
     const response = await handler(
@@ -190,6 +195,24 @@ describe("what the proxy refuses", () => {
       call(envelope(), { headers: { origin: "https://evil.test" } }),
     );
     expect(response.status).toBe(403);
+    expect(await response.text()).toBe(
+      "Cross-site request refused: Origin https://evil.test does not match " +
+        "Host app.test. If the app runs behind a proxy that rewrites Host, " +
+        "add its public origin to `allowedOrigins`.",
+    );
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Origin https://evil.test does not match"),
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test("a request without an Origin header, saying so", async () => {
+    const fetchSpy = upstream({ status: "success", value: null });
+    const request = call(envelope());
+    request.headers.delete("origin");
+    const response = await handler(request);
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("has no Origin header");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -199,6 +222,7 @@ describe("what the proxy refuses", () => {
       call({ ...envelope(), format: "some_future_format" }),
     );
     expect(response.status).toBe(400);
+    expect(await response.text()).toContain('"format": "convex_encoded_json"');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -206,6 +230,7 @@ describe("what the proxy refuses", () => {
     const fetchSpy = upstream({ status: "success", value: null });
     const response = await handler(call(envelope(), { kind: "query_ts" }));
     expect(response.status).toBe(404);
+    expect(await response.text()).toContain("?path=/api/mutation");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

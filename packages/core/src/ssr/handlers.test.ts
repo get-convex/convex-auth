@@ -157,6 +157,7 @@ describe("cross-site requests", () => {
   const sameSite = { origin: "https://app.test", host: "app.test" };
 
   test("refreshHandler refuses without calling Convex or writing cookies", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const handler = refreshHandler({
       convexUrl: "https://x.convex.cloud",
       refreshSession: fnRef,
@@ -168,9 +169,15 @@ describe("cross-site requests", () => {
     expect((await res.json()).tokens).toBeNull();
     expect(mutationMock).not.toHaveBeenCalled();
     expect(res.headers.getSetCookie()).toEqual([]);
+    // The body keeps the session shape, so the reason goes to the log.
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("Origin https://evil.test does not match"),
+    );
+    warn.mockRestore();
   });
 
   test("signOutHandler refuses without revoking or clearing cookies", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const handler = signOutHandler({
       convexUrl: "https://x.convex.cloud",
       signOut: fnRef,
@@ -181,6 +188,7 @@ describe("cross-site requests", () => {
     expect(res.status).toBe(403);
     expect(mutationMock).not.toHaveBeenCalled();
     expect(res.headers.getSetCookie()).toEqual([]);
+    warn.mockRestore();
   });
 
   test("a same-site Origin is served", async () => {

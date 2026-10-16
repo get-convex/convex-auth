@@ -33,7 +33,7 @@ import {
   clearAuthCookies,
 } from "./cookies.ts";
 import { httpCookies } from "./httpCookies.ts";
-import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.ts";
+import { forbiddenOriginResponse, untrustedOriginReason } from "./origin.ts";
 import { ServerAuthSession } from "./session.ts";
 
 /** A WHATWG request handler. */
@@ -62,8 +62,9 @@ export interface RefreshHandlerConfig {
 export function refreshHandler(config: RefreshHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
   return async (request) => {
-    if (!isTrustedOrigin(request, config.allowedOrigins)) {
-      return forbiddenOriginResponse();
+    const refusal = untrustedOriginReason(request, config.allowedOrigins);
+    if (refusal !== null) {
+      return forbiddenOriginResponse(refusal);
     }
     const cookies = httpCookies(request);
     const session = new ServerAuthSession({
@@ -108,8 +109,9 @@ export interface SignOutHandlerConfig {
 export function signOutHandler(config: SignOutHandlerConfig): RequestHandler {
   const client = new ConvexHttpClient(config.convexUrl);
   return async (request) => {
-    if (!isTrustedOrigin(request, config.allowedOrigins)) {
-      return forbiddenOriginResponse();
+    const refusal = untrustedOriginReason(request, config.allowedOrigins);
+    if (refusal !== null) {
+      return forbiddenOriginResponse(refusal);
     }
     const cookies = httpCookies(request);
     const refreshToken = (await cookies.get(AUTH_REFRESH_COOKIE)) ?? null;
