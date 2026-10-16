@@ -38,7 +38,7 @@ import type { AuthCookieOptions } from "./cookies.ts";
 import { writeAuthCookies } from "./cookies.ts";
 import type { RequestHandler } from "./handlers.ts";
 import { httpCookies } from "./httpCookies.ts";
-import { forbiddenOriginResponse, isTrustedOrigin } from "./origin.ts";
+import { untrustedOriginReason } from "./origin.ts";
 
 /**
  * A sign-in function exposed through the proxy.
@@ -161,6 +161,13 @@ function classifyResult(
   }
 }
 
+/** A refused request: logs the reason and replies with it as a
+ * {@link textError}. */
+function refuse(status: number, message: string): Response {
+  console.warn(`Convex Auth sign-in route: ${message}`);
+  return textError(status, message);
+}
+
 /** A plain-text error. `ConvexHttpClient` throws its body as an `Error`. */
 function textError(status: number, message: string): Response {
   return new Response(message, {
@@ -188,12 +195,19 @@ export function convexProxyHandler(config: ConvexProxyConfig): RequestHandler {
     // The CSRF guard, before anything is read off the request: a cross-site
     // sign-in would store the minted session in the victim's browser (login
     // CSRF), so it is refused up front.
-    if (!isTrustedOrigin(request, config.allowedOrigins)) {
-      return forbiddenOriginResponse();
-    }
+    // The refusals below are logged as well as returned, since the caller is
+    // often a script or a misconfigured deployment rather than our client.
+    const refusal = untrustedOriginReason(request, config.allowedOrigins);
+    if (refusal !== null) return refuse(403, refusal);
 
     const kind = udfKindOf(new URL(request.url));
-    if (kind === null) return textError(404, "Not an auth proxy endpoint.");
+    if (kind === null) {
+      return refuse(
+        404,
+        "Not an auth proxy endpoint. The sign-in route expects the function " +
+          "kind in the query string: ?path=/api/mutation or ?path=/api/action.",
+      );
+    }
 
     let envelope: CallEnvelope | null;
     try {
@@ -202,12 +216,19 @@ export function convexProxyHandler(config: ConvexProxyConfig): RequestHandler {
       envelope = null;
     }
     if (envelope === null) {
-      return textError(400, "Malformed Convex function call.");
+      return refuse(
+        400,
+        "Malformed Convex function call. The sign-in route expects a JSON " +
+          'body { "path": "auth:signIn...", "args": [{ ... }], ' +
+          '"format": "convex_encoded_json" }, with exactly one element in ' +
+          "args.",
+      );
     }
     if (!allowed.has(envelope.path)) {
-      return textError(
+      return refuse(
         403,
-        `${envelope.path} is not exposed through the auth proxy.`,
+        `${envelope.path} is not exposed through the auth proxy. Add it to ` +
+          "the `signIn` list of the sign-in route.",
       );
     }
 

@@ -225,3 +225,31 @@ The auth cookies are marked `Secure` (sent only over HTTPS) when `NODE_ENV` is
 The auth routes reject cross-site requests by comparing the request's `Origin`
 with its `Host`. If your app runs behind a proxy that rewrites `Host`, add your
 public origin to `allowedOrigins` in `setupConvexAuthServer`.
+
+## Signing in from scripts and tests
+
+The provider hooks call the sign-in route for you, so an app never builds
+these requests itself. To get a session from a script or an end-to-end test,
+for example with `curl`, send the request the hooks send. The route speaks
+the protocol of `ConvexHttpClient`:
+
+- `POST` to `/auth/signin?path=/api/mutation`, or `?path=/api/action` when the
+  sign-in function is an action.
+- A JSON body with the function name in `path`, its arguments as a
+  one-element `args` array, and `"format": "convex_encoded_json"`.
+- An `Origin` header matching the app's own origin. Browsers send it, but a
+  script has to set it, or the route refuses the request as cross-site.
+
+```sh
+curl -c cookies.txt -X POST "http://localhost:3000/auth/signin?path=/api/mutation" \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d '{"path": "auth:signInWithUsernamePassword", "args": [{"username": "alice", "password": "..."}], "format": "convex_encoded_json"}'
+```
+
+On success, the response sets the auth cookies, and its body holds the
+function's result with the refresh token removed. Send the cookies with the
+next requests (`curl -b cookies.txt`) to make them as the signed-in user.
+
+The function must be in the `signIn` list. When the route refuses a request,
+its response and a warning in the server logs say why.
