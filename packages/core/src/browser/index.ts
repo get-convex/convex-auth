@@ -20,5 +20,6 @@ export {
   type SpaAuthApi,
   type SsrAuthApi,
   type AuthClientConfig,
+  type AuthClientConfigBase,
   type AuthState,
 } from "./sessionManager.ts";
