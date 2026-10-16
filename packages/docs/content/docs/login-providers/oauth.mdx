@@ -453,3 +453,99 @@ Include an `App.tsx` like the following in your application:
 </Tabs>
 
 {/* prettier-ignore-end */}
+
+## Deploying
+
+### Callback URLs
+
+The provider redirects users back to your Convex deployment, not to your
+frontend. The callback URL is your deployment's `CONVEX_SITE_URL`, followed by
+the `httpPrefix` of the component and `/callback`. Each deployment has its own
+`CONVEX_SITE_URL`, so each one has its own callback URL:
+
+| Deployment        | Callback URL (GitHub)                                        |
+| ----------------- | ------------------------------------------------------------ |
+| Cloud development | `https://happy-animal-123.convex.site/oauth/github/callback` |
+| Production        | `https://clever-otter-456.convex.site/oauth/github/callback` |
+| Local backend     | `http://127.0.0.1:3211/oauth/github/callback`                |
+
+To get the `CONVEX_SITE_URL` of a deployment, run:
+
+```sh
+npx convex env get CONVEX_SITE_URL         # development deployment
+npx convex env get CONVEX_SITE_URL --prod  # production deployment
+```
+
+On a local backend, the port is the site port of the backend (3211 by
+default), so the callback URL changes if the port changes.
+
+Whether you can register the URLs of several deployments with one OAuth app
+depends on the provider:
+
+- **GitHub**: an OAuth app has a single callback URL. Create one OAuth app for
+  development and another one for production.
+- **Google**: an OAuth client can have several redirect URIs, and Google
+  accepts `http://127.0.0.1` for local development. Add the callback URL of
+  each deployment, or create a separate client for production.
+- **Apple**: a Services ID can have several return URLs, but Apple rejects
+  `localhost` and IP addresses. See the note in the Apple tab above.
+
+### Environment variables
+
+Environment variables are set on each deployment. Set the client ID and the
+client secret of your production OAuth app on your production deployment:
+
+```sh
+npx convex env set --prod AUTH_GITHUB_CLIENT_ID YOUR_PROD_CLIENT_ID
+npx convex env set --prod AUTH_GITHUB_CLIENT_SECRET YOUR_PROD_CLIENT_SECRET
+```
+
+### Allowed redirect origins
+
+After the callback, Convex Auth sends the user back to the page where they
+started signing in. That page's origin must be in `allowedRedirectOrigins`,
+or the sign-in fails to start. The examples above only
+allow `http://localhost:5173`, so add your production frontend's origin before you
+deploy.
+
+To use a different origin on each deployment, read it from an environment
+variable. Declare it in `convex/convex.config.ts`:
+
+```ts title="convex/convex.config.ts"
+const app = defineApp({
+  env: {
+    // ...
+    SITE_URL: v.optional(v.string()),
+  },
+});
+```
+
+Then use it in `convex/auth.ts`:
+
+```ts title="convex/auth.ts"
+import { env } from "./_generated/server";
+
+// The origin of your frontend, e.g. "https://app.example.com" in production.
+const allowedRedirectOrigins = [env.SITE_URL ?? "http://localhost:5173"];
+
+export const { startSignInWithGithub, completeSignInWithGithub } = setupGithub(
+  auth,
+  { component: components.authGithub, allowedRedirectOrigins },
+).attachUserCallbacks({ createUser: internal.users.createUser });
+```
+
+And set it on your production deployment:
+
+```sh
+npx convex env set --prod SITE_URL https://app.example.com
+```
+
+Origins must match exactly: `http://localhost:5173` and
+`http://127.0.0.1:5173` are different origins, and so are two ports.
+
+<Callout type="info">
+  In Convex Auth v1, the `SITE_URL` environment variable set where OAuth
+  redirected users. Convex Auth v2 doesn't read it for OAuth: only
+  `allowedRedirectOrigins` matters. This page uses the same name to keep the
+  configuration in one place, but you can choose any name.
+</Callout>
