@@ -44,7 +44,7 @@ export interface SsrAuthApi {
 }
 
 /** Config common to both session models. */
-interface AuthClientConfigBase {
+export interface AuthClientConfigBase {
   /** Where tokens are persisted. */
   storage: TokenStorage;
   /** Namespace for storage keys; typically the deployment URL. */
@@ -77,10 +77,15 @@ interface AuthClientConfigBase {
  *
  * The mode determines who holds the refresh token, and therefore the shape of
  * the auth API the client drives:
- *  - `"spa"`: JS holds the refresh token; the client passes it to a
- *    {@link SpaAuthApi}.
- *  - `"ssr"`: the refresh token is in an httpOnly cookie; a {@link SsrAuthApi}
- *    is called without one and reads the cookie server-side.
+ *  - `{ mode: "spa", authApi }`: JS holds the refresh token; the client passes
+ *    it to `authApi`, a {@link SpaAuthApi}.
+ *  - `{ mode: "ssr", authApi }`: the refresh token is in an httpOnly cookie;
+ *    `authApi`, a {@link SsrAuthApi}, is called without one and reads the
+ *    cookie server-side.
+ *
+ * Both modes take the other fields of {@link AuthClientConfigBase}
+ * (`storage`, `storageNamespace`, `initialAccessToken`, `ambientSignIns`,
+ * `verbose`).
  */
 export type AuthClientConfig =
   | (AuthClientConfigBase & { mode: "spa"; authApi: SpaAuthApi })
