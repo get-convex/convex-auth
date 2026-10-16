@@ -10,6 +10,8 @@
  *   3. Scaffolds `convex/auth.config.ts`, `convex/convex.config.ts` and
  *      `convex/auth.ts`. Existing files are left untouched — the CLI instead
  *      prints the content the file should contain.
+ *   4. Warns if the project still has signs of Convex Auth v1 (it changes
+ *      nothing about them), and points to the migration guide.
  *
  * The command's behavior is expressed as a set of injectable dependencies (see
  * `defaultDeps`) so it can be driven end-to-end in unit tests with the file
@@ -49,6 +51,50 @@ const AUTH_PACKAGE = "@convex-dev/auth";
 /** Printed at the end of a successful run. */
 const DOCS_URL = "https://auth-v2.previews.convex.dev";
 // TODO(nicolas) Replace by the real URL after it’s released
+
+/** The guide for projects that still have Convex Auth v1 code or config. */
+const MIGRATION_DOCS_URL = `${DOCS_URL}/migrating/from-convex-auth-v1`;
+
+/**
+ * Environment variables that Convex Auth v1 read. v2 reads none of them: its
+ * keys are `AUTH_PRIVATE_KEY` / `AUTH_JWKS`, and an OAuth component gets its
+ * credentials from `convex.config.ts`.
+ */
+const V1_ENV_VARS = [
+  "JWT_PRIVATE_KEY",
+  "JWKS",
+  "AUTH_GITHUB_ID",
+  "AUTH_GITHUB_SECRET",
+  "AUTH_GOOGLE_ID",
+  "AUTH_GOOGLE_SECRET",
+  "AUTH_APPLE_ID",
+  "AUTH_APPLE_SECRET",
+];
+
+/**
+ * Code that only Convex Auth v1 projects contain: each entry is a file in
+ * `convex/`, a pattern that matches the v1 code in it, and what to tell the
+ * user about it.
+ */
+const V1_CODE_SIGNS = [
+  {
+    file: "schema.ts",
+    pattern: /\bauthTables\b/,
+    message: "convex/schema.ts uses authTables, which v2 no longer exports",
+  },
+  {
+    file: "http.ts",
+    pattern: /\.addHttpRoutes\s*\(/,
+    message:
+      "convex/http.ts calls auth.addHttpRoutes, which v2 no longer has: " +
+      "the auth component serves its own routes",
+  },
+  {
+    file: "auth.ts",
+    pattern: /\bconvexAuth\s*\(/,
+    message: "convex/auth.ts calls convexAuth, the v1 setup function",
+  },
+];
 
 /** v2 ships under the `beta` tag. `latest` is still v1. */
 const INSTALL_SPEC = `${AUTH_PACKAGE}@beta`;
@@ -134,6 +180,8 @@ export type InitDeps = {
   generateKeys: () => Promise<AuthKeys>;
   getEnv: (key: string) => string | null;
   setEnv: (key: string, value: string) => void;
+  /** The names of the env vars set on the deployment (never their values). */
+  listEnvNames: () => string[];
   detectPackageManager: (dir: string) => string;
 };
 
@@ -222,6 +270,24 @@ function setConvexEnv(key: string, value: string) {
   }
 }
 
+/**
+ * List the names of the env vars set on the current directory's Convex
+ * deployment. `--names-only` keeps the values (secrets) out of the output.
+ * It returns an empty list if the command fails: the list only feeds a
+ * warning, which must not stop the setup.
+ */
+function listConvexEnvNames() {
+  const result = spawnSync("npx", ["convex", "env", "list", "--names-only"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  if (result.status !== 0) return [];
+  return (result.stdout ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
 /** The real implementations, injected into `runInit` (overridden in tests). */
 export function defaultDeps(): InitDeps {
   return {
@@ -238,6 +304,7 @@ export function defaultDeps(): InitDeps {
     generateKeys: generateAuthKeys,
     getEnv: getConvexEnv,
     setEnv: setConvexEnv,
+    listEnvNames: listConvexEnvNames,
     detectPackageManager,
   };
 }
@@ -375,6 +442,43 @@ function reportFiles(deps: InitDeps, outcomes: FileOutcome[]) {
   }
 }
 
+/**
+ * Look for signs of Convex Auth v1 in `convex/` and on the deployment. It
+ * returns one message per sign found, and changes nothing.
+ */
+function findV1Signs(deps: InitDeps, dir: string): string[] {
+  const signs: string[] = [];
+  for (const { file, pattern, message } of V1_CODE_SIGNS) {
+    const filePath = join(dir, "convex", file);
+    if (!deps.fs.existsSync(filePath)) continue;
+    if (pattern.test(deps.fs.readFileSync(filePath))) signs.push(message);
+  }
+
+  const setNames = new Set(deps.listEnvNames());
+  const v1Vars = V1_ENV_VARS.filter((name) => setNames.has(name));
+  if (v1Vars.length > 0) {
+    signs.push(
+      `The deployment still has v1 environment variables: ${v1Vars.join(", ")}`,
+    );
+  }
+  return signs;
+}
+
+function reportV1Signs(deps: InitDeps, signs: string[]) {
+  if (signs.length === 0) return;
+  deps.warn(heading("This project still uses Convex Auth v1"));
+  for (const sign of signs) {
+    deps.warn(item(symbols.skipped, sign));
+  }
+  deps.warn(
+    detail(
+      "Nothing was changed. Follow the migration guide to move to v2, then " +
+        "remove what v2 no longer uses:",
+    ),
+  );
+  deps.warn(detail(MIGRATION_DOCS_URL));
+}
+
 function reportNextSteps(deps: InitDeps) {
   deps.log(heading("Next steps"));
   deps.log(
@@ -432,6 +536,7 @@ async function runInit(
   reportKeys(deps, keyOutcome);
 
   reportFiles(deps, writeAuthFiles(deps, dir));
+  reportV1Signs(deps, findV1Signs(deps, dir));
   reportNextSteps(deps);
 }
 
