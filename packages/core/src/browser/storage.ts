@@ -27,10 +27,15 @@ export interface TokenStorage {
   removeItem: (key: string) => void | Promise<void>;
 }
 
+// The token keys differ from Convex Auth v1's (`__convexAuthJWT` and
+// `__convexAuthRefreshToken`), so a browser that still holds v1 tokens doesn't
+// hand them to a v2 backend, which can't verify them. They also name the SSR
+// cookies (see `ssr/cookies.ts`). Renaming them signs every user out.
+
 /** Storage key for the current access token (a JWT). */
-export const JWT_STORAGE_KEY = "__convexAuthJWT";
+export const JWT_STORAGE_KEY = "__convexAuthV2AccessToken";
 /** Storage key for the current (rotating) refresh token. */
-export const REFRESH_TOKEN_STORAGE_KEY = "__convexAuthRefreshToken";
+export const REFRESH_TOKEN_STORAGE_KEY = "__convexAuthV2RefreshToken";
 
 /**
  * An in-memory {@link TokenStorage}, used as a fallback when no persistent
