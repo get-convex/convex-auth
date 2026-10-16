@@ -507,6 +507,46 @@ describe("oauth callback", () => {
     expect(loggedText(errors)).toContain("responded with a redirect");
   });
 
+  test("plain http endpoints on a loopback host are allowed for local development", async () => {
+    const t = setup();
+    const request = {
+      ...baseRequest,
+      tokenEndpoint: "http://localhost:8080/token",
+      userInfoEndpoints: { profile: "http://127.0.0.1:8080/userinfo" },
+    } satisfies FlowRequest;
+    const profile = { id: "user-1" };
+    stubFetch({
+      [request.tokenEndpoint]: () =>
+        jsonResponse({ access_token: "access-token-1" }),
+      [request.userInfoEndpoints.profile]: () => jsonResponse(profile),
+    });
+    const { state } = await startFlow(t, request);
+
+    const response = await callback(t, { state, code: "code-1" });
+
+    expect(redirectParams(response).get(OAUTH_CODE_PARAM)).toEqual(
+      expect.any(String),
+    );
+  });
+
+  test("a plain http endpoint on any other host is refused", async () => {
+    const t = setup();
+    const errors = spyConsoleError();
+    const calls = stubFetch({});
+    const { state } = await startFlow(t, {
+      ...idTokenRequest,
+      tokenEndpoint: "http://provider.example.com/token",
+    });
+
+    const response = await callback(t, { state, code: "code-1" });
+
+    expect(redirectParams(response).get(OAUTH_ERROR_PARAM)).toBe("oauth_error");
+    expect(loggedText(errors)).toContain(
+      "Refusing non-https request to http://provider.example.com/token",
+    );
+    expect(calls).toHaveLength(0);
+  });
+
   describe("id_token validation", () => {
     /** Run `request`'s flow against a token endpoint returning `idToken`. */
     async function callbackWithIdToken(

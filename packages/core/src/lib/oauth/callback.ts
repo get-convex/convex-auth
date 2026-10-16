@@ -87,16 +87,31 @@ export function normalizeProviderError(
 }
 
 /**
+ * Whether the server may send credentials to a provider endpoint: https, or
+ * plain http on a loopback host (`localhost`, `127.0.0.1`) so a provider
+ * running on the developer's machine works in local development.
+ */
+export function isSecureEndpoint(url: URL): boolean {
+  return (
+    url.protocol === "https:" ||
+    (url.protocol === "http:" &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1"))
+  );
+}
+
+/**
  * Fetch that requires https, enforces a timeout, and treats any HTTP
  * redirect as an error. Token and userinfo endpoints never legitimately
  * redirect; following one could forward credentials to an unintended host,
- * and a non-https endpoint would expose them in transit.
+ * and a non-https endpoint would expose them in transit. Plain http is
+ * allowed on a loopback host, the same as `setupOauth` allows in a catalog,
+ * so a provider running locally works in development.
  */
 export async function fetchRefusingRedirects(
   url: string,
   init: RequestInit,
 ): Promise<{ ok: boolean; status: number; bodyText: string }> {
-  if (new URL(url).protocol !== "https:") {
+  if (!isSecureEndpoint(new URL(url))) {
     throw new Error(`Refusing non-https request to ${url}`);
   }
   const controller = new AbortController();
