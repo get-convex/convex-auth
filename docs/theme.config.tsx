@@ -7,7 +7,7 @@ const config: DocsThemeConfig = {
     <span style={{ fontWeight: "bold", fontSize: "1.5rem" }}>Convex Auth</span>
   ),
   project: {
-    link: "https://github.com/get-convex/convex-auth",
+    link: "https://github.com/convex/convex-auth",
   },
   chat: {
     link: "https://www.convex.dev/community",
@@ -32,8 +32,7 @@ const config: DocsThemeConfig = {
       </>
     );
   },
-  docsRepositoryBase:
-    "https://github.com/get-convex/convex-auth/tree/main/docs",
+  docsRepositoryBase: "https://github.com/convex/convex-auth/tree/main/docs",
   gitTimestamp() {
     return <></>;
   },

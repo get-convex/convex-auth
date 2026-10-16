@@ -112,7 +112,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 ```
 
 Check out the
-[example repo](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/ResendOTP.ts)
+[example repo](https://github.com/convex/convex-auth-example/blob/main/convex/otp/ResendOTP.ts)
 for a more polished email template, including using `React` for the email
 templating (add `"jsx": "react-jsx"` to your `convex/tsconfig.json`).
 
@@ -142,7 +142,7 @@ export function SignIn() {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         void signIn("resend-otp", formData).then(() =>
-          setStep({ email: formData.get("email") as string })
+          setStep({ email: formData.get("email") as string }),
         );
       }}
     >
@@ -173,7 +173,7 @@ is a short code, we must also provide the `email` that matches the account used
 for the sign-in. The library automatically rate-limits failed attempts.
 
 Check out the
-[example repo](https://github.com/get-convex/convex-auth-example/blob/main/src/auth/SignInFormEmailCode.tsx)
+[example repo](https://github.com/convex/convex-auth-example/blob/main/src/auth/SignInFormEmailCode.tsx)
 for a more polished UI.
 
 </Steps>
@@ -185,18 +185,18 @@ use authentication in your frontend and backend in [Authorization](/authz).
 
 There are no built-in providers, but one is easy to build. The example repo has
 an example of using
-[Twilio and their Node.js SDK](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.ts).
+[Twilio and their Node.js SDK](https://github.com/convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.ts).
 
 The sign-in form works the same as above, but uses a `phone` field instead of an
 `email` field:
-[example](https://github.com/get-convex/convex-auth-example/blob/main/src/auth/SignInFormPhoneCode.tsx).
+[example](https://github.com/convex/convex-auth-example/blob/main/src/auth/SignInFormPhoneCode.tsx).
 
 If you use a third-party service that takes care of generating and validating
 OTPs, you can use a custom
 [`ConvexCredentials`](/api_reference/providers/ConvexCredentials) config to
 implement the authentication method. The example repo shows how to do this with
 the
-[Twilio Verify service](https://github.com/get-convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.tsx).
+[Twilio Verify service](https://github.com/convex/convex-auth-example/blob/main/convex/otp/TwilioOTP.tsx).
 
 When you're done configuring your chosen authentication methods, learn how to
 use authentication in your frontend and backend in [Authorization](/authz).

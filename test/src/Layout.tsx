@@ -45,7 +45,7 @@ export function Layout({
           <FooterLink href="https://react.dev/">React</FooterLink> and{" "}
           <FooterLink href="https://ui.shadcn.com/">shadcn/ui</FooterLink>. The
           source code is available on{" "}
-          <FooterLink href="https://github.com/get-convex/convex-auth-example/">
+          <FooterLink href="https://github.com/convex/convex-auth-example/">
             GitHub
           </FooterLink>
           .

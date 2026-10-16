@@ -15,7 +15,7 @@ const packageJSON = JSON.parse(
 );
 
 const directoryPath = path.join(__dirname, "test");
-const repositoryUrl = "git@github.com:get-convex/convex-auth-example.git";
+const repositoryUrl = "git@github.com:convex/convex-auth-example.git";
 
 // Create a temporary directory
 const tempDir = fs.mkdtempSync(
@@ -57,7 +57,7 @@ shell.rm("convex/test.helpers.ts");
 shell.exec("git init");
 shell.exec("git add .");
 shell.exec(
-  'git commit -m "Published from https://github.com/get-convex/convex-auth"',
+  'git commit -m "Published from https://github.com/convex/convex-auth"',
 );
 
 // Force push to the repository for deploying to Vercel

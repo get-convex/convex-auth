@@ -105,7 +105,7 @@ export function SignIn() {
 ```
 
 Check out the
-[example repo](https://github.com/get-convex/convex-auth-example/blob/main/src/auth/SignInFormEmailLink.tsx)
+[example repo](https://github.com/convex/convex-auth-example/blob/main/src/auth/SignInFormEmailLink.tsx)
 for a more polished UI.
 
 You can find more examples of email customization in
@@ -134,9 +134,9 @@ This can enable a form of a session fixation attack:
 5. V is now instantly signed in to an account that M has access to. Any data
    that V provides to your app, will be accessible by M.
 
-To make this kind of an attack less likely to succeed, you can add an interstitial
-page that shows the user which email they are signing-in with, and require a
-user interaction (button click) to proceed.
+To make this kind of an attack less likely to succeed, you can add an
+interstitial page that shows the user which email they are signing-in with, and
+require a user interaction (button click) to proceed.
 
 You can do this similarly to setting up the [OTP](/config/otps) method:
 
