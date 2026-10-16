@@ -249,6 +249,20 @@ describe("convex-auth init CLI", () => {
   });
 });
 
+describe("FILE_TEMPLATES", () => {
+  // TypeScript 6 no longer loads `@types/node` by default, and the
+  // `convex/tsconfig.json` of a new project lists no `types`, so the generated
+  // files must compile without Node's globals. A project with
+  // `verbatimModuleSyntax` also needs type-only imports to use `import type`.
+  test("auth.config.ts compiles without Node types", () => {
+    const authConfig = FILE_TEMPLATES["auth.config.ts"];
+    expect(authConfig).not.toContain("process.");
+    expect(authConfig).toContain(
+      'import type { AuthConfig } from "convex/server";',
+    );
+  });
+});
+
 describe("installCommand", () => {
   test.each([
     ["npm", "npm install"],
