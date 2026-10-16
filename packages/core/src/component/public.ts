@@ -72,16 +72,159 @@ function accountByIdentity(
     .unique();
 }
 
-/** Look up a refresh token, in any state, by its hash. */
-function lookupRefreshTokenByHash(
-  ctx: QueryCtx,
+/**
+ * Look up a refresh token, in any state, by its hash.
+ *
+ * A token from a 2.0.0-alpha.2 session moves its whole session into
+ * `refreshTokens` first (see {@link migrateLegacySession}), so it is found in
+ * the state it maps to and the caller treats it like any other.
+ */
+async function lookupRefreshTokenByHash(
+  ctx: MutationCtx,
   hash: string,
 ): Promise<Doc<"refreshTokens"> | null> {
-  return ctx.db
-    .query("refreshTokens")
+  const lookup = () =>
+    ctx.db
+      .query("refreshTokens")
+      .withIndex("by_hash", (q) => q.eq("hash", hash))
+      .unique();
+  const token = await lookup();
+  if (token !== null) return token;
+
+  const legacy =
+    (await ctx.db
+      .query("sessions")
+      .withIndex("by_refresh_hash", (q) => q.eq("refreshTokenHash", hash))
+      .unique()) ?? (await legacySessionOfSpentHash(ctx, hash));
+  if (legacy === null) return null;
+  await migrateLegacySession(ctx, legacy);
+  return await lookup();
+}
+
+// --- Migration from 2.0.0-alpha.2 ------------------------------------------
+//
+// alpha.2 kept a session's current refresh token on the session row and the
+// hashes of its rotated-away tokens in `spentRefreshTokens`. Both versions hash
+// with `sha256Hex`, so the rows move into `refreshTokens` as they are, in the
+// states they correspond to:
+//
+//  - the current token was handed to the client and not yet presented:
+//    `issued`.
+//  - the newest rotated-away token was presented once, and its holder may not
+//    have received what replaced it (alpha.2's grace window): `redeemed`,
+//    which lets that client retry.
+//  - older rotated-away tokens: `spent`, retired when the token after them was
+//    presented, so presenting one still revokes the session.
+//
+// Nothing changes for the client: its token keeps working, and nobody is
+// signed out by the upgrade.
+
+/** The alpha.2 session a rotated-away refresh token hash belongs to, if any. */
+async function legacySessionOfSpentHash(
+  ctx: MutationCtx,
+  hash: string,
+): Promise<Doc<"sessions"> | null> {
+  const spent = await ctx.db
+    .query("spentRefreshTokens")
     .withIndex("by_hash", (q) => q.eq("hash", hash))
     .unique();
+  if (spent === null) return null;
+  const session = await ctx.db.get("sessions", spent.sessionId);
+  if (session?.refreshTokenHash !== undefined) return session;
+  // An orphan: its session is gone, or was already migrated.
+  await ctx.db.delete("spentRefreshTokens", spent._id);
+  return null;
 }
+
+/** Move one alpha.2 session's refresh tokens into `refreshTokens`. */
+async function migrateLegacySession(
+  ctx: MutationCtx,
+  session: Doc<"sessions">,
+): Promise<void> {
+  if (
+    session.refreshTokenHash === undefined ||
+    session.refreshTokenExpiresAt === undefined
+  ) {
+    return;
+  }
+  const expiresAt = session.refreshTokenExpiresAt;
+  // Oldest first: each row was written when the token after it replaced it.
+  const spent = await ctx.db
+    .query("spentRefreshTokens")
+    .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+    .collect();
+  spent.sort((a, b) => a._creationTime - b._creationTime);
+  for (const [i, row] of spent.entries()) {
+    const newest = i === spent.length - 1;
+    await ctx.db.insert("refreshTokens", {
+      hash: row.hash,
+      sessionId: session._id,
+      ...(newest
+        ? { state: "redeemed" as const }
+        : { state: "spent" as const, retiredAt: spent[i + 1]._creationTime }),
+      expiresAt,
+    });
+    await ctx.db.delete("spentRefreshTokens", row._id);
+  }
+  await ctx.db.insert("refreshTokens", {
+    hash: session.refreshTokenHash,
+    sessionId: session._id,
+    state: "issued",
+    expiresAt,
+  });
+  await ctx.db.patch("sessions", session._id, {
+    refreshTokenHash: undefined,
+    refreshTokenExpiresAt: undefined,
+  });
+}
+
+/**
+ * Migrate 2.0.0-alpha.2 sessions in batches, for a deployment that wants it
+ * done rather than waiting for each session's next refresh. Run it until it
+ * reports `done`:
+ *
+ *     npx convex run --component auth public:migrateLegacySessions
+ *
+ * Safe to run any time and more than once. Not needed for correctness: an
+ * alpha.2 token is migrated whenever it is next presented.
+ */
+export const migrateLegacySessions = mutation({
+  args: {},
+  returns: v.object({
+    migrated: v.number(),
+    orphansDeleted: v.number(),
+    done: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    const SESSIONS_PER_BATCH = 100;
+    const ORPHANS_PER_BATCH = 500;
+    // Present string values sort after a missing one, so this skips migrated
+    // sessions.
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_refresh_hash", (q) => q.gte("refreshTokenHash", ""))
+      .take(SESSIONS_PER_BATCH);
+    for (const session of sessions) {
+      await migrateLegacySession(ctx, session);
+    }
+    if (sessions.length === SESSIONS_PER_BATCH) {
+      return { migrated: sessions.length, orphansDeleted: 0, done: false };
+    }
+    // Every legacy session is migrated, so any rotated-away hash left belongs
+    // to a session that no longer exists.
+    const orphans = await ctx.db
+      .query("spentRefreshTokens")
+      .take(ORPHANS_PER_BATCH);
+    for (const row of orphans) {
+      await ctx.db.delete("spentRefreshTokens", row._id);
+    }
+    return {
+      migrated: sessions.length,
+      orphansDeleted: orphans.length,
+      done: orphans.length < ORPHANS_PER_BATCH,
+    };
+  },
+});
 
 /** A session's refresh tokens in one state. */
 function sessionTokensInState(

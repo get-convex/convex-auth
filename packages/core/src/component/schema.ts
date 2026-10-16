@@ -17,7 +17,25 @@ export default defineSchema({
     userId: v.string(),
     accountId: v.id("accounts"),
     lastRefreshedAt: v.number(),
-  }).index("by_user", ["userId"]),
+    // LEGACY, from 2.0.0-alpha.2, which kept a session's current refresh token
+    // on the session itself. Kept optional so a deployment with alpha.2
+    // sessions can still deploy; each is moved into `refreshTokens` on its next
+    // use, or by `migrateLegacySessions`. Remove in a later release.
+    refreshTokenHash: v.optional(v.string()),
+    refreshTokenExpiresAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_refresh_hash", ["refreshTokenHash"]),
+
+  // LEGACY, from 2.0.0-alpha.2: the hashes of a session's rotated-away refresh
+  // tokens. Moved into `refreshTokens` with their session, then empty. Remove in
+  // a later release.
+  spentRefreshTokens: defineTable({
+    hash: v.string(),
+    sessionId: v.id("sessions"),
+  })
+    .index("by_hash", ["hash"])
+    .index("by_session", ["sessionId"]),
 
   // Every refresh token a session has handed out and still remembers, by its
   // SHA-256 hash. The raw refresh token is never stored.

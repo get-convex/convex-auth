@@ -31,6 +31,13 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
         string | null,
         Name
       >;
+      migrateLegacySessions: FunctionReference<
+        "mutation",
+        "internal",
+        {},
+        { done: boolean; migrated: number; orphansDeleted: number },
+        Name
+      >;
       refresh: FunctionReference<
         "mutation",
         "internal",

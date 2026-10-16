@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- 2.0.0-alpha.2 sessions now survive the upgrade instead of requiring the
+  `auth/sessions` table to be cleared: each moves into the new refresh-token
+  model on its next refresh or sign-out, and
+  `npx convex run --component auth public:migrateLegacySessions` migrates the
+  rest in batches. The legacy fields and `spentRefreshTokens` table stay
+  optional until a later release removes them.
+
 ## 2.0.0-beta.0
 
 Some API and schema breaking changes - see below
