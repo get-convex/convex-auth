@@ -62,7 +62,7 @@ export function normalizeGoogleProfile(
 }
 
 /** App-defined config for setting up the `google` method. */
-export type GoogleProviderOptions = {
+export type GoogleOptions = {
   /** The Google oauth component instance, i.e. `components.authGoogle`. */
   component: ComponentApi;
   /**
@@ -94,7 +94,7 @@ export type GoogleProviderOptions = {
  */
 export function setupGoogle<UsersTable extends string>(
   core: AuthCore<UsersTable>,
-  options: GoogleProviderOptions,
+  options: GoogleOptions,
 ) {
   // Validate the app-supplied options up front so mistakes fail at deploy
   // time, not on the first sign-in.

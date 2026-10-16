@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { api, components } from "./_generated/api.js";
 import { registerCore } from "@convex-dev/auth/test";
-import { registerPasswordProvider } from "@convex-dev/auth/components/password/test";
+import { registerPassword } from "@convex-dev/auth/components/password/test";
 import { registerUsername } from "@convex-dev/auth/components/username/test";
 import schema from "./schema.js";
 
@@ -31,7 +31,7 @@ async function setup() {
 
   const t = convexTest(schema, modules);
   registerCore(t);
-  registerPasswordProvider(t);
+  registerPassword(t);
   registerUsername(t);
   return t;
 }
