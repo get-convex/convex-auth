@@ -55,15 +55,16 @@ const INSTALL_SPEC = `${AUTH_PACKAGE}@beta`;
 
 /** Files scaffolded into the project's `convex/` directory, in write order. */
 export const FILE_TEMPLATES = {
-  "auth.config.ts": `import { AuthConfig } from "convex/server";
+  "auth.config.ts": `import type { AuthConfig } from "convex/server";
+import { env } from "./_generated/server";
 
 export default {
   providers: [
     {
       type: "customJwt",
       applicationID: "convex",
-      issuer: process.env.CONVEX_SITE_URL!,
-      jwks: \`\${process.env.CONVEX_SITE_URL}/auth/.well-known/jwks.json\`,
+      issuer: env.CONVEX_SITE_URL,
+      jwks: \`\${env.CONVEX_SITE_URL}/auth/.well-known/jwks.json\`,
       algorithm: "RS256",
     },
   ],
