@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { api } from "./_generated/api.js";
-import { registerAnonymousProvider } from "@convex-dev/auth/components/anonymous/test";
+import { registerAnonymous } from "@convex-dev/auth/components/anonymous/test";
 import { registerCore } from "@convex-dev/auth/test";
 import schema from "./schema.js";
 import { generateKeyPair, exportPKCS8, exportJWK, decodeJwt } from "jose";
@@ -27,7 +27,7 @@ async function setup() {
   vi.stubEnv("CONVEX_SITE_URL", "http://localhost:8080/");
   const t = convexTest(schema, modules);
   registerCore(t);
-  registerAnonymousProvider(t);
+  registerAnonymous(t);
   return t;
 }
 

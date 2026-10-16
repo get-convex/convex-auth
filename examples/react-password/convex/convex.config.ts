@@ -1,7 +1,7 @@
 import { defineApp } from "convex/server";
 import { v } from "convex/values";
 import auth from "@convex-dev/auth/convex.config.js";
-import passwordProvider from "@convex-dev/auth/components/password/convex.config.js";
+import authPassword from "@convex-dev/auth/components/password/convex.config.js";
 import username from "@convex-dev/auth/components/username/convex.config.js";
 
 const app = defineApp({
@@ -18,7 +18,7 @@ app.use(auth, {
     AUTH_JWKS: app.env.AUTH_JWKS,
   },
 });
-app.use(passwordProvider);
+app.use(authPassword);
 app.use(username);
 
 export default app;
