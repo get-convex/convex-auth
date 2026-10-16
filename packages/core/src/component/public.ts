@@ -25,16 +25,12 @@ import {
 } from "../lib/types.ts";
 import { signJwt, generateRefreshToken } from "./crypto.ts";
 import { sha256Hex } from "../lib/crypto.ts";
+import { resolveTtlConfig, type TtlConfig } from "../lib/ttl.ts";
 
 // --- Configuration ---------------------------------------------------------
 
 // `aud` claim; must match `applicationID` in the app's auth.config.ts.
 const AUDIENCE = "convex";
-// Defaults for the configurable token lifetimes. The app overrides them per
-// deployment via `setupConvexAuth`, which threads the chosen values in as call args;
-// when it passes nothing, these apply.
-const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 60; // 1 minute
-const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 // How many issued, never-presented refresh tokens a session may have. Each
 // refresh presenting the redeemed token adds one, and the first issued token
 // presented clears them all, so the count only climbs when responses are lost
@@ -181,35 +177,6 @@ async function issueRefreshToken(
     expiresAt,
   });
   return { refreshToken, expiresAt };
-}
-
-/**
- * The token lifetimes for a call, with the app's overrides applied over the
- * defaults. Validated so a misconfiguration fails loudly rather than minting
- * nonsensical sessions.
- */
-type TtlConfig = {
-  accessTokenTtlSeconds: number;
-  refreshTokenTtlSeconds: number;
-};
-
-function resolveTtlConfig(args: {
-  accessTokenTtlSeconds?: number;
-  refreshTokenTtlSeconds?: number;
-}): TtlConfig {
-  const accessTokenTtlSeconds =
-    args.accessTokenTtlSeconds ?? DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
-  const refreshTokenTtlSeconds =
-    args.refreshTokenTtlSeconds ?? DEFAULT_REFRESH_TOKEN_TTL_SECONDS;
-  if (accessTokenTtlSeconds <= 0 || refreshTokenTtlSeconds <= 0) {
-    throw new Error("Token TTLs must be positive.");
-  }
-  if (accessTokenTtlSeconds >= refreshTokenTtlSeconds) {
-    throw new Error(
-      "Access-token TTL must be shorter than the refresh-token TTL.",
-    );
-  }
-  return { accessTokenTtlSeconds, refreshTokenTtlSeconds };
 }
 
 async function mintAccessToken(

@@ -20,6 +20,7 @@ import {
   type ConvexAuthCtx,
   type UserCallbacks,
 } from "../lib/types.ts";
+import { resolveTtlConfig } from "../lib/ttl.ts";
 
 /**
  * A type for a factory that returns a `RegisteredMutation` with a handler that
@@ -227,6 +228,9 @@ export function setupConvexAuth<UsersTable extends string = "users">(options: {
   refreshTokenTtlSeconds?: number;
 }): AuthCore<UsersTable> {
   const { component, accessTokenTtlSeconds, refreshTokenTtlSeconds } = options;
+  // Validate the token lifetimes now, so a mistake fails at deploy time
+  // rather than on the first sign-in. The component checks them again.
+  resolveTtlConfig({ accessTokenTtlSeconds, refreshTokenTtlSeconds });
   // The default only matters to the type system (the core never touches the
   // table), but keep the value in sync with the `= "users"` default above.
   const usersTable = options.usersTable ?? ("users" as UsersTable);
