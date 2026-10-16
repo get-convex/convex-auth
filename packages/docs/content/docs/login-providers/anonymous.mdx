@@ -110,9 +110,24 @@ Wrap your app in `ConvexAuthProvider`, passing it the `refreshSession` and
 
 <Step>
 
+### Expose the signed-in user
+
+Write a query that returns the signed-in user, or `null` when nobody is signed
+in. `getAuthUserId` returns the id of the `users` row of the signed-in user:
+
+<include lang="ts" meta='title="convex/currentUser.ts"'>
+  ../../../../../examples/react-minimal/convex/currentUser.ts
+</include>
+
+</Step>
+
+<Step>
+
 ### Set up the authentication UI
 
-Call `useSignInAnonymously` with `api.auth` and invoke the `signIn` function it returns:
+Call `useSignInAnonymously` with `api.auth` and invoke the `signIn` function it
+returns. Once the user is signed in, the UI reads the query above to show their
+id:
 
 {/* TODO Do we want to split this into more files? */}
 
