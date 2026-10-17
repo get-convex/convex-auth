@@ -129,27 +129,41 @@ async function getRefreshedTokens(options: ConvexAuthNextjsMiddlewareOptions) {
     );
     return undefined;
   }
+  let result: SignInAction["_returnType"];
   try {
-    const result = await fetchAction(
+    result = await fetchAction(
       "auth:signIn" as unknown as SignInAction,
       {
         refreshToken,
       },
       getConvexNextjsOptions(options),
     );
-    if (result.tokens === undefined) {
-      throw new Error("Invalid `signIn` action result for token refresh");
-    }
+  } catch (error) {
+    // A thrown error means the request did not complete, so we learned nothing
+    // about the session. An invalid, expired or already used refresh token does
+    // not throw, it resolves with `tokens: null` and is handled below.
+    // Return `undefined` to leave the existing cookies in place and retry on
+    // the next request, instead of signing a valid session out.
+    console.error(error);
     logVerbose(
-      `Successfully refreshed tokens: is null? ${result.tokens === null}`,
+      `Failed to refresh tokens, returning undefined to leave the existing cookies in place`,
       verbose,
     );
-    return result.tokens;
-  } catch (error) {
-    console.error(error);
-    logVerbose(`Failed to refresh tokens, returning null`, verbose);
+    return undefined;
+  }
+  if (result.tokens === undefined) {
+    // The server responded, but with a result this version does not understand.
+    // That is a protocol mismatch rather than a transient failure, so keep
+    // clearing the session.
+    console.error("Invalid `signIn` action result for token refresh");
+    logVerbose(`Invalid token refresh result, returning null`, verbose);
     return null;
   }
+  logVerbose(
+    `Successfully refreshed tokens: is null? ${result.tokens === null}`,
+    verbose,
+  );
+  return result.tokens;
 }
 
 function decodeToken(token: string) {
