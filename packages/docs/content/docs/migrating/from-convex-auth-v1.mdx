@@ -12,3 +12,7 @@ description: Migrating from Convex Auth v1.
 ## How to migrate?
 
 <Callout type="warn">WIP</Callout>
+
+Sessions don’t carry over from v1. v2 stores its tokens under new keys in
+`localStorage` (and in new cookies with Next.js) and ignores the v1 ones, so
+every user has to sign in again after the upgrade.

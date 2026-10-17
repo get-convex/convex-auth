@@ -136,6 +136,20 @@ describe("AuthClient", () => {
     });
   });
 
+  test("ignores tokens left in storage by Convex Auth v1", async () => {
+    // v2 can't verify a v1 access token, so adopting one would report the
+    // user as signed in while every request fails.
+    const storage = new InMemoryStorage();
+    storage.setItem(`__convexAuthJWT_${SUFFIX}`, "v1-access");
+    storage.setItem(`__convexAuthRefreshToken_${SUFFIX}`, "v1-refresh");
+    const { client } = makeClient({}, storage);
+    await client.init();
+    expect(client.getSnapshot()).toMatchObject({
+      isAuthenticated: false,
+      token: null,
+    });
+  });
+
   test("fetchAccessToken returns the cached token without forcing", async () => {
     const refreshSession = vi.fn(async () => rotated(2));
     const { client } = makeClient({ refreshSession });
