@@ -360,7 +360,8 @@ export function setupEmailPassword<UsersTable extends string>(
   const PASSWORD_CHANGED_TEXT =
     "The password of your account was changed.\n\n" +
     "If you did this, you can ignore this email. If you did not do " +
-    "this, change your password immediately or contact support.";
+    "this, reset your password immediately from the sign-in page, or " +
+    "contact support.";
 
   return {
     /**
@@ -695,8 +696,9 @@ export function setupEmailPassword<UsersTable extends string>(
                 "The email address of your account was changed to " +
                   `${complete.email}.\n\n` +
                   "If you did this, you can ignore this email. If you did " +
-                  "not do this, reset your password immediately or contact " +
-                  "support.",
+                  "not do this, contact support immediately. This address " +
+                  "is no longer on your account, so you cannot use it to " +
+                  "reset your password.",
               );
             }
             return { success: true };

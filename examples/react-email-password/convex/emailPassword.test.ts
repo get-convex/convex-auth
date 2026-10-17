@@ -703,6 +703,10 @@ describe("completeChangeEmail", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual([EMAIL]);
     expect(sent[0].subject).toMatch(/email address/i);
+    // The old address left the account, so it cannot start a reset: the
+    // notification must not tell its reader to reset the password from it.
+    expect(sent[0].text).toMatch(/contact support/i);
+    expect(sent[0].text).toMatch(/cannot use it to reset your password/i);
   });
 
   test("rejects an unknown secret with INVALID_CHALLENGE", async () => {
