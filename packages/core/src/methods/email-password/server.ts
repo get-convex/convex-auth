@@ -34,6 +34,7 @@ import {
   wrongUserUserError,
   emailNotFoundUserError,
   validateEmailFormat,
+  landingUrlProblem,
   type EmailSenderConfig,
 } from "../../components/email/validation.ts";
 import type { SendEmailRef } from "../../components/email/helpers.ts";
@@ -313,6 +314,19 @@ export function setupEmailPassword<UsersTable extends string>(
   options: EmailPasswordOptions,
 ) {
   const { component, passwordComponent, emailSender, urls } = options;
+  // Validate the URLs now, so a mistake fails at deploy time rather than in
+  // the first email.
+  for (const [name, url] of Object.entries(urls)) {
+    const problem = landingUrlProblem(url);
+    if (problem !== null) {
+      throw new Error(
+        `setupEmailPassword: urls.${name} ${problem}: ${url}. Give an ` +
+          `absolute URL, for example "https://example.com/verify". If the ` +
+          `URL comes from an env var such as SITE_URL, check that the env ` +
+          `var includes the scheme ("http://" or "https://").`,
+      );
+    }
+  }
 
   /** The Resend runtime options `lib.sendEmail` requires. */
   const senderRuntimeOptions = () => ({
