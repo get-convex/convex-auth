@@ -3,6 +3,7 @@
     "index",
     "getting-started",
     "login-providers",
+    "current-user",
     "ssr-nextjs",
     "migrating",
     "api"

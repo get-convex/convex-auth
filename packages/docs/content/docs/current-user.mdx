@@ -1,0 +1,207 @@
+---
+title: Working with the signed-in user
+description: Read the signed-in user on the server, and show the right UI on the client.
+---
+
+Once a login provider is set up, every Convex function knows who is calling
+it, and the client knows whether the user is signed in. This page shows how to
+use both.
+
+## On the server
+
+### Get the user id
+
+Call `getAuthUserId` from `@convex-dev/auth/server` in a query, a mutation, or
+an action. It returns the id of the signed-in user's row in your `users`
+table, or `null` if the caller is not signed in:
+
+```ts title="convex/currentUser.ts"
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { query } from "./_generated/server";
+
+export const loggedInUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      return null;
+    }
+    return await ctx.db.get("users", userId);
+  },
+});
+```
+
+The id is the one your `createUser` callback returned, so it is typed as
+`Id<"users">`. If your users live in a table with another name, pass it as a
+type argument: `getAuthUserId<"members">(ctx)` (see [Using existing user
+data](/migrating/existing-user-data)).
+
+<Callout type="info">
+  The user's row can be gone even if the caller has a valid token: an access
+  token stays valid until it expires, even if your app deleted the user in the
+  meantime. Check for `null` when you load the row, as above.
+</Callout>
+
+### Require a signed-in user
+
+In a mutation that only signed-in users may call, throw when there is no
+user. The id from `getAuthUserId` comes from the verified access token, so use
+it rather than a user id passed as an argument:
+
+```ts title="convex/todos.ts"
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { v } from "convex/values";
+import { mutation } from "./_generated/server";
+
+export const create = mutation({
+  args: { text: v.string() },
+  handler: async (ctx, { text }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Not signed in");
+    }
+    await ctx.db.insert("todos", { userId, text });
+  },
+});
+```
+
+### Read the user's email address or username
+
+Convex Auth keeps the credentials of each login provider in that provider's
+component, not in your `users` table. Read them from the component:
+
+- **Email + password**: the `authEmail` component stores the verified
+  addresses of each user. `getPrimaryEmail` returns the primary address (or
+  `null`), and `getEmails` returns all of them.
+- **Username + password and username + passkey**: the `authUsername`
+  component stores the username. `getUsername` returns it.
+- **OAuth**: the provider sends a profile (with the email address, the name,
+  and so on) to your `createUser` and `onSignIn` callbacks. Store what you need
+  in your `users` table there.
+
+For example, with the email + password provider:
+
+<include
+  lang="ts"
+  meta='title="convex/currentUser.ts" highlight="components.authEmail.verifiedEmails.getPrimaryEmail"'
+>
+  ../../../../examples/react-email-password/convex/currentUser.ts
+</include>
+
+<Callout type="info">
+  The email + password provider calls `createUser` at sign-up, before the user
+  has proved that they own the address. That's why `createUser` doesn't get the
+  address. Read it from the component once the user is signed in, and read it
+  again when you need it rather than copying it to your `users` table: the user
+  can change it later.
+</Callout>
+
+The [username + password guide](/login-providers/password) has the same query
+for usernames.
+
+## On the client
+
+### Read the authentication state
+
+`useConvexAuth` from `convex/react` tells you whether the user is signed in.
+`isLoading` is `true` while the client restores the session, for example right
+after a page load:
+
+```tsx title="src/App.tsx"
+import { useConvexAuth } from "convex/react";
+
+export function App() {
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  if (isLoading) {
+    return <p>Loading…</p>;
+  }
+  return isAuthenticated ? <Dashboard /> : <SignIn />;
+}
+```
+
+The `<AuthLoading>`, `<Unauthenticated>`, and `<Authenticated>` components,
+also from `convex/react`, render their children only in the matching state.
+Queries in an `<Authenticated>` subtree run only once the client is
+authenticated:
+
+```tsx
+import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+
+export function App() {
+  return (
+    <>
+      <AuthLoading>
+        <p>Loading…</p>
+      </AuthLoading>
+      <Unauthenticated>
+        <SignIn />
+      </Unauthenticated>
+      <Authenticated>
+        <Dashboard />
+      </Authenticated>
+    </>
+  );
+}
+```
+
+### Show the user
+
+Call your query with `useQuery`. Its result updates when the user signs in or
+out. This example uses the email + password query from above:
+
+```tsx title="src/Dashboard.tsx"
+import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+
+export function Dashboard() {
+  const user = useQuery(api.currentUser.loggedInUser);
+  const { signOut } = useAuthActions();
+  return (
+    <>
+      {user && <p>Signed in as {user.email}</p>}
+      <button onClick={() => void signOut()}>Sign out</button>
+    </>
+  );
+}
+```
+
+### Protect routes
+
+To keep signed-out users off a page, wrap the page in a component that
+redirects them. With React Router:
+
+```tsx title="src/App.tsx"
+import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { type ReactNode } from "react";
+import { Navigate } from "react-router-dom";
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <AuthLoading>
+        <p>Loading…</p>
+      </AuthLoading>
+      <Unauthenticated>
+        <Navigate to="/login" replace />
+      </Unauthenticated>
+      <Authenticated>{children}</Authenticated>
+    </>
+  );
+}
+```
+
+Then use it in your routes, for example
+`<Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />`. The
+[email + password example
+app](https://github.com/get-convex/convex-auth/tree/reboot/examples/react-email-password/src/App.tsx)
+has a full set of routes.
+
+<Callout type="warn">
+  A route guard only hides UI. Anyone can call your public Convex functions
+  directly, so every query and mutation that reads or changes private data must
+  check the user on the server, as shown above.
+</Callout>
+
+With Next.js, you can also redirect on the server before the page renders. See
+[SSR (Next.js)](/ssr-nextjs/setup).
