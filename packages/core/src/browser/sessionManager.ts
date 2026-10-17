@@ -271,6 +271,16 @@ export class AuthClient {
     return this.#accessToken;
   }
 
+  /**
+   * The storage the client persists to (the `storage` passed to the auth
+   * provider), namespaced like the session tokens. Sign-in methods keep their
+   * flow secrets here, so the secrets persist wherever the session does,
+   * including in async stores like React Native's secure storage.
+   */
+  get storage(): NamespacedStorage {
+    return this.#storage;
+  }
+
   // --- Ambient sign-in surface ----------------------------------------------
 
   /**
