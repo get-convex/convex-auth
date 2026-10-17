@@ -207,6 +207,8 @@ export type ConvexAuthActionsContext = {
      *  - `redirectTo`: If provided, customizes the destination the user is
      *     redirected to at the end of an OAuth flow or the magic link URL.
      *     See [redirect callback](https://labs.convex.dev/auth/api_reference/server#callbacksredirect).
+     *  - `scope`: If provided for OAuth, overrides the provider's configured
+     *     authorization scopes for this sign-in.
      *  - `code`: OTP code for email or phone verification, or
      *     (used only in RN) the code from an OAuth flow or magic link URL.
      */
@@ -218,6 +220,11 @@ export type ConvexAuthActionsContext = {
            * redirected to at the end of an OAuth flow or the magic link URL.
            */
           redirectTo?: string;
+          /**
+           * If provided for OAuth, overrides the provider's configured
+           * authorization scopes for this sign-in.
+           */
+          scope?: string;
           /**
            * OTP code for email or phone verification, or
            * (used only in RN) the code from an OAuth flow or magic link URL.
