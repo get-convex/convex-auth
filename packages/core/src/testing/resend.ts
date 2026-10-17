@@ -38,7 +38,7 @@ export function registerResendStub(t: T, name: string = "resend") {
 export async function stubEmailSender(
   t: T,
   name: string = "resend",
-): Promise<EmailSenderConfig> {
+): Promise<Extract<EmailSenderConfig, { kind: "resend" }>> {
   type StubApi = {
     lib: { sendEmail: FunctionReference<"mutation", "internal"> };
   };
