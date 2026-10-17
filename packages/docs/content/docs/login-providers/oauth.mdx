@@ -453,3 +453,29 @@ Include an `App.tsx` like the following in your application:
 </Tabs>
 
 {/* prettier-ignore-end */}
+
+## Using OAuth with other login providers
+
+Each provider guide writes a `createUser` mutation that accepts only its own
+provider. When your app offers several login methods, for instance a password
+and GitHub, write a single `createUser` whose `provider` argument is a union of
+the provider objects, and attach it to every provider. The `name` field tells
+which provider created the account, and narrows `profile` to the profile type of
+that provider.
+
+This example from the Next.js example app shares `createUser` and `onSignIn`
+between the anonymous, username + password, and GitHub providers. It stores the
+GitHub login in the user row, and the time of the last sign-in:
+
+<include
+  lang="ts"
+  meta='title="convex/users.ts" highlight="const vProvider = v.union(" highlight="args: { provider: vProvider },"'
+>
+  ../../../../../examples/nextjs/convex/users.ts
+</include>
+
+Then pass the same functions to each provider in `convex/auth.ts`:
+
+<include lang="ts" meta='title="convex/auth.ts"'>
+  ../../../../../examples/nextjs/convex/auth.ts
+</include>
